@@ -1,0 +1,11 @@
+SPOTIFY_CLIENT_ID=61aff1bceb514922b22415c035b04586
+SPOTIFY_CLIENT_SECRET=79302227926048abad04b1200498de58
+REDIRECT_URI=http://localhost:3001/callback
+
+SUPABASE_URL=https://sifcxfymkmlmbelzolbx.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpZmN4Znlta21sbWJlbHpvbGJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjQ1NzYsImV4cCI6MjA5NTQwMDU3Nn0.YvMr2aAqfmyBMKky94YfvVSpCurzlet5tZlv4WfCvRA
+
+SKIP_VOTES_NEEDED=3
+PORT=3001
+
+# Quando trocar para a empresa, só muda as 3 linhas acima (Spotify + Supabase)
