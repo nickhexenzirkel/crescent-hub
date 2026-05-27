@@ -634,15 +634,42 @@ const LandingPage = ({onStart}) => {
    LOGIN
 ══════════════════════════════════════════ */
 const LoginScreen = ({onLogin}) => {
-  const [email,se]=useState('');
-  const [pass,sp]=useState('');
-  const [loading,sl]=useState(false);
-  const [err,serr]=useState('');
-  const go=()=>{
-    if(!email||!pass){serr('Preencha e-mail e senha.');return;}
-    serr('');sl(true);
-    setTimeout(()=>{sl(false);onLogin();},1400);
+  const [cpf,  setCpf]  = useState('');
+  const [pass, setPass] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const maskCpf = (v) => {
+    const d = v.replace(/\D/g,'').slice(0,11);
+    if(d.length<=3) return d;
+    if(d.length<=6) return d.replace(/(\d{3})(\d+)/,'$1.$2');
+    if(d.length<=9) return d.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d+)/,'$1.$2.$3-$4');
   };
+
+  const go = async () => {
+    const rawCpf = cpf.replace(/\D/g,'');
+    if(rawCpf.length !== 11){ setErr('CPF inválido. Digite os 11 dígitos.'); return; }
+    if(!pass){ setErr('Digite sua senha.'); return; }
+    setErr(''); setLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/auth/login`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ cpf: rawCpf, password: pass }),
+      });
+      const data = await r.json();
+      if(!r.ok){ setErr(data.error || 'Erro ao entrar.'); setLoading(false); return; }
+      localStorage.setItem('ch_token', data.token);
+      onLogin(data.user);
+    } catch {
+      setErr('Servidor offline. Verifique se o servidor está rodando.');
+      setLoading(false);
+    }
+  };
+
+  const handleKey = (e) => { if(e.key==='Enter') go(); };
+
   return(
     <div style={{minHeight:'100vh',display:'grid',gridTemplateColumns:'1fr 1fr',position:'relative',zIndex:1}}>
       {/* LEFT */}
@@ -650,9 +677,6 @@ const LoginScreen = ({onLogin}) => {
         justifyContent:'center',padding:64,
         background:'rgba(240,248,255,0.55)',backdropFilter:'blur(12px)',
         borderRight:`1px solid ${T.border}`}}>
-        {/* floating moons */}
-        <div style={{position:'absolute',top:32,right:32}}></div>
-        <div style={{position:'absolute',bottom:40,left:32,transform:'rotate(180deg)'}}></div>
         <div style={{marginBottom:32,display:'flex',justifyContent:'center'}}>
           <Logo size={110}/>
         </div>
@@ -668,36 +692,77 @@ const LoginScreen = ({onLogin}) => {
       </div>
 
       {/* RIGHT */}
-      <div className="fsu2" style={{display:'flex',alignItems:'center',
-        justifyContent:'center',padding:64}}>
+      <div className="fsu2" style={{display:'flex',alignItems:'center',justifyContent:'center',padding:64}}>
         <div style={{width:'100%',maxWidth:400}}>
           <div style={{marginBottom:36}}>
-            <div style={{fontFamily:'var(--font-body)',fontSize:28,fontWeight:600,
-              color:T.text,marginBottom:7}}>Entrar no Sistema</div>
+            <div style={{fontFamily:'var(--font-body)',fontSize:28,fontWeight:600,color:T.text,marginBottom:7}}>
+              Entrar no Sistema
+            </div>
             <div style={{fontFamily:'var(--font-body)',fontSize:15,color:T.textS}}>
-              Acesse sua conta corporativa
+              Use seu CPF e a senha fornecida pelo RH
             </div>
           </div>
-          <Inp label="E-mail corporativo" value={email} onChange={se} type="email"
-            placeholder="colaborador@empresa.com" icon="✉" autoFocus/>
-          <Inp label="Senha" value={pass} onChange={sp} type="password"
-            placeholder="••••••••" icon="🔒"/>
-          {err&&<div style={{fontFamily:'var(--font-body)',fontSize:13,color:T.danger,
-            background:T.dangerGl,border:`1px solid rgba(192,64,80,0.20)`,
-            borderRadius:9,padding:'9px 14px',marginBottom:14}}>{err}</div>}
+
+          {/* CPF */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontFamily:'var(--font-body)',fontSize:13,fontWeight:600,color:T.textS,marginBottom:6}}>
+              CPF
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',
+              borderRadius:11,border:`1.5px solid ${T.border}`,background:T.surface||'white'}}>
+              <span style={{fontSize:15}}>🪪</span>
+              <input
+                value={cpf}
+                onChange={e=>setCpf(maskCpf(e.target.value))}
+                onKeyDown={handleKey}
+                placeholder="000.000.000-00"
+                autoFocus
+                style={{flex:1,border:'none',outline:'none',background:'transparent',
+                  fontSize:15,color:T.text,fontFamily:'var(--font-body)',letterSpacing:'.04em'}}/>
+            </div>
+          </div>
+
+          {/* Senha */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontFamily:'var(--font-body)',fontSize:13,fontWeight:600,color:T.textS,marginBottom:6}}>
+              Senha
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',
+              borderRadius:11,border:`1.5px solid ${T.border}`,background:T.surface||'white'}}>
+              <span style={{fontSize:15}}>🔒</span>
+              <input
+                type="password"
+                value={pass}
+                onChange={e=>setPass(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder="••••••••"
+                style={{flex:1,border:'none',outline:'none',background:'transparent',
+                  fontSize:15,color:T.text,fontFamily:'var(--font-body)'}}/>
+            </div>
+          </div>
+
+          {err&&(
+            <div style={{fontFamily:'var(--font-body)',fontSize:13,color:T.danger||'#C04050',
+              background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.20)',
+              borderRadius:9,padding:'9px 14px',marginBottom:14}}>⚠️ {err}
+            </div>
+          )}
+
           <Btn v="primary" full onClick={go} disabled={loading}
             style={{padding:'14px',fontSize:15,borderRadius:11,justifyContent:'center',marginTop:4}}>
             {loading
-              ?<span style={{display:'flex',alignItems:'center',gap:9}}>
+              ? <span style={{display:'flex',alignItems:'center',gap:9}}>
                   <span style={{width:16,height:16,border:'2px solid rgba(255,255,255,.3)',
                     borderTop:'2px solid #fff',borderRadius:'50%',
-                    animation:'spin .7s linear infinite',display:'inline-block'}}/>Entrando...
+                    animation:'spin .7s linear infinite',display:'inline-block'}}/>
+                  Entrando...
                 </span>
-              :'Entrar'}
+              : 'Entrar'}
           </Btn>
+
           <div style={{textAlign:'center',marginTop:14}}>
-            <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textD,cursor:'pointer'}}>
-              Esqueceu a senha? Fale com o administrador
+            <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textD}}>
+              Esqueceu a senha? Fale com o RH
             </span>
           </div>
           <div style={{marginTop:26,width:'100%'}}><StarDivider/></div>
@@ -710,7 +775,6 @@ const LoginScreen = ({onLogin}) => {
           </div>
         </div>
       </div>
-
     </div>
   );
 };
@@ -718,8 +782,9 @@ const LoginScreen = ({onLogin}) => {
 /* ══════════════════════════════════════════
    MODULE SELECTOR
 ══════════════════════════════════════════ */
-const ModuleSelector = ({onSelect}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout}) => {
   const [hov,sh]=useState(null);
+  const isAdmin = authUser?.role === 'admin';
   /* ícones SVG elegantes para cada módulo */
   const IcoOFX = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
@@ -779,12 +844,13 @@ const ModuleSelector = ({onSelect}) => {
       <line x1="16" y1="8" x2="16.01" y2="8" strokeWidth="2.5"/>
     </svg>
   );
-  const mods=[
-    {id:'colaborador', label:'Central do Colaborador',  sub:'Portal RH completo',    icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', hi:true},
-    {id:'alexa',       label:'Central Alexa',           sub:'Festival · Mural · Recados', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Novo', hi:true},
-    {id:'dashboard',   label:'Dashboard RH',            sub:'Acesso restrito · Gestores',icon:IcoDash,  color:T.gold, bg:T.goldGl, tag:'Admin',    hi:true},
-    {id:'ponto',       label:'Ponto Eletrônico',        sub:'Leitor de arquivo AFD', icon:IcoPonto, color:T.gold, bg:T.goldGl, tag:'Novo',      hi:true},
+  const allMods=[
+    {id:'colaborador', label:'Central do Colaborador',  sub:'Portal RH completo',    icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', hi:true, adminOnly:false},
+    {id:'alexa',       label:'Central Alexa',           sub:'Festival · Mural · Recados', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Novo', hi:true, adminOnly:false},
+    {id:'dashboard',   label:'Dashboard RH',            sub:'Gestão · Funcionários', icon:IcoDash,  color:T.gold, bg:T.goldGl, tag:'Admin', hi:true, adminOnly:true},
+    {id:'ponto',       label:'Ponto Eletrônico',        sub:'Leitor de arquivo AFD', icon:IcoPonto, color:T.gold, bg:T.goldGl, tag:'Admin', hi:true, adminOnly:true},
   ];
+  const mods = allMods.filter(m => !m.adminOnly || isAdmin);
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
       alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'40px 32px'}}>
@@ -804,9 +870,24 @@ const ModuleSelector = ({onSelect}) => {
         <div style={{fontFamily:'var(--font-body)',fontSize:16,color:T.textS}}>
           Selecione um módulo para continuar
         </div>
+        {authUser&&(
+          <div style={{marginTop:16,display:'flex',alignItems:'center',gap:10,justifyContent:'center'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
+              <div style={{width:24,height:24,borderRadius:7,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'white'}}>
+                {authUser.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+              </div>
+              <span style={{fontSize:13,fontWeight:600,color:T.text}}>{authUser.name}</span>
+              {isAdmin&&<span style={{fontSize:10,color:T.gold,fontWeight:700,padding:'1px 6px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
+            </div>
+            <button onClick={onLogout}
+              style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textD,fontFamily:'var(--font-body)',outline:'none'}}>
+              Sair
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="fsu2" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',
+      <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${mods.length},1fr)`,
         gap:18,width:'100%',maxWidth:1200}}>
         {mods.map(m=>(
           <div key={m.id} onClick={()=>onSelect(m.id)}
@@ -2181,6 +2262,64 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [changePw, setChangePw] = useState({old:'',new1:'',new2:''});
   const [changePwMsg, setChangePwMsg] = useState('');
 
+  // ── Funcionários (real, conectado ao servidor) ───────────
+  const [empList, setEmpList]         = useState([]);
+  const [empLoading, setEmpLoading]   = useState(false);
+  const [empModal, setEmpModal]       = useState(null); // null | 'new' | {employee}
+  const [empForm, setEmpForm]         = useState({name:'',cpf:'',role:'employee'});
+  const [empFormErr, setEmpFormErr]   = useState('');
+  const [empSaving, setEmpSaving]     = useState(false);
+  const [pwModal, setPwModal]         = useState(null); // null | employee
+  const [pwVal, setPwVal]             = useState('');
+  const [pwMsg, setPwMsg]             = useState('');
+
+  const authHeader = () => ({ 'Content-Type':'application/json', Authorization:`Bearer ${localStorage.getItem('ch_token')||''}` });
+
+  const loadEmployees = async () => {
+    setEmpLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() });
+      const d = await r.json();
+      setEmpList(d.employees || []);
+    } catch { /* servidor offline */ }
+    setEmpLoading(false);
+  };
+
+  const saveEmployee = async () => {
+    const cpfClean = empForm.cpf.replace(/\D/g,'');
+    if(!empForm.name.trim()){ setEmpFormErr('Nome obrigatório'); return; }
+    if(cpfClean.length!==11){ setEmpFormErr('CPF deve ter 11 dígitos'); return; }
+    setEmpSaving(true); setEmpFormErr('');
+    try {
+      const isEdit = empModal && empModal !== 'new';
+      const url  = isEdit ? `${SERVER_URL}/api/employees/${empModal.id}` : `${SERVER_URL}/api/employees`;
+      const meth = isEdit ? 'PUT' : 'POST';
+      const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify({ name:empForm.name.trim(), cpf:cpfClean, role:empForm.role }) });
+      const d = await r.json();
+      if(!r.ok){ setEmpFormErr(d.error||'Erro ao salvar'); setEmpSaving(false); return; }
+      await loadEmployees();
+      setEmpModal(null); setEmpForm({name:'',cpf:'',role:'employee'});
+    } catch { setEmpFormErr('Erro de conexão'); }
+    setEmpSaving(false);
+  };
+
+  const toggleActive = async (emp) => {
+    await fetch(`${SERVER_URL}/api/employees/${emp.id}`, { method:'PUT', headers: authHeader(), body: JSON.stringify({ active: !emp.active }) });
+    await loadEmployees();
+  };
+
+  const resetPassword = async () => {
+    if(!pwVal.trim()){ setPwMsg('Digite a nova senha'); return; }
+    const r = await fetch(`${SERVER_URL}/api/employees/${pwModal.id}/password`, { method:'PUT', headers: authHeader(), body: JSON.stringify({ password: pwVal }) });
+    const d = await r.json();
+    if(r.ok){ setPwMsg('✅ Senha redefinida!'); setTimeout(()=>{ setPwModal(null); setPwVal(''); setPwMsg(''); }, 1500); }
+    else setPwMsg(d.error||'Erro');
+  };
+
+  const maskCpfDisp = (v) => v; // já vem mascarado do servidor
+
+  useEffect(()=>{ if(tab==='funcionarios') loadEmployees(); }, [tab]);
+
   const genPw = () => {
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
     return Array.from({length:10},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
@@ -2212,6 +2351,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   });
 
   const TABS=[
+    {id:'funcionarios',label:'Funcionários',icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'usuarios',label:'Usuários',icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
     {id:'banco',label:'Banco Extra',icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'perfis',label:'Perfis',icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
@@ -2322,6 +2462,166 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
         {/* Content */}
         <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:16}}>
+
+          {/* ── TAB: FUNCIONÁRIOS (real, Supabase) ── */}
+          {tab==='funcionarios'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Funcionários</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>!e.active).length} inativos</div>
+                </div>
+                <button onClick={()=>{ setEmpForm({name:'',cpf:'',role:'employee'}); setEmpFormErr(''); setEmpModal('new'); }}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                  + Novo Funcionário
+                </button>
+              </div>
+
+              {/* Table */}
+              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+                {/* Head */}
+                <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 80px 80px 120px',gap:0,padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
+                  {['Nome','CPF','Cargo','Status','Ações'].map(h=>(
+                    <div key={h} style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em'}}>{h}</div>
+                  ))}
+                </div>
+                {empLoading
+                  ? <div style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:13}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>
+                      Carregando...
+                    </div>
+                  : empList.length===0
+                    ? <div style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:13}}>Nenhum funcionário cadastrado ainda.</div>
+                    : empList.map((emp,i)=>(
+                        <div key={emp.id} style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 80px 80px 120px',gap:0,padding:'12px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:emp.active?1:0.55,transition:'opacity .15s'}}>
+                          {/* Nome */}
+                          <div style={{display:'flex',alignItems:'center',gap:10}}>
+                            <div style={{width:32,height:32,borderRadius:9,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'white',flexShrink:0}}>
+                              {emp.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+                            </div>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600,color:T.text}}>{emp.name}</div>
+                              <div style={{fontSize:10,color:T.textT}}>desde {new Date(emp.created_at).toLocaleDateString('pt-BR')}</div>
+                            </div>
+                          </div>
+                          {/* CPF */}
+                          <div style={{fontSize:12,color:T.textS,fontFamily:'monospace'}}>{emp.cpf}</div>
+                          {/* Role */}
+                          <div>
+                            <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,
+                              background:emp.role==='admin'?`${T.gold}18`:'rgba(0,0,0,0.04)',
+                              color:emp.role==='admin'?T.gold:T.textS}}>
+                              {emp.role==='admin'?'Admin':'Func.'}
+                            </span>
+                          </div>
+                          {/* Status */}
+                          <div>
+                            <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,
+                              background:emp.active?'rgba(34,197,94,0.1)':'rgba(192,64,80,0.08)',
+                              color:emp.active?'#16a34a':'#C04050'}}>
+                              {emp.active?'Ativo':'Inativo'}
+                            </span>
+                          </div>
+                          {/* Ações */}
+                          <div style={{display:'flex',gap:5}}>
+                            <button onClick={()=>{ setEmpForm({name:emp.name,cpf:emp.cpf,role:emp.role}); setEmpFormErr(''); setEmpModal(emp); }}
+                              title="Editar"
+                              style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button onClick={()=>{ setPwVal(''); setPwMsg(''); setPwModal(emp); }}
+                              title="Redefinir senha"
+                              style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                            </button>
+                            <button onClick={()=>toggleActive(emp)}
+                              title={emp.active?'Desativar':'Ativar'}
+                              style={{width:28,height:28,borderRadius:7,border:`1px solid ${emp.active?'rgba(192,64,80,0.3)':T.border}`,background:emp.active?'rgba(192,64,80,0.06)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:emp.active?'#C04050':T.textS,outline:'none'}}>
+                              {emp.active
+                                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                              }
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                }
+              </div>
+
+              {/* Modal novo/editar */}
+              {empModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                  <div style={{background:cardBg,borderRadius:18,padding:32,width:400,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:20}}>
+                      {empModal==='new'?'Novo Funcionário':'Editar Funcionário'}
+                    </div>
+                    {/* Nome */}
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Nome completo</div>
+                      <input value={empForm.name} onChange={e=>setEmpForm(f=>({...f,name:e.target.value}))}
+                        placeholder="Ex: Maria da Silva"
+                        style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                    </div>
+                    {/* CPF */}
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>CPF</div>
+                      <input value={empForm.cpf} onChange={e=>setEmpForm(f=>({...f,cpf:e.target.value}))}
+                        placeholder="000.000.000-00"
+                        disabled={empModal!=='new'}
+                        style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:empModal==='new'?(T.surface||'white'):`${T.border}44`,fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',cursor:empModal==='new'?'text':'not-allowed'}}/>
+                      {empModal==='new'&&<div style={{fontSize:11,color:T.textD,marginTop:4}}>💡 Senha inicial = CPF (somente números)</div>}
+                    </div>
+                    {/* Cargo */}
+                    <div style={{marginBottom:20}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Cargo</div>
+                      <select value={empForm.role} onChange={e=>setEmpForm(f=>({...f,role:e.target.value}))}
+                        style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
+                        <option value="employee">Funcionário</option>
+                        <option value="admin">Administrador</option>
+                      </select>
+                    </div>
+                    {empFormErr&&<div style={{fontSize:12,color:'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)'}}>⚠️ {empFormErr}</div>}
+                    <div style={{display:'flex',gap:10}}>
+                      <button onClick={()=>{setEmpModal(null);setEmpFormErr('');}}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                        Cancelar
+                      </button>
+                      <button onClick={saveEmployee} disabled={empSaving}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:empSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {empSaving?'Salvando...':'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal redefinir senha */}
+              {pwModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                  <div style={{background:cardBg,borderRadius:18,padding:32,width:360,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:6}}>Redefinir Senha</div>
+                    <div style={{fontSize:13,color:T.textS,marginBottom:20}}>{pwModal.name}</div>
+                    <input value={pwVal} onChange={e=>setPwVal(e.target.value)}
+                      placeholder="Nova senha"
+                      style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',marginBottom:14}}/>
+                    <div style={{fontSize:11,color:T.textD,marginBottom:16}}>💡 Para usar o CPF como senha, digite somente os 11 números.</div>
+                    {pwMsg&&<div style={{fontSize:12,color:pwMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12}}>{pwMsg}</div>}
+                    <div style={{display:'flex',gap:10}}>
+                      <button onClick={()=>setPwModal(null)}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                        Cancelar
+                      </button>
+                      <button onClick={resetPassword}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        Redefinir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── TAB: USUÁRIOS ── */}
           {tab==='usuarios'&&(
@@ -6906,41 +7206,59 @@ const Portal = ({onBack}) => {
    ROOT
 ══════════════════════════════════════════ */
 export default function CrescentHub() {
-  const [screen,ss]           = useState('landing');
-  const [adminSession,setAdmin] = useState(null);  // null | {name}
-  const [showAdminLogin,setShowAdminLogin] = useState(false);
+  const [screen, ss]       = useState('landing');
+  const [authUser, setAuthUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Verifica token salvo ao carregar o app
+  useEffect(() => {
+    const token = localStorage.getItem('ch_token');
+    if (!token) { setAuthChecked(true); return; }
+    fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.user) { setAuthUser(d.user); ss('modules'); }
+        else localStorage.removeItem('ch_token');
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  const handleLogin = (user) => { setAuthUser(user); ss('modules'); };
+
+  const handleLogout = () => {
+    localStorage.removeItem('ch_token');
+    setAuthUser(null);
+    ss('login');
+  };
 
   const handleModuleSelect = (id) => {
-    if (id==='colaborador') ss('colaborador');
-    else if (id==='ponto')  ss('ponto');
-    else if (id==='alexa')  ss('alexa');
-    else if (id==='dashboard') {
-      if (adminSession) ss('dashboard');
-      else setShowAdminLogin(true);
-    }
+    const adminOnly = ['dashboard','ponto'];
+    if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
+    ss(id);
   };
+
+  if (!authChecked) return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.page||'#F0F6FC'}}>
+      <div style={{width:32,height:32,borderRadius:'50%',border:`3px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite'}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 
   return(
     <>
       <style>{FONTS}</style>
-      <div style={{minHeight:'100vh',background:T.page,color:T.text,
-        fontFamily:'var(--font-body)',position:'relative'}}>
+      <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
-          {screen==='landing'     && <LandingPage   onStart={()=>ss('login')}/>}
-          {screen==='login'       && <LoginScreen    onLogin={()=>ss('modules')}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect}/>}
+          {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
+          {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout}/>}
           {screen==='colaborador' && <Portal         onBack={()=>ss('modules')}/>}
-          {screen==='ponto'       && <PontoEletronico onBack={()=>ss('modules')} isAdmin={!!adminSession}/>}
-          {screen==='dashboard'   && adminSession && <DashboardRH onBack={()=>ss('modules')} adminName={adminSession.name}/>}
-          {screen==='alexa'       && <CentralAlexa onBack={()=>ss('modules')}/>}
+          {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
+          {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
+          {screen==='alexa'       && <CentralAlexa  onBack={()=>ss('modules')}/>}
         </div>
-        {/* Admin Login Modal */}
-        {showAdminLogin&&(
-          <AdminLoginModal
-            onSuccess={()=>{setAdmin({name:'Administrador'});setShowAdminLogin(false);ss('dashboard');}}
-            onCancel={()=>setShowAdminLogin(false)}/>
-        )}
       </div>
     </>
   );
