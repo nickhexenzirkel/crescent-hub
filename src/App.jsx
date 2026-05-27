@@ -53,11 +53,16 @@ async function extractAlbumColors(imageUrl) {
         };
 
         resolve([
-          boost(region(0,0,40,40)),
-          boost(region(40,0,80,40)),
-          boost(region(0,40,40,80)),
-          boost(region(40,40,80,80)),
-          boost(region(15,15,65,65)),
+          boost(region(0,0,40,40)),       // canto sup esq
+          boost(region(40,0,80,40)),      // canto sup dir
+          boost(region(0,40,40,80)),      // canto inf esq
+          boost(region(40,40,80,80)),     // canto inf dir
+          boost(region(15,15,65,65)),     // centro
+          boost(region(0,0,80,25)),       // topo total
+          boost(region(0,55,80,80)),      // base total
+          boost(region(30,0,50,80)),      // faixa central vertical
+          boost(region(0,25,80,55),1.9),  // meio com saturação extra
+          boost(region(10,10,40,40),2.2), // sup esq super-saturado
         ]);
       } catch { resolve(null); }
     };
@@ -7202,18 +7207,29 @@ const CentralAlexa = ({onBack}) => {
       {/* ── Festival ambient background — Apple Music style ── */}
       {tab==="festival"&&festColors&&(
         <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.9s ease"}}>
-          {/* Base color wash */}
-          <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}55,${festColors[1]}45,${festColors[2]}38,${festColors[3]}30)`,transition:"background 2s ease"}}/>
-          {/* Blob 1 — top left */}
-          <div style={{position:"absolute",width:"55vw",height:"55vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}99 0%,transparent 65%)`,top:"-15vw",left:"-10vw",filter:"blur(90px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
-          {/* Blob 2 — top right */}
-          <div style={{position:"absolute",width:"50vw",height:"50vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}88 0%,transparent 65%)`,top:"-10vw",right:"-8vw",filter:"blur(85px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
-          {/* Blob 3 — bottom center */}
-          <div style={{position:"absolute",width:"45vw",height:"45vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}80 0%,transparent 62%)`,bottom:"-10vw",left:"22%",filter:"blur(80px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
-          {/* Blob 4 — bottom right */}
-          <div style={{position:"absolute",width:"42vw",height:"42vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}77 0%,transparent 65%)`,bottom:"5vw",right:"-5vw",filter:"blur(78px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
-          {/* Center glow */}
-          <div style={{position:"absolute",width:"35vw",height:"35vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}66 0%,transparent 65%)`,top:"35%",left:"32%",filter:"blur(70px)",animation:"festBlob2 20s ease-in-out infinite reverse"}}/>
+          {/* Base gradient wash usando todas as cores */}
+          <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}55,${festColors[5]}40,${festColors[1]}45,${festColors[6]}35,${festColors[2]}40)`,transition:"background 2s ease"}}/>
+
+          {/* Blob 1 — top-left, grande, lento */}
+          <div style={{position:"absolute",width:"58vw",height:"58vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}99 0%,transparent 65%)`,top:"-18vw",left:"-12vw",filter:"blur(88px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
+          {/* Blob 2 — top-right */}
+          <div style={{position:"absolute",width:"50vw",height:"50vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}90 0%,transparent 65%)`,top:"-12vw",right:"-8vw",filter:"blur(82px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
+          {/* Blob 3 — bottom-left */}
+          <div style={{position:"absolute",width:"48vw",height:"48vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}88 0%,transparent 62%)`,bottom:"-12vw",left:"-8vw",filter:"blur(78px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
+          {/* Blob 4 — bottom-right */}
+          <div style={{position:"absolute",width:"44vw",height:"44vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}88 0%,transparent 65%)`,bottom:"-8vw",right:"-6vw",filter:"blur(75px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
+          {/* Blob 5 — centro */}
+          <div style={{position:"absolute",width:"38vw",height:"38vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}77 0%,transparent 65%)`,top:"30%",left:"31%",filter:"blur(72px)",animation:"festBlob5 11s ease-in-out infinite"}}/>
+          {/* Blob 6 — topo faixa larga */}
+          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[5]}60 0%,transparent 65%)`,top:"-5vw",left:"10%",filter:"blur(95px)",animation:"festBlob6 19s ease-in-out infinite"}}/>
+          {/* Blob 7 — base faixa larga */}
+          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[6]}60 0%,transparent 65%)`,bottom:"-5vw",left:"5%",filter:"blur(95px)",animation:"festBlob7 16s ease-in-out infinite"}}/>
+          {/* Blob 8 — faixa vertical centro */}
+          <div style={{position:"absolute",width:"28vw",height:"80vh",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[7]}55 0%,transparent 65%)`,top:"5%",left:"38%",filter:"blur(80px)",animation:"festBlob8 22s ease-in-out infinite"}}/>
+          {/* Blob 9 — médio direita */}
+          <div style={{position:"absolute",width:"36vw",height:"36vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[8]}70 0%,transparent 60%)`,top:"20%",right:"5%",filter:"blur(70px)",animation:"festBlob2 13s ease-in-out infinite reverse"}}/>
+          {/* Blob 10 — médio esquerda */}
+          <div style={{position:"absolute",width:"32vw",height:"32vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[9]}75 0%,transparent 60%)`,top:"40%",left:"2%",filter:"blur(65px)",animation:"festBlob5 18s ease-in-out infinite reverse"}}/>
         </div>
       )}      <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
@@ -7234,6 +7250,10 @@ const CentralAlexa = ({onBack}) => {
         @keyframes festBlob2{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-70px,30px) scale(1.15)}80%{transform:translate(40px,-20px) scale(0.9)}}
         @keyframes festBlob3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,60px) scale(1.1)}}
         @keyframes festBlob4{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-40px,-50px) scale(1.18)}70%{transform:translate(30px,20px) scale(0.88)}}
+        @keyframes festBlob5{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(80px,20px) scale(1.25)}75%{transform:translate(-60px,-30px) scale(0.8)}}
+        @keyframes festBlob6{0%,100%{transform:translate(0,0) scale(1) rotate(0deg)}50%{transform:translate(-50px,70px) scale(1.2) rotate(180deg)}}
+        @keyframes festBlob7{0%,100%{transform:translate(0,0) scale(1)}20%{transform:translate(40px,-60px) scale(0.9)}60%{transform:translate(-30px,40px) scale(1.3)}90%{transform:translate(60px,10px) scale(0.95)}}
+        @keyframes festBlob8{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-80px,-20px) scale(1.1)}66%{transform:translate(50px,60px) scale(0.85)}}
       `}</style>
 
       {/* Topbar */}
