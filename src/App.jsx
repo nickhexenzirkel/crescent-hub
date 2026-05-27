@@ -318,16 +318,38 @@ const applyTheme = (key) => {
 };
 
 /* ─── MOCK DATA ─── */
-const USER = {
-  name:'Ana Ferreira', short:'Ana', role:'Analista de RH', avatar:'AF', color:T.blue,
-  cpf:'***.***.888-**', rg:'20080001234', birth:'15/03/1997',
-  email:'ana.ferreira@empresa.com', phone:'(85) 99845-2211',
-  street:'Rua das Flores, 142', district:'Cajazeiras', cep:'60860-150',
-  city:'Fortaleza', state:'CE', category:'CLT', cargo:'Analista Jr.',
-  admission:'01/02/2022', dependents:1, horasMes:'160h',
-  salary:4800, inss:528, ir:240, vt:220, va:300, hours:45,
-  trophies:[{icon:'🏆',label:'Platina',from:'Gerência'},{icon:'🥇',label:'Ouro',from:'Nicolas Andrade'}],
+// Lê o usuário autenticado do token JWT (sem verificação — só leitura do payload)
+function getAuthUser() {
+  try {
+    const token = localStorage.getItem('ch_token');
+    if (!token) return null;
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch { return null; }
+}
+
+let USER = {
+  name:'Colaborador', short:'Colaborador', role:'Colaborador', avatar:'CO', color:T.blue,
+  cpf:'***.***.***-**', rg:'—', birth:'—',
+  email:'—', phone:'—',
+  street:'—', district:'—', cep:'—',
+  city:'—', state:'CE', category:'CLT', cargo:'Colaborador',
+  admission:'—', dependents:0, horasMes:'160h',
+  salary:0, inss:0, ir:0, vt:0, va:0, hours:0,
+  trophies:[],
 };
+
+// Atualiza USER com dados reais do token ao carregar a página
+try {
+  const _auth = getAuthUser();
+  if (_auth) {
+    USER.name   = _auth.name;
+    USER.short  = _auth.name.split(' ')[0];
+    USER.avatar = _auth.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+    USER.cpf    = _auth.cpf
+      ? _auth.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-**')
+      : '***.***.***-**';
+  }
+} catch {}
 /* ── MOCK DATA — novas features ── */
 const SALARY_HISTORY = [
   {date:'Jan/22',salary:3500,pct:null,   event:'Admissão'},
@@ -636,6 +658,7 @@ const LandingPage = ({onStart}) => {
 const LoginScreen = ({onLogin}) => {
   const [cpf,  setCpf]  = useState('');
   const [pass, setPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
@@ -731,13 +754,17 @@ const LoginScreen = ({onLogin}) => {
               borderRadius:11,border:`1.5px solid ${T.border}`,background:T.surface||'white'}}>
               <span style={{fontSize:15}}>🔒</span>
               <input
-                type="password"
+                type={showPass ? 'text' : 'password'}
                 value={pass}
                 onChange={e=>setPass(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder="••••••••"
                 style={{flex:1,border:'none',outline:'none',background:'transparent',
                   fontSize:15,color:T.text,fontFamily:'var(--font-body)'}}/>
+              <button onClick={()=>setShowPass(s=>!s)}
+                style={{border:'none',background:'transparent',cursor:'pointer',padding:'2px 4px',color:T.textD,fontSize:13,outline:'none'}}>
+                {showPass ? '🙈' : '👁️'}
+              </button>
             </div>
           </div>
 
@@ -2233,15 +2260,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||'rgba(255,255,255,0.82)');
   const tabsBg   = isDark ? `${T.surface}cc` : (T.surfaceW||'rgba(255,255,255,0.75)');
-  const [tab, setTab]         = useState('usuarios');
-  const [users, setUsers]     = useState([
-    {id:1,name:'Nicolas Andrade',email:'nicolas@7serv.com.br',role:'admin',status:'ativo',lastLogin:'Hoje',dept:'TI'},
-    {id:2,name:'Cley Gestão',email:'cley@7serv.com.br',role:'admin',status:'ativo',lastLogin:'Ontem',dept:'RH'},
-    {id:3,name:'Columbina Silva',email:'columbina@7serv.com.br',role:'admin',status:'ativo',lastLogin:'24/05',dept:'Diretoria'},
-    {id:4,name:'Maria Santos',email:'maria@7serv.com.br',role:'colaborador',status:'ativo',lastLogin:'22/05',dept:'Financeiro'},
-    {id:5,name:'João Alves',email:'joao@7serv.com.br',role:'colaborador',status:'inativo',lastLogin:'10/05',dept:'Operações'},
-    {id:6,name:'Fernanda Costa',email:'fernanda@7serv.com.br',role:'colaborador',status:'ativo',lastLogin:'23/05',dept:'Comercial'},
-  ]);
+  const [tab, setTab]         = useState('funcionarios');
+  const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser]         = useState({name:'',email:'',role:'colaborador',dept:'',pw:'',pw2:''});
   const [newUserErr, setNewUserErr]   = useState('');
@@ -2249,10 +2269,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [trophyTarget, setTrophyTarget] = useState(null);
   const [trophyType, setTrophyType]   = useState('ouro');
   const [trophyMsg, setTrophyMsg]     = useState('');
-  const [trophyHistory, setTrophyHistory] = useState([
-    {id:1,to:'Maria Santos',type:'ouro',msg:'Destaque do mês de Abril!',date:'01/05/2026',from:'Nicolas Andrade'},
-    {id:2,to:'Fernanda Costa',type:'platina',msg:'Melhor performance anual.',date:'15/04/2026',from:'Cley Gestão'},
-  ]);
+  const [trophyHistory, setTrophyHistory] = useState([]);
   const [bancoExtra] = useState([
     {id:1,col:'Maria Santos',date:'20/05/2026',tipo:'Hora Extra',valor:'+2h30',status:'pendente',obs:'Ficou além do horário para entrega do relatório'},
     {id:2,col:'João Alves',date:'19/05/2026',tipo:'Banco Negativo',valor:'-1h00',status:'aprovado',obs:'Saída antecipada autorizada pelo gestor'},
@@ -6458,7 +6475,10 @@ const CentralAlexa = ({onBack}) => {
   ]);
   const [alexaInput, setAlexaInput]   = useState("");
   const [alexaTyping, setAlexaTyping] = useState(false);
-  const [myName, setMyName]           = useState(USER.short||USER.name||"Eu");
+  const [myName, setMyName] = useState(() => {
+    const auth = getAuthUser();
+    return auth?.name || USER.name || 'Colaborador';
+  });
 
   // ── Festival: estado real (Spotify + Supabase) ───────────
   const [queue, setQueue]               = useState([]);
@@ -6480,7 +6500,9 @@ const CentralAlexa = ({onBack}) => {
   const [userId] = useState(() => {
     let id = sessionStorage.getItem('ch_festival_uid');
     if (!id) {
-      id = `${(USER.name||'user').replace(/\s+/g,'_')}_${Math.random().toString(36).substr(2,6)}`;
+      const auth = getAuthUser();
+      const base = (auth?.name || USER.name || 'user').replace(/\s+/g,'_');
+      id = `${base}_${Math.random().toString(36).substr(2,6)}`;
       sessionStorage.setItem('ch_festival_uid', id);
     }
     return id;
@@ -6892,12 +6914,11 @@ const CentralAlexa = ({onBack}) => {
                   )}
                 </div>
 
-                {/* Name input */}
+                {/* Name display — usa nome real do usuário logado */}
                 <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8,position:"relative",zIndex:1}}>
                   <span style={{fontSize:11,color:T.textD}}>Pedindo como:</span>
                   <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:6,background:T.goldGl,border:`1px solid ${T.goldLine}33`}}>
-                    <input value={myName} onChange={e=>setMyName(e.target.value)} placeholder="Seu nome"
-                      style={{background:"transparent",border:"none",outline:"none",fontSize:11,fontWeight:600,color:T.gold,width:80,fontFamily:"var(--font-body)"}}/>
+                    <span style={{fontSize:11,fontWeight:600,color:T.gold}}>{myName}</span>
                   </div>
                 </div>
               </div>
