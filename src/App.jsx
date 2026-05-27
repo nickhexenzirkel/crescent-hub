@@ -21,9 +21,11 @@ const _supabase  = _createSupabaseClient(
 );
 
 // Extrai cores dominantes da capa do álbum via Canvas
+// Usa proxy do servidor para contornar CORS da CDN do Spotify
 async function extractAlbumColors(imageUrl) {
   return new Promise((resolve) => {
     if (!imageUrl) { resolve(null); return; }
+    const proxied = `${SERVER_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -59,7 +61,7 @@ async function extractAlbumColors(imageUrl) {
       } catch { resolve(null); }
     };
     img.onerror = () => resolve(null);
-    img.src = imageUrl;
+    img.src = proxied;
   });
 }
 
