@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 import logoNicolas from "./assets/LogoTipoNicolas.png";
-import unikoLogo   from "./assets/Uniko.png";
+import unikoLogo        from "./assets/Uniko.png";
+import unikoQuadrado    from "./assets/UnikoQuadrado.png";
 import dokoTecnico      from "./assets/DodocoTecnico.jpg";
 import dokoCozinheiro   from "./assets/DodocoCozinheiro.jpg";
 import dokoMedico       from "./assets/DodocoMedico.jpg";
@@ -508,7 +509,7 @@ const Logo = ({size=64}) => (
     }}/>
 );
 
-/* Logo principal da marca — Uniko.png (páginas de login, inicial, módulos, Central Alexa) */
+/* Logo principal da marca — Uniko.png (hero em login, landing, módulos) */
 const BrandLogo = ({size=120}) => (
   <img src={unikoLogo} alt="Uniko"
     style={{
@@ -517,6 +518,18 @@ const BrandLogo = ({size=120}) => (
       display:'block',
       flexShrink:0,
       filter:'drop-shadow(0 6px 24px rgba(14,60,180,0.22))',
+    }}/>
+);
+
+/* Ícone quadrado — UnikoQuadrado.png (topbars, sidebars, favicon) */
+const UnikoIcon = ({size=32, rounded=true}) => (
+  <img src={unikoQuadrado} alt="Uniko"
+    style={{
+      width:size, height:size,
+      objectFit:'cover',
+      display:'block',
+      flexShrink:0,
+      borderRadius: rounded ? Math.round(size * 0.22) : 0,
     }}/>
 );
 
@@ -1049,7 +1062,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
               zIndex:0,pointerEvents:'none'}}/>
             <div style={{position:'absolute',inset:0,zIndex:1,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <Logo size={58}/>
+              <UnikoIcon size={52} rounded={true}/>
             </div>
           </div>
           <div>
@@ -2646,7 +2659,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             <div style={{position:'absolute',width:50,height:50,borderRadius:'50%',background:T.goldL||T.gold,filter:'blur(16px)',opacity:0.15,top:'5px',left:'65%',animation:'hdrBlob2 8s ease-in-out infinite'}}/>
             {/* Logo + nome */}
             <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:10}}>
-              <Logo size={30}/>
+              <UnikoIcon size={30}/>
               <div>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:12,fontWeight:700,color:T.text,letterSpacing:'.08em'}}>UNIKO</div>
                 <div style={{fontSize:10,color:T.gold,fontWeight:600,letterSpacing:'.05em'}}>Dashboard RH</div>
@@ -7359,7 +7372,7 @@ const CentralAlexa = ({onBack}) => {
           Módulos
         </button>
         <div style={{width:1,height:20,background:T.border}}/>
-        <BrandLogo size={34}/>
+        <UnikoIcon size={32}/>
         <span style={{fontSize:14,fontWeight:700,color:T.text,fontFamily:"var(--font-brand)",letterSpacing:".04em"}}>Central Alexa</span>
         <Tag color={T.gold}>Novo</Tag>
         <div style={{flex:1}}/>
