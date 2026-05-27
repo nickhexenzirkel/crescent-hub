@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 import logoNicolas from "./assets/LogoTipoNicolas.png";
 import unikoLogo        from "./assets/Uniko.png";
-import unikoQuadrado    from "./assets/UnikoQuadrado.png";
+// UnikoQuadrado.png fica em public/ — referenciado via URL /UnikoQuadrado.png
 import dokoTecnico      from "./assets/DodocoTecnico.jpg";
 import dokoCozinheiro   from "./assets/DodocoCozinheiro.jpg";
 import dokoMedico       from "./assets/DodocoMedico.jpg";
@@ -521,9 +521,9 @@ const BrandLogo = ({size=120}) => (
     }}/>
 );
 
-/* Ícone quadrado — UnikoQuadrado.png (topbars, sidebars, favicon) */
+/* Ícone quadrado — UnikoQuadrado.png em /public (topbars, sidebars, favicon) */
 const UnikoIcon = ({size=32, rounded=true}) => (
-  <img src={unikoQuadrado} alt="Uniko"
+  <img src="/UnikoQuadrado.png" alt="Uniko"
     style={{
       width:size, height:size,
       objectFit:'cover',
