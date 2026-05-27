@@ -402,36 +402,12 @@ try {
   }
 } catch {}
 /* ── MOCK DATA — novas features ── */
-const SALARY_HISTORY = [
-  {date:'Jan/22',salary:3500,pct:null,   event:'Admissão'},
-  {date:'Jul/22',salary:3800,pct:'+8.5%',event:'Reajuste anual'},
-  {date:'Jan/23',salary:4100,pct:'+7.9%',event:'Reajuste anual'},
-  {date:'Jul/23',salary:4400,pct:'+7.3%',event:'Promoção — Analista Jr.'},
-  {date:'Jan/24',salary:4600,pct:'+4.5%',event:'Reajuste coletivo'},
-  {date:'Jan/25',salary:4800,pct:'+4.3%',event:'Reajuste coletivo'},
-];
+// Histórico salarial agora vem do banco — sem mock
+const SALARY_HISTORY = [];
 
-const COMUNICADOS_DATA = [
-  {id:1,title:'Atualização da Política de Home Office',cat:'Política',date:'20/05/2025',
-   read:false,urgent:true,
-   body:'A partir de julho/2025, colaboradores do administrativo podem solicitar até 2 dias de home office por semana mediante aprovação do gestor imediato. Acesse o formulário de solicitação pelo RH.'},
-  {id:2,title:'Calendário de Férias Coletivas 2025',cat:'RH',date:'15/05/2025',
-   read:false,urgent:false,
-   body:'As férias coletivas de fim de ano ocorrerão entre 22/12/2025 e 02/01/2026. Todos os colaboradores devem garantir que suas demandas estejam alinhadas com seus gestores até 30/11.'},
-  {id:3,title:'Novo benefício: Gympass',cat:'Benefícios',date:'10/05/2025',
-   read:true,urgent:false,
-   body:'A empresa firmou parceria com o Gympass. A partir de junho, todos os colaboradores CLT têm acesso ao plano Basic sem custo. Faça o cadastro com seu e-mail corporativo.'},
-  {id:4,title:'Treinamento Obrigatório — LGPD',cat:'Compliance',date:'05/05/2025',
-   read:true,urgent:false,
-   body:'Todos os colaboradores devem concluir o treinamento de LGPD até 31/05/2025. Acesse a plataforma de treinamentos com seu login corporativo. Duração estimada: 40 minutos.'},
-];
-
-const NOTIFS_DATA = [
-  {id:1,type:'financeiro',icon:'R$', msg:'Holerite de Maio/2025 disponível',     time:'há 2h',    read:false},
-  {id:2,type:'conquista', icon:'★', msg:'Você recebeu o troféu 🥇 Ouro de Nicolas Andrade', time:'há 1 dia',  read:false},
-  {id:3,type:'comunicado',icon:'!', msg:'Novo comunicado: Política de Home Office', time:'há 2 dias', read:false},
-  {id:4,type:'evento',    icon:'◫', msg:'Lembrete: Happy Hour amanhã às 18h',    time:'há 3 dias', read:true},
-];
+// Comunicados e notificações agora vêm do banco — sem mock
+const COMUNICADOS_DATA = [];
+const NOTIFS_DATA = [];
 
 // Dados de equipe, eventos e ranking agora vêm do Supabase — sem mock
 const TEAM_DATA = [];
@@ -1383,7 +1359,21 @@ const TabInicio = ({setTab}) => {
 };
 
 const TabFinanceiro = () => {
-  const liq=USER.salary-USER.inss-USER.ir;
+  const liq = USER.salary - USER.inss - USER.ir;
+  const [salaryHistory, setSalaryHistory]   = useState([]);
+  const [histLoading, setHistLoading]       = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('ch_token');
+    if (!token) { setHistLoading(false); return; }
+    fetch(`${SERVER_URL}/api/auth/salary-history`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(r => r.ok ? r.json() : { history: [] })
+    .then(d => { setSalaryHistory(d.history || []); })
+    .catch(() => {})
+    .finally(() => setHistLoading(false));
+  }, []);
   return(
     <div className="fi" style={{fontFamily:'var(--font-body)'}}>
       <SHead sub="Salários e contracheques">Financeiro</SHead>
@@ -1461,44 +1451,48 @@ const TabFinanceiro = () => {
         <div style={{fontSize:19,fontWeight:600,color:T.text,marginBottom:4}}>Evolução Salarial</div>
         <div style={{fontSize:14,color:T.textT,marginBottom:14}}>Histórico de reajustes</div>
         <StarDivider my={14}/>
-        <SalaryChart/>
-        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:14}}>
-          {SALARY_HISTORY.map((s,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',
-              background:T.surfaceSub||'rgba(0,0,0,0.025)',borderRadius:9,border:`1px solid ${T.border}`}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:T.gold,flexShrink:0}}/>
-              <div>
-                <div style={{fontSize:12,fontWeight:500,color:T.text}}>{s.date} — R$ {s.salary.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
-                {s.pct&&<div style={{fontSize:11,color:T.green}}>{s.pct} · {s.event}</div>}
-                {!s.pct&&<div style={{fontSize:11,color:T.textT}}>{s.event}</div>}
-              </div>
+        {histLoading
+          ? <div style={{textAlign:'center',padding:'20px 0',color:T.textT,fontSize:13}}>
+              <div style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>
+              Carregando histórico...
             </div>
-          ))}
-        </div>
+          : salaryHistory.length === 0
+            ? <div style={{textAlign:'center',padding:'28px 0',color:T.textT,fontSize:13}}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 10px',display:'block'}}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                Nenhum histórico salarial registrado ainda.<br/>
+                <span style={{fontSize:11,opacity:.7}}>O RH registra automaticamente ao salvar o salário no Dashboard.</span>
+              </div>
+            : <>
+                <SalaryChart data={salaryHistory}/>
+                <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:14}}>
+                  {salaryHistory.map((s,i)=>(
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',
+                      background:T.surfaceSub||'rgba(0,0,0,0.025)',borderRadius:9,border:`1px solid ${T.border}`}}>
+                      <div style={{width:6,height:6,borderRadius:'50%',background:T.gold,flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:500,color:T.text}}>
+                          {s.date} — R$ {Number(s.salary).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+                        </div>
+                        {s.pct
+                          ? <div style={{fontSize:11,color:T.green}}>{s.pct} · {s.event}</div>
+                          : <div style={{fontSize:11,color:T.textT}}>{s.event}</div>
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+        }
       </Card>
       <Card style={{padding:'28px'}}>
         <div style={{fontSize:19,fontWeight:600,color:T.text,marginBottom:4}}>Contracheques</div>
         <div style={{fontSize:14,color:T.textT,marginBottom:14}}>Histórico de pagamentos</div>
         <StarDivider my={14}/>
-        {['Jan','Fev','Mar','Abr','Mai','Jun'].map(m=>(
-          <div key={m} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 15px',
-            background:m==='Mai'?T.goldGl:'rgba(0,0,0,0.02)',
-            border:`1px solid ${m==='Mai'?'rgba(212,168,75,0.20)':T.divider}`,
-            borderRadius:11,marginBottom:9}}>
-            <div style={{width:38,height:38,borderRadius:10,
-              background:`linear-gradient(135deg,${T.blue},${T.blueL})`,
-              display:'flex',alignItems:'center',justifyContent:'center',
-              fontSize:12,fontWeight:600,color:'#fff',flexShrink:0}}>{m}</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:500,color:T.text}}>Contracheque {m}/2025</div>
-              <div style={{fontSize:12,color:T.textT,marginTop:2}}>Competência {m} 2025</div>
-            </div>
-            <div style={{fontSize:14,fontWeight:700,color:T.green}}>
-              R$ {liq.toLocaleString('pt-BR',{minimumFractionDigits:2})}
-            </div>
-            <Btn v="ghostGray" style={{padding:'6px 14px',fontSize:13}}>PDF</Btn>
-          </div>
-        ))}
+        <div style={{textAlign:'center',padding:'32px 0',color:T.textT}}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 10px',display:'block'}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <div style={{fontSize:14}}>Nenhum contracheque disponível ainda.</div>
+          <div style={{fontSize:12,marginTop:4,opacity:.7}}>Os contracheques serão disponibilizados pelo RH mensalmente.</div>
+        </div>
       </Card>
     </div>
   );
@@ -1544,12 +1538,8 @@ const TabHoras = () => {
   const [s,ss]=useState('');
   const [nh,snh]=useState('');
   const [nd,snd]=useState('');
-  const [ents,se]=useState([
-    {id:1,date:'15/05/2025',desc:'Plantão extra — relatório mensal',h:3},
-    {id:2,date:'10/05/2025',desc:'Reunião fora do expediente',h:1.5},
-    {id:3,date:'05/05/2025',desc:'Suporte ao time de vendas',h:2},
-  ]);
-  const total=USER.hours+ents.reduce((a,e)=>a+e.h,0);
+  const [ents,se]=useState([]);
+  const total=ents.reduce((a,e)=>a+e.h,0);
   const add=()=>{
     if(!nh||!nd)return;
     se(p=>[{id:Date.now(),date:new Date().toLocaleDateString('pt-BR'),desc:nd,h:Number(nh)},...p]);
@@ -1599,21 +1589,28 @@ const TabHoras = () => {
             onBlur={e=>e.target.style.borderColor=T.border}/>
         </div>
         <StarDivider my={4}/>
-        {ents.filter(e=>e.desc.toLowerCase().includes(s.toLowerCase())).map(e=>(
-          <div key={e.id} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 15px',
-            background:'rgba(0,0,0,0.02)',border:`1px solid ${T.divider}`,
-            borderRadius:11,marginBottom:10}}>
-            <div style={{width:42,height:42,borderRadius:11,
-              background:`linear-gradient(135deg,${T.blue},${T.blueL})`,
-              display:'flex',alignItems:'center',justifyContent:'center',
-              color:'#fff',fontSize:13,fontWeight:600,flexShrink:0}}>{e.h}h</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:500,color:T.text}}>{e.desc}</div>
-              <div style={{fontSize:12,color:T.textT,marginTop:2}}>{e.date}</div>
+        {ents.filter(e=>e.desc.toLowerCase().includes(s.toLowerCase())).length === 0
+          ? <div style={{textAlign:'center',padding:'32px 0',color:T.textT}}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 10px',display:'block'}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <div style={{fontSize:13}}>Nenhuma hora extra registrada ainda.</div>
+              <div style={{fontSize:12,marginTop:4,opacity:.7}}>Use o formulário acima para adicionar suas horas extras.</div>
             </div>
-            <Tag color={T.teal}>Extra</Tag>
-          </div>
-        ))}
+          : ents.filter(e=>e.desc.toLowerCase().includes(s.toLowerCase())).map(e=>(
+              <div key={e.id} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 15px',
+                background:'rgba(0,0,0,0.02)',border:`1px solid ${T.divider}`,
+                borderRadius:11,marginBottom:10}}>
+                <div style={{width:42,height:42,borderRadius:11,
+                  background:`linear-gradient(135deg,${T.blue},${T.blueL})`,
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  color:'#fff',fontSize:13,fontWeight:600,flexShrink:0}}>{e.h}h</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:500,color:T.text}}>{e.desc}</div>
+                  <div style={{fontSize:12,color:T.textT,marginTop:2}}>{e.date}</div>
+                </div>
+                <Tag color={T.teal}>Extra</Tag>
+              </div>
+            ))
+        }
       </Card>
     </div>
   );
@@ -1942,12 +1939,18 @@ const TabFeed = () => {
   );
 };
 
-const SalaryChart = () => {
-  const data=SALARY_HISTORY;
+const SalaryChart = ({ data }) => {
+  if (!data || data.length < 2) return (
+    <div style={{textAlign:'center',padding:'32px 0',color:T.textT,fontSize:13}}>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 8px',display:'block'}}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      Histórico insuficiente para exibir o gráfico.<br/>
+      <span style={{fontSize:11,opacity:.7}}>Aparece automaticamente após ao menos 2 registros salariais.</span>
+    </div>
+  );
   const maxS=Math.max(...data.map(d=>d.salary));
   const minS=Math.min(...data.map(d=>d.salary));
   const W=540,H=160,padX=44,padY=22;
-  const xStep=(W-padX*2)/(data.length-1);
+  const xStep=(W-padX*2)/Math.max(data.length-1,1);
   const yRange=maxS-minS||1;
   const pts=data.map((d,i)=>({x:padX+i*xStep,y:padY+(1-(d.salary-minS)/yRange)*(H-padY*2),...d}));
   const polyline=pts.map(p=>`${p.x},${p.y}`).join(' ');
@@ -2038,30 +2041,37 @@ const TabComunicados = () => {
     </div>
     <StarDivider my={16}/>
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
-      {comuns.map(c=>(
-        <Card key={c.id} onClick={()=>{setSelected(c.id);markRead(c.id);}}
-          style={{padding:'20px 22px',borderLeft:`3px solid ${c.urgent?T.danger:(catColor[c.cat]||T.gold)}`}}>
-          <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-                <Tag color={catColor[c.cat]||T.gold}>{c.cat}</Tag>
-                {c.urgent&&<Tag color={T.danger}>Urgente</Tag>}
-                {!c.read&&<div style={{width:7,height:7,borderRadius:'50%',background:T.gold,flexShrink:0}}/>}
-              </div>
-              <div style={{fontSize:15,fontWeight:c.read?400:600,color:T.text,marginBottom:5}}>{c.title}</div>
-              <div style={{fontSize:13,color:T.textT}}>{c.date}</div>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:6,color:T.textD,fontSize:13}}>
-              {c.read
-                ?<span style={{color:T.green,fontSize:12}}>Lido</span>
-                :<span style={{color:T.textD,fontSize:12}}>Não lido</span>}
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M5 3.5L9 7L5 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+      {comuns.length === 0
+        ? <div style={{textAlign:'center',padding:'48px 0',color:T.textT}}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 12px',display:'block'}}><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <div style={{fontSize:14}}>Nenhum comunicado por enquanto.</div>
+            <div style={{fontSize:12,marginTop:4,opacity:.7}}>Os comunicados do RH aparecerão aqui.</div>
           </div>
-        </Card>
-      ))}
+        : comuns.map(c=>(
+          <Card key={c.id} onClick={()=>{setSelected(c.id);markRead(c.id);}}
+            style={{padding:'20px 22px',borderLeft:`3px solid ${c.urgent?T.danger:(catColor[c.cat]||T.gold)}`}}>
+            <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+                  <Tag color={catColor[c.cat]||T.gold}>{c.cat}</Tag>
+                  {c.urgent&&<Tag color={T.danger}>Urgente</Tag>}
+                  {!c.read&&<div style={{width:7,height:7,borderRadius:'50%',background:T.gold,flexShrink:0}}/>}
+                </div>
+                <div style={{fontSize:15,fontWeight:c.read?400:600,color:T.text,marginBottom:5}}>{c.title}</div>
+                <div style={{fontSize:13,color:T.textT}}>{c.date}</div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6,color:T.textD,fontSize:13}}>
+                {c.read
+                  ?<span style={{color:T.green,fontSize:12}}>Lido</span>
+                  :<span style={{color:T.textD,fontSize:12}}>Não lido</span>}
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M5 3.5L9 7L5 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+          </Card>
+        ))
+      }
     </div>
   </div>);
 };
@@ -2894,6 +2904,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       ]},
                       { title:'Remuneração', fields:[
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
+                        {label:'Motivo do reajuste (ex: Promoção)',key:'salary_event',type:'text',placeholder:'Ex: Reajuste anual, Promoção...'},
                         {label:'INSS (R$)',key:'inss',type:'number'},
                         {label:'IR (R$)',key:'ir',type:'number'},
                         {label:'Vale Transporte (R$)',key:'vt',type:'number'},
