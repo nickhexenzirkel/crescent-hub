@@ -6927,8 +6927,25 @@ const CentralAlexa = ({onBack}) => {
   );
 
   return (
-    <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)"}}>
-      <style>{`
+    <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+
+      {/* ── Festival ambient background — Apple Music style ── */}
+      {tab==="festival"&&festColors&&(
+        <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.9s ease"}}>
+          {/* Base color wash */}
+          <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}55,${festColors[1]}45,${festColors[2]}38,${festColors[3]}30)`,transition:"background 2s ease"}}/>
+          {/* Blob 1 — top left */}
+          <div style={{position:"absolute",width:"55vw",height:"55vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}99 0%,transparent 65%)`,top:"-15vw",left:"-10vw",filter:"blur(90px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
+          {/* Blob 2 — top right */}
+          <div style={{position:"absolute",width:"50vw",height:"50vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}88 0%,transparent 65%)`,top:"-10vw",right:"-8vw",filter:"blur(85px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
+          {/* Blob 3 — bottom center */}
+          <div style={{position:"absolute",width:"45vw",height:"45vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}80 0%,transparent 62%)`,bottom:"-10vw",left:"22%",filter:"blur(80px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
+          {/* Blob 4 — bottom right */}
+          <div style={{position:"absolute",width:"42vw",height:"42vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}77 0%,transparent 65%)`,bottom:"5vw",right:"-5vw",filter:"blur(78px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
+          {/* Center glow */}
+          <div style={{position:"absolute",width:"35vw",height:"35vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}66 0%,transparent 65%)`,top:"35%",left:"32%",filter:"blur(70px)",animation:"festBlob2 20s ease-in-out infinite reverse"}}/>
+        </div>
+      )}      <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
         @keyframes alexaEq2{0%{height:14px}100%{height:6px}}
         @keyframes alexaEq3{0%{height:4px}100%{height:20px}}
@@ -6973,7 +6990,7 @@ const CentralAlexa = ({onBack}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:1200,margin:"0 auto",padding:"24px"}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"24px",position:"relative",zIndex:2}}>
         {/* Tabs */}
         <div style={{display:"flex",gap:6,marginBottom:20,padding:4,width:"fit-content",background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
           {[["festival","🎵 Festival"],["alexa","🔵 Alexa"]].map(([id,label])=>(
@@ -6988,28 +7005,7 @@ const CentralAlexa = ({onBack}) => {
 
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
-          <div style={{position:"relative",minHeight:"calc(100vh - 130px)",borderRadius:16,overflow:"hidden",margin:"-8px -4px",padding:"8px 4px"}}>
-
-            {/* ── Album Art Blobs Background (Apple Music style) ── */}
-            {festColors&&(
-              <div style={{position:"absolute",inset:-40,zIndex:0,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.8s ease"}}>
-                {/* Base wash */}
-                <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}28,${festColors[1]}20,${festColors[2]}18)`,transition:"background 1.5s ease"}}/>
-                {/* Blob 1 — top left */}
-                <div style={{position:"absolute",width:520,height:520,borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}70 0%,transparent 65%)`,top:"-80px",left:"-80px",filter:"blur(90px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
-                {/* Blob 2 — top right */}
-                <div style={{position:"absolute",width:480,height:480,borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}60 0%,transparent 65%)`,top:"-60px",right:"-60px",filter:"blur(85px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
-                {/* Blob 3 — bottom center */}
-                <div style={{position:"absolute",width:440,height:440,borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}55 0%,transparent 62%)`,bottom:"-60px",left:"25%",filter:"blur(80px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
-                {/* Blob 4 — bottom right */}
-                <div style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}50 0%,transparent 65%)`,bottom:"0",right:"-40px",filter:"blur(75px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
-                {/* Center glow — subtle */}
-                <div style={{position:"absolute",width:300,height:300,borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}40 0%,transparent 65%)`,top:"30%",left:"35%",filter:"blur(70px)",animation:"festBlob2 20s ease-in-out infinite reverse"}}/>
-                {/* Noise overlay for depth */}
-                <div style={{position:"absolute",inset:0,backdropFilter:"blur(0px)",background:"rgba(255,255,255,0.04)"}}/>
-              </div>
-            )}
-
+          <div style={{position:"relative",zIndex:1}}>
           <div style={{display:"flex",gap:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: DokoWave + Player */}
@@ -7035,7 +7031,7 @@ const CentralAlexa = ({onBack}) => {
                     <img src={DOKO_WAVE_IMG} alt="DokoWave DJ" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                   </div>
                 </div>
-                <div style={{textAlign:"center",fontSize:10,color:T.textD,marginTop:6,fontWeight:600,letterSpacing:".08em"}}>DOKOWAVE · DJ DA 7BENEFÍCIOS</div>
+                <div style={{textAlign:"center",fontSize:10,color:T.textD,marginTop:6,fontWeight:600,letterSpacing:".08em"}}>DOKOWAVE · DJ DA FIRMA</div>
               </div>
 
               {/* Player controls */}
@@ -7054,11 +7050,18 @@ const CentralAlexa = ({onBack}) => {
                 <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>▶ Tocando Agora</div>
                 {cur
                   ? <>
-                      {cur.album_art&&<img src={cur.album_art} alt="" style={{width:"100%",borderRadius:10,marginBottom:8,objectFit:"cover",maxHeight:120}}/>}
-                      <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
-                      <div style={{fontSize:12,color:T.textS,marginBottom:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
+                      {cur.album_art&&(
+                        <div style={{width:"100%",aspectRatio:"1/1",borderRadius:12,overflow:"hidden",marginBottom:12,boxShadow:`0 8px 24px rgba(0,0,0,0.2)`}}>
+                          <img src={cur.album_art} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                        </div>
+                      )}
+                      <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
+                      <div style={{fontSize:13,color:T.textS,marginBottom:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
                     </>
-                  : <div style={{fontSize:13,color:T.textT,marginBottom:12,textAlign:"center",padding:"12px 0"}}>Nenhuma música tocando</div>
+                  : <div style={{fontSize:13,color:T.textT,marginBottom:12,textAlign:"center",padding:"24px 0"}}>
+                      <div style={{fontSize:32,marginBottom:8}}>🎵</div>
+                      Nenhuma música tocando
+                    </div>
                 }
                 {/* Controls */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:10}}>
