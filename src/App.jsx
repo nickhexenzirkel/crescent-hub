@@ -2459,6 +2459,55 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(()=>{ if(tab==='calendario') loadCalEvents(); }, [tab]);
 
+  // ── Lembretes & Alexa programada ────────────────────────
+  const [lembretes, setLembretes]       = useState([]);
+  const [lembLoading, setLembLoading]   = useState(false);
+  const [lembModal, setLembModal]       = useState(null);
+  const [lembForm, setLembForm]         = useState({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true});
+  const [lembSaving, setLembSaving]     = useState(false);
+  const [lembMsg, setLembMsg]           = useState('');
+
+  const loadLembretes = async () => {
+    setLembLoading(true);
+    try {
+      const { data } = await _supabase.from('reminders').select('*').order('created_at', { ascending: false });
+      setLembretes(data || []);
+    } catch {}
+    setLembLoading(false);
+  };
+
+  const saveLembrete = async () => {
+    if(!lembForm.title.trim()) { setLembMsg('Título obrigatório'); return; }
+    setLembSaving(true); setLembMsg('');
+    const auth = getAuthUser();
+    try {
+      const isEdit = lembModal && lembModal !== 'new';
+      const payload = { ...lembForm, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
+      if (isEdit) {
+        await _supabase.from('reminders').update(payload).eq('id', lembModal.id);
+      } else {
+        await _supabase.from('reminders').insert({ ...payload, created_at: new Date().toISOString() });
+      }
+      await loadLembretes();
+      setLembModal(null);
+      setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true});
+    } catch { setLembMsg('Erro ao salvar'); }
+    setLembSaving(false);
+  };
+
+  const deleteLembrete = async (id) => {
+    if (!window.confirm('Remover este lembrete?')) return;
+    await _supabase.from('reminders').delete().eq('id', id);
+    await loadLembretes();
+  };
+
+  const toggleLembrete = async (id, active) => {
+    await _supabase.from('reminders').update({ active: !active }).eq('id', id);
+    await loadLembretes();
+  };
+
+  useEffect(()=>{ if(tab==='lembretes') loadLembretes(); }, [tab]);
+
   const genPw = () => {
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
     return Array.from({length:10},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
@@ -2494,6 +2543,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
+    {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
     {id:'alexa',          label:'Central Alexa',      icon:<><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 010 20"/><path d="M12 6a6 6 0 010 12"/><path d="M12 22v-4M12 6V2"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
@@ -3031,6 +3081,168 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </tbody>
                 </table>
               </Card>
+            </div>
+          )}
+
+          {/* ── TAB: LEMBRETES & ALEXA PROGRAMADA ── */}
+          {tab==='lembretes'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Lembretes & Alexa Programada</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Programe o que a Alexa vai falar e quando — aparece para todos os colaboradores</div>
+                </div>
+                <button onClick={()=>{ setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true}); setLembMsg(''); setLembModal('new'); }}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                  + Novo Lembrete
+                </button>
+              </div>
+
+              {/* Tipo legend */}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {[
+                  {type:'lembrete',label:'Lembrete geral',color:T.blue},
+                  {type:'alexa',label:'Alexa fala',color:T.gold},
+                  {type:'reuniao',label:'Reunião',color:T.purple||'#7060C8'},
+                  {type:'aviso',label:'Aviso RH',color:'#E91E8C'},
+                ].map(({type,label,color})=>(
+                  <div key={type} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:6,background:`${color}11`,border:`1px solid ${color}33`,fontSize:11,color}}>
+                    <div style={{width:6,height:6,borderRadius:'50%',background:color}}/>
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              {/* List */}
+              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+                {lembLoading
+                  ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
+                    </div>
+                  : lembretes.length===0
+                    ? <div style={{padding:'40px',textAlign:'center',color:T.textT,fontSize:13}}>
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:'0 auto 10px',display:'block'}}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                        Nenhum lembrete criado ainda.
+                      </div>
+                    : lembretes.map((l,i)=>{
+                        const typeColor = {lembrete:T.blue,alexa:T.gold,reuniao:T.purple||'#7060C8',aviso:'#E91E8C'};
+                        const color = typeColor[l.type]||T.gold;
+                        const typeLabel = {lembrete:'Lembrete',alexa:'Alexa fala',reuniao:'Reunião',aviso:'Aviso RH'};
+                        return(
+                          <div key={l.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,opacity:l.active?1:0.5}}>
+                            {/* Color bar */}
+                            <div style={{width:3,height:44,borderRadius:2,background:color,flexShrink:0}}/>
+                            {/* Info */}
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                                <span style={{fontSize:11,fontWeight:600,padding:'1px 7px',borderRadius:4,background:`${color}18`,color}}>{typeLabel[l.type]||l.type}</span>
+                                {l.repeat!=='never'&&<span style={{fontSize:10,color:T.textD}}>↻ {l.repeat==='daily'?'Diário':l.repeat==='weekly'?'Semanal':'Mensal'}</span>}
+                                {!l.active&&<span style={{fontSize:10,color:T.textD}}>Pausado</span>}
+                              </div>
+                              <div style={{fontSize:14,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.title}</div>
+                              {l.message&&<div style={{fontSize:12,color:T.textT,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.message}</div>}
+                            </div>
+                            {/* Time */}
+                            <div style={{flexShrink:0,textAlign:'right'}}>
+                              {l.date&&<div style={{fontSize:12,color:T.textS,fontWeight:500}}>{new Date(l.date+'T12:00:00').toLocaleDateString('pt-BR')}</div>}
+                              {l.time&&<div style={{fontSize:13,fontWeight:700,color:T.gold}}>{l.time}</div>}
+                              <div style={{fontSize:10,color:T.textD,marginTop:2}}>por {l.created_by}</div>
+                            </div>
+                            {/* Actions */}
+                            <div style={{display:'flex',gap:5,flexShrink:0}}>
+                              <button onClick={()=>toggleLembrete(l.id,l.active)}
+                                title={l.active?'Pausar':'Ativar'}
+                                style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
+                                {l.active
+                                  ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                  : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                }
+                              </button>
+                              <button onClick={()=>{ setLembForm({title:l.title,message:l.message||'',time:l.time||'',date:l.date||'',type:l.type||'lembrete',repeat:l.repeat||'never',active:l.active}); setLembMsg(''); setLembModal(l); }}
+                                title="Editar"
+                                style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button onClick={()=>deleteLembrete(l.id)}
+                                title="Remover"
+                                style={{width:28,height:28,borderRadius:7,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.05)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#C04050',outline:'none'}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                }
+              </div>
+
+              {/* Modal */}
+              {lembModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                  <div style={{background:cardBg,borderRadius:18,padding:32,width:440,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:20}}>
+                      {lembModal==='new'?'Novo Lembrete':'Editar Lembrete'}
+                    </div>
+
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Tipo</div>
+                      <div style={{display:'flex',gap:6}}>
+                        {[{v:'lembrete',l:'Lembrete'},{v:'alexa',l:'Alexa fala'},{v:'reuniao',l:'Reunião'},{v:'aviso',l:'Aviso RH'}].map(({v,l})=>(
+                          <button key={v} onClick={()=>setLembForm(p=>({...p,type:v}))}
+                            style={{flex:1,padding:'7px 4px',borderRadius:8,border:`1.5px solid ${lembForm.type===v?T.gold:T.border}`,background:lembForm.type===v?T.goldGl:'transparent',fontSize:11,fontWeight:lembForm.type===v?700:400,color:lembForm.type===v?T.gold:T.textS,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)'}}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {[
+                      {label:'Título',key:'title',placeholder:'Ex: Reunião de equipe'},
+                      {label:'Mensagem / O que a Alexa vai falar',key:'message',placeholder:'Ex: Atenção equipe, reunião em 10 minutos!'},
+                    ].map(f=>(
+                      <div key={f.key} style={{marginBottom:12}}>
+                        <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>{f.label}</div>
+                        <input value={lembForm[f.key]||''} onChange={e=>setLembForm(p=>({...p,[f.key]:e.target.value}))}
+                          placeholder={f.placeholder}
+                          style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                      </div>
+                    ))}
+
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Data</div>
+                        <input type="date" value={lembForm.date||''} onChange={e=>setLembForm(p=>({...p,date:e.target.value}))}
+                          style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Horário</div>
+                        <input type="time" value={lembForm.time||''} onChange={e=>setLembForm(p=>({...p,time:e.target.value}))}
+                          style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                      </div>
+                    </div>
+
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Repetição</div>
+                      <select value={lembForm.repeat||'never'} onChange={e=>setLembForm(p=>({...p,repeat:e.target.value}))}
+                        style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
+                        <option value="never">Sem repetição</option>
+                        <option value="daily">Diário</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensal</option>
+                      </select>
+                    </div>
+
+                    {lembMsg&&<div style={{fontSize:12,color:'#C04050',marginBottom:12}}>{lembMsg}</div>}
+                    <div style={{display:'flex',gap:10}}>
+                      <button onClick={()=>setLembModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={saveLembrete} disabled={lembSaving}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {lembSaving?'Salvando...':'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -6653,9 +6865,7 @@ const DOKO_MSGS_IDLE = [
   "Fila tá quente hoje! 🔥",
   "Qual vai ser a próxima? 👀",
   "A vibe tá boa! Continua assim 🎶",
-  "Que tal um Black Eyed Peas? 😎",
-  "Alguém pediu um samba?",
-  "Vai DJ MAIS FORTE! 🎧",
+  "Que tal um bossanova? 😎",
 ];
 const DOKO_MSGS_ADD = (name, song) => [
   `${name} adicionou "${song}" na fila! 🎵`,
@@ -6779,6 +6989,59 @@ const CentralAlexa = ({onBack}) => {
 
   const [festColors, setFestColors]     = useState(null);
   const [blobsVisible, setBlobsVisible] = useState(true);
+
+  // ── Máquina do Tempo ─────────────────────────────────────
+  const [maquinaData, setMaquinaData]   = useState(null);
+  const [maquinaLoading, setMaquinaLoading] = useState(false);
+
+  // ── Biblioteca ───────────────────────────────────────────
+  const [playlists, setPlaylists]       = useState([]);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+
+  // ── Alexa rate limit ─────────────────────────────────────
+  const auth = getAuthUser();
+  const isAdmin = auth?.role === 'admin';
+  const getAlexaRequests = () => {
+    try {
+      const d = JSON.parse(localStorage.getItem('alexa_reqs')||'[]');
+      const now = Date.now();
+      return d.filter(t => now - t < 5 * 60 * 60 * 1000);
+    } catch { return []; }
+  };
+  const [alexaReqCount, setAlexaReqCount] = useState(() => getAlexaRequests().length);
+  const ALEXA_LIMIT = 2;
+  const canAskAlexa = isAdmin || alexaReqCount < ALEXA_LIMIT;
+
+  const consumeAlexaRequest = () => {
+    if (isAdmin) return;
+    const reqs = getAlexaRequests();
+    reqs.push(Date.now());
+    localStorage.setItem('alexa_reqs', JSON.stringify(reqs));
+    setAlexaReqCount(reqs.length);
+  };
+
+  const loadMaquinaData = async () => {
+    setMaquinaLoading(true);
+    const { data } = await _supabase
+      .from('queue').select('spotify_id,title,artist,album_art')
+      .in('status',['played','skipped']).order('created_at',{ascending:false}).limit(500);
+    if (!data) { setMaquinaLoading(false); return; }
+
+    const songs = {}; const artists = {};
+    data.forEach(s => {
+      songs[s.spotify_id] = songs[s.spotify_id] || { ...s, count: 0 };
+      songs[s.spotify_id].count++;
+      s.artist.split(', ').forEach(a => { artists[a] = (artists[a]||0) + 1; });
+    });
+    setMaquinaData({
+      topSongs:   Object.values(songs).sort((a,b)=>b.count-a.count).slice(0,10),
+      topArtists: Object.entries(artists).sort((a,b)=>b[1]-a[1]).slice(0,10),
+      total:      data.length,
+    });
+    setMaquinaLoading(false);
+  };
+
+  useEffect(() => { if (tab==='maquina') loadMaquinaData(); }, [tab]);
 
   // ── Supabase realtime ────────────────────────────────────
   useEffect(() => {
@@ -6909,12 +7172,14 @@ const CentralAlexa = ({onBack}) => {
 
   const sendAlexa = () => {
     if(!alexaInput.trim()) return;
-    const userMsg = {role:"user",text:alexaInput,ts:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})};
+    if(!canAskAlexa) return;
+    consumeAlexaRequest();
+    const userMsg = {role:"user",text:alexaInput,ts:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),name:USER.short||'Você'};
     setAlexaConvo(c=>[...c,userMsg]);
     setAlexaInput(""); setAlexaTyping(true);
     const found = ALEXA_RESPONSES.find(r=>r.pat.test(alexaInput));
     const resp = found ? (typeof found.resp==="function" ? found.resp() : found.resp) :
-      "🤔 Hmm, não tenho certeza sobre isso. Mas posso te ajudar com previsão do tempo, horários, músicas e comunicados!";
+      "Hmm, não tenho certeza sobre isso. Posso ajudar com previsão do tempo, horários, músicas e comunicados!";
     setTimeout(()=>{
       setAlexaConvo(c=>[...c,{role:"alexa",text:resp,ts:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}]);
       setAlexaTyping(false);
@@ -6998,13 +7263,19 @@ const CentralAlexa = ({onBack}) => {
       <div style={{maxWidth:1200,margin:"0 auto",padding:"24px",position:"relative",zIndex:2}}>
         {/* Tabs */}
         <div style={{display:"flex",gap:6,marginBottom:20,padding:4,width:"fit-content",background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
-          {[["festival","🎵 Festival"],["alexa","🔵 Alexa"]].map(([id,label])=>(
+          {[
+            {id:"festival", label:"Festival", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
+            {id:"biblioteca", label:"Biblioteca", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
+            {id:"maquina", label:"Máquina do Tempo", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
+            {id:"alexa", label:"Alexa", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12a4 4 0 008 0"/><line x1="8" y1="8" x2="8.01" y2="8" strokeWidth="2.5"/><line x1="16" y1="8" x2="16.01" y2="8" strokeWidth="2.5"/></svg>},
+          ].map(({id,label,icon})=>(
             <button key={id} onClick={()=>setTab(id)} style={{
-              padding:"9px 22px",borderRadius:9,cursor:"pointer",outline:"none",
+              display:"flex",alignItems:"center",gap:6,
+              padding:"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
               fontFamily:"var(--font-body)",fontSize:13,fontWeight:tab===id?700:400,
               background:tab===id?T.goldGl:"transparent",color:tab===id?T.gold:T.textS,
               border:`1.5px solid ${tab===id?T.goldLine+"55":T.border}`,transition:"all .15s"
-            }}>{label}</button>
+            }}>{icon}{label}</button>
           ))}
         </div>
 
@@ -7016,15 +7287,15 @@ const CentralAlexa = ({onBack}) => {
             {/* Left: DokoWave + Player */}
             <div style={{width:280,flexShrink:0,display:"flex",flexDirection:"column",gap:16}}>
               {/* DokoWave mascot */}
-              <div style={{borderRadius:20,overflow:"hidden",background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px",boxShadow:T.shM,position:"relative"}}>
-                <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:T.gold,filter:"blur(30px)",opacity:0.08,top:0,left:"20%"}}/>
+              <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative"}}>
+                <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                 {/* Speech bubble */}
-                <div key={dokoMsg} style={{marginBottom:12,padding:"10px 14px",borderRadius:"14px 14px 14px 4px",background:`linear-gradient(135deg,${T.goldGl},${T.gold}18)`,border:`1.5px solid ${T.goldLine}55`,fontSize:12,color:T.text,lineHeight:1.5,fontWeight:500,animation:"bubblePop .3s ease-out",position:"relative",zIndex:1}}>
+                <div key={dokoMsg} style={{marginBottom:16,padding:"10px 14px",borderRadius:"14px 14px 14px 4px",background:`linear-gradient(135deg,${T.goldGl},${T.gold}18)`,border:`1.5px solid ${T.goldLine}55`,fontSize:12,color:T.text,lineHeight:1.5,fontWeight:500,animation:"bubblePop .3s ease-out",position:"relative",zIndex:1}}>
                   {dokoMsg}
                   <div style={{position:"absolute",bottom:-8,left:16,width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:`8px solid ${T.goldLine}55`}}/>
                 </div>
-                {/* DokoWave image */}
-                <div style={{display:"flex",justifyContent:"center",animation:"dokoFloat 3s ease-in-out infinite",position:"relative",zIndex:1}}>
+                {/* DokoWave image — float só na imagem, não afeta o label */}
+                <div style={{display:"flex",justifyContent:"center",position:"relative",zIndex:1,marginBottom:10}}>
                   <div style={{
                     width:160,height:160,borderRadius:"50%",overflow:"hidden",
                     border:`3px solid ${festColors?.[0]||T.gold}BB`,
@@ -7033,10 +7304,12 @@ const CentralAlexa = ({onBack}) => {
                     "--doko-color":festColors?.[0]||T.gold,
                     transition:"border-color 1.5s ease, box-shadow 1.5s ease",
                   }}>
-                    <img src={DOKO_WAVE_IMG} alt="DokoWave DJ" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                    <img src={DOKO_WAVE_IMG} alt="DokoWave DJ"
+                      style={{width:"100%",height:"100%",objectFit:"cover",display:"block",
+                        animation:"dokoFloat 3s ease-in-out infinite"}}/>
                   </div>
                 </div>
-                <div style={{textAlign:"center",fontSize:10,color:T.textD,marginTop:6,fontWeight:600,letterSpacing:".08em"}}>DOKOWAVE · DJ DA FIRMA</div>
+                <div style={{textAlign:"center",fontSize:10,color:T.textD,fontWeight:600,letterSpacing:".08em",position:"relative",zIndex:1}}>DOKOWAVE · DJ DA 7 BENEFÍCIOS</div>
               </div>
 
               {/* Player controls */}
@@ -7204,7 +7477,10 @@ const CentralAlexa = ({onBack}) => {
                       Carregando fila...
                     </div>
                   : queue.length===0
-                    ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>Fila vazia! Pesquise uma música acima. 🎵</div>
+                    ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        Fila vazia! Pesquise uma música acima.
+                      </div>
                     : queue.map((s,i)=>{
                         const votes = skipVotes[s.id]||0;
                         const iAmPlaying = s.status==='playing';
@@ -7246,7 +7522,8 @@ const CentralAlexa = ({onBack}) => {
                                 cursor:voted?"default":"pointer",
                                 fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",
                                 opacity:voted?0.6:1}}>
-                              👎 {votes}/{VETO}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>
+                              {votes}/{VETO}
                             </button>
                             <span style={{fontSize:10,color:T.textD,minWidth:28,textAlign:"right"}}>{s.duration_str||"—"}</span>
                           </div>
@@ -7256,6 +7533,123 @@ const CentralAlexa = ({onBack}) => {
               </div>
             </div>
           </div>
+          </div>
+        )}
+
+        {/* ══════════ BIBLIOTECA TAB ══════════ */}
+        {tab==="biblioteca"&&(
+          <div style={{position:"relative",zIndex:1}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Biblioteca</div>
+                <div style={{fontSize:13,color:T.textT,marginTop:3}}>Playlists criadas pelos colaboradores para o DokoWave</div>
+              </div>
+              <button onClick={()=>{
+                if(!newPlaylistName.trim()) return;
+                setPlaylists(p=>[...p,{id:Date.now(),name:newPlaylistName.trim(),creator:USER.short||USER.name,songs:[],createdAt:new Date().toLocaleDateString('pt-BR')}]);
+                setNewPlaylistName('');
+              }} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontWeight:600,fontSize:13,fontFamily:"var(--font-body)"}}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nova Playlist
+              </button>
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:20}}>
+              <input value={newPlaylistName} onChange={e=>setNewPlaylistName(e.target.value)}
+                onKeyDown={e=>{ if(e.key==='Enter'&&newPlaylistName.trim()){ setPlaylists(p=>[...p,{id:Date.now(),name:newPlaylistName.trim(),creator:USER.short||USER.name,songs:[],createdAt:new Date().toLocaleDateString('pt-BR')}]); setNewPlaylistName(''); }}}
+                placeholder="Nome da playlist..."
+                style={{flex:1,padding:"10px 14px",borderRadius:10,border:`1.5px solid ${T.border}`,background:isDark?T.surface:"white",fontSize:13,color:T.text,outline:"none",fontFamily:"var(--font-body)"}}/>
+            </div>
+            {playlists.length===0
+              ? <div style={{textAlign:"center",padding:"60px 0",color:T.textT}}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                  <div style={{fontSize:14}}>Nenhuma playlist ainda.</div>
+                  <div style={{fontSize:12,marginTop:4,opacity:.7}}>Crie a primeira playlist para o DokoWave tocar!</div>
+                </div>
+              : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
+                  {playlists.map(pl=>(
+                    <div key={pl.id} style={{borderRadius:14,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"18px",boxShadow:T.sh,cursor:"pointer"}}>
+                      <div style={{width:"100%",aspectRatio:"1/1",borderRadius:10,background:`linear-gradient(135deg,${T.gold}33,${T.gold}11)`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pl.name}</div>
+                      <div style={{fontSize:11,color:T.textT}}>por {pl.creator}</div>
+                      <div style={{fontSize:10,color:T.textD,marginTop:2}}>{pl.songs.length} músicas · {pl.createdAt}</div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        )}
+
+        {/* ══════════ MÁQUINA DO TEMPO TAB ══════════ */}
+        {tab==="maquina"&&(
+          <div style={{position:"relative",zIndex:1}}>
+            <div style={{marginBottom:20}}>
+              <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
+              <div style={{fontSize:13,color:T.textT,marginTop:3}}>O que a galera mais pediu no DokoWave</div>
+            </div>
+            {maquinaLoading
+              ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
+                  <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin .7s linear infinite",margin:"0 auto 10px"}}/>
+                  Carregando histórico...
+                </div>
+              : !maquinaData || maquinaData.total===0
+                ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div style={{fontSize:14}}>Nenhuma música tocada ainda.</div>
+                    <div style={{fontSize:12,marginTop:4,opacity:.7}}>Volte depois que o DokoWave tocar algumas músicas!</div>
+                  </div>
+                : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+                    {/* Top Músicas */}
+                    <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span style={{fontSize:15,fontWeight:700,color:T.text}}>Músicas Mais Tocadas</span>
+                        <span style={{fontSize:11,color:T.textT,marginLeft:"auto"}}>{maquinaData.total} plays no total</span>
+                      </div>
+                      {maquinaData.topSongs.map((s,i)=>(
+                        <div key={s.spotify_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
+                          <div style={{width:22,textAlign:"center",fontSize:12,fontWeight:700,color:i<3?T.gold:T.textD}}>#{i+1}</div>
+                          {s.album_art
+                            ? <img src={s.album_art} alt="" style={{width:36,height:36,borderRadius:7,objectFit:"cover",flexShrink:0}}/>
+                            : <div style={{width:36,height:36,borderRadius:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/></svg>
+                              </div>
+                          }
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
+                            <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
+                          </div>
+                          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:6,background:T.goldGl}}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            <span style={{fontSize:11,fontWeight:700,color:T.gold}}>{s.count}x</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Top Artistas */}
+                    <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        <span style={{fontSize:15,fontWeight:700,color:T.text}}>Artistas Mais Pedidos</span>
+                      </div>
+                      {maquinaData.topArtists.map(([artist,count],i)=>(
+                        <div key={artist} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
+                          <div style={{width:22,textAlign:"center",fontSize:12,fontWeight:700,color:i<3?T.gold:T.textD}}>#{i+1}</div>
+                          <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.gold}44,${T.gold}22)`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.gold}}>
+                            {artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
+                          </div>
+                          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:6,background:T.goldGl}}>
+                            <span style={{fontSize:11,fontWeight:700,color:T.gold}}>{count} plays</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+            }
           </div>
         )}
 
@@ -7322,17 +7716,29 @@ const CentralAlexa = ({onBack}) => {
                   )}
                 </div>
                 {/* Input */}
-                <div style={{borderTop:`1px solid ${T.border}`,padding:"12px 16px",display:"flex",gap:10}}>
-                  <input value={alexaInput} onChange={e=>setAlexaInput(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&sendAlexa()}
-                    placeholder="Alexa, qual a previsão do tempo hoje?"
-                    style={{flex:1,padding:"10px 14px",border:`1.5px solid ${T.border}`,borderRadius:10,fontFamily:"var(--font-body)",fontSize:13,color:T.text,background:T.surface,outline:"none",transition:"border-color .15s"}}
-                    onFocus={e=>e.target.style.borderColor=T.gold}
-                    onBlur={e=>e.target.style.borderColor=T.border}/>
-                  <button onClick={sendAlexa} disabled={!alexaInput.trim()}
-                    style={{padding:"10px 18px",borderRadius:10,border:"none",cursor:alexaInput.trim()?"pointer":"not-allowed",fontFamily:"var(--font-body)",fontSize:13,fontWeight:700,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",opacity:alexaInput.trim()?1:0.5}}>
-                    Perguntar
-                  </button>
+                <div style={{borderTop:`1px solid ${T.border}`,padding:"12px 16px"}}>
+                  {!isAdmin&&(
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,color:alexaReqCount>=ALEXA_LIMIT?"#C04050":T.textD}}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {alexaReqCount>=ALEXA_LIMIT
+                        ? "Limite atingido. Suas 2 requisições se renovam em 5 horas."
+                        : `${ALEXA_LIMIT - alexaReqCount} de ${ALEXA_LIMIT} requisições restantes (renova em 5h)`
+                      }
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:10}}>
+                    <input value={alexaInput} onChange={e=>setAlexaInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&sendAlexa()}
+                      disabled={!canAskAlexa}
+                      placeholder={canAskAlexa?"Alexa, qual a previsão do tempo hoje?":"Limite de requisições atingido"}
+                      style={{flex:1,padding:"10px 14px",border:`1.5px solid ${T.border}`,borderRadius:10,fontFamily:"var(--font-body)",fontSize:13,color:T.text,background:T.surface,outline:"none",transition:"border-color .15s",cursor:canAskAlexa?"text":"not-allowed",opacity:canAskAlexa?1:0.5}}
+                      onFocus={e=>e.target.style.borderColor=T.gold}
+                      onBlur={e=>e.target.style.borderColor=T.border}/>
+                    <button onClick={sendAlexa} disabled={!alexaInput.trim()||!canAskAlexa}
+                      style={{padding:"10px 18px",borderRadius:10,border:"none",cursor:(alexaInput.trim()&&canAskAlexa)?"pointer":"not-allowed",fontFamily:"var(--font-body)",fontSize:13,fontWeight:700,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",opacity:(alexaInput.trim()&&canAskAlexa)?1:0.5}}>
+                      Perguntar
+                    </button>
+                  </div>
                 </div>
               </div>
 
