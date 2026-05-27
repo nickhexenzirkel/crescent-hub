@@ -877,8 +877,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout}) => {
     </svg>
   );
   const allMods=[
-    {id:'colaborador', label:'Central do Colaborador',  sub:'Portal RH completo',    icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', hi:true, adminOnly:false},
-    {id:'alexa',       label:'Central Alexa',           sub:'Festival · Mural · Recados', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Novo', hi:true, adminOnly:false},
+    {id:'colaborador', label:'Central do Colaborador',  sub:'Portal RH completo',    icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', hi:true, adminOnly:true},
+    {id:'alexa',       label:'Central Alexa',           sub:'Festival · Música · Biblioteca', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Novo', hi:true, adminOnly:false},
     {id:'dashboard',   label:'Dashboard RH',            sub:'Gestão · Funcionários', icon:IcoDash,  color:T.gold, bg:T.goldGl, tag:'Admin', hi:true, adminOnly:true},
     {id:'ponto',       label:'Ponto Eletrônico',        sub:'Leitor de arquivo AFD', icon:IcoPonto, color:T.gold, bg:T.goldGl, tag:'Admin', hi:true, adminOnly:true},
   ];
@@ -2478,9 +2478,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [lembretes, setLembretes]       = useState([]);
   const [lembLoading, setLembLoading]   = useState(false);
   const [lembModal, setLembModal]       = useState(null);
-  const [lembForm, setLembForm]         = useState({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true});
+  const [lembForm, setLembForm]         = useState({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'});
   const [lembSaving, setLembSaving]     = useState(false);
   const [lembMsg, setLembMsg]           = useState('');
+  const [alexaStatus, setAlexaStatus]   = useState(null);
+  const [testingAlexa, setTestingAlexa] = useState(false);
 
   const loadLembretes = async () => {
     setLembLoading(true);
@@ -2521,7 +2523,28 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     await loadLembretes();
   };
 
-  useEffect(()=>{ if(tab==='lembretes') loadLembretes(); }, [tab]);
+  useEffect(()=>{ if(tab==='lembretes') { loadLembretes(); checkAlexaStatus(); } }, [tab]);
+
+  const checkAlexaStatus = async () => {
+    try {
+      const r = await fetch(`${SERVER_URL}/api/alexa/status`);
+      const d = await r.json();
+      setAlexaStatus(d);
+    } catch { setAlexaStatus({ ok: false, configured: false }); }
+  };
+
+  const testAlexa = async () => {
+    if (!lembForm.message && !lembForm.title) { setLembMsg('Preencha o título ou mensagem para testar'); return; }
+    setTestingAlexa(true); setLembMsg('');
+    const r = await fetch(`${SERVER_URL}/api/alexa/speak`, {
+      method: 'POST', headers: authHeader(),
+      body: JSON.stringify({ text: lembForm.message || lembForm.title, sound: lembForm.fanfare ? lembForm.sound : null }),
+    });
+    const d = await r.json();
+    setLembMsg(r.ok ? '✅ Alexa anunciou com sucesso!' : `❌ ${d.error}`);
+    setTestingAlexa(false);
+    setTimeout(() => setLembMsg(''), 4000);
+  };
 
   const genPw = () => {
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
@@ -3200,6 +3223,17 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       {lembModal==='new'?'Novo Lembrete':'Editar Lembrete'}
                     </div>
 
+                    {/* Alexa status */}
+                    {alexaStatus&&(
+                      <div style={{marginBottom:16,padding:'8px 12px',borderRadius:8,fontSize:11,
+                        background:alexaStatus.ok?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',
+                        border:`1px solid ${alexaStatus.ok?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,
+                        color:alexaStatus.ok?'#16a34a':'#C04050',display:'flex',alignItems:'center',gap:6}}>
+                        <div style={{width:6,height:6,borderRadius:'50%',background:alexaStatus.ok?'#16a34a':'#C04050',flexShrink:0}}/>
+                        {alexaStatus.ok ? 'Alexa conectada — anúncio será reproduzido no Echo Dot' : alexaStatus.configured ? 'Alexa configurada mas offline' : 'Alexa não configurada — adicione AMAZON_EMAIL e AMAZON_PASSWORD no Render'}
+                      </div>
+                    )}
+
                     <div style={{marginBottom:12}}>
                       <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Tipo</div>
                       <div style={{display:'flex',gap:6}}>
@@ -3248,9 +3282,49 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       </select>
                     </div>
 
-                    {lembMsg&&<div style={{fontSize:12,color:'#C04050',marginBottom:12}}>{lembMsg}</div>}
-                    <div style={{display:'flex',gap:10}}>
+                    {/* Fanfarra */}
+                    <div style={{marginBottom:16,padding:'12px 14px',borderRadius:10,border:`1.5px solid ${lembForm.fanfare?T.goldLine+'66':T.border}`,background:lembForm.fanfare?T.goldGl:'transparent'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:lembForm.fanfare?10:0}}>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:T.text}}>Som de entrada</div>
+                          <div style={{fontSize:11,color:T.textD,marginTop:2}}>Alexa toca um som antes de falar a mensagem</div>
+                        </div>
+                        <button onClick={()=>setLembForm(p=>({...p,fanfare:!p.fanfare}))}
+                          style={{width:42,height:24,borderRadius:12,border:'none',cursor:'pointer',outline:'none',
+                            background:lembForm.fanfare?T.gold:'rgba(0,0,0,0.15)',transition:'background .2s',
+                            position:'relative'}}>
+                          <div style={{position:'absolute',top:3,width:18,height:18,borderRadius:'50%',background:'white',
+                            transition:'left .2s',left:lembForm.fanfare?21:3,boxShadow:'0 1px 4px rgba(0,0,0,0.2)'}}/>
+                        </button>
+                      </div>
+                      {lembForm.fanfare&&(
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                          {[
+                            {v:'fanfarra',l:'🎺 Fanfarra'},
+                            {v:'campainha',l:'🔔 Campainha'},
+                            {v:'aplauso',l:'👏 Aplauso'},
+                            {v:'corneta',l:'📯 Corneta'},
+                            {v:'notificacao',l:'🔔 Notificação'},
+                          ].map(({v,l})=>(
+                            <button key={v} onClick={()=>setLembForm(p=>({...p,sound:v}))}
+                              style={{padding:'4px 10px',borderRadius:7,border:`1.5px solid ${lembForm.sound===v?T.gold:T.border}`,
+                                background:lembForm.sound===v?T.goldGl:'transparent',fontSize:11,
+                                color:lembForm.sound===v?T.gold:T.textS,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)'}}>
+                              {l}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {lembMsg&&<div style={{fontSize:12,color:lembMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:lembMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)'}}>{lembMsg}</div>}
+                    <div style={{display:'flex',gap:8}}>
                       <button onClick={()=>setLembModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={testAlexa} disabled={testingAlexa}
+                        title="Reproduz agora na Alexa para testar"
+                        style={{padding:'11px 14px',borderRadius:10,border:`1px solid ${T.goldLine}55`,cursor:testingAlexa?'wait':'pointer',background:T.goldGl,color:T.gold,fontSize:13,fontFamily:'var(--font-body)',outline:'none',fontWeight:600}}>
+                        {testingAlexa?'...' : '▶ Testar'}
+                      </button>
                       <button onClick={saveLembrete} disabled={lembSaving}
                         style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
                         {lembSaving?'Salvando...':'Salvar'}
@@ -7295,11 +7369,11 @@ const CentralAlexa = ({onBack}) => {
         {/* Tabs */}
         <div style={{display:"flex",gap:6,marginBottom:20,padding:4,width:"fit-content",background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
           {[
-            {id:"festival", label:"Festival", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
-            {id:"biblioteca", label:"Biblioteca", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
-            {id:"maquina", label:"Máquina do Tempo", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-            {id:"alexa", label:"Alexa", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12a4 4 0 008 0"/><line x1="8" y1="8" x2="8.01" y2="8" strokeWidth="2.5"/><line x1="16" y1="8" x2="16.01" y2="8" strokeWidth="2.5"/></svg>},
-          ].map(({id,label,icon})=>(
+            {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
+            {id:"biblioteca",label:"Biblioteca",        adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
+            {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
+            {id:"alexa",     label:"Alexa",             adminOnly:true,  icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12a4 4 0 008 0"/><line x1="8" y1="8" x2="8.01" y2="8" strokeWidth="2.5"/><line x1="16" y1="8" x2="16.01" y2="8" strokeWidth="2.5"/></svg>},
+          ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>setTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,
               padding:"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
