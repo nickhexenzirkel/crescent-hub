@@ -919,7 +919,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout}) => {
         )}
       </div>
 
-      <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${mods.length},1fr)`,
+      <div className="fsu2" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',
         gap:18,width:'100%',maxWidth:1200}}>
         {mods.map(m=>(
           <div key={m.id} onClick={()=>onSelect(m.id)}
