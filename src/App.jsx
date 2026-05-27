@@ -48,7 +48,8 @@ async function extractAlbumColors(imageUrl) {
         const boost = ([r,g,b], s=1.6) => {
           const avg=(r+g+b)/3;
           const clamp=v=>Math.min(255,Math.max(0,Math.round(v)));
-          return `rgb(${clamp(avg+(r-avg)*s)},${clamp(avg+(g-avg)*s)},${clamp(avg+(b-avg)*s)})`;
+          const R=clamp(avg+(r-avg)*s), G=clamp(avg+(g-avg)*s), B=clamp(avg+(b-avg)*s);
+          return '#'+[R,G,B].map(v=>v.toString(16).padStart(2,'0')).join('');
         };
 
         resolve([
@@ -6652,7 +6653,9 @@ const DOKO_MSGS_IDLE = [
   "Fila tá quente hoje! 🔥",
   "Qual vai ser a próxima? 👀",
   "A vibe tá boa! Continua assim 🎶",
-  "Que tal um bossanova? 😎",
+  "Que tal um Black Eyed Peas? 😎",
+  "Alguém pediu um samba?",
+  "Vai DJ MAIS FORTE! 🎧",
 ];
 const DOKO_MSGS_ADD = (name, song) => [
   `${name} adicionou "${song}" na fila! 🎵`,
