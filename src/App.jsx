@@ -382,32 +382,10 @@ const NOTIFS_DATA = [
   {id:4,type:'evento',    icon:'◫', msg:'Lembrete: Happy Hour amanhã às 18h',    time:'há 3 dias', read:true},
 ];
 
-const TEAM_DATA = [
-  {name:'Ana Ferreira',    role:'Analista RH',   av:'AF',c:'#2E8DD4',hours:45, bday:'15/03',trophies:2,salary:4800,status:'ok'},
-  {name:'Nicolas Andrade', role:'Aux. ADM',       av:'NA',c:'#7060C8',hours:-8, bday:'22/08',trophies:1,salary:3600,status:'negative'},
-  {name:'Alan Paixão',     role:'Aux. ADM',       av:'AP',c:'#4E8FA8',hours:12, bday:'04/11',trophies:3,salary:3400,status:'ok'},
-  {name:'Robson Kauan',    role:'Serviços Gerais',av:'RK',c:'#D4A84B',hours:0,  bday:'30/07',trophies:11,salary:2800,status:'ok'},
-  {name:'Lucas Santos',    role:'Dev Frontend',   av:'LS',c:'#0A9BB5',hours:28, bday:'18/02',trophies:1,salary:5200,status:'ok'},
-  {name:'Maria Oliveira',  role:'Financeiro',     av:'MO',c:'#1A9C70',hours:-3, bday:'09/06',trophies:1,salary:4200,status:'negative'},
-];
-
-const EVENTS=[
-  {day:1, label:'Dia do Trabalho',     time:'Dia todo', type:'Feriado',        color:T.blue},
-  {day:6, label:'Aniversário — Alan',  time:'09:00',    type:'Confraternização',color:T.pink},
-  {day:12,label:'Aniversário — Renata',time:'15:00',    type:'Confraternização',color:T.pink},
-  {day:14,label:'Reunião Trimestral',  time:'10:00',    type:'Reunião',         color:T.purple},
-  {day:20,label:'Check-in semanal',    time:'Agora',    type:'Hoje',            color:T.teal},
-  {day:23,label:'Review de Metas',     time:'14:00',    type:'Reunião',         color:T.purple},
-  {day:27,label:'Happy Hour',          time:'18:00',    type:'Confraternização',color:T.pink},
-];
-const RANK=[
-  {pos:1,name:'Robson Kauan',    role:'Serviço',     t:11,av:'RK',c:T.goldL},
-  {pos:2,name:'Alan Paixão',     role:'Aux. ADM',    t:3, av:'AP',c:T.blue},
-  {pos:3,name:'Nicolas Andrade', role:'Aux. ADM',    t:1, av:'NA',c:T.purple},
-  {pos:4,name:'Ana Ferreira',    role:'Analista RH', t:2, av:'AF',c:T.blue},
-  {pos:5,name:'Lucas Santos',    role:'Dev Frontend',t:1, av:'LS',c:T.teal},
-  {pos:6,name:'Maria Oliveira',  role:'Financeiro',  t:1, av:'MO',c:T.green},
-];
+// Dados de equipe, eventos e ranking agora vêm do Supabase — sem mock
+const TEAM_DATA = [];
+const EVENTS    = [];
+const RANK      = [];
 
 /* ══════════════════════════════════════════
    LAVA LAMP BACKGROUND
@@ -1643,83 +1621,131 @@ const TabFeedback = () => {
 };
 
 const TabEventos = () => {
-  const today=20;
-  const tc={Feriado:T.blue,Confraternização:T.pink,Reunião:T.purple,Hoje:T.teal};
-  const evDays=new Set(EVENTS.map(e=>e.day));
-  return(
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [calMonth, setCalMonth] = useState(() => new Date());
+
+  const typeColor = { Feriado:T.blue, Confraternização:T.pink, Reunião:T.purple, Evento:T.gold, Outro:T.teal };
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await _supabase.from('calendar_events').select('*').order('event_date', { ascending: true });
+      setEvents(data || []);
+      setLoading(false);
+    };
+    load();
+    const sub = _supabase.channel('tab_events_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, load)
+      .subscribe();
+    return () => _supabase.removeChannel(sub);
+  }, []);
+
+  const today = new Date();
+  const yr = calMonth.getFullYear();
+  const mo = calMonth.getMonth();
+  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+  const firstDay    = new Date(yr, mo, 1).getDay();
+  const monthName   = calMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+
+  const eventsThisMonth = events.filter(e => {
+    const d = new Date(e.event_date + 'T12:00:00');
+    return d.getFullYear() === yr && d.getMonth() === mo;
+  });
+  const daysWithEvents = new Set(eventsThisMonth.map(e => new Date(e.event_date + 'T12:00:00').getDate()));
+
+  const prevMonth = () => setCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const nextMonth = () => setCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+
+  return (
     <div className="fi" style={{fontFamily:'var(--font-body)'}}>
       <SHead sub="Agenda corporativa de eventos">Eventos da Empresa</SHead>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 295px',gap:20}}>
-        <div>
-          <div style={{fontSize:12,color:T.textT,letterSpacing:'.07em',
-            textTransform:'uppercase',marginBottom:14,fontWeight:500}}>MAIO 2026</div>
-          {EVENTS.map((ev,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'stretch',marginBottom:12}}>
-              <div style={{width:4,background:`linear-gradient(180deg,${ev.color},${ev.color}44)`,
-                borderRadius:4,flexShrink:0,marginRight:14}}/>
-              <Card style={{flex:1,padding:'15px 20px'}}>
-                <div style={{display:'flex',alignItems:'center',gap:14}}>
-                  <div style={{width:52,textAlign:'center',flexShrink:0}}>
-                    <div style={{fontSize:22,fontWeight:700,
-                      color:ev.day===today?T.gold:T.text}}>{ev.day}</div>
-                    <div style={{fontSize:10,color:T.textD,letterSpacing:'.06em'}}>MAI</div>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{marginBottom:6}}><Tag color={tc[ev.type]||T.blue}>{ev.type}</Tag></div>
-                    <div style={{fontSize:15,fontWeight:500,color:T.text}}>{ev.label}</div>
-                    <div style={{fontSize:12,color:T.textT,marginTop:2}}>◷ {ev.time}</div>
-                  </div>
+      {loading
+        ? <div style={{textAlign:'center',padding:40,color:T.textT}}>
+            <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>
+            Carregando eventos...
+          </div>
+        : <div style={{display:'grid',gridTemplateColumns:'1fr 295px',gap:20}}>
+            <div>
+              <div style={{fontSize:12,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:14,fontWeight:500}}>
+                {monthName.toUpperCase()}
+              </div>
+              {eventsThisMonth.length === 0
+                ? <Card style={{padding:'32px',textAlign:'center'}}>
+                    <div style={{fontSize:32,marginBottom:8}}>📅</div>
+                    <div style={{color:T.textT,fontSize:14}}>Nenhum evento este mês.</div>
+                  </Card>
+                : eventsThisMonth.map((ev, i) => {
+                    const d = new Date(ev.event_date + 'T12:00:00');
+                    const day = d.getDate();
+                    const isToday = d.toDateString() === today.toDateString();
+                    const color = typeColor[ev.type] || T.gold;
+                    return (
+                      <div key={ev.id} style={{display:'flex',alignItems:'stretch',marginBottom:12}}>
+                        <div style={{width:4,background:`linear-gradient(180deg,${color},${color}44)`,borderRadius:4,flexShrink:0,marginRight:14}}/>
+                        <Card style={{flex:1,padding:'15px 20px'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:14}}>
+                            <div style={{width:52,textAlign:'center',flexShrink:0}}>
+                              <div style={{fontSize:22,fontWeight:700,color:isToday?T.gold:T.text}}>{day}</div>
+                              <div style={{fontSize:10,color:T.textD,letterSpacing:'.06em'}}>
+                                {d.toLocaleString('pt-BR',{month:'short'}).toUpperCase()}
+                              </div>
+                            </div>
+                            <div style={{flex:1}}>
+                              <div style={{marginBottom:6}}><Tag color={color}>{ev.type}</Tag></div>
+                              <div style={{fontSize:15,fontWeight:500,color:T.text}}>{ev.title}</div>
+                              <div style={{fontSize:12,color:T.textT,marginTop:2}}>◷ {ev.event_time||'Dia todo'}</div>
+                              {ev.description&&<div style={{fontSize:12,color:T.textS,marginTop:4}}>{ev.description}</div>}
+                            </div>
+                          </div>
+                        </Card>
+                      </div>
+                    );
+                  })
+              }
+            </div>
+            {/* Mini calendário */}
+            <Card style={{padding:'22px',alignSelf:'start'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <button onClick={prevMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>‹</button>
+                <span style={{fontSize:13,fontWeight:500,color:T.text,textTransform:'capitalize'}}>{monthName}</span>
+                <button onClick={nextMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>›</button>
+              </div>
+              <StarDivider my={0}/>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginTop:10,marginBottom:8}}>
+                {['D','S','T','Q','Q','S','S'].map((d,i)=>(
+                  <div key={i} style={{textAlign:'center',fontSize:10.5,color:T.textD,fontWeight:500,padding:'2px 0'}}>{d}</div>
+                ))}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+                {Array.from({length:firstDay},(_,i)=><div key={`o${i}`}/>)}
+                {Array.from({length:daysInMonth},(_,i)=>{
+                  const d=i+1;
+                  const isT = yr===today.getFullYear()&&mo===today.getMonth()&&d===today.getDate();
+                  const hasEv = daysWithEvents.has(d);
+                  return(
+                    <div key={d} style={{textAlign:'center',padding:'6px 2px',borderRadius:7,position:'relative',
+                      background:isT?T.gold:hasEv?T.goldGl:'transparent',
+                      color:isT?'#fff':hasEv?T.gold:T.textS,
+                      fontSize:12,fontWeight:isT?600:400}}>
+                      {d}
+                      {hasEv&&!isT&&<span style={{position:'absolute',bottom:1,left:'50%',transform:'translateX(-50%)',
+                        width:3,height:3,borderRadius:'50%',background:T.goldL,display:'block'}}/>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:12}}><StarDivider my={0}/></div>
+              <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:7}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:T.gold}}/><span style={{fontSize:12,color:T.textS}}>Hoje</span>
                 </div>
-              </Card>
-            </div>
-          ))}
-        </div>
-        <Card style={{padding:'22px',alignSelf:'start'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <button style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>‹</button>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:14,fontWeight:500,color:T.text}}>Maio 2026</span>
-            </div>
-            <button style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>›</button>
-          </div>
-          <StarDivider my={0}/>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginTop:10,marginBottom:8}}>
-            {['D','S','T','Q','Q','S','S'].map((d,i)=>(
-              <div key={i} style={{textAlign:'center',fontSize:10.5,color:T.textD,
-                fontWeight:500,padding:'2px 0'}}>{d}</div>
-            ))}
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
-            {Array.from({length:4},(_,i)=><div key={`o${i}`}/>)}
-            {Array.from({length:31},(_,i)=>{
-              const d=i+1;const ev=evDays.has(d);const it=d===today;
-              return(
-                <div key={d} style={{textAlign:'center',padding:'6px 2px',borderRadius:7,
-                  cursor:'pointer',position:'relative',
-                  background:it?T.gold:ev?T.goldGl:'transparent',
-                  color:it?'#fff':ev?T.gold:T.textS,
-                  fontSize:12,fontWeight:it?600:400,transition:'background .12s'}}>
-                  {d}
-                  {ev&&!it&&<span style={{position:'absolute',bottom:1,left:'50%',
-                    transform:'translateX(-50%)',width:3,height:3,borderRadius:'50%',
-                    background:T.goldL,display:'block'}}/>}
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:T.goldGl,border:`1px solid ${T.goldL}44`}}/><span style={{fontSize:12,color:T.textS}}>Com eventos</span>
                 </div>
-              );
-            })}
+              </div>
+            </Card>
           </div>
-          <div style={{marginTop:12}}><StarDivider my={0}/></div>
-          <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:7}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:10,height:10,borderRadius:2,background:T.gold}}/>
-              <span style={{fontSize:12,color:T.textS}}>Hoje</span>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:10,height:10,borderRadius:2,background:T.goldGl,border:`1px solid ${T.goldL}44`}}/>
-              <span style={{fontSize:12,color:T.textS}}>Com eventos</span>
-            </div>
-          </div>
-        </Card>
-      </div>
+      }
     </div>
   );
 };
@@ -1759,79 +1785,48 @@ const TabGames = () => {
 };
 
 const TabConquistas = () => {
-  const [s,ss]=useState('');
-  const medals=['#1','#2','#3'];
-  const mc=[T.gold,T.textT,T.goldL];
-  const fl=RANK.filter(r=>r.name.toLowerCase().includes(s.toLowerCase()));
+  const auth = getAuthUser();
+  const myTrophies = USER.trophies || [];
   return(
     <div className="fi" style={{fontFamily:'var(--font-body)'}}>
       <SHead sub="Ranking de troféus da equipe">Conquistas</SHead>
-      <Card style={{padding:'30px',marginBottom:20,
-        background:`linear-gradient(160deg,rgba(212,168,75,0.07),${T.surface} 55%)`}} elevated>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:9}}>
-            <span style={{fontSize:20}}>👑</span>
-            <span style={{fontSize:19,fontWeight:600,color:T.text}}>Top 3 Ranking</span>
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div style={{fontSize:14,color:T.textS}}>
-              Sua posição: <strong style={{color:T.gold}}>#4</strong> · <span style={{color:T.gold}}>2 troféus</span>
-            </div>
-          </div>
+      {/* Meus troféus */}
+      <Card style={{padding:'28px',marginBottom:20,background:`linear-gradient(160deg,rgba(212,168,75,0.07),${T.surface} 55%)`}} elevated>
+        <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:14}}>
+          <span style={{fontSize:20}}>🏆</span>
+          <span style={{fontSize:19,fontWeight:600,color:T.text}}>Meus Troféus</span>
         </div>
-        <StarDivider my={14}/>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:22}}>
-          {RANK.slice(0,3).map((r,i)=>(
-            <div key={r.pos} style={{textAlign:'center'}}>
-              <div style={{fontSize:24,marginBottom:12}}>{medals[i]}</div>
-              <div style={{width:60,height:60,borderRadius:'50%',
-                background:`linear-gradient(135deg,${r.c},${r.c}bb)`,
-                display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:17,fontWeight:600,color:'#fff',margin:'0 auto 12px',
-                border:`2px solid ${mc[i]}`,boxShadow:`0 4px 18px ${mc[i]}44`}}>{r.av}</div>
-              <div style={{fontSize:14,fontWeight:500,color:T.text,marginBottom:5}}>{r.name}</div>
-              <div style={{fontSize:17,fontWeight:700,color:mc[i]}}>★ {r.t}</div>
+        <StarDivider my={10}/>
+        {myTrophies.length === 0
+          ? <div style={{textAlign:'center',padding:'24px 0',color:T.textT,fontSize:14}}>
+              Você ainda não recebeu nenhum troféu.<br/>
+              <span style={{fontSize:12,opacity:.7}}>Os troféus são concedidos pelo RH.</span>
             </div>
-          ))}
+          : <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:8}}>
+              {myTrophies.map((t,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',borderRadius:10,background:T.goldGl,border:`1px solid ${T.goldLine}33`}}>
+                  <span style={{fontSize:20}}>{t.icon}</span>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:T.gold}}>{t.label}</div>
+                    <div style={{fontSize:11,color:T.textT}}>de {t.from}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+        }
+      </Card>
+      {/* Ranking */}
+      <Card style={{padding:'28px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:9,marginBottom:14}}>
+          <span style={{fontSize:20}}>👑</span>
+          <span style={{fontSize:19,fontWeight:600,color:T.text}}>Ranking da Equipe</span>
+        </div>
+        <StarDivider my={10}/>
+        <div style={{textAlign:'center',padding:'32px 0',color:T.textT,fontSize:14}}>
+          O ranking será construído conforme troféus forem concedidos pelo RH.<br/>
+          <span style={{fontSize:12,opacity:.7}}>Acesse o Dashboard RH → Troféus para premiar colaboradores.</span>
         </div>
       </Card>
-      <input value={s} onChange={e=>ss(e.target.value)} placeholder="Buscar colaborador..."
-        style={{width:'100%',background:T.surface,border:`1.5px solid ${T.border}`,
-          borderRadius:11,padding:'11px 16px',color:T.text,
-          fontFamily:'var(--font-body)',fontSize:14,outline:'none',marginBottom:16,
-          boxShadow:T.sh}}
-        onFocus={e=>e.target.style.borderColor=T.gold}
-        onBlur={e=>e.target.style.borderColor=T.border}/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
-        {fl.map(r=>(
-          <Card key={r.pos} style={{padding:'22px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:13,marginBottom:12}}>
-              <div style={{position:'relative'}}>
-                <div style={{width:50,height:50,borderRadius:'50%',
-                  background:`linear-gradient(135deg,${r.c},${r.c}bb)`,
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:15,fontWeight:600,color:'#fff'}}>{r.av}</div>
-                <div style={{position:'absolute',top:-5,right:-5,width:21,height:21,
-                  borderRadius:'50%',background:T.goldL,display:'flex',
-                  alignItems:'center',justifyContent:'center',
-                  fontSize:10,fontWeight:600,color:'#fff'}}>#{r.pos}</div>
-              </div>
-              <div>
-                <div style={{fontSize:14,fontWeight:500,color:T.text}}>{r.name}</div>
-                <div style={{fontSize:12,color:T.textT}}>{r.role}</div>
-              </div>
-            </div>
-            <StarDivider my={6} dim/>
-            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:10,marginBottom:14}}>
-              <span style={{color:T.gold,fontSize:15}}>★</span>
-              <span style={{fontSize:14,fontWeight:500,color:T.gold}}>
-                {r.t} {r.t===1?'troféu':'troféus'}
-              </span>
-            </div>
-            <Btn v="ghostGray" style={{padding:'7px 14px',fontSize:13}}>Ver Conquistas</Btn>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 };
@@ -2337,6 +2332,87 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(()=>{ if(tab==='funcionarios') loadEmployees(); }, [tab]);
 
+  // ── Gerenciar Usuários — perfil completo ─────────────────
+  const [gerList, setGerList]         = useState([]);
+  const [gerLoading, setGerLoading]   = useState(false);
+  const [gerModal, setGerModal]       = useState(null); // null | employee
+  const [gerForm, setGerForm]         = useState({});
+  const [gerSaving, setGerSaving]     = useState(false);
+  const [gerMsg, setGerMsg]           = useState('');
+
+  const loadGerList = async () => {
+    setGerLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() });
+      const d = await r.json();
+      setGerList(d.employees || []);
+    } catch {}
+    setGerLoading(false);
+  };
+
+  const openGerModal = async (emp) => {
+    setGerMsg('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees/${emp.id}`, { headers: authHeader() });
+      const d = await r.json();
+      setGerForm(d.employee || emp);
+    } catch { setGerForm(emp); }
+    setGerModal(emp);
+  };
+
+  const saveGerProfile = async () => {
+    setGerSaving(true); setGerMsg('');
+    const r = await fetch(`${SERVER_URL}/api/employees/${gerModal.id}/profile`, {
+      method: 'PUT', headers: authHeader(),
+      body: JSON.stringify(gerForm),
+    });
+    const d = await r.json();
+    if (r.ok) { setGerMsg('✅ Perfil salvo!'); await loadGerList(); setTimeout(()=>setGerMsg(''),2000); }
+    else setGerMsg('⚠️ ' + (d.error||'Erro ao salvar'));
+    setGerSaving(false);
+  };
+
+  useEffect(()=>{ if(tab==='gerenciar') loadGerList(); }, [tab]);
+
+  // ── Calendário ────────────────────────────────────────────
+  const [calEvents, setCalEvents]     = useState([]);
+  const [calLoading, setCalLoading]   = useState(false);
+  const [calModal, setCalModal]       = useState(null); // null | 'new' | event
+  const [calForm, setCalForm]         = useState({title:'',event_date:'',event_time:'Dia todo',type:'Evento',description:''});
+  const [calSaving, setCalSaving]     = useState(false);
+  const [calMsg, setCalMsg]           = useState('');
+
+  const loadCalEvents = async () => {
+    setCalLoading(true);
+    try {
+      const r = await fetch(`${SERVER_URL}/api/events`);
+      const d = await r.json();
+      setCalEvents(d.events || []);
+    } catch {}
+    setCalLoading(false);
+  };
+
+  const saveCalEvent = async () => {
+    if (!calForm.title || !calForm.event_date) { setCalMsg('⚠️ Título e data obrigatórios'); return; }
+    setCalSaving(true); setCalMsg('');
+    const isEdit = calModal && calModal !== 'new';
+    const url  = isEdit ? `${SERVER_URL}/api/events/${calModal.id}` : `${SERVER_URL}/api/events`;
+    const meth = isEdit ? 'PUT' : 'POST';
+    const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify(calForm) });
+    const d = await r.json();
+    if (r.ok) { await loadCalEvents(); setCalModal(null); setCalForm({title:'',event_date:'',event_time:'Dia todo',type:'Evento',description:''}); }
+    else setCalMsg('⚠️ ' + (d.error||'Erro'));
+    setCalSaving(false);
+  };
+
+  const deleteCalEvent = async (id) => {
+    if (!window.confirm('Remover este evento?')) return;
+    await fetch(`${SERVER_URL}/api/events/${id}`, { method:'DELETE', headers: authHeader() });
+    await loadCalEvents();
+  };
+
+  useEffect(()=>{ if(tab==='calendario') loadCalEvents(); }, [tab]);
+
   const genPw = () => {
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
     return Array.from({length:10},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
@@ -2368,13 +2444,14 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   });
 
   const TABS=[
-    {id:'funcionarios',label:'Funcionários',icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
-    {id:'usuarios',label:'Usuários',icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
-    {id:'banco',label:'Banco Extra',icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
-    {id:'perfis',label:'Perfis',icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
-    {id:'alexa',label:'Central Alexa',icon:<><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 010 20"/><path d="M12 6a6 6 0 010 12"/><path d="M12 22v-4M12 6V2"/></>},
-    {id:'trofeus',label:'Troféus',icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
-    {id:'config',label:'Configurações',icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
+    {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
+    {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
+    {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
+    {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
+    {id:'alexa',          label:'Central Alexa',      icon:<><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 010 20"/><path d="M12 6a6 6 0 010 12"/><path d="M12 22v-4M12 6V2"/></>},
+    {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
+    {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
   ];
 
   return(
@@ -2640,121 +2717,219 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             </div>
           )}
 
-          {/* ── TAB: USUÁRIOS ── */}
-          {tab==='usuarios'&&(
+          {/* ── TAB: GERENCIAR USUÁRIOS — perfil completo ── */}
+          {tab==='gerenciar'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div>
-                    <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Gerenciar Usuários</div>
-                    <div style={{fontSize:13,color:T.textS,marginTop:2}}>{users.length} usuários cadastrados · {users.filter(u=>u.role==='admin').length} administradores</div>
-                  </div>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Gerenciar Usuários</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Clique em um colaborador para editar o perfil completo</div>
                 </div>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <Moon size={24} color={T.goldL} opacity={0.35} float/>
-                  <button onClick={()=>setShowNewUser(true)}
-                    style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:600,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',boxShadow:`0 4px 14px ${T.goldLine}55`}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Novo Usuário
-                  </button>
-                </div>
+                <button onClick={loadGerList} style={{padding:'8px 16px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>↻ Atualizar</button>
               </div>
-
-              {/* Create user form */}
-              {showNewUser&&(
-                <Card style={{padding:'20px 24px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)'}} elevated>
-                  <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Criar Novo Usuário
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
-                    {[['name','Nome completo'],['email','E-mail'],['dept','Departamento']].map(([k,l])=>(
-                      <div key={k}>
-                        <label style={{fontSize:11,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:5}}>{l}</label>
-                        <input value={newUser[k]} onChange={e=>setNewUser(p=>({...p,[k]:e.target.value}))}
-                          style={{width:'100%',padding:'8px 12px',border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:'var(--font-body)',fontSize:13,color:T.text,background:T.surface,outline:'none',boxSizing:'border-box'}}/>
+              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+                <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
+                  {['Nome','CPF','Cargo','Status','Editar'].map(h=>(
+                    <div key={h} style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em'}}>{h}</div>
+                  ))}
+                </div>
+                {gerLoading
+                  ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
+                    </div>
+                  : gerList.map((emp,i)=>(
+                      <div key={emp.id} style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'11px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:emp.active?1:0.55}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:30,height:30,borderRadius:8,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0}}>
+                            {emp.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+                          </div>
+                          <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.name}</div>
+                        </div>
+                        <div style={{fontSize:11,color:T.textS,fontFamily:'monospace'}}>{emp.cpf}</div>
+                        <div style={{fontSize:12,color:T.textT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.cargo||'—'}</div>
+                        <div><span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:emp.active?'rgba(34,197,94,0.1)':'rgba(192,64,80,0.08)',color:emp.active?'#16a34a':'#C04050'}}>{emp.active?'Ativo':'Inativo'}</span></div>
+                        <button onClick={()=>openGerModal(emp)}
+                          style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                          ✏️ Editar
+                        </button>
+                      </div>
+                    ))
+                }
+              </div>
+              {/* Modal edição perfil completo */}
+              {gerModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+                  <div style={{background:cardBg,borderRadius:20,padding:32,width:'100%',maxWidth:620,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+                      <div>
+                        <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text}}>Editar Perfil</div>
+                        <div style={{fontSize:13,color:T.textS}}>{gerModal.name}</div>
+                      </div>
+                      <button onClick={()=>setGerModal(null)} style={{border:'none',background:'transparent',cursor:'pointer',fontSize:20,color:T.textD,outline:'none'}}>×</button>
+                    </div>
+                    {/* Campos organizados em seções */}
+                    {[
+                      { title:'Dados Pessoais', fields:[
+                        {label:'Nome completo',key:'name',type:'text'},
+                        {label:'CPF',key:'cpf',type:'text',disabled:true},
+                        {label:'RG',key:'rg',type:'text'},
+                        {label:'Data de Nascimento',key:'birth_date',type:'text',placeholder:'DD/MM/AAAA'},
+                        {label:'E-mail',key:'email',type:'email'},
+                        {label:'Telefone',key:'phone',type:'text',placeholder:'(85) 99999-9999'},
+                      ]},
+                      { title:'Endereço', fields:[
+                        {label:'Rua / Logradouro',key:'street',type:'text'},
+                        {label:'Bairro',key:'district',type:'text'},
+                        {label:'Cidade',key:'city',type:'text'},
+                        {label:'Estado',key:'state',type:'text'},
+                        {label:'CEP',key:'cep',type:'text'},
+                      ]},
+                      { title:'Dados Profissionais', fields:[
+                        {label:'Cargo',key:'cargo',type:'text'},
+                        {label:'Categoria',key:'category',type:'text',placeholder:'CLT, PJ...'},
+                        {label:'Data de Admissão',key:'admission',type:'text',placeholder:'DD/MM/AAAA'},
+                        {label:'Nº de Dependentes',key:'dependents',type:'number'},
+                        {label:'Cargo / Perfil',key:'role',type:'select',options:[{v:'employee',l:'Funcionário'},{v:'admin',l:'Administrador'}]},
+                      ]},
+                      { title:'Remuneração', fields:[
+                        {label:'Salário Base (R$)',key:'salary',type:'number'},
+                        {label:'INSS (R$)',key:'inss',type:'number'},
+                        {label:'IR (R$)',key:'ir',type:'number'},
+                        {label:'Vale Transporte (R$)',key:'vt',type:'number'},
+                        {label:'Vale Alimentação (R$)',key:'va',type:'number'},
+                      ]},
+                    ].map(sec=>(
+                      <div key={sec.title} style={{marginBottom:20}}>
+                        <div style={{fontSize:11,fontWeight:700,color:T.gold,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>{sec.title}</div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                          {sec.fields.map(f=>(
+                            <div key={f.key}>
+                              <div style={{fontSize:11,fontWeight:600,color:T.textS,marginBottom:4}}>{f.label}</div>
+                              {f.type==='select'
+                                ? <select value={gerForm[f.key]||''} onChange={e=>setGerForm(p=>({...p,[f.key]:e.target.value}))}
+                                    style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
+                                    {f.options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+                                  </select>
+                                : <input type={f.type||'text'} value={gerForm[f.key]||''} disabled={f.disabled}
+                                    placeholder={f.placeholder||''}
+                                    onChange={e=>setGerForm(p=>({...p,[f.key]:f.type==='number'?Number(e.target.value):e.target.value}))}
+                                    style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:f.disabled?(T.border+'44'):(T.surface||'white'),fontSize:12,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',cursor:f.disabled?'not-allowed':'text'}}/>
+                              }
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
-                    <div>
-                      <label style={{fontSize:11,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:5}}>Tipo de Acesso</label>
-                      <select value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))}
-                        style={{width:'100%',padding:'8px 12px',border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:'var(--font-body)',fontSize:13,color:T.text,background:T.surface,outline:'none',cursor:'pointer'}}>
-                        <option value="colaborador">Colaborador</option>
-                        <option value="admin">Administrador</option>
+                    {gerMsg&&<div style={{fontSize:12,color:gerMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:gerMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)'}}>{gerMsg}</div>}
+                    <div style={{display:'flex',gap:10,marginTop:4}}>
+                      <button onClick={()=>setGerModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={saveGerProfile} disabled={gerSaving}
+                        style={{flex:2,padding:'11px',borderRadius:10,border:'none',cursor:gerSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {gerSaving?'Salvando...':'Salvar Perfil'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB: CALENDÁRIO ── */}
+          {tab==='calendario'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Calendário de Eventos</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Eventos criados aqui aparecem para todos os colaboradores</div>
+                </div>
+                <button onClick={()=>{ setCalForm({title:'',event_date:'',event_time:'Dia todo',type:'Evento',description:''}); setCalMsg(''); setCalModal('new'); }}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                  + Novo Evento
+                </button>
+              </div>
+              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+                {calLoading
+                  ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
+                      <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
+                    </div>
+                  : calEvents.length===0
+                    ? <div style={{padding:40,textAlign:'center',color:T.textT,fontSize:13}}>
+                        Nenhum evento cadastrado. Clique em <strong>+ Novo Evento</strong> para adicionar.
+                      </div>
+                    : calEvents.map((ev,i)=>{
+                        const typeColor = {Feriado:T.blue,Reunião:T.purple,Confraternização:(T.pink||'#E91E8C'),Evento:T.gold,Outro:T.teal};
+                        const color = typeColor[ev.type]||T.gold;
+                        const d = new Date(ev.event_date+'T12:00:00');
+                        return(
+                          <div key={ev.id} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 20px',borderTop:i===0?'none':`1px solid ${T.border}`}}>
+                            <div style={{width:44,textAlign:'center',flexShrink:0}}>
+                              <div style={{fontSize:18,fontWeight:700,color:T.text}}>{d.getDate()}</div>
+                              <div style={{fontSize:9,color:T.textD,textTransform:'uppercase'}}>{d.toLocaleString('pt-BR',{month:'short'})}</div>
+                            </div>
+                            <div style={{width:3,height:36,borderRadius:2,background:color,flexShrink:0}}/>
+                            <div style={{flex:1}}>
+                              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                                <Tag color={color}>{ev.type}</Tag>
+                                <span style={{fontSize:11,color:T.textD}}>◷ {ev.event_time}</span>
+                              </div>
+                              <div style={{fontSize:14,fontWeight:500,color:T.text}}>{ev.title}</div>
+                              {ev.description&&<div style={{fontSize:12,color:T.textT,marginTop:2}}>{ev.description}</div>}
+                            </div>
+                            <div style={{display:'flex',gap:6,flexShrink:0}}>
+                              <button onClick={()=>{ setCalForm({title:ev.title,event_date:ev.event_date,event_time:ev.event_time,type:ev.type,description:ev.description||''}); setCalMsg(''); setCalModal(ev); }}
+                                style={{width:30,height:30,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none',fontSize:14}}>✏️</button>
+                              <button onClick={()=>deleteCalEvent(ev.id)}
+                                style={{width:30,height:30,borderRadius:7,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.05)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#C04050',outline:'none',fontSize:14}}>🗑</button>
+                            </div>
+                          </div>
+                        );
+                      })
+                }
+              </div>
+              {/* Modal criar/editar evento */}
+              {calModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                  <div style={{background:cardBg,borderRadius:18,padding:32,width:420,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:20}}>
+                      {calModal==='new'?'Novo Evento':'Editar Evento'}
+                    </div>
+                    {[
+                      {label:'Título do evento',key:'title',type:'text',placeholder:'Ex: Reunião trimestral'},
+                      {label:'Data',key:'event_date',type:'date'},
+                      {label:'Horário',key:'event_time',type:'text',placeholder:'Ex: 14:00 ou Dia todo'},
+                    ].map(f=>(
+                      <div key={f.key} style={{marginBottom:12}}>
+                        <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>{f.label}</div>
+                        <input type={f.type} value={calForm[f.key]||''} placeholder={f.placeholder||''}
+                          onChange={e=>setCalForm(p=>({...p,[f.key]:e.target.value}))}
+                          style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                      </div>
+                    ))}
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Tipo</div>
+                      <select value={calForm.type} onChange={e=>setCalForm(p=>({...p,type:e.target.value}))}
+                        style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
+                        {['Feriado','Reunião','Confraternização','Evento','Outro'].map(t=><option key={t}>{t}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label style={{fontSize:11,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:5}}>Senha</label>
-                      <div style={{display:'flex',gap:6}}>
-                        <input type="text" value={newUser.pw} onChange={e=>setNewUser(p=>({...p,pw:e.target.value}))} placeholder="Defina a senha..."
-                          style={{flex:1,padding:'8px 12px',border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:'var(--font-body)',fontSize:13,color:T.text,background:T.surface,outline:'none'}}/>
-                        <button onClick={()=>setNewUser(p=>({...p,pw:genPw(),pw2:p.pw}))}
-                          style={{padding:'8px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.goldGl,color:T.gold,cursor:'pointer',fontSize:11,fontWeight:600,outline:'none',whiteSpace:'nowrap'}}>Gerar</button>
-                      </div>
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Descrição (opcional)</div>
+                      <textarea value={calForm.description||''} onChange={e=>setCalForm(p=>({...p,description:e.target.value}))}
+                        placeholder="Detalhes do evento..."
+                        rows={2}
+                        style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',resize:'vertical',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
                     </div>
-                    <div>
-                      <label style={{fontSize:11,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:5}}>Confirmar Senha</label>
-                      <input type="password" value={newUser.pw2} onChange={e=>setNewUser(p=>({...p,pw2:e.target.value}))}
-                        style={{width:'100%',padding:'8px 12px',border:`1.5px solid ${newUser.pw&&newUser.pw2&&newUser.pw!==newUser.pw2?'#C04050':T.border}`,borderRadius:8,fontFamily:'var(--font-body)',fontSize:13,color:T.text,background:T.surface,outline:'none',boxSizing:'border-box'}}/>
+                    {calMsg&&<div style={{fontSize:12,color:'#C04050',marginBottom:12}}>{calMsg}</div>}
+                    <div style={{display:'flex',gap:10}}>
+                      <button onClick={()=>setCalModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={saveCalEvent} disabled={calSaving}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:calSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {calSaving?'Salvando...':'Salvar'}
+                      </button>
                     </div>
                   </div>
-                  {newUserErr&&<div style={{fontSize:12,color:'#C04050',marginBottom:10}}>{newUserErr}</div>}
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={saveNewUser} style={{padding:'9px 20px',borderRadius:9,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:600,background:'linear-gradient(135deg,#1A9C70,#0f7a56)',color:'white'}}>Criar Usuário</button>
-                    <button onClick={()=>{setShowNewUser(false);setNewUserErr('');}} style={{padding:'9px 16px',borderRadius:9,border:`1px solid ${T.border}`,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13,color:T.textS,background:'transparent'}}>Cancelar</button>
-                  </div>
-                </Card>
+                </div>
               )}
-
-              {/* Users table */}
-              <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
-                <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)'}}>
-                  <thead>
-                    <tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
-                      {['Usuário','E-mail','Departamento','Tipo','Status','Último Acesso','Ações'].map(h=>(
-                        <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 16px'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u=>(
-                      <tr key={u.id} style={{borderTop:`1px solid ${T.border}`}}>
-                        <td style={{padding:'12px 16px'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:9}}>
-                            <div style={{width:32,height:32,borderRadius:8,background:u.role==='admin'?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:'linear-gradient(135deg,#1E70B5,#0f4a80)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'white',flexShrink:0}}>
-                              {u.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
-                            </div>
-                            <span style={{fontSize:14,fontWeight:600,color:T.text}}>{u.name}</span>
-                          </div>
-                        </td>
-                        <td style={{padding:'12px 16px',fontSize:13,color:T.textS}}>{u.email}</td>
-                        <td style={{padding:'12px 16px',fontSize:13,color:T.textS}}>{u.dept||'—'}</td>
-                        <td style={{padding:'12px 16px'}}>
-                          <span style={{fontSize:11,fontWeight:700,padding:'2px 10px',borderRadius:6,background:u.role==='admin'?T.goldGl:'rgba(30,112,181,0.12)',color:u.role==='admin'?T.gold:'#1E70B5'}}>
-                            {u.role==='admin'?'Administrador':'Colaborador'}
-                          </span>
-                        </td>
-                        <td style={{padding:'12px 16px'}}>
-                          <span style={{fontSize:11,fontWeight:600,padding:'2px 9px',borderRadius:6,background:u.status==='ativo'?'rgba(26,156,112,0.12)':'rgba(0,0,0,0.06)',color:u.status==='ativo'?'#1A9C70':T.textD}}>
-                            {u.status==='ativo'?'Ativo':'Inativo'}
-                          </span>
-                        </td>
-                        <td style={{padding:'12px 16px',fontSize:12,color:T.textT}}>{u.lastLogin}</td>
-                        <td style={{padding:'12px 16px'}}>
-                          <div style={{display:'flex',gap:5}}>
-                            <button onClick={()=>setUsers(p=>p.map(x=>x.id===u.id?{...x,status:x.status==='ativo'?'inativo':'ativo'}:x))}
-                              style={{padding:'4px 10px',borderRadius:6,border:`1px solid ${T.border}`,background:T.surfaceSub||'rgba(0,0,0,0.03)',color:T.textS,cursor:'pointer',fontSize:11,outline:'none'}}>
-                              {u.status==='ativo'?'Desativar':'Ativar'}
-                            </button>
-                            <button onClick={()=>setUsers(p=>p.filter(x=>x.id!==u.id))}
-                              style={{padding:'4px 8px',borderRadius:6,border:'1px solid rgba(192,64,80,0.25)',background:'rgba(192,64,80,0.06)',color:'#C04050',cursor:'pointer',fontSize:11,outline:'none'}}>✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Card>
             </div>
           )}
 
