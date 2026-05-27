@@ -20,6 +20,49 @@ const _supabase  = _createSupabaseClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpZmN4Znlta21sbWJlbHpvbGJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjQ1NzYsImV4cCI6MjA5NTQwMDU3Nn0.YvMr2aAqfmyBMKky94YfvVSpCurzlet5tZlv4WfCvRA'
 );
 
+// Extrai cores dominantes da capa do álbum via Canvas
+async function extractAlbumColors(imageUrl) {
+  return new Promise((resolve) => {
+    if (!imageUrl) { resolve(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const W = 80, H = 80;
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, W, H);
+        const d = ctx.getImageData(0, 0, W, H).data;
+
+        const region = (x1, y1, x2, y2) => {
+          let r=0,g=0,b=0,n=0;
+          for(let y=y1;y<y2;y++) for(let x=x1;x<x2;x++){
+            const i=(y*W+x)*4; r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++;
+          }
+          return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+        };
+
+        const boost = ([r,g,b], s=1.6) => {
+          const avg=(r+g+b)/3;
+          const clamp=v=>Math.min(255,Math.max(0,Math.round(v)));
+          return `rgb(${clamp(avg+(r-avg)*s)},${clamp(avg+(g-avg)*s)},${clamp(avg+(b-avg)*s)})`;
+        };
+
+        resolve([
+          boost(region(0,0,40,40)),
+          boost(region(40,0,80,40)),
+          boost(region(0,40,40,80)),
+          boost(region(40,40,80,80)),
+          boost(region(15,15,65,65)),
+        ]);
+      } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = imageUrl;
+  });
+}
+
 
 /* ─────────────────────────────────────────
    FONTE APPLE — SF Pro / sistema Apple
@@ -6637,7 +6680,7 @@ const ALEXA_RESPONSES = [
 
 const CentralAlexa = ({onBack}) => {
   const isDark   = !!T.page;
-  const cardBg   = isDark ? T.surface : (T.surfaceW||"rgba(255,255,255,0.88)");
+  const cardBg   = isDark ? T.surface : (T.surfaceW||"rgba(255,255,255,0.78)");
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||"rgba(255,255,255,0.82)");
 
   // ── UI state ─────────────────────────────────────────────
@@ -6729,6 +6772,9 @@ const CentralAlexa = ({onBack}) => {
     setSpotifyOk(!!r?.ok);
   };
 
+  const [festColors, setFestColors]     = useState(null);
+  const [blobsVisible, setBlobsVisible] = useState(true);
+
   // ── Supabase realtime ────────────────────────────────────
   useEffect(() => {
     checkSpotify();
@@ -6763,6 +6809,19 @@ const CentralAlexa = ({onBack}) => {
   }, []);
 
   useEffect(() => { loadSkipVotes(queue); }, [queue]);
+
+  // Extrai cores da capa quando a música muda
+  useEffect(() => {
+    if (!currentSong?.album_art) return;
+    setBlobsVisible(false);
+    const t = setTimeout(() => {
+      extractAlbumColors(currentSong.album_art).then(colors => {
+        if (colors) setFestColors(colors);
+        setBlobsVisible(true);
+      });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [currentSong?.album_art]);
 
   // ── Ações do Festival ────────────────────────────────────
   const handleSearch = (val) => {
@@ -6884,6 +6943,10 @@ const CentralAlexa = ({onBack}) => {
         @keyframes hdrBlob1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(28px,-8px) scale(1.15)}66%{transform:translate(-12px,10px) scale(0.92)}}
         @keyframes hdrBlob2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-18px,14px) scale(1.08)}}
         @keyframes typingDot{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+        @keyframes festBlob1{0%,100%{transform:translate(0,0) scale(1) rotate(0deg)}33%{transform:translate(60px,-40px) scale(1.2) rotate(120deg)}66%{transform:translate(-30px,50px) scale(0.85) rotate(240deg)}}
+        @keyframes festBlob2{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-70px,30px) scale(1.15)}80%{transform:translate(40px,-20px) scale(0.9)}}
+        @keyframes festBlob3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,60px) scale(1.1)}}
+        @keyframes festBlob4{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-40px,-50px) scale(1.18)}70%{transform:translate(30px,20px) scale(0.88)}}
       `}</style>
 
       {/* Topbar */}
@@ -6925,7 +6988,29 @@ const CentralAlexa = ({onBack}) => {
 
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
-          <div style={{display:"flex",gap:20,alignItems:"flex-start"}}>
+          <div style={{position:"relative",minHeight:"calc(100vh - 130px)",borderRadius:16,overflow:"hidden",margin:"-8px -4px",padding:"8px 4px"}}>
+
+            {/* ── Album Art Blobs Background (Apple Music style) ── */}
+            {festColors&&(
+              <div style={{position:"absolute",inset:-40,zIndex:0,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.8s ease"}}>
+                {/* Base wash */}
+                <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}28,${festColors[1]}20,${festColors[2]}18)`,transition:"background 1.5s ease"}}/>
+                {/* Blob 1 — top left */}
+                <div style={{position:"absolute",width:520,height:520,borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}70 0%,transparent 65%)`,top:"-80px",left:"-80px",filter:"blur(90px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
+                {/* Blob 2 — top right */}
+                <div style={{position:"absolute",width:480,height:480,borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}60 0%,transparent 65%)`,top:"-60px",right:"-60px",filter:"blur(85px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
+                {/* Blob 3 — bottom center */}
+                <div style={{position:"absolute",width:440,height:440,borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}55 0%,transparent 62%)`,bottom:"-60px",left:"25%",filter:"blur(80px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
+                {/* Blob 4 — bottom right */}
+                <div style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}50 0%,transparent 65%)`,bottom:"0",right:"-40px",filter:"blur(75px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
+                {/* Center glow — subtle */}
+                <div style={{position:"absolute",width:300,height:300,borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}40 0%,transparent 65%)`,top:"30%",left:"35%",filter:"blur(70px)",animation:"festBlob2 20s ease-in-out infinite reverse"}}/>
+                {/* Noise overlay for depth */}
+                <div style={{position:"absolute",inset:0,backdropFilter:"blur(0px)",background:"rgba(255,255,255,0.04)"}}/>
+              </div>
+            )}
+
+          <div style={{display:"flex",gap:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: DokoWave + Player */}
             <div style={{width:280,flexShrink:0,display:"flex",flexDirection:"column",gap:16}}>
@@ -6941,15 +7026,16 @@ const CentralAlexa = ({onBack}) => {
                 <div style={{display:"flex",justifyContent:"center",animation:"dokoFloat 3s ease-in-out infinite",position:"relative",zIndex:1}}>
                   <div style={{
                     width:160,height:160,borderRadius:"50%",overflow:"hidden",
-                    border:`3px solid ${T.gold}BB`,
-                    boxShadow:`0 0 0 7px ${T.gold}44, 0 0 0 14px ${T.gold}18, 0 0 28px 6px ${T.gold}33`,
+                    border:`3px solid ${festColors?.[0]||T.gold}BB`,
+                    boxShadow:`0 0 0 7px ${festColors?.[0]||T.gold}44, 0 0 0 14px ${festColors?.[0]||T.gold}18, 0 0 28px 6px ${festColors?.[0]||T.gold}33`,
                     animation:"dokoTalk 2s ease-in-out infinite",
-                    "--doko-color":T.gold,
+                    "--doko-color":festColors?.[0]||T.gold,
+                    transition:"border-color 1.5s ease, box-shadow 1.5s ease",
                   }}>
                     <img src={DOKO_WAVE_IMG} alt="DokoWave DJ" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                   </div>
                 </div>
-                <div style={{textAlign:"center",fontSize:10,color:T.textD,marginTop:6,fontWeight:600,letterSpacing:".08em"}}>DOKOWAVE · DJ DA FIRMA</div>
+                <div style={{textAlign:"center",fontSize:10,color:T.textD,marginTop:6,fontWeight:600,letterSpacing:".08em"}}>DOKOWAVE · DJ DA 7BENEFÍCIOS</div>
               </div>
 
               {/* Player controls */}
@@ -7161,6 +7247,7 @@ const CentralAlexa = ({onBack}) => {
                 }
               </div>
             </div>
+          </div>
           </div>
         )}
 
