@@ -7298,7 +7298,7 @@ const CentralAlexa = ({onBack}) => {
     }, 1200);
   };
 
-  const VETO    = 3;
+  const VETO    = 4;
   const cur     = currentSong || queue.find(s=>s.status==='playing') || queue[0];
   const curIdx  = queue.findIndex(s=>s.id===cur?.id);
 
@@ -7483,10 +7483,12 @@ const CentralAlexa = ({onBack}) => {
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                   </button>
-                  <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
+                  {isAdmin && (
+                  <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo (Admin)"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:spotifyOk?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:spotifyOk?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                   </button>
+                  )}
                 </div>
                 {/* Device selector */}
                 {showDevices&&(
@@ -7607,10 +7609,19 @@ const CentralAlexa = ({onBack}) => {
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                         Fila vazia! Pesquise uma música acima.
                       </div>
-                    : queue.map((s,i)=>{
+                    : [...queue]
+                    // ── Ordena: tocando primeiro, depois pendentes por posição ──
+                    .sort((a,b)=>{
+                      if (a.status==='playing' && b.status!=='playing') return -1;
+                      if (a.status!=='playing' && b.status==='playing') return 1;
+                      return (a.position||0) - (b.position||0);
+                    })
+                    .map((s,i)=>{
                         const votes = skipVotes[s.id]||0;
                         const iAmPlaying = s.status==='playing';
                         const voted = myVotedSongs.has(s.id);
+                        const isMyOwn = s.requested_by === myName;
+                        const canDelete = isMyOwn && !iAmPlaying;
                         return (
                           <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:i===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
                             {/* Position / EQ */}
@@ -7639,18 +7650,48 @@ const CentralAlexa = ({onBack}) => {
                               </div>
                               <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.requested_by}</span>
                             </div>
-                            {/* Vote to skip */}
-                            <button onClick={()=>handleVote(s)} disabled={voted}
-                              style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,
-                                border:`1.5px solid ${votes>0?"rgba(192,64,80,0.4)":T.border}`,
-                                background:voted?"rgba(192,64,80,0.04)":votes>0?"rgba(192,64,80,0.06)":"transparent",
-                                color:votes>0?"#C04050":T.textD,
-                                cursor:voted?"default":"pointer",
-                                fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",
-                                opacity:voted?0.6:1}}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>
-                              {votes}/{VETO}
-                            </button>
+                            {/* Vote to skip — somente na música tocando agora */}
+                            {iAmPlaying && (
+                              isAdmin
+                                ? /* Admin: pula direto sem votação */
+                                  <button onClick={()=>handleVote(s)}
+                                    title="Pular (Admin)"
+                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,
+                                      border:`1.5px solid ${T.gold}55`,
+                                      background:T.goldGl,
+                                      color:T.gold,
+                                      cursor:"pointer",
+                                      fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                    Pular
+                                  </button>
+                                : /* Usuário comum: vota para skip */
+                                  <button onClick={()=>handleVote(s)} disabled={voted}
+                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,
+                                      border:`1.5px solid ${votes>0?"rgba(192,64,80,0.4)":T.border}`,
+                                      background:voted?"rgba(192,64,80,0.04)":votes>0?"rgba(192,64,80,0.06)":"transparent",
+                                      color:votes>0?"#C04050":T.textD,
+                                      cursor:voted?"default":"pointer",
+                                      fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",
+                                      opacity:voted?0.6:1}}>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>
+                                    {votes}/{VETO}
+                                  </button>
+                            )}
+                            {/* Deletar — somente músicas que o próprio usuário adicionou (e não estão tocando) */}
+                            {canDelete && (
+                              <button
+                                onClick={async()=>{
+                                  await api('delete', `/api/queue/${s.id}`);
+                                  loadQueue();
+                                }}
+                                title="Remover minha música"
+                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor="rgba(192,64,80,0.4)";e.currentTarget.style.color="#C04050";}}
+                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            )}
                             <span style={{fontSize:10,color:T.textD,minWidth:28,textAlign:"right"}}>{s.duration_str||"—"}</span>
                           </div>
                         );
