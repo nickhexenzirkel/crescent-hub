@@ -7065,6 +7065,8 @@ const CentralAlexa = ({onBack}) => {
   const [spotifyOk, setSpotifyOk]       = useState(false);
   const [devices, setDevices]           = useState([]);
   const [showDevices, setShowDevices]   = useState(false);
+  const [volume, setVolume]             = useState(50);   // 0-100
+  const [volumeSaving, setVolumeSaving] = useState(false);
   const [festLoading, setFestLoading]   = useState(true);
   const [serverMsg, setServerMsg]       = useState("");
   const searchTimer = useRef(null);
@@ -7427,6 +7429,18 @@ const CentralAlexa = ({onBack}) => {
     setShowDevices(true);
   };
 
+  // Volume — debounce para não spam o Spotify
+  const volumeTimer = useRef(null);
+  const handleVolume = (newVol) => {
+    setVolume(newVol);
+    if (volumeTimer.current) clearTimeout(volumeTimer.current);
+    volumeTimer.current = setTimeout(async () => {
+      setVolumeSaving(true);
+      await api('put', `/api/player/volume?volume_percent=${newVol}`).catch(()=>{});
+      setVolumeSaving(false);
+    }, 300);
+  };
+
   const sendAlexa = () => {
     if(!alexaInput.trim()) return;
     if(!canAskAlexa) return;
@@ -7637,6 +7651,28 @@ const CentralAlexa = ({onBack}) => {
                   </button>
                   )}
                 </div>
+                {/* Volume — somente admin */}
+                {isAdmin && (
+                  <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:`1px solid ${T.border}22`}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={volume===0?"#C04050":T.textD} strokeWidth="2" strokeLinecap="round"
+                      onClick={()=>handleVolume(volume===0?50:0)} style={{cursor:"pointer",flexShrink:0}}>
+                      {volume===0
+                        ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
+                        : volume<50
+                          ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+                          : <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+                      }
+                    </svg>
+                    <input type="range" min="0" max="100" value={volume}
+                      onChange={e=>handleVolume(Number(e.target.value))}
+                      disabled={!spotifyOk}
+                      style={{flex:1,accentColor:T.gold,height:3,cursor:spotifyOk?"pointer":"not-allowed",opacity:spotifyOk?1:0.4}}
+                    />
+                    <span style={{fontSize:10,color:T.textD,minWidth:24,textAlign:"right",opacity:volumeSaving?0.5:1}}>
+                      {volume}%
+                    </span>
+                  </div>
+                )}
                 {/* Device selector */}
                 {showDevices&&(
                   <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10,marginTop:4}}>
@@ -7799,19 +7835,13 @@ const CentralAlexa = ({onBack}) => {
                               </div>
                               <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.requested_by}</span>
                             </div>
-                            {/* Skip — só na música tocando */}
-                            {iAmPlaying && (
-                              isAdmin
-                                ? <button onClick={()=>handleVote(s)} title="Pular (Admin)"
-                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${T.gold}55`,background:T.goldGl,color:T.gold,cursor:"pointer",fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-                                    Pular
-                                  </button>
-                                : <button onClick={()=>handleVote(s)} disabled={voted}
-                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${votes>0?"rgba(192,64,80,0.4)":T.border}`,background:voted?"rgba(192,64,80,0.04)":votes>0?"rgba(192,64,80,0.06)":"transparent",color:votes>0?"#C04050":T.textD,cursor:voted?"default":"pointer",fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",opacity:voted?0.6:1}}>
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>
-                                    {votes}/{VETO}
-                                  </button>
+                            {/* Skip — temporariamente apenas admin */}
+                            {iAmPlaying && isAdmin && (
+                              <button onClick={()=>handleVote(s)} title="Pular (Admin)"
+                                style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${T.gold}55`,background:T.goldGl,color:T.gold,cursor:"pointer",fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                Pular
+                              </button>
                             )}
                             {/* Deletar própria música */}
                             {canDelete && (
