@@ -7248,9 +7248,18 @@ const CentralAlexa = ({onBack}) => {
 
   const loadMaquinaData = async () => {
     setMaquinaLoading(true);
-    const { data } = await _supabase
-      .from('queue').select('spotify_id,title,artist,album_art')
-      .in('status',['played','skipped']).order('created_at',{ascending:false}).limit(500);
+
+    // Busca data de reset (se existir)
+    const { data: resetSetting } = await _supabase
+      .from('settings').select('value').eq('key','maquina_reset_at').maybeSingle();
+    const resetAt = resetSetting?.value || null;
+
+    let query = _supabase
+      .from('queue').select('spotify_id,title,artist,album_art,created_at')
+      .in('status',['played','skipped']).order('created_at',{ascending:false}).limit(2000);
+    if (resetAt) query = query.gte('created_at', resetAt);
+
+    const { data } = await query;
     if (!data) { setMaquinaLoading(false); return; }
 
     const songs = {}; const artists = {};
@@ -7263,6 +7272,7 @@ const CentralAlexa = ({onBack}) => {
       topSongs:   Object.values(songs).sort((a,b)=>b.count-a.count).slice(0,10),
       topArtists: Object.entries(artists).sort((a,b)=>b[1]-a[1]).slice(0,10),
       total:      data.length,
+      resetAt,
     });
     setMaquinaLoading(false);
   };
@@ -7641,18 +7651,26 @@ const CentralAlexa = ({onBack}) => {
                       Nenhuma música tocando
                     </div>
                 }
-                {/* Controls */}
+                {/* Controls — play/pause somente admin */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:10}}>
-                  <button onClick={handlePlayPause} disabled={!spotifyOk}
-                    style={{width:46,height:46,borderRadius:12,border:"none",
-                      background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-                      cursor:spotifyOk?"pointer":"not-allowed",color:"white",
-                      display:"flex",alignItems:"center",justifyContent:"center",
-                      outline:"none",boxShadow:`0 4px 16px ${T.goldLine}55`,opacity:spotifyOk?1:0.5}}>
-                    {isPlaying
-                      ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                      : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
-                  </button>
+                  {isAdmin
+                    ? <button onClick={handlePlayPause} disabled={!spotifyOk}
+                        style={{width:46,height:46,borderRadius:12,border:"none",
+                          background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+                          cursor:spotifyOk?"pointer":"not-allowed",color:"white",
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          outline:"none",boxShadow:`0 4px 16px ${T.goldLine}55`,opacity:spotifyOk?1:0.5}}>
+                        {isPlaying
+                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                          : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                      </button>
+                    : /* Colaborador: exibe indicador de status sem botão */
+                      <div style={{width:46,height:46,borderRadius:12,background:isPlaying?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:`${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5}}>
+                        {isPlaying
+                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                          : <svg width="16" height="16" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                      </div>
+                  }
                   {isAdmin && (
                   <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
                     title="Pular música (Admin)"
