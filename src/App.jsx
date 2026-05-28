@@ -7479,10 +7479,13 @@ const CentralAlexa = ({onBack}) => {
                       ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                       : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
                   </button>
+                  {isAdmin && (
                   <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
+                    title="Pular música (Admin)"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                   </button>
+                  )}
                   {isAdmin && (
                   <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo (Admin)"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:spotifyOk?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:spotifyOk?1:0.4}}>
@@ -7597,7 +7600,7 @@ const CentralAlexa = ({onBack}) => {
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
                 <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text}}>Fila Democrática</div>
-                  <span style={{fontSize:11,color:T.textT}}>{queue.length} músicas · {VETO} votos = skip automático</span>
+                  <span style={{fontSize:11,color:T.textT}}>{queue.length} {queue.length===1?"música":"músicas"} na fila</span>
                 </div>
                 {festLoading
                   ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
@@ -7609,82 +7612,66 @@ const CentralAlexa = ({onBack}) => {
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                         Fila vazia! Pesquise uma música acima.
                       </div>
-                    : [...queue]
-                    // ── Ordena: tocando primeiro, depois pendentes por posição ──
-                    .sort((a,b)=>{
-                      if (a.status==='playing' && b.status!=='playing') return -1;
-                      if (a.status!=='playing' && b.status==='playing') return 1;
-                      return (a.position||0) - (b.position||0);
-                    })
-                    .map((s,i)=>{
-                        const votes = skipVotes[s.id]||0;
-                        const iAmPlaying = s.status==='playing';
-                        const voted = myVotedSongs.has(s.id);
-                        const isMyOwn = s.requested_by === myName;
+                    : (() => {
+                      const sorted = [...queue].sort((a,b)=>{
+                        if (a.status==='playing' && b.status!=='playing') return -1;
+                        if (a.status!=='playing' && b.status==='playing') return 1;
+                        return (a.position||0) - (b.position||0);
+                      });
+                      const playingSong = sorted.find(s => s.status==='playing');
+                      const pending     = sorted.filter(s => s.status!=='playing');
+
+                      const renderRow = (s, idx, isNowPlaying) => {
+                        const votes     = skipVotes[s.id]||0;
+                        const iAmPlaying = isNowPlaying;
+                        const voted     = myVotedSongs.has(s.id);
+                        const isMyOwn   = s.requested_by === myName;
                         const canDelete = isMyOwn && !iAmPlaying;
                         return (
-                          <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:i===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
-                            {/* Position / EQ */}
+                          <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
+                            {/* EQ / número */}
                             <div style={{width:22,textAlign:"center",flexShrink:0}}>
                               {iAmPlaying
                                 ? <div style={{display:"flex",alignItems:"flex-end",gap:1,height:14,justifyContent:"center"}}>
                                     {[1,2,3].map(j=><div key={j} style={{width:2,borderRadius:1,background:T.gold,animation:`alexaEq${j} ${0.4+j*0.1}s ease-in-out infinite alternate`,minHeight:3}}/>)}
                                   </div>
-                                : <span style={{fontSize:11,color:T.textD}}>{i+1}</span>
+                                : <span style={{fontSize:11,color:T.textD}}>{idx+1}</span>
                               }
                             </div>
-                            {/* Album art */}
+                            {/* Capa */}
                             {s.album_art
-                              ? <img src={s.album_art} alt="" style={{width:36,height:36,borderRadius:7,objectFit:"cover",flexShrink:0}}/>
-                              : <div style={{width:36,height:36,borderRadius:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🎵</div>
+                              ? <img src={s.album_art} alt="" style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,objectFit:"cover",flexShrink:0,boxShadow:iAmPlaying?`0 4px 16px ${T.goldLine}44`:"none",transition:"all .2s"}}/>
+                              : <div style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🎵</div>
                             }
-                            {/* Title + artist */}
+                            {/* Título + artista */}
                             <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight:iAmPlaying?700:500,color:iAmPlaying?T.gold:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
+                              <div style={{fontSize:iAmPlaying?14:13,fontWeight:iAmPlaying?700:500,color:iAmPlaying?T.gold:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
                               <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
                             </div>
-                            {/* Requested by */}
+                            {/* Pedido por */}
                             <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
                               <div style={{width:18,height:18,borderRadius:5,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:700,color:"#fff"}}>
                                 {(s.requested_by||'?')[0].toUpperCase()}
                               </div>
                               <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.requested_by}</span>
                             </div>
-                            {/* Vote to skip — somente na música tocando agora */}
+                            {/* Skip — só na música tocando */}
                             {iAmPlaying && (
                               isAdmin
-                                ? /* Admin: pula direto sem votação */
-                                  <button onClick={()=>handleVote(s)}
-                                    title="Pular (Admin)"
-                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,
-                                      border:`1.5px solid ${T.gold}55`,
-                                      background:T.goldGl,
-                                      color:T.gold,
-                                      cursor:"pointer",
-                                      fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
+                                ? <button onClick={()=>handleVote(s)} title="Pular (Admin)"
+                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${T.gold}55`,background:T.goldGl,color:T.gold,cursor:"pointer",fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                                     Pular
                                   </button>
-                                : /* Usuário comum: vota para skip */
-                                  <button onClick={()=>handleVote(s)} disabled={voted}
-                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,
-                                      border:`1.5px solid ${votes>0?"rgba(192,64,80,0.4)":T.border}`,
-                                      background:voted?"rgba(192,64,80,0.04)":votes>0?"rgba(192,64,80,0.06)":"transparent",
-                                      color:votes>0?"#C04050":T.textD,
-                                      cursor:voted?"default":"pointer",
-                                      fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",
-                                      opacity:voted?0.6:1}}>
+                                : <button onClick={()=>handleVote(s)} disabled={voted}
+                                    style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${votes>0?"rgba(192,64,80,0.4)":T.border}`,background:voted?"rgba(192,64,80,0.04)":votes>0?"rgba(192,64,80,0.06)":"transparent",color:votes>0?"#C04050":T.textD,cursor:voted?"default":"pointer",fontSize:11,fontWeight:votes>0?700:400,outline:"none",transition:"all .15s",opacity:voted?0.6:1}}>
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></svg>
                                     {votes}/{VETO}
                                   </button>
                             )}
-                            {/* Deletar — somente músicas que o próprio usuário adicionou (e não estão tocando) */}
+                            {/* Deletar própria música */}
                             {canDelete && (
-                              <button
-                                onClick={async()=>{
-                                  await api('delete', `/api/queue/${s.id}`);
-                                  loadQueue();
-                                }}
+                              <button onClick={async()=>{ await api('delete',`/api/queue/${s.id}`); loadQueue(); }}
                                 title="Remover minha música"
                                 style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
                                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor="rgba(192,64,80,0.4)";e.currentTarget.style.color="#C04050";}}
@@ -7695,7 +7682,47 @@ const CentralAlexa = ({onBack}) => {
                             <span style={{fontSize:10,color:T.textD,minWidth:28,textAlign:"right"}}>{s.duration_str||"—"}</span>
                           </div>
                         );
-                      })
+                      };
+
+                      return (
+                        <>
+                          {/* ── Tocando Agora ── */}
+                          {playingSong && (
+                            <>
+                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",gap:6,borderBottom:`1px solid ${T.border}`}}>
+                                <div style={{display:"flex",alignItems:"flex-end",gap:1,height:10}}>
+                                  {[1,2,3].map(j=><div key={j} style={{width:2,borderRadius:1,background:T.gold,animation:`alexaEq${j} ${0.4+j*0.1}s ease-in-out infinite alternate`,minHeight:2}}/>)}
+                                </div>
+                                <span style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Tocando Agora</span>
+                              </div>
+                              {renderRow(playingSong, 0, true)}
+                            </>
+                          )}
+
+                          {/* ── A Seguir ── */}
+                          {pending.length > 0 && (
+                            <>
+                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,background:isDark?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.02)"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                                  <span style={{fontSize:10,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".08em"}}>A Seguir — {pending.length} {pending.length===1?"música":"músicas"}</span>
+                                </div>
+                                <span style={{fontSize:10,color:T.textT}}>{VETO} votos = skip automático</span>
+                              </div>
+                              {pending.map((s,i)=>renderRow(s, i, false))}
+                            </>
+                          )}
+
+                          {/* Fila sem nenhuma música a seguir */}
+                          {!playingSong && pending.length===0 && (
+                            <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                              Fila vazia! Pesquise uma música acima.
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
                 }
               </div>
             </div>
