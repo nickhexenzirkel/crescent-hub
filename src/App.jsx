@@ -7365,6 +7365,21 @@ const CentralAlexa = ({onBack}) => {
 
   const addToQueue = async (track) => {
     if (isAdding) return;
+
+    // Verificação local antecipada (evita round-trip desnecessário)
+    if (!isAdmin) {
+      const myActive = queue.filter(s =>
+        s.requested_by === myName && ['pending','playing'].includes(s.status)
+      );
+      if (myActive.length >= 2) {
+        setServerMsg('Limite atingido! Você já tem 2 músicas na fila. Aguarde uma delas tocar.');
+        setTimeout(()=>setServerMsg(''), 5000);
+        setSearchResults([]);
+        setVoiceVal('');
+        return;
+      }
+    }
+
     setIsAdding(track.id);
     setSearchResults([]);
     setVoiceVal('');
@@ -7373,6 +7388,7 @@ const CentralAlexa = ({onBack}) => {
       title: track.title, artist: track.artist,
       album_art: track.album_art, requested_by: myName,
       duration_ms: track.duration_ms, duration_str: track.duration_str,
+      is_admin: isAdmin,
     });
     if (!r.error) {
       const msgs = DOKO_MSGS_ADD(myName, track.title);
@@ -7381,7 +7397,7 @@ const CentralAlexa = ({onBack}) => {
       if (!isPlaying && !currentSong) api('post', '/api/player/play');
     } else {
       setServerMsg(r.error);
-      setTimeout(()=>setServerMsg(''), 4000);
+      setTimeout(()=>setServerMsg(''), 5000);
     }
     setIsAdding(null);
   };
@@ -7778,19 +7794,56 @@ const CentralAlexa = ({onBack}) => {
 
               {/* Queue */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
-                <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text}}>Fila Democrática</div>
-                  <span style={{fontSize:11,color:T.textT}}>
-                    {queue.length} {queue.length===1?"música":"músicas"}
-                    {queue.length > 0 && (() => {
-                      const totalMs = queue.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
-                      const totalMin = Math.round(totalMs / 60000);
-                      const h = Math.floor(totalMin / 60);
-                      const m = totalMin % 60;
-                      const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
-                      return ` · ${dur}`;
+                <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                  <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text,flexShrink:0}}>Fila Democrática</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    {/* Contador de limite para colaboradores */}
+                    {!isAdmin && (() => {
+                      const myActive = queue.filter(s => s.requested_by === myName && ['pending','playing'].includes(s.status)).length;
+                      const remaining = 2 - myActive;
+                      return (
+                        <span style={{
+                          fontSize:10, fontWeight:600,
+                          color: remaining===0 ? "#C04050" : remaining===1 ? "#E08030" : T.gold,
+                          background: remaining===0 ? "rgba(192,64,80,0.08)" : remaining===1 ? "rgba(224,128,48,0.08)" : T.goldGl,
+                          border: `1px solid ${remaining===0 ? "rgba(192,64,80,0.3)" : remaining===1 ? "rgba(224,128,48,0.3)" : T.goldLine+"44"}`,
+                          padding:"2px 7px", borderRadius:5,
+                        }}>
+                          {remaining===0 ? "⛔ Limite atingido" : `🎵 ${remaining} vaga${remaining===1?"":"s"}`}
+                        </span>
+                      );
                     })()}
-                  </span>
+                    <span style={{fontSize:11,color:T.textT}}>
+                      {queue.length} {queue.length===1?"música":"músicas"}
+                      {queue.length > 0 && (() => {
+                        const totalMs = queue.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
+                        const totalMin = Math.round(totalMs / 60000);
+                        const h = Math.floor(totalMin / 60);
+                        const m = totalMin % 60;
+                        const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                        return ` · ${dur}`;
+                      })()}
+                    </span>
+                    {/* Botão Limpar Fila — somente admin */}
+                    {isAdmin && queue.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Limpar toda a fila? Esta ação não pode ser desfeita.')) return;
+                          await api('delete', '/api/queue');
+                          loadQueue();
+                        }}
+                        title="Limpar fila (Admin)"
+                        style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,
+                          border:"1.5px solid rgba(192,64,80,0.4)",background:"rgba(192,64,80,0.06)",
+                          color:"#C04050",cursor:"pointer",fontSize:10,fontWeight:700,outline:"none",
+                          transition:"all .15s",flexShrink:0}}
+                        onMouseEnter={e=>{e.currentTarget.style.background="rgba(192,64,80,0.14)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background="rgba(192,64,80,0.06)";}}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        Limpar Fila
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {festLoading
                   ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
