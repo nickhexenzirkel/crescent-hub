@@ -7173,24 +7173,38 @@ const CentralAlexa = ({onBack}) => {
   // ── Polling de progresso para sync da letra ───────────────
   const startProgressPolling = () => {
     if (progressTimer.current) clearInterval(progressTimer.current);
-    let localMs = 0;
-    let lastSync = Date.now();
+
+    // baseMs = progresso no momento baseTime (ms real, compensado de latência)
+    let baseMs   = 0;
+    let baseTime = Date.now();
+    let syncing  = false;
 
     const syncWithServer = async () => {
-      const r = await api('get', '/api/progress').catch(()=>null);
+      if (syncing) return;
+      syncing = true;
+      const tSent = Date.now();
+      const r = await api('get', '/api/progress').catch(() => null);
       if (r?.progress_ms !== undefined) {
-        localMs = r.progress_ms;
-        lastSync = Date.now();
+        const tReceived = Date.now();
+        // Estima que o progresso retornado era válido no meio do RTT
+        const halfRtt = (tReceived - tSent) / 2;
+        baseMs   = r.progress_ms + halfRtt; // compensa latência
+        baseTime = tReceived;
       }
+      syncing = false;
     };
 
+    // Primeira sync imediata
     syncWithServer();
+
+    // Tick a cada 200ms — clock local preciso entre syncs
     progressTimer.current = setInterval(() => {
-      localMs += 500;
-      setProgressMs(localMs);
-      // Re-sync com servidor a cada 5s
-      if (Date.now() - lastSync > 5000) syncWithServer();
-    }, 500);
+      const now     = Date.now();
+      const current = baseMs + (now - baseTime);
+      setProgressMs(current);
+      // Re-sync com servidor a cada 8s para corrigir desvio
+      if (now - baseTime > 8000) syncWithServer();
+    }, 200);
   };
 
   const stopProgressPolling = () => {
@@ -7859,13 +7873,17 @@ const CentralAlexa = ({onBack}) => {
             <div style={{width:300,flexShrink:0,display:"flex",flexDirection:"column",gap:12}}>
               {/* Toggle Letra */}
               <button onClick={()=>setShowLyrics(v=>!v)}
-                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"8px 0",borderRadius:12,
-                  border:`1.5px solid ${showLyrics?T.gold:T.border}`,
-                  background:showLyrics?T.goldGl:"transparent",
-                  color:showLyrics?T.gold:T.textD,
-                  cursor:"pointer",fontSize:12,fontWeight:600,outline:"none",transition:"all .2s",width:"100%"}}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="9" y1="9" x2="21" y2="7"/></svg>
-                {showLyrics ? "Fechar Letra" : "Ver Letra"}
+                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px 0",borderRadius:12,
+                  border:`1.5px solid ${showLyrics ? T.gold : (isDark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.18)")}`,
+                  background:showLyrics
+                    ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`
+                    : (isDark?"rgba(255,255,255,0.09)":"rgba(0,0,0,0.07)"),
+                  color:showLyrics?"#fff":(isDark?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.75)"),
+                  cursor:"pointer",fontSize:12,fontWeight:700,outline:"none",transition:"all .2s",width:"100%",
+                  boxShadow:showLyrics?`0 4px 16px ${T.goldLine}55`:"none",
+                  letterSpacing:".02em"}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                {showLyrics ? "Fechar Letra" : "🎵 Ver Letra"}
               </button>
 
               {/* Painel de Letra */}
