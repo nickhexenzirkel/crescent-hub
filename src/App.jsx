@@ -7780,7 +7780,17 @@ const CentralAlexa = ({onBack}) => {
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
                 <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text}}>Fila Democrática</div>
-                  <span style={{fontSize:11,color:T.textT}}>{queue.length} {queue.length===1?"música":"músicas"} na fila</span>
+                  <span style={{fontSize:11,color:T.textT}}>
+                    {queue.length} {queue.length===1?"música":"músicas"}
+                    {queue.length > 0 && (() => {
+                      const totalMs = queue.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
+                      const totalMin = Math.round(totalMs / 60000);
+                      const h = Math.floor(totalMin / 60);
+                      const m = totalMin % 60;
+                      const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                      return ` · ${dur}`;
+                    })()}
+                  </span>
                 </div>
                 {festLoading
                   ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
