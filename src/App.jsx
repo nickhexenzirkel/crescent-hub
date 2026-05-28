@@ -7085,10 +7085,10 @@ const CentralAlexa = ({onBack}) => {
     }
   };
 
-  const loadSkipVotes = async (queueData) => {
-    const ids = (queueData || queue).filter(s=>['pending','playing'].includes(s.status)).map(s=>s.id);
-    if (!ids.length) { setSkipVotes({}); return; }
-    const { data } = await _supabase.from('skip_votes').select('song_id').in('song_id', ids);
+  const loadSkipVotes = async () => {
+    // Busca todos os votos de skip ativos — sem depender do estado `queue`
+    // para evitar closure stale no listener de realtime
+    const { data } = await _supabase.from('skip_votes').select('song_id');
     const counts = {};
     (data||[]).forEach(v => { counts[v.song_id] = (counts[v.song_id]||0) + 1; });
     setSkipVotes(counts);
@@ -7188,7 +7188,7 @@ const CentralAlexa = ({onBack}) => {
     };
   }, []);
 
-  useEffect(() => { loadSkipVotes(queue); }, [queue]);
+  useEffect(() => { loadSkipVotes(); }, [queue]);
 
   // Extrai cores da capa quando a música muda
   useEffect(() => {
@@ -7690,9 +7690,7 @@ const CentralAlexa = ({onBack}) => {
                           {playingSong && (
                             <>
                               <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",gap:6,borderBottom:`1px solid ${T.border}`}}>
-                                <div style={{display:"flex",alignItems:"flex-end",gap:1,height:10}}>
-                                  {[1,2,3].map(j=><div key={j} style={{width:2,borderRadius:1,background:T.gold,animation:`alexaEq${j} ${0.4+j*0.1}s ease-in-out infinite alternate`,minHeight:2}}/>)}
-                                </div>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                 <span style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Tocando Agora</span>
                               </div>
                               {renderRow(playingSong, 0, true)}
