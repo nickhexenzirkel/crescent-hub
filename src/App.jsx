@@ -7249,7 +7249,7 @@ const CentralAlexa = ({onBack}) => {
     if (r.error === 'Você já votou') { setMyVotedSongs(s=>new Set([...s,song.id])); return; }
     if (!r.error) {
       setMyVotedSongs(s=>new Set([...s,song.id]));
-      const msgs = DOKO_MSGS_VETO(song.title, r.votes, r.needed||3);
+      const msgs = DOKO_MSGS_VETO(song.title, r.votes, r.needed||VETO);
       setDokoMsg(msgs[0]);
       if (r.skipped) {
         const skipMsgs = DOKO_MSGS_SKIP(myName);
