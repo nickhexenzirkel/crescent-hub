@@ -7029,6 +7029,16 @@ const CentralAlexa = ({onBack}) => {
   const [queue, setQueue]               = useState([]);
   const [isPlaying, setIsPlaying]       = useState(false);
   const [currentSong, setCurrentSong]   = useState(null);
+  // ── Letra sincronizada (LRCLIB) ──────────────────────────
+  const [showLyrics, setShowLyrics]     = useState(false);
+  const [lyrics, setLyrics]             = useState([]);       // [{time, text}]
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsError, setLyricsError]   = useState(false);
+  const [activeLine, setActiveLine]     = useState(0);
+  const [progressMs, setProgressMs]     = useState(0);
+  const lyricsRef = useRef(null);
+  const progressTimer = useRef(null);
+  const lastSongId = useRef(null);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
@@ -7097,6 +7107,76 @@ const CentralAlexa = ({onBack}) => {
   const checkSpotify = async () => {
     const r = await api('get', '/api/status').catch(()=>({ok:false}));
     setSpotifyOk(!!r?.ok);
+  };
+
+  // ── LRCLIB: busca letra sincronizada ─────────────────────
+  const parseLRC = (syncedLyrics) => {
+    if (!syncedLyrics) return [];
+    return syncedLyrics
+      .split('\n')
+      .map(line => {
+        const m = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/);
+        if (!m) return null;
+        const time = parseInt(m[1])*60000 + parseFloat(`${m[2]}.${m[3]}`)*1000;
+        return { time: Math.round(time), text: m[4].trim() };
+      })
+      .filter(l => l && l.text);
+  };
+
+  const fetchLyrics = async (song) => {
+    if (!song) { setLyrics([]); return; }
+    setLyricsLoading(true);
+    setLyricsError(false);
+    setActiveLine(0);
+    try {
+      const artist = encodeURIComponent(song.artist||'');
+      const title  = encodeURIComponent(song.title||'');
+      const dur    = song.duration_ms ? Math.round(song.duration_ms/1000) : '';
+      const url    = `https://lrclib.net/api/get?artist_name=${artist}&track_name=${title}${dur?`&duration=${dur}`:''}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('not found');
+      const d = await r.json();
+      if (d.syncedLyrics) {
+        setLyrics(parseLRC(d.syncedLyrics));
+      } else if (d.plainLyrics) {
+        // Sem sync — mostra letra simples sem timestamps
+        setLyrics(d.plainLyrics.split('\n').map((text,i)=>({time:i*3000,text})).filter(l=>l.text));
+      } else {
+        setLyrics([]);
+        setLyricsError(true);
+      }
+    } catch {
+      setLyrics([]);
+      setLyricsError(true);
+    }
+    setLyricsLoading(false);
+  };
+
+  // ── Polling de progresso para sync da letra ───────────────
+  const startProgressPolling = () => {
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    let localMs = 0;
+    let lastSync = Date.now();
+
+    const syncWithServer = async () => {
+      const r = await api('get', '/api/progress').catch(()=>null);
+      if (r?.progress_ms !== undefined) {
+        localMs = r.progress_ms;
+        lastSync = Date.now();
+      }
+    };
+
+    syncWithServer();
+    progressTimer.current = setInterval(() => {
+      localMs += 500;
+      setProgressMs(localMs);
+      // Re-sync com servidor a cada 5s
+      if (Date.now() - lastSync > 5000) syncWithServer();
+    }, 500);
+  };
+
+  const stopProgressPolling = () => {
+    if (progressTimer.current) { clearInterval(progressTimer.current); progressTimer.current = null; }
   };
 
   const [festColors, setFestColors]     = useState(null);
@@ -7202,6 +7282,39 @@ const CentralAlexa = ({onBack}) => {
     }, 350);
     return () => clearTimeout(t);
   }, [currentSong?.album_art]);
+
+  // Busca letra quando muda a música
+  useEffect(() => {
+    const songId = currentSong?.spotify_id || currentSong?.id;
+    if (!songId || songId === lastSongId.current) return;
+    lastSongId.current = songId;
+    fetchLyrics(currentSong);
+  }, [currentSong?.spotify_id, currentSong?.id]);
+
+  // Inicia/para polling de progresso conforme isPlaying
+  useEffect(() => {
+    if (isPlaying) startProgressPolling();
+    else stopProgressPolling();
+    return stopProgressPolling;
+  }, [isPlaying]);
+
+  // Atualiza linha ativa baseado no progresso
+  useEffect(() => {
+    if (!lyrics.length) return;
+    let idx = 0;
+    for (let i = 0; i < lyrics.length; i++) {
+      if (lyrics[i].time <= progressMs) idx = i;
+      else break;
+    }
+    setActiveLine(idx);
+  }, [progressMs, lyrics]);
+
+  // Auto-scroll para linha ativa na letra
+  useEffect(() => {
+    if (!showLyrics || !lyricsRef.current) return;
+    const el = lyricsRef.current.querySelector(`[data-line="${activeLine}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [activeLine, showLyrics]);
 
   // ── Ações do Festival ────────────────────────────────────
   const handleSearch = (val) => {
@@ -7514,8 +7627,22 @@ const CentralAlexa = ({onBack}) => {
               </div>
             </div>
 
-            {/* Right: Search bar + Queue */}
+            {/* Right: Search bar + Queue / Lyrics */}
             <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:16}}>
+              {/* Toggle Letra */}
+              {currentSong && (
+                <div style={{display:"flex",justifyContent:"flex-end"}}>
+                  <button onClick={()=>setShowLyrics(v=>!v)}
+                    style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:10,
+                      border:`1.5px solid ${showLyrics?T.gold:T.border}`,
+                      background:showLyrics?T.goldGl:"transparent",
+                      color:showLyrics?T.gold:T.textD,
+                      cursor:"pointer",fontSize:12,fontWeight:600,outline:"none",transition:"all .2s"}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="9" y1="9" x2="21" y2="7"/></svg>
+                    {showLyrics ? "Fechar Letra" : "Ver Letra"}
+                  </button>
+                </div>
+              )}
 
               {/* Server error message */}
               {serverMsg&&(
@@ -7723,6 +7850,60 @@ const CentralAlexa = ({onBack}) => {
                     })()
                 }
               </div>
+
+              {/* ── Painel de Letra Sincronizada ── */}
+              {showLyrics && (
+                <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
+                  {/* Header */}
+                  <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      <span style={{fontFamily:"var(--font-brand)",fontSize:13,fontWeight:700,color:T.text}}>Letra</span>
+                      {currentSong && <span style={{fontSize:11,color:T.textT}}>— {currentSong.title}</span>}
+                    </div>
+                    {lyricsLoading && <span style={{fontSize:10,color:T.textT}}>Buscando...</span>}
+                  </div>
+
+                  {/* Conteúdo */}
+                  <div ref={lyricsRef} style={{height:380,overflowY:"auto",padding:"20px 24px",scrollBehavior:"smooth",
+                    /* Hide scrollbar */
+                    msOverflowStyle:"none",scrollbarWidth:"none"}}>
+                    {lyricsLoading ? (
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:10,color:T.textT}}>
+                        <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+                        <span style={{fontSize:12}}>Buscando letra...</span>
+                      </div>
+                    ) : lyricsError || !lyrics.length ? (
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:8,color:T.textT}}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span style={{fontSize:12}}>Letra não encontrada</span>
+                        <span style={{fontSize:10,color:T.textD}}>Esta música não tem letra disponível no LRCLIB</span>
+                      </div>
+                    ) : (
+                      <div style={{display:"flex",flexDirection:"column",gap:4,paddingBottom:120}}>
+                        {/* Espaço inicial para a linha ativa ficar no meio */}
+                        <div style={{height:120}}/>
+                        {lyrics.map((line, i) => (
+                          <div key={i} data-line={i}
+                            style={{
+                              padding:"5px 0",
+                              fontSize: i===activeLine ? 20 : 16,
+                              fontWeight: i===activeLine ? 700 : 400,
+                              color: i===activeLine ? T.gold : i < activeLine ? (isDark?"rgba(255,255,255,0.25)":"rgba(0,0,0,0.25)") : T.textT,
+                              lineHeight:1.5,
+                              transition:"all .3s ease",
+                              cursor:"default",
+                              letterSpacing: i===activeLine ? ".01em" : "normal",
+                              textShadow: i===activeLine ? `0 0 20px ${T.goldLine}66` : "none",
+                            }}>
+                            {line.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           </div>
