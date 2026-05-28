@@ -7883,7 +7883,7 @@ const CentralAlexa = ({onBack}) => {
                   boxShadow:showLyrics?`0 4px 16px ${T.goldLine}55`:"none",
                   letterSpacing:".02em"}}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                {showLyrics ? "Fechar Letra" : "🎵 Ver Letra"}
+                {showLyrics ? "Fechar Letra" : "Ver Letra"}
               </button>
 
               {/* Painel de Letra */}
