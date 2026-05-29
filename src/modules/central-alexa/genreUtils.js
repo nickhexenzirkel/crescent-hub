@@ -120,7 +120,7 @@ const GENRE_ARTISTS = {
     'j. cole', 'j cole', 'a$ap rocky', 'asap rocky', 'lil uzi vert',
     'playboi carti', 'juice wrld', 'xxxtentacion', 'pop smoke', 'roddy ricch',
     'tyler the creator', 'childish gambino', 'frank ocean', 'ice spice',
-    'gunna', 'lil baby', 'dababy', 'city girls', 'doja cat',
+    'gunna', 'lil baby', 'dababy', 'city girls', 'doja cat', 'doechii',
     // brasileiros
     'djonga', 'bk', 'matuê', 'veigh', 'oruam', 'krawk', 'orochi',
     'mc cabelinho', 'borges', 'filipe ret', 'teto', 'anitta', 'ludmilla',
