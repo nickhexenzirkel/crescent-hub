@@ -113,20 +113,28 @@ const GENRE_ARTISTS = {
     'cardi b', 'nicki minaj', 'lil wayne', 'future', 'young thug', 'migos',
     'j. cole', 'j cole', 'a$ap rocky', 'asap rocky', 'lil uzi vert',
     'playboi carti', 'juice wrld', 'xxxtentacion', 'pop smoke', 'roddy ricch',
+    'tyler the creator', 'childish gambino', 'frank ocean', 'ice spice',
+    'gunna', 'lil baby', 'dababy', 'city girls', 'doja cat',
     // brasileiros
     'djonga', 'bk', 'matuê', 'veigh', 'oruam', 'krawk', 'orochi',
     'mc cabelinho', 'borges', 'filipe ret', 'teto', 'anitta', 'ludmilla',
     'mc carol', 'mc lan', 'mc g15', 'gloria groove', 'racionais',
     'emicida', 'criolo', 'projota', 'conecrewdiversidad',
+    'baco exu do blues', 'muzzike', 'xamã', 'mc hariel', 'mc poze',
+    'mc ryan sp', 'mc ig', 'mc kadu', 'mc davi', 'mc menor hr',
   ],
   rock: [
     'queen', 'metallica', 'ac/dc', 'led zeppelin', 'nirvana', 'foo fighters',
     'red hot chili peppers', 'the beatles', 'rolling stones', 'radiohead',
     'green day', 'linkin park', 'system of a down', 'rage against the machine',
     'arctic monkeys', 'the strokes', 'muse', 'coldplay', 'u2',
+    'tame impala', 'the killers', 'imagine dragons', 'twenty one pilots',
+    'fall out boy', 'panic at the disco', 'my chemical romance', 'paramore',
+    'florence and the machine', 'hozier', 'the national', 'vampire weekend',
     // brasileiros rock
     'rita lee', 'legião urbana', 'titãs', 'cazuza', 'raul seixas',
     'os paralamas', 'skank', 'charlie brown jr', 'sepultura', 'planta e raiz',
+    'fresno', 'nando reis', 'los hermanos', 'o rappa', 'raimundos',
     // samba / axé
     'casuarina', 'harmonia do samba', 'ivete sangalo', 'chiclete com banana',
     'claudia leitte', 'banda eva', 'olodum', 'timbalada',
@@ -139,21 +147,29 @@ const GENRE_ARTISTS = {
     'paulinho da viola', 'anavitória', 'vitor kley', 'melim', 'tiago iorc',
     'lenine', 'fagner', 'gonzaguinha', 'belchior', 'geraldo azevedo',
     'zeca baleiro', 'arnaldo antunes', 'paralamas do sucesso',
+    // brasileiros modernos soul/mpb
+    'liniker', 'urias', 'ebony', 'mahmundi', 'duda beat',
+    'luedji luna', 'aziz edipo', 'céu', 'letrux', 'tulipa ruiz',
+    'alice caymmi', 'roberta sá', 'francisco el hombre', 'rubel',
+    'little simz', 'silvana estrada',
   ],
   cowboy: [
     'gusttavo lima', 'jorge e mateus', 'henrique e juliano', 'israel e rodolffo',
     'zé neto e cristiano', 'maiara e maraísa', 'marilia mendonça', 'luan santana',
     'xand avião', 'bell marques', 'joelma', 'banda calypso',
     'dilsinho', 'mumuzinho', 'ferrugem',
+    'simone e simaria', 'simone mendes', 'ana castela', 'lauana prado',
+    'matheus e kauan', 'hugo e guilherme', 'pedro sampaio', 'chitãozinho e xororó',
     'toby keith', 'luke combs', 'morgan wallen', 'blake shelton', 'garth brooks',
     'zac brown band', 'george strait', 'kenny rogers', 'shania twain',
-    'chris stapleton', 'kane brown', 'carrie underwood',
+    'chris stapleton', 'kane brown', 'carrie underwood', 'post malone',
   ],
   pop: [
+    // internacionais em alta
     'taylor swift', 'ed sheeran', 'ariana grande', 'billie eilish', 'dua lipa',
     'harry styles', 'the weeknd', 'post malone', 'justin bieber', 'selena gomez',
     'lady gaga', 'katy perry', 'rihanna', 'beyoncé', 'charlie puth',
-    'shawn mendes', 'miley cyrus', 'olivia rodrigo', 'doja cat', 'lizzo',
+    'shawn mendes', 'miley cyrus', 'olivia rodrigo', 'lizzo',
     'sam smith', 'sza', 'sabrina carpenter', 'chappell roan', 'gracie abrams',
     'justin timberlake', 'bruno mars', 'michael jackson', 'prince', 'madonna',
     'maroon 5', 'adam levine', 'john legend', 'adele', 'sia', 'p!nk', 'pink',
@@ -161,10 +177,26 @@ const GENRE_ARTISTS = {
     'meghan trainor', 'bebe rexha', 'camila cabello', 'fifth harmony',
     'one direction', 'niall horan', 'liam payne', 'zayn', 'louis tomlinson',
     'carly rae jepsen', 'jordin sparks', 'kesha', 'ke$ha', 'nelly furtado',
+    'charli xcx', 'troye sivan', 'lorde', 'lana del rey', 'halsey',
+    'conan gray', 'stephen sanchez', 'chase atlantic', 'renee rapp',
+    'victoria monet', 'tate mcrae', 'ice spice', 'pinkpantheress',
+    'benson boone', 'noah kahan', 'zach bryan', 'jack harlow',
+    // eletropop / alternativo / indie pop
+    'lorde', 'banks', 'aurora', 'birdy', 'lennon stella',
+    'kiesza', 'ellie goulding', 'zara larsson', 'sigrid', 'astrid s',
+    'girl in red', 'wet leg', 'beabadoobee', 'clairo', 'mitski',
+    'caroline polachek', 'yeule', 'ethel cain', 'indigo de souza',
+    'magdalena bay', 'lucy dacus', 'boygenius', 'julien baker',
+    // brasileiros pop / eletropop
+    'luísa sonza', 'iza', 'jão', 'alok', 'maraisa',
+    'lexa', 'kevinho', 'pedro sampaio', 'claudinho e buchecha',
+    'samuel rosa', 'forfun', 'scalene', 'migos brasil',
     // EDM / eletrônico
     'david guetta', 'martin garrix', 'tiesto', 'calvin harris', 'marshmello',
     'alan walker', 'avicii', 'skrillex', 'zedd', 'diplo', 'kygo',
-    'alok', 'vintage culture', 'fisher', 'dom dolla', 'illenium',
+    'vintage culture', 'fisher', 'dom dolla', 'illenium',
+    'fred again', 'four tet', 'disclosure', 'flume', 'odesza',
+    'rezz', 'deadmau5', 'eric prydz', 'bicep', 'aphex twin',
   ],
 };
 
@@ -175,7 +207,7 @@ const GENRE_KEYWORDS = {
   rock:   ['rock', 'metal', 'punk', 'grunge', 'alternative', 'hard rock', 'samba', 'axé', 'axe'],
   mpb:    ['mpb', 'bossa nova', 'música popular brasileira', 'brazilian', 'indie folk', 'acoustic'],
   cowboy: ['sertanejo', 'forró', 'forro', 'country', 'brega', 'sofrência', 'arrocha', 'caipira', 'pagode'],
-  pop:    ['pop', 'electropop', 'dance pop', 'synth pop', 'edm', 'dance', 'electronic', 'house', 'techno', 'eletrônico'],
+  pop:    ['pop', 'electropop', 'dance pop', 'synth pop', 'edm', 'dance', 'electronic', 'house', 'techno', 'eletrônico', 'indie pop', 'alt pop', 'dream pop', 'bedroom pop'],
 };
 
 // ─── API principal ───────────────────────────────────────────
