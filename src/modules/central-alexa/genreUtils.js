@@ -155,10 +155,16 @@ const GENRE_ARTISTS = {
     'lady gaga', 'katy perry', 'rihanna', 'beyoncé', 'charlie puth',
     'shawn mendes', 'miley cyrus', 'olivia rodrigo', 'doja cat', 'lizzo',
     'sam smith', 'sza', 'sabrina carpenter', 'chappell roan', 'gracie abrams',
+    'justin timberlake', 'bruno mars', 'michael jackson', 'prince', 'madonna',
+    'maroon 5', 'adam levine', 'john legend', 'adele', 'sia', 'p!nk', 'pink',
+    'usher', 'ne-yo', 'jason derulo', 'robin thicke', 'pharrell williams',
+    'meghan trainor', 'bebe rexha', 'camila cabello', 'fifth harmony',
+    'one direction', 'niall horan', 'liam payne', 'zayn', 'louis tomlinson',
+    'carly rae jepsen', 'jordin sparks', 'kesha', 'ke$ha', 'nelly furtado',
     // EDM / eletrônico
     'david guetta', 'martin garrix', 'tiesto', 'calvin harris', 'marshmello',
     'alan walker', 'avicii', 'skrillex', 'zedd', 'diplo', 'kygo',
-    'alok', 'vintage culture', 'fisher', 'dom dolla', 'illenium', 'illenium',
+    'alok', 'vintage culture', 'fisher', 'dom dolla', 'illenium',
   ],
 };
 
