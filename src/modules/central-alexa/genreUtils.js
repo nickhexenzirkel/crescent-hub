@@ -101,12 +101,18 @@ export const MASCOTS = {
 const GENRE_ARTISTS = {
   kpop: [
     'bts', 'blackpink', 'twice', 'exo', 'stray kids', 'nct', 'aespa', 'ive',
-    'newjeans', 'seventeen', 'got7', 'monsta x', 'shinee', 'red velvet', 'itzy',
+    'newjeans', 'new jeans', 'seventeen', 'got7', 'monsta x', 'shinee', 'red velvet', 'itzy',
     'le sserafim', 'bigbang', 'super junior', 'gidle', '2ne1', 'f(x)', 'day6',
     'txt', 'enhypen', 'mamamoo', 'gfriend', 'loona', 'astro', 'pentagon',
+    // 4ª geração / em alta
+    'katseye', 'illit', 'riize', 'zerobaseone', 'zb1', 'babymonster',
+    'kiss of life', 'meovv', 'unis', 'qwer', 'young posse',
+    'boynextdoor', '&team', 'dkb', 'ateez', 'p1harmony', 'cravity',
+    'xdinary heroes', 'n.flying', 'onewe', 'verivery',
     // j-pop
     'yoasobi', 'ado', 'kenshi yonezu', 'babymetal', 'one ok rock', 'scandal',
     'perfume', 'utada hikaru', 'radwimps', 'eve', 'yorushika',
+    'fujii kaze', 'king gnu', 'official hige dandism', 'back number',
   ],
   rap: [
     'eminem', 'drake', 'kendrick lamar', 'travis scott', 'kanye west', 'jay-z',
