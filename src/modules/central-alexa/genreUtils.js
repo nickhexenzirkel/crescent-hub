@@ -27,12 +27,14 @@ export const MASCOTS = {
   pop: {
     img:   UnikoPopImg,
     name:  'UnikoPop',
-    title: 'DJ do Drop',
+    title: 'Voz da Multidão',
     lines: [
-      'VIBE ELETRÔNICA ATIVADA! ⚡',
-      'Drop incoming... 3, 2, 1... 💥',
-      'Esse beat não tem cura! 🔊',
-      'EDM mode: full send! 🎛️',
+      'Vamos mudar o mundo com a música! 🌟',
+      'Uau! Todas as músicas soam incríveis! 🎵',
+      'Espero não me perder em meio de tanta música. 🌸',
+      'A alegria é silenciosa demais sem a tristeza na batida. 💜',
+      'Sigam minha voz! 🎤',
+      'Sua música vai ficar na minha cabeça. ✨',
     ],
   },
 
