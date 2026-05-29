@@ -163,12 +163,12 @@ const GENRE_ARTISTS = {
     'lenine', 'fagner', 'gonzaguinha', 'belchior', 'geraldo azevedo',
     'zeca baleiro', 'arnaldo antunes', 'paralamas do sucesso',
     // brasileiros modernos soul/mpb
-    'liniker', 'urias', 'ebony', 'mahmundi', 'duda beat',
+    'liniker', 'urias', 'mahmundi', 'duda beat',
     'luedji luna', 'aziz edipo', 'céu', 'letrux', 'tulipa ruiz',
     'alice caymmi', 'roberta sá', 'francisco el hombre', 'rubel',
     'little simz', 'silvana estrada', 'marília tavares', 'marilia tavares',
-    'alceu valença', 'elba ramalho',
     // obs: ebony, ajuliacosta e nanda tsunami estão no rap
+    // obs: alceu valença, elba ramalho, geraldo azevedo estão no cowboy
   ],
   cowboy: [
     'gusttavo lima', 'jorge e mateus', 'henrique e juliano', 'israel e rodolffo',
@@ -187,7 +187,8 @@ const GENRE_ARTISTS = {
     'avioes do forro', 'forró do tico', 'dorgival dantas', 'limão com mel',
     'limao com mel', 'mastruz com leite', 'raí saia rodada', 'banda magnifica',
     'geraldinho lins', 'flávio josé', 'flavio jose', 'companhia do calypso',
-    'leo foguete',
+    'leo foguete', 'alceu valença', 'alceu valenca', 'elba ramalho',
+    'geraldo azevedo',
     'toby keith', 'luke combs', 'morgan wallen', 'blake shelton', 'garth brooks',
     'zac brown band', 'george strait', 'kenny rogers', 'shania twain',
     'chris stapleton', 'kane brown', 'carrie underwood', 'post malone',
@@ -240,6 +241,14 @@ const GENRE_KEYWORDS = {
 
 // ─── API principal ───────────────────────────────────────────
 
+// Termos curtos (≤ 4 chars) exigem fronteira de palavra para evitar falsos positivos.
+// Ex: 'eve' não pode bater em 'azevedo'; 'ado' não pode bater em 'fernando'.
+function matchesArtist(fullArtist, term) {
+  if (term.length > 4) return fullArtist.includes(term);
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[\\s,&/])${escaped}(?:[\\s,&/]|$)`).test(fullArtist);
+}
+
 /**
  * Detecta a variante do mascote com base nas informações da faixa.
  * @param {{ name?: string, artist?: string, genre?: string }} track
@@ -261,7 +270,7 @@ export function detectMascotVariant(track) {
 
   // 2. Artista conhecido na lista curada
   for (const [variant, artists] of Object.entries(GENRE_ARTISTS)) {
-    if (artists.some(a => artist.includes(a))) return variant;
+    if (artists.some(a => matchesArtist(artist, a))) return variant;
   }
 
   // 3. Palavras-chave no artista + título da música
