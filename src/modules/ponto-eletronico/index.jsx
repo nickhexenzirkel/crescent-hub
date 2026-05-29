@@ -34,6 +34,10 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [bancoSearch,   setBancoSearch]   = useState('');       // Fix 1: separate search text
   const [bancoShowFilter,setBancoShowFilter]=useState('all');   // Fix 4: all|negative|justified
   const [calPage,       setCalPage]       = useState(0);        // calendar detail pagination
+  const [pageLinha,     setPageLinha]     = useState(0);
+  const [pageIssues,    setPageIssues]    = useState(0);
+  const [pageBancoAll,  setPageBancoAll]  = useState(0);
+  const [pageBancoDays, setPageBancoDays] = useState(0);
   const [calDaySort,    setCalDaySort]    = useState('az');     // az|ok|negative|positive
   const [userSearch,    setUserSearch]    = useState('');       // F1: users tab search
   const [calSearch,     setCalSearch]     = useState('');       // F3: calendar employee search
@@ -289,6 +293,12 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     if (u.includes('SERV')&&(u.includes('GESTAO')||u.includes('GESTÃO'))&&u.includes('BENEFICIO')) return '7SERV GESTÃO BENEFÍCIOS';
     return u;
   };
+  // Reseta páginas quando filtros mudam
+  React.useEffect(()=>{ setPageLinha(0); },    [lineSearch, lineDate, lineType]);
+  React.useEffect(()=>{ setPageBancoDays(0); },[bancoFilter, bancoShowFilter, selEmp]);
+  React.useEffect(()=>{ setPageBancoAll(0); }, [bancoFilter]);
+  React.useEffect(()=>{ setPageIssues(0); },   []);
+
   /* ── PDF: Comprovante Banco de Horas (filtrado) ── */
   const printBancoFiltrado = (emp, days) => {
     const rows = days.map(day => {
@@ -545,6 +555,34 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   ════════════════════════════════════════ */
   const { header, employees, excludedEmployees, totalMarks, totalIssues, allDates, rawRecs, calDates, calData } = afd;
   const curEmp = employees.find(e=>e.cpf===selEmp) || employees[0];
+
+  // ── Tamanhos de página ────────────────────────────────────
+  const PG_LINHA      = 50;
+  const PG_ISSUES     = 8;
+  const PG_BANCO_ALL  = 15;
+  const PG_BANCO_DAYS = 30;
+
+  // ── Componente de paginação reutilizável ──────────────────
+  const Pager = ({ page, total, pageSize, onPage }) => {
+    const totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) return null;
+    return (
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'14px 20px',borderTop:`1px solid ${T.border}`}}>
+        <button onClick={()=>onPage(page-1)} disabled={page===0}
+          style={{padding:'6px 16px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:page===0?T.textD:T.textS,cursor:page===0?'not-allowed':'pointer',fontSize:12,fontWeight:500,fontFamily:'var(--font-body)',opacity:page===0?0.4:1,outline:'none'}}>
+          ← Anterior
+        </button>
+        <span style={{fontSize:12,color:T.textT,minWidth:100,textAlign:'center'}}>
+          Página <strong style={{color:T.text}}>{page+1}</strong> de <strong style={{color:T.text}}>{totalPages}</strong>
+          <span style={{color:T.textD,marginLeft:6}}>({total} itens)</span>
+        </span>
+        <button onClick={()=>onPage(page+1)} disabled={page>=totalPages-1}
+          style={{padding:'6px 16px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:page>=totalPages-1?T.textD:T.textS,cursor:page>=totalPages-1?'not-allowed':'pointer',fontSize:12,fontWeight:500,fontFamily:'var(--font-body)',opacity:page>=totalPages-1?0.4:1,outline:'none'}}>
+          Próxima →
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div style={{minHeight:'100vh',background:'transparent',fontFamily:'var(--font-body)',position:'relative'}}>
@@ -991,7 +1029,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {employees.map(emp=>{
+                      {employees.slice(pageBancoAll*PG_BANCO_ALL,(pageBancoAll+1)*PG_BANCO_ALL).map(emp=>{
                         const filtDays = emp.days.filter(d=>d.date>=range.from&&d.date<=range.to);
                         const tot = filtDays.reduce((s,d)=>s+d.totalMin,0);
                         const bal = filtDays.reduce((s,d)=>s+d.balance,0);
@@ -1029,6 +1067,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                       })}
                     </tbody>
                   </table>
+                  <Pager page={pageBancoAll} total={employees.length} pageSize={PG_BANCO_ALL} onPage={p=>{setPageBancoAll(p);window.scrollTo({top:0,behavior:'smooth'});}}/>
                 </Card>
               );
             })()}
@@ -1095,11 +1134,12 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                         {(() => {
                           const rows = [];
                           let weekDays = [], weekIdx = 0;
-                          filtDays.forEach((day, i) => {
+                          const pagedDays = filtDays.slice(pageBancoDays*PG_BANCO_DAYS,(pageBancoDays+1)*PG_BANCO_DAYS);
+                          pagedDays.forEach((day, i) => {
                             weekDays.push(day);
                             const dayOfWeek = new Date(day.date+'T12:00:00').getDay();
-                            const isLast = i === curEmp.days.length - 1;
-                            const nextDayOfWeek = !isLast ? new Date(curEmp.days[i+1].date+'T12:00:00').getDay() : -1;
+                            const isLast = i === pagedDays.length - 1;
+                            const nextDayOfWeek = !isLast ? new Date(pagedDays[i+1].date+'T12:00:00').getDay() : -1;
                             const endOfWeek = isLast || nextDayOfWeek <= dayOfWeek;
                             const balColor = day.issues.length>0?'#C04050':day.balance>=0?'#1A9C70':T.gold;
                             const cumColor = day.cumBal>=0?'#1A9C70':'#C04050';
@@ -1171,6 +1211,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                       </tbody>
                     </table>
                   </div>
+                  <Pager page={pageBancoDays} total={filtDays.length} pageSize={PG_BANCO_DAYS} onPage={p=>{setPageBancoDays(p);window.scrollTo({top:0,behavior:'smooth'});}}/>
                 </Card>
               </>
               );
@@ -1527,9 +1568,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 return matchDate&&matchSearch&&matchType;
               }).length} registros</Tag>
             </div>
-            <div style={{overflowX:'auto',maxHeight:600,overflowY:'auto'}}>
+            <div style={{overflowX:'auto'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)'}}>
-                <thead style={{position:'sticky',top:0,zIndex:1}}>
+                <thead>
                   <tr style={{background:T.surfaceSub||'rgba(0,0,0,0.03)'}}>
                     {['#','NSR','Data','Hora','PIS/CPF','Nome','Tipo de Registro','Observação'].map(h=>(
                       <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 14px',whiteSpace:'nowrap',background:T.surface,borderBottom:`1px solid ${T.border}`}}>{h}</th>
@@ -1537,17 +1578,20 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rawRecs.filter(rec=>{
-                    const today2=new Date(); today2.setHours(0,0,0,0);
-                    const rDate2=rec.date?new Date(rec.date+'T00:00:00'):null;
-                    const daysAgo2=(d)=>{const x=new Date(today2);x.setDate(x.getDate()-d);return x;};
-                    const matchDate=lineDate==='todos'||!rDate2||(lineDate==='hoje'?rDate2>=today2:lineDate==='3dias'?rDate2>=daysAgo2(2):lineDate==='7dias'?rDate2>=daysAgo2(6):rDate2>=daysAgo2(29));
-                    const emp=rec.cpf&&rec.cpf!=='—'?employees.find(e=>e.cpf===rec.cpf):null;
-                    const nm=emp?.name||rec.nome||'';
-                    const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||rec.cpf?.includes(lineSearch));
-                    const matchType=lineType==='all'||(lineType==='other'?!['3','4','5'].includes(rec.tipo):rec.tipo===lineType);
-                    return matchDate&&matchSearch&&matchType;
-                  }).map((rec,i)=>{
+                  {(()=>{
+                    const allFiltered = rawRecs.filter(rec=>{
+                      const today2=new Date(); today2.setHours(0,0,0,0);
+                      const rDate2=rec.date?new Date(rec.date+'T00:00:00'):null;
+                      const daysAgo2=(d)=>{const x=new Date(today2);x.setDate(x.getDate()-d);return x;};
+                      const matchDate=lineDate==='todos'||!rDate2||(lineDate==='hoje'?rDate2>=today2:lineDate==='3dias'?rDate2>=daysAgo2(2):lineDate==='7dias'?rDate2>=daysAgo2(6):rDate2>=daysAgo2(29));
+                      const emp=rec.cpf&&rec.cpf!=='—'?employees.find(e=>e.cpf===rec.cpf):null;
+                      const nm=emp?.name||rec.nome||'';
+                      const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||rec.cpf?.includes(lineSearch));
+                      const matchType=lineType==='all'||(lineType==='other'?!['3','4','5'].includes(rec.tipo):rec.tipo===lineType);
+                      return matchDate&&matchSearch&&matchType;
+                    });
+                    return allFiltered.slice(pageLinha*PG_LINHA,(pageLinha+1)*PG_LINHA).map((rec,i)=>{
+                    const absIdx = pageLinha*PG_LINHA + i;
                     const emp = rec.cpf&&rec.cpf!=='—' ? employees.find(e=>e.cpf===rec.cpf) : null;
                     const name = emp?.name || (rec.nome||'');
                     const tipoColor = rec.tipo==='3'?'#1A9C70':rec.tipo==='5'?'#1E70B5':rec.tipo==='4'?T.gold:'#9AA8B8';
@@ -1556,7 +1600,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                       <tr key={i} style={{borderTop:`1px solid ${T.border}`,background:i%2===0?'transparent':(T.surfaceSub||'rgba(0,0,0,0.015)')}}
                         onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.03)'}
                         onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'transparent':(T.surfaceSub||'rgba(0,0,0,0.015)')}>
-                        <td style={{padding:'9px 14px',fontSize:12,color:T.textD,fontWeight:500}}>{i+1}</td>
+                        <td style={{padding:'9px 14px',fontSize:12,color:T.textD,fontWeight:500}}>{absIdx+1}</td>
                         <td style={{padding:'9px 14px',fontSize:12,color:T.textT,fontFamily:'monospace'}}>{rec.nsr}</td>
                         <td style={{padding:'9px 14px',fontSize:12,color:T.textS}}>{rec.date?fmtDate(rec.date):'—'}</td>
                         <td style={{padding:'9px 14px',fontSize:13,fontWeight:600,color:T.text}}>{rec.time||'—'}</td>
@@ -1583,10 +1627,25 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                         </td>
                       </tr>
                     );
-                  })}
+                  });
+                  })()}
                 </tbody>
               </table>
             </div>
+            {(()=>{
+              const today3=new Date(); today3.setHours(0,0,0,0);
+              const daysAgo3=(d)=>{const x=new Date(today3);x.setDate(x.getDate()-d);return x;};
+              const total=rawRecs.filter(rec=>{
+                const rDate=rec.date?new Date(rec.date+'T00:00:00'):null;
+                const matchDate=lineDate==='todos'||!rDate||(lineDate==='hoje'?rDate>=today3:lineDate==='3dias'?rDate>=daysAgo3(2):lineDate==='7dias'?rDate>=daysAgo3(6):rDate>=daysAgo3(29));
+                const emp=rec.cpf&&rec.cpf!=='—'?employees.find(e=>e.cpf===rec.cpf):null;
+                const nm=emp?.name||rec.nome||'';
+                const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||rec.cpf?.includes(lineSearch));
+                const matchType=lineType==='all'||(lineType==='other'?!['3','4','5'].includes(rec.tipo):rec.tipo===lineType);
+                return matchDate&&matchSearch&&matchType;
+              }).length;
+              return <Pager page={pageLinha} total={total} pageSize={PG_LINHA} onPage={p=>{setPageLinha(p);window.scrollTo({top:0,behavior:'smooth'});}}/>;
+            })()}
           </Card>
           </div>
         )}
@@ -1612,7 +1671,11 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                     <div style={{fontSize:12,color:T.textS,marginTop:2}}>Verifique os registros abaixo e corrija no sistema de ponto</div>
                   </div>
                 </div>
-                {employees.filter(e=>e.totIssues>0).map(emp=>(
+                {(()=>{
+                  const empWithIssues = employees.filter(e=>e.totIssues>0);
+                  const pagedEmps = empWithIssues.slice(pageIssues*PG_ISSUES,(pageIssues+1)*PG_ISSUES);
+                  return(<>
+                    {pagedEmps.map(emp=>(
                   <Card key={emp.cpf} style={{padding:'18px 22px'}} elevated>
                     <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
                       <div style={{width:38,height:38,borderRadius:10,flexShrink:0,background:`linear-gradient(135deg,${emp.color},${emp.color}cc)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff'}}>{initials(emp.name||emp.cpf)}</div>
@@ -1662,6 +1725,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                     </div>
                   </Card>
                 ))}
+                    <Pager page={pageIssues} total={empWithIssues.length} pageSize={PG_ISSUES} onPage={p=>{setPageIssues(p);window.scrollTo({top:0,behavior:'smooth'});}}/>
+                  </>);
+                })()}
               </div>
             )}
           </div>
