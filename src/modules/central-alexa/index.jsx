@@ -146,7 +146,8 @@ const CentralAlexa = ({onBack}) => {
   const [progressMs, setProgressMs]     = useState(0);
   const lyricsRef = useRef(null);
   const progressTimer = useRef(null);
-  const lastSongId = useRef(null);
+  const lastSongId  = useRef(null);
+  const genreCache  = useRef({});  // spotify_id → genre string (evita re-fetch da mesma faixa)
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
@@ -406,12 +407,21 @@ const CentralAlexa = ({onBack}) => {
 
   useEffect(() => { loadSkipVotes(); }, [queue]);
 
-  // Busca genre real do Spotify quando a música muda
+  // Busca genre real do Spotify quando a música muda (com cache local por sessão)
   useEffect(() => {
     if (!currentSong?.spotify_id) { setCurrentGenre(''); return; }
-    fetch(`${SERVER_URL}/api/genre?track_id=${currentSong.spotify_id}`)
+    const id = currentSong.spotify_id;
+    if (genreCache.current[id] !== undefined) {
+      setCurrentGenre(genreCache.current[id]);
+      return;
+    }
+    fetch(`${SERVER_URL}/api/genre?track_id=${id}`)
       .then(r => r.json())
-      .then(data => setCurrentGenre((data.genres || []).join(' ')))
+      .then(data => {
+        const g = (data.genres || []).join(' ');
+        genreCache.current[id] = g;
+        setCurrentGenre(g);
+      })
       .catch(() => setCurrentGenre(''));
   }, [currentSong?.spotify_id]);
 
