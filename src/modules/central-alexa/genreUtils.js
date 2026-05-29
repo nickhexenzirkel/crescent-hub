@@ -275,12 +275,42 @@ const GENRE_KEYWORDS = {
     'amém', 'amen', 'milagre', 'cura divina', 'tua graça',
     'senhor te amo', 'teu nome', 'rei dos reis',
   ],
-  kpop:   ['k-pop', 'kpop', 'k pop', 'j-pop', 'jpop', 'korean pop', 'japanese pop', 'asian pop', 'mandopop'],
-  rap:    ['rap', 'hip hop', 'hip-hop', 'hiphop', 'trap', 'r&b', 'rnb', 'funk carioca', 'funk', 'blues', 'soul'],
-  rock:   ['rock', 'metal', 'punk', 'grunge', 'alternative', 'hard rock', 'samba', 'axé', 'axe'],
-  mpb:    ['mpb', 'bossa nova', 'música popular brasileira', 'brazilian', 'indie folk', 'acoustic'],
-  cowboy: ['sertanejo', 'forró', 'forro', 'country', 'brega', 'sofrência', 'arrocha', 'caipira', 'pagode'],
-  pop:    ['pop', 'electropop', 'dance pop', 'synth pop', 'edm', 'dance', 'electronic', 'house', 'techno', 'eletrônico', 'indie pop', 'alt pop', 'dream pop', 'bedroom pop'],
+  kpop: [
+    'k-pop', 'kpop', 'k pop', 'j-pop', 'jpop', 'korean pop', 'japanese pop',
+    'asian pop', 'mandopop', 'korean r&b', 'k-rap', 'k-indie', 'j-rock',
+  ],
+  rap: [
+    'rap', 'hip hop', 'hip-hop', 'hiphop', 'trap', 'r&b', 'rnb',
+    'drill', 'phonk', 'trap soul', 'melodic rap', 'dark trap',
+    'conscious hip hop', 'gangsta rap', 'southern hip hop',
+    'lo-fi hip hop', 'lofi hip hop', 'funk carioca', 'funk ostentação',
+    'funk', 'blues', 'soul',
+  ],
+  rock: [
+    // tags específicas — NÃO usar "alternative" sozinho pois bate em "alternative pop"
+    'alternative rock', 'alternative metal', 'indie rock', 'classic rock',
+    'hard rock', 'punk rock', 'post-punk', 'new wave', 'emo', 'metalcore',
+    'post-grunge', 'progressive rock', 'britpop', 'noise rock', 'garage rock',
+    'rock', 'metal', 'punk', 'grunge', 'samba', 'axé', 'axe',
+  ],
+  mpb: [
+    'mpb', 'bossa nova', 'música popular brasileira', 'samba-rock',
+    'pagode romântico', 'brazilian', 'indie folk', 'acoustic',
+  ],
+  cowboy: [
+    'sertanejo', 'sertanejo universitário', 'sertanejo pop', 'forró', 'forro',
+    'forró eletrônico', 'xote', 'baião', 'country', 'brega', 'sofrência',
+    'arrocha', 'caipira', 'pagode',
+  ],
+  pop: [
+    // tags compostas primeiro — mais específicas que "pop" sozinho
+    'alternative pop', 'art pop', 'chamber pop', 'power pop', 'bubblegum pop',
+    'teen pop', 'europop', 'cantopop', 'electropop', 'dance pop', 'synth pop',
+    'indie pop', 'alt pop', 'dream pop', 'bedroom pop', 'hyperpop',
+    'pop rap', 'pop rock', 'pop soul',
+    'edm', 'dance', 'electronic', 'house', 'techno', 'eletrônico',
+    'pop',
+  ],
 };
 
 // ─── API principal ───────────────────────────────────────────
