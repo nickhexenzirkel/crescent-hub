@@ -3,8 +3,8 @@ import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 // ─── FESTIVAL INTEGRATION ────────────────────────────────────────────────────
 const SERVER_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'http://localhost:3001';
 const _supabase  = _createSupabaseClient(
-  'https://sifcxfymkmlmbelzolbx.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpZmN4Znlta21sbWJlbHpvbGJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjQ1NzYsImV4cCI6MjA5NTQwMDU3Nn0.YvMr2aAqfmyBMKky94YfvVSpCurzlet5tZlv4WfCvRA'
+  'https://iqsufxvuufkaswellisy.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c'
 );
 
 function getAuthUser() {

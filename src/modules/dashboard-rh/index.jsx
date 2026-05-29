@@ -105,6 +105,29 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [changePw, setChangePw] = useState({old:'',new1:'',new2:''});
   const [changePwMsg, setChangePwMsg] = useState('');
 
+  // ── Spotify API ──────────────────────────────────────────
+  const [spotifyClientId, setSpotifyClientId] = useState(() => localStorage.getItem('spotify_client_id') || '');
+  const [spotifySecret, setSpotifySecret]     = useState(() => localStorage.getItem('spotify_client_secret') || '');
+  const [spotifyMsg, setSpotifyMsg]           = useState('');
+  const [spotifySaving, setSpotifySaving]     = useState(false);
+
+  const saveSpotifyCreds = async () => {
+    if (!spotifyClientId.trim() || !spotifySecret.trim()) { setSpotifyMsg('⚠️ Preencha ambos os campos'); return; }
+    setSpotifySaving(true); setSpotifyMsg('');
+    localStorage.setItem('spotify_client_id', spotifyClientId.trim());
+    localStorage.setItem('spotify_client_secret', spotifySecret.trim());
+    try {
+      const r = await fetch(`${SERVER_URL}/api/spotify/credentials`, {
+        method: 'POST', headers: authHeader(),
+        body: JSON.stringify({ client_id: spotifyClientId.trim(), client_secret: spotifySecret.trim() }),
+      });
+      if (r.ok) setSpotifyMsg('✅ Credenciais salvas e sincronizadas com o servidor!');
+      else setSpotifyMsg('✅ Credenciais salvas localmente. (Servidor não sincronizado)');
+    } catch { setSpotifyMsg('✅ Credenciais salvas localmente. (Servidor offline)'); }
+    setSpotifySaving(false);
+    setTimeout(() => setSpotifyMsg(''), 5000);
+  };
+
   // ── Funcionários (real, conectado ao servidor) ───────────
   const [empList, setEmpList]         = useState([]);
   const [empLoading, setEmpLoading]   = useState(false);
@@ -356,6 +379,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'alexa',          label:'Central Alexa',      icon:<><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 010 20"/><path d="M12 6a6 6 0 010 12"/><path d="M12 22v-4M12 6V2"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
+    {id:'spotify',        label:'API do Spotify',     icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
   ];
 
   return(
@@ -1404,6 +1428,117 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div key={l}>
                       <div style={{fontSize:10,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600,marginBottom:3}}>{l}</div>
                       <div style={{fontSize:13,color:T.textS}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── TAB: API DO SPOTIFY ── */}
+          {tab==='spotify'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>API do Spotify</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Credenciais OAuth para reprodução de música na Central Alexa</div>
+                </div>
+                <div style={{width:44,height:44,borderRadius:12,background:'linear-gradient(135deg,#1DB954,#158a3e)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(29,185,84,0.35)'}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
+                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div style={{padding:'14px 18px',borderRadius:11,background:'rgba(29,185,84,0.07)',border:'1px solid rgba(29,185,84,0.22)',display:'flex',gap:12,alignItems:'flex-start'}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1DB954" strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,marginTop:1}}><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style={{fontSize:12,color:T.textS,lineHeight:1.6}}>
+                  Para trocar a conta do Spotify vinculada à Central Alexa, gere novas credenciais no
+                  {' '}<strong style={{color:T.text}}>Spotify for Developers</strong>{' '}
+                  (developer.spotify.com/dashboard) e cole o <strong style={{color:T.text}}>Client ID</strong> e o{' '}
+                  <strong style={{color:T.text}}>Client Secret</strong> abaixo.
+                </div>
+              </div>
+
+              {/* Form */}
+              <Card style={{padding:'26px 28px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px solid ${T.border}`}} elevated>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:20,display:'flex',alignItems:'center',gap:9}}>
+                  <div style={{width:28,height:28,borderRadius:8,background:'linear-gradient(135deg,#1DB954,#158a3e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  </div>
+                  Credenciais do App Spotify
+                </div>
+
+                <div style={{display:'flex',flexDirection:'column',gap:16,marginBottom:20}}>
+                  {/* Client ID */}
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em',display:'block',marginBottom:6}}>Client ID</label>
+                    <input
+                      value={spotifyClientId}
+                      onChange={e=>{ setSpotifyClientId(e.target.value); setSpotifyMsg(''); }}
+                      placeholder="Ex: 4a8f1b2c3d4e5f6a7b8c9d0e1f2a3b4c"
+                      spellCheck={false}
+                      style={{width:'100%',padding:'11px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'monospace',letterSpacing:'.04em'}}/>
+                    <div style={{fontSize:11,color:T.textD,marginTop:4}}>Encontre em: Dashboard → seu app → Settings → Client ID</div>
+                  </div>
+
+                  {/* Client Secret */}
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em',display:'block',marginBottom:6}}>Client Secret</label>
+                    <input
+                      type="password"
+                      value={spotifySecret}
+                      onChange={e=>{ setSpotifySecret(e.target.value); setSpotifyMsg(''); }}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      style={{width:'100%',padding:'11px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'monospace'}}/>
+                    <div style={{fontSize:11,color:T.textD,marginTop:4}}>Encontre em: Dashboard → seu app → Settings → View client secret</div>
+                  </div>
+                </div>
+
+                {/* Status atual */}
+                {(localStorage.getItem('spotify_client_id')) && (
+                  <div style={{padding:'10px 14px',borderRadius:9,background:'rgba(29,185,84,0.07)',border:'1px solid rgba(29,185,84,0.2)',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:7,height:7,borderRadius:'50%',background:'#1DB954',flexShrink:0}}/>
+                    <div style={{fontSize:12,color:'#1DB954',fontWeight:500}}>Credenciais salvas · Client ID: <span style={{fontFamily:'monospace'}}>{localStorage.getItem('spotify_client_id').slice(0,8)}••••</span></div>
+                  </div>
+                )}
+
+                {spotifyMsg&&(
+                  <div style={{padding:'9px 14px',borderRadius:9,marginBottom:14,fontSize:12,
+                    background:spotifyMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',
+                    border:`1px solid ${spotifyMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,
+                    color:spotifyMsg.startsWith('✅')?'#16a34a':'#C04050'}}>
+                    {spotifyMsg}
+                  </div>
+                )}
+
+                <div style={{display:'flex',gap:10}}>
+                  <button onClick={()=>{ setSpotifyClientId(''); setSpotifySecret(''); localStorage.removeItem('spotify_client_id'); localStorage.removeItem('spotify_client_secret'); setSpotifyMsg(''); }}
+                    style={{padding:'10px 18px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                    Limpar
+                  </button>
+                  <button onClick={saveSpotifyCreds} disabled={spotifySaving}
+                    style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:spotifySaving?'wait':'pointer',background:'linear-gradient(135deg,#1DB954,#158a3e)',color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxShadow:'0 4px 14px rgba(29,185,84,0.35)',transition:'opacity .15s',opacity:spotifySaving?0.7:1}}>
+                    {spotifySaving ? 'Salvando...' : '💾 Salvar Credenciais'}
+                  </button>
+                </div>
+              </Card>
+
+              {/* Dica de uso */}
+              <Card style={{padding:'18px 22px',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Como criar um app no Spotify for Developers</div>
+                <div style={{display:'flex',flexDirection:'column',gap:9}}>
+                  {[
+                    'Acesse developer.spotify.com/dashboard e faça login com a nova conta Spotify.',
+                    'Clique em "Create app". Dê um nome (ex: "Uniko Alexa") e defina o Redirect URI como http://localhost:3001/callback.',
+                    'Após criar, abra o app e vá em Settings para copiar o Client ID e Client Secret.',
+                    'Cole os valores nos campos acima e salve.',
+                  ].map((step, i) => (
+                    <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+                      <div style={{width:20,height:20,borderRadius:6,background:'linear-gradient(135deg,#1DB954,#158a3e)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0,marginTop:1}}>{i+1}</div>
+                      <div style={{fontSize:12,color:T.textS,lineHeight:1.5}}>{step}</div>
                     </div>
                   ))}
                 </div>
