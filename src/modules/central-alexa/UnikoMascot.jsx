@@ -2,31 +2,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { detectMascotVariant, getRandomLine, MASCOTS } from './genreUtils';
 
-const BUBBLE_CSS = `
-  @keyframes bubbleBorder {
-    0%, 100% {
-      border-color: rgba(255,255,255,0.16);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    }
-    50% {
-      border-color: rgba(255,255,255,0.38);
-      box-shadow: 0 2px 22px rgba(255,255,255,0.08), 0 2px 12px rgba(0,0,0,0.08);
-    }
-  }
-  .uniko-bubble {
-    animation: bubbleBorder 3s ease-in-out infinite;
-  }
-`;
-
 /**
  * UnikoMascot
  * Exibe automaticamente o mascote certo para o gênero da música tocando.
  *
  * Props:
  *   track  — objeto da música atual: { name, artist, genre }
+ *   colors — array de hex extraídos da capa (festColors do pai)
  *   size   — tamanho em px do avatar circular (padrão: 160)
  */
-const UnikoMascot = ({ track, size = 160 }) => {
+const UnikoMascot = ({ track, colors = null, size = 160 }) => {
   const variant = detectMascotVariant(track);
   const mascot  = MASCOTS[variant];
   const prevVar = useRef(variant);
@@ -60,9 +45,25 @@ const UnikoMascot = ({ track, size = 160 }) => {
     return () => clearInterval(id);
   }, [variant]);
 
+  // Cores da capa: usa [0] e [1] como par de pulso; fallback branco suave
+  const c0 = colors?.[0] ?? null;
+  const c1 = colors?.[1] ?? colors?.[0] ?? null;
+
+  const bubbleCss = c0
+    ? `@keyframes bubbleBorder {
+        0%,100% { border-color:${c0}55; box-shadow:0 2px 14px ${c0}33; }
+        50%      { border-color:${c1}cc; box-shadow:0 2px 28px ${c1}66; }
+       }
+       .uniko-bubble { animation: bubbleBorder 3s ease-in-out infinite; }`
+    : `@keyframes bubbleBorder {
+        0%,100% { border-color:rgba(255,255,255,0.16); }
+        50%      { border-color:rgba(255,255,255,0.38); }
+       }
+       .uniko-bubble { animation: bubbleBorder 3s ease-in-out infinite; }`;
+
   return (
     <>
-      <style>{BUBBLE_CSS}</style>
+      <style>{bubbleCss}</style>
       <div style={{
         display:       'flex',
         flexDirection: 'column',

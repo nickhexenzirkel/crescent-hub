@@ -696,6 +696,7 @@ const CentralAlexa = ({onBack}) => {
                 <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                 <UnikoMascot
                   track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
+                  colors={festColors}
                   size={160}
                 />
               </div>
