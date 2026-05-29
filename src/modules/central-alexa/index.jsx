@@ -150,6 +150,7 @@ const CentralAlexa = ({onBack}) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
+  const [confirmTrack, setConfirmTrack] = useState(null); // track aguardando confirmação de longa duração
   const [skipVotes, setSkipVotes]       = useState({});   // song_id → contagem
   const [myVotedSongs, setMyVotedSongs] = useState(new Set());
   const [spotifyOk, setSpotifyOk]       = useState(false);
@@ -473,7 +474,9 @@ const CentralAlexa = ({onBack}) => {
     }, 450);
   };
 
-  const addToQueue = async (track) => {
+  const LONG_MS = 15 * 60 * 1000;
+
+  const addToQueue = async (track, confirmed = false) => {
     if (isAdding) return;
 
     // Verificação local antecipada (evita round-trip desnecessário)
@@ -481,9 +484,23 @@ const CentralAlexa = ({onBack}) => {
       const myActive = queue.filter(s =>
         s.requested_by === myName && ['pending','playing'].includes(s.status)
       );
-      if (myActive.length >= 2) {
-        setServerMsg('Limite atingido! Você já tem 2 músicas na fila. Aguarde uma delas tocar.');
+      const slotsUsed   = myActive.reduce((acc, s) => acc + ((s.duration_ms||0) >= LONG_MS ? 2 : 1), 0);
+      const slotsNeeded = (track.duration_ms||0) >= LONG_MS ? 2 : 1;
+
+      if (slotsUsed + slotsNeeded > 2) {
+        const msg = slotsNeeded === 2
+          ? 'Essa música tem mais de 15 minutos e ocupa as 2 vagas. Você não tem vagas disponíveis.'
+          : 'Limite atingido! Você já não tem vagas. Aguarde uma música tocar para adicionar mais.';
+        setServerMsg(msg);
         setTimeout(()=>setServerMsg(''), 5000);
+        setSearchResults([]);
+        setVoiceVal('');
+        return;
+      }
+
+      // Música longa: pede confirmação antes de continuar
+      if (slotsNeeded === 2 && !confirmed) {
+        setConfirmTrack(track);
         setSearchResults([]);
         setVoiceVal('');
         return;
@@ -600,6 +617,36 @@ const CentralAlexa = ({onBack}) => {
 
   return (
     <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+
+      {/* ── Modal: confirmação de música longa (≥15 min) ── */}
+      {confirmTrack&&(
+        <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)"}}>
+          <div style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:20,padding:"28px 28px 24px",maxWidth:360,width:"90%",boxShadow:T.shL}}>
+            <div style={{fontSize:28,textAlign:"center",marginBottom:12}}>⏱️</div>
+            <div style={{fontWeight:700,fontSize:15,color:T.text,textAlign:"center",marginBottom:8}}>
+              Música longa detectada
+            </div>
+            <div style={{fontSize:13,color:T.textT,textAlign:"center",lineHeight:1.6,marginBottom:6}}>
+              <strong style={{color:T.text}}>{confirmTrack.title}</strong> tem {confirmTrack.duration_str} de duração.
+            </div>
+            <div style={{fontSize:13,color:T.textT,textAlign:"center",lineHeight:1.6,marginBottom:22}}>
+              Tem certeza que quer adicionar essa música? Você usará seu <strong style={{color:T.gold}}>limite de 2 vagas</strong> de uma vez.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button
+                onClick={()=>setConfirmTrack(null)}
+                style={{flex:1,padding:"11px 0",borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",color:T.textT,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                Cancelar
+              </button>
+              <button
+                onClick={()=>{ const t=confirmTrack; setConfirmTrack(null); addToQueue(t, true); }}
+                style={{flex:1,padding:"11px 0",borderRadius:10,border:"none",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Festival ambient background — Apple Music style ── */}
       {tab==="festival"&&festColors&&(
