@@ -136,6 +136,7 @@ const CentralAlexa = ({onBack}) => {
   const [queue, setQueue]               = useState([]);
   const [isPlaying, setIsPlaying]       = useState(false);
   const [currentSong, setCurrentSong]   = useState(null);
+  const [currentGenre, setCurrentGenre] = useState('');
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
   const [showLyrics, setShowLyrics]     = useState(false);
   const [lyrics, setLyrics]             = useState([]);       // [{time, text}]
@@ -403,6 +404,15 @@ const CentralAlexa = ({onBack}) => {
   }, []);
 
   useEffect(() => { loadSkipVotes(); }, [queue]);
+
+  // Busca genre real do Spotify quando a música muda
+  useEffect(() => {
+    if (!currentSong?.spotify_id) { setCurrentGenre(''); return; }
+    fetch(`${SERVER_URL}/api/genre?track_id=${currentSong.spotify_id}`)
+      .then(r => r.json())
+      .then(data => setCurrentGenre((data.genres || []).join(' ')))
+      .catch(() => setCurrentGenre(''));
+  }, [currentSong?.spotify_id]);
 
   // Extrai cores da capa quando a música muda
   useEffect(() => {
@@ -695,7 +705,7 @@ const CentralAlexa = ({onBack}) => {
               <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative"}}>
                 <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                 <UnikoMascot
-                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
+                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist, genre: currentGenre } : null}
                   colors={festColors}
                   size={160}
                 />
