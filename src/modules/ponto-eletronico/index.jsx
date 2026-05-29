@@ -985,7 +985,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                   <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)'}}>
                     <thead>
                       <tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
-                        {['Funcionário','Marcações no período','Total Horas','Saldo'].map(h=>(
+                        {['Funcionário','Marcações no período','Total Horas','Saldo',''].map(h=>(
                           <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 16px'}}>{h}</th>
                         ))}
                       </tr>
@@ -997,8 +997,10 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                         const bal = filtDays.reduce((s,d)=>s+d.balance,0);
                         const marks = filtDays.reduce((s,d)=>s+d.times.length,0);
                         return(
-                          <tr key={emp.cpf} style={{borderTop:`1px solid ${T.border}`}}
-                            onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.02)'}
+                          <tr key={emp.cpf}
+                            onClick={()=>{setSelEmp(emp.cpf);setBancoEmpMode('single');setBancoSearch('');}}
+                            style={{borderTop:`1px solid ${T.border}`,cursor:'pointer',transition:'background .12s'}}
+                            onMouseEnter={e=>e.currentTarget.style.background=T.goldGl||'rgba(0,0,0,0.03)'}
                             onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                             <td style={{padding:'12px 16px'}}>
                               <div style={{display:'flex',alignItems:'center',gap:9}}>
@@ -1014,6 +1016,12 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                             <td style={{padding:'12px 16px'}}>
                               <span style={{fontSize:13,fontWeight:700,color:bal>=0?'#1A9C70':'#C04050',background:bal>=0?'rgba(26,156,112,0.10)':'rgba(192,64,80,0.10)',padding:'3px 10px',borderRadius:6}}>
                                 {bal>=0?'+':''}{fmtMin(bal)}
+                              </span>
+                            </td>
+                            <td style={{padding:'12px 16px',textAlign:'right'}}>
+                              <span style={{fontSize:11,color:T.gold,fontWeight:600,display:'inline-flex',alignItems:'center',gap:3}}>
+                                Ver detalhes
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
                               </span>
                             </td>
                           </tr>
