@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag } from '../../shared/components';
+import UnikoMascot from './UnikoMascot';
 
 // Extrai cores dominantes da capa do álbum via Canvas
 // Usa proxy do servidor para contornar CORS da CDN do Spotify
@@ -693,27 +694,10 @@ const CentralAlexa = ({onBack}) => {
             <div style={{width:280,flexShrink:0,display:"flex",flexDirection:"column",gap:16}}>
               <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative"}}>
                 <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
-                {/* Speech bubble */}
-                <div key={dokoMsg} style={{marginBottom:16,padding:"10px 14px",borderRadius:"14px 14px 14px 4px",background:`linear-gradient(135deg,${T.goldGl},${T.gold}18)`,border:`1.5px solid ${T.goldLine}55`,fontSize:12,color:T.text,lineHeight:1.5,fontWeight:500,animation:"bubblePop .3s ease-out",position:"relative",zIndex:1}}>
-                  {dokoMsg}
-                  <div style={{position:"absolute",bottom:-8,left:16,width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:`8px solid ${T.goldLine}55`}}/>
-                </div>
-                {/* UnikoWave image — float só na imagem, não afeta o label */}
-                <div style={{display:"flex",justifyContent:"center",position:"relative",zIndex:1,marginBottom:10}}>
-                  <div style={{
-                    width:160,height:160,borderRadius:"50%",overflow:"hidden",
-                    border:`3px solid ${festColors?.[0]||T.gold}BB`,
-                    boxShadow:`0 0 0 7px ${festColors?.[0]||T.gold}44, 0 0 0 14px ${festColors?.[0]||T.gold}18, 0 0 28px 6px ${festColors?.[0]||T.gold}33`,
-                    animation:"dokoTalk 2s ease-in-out infinite",
-                    "--doko-color":festColors?.[0]||T.gold,
-                    transition:"border-color 1.5s ease, box-shadow 1.5s ease",
-                  }}>
-                    <img src={DOKO_WAVE_IMG} alt="UnikoWave DJ"
-                      style={{width:"100%",height:"100%",objectFit:"cover",display:"block",
-                        animation:"dokoFloat 3s ease-in-out infinite"}}/>
-                  </div>
-                </div>
-                <div style={{textAlign:"center",fontSize:10,color:T.textD,fontWeight:600,letterSpacing:".08em",position:"relative",zIndex:1}}>UNIKOWAVE · DJ DA 7 BENEFÍCIOS</div>
+                <UnikoMascot
+                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
+                  size={160}
+                />
               </div>
 
               {/* Player controls */}
