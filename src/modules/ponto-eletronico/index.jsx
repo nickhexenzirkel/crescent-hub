@@ -15,8 +15,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [selEmp, setSelEmp] = useState(null);   // banco de horas
   const [calIdx, setCalIdx] = useState(0);       // calendar month index
   const [err,       setErr]       = useState('');
-  const [tolerance, setTolerance] = useState(1);    // minutos — ignora marcações gêmeas abaixo desse limite
-  const [jornada,   setJornada]   = useState(480);  // minutos — 480 = 8h padrão
+  const [tolerance,       setTolerance]       = useState(1);   // minutos — ignora marcações gêmeas abaixo desse limite
+  const [jornada,         setJornada]         = useState(480); // minutos — 480 = 8h padrão
+  const [toleranciaAtraso,setToleraciaAtraso] = useState(10);  // minutos — atraso dentro desse limite não gera horas negativas
   const [lineSearch,setLineSearch]= useState('');   // busca na Linha a Linha
   const [lineType,  setLineType]  = useState('all');// filtro de tipo na Linha a Linha
   const [lineDate,  setLineDate]  = useState('3dias'); // filtro de data na Linha a Linha
@@ -193,9 +194,12 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
             }
           }
           if (times.length%2!==0 && !issues.some(x=>x.includes('sem par'))) issues.push('Número ímpar de marcações');
-          const wknd    = isWknd_p(date);
-          const expected = wknd ? 0 : jornada;
-          const balance  = totalMin - expected;
+          const wknd      = isWknd_p(date);
+          const expected  = wknd ? 0 : jornada;
+          const rawBalance = totalMin - expected;
+          // Tolerância de atraso: déficit dentro do limite não gera horas negativas
+          const balance   = (!wknd && rawBalance < 0 && Math.abs(rawBalance) <= toleranciaAtraso)
+            ? 0 : rawBalance;
           return { date, times, pairs, totalMin, expected, balance, issues, wknd };
         });
         let cumBal=0;
@@ -668,6 +672,22 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
               </div>
               <div>
                 <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
+                  Tolerância de Atraso
+                </div>
+                <div style={{fontSize:12,color:T.textT,marginBottom:8}}>
+                  Atrasos dentro deste limite não geram horas negativas
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {[0,5,10,15].map(v=>(
+                    <button key={v} onClick={()=>setToleraciaAtraso(v)}
+                      style={{padding:'6px 14px',borderRadius:8,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,fontWeight:toleranciaAtraso===v?700:400,background:toleranciaAtraso===v?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.03)'),color:toleranciaAtraso===v?T.gold:T.textS,border:`1.5px solid ${toleranciaAtraso===v?T.goldLine+'55':T.border}`,transition:'all .15s'}}>
+                      {v===0?'Desligado':`${v} min`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
                   Jornada Diária
                 </div>
                 <div style={{fontSize:12,color:T.textT,marginBottom:8}}>
@@ -684,7 +704,8 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
               </div>
               <div style={{fontSize:12,color:T.textT,padding:'10px 16px',borderRadius:10,background:T.surfaceSub||'rgba(0,0,0,0.03)',border:`1px solid ${T.border}`}}>
                 <div style={{fontWeight:600,color:T.text,marginBottom:4}}>Configuração atual</div>
-                <div>Tolerância: <strong style={{color:T.gold}}>{tolerance===0?'Desligada':`${tolerance} min`}</strong></div>
+                <div>Tolerância gêmea: <strong style={{color:T.gold}}>{tolerance===0?'Desligada':`${tolerance} min`}</strong></div>
+                <div>Tolerância atraso: <strong style={{color:T.gold}}>{toleranciaAtraso===0?'Desligada':`${toleranciaAtraso} min`}</strong></div>
                 <div>Jornada: <strong style={{color:T.gold}}>{fmtMin(jornada)}/dia</strong></div>
                 <div style={{marginTop:4,fontSize:11,color:T.textD}}>⚠ Alterações aplicam no próximo upload</div>
               </div>
