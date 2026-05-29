@@ -188,7 +188,7 @@ const GENRE_ARTISTS = {
     'limao com mel', 'mastruz com leite', 'raí saia rodada', 'banda magnifica',
     'geraldinho lins', 'flávio josé', 'flavio jose', 'companhia do calypso',
     'leo foguete', 'alceu valença', 'alceu valenca', 'elba ramalho',
-    'geraldo azevedo',
+    'geraldo azevedo', 'luiz gonzaga',
     'toby keith', 'luke combs', 'morgan wallen', 'blake shelton', 'garth brooks',
     'zac brown band', 'george strait', 'kenny rogers', 'shania twain',
     'chris stapleton', 'kane brown', 'carrie underwood', 'post malone',
