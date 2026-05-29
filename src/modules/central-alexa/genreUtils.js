@@ -176,7 +176,7 @@ const GENRE_ARTISTS = {
     'cardi b', 'nicki minaj', 'lil wayne', 'future', 'young thug', 'migos',
     'j. cole', 'j cole', 'a$ap rocky', 'asap rocky', 'lil uzi vert',
     'playboi carti', 'juice wrld', 'xxxtentacion', 'pop smoke', 'roddy ricch',
-    'tyler the creator', 'childish gambino', 'frank ocean', 'ice spice',
+    'tyler the creator', 'tyler, the creator', 'childish gambino', 'frank ocean', 'ice spice',
     'gunna', 'lil baby', 'dababy', 'city girls', 'doja cat', 'doechii',
     // brasileiros
     'djonga', 'bk', 'matuê', 'veigh', 'oruam', 'krawk', 'orochi',
