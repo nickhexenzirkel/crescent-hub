@@ -261,7 +261,20 @@ const GENRE_ARTISTS = {
 
 // ─── Palavras-chave no campo genre ──────────────────────────
 const GENRE_KEYWORDS = {
-  gospel: ['gospel', 'gospell', 'louvor', 'worship', 'cristão', 'cristao', 'evangélico', 'evangelico', 'católico', 'catolico', 'ccm', 'christian', 'praise'],
+  gospel: [
+    // genre tags do Spotify
+    'gospel', 'louvor', 'worship', 'cristão', 'cristao', 'evangélico', 'evangelico',
+    'católico', 'catolico', 'ccm', 'christian', 'praise',
+    // palavras típicas em títulos de músicas gospel
+    'jesus', 'aleluia', 'aleluiah', 'hallelujah', 'hosana',
+    'bênção', 'bencao', 'benção', 'bençao',
+    'salvação', 'salvacao', 'avivamento',
+    'adoração', 'adoracao', 'oração', 'oracao',
+    'espírito santo', 'espirito santo', 'ungido',
+    'glória a deus', 'gloria a deus', 'deus é fiel', 'deus e fiel',
+    'amém', 'amen', 'milagre', 'cura divina', 'tua graça',
+    'senhor te amo', 'teu nome', 'rei dos reis',
+  ],
   kpop:   ['k-pop', 'kpop', 'k pop', 'j-pop', 'jpop', 'korean pop', 'japanese pop', 'asian pop', 'mandopop'],
   rap:    ['rap', 'hip hop', 'hip-hop', 'hiphop', 'trap', 'r&b', 'rnb', 'funk carioca', 'funk', 'blues', 'soul'],
   rock:   ['rock', 'metal', 'punk', 'grunge', 'alternative', 'hard rock', 'samba', 'axé', 'axe'],
