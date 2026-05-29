@@ -780,7 +780,25 @@ const CentralAlexa = ({onBack}) => {
                         </div>
                       )}
                       <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
-                      <div style={{fontSize:13,color:T.textS,marginBottom:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
+                      <div style={{fontSize:13,color:T.textS,marginBottom:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
+                      {/* ── Barra de progresso (somente leitura) ── */}
+                      {cur.duration_ms > 0 && (() => {
+                        const pct     = Math.min(100, (progressMs / cur.duration_ms) * 100);
+                        const fmtMs   = ms => { const t=Math.max(0,Math.floor(ms/1000)); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}` };
+                        const elapsed = fmtMs(progressMs);
+                        const total   = fmtMs(cur.duration_ms);
+                        return (
+                          <div style={{marginBottom:14}}>
+                            <div style={{height:3,borderRadius:99,background:`${T.border}`,overflow:"hidden",marginBottom:5}}>
+                              <div style={{height:"100%",width:`${pct}%`,borderRadius:99,background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`,transition:"width .9s linear"}}/>
+                            </div>
+                            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textD}}>
+                              <span>{elapsed}</span>
+                              <span>{total}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   : <div style={{fontSize:13,color:T.textT,marginBottom:12,textAlign:"center",padding:"24px 0"}}>
                       <div style={{fontSize:32,marginBottom:8}}>🎵</div>
