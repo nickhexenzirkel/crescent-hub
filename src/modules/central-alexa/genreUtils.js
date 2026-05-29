@@ -95,6 +95,12 @@ export const MASCOTS = {
       'MPB na veia, alma no compasso 🌸',
       'Gal, Marina, Djavan... pura arte 🎶',
       'Saudade que alimenta a alma 🍃',
+      'Brasil que canta, Brasil que sente! 🌿',
+      'Essa batida toca fundo no peito 💛',
+      'Do baião ao samba, tudo é Brasil 🥁',
+      'Chico, Gil, Caetano... a alma não envelhece 🎸',
+      'Música boa não tem pressa, tem alma 🍂',
+      'Sinto o Rio nessa melodia 🌊',
     ],
   },
 };
@@ -161,6 +167,7 @@ const GENRE_ARTISTS = {
     'luedji luna', 'aziz edipo', 'céu', 'letrux', 'tulipa ruiz',
     'alice caymmi', 'roberta sá', 'francisco el hombre', 'rubel',
     'little simz', 'silvana estrada', 'marília tavares', 'marilia tavares',
+    'alceu valença', 'elba ramalho',
     // obs: ebony, ajuliacosta e nanda tsunami estão no rap
   ],
   cowboy: [
@@ -180,6 +187,7 @@ const GENRE_ARTISTS = {
     'avioes do forro', 'forró do tico', 'dorgival dantas', 'limão com mel',
     'limao com mel', 'mastruz com leite', 'raí saia rodada', 'banda magnifica',
     'geraldinho lins', 'flávio josé', 'flavio jose', 'companhia do calypso',
+    'leo foguete',
     'toby keith', 'luke combs', 'morgan wallen', 'blake shelton', 'garth brooks',
     'zac brown band', 'george strait', 'kenny rogers', 'shania twain',
     'chris stapleton', 'kane brown', 'carrie underwood', 'post malone',
