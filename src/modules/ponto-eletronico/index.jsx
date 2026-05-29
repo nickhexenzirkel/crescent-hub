@@ -694,7 +694,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                   Horas esperadas por dia útil (afeta saldo e banco)
                 </div>
                 <div style={{display:'flex',gap:6}}>
-                  {[[240,'4h'],[360,'6h'],[480,'8h'],[528,'8h48'],[540,'9h']].map(([v,l])=>(
+                  {[[240,'4h · 20h/sem'],[360,'6h · 30h/sem'],[480,'8h · 40h/sem'],[528,'8h48 · 44h/sem'],[540,'9h · 45h/sem']].map(([v,l])=>(
                     <button key={v} onClick={()=>setJornada(v)}
                       style={{padding:'6px 14px',borderRadius:8,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,fontWeight:jornada===v?700:400,background:jornada===v?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.03)'),color:jornada===v?T.gold:T.textS,border:`1.5px solid ${jornada===v?T.goldLine+'55':T.border}`,transition:'all .15s'}}>
                       {l}
