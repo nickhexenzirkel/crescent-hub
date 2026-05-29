@@ -128,6 +128,7 @@ const GENRE_ARTISTS = {
     'emicida', 'criolo', 'projota', 'conecrewdiversidad',
     'baco exu do blues', 'muzzike', 'xamã', 'mc hariel', 'mc poze',
     'mc ryan sp', 'mc ig', 'mc kadu', 'mc davi', 'mc menor hr',
+    'ebony', 'ajuliacosta', 'a julia costa', 'nanda tsunami',
   ],
   rock: [
     'queen', 'metallica', 'ac/dc', 'led zeppelin', 'nirvana', 'foo fighters',
@@ -158,6 +159,7 @@ const GENRE_ARTISTS = {
     'luedji luna', 'aziz edipo', 'céu', 'letrux', 'tulipa ruiz',
     'alice caymmi', 'roberta sá', 'francisco el hombre', 'rubel',
     'little simz', 'silvana estrada', 'marília tavares', 'marilia tavares',
+    // obs: ebony, ajuliacosta e nanda tsunami estão no rap
   ],
   cowboy: [
     'gusttavo lima', 'jorge e mateus', 'henrique e juliano', 'israel e rodolffo',
