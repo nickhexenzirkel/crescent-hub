@@ -7,12 +7,31 @@ import UnikoKpopImg  from '../../assets/UnikoKPOP.png';
 import UnikoMPBImg   from '../../assets/UnikoMPB.png';
 import UnikoRockImg  from '../../assets/UnikoRock.png';
 import UnikoRapImg   from '../../assets/UnikoRap.png';
-import UnikoPopImg    from '../../assets/UnikoPop.png';
-import UnikoCowboyImg from '../../assets/UnikoCowboy.png';
-import UnikoGospelImg from '../../assets/UnikoGospel.png';
+import UnikoPopImg       from '../../assets/UnikoPop.png';
+import UnikoCowboyImg   from '../../assets/UnikoCowboy.png';
+import UnikoGospelImg   from '../../assets/UnikoGospel.png';
+import UnikoColumbinaImg from '../../assets/UnikoColumbina.png';
+
+// ─── Artistas exclusivos do UnikoColumbina ───────────────────
+// Checados antes de qualquer outra detecção de gênero.
+const COLUMBINA_ARTISTS = ['aurora', 'hoyo-mix', 'hoyo mix', 'caroline polachek', 'grimes', 'tomora'];
 
 // ─── Dados dos mascotes ──────────────────────────────────────
 export const MASCOTS = {
+  columbina: {
+    img:   UnikoColumbinaImg,
+    name:  'UnikoColumbina',
+    title: 'Deusa da Lua',
+    lines: [
+      'A lua guia cada nota dessa melodia 🌙',
+      'Música que vem das estrelas... sinto na alma ✨',
+      'Essa canção tem magia lunar 🌕',
+      'Como a lua, essa arte ilumina o escuro 🌑',
+      'Columbina Hyposelenia abençoa esse som 💫',
+      'Entre o céu e a terra, essa voz nos conecta 🌌',
+    ],
+  },
+
   wave: {
     img:   UnikoWaveImg,
     name:  'UnikoWave',
@@ -334,6 +353,9 @@ export function detectMascotVariant(track) {
   const artist = (track.artist || '').toLowerCase();
   const name   = (track.name   || '').toLowerCase();
   const genre  = (track.genre  || '').toLowerCase();
+
+  // 0. Artistas exclusivos — checados antes de tudo
+  if (COLUMBINA_ARTISTS.some(a => matchesArtist(artist, a))) return 'columbina';
 
   // 1. Campo genre (mais confiável — vem da API do player)
   if (genre) {
