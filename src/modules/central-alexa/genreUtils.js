@@ -9,6 +9,7 @@ import UnikoRockImg  from '../../assets/UnikoRock.png';
 import UnikoRapImg   from '../../assets/UnikoRap.png';
 import UnikoPopImg    from '../../assets/UnikoPop.png';
 import UnikoCowboyImg from '../../assets/UnikoCowboy.png';
+import UnikoGospelImg from '../../assets/UnikoGospel.png';
 
 // ─── Dados dos mascotes ──────────────────────────────────────
 export const MASCOTS = {
@@ -86,6 +87,20 @@ export const MASCOTS = {
     ],
   },
 
+  gospel: {
+    img:   UnikoGospelImg,
+    name:  'UnikoGospel',
+    title: 'DJ da Fé',
+    lines: [
+      'A fé move montanhas e o som move almas! 🙏',
+      'Esse louvor chegou no coração! ✨',
+      'Glória! Que música abençoada! 🕊️',
+      'O Senhor é bom, e esse som também! 🎶',
+      'Louvor que transforma! Que mensagem linda! 💫',
+      'Sintam a presença nessa melodia! 🌟',
+    ],
+  },
+
   mpb: {
     img:   UnikoMPBImg,
     name:  'UnikoMPB',
@@ -107,6 +122,21 @@ export const MASCOTS = {
 
 // ─── Artistas mapeados por gênero ───────────────────────────
 const GENRE_ARTISTS = {
+  gospel: [
+    // gospel / louvor evangélico
+    'gabriela rocha', 'aline barros', 'fernanda brum', 'fernandinho',
+    'diante do trono', 'hillsong', 'elevation worship', 'bethel music',
+    'jesus culture', 'planetshakers', 'tom e julieta', 'thalles roberto',
+    'léa mendonça', 'lea mendonca', 'bruna karla', 'isadora pompeo',
+    'anderson freire', 'daniel & samuel', 'davi sacer', 'rodolfo abrantes',
+    'preto no branco', 'jotta a', 'Ana Paula Valadão', 'ana paula valadao',
+    'novo tempo', 'voz da verdade', 'eyshila', 'cassiane', 'shirley carvalhaes',
+    'paulo cesar baruk', 'regis danese', 'ids', 'livres para adorar',
+    'heróis da fé', 'herois da fe', 'damares', 'laura souguellis',
+    // católico
+    'padre zezinho', 'padre reginaldo manzotti', 'padre marcelo rossi',
+    'anjos de resgate', 'comunidade shalom', 'saltasã', 'vida reluz',
+  ],
   kpop: [
     'bts', 'blackpink', 'twice', 'exo', 'stray kids', 'nct', 'aespa', 'ive',
     'newjeans', 'new jeans', 'seventeen', 'got7', 'monsta x', 'shinee', 'red velvet', 'itzy',
@@ -231,6 +261,7 @@ const GENRE_ARTISTS = {
 
 // ─── Palavras-chave no campo genre ──────────────────────────
 const GENRE_KEYWORDS = {
+  gospel: ['gospel', 'gospell', 'louvor', 'worship', 'cristão', 'cristao', 'evangélico', 'evangelico', 'católico', 'catolico', 'ccm', 'christian', 'praise'],
   kpop:   ['k-pop', 'kpop', 'k pop', 'j-pop', 'jpop', 'korean pop', 'japanese pop', 'asian pop', 'mandopop'],
   rap:    ['rap', 'hip hop', 'hip-hop', 'hiphop', 'trap', 'r&b', 'rnb', 'funk carioca', 'funk', 'blues', 'soul'],
   rock:   ['rock', 'metal', 'punk', 'grunge', 'alternative', 'hard rock', 'samba', 'axé', 'axe'],
