@@ -30,7 +30,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [editText,  setEditText]  = useState('');
   // Feature 3: Banco de Horas filters
   const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos
-  const [bancoEmpMode,  setBancoEmpMode]  = useState('single'); // single|all
+  const [bancoEmpMode,  setBancoEmpMode]  = useState('all'); // single|all
   const [bancoSearch,   setBancoSearch]   = useState('');       // Fix 1: separate search text
   const [bancoShowFilter,setBancoShowFilter]=useState('all');   // Fix 4: all|negative|justified
   const [calPage,       setCalPage]       = useState(0);        // calendar detail pagination
@@ -255,7 +255,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
         if (!parsed.employees.length) { setErr('Nenhuma marcação encontrada. Verifique se é um AFD válido (Portaria 671 ou 1510).'); setLoad(false); return; }
         setAfd(parsed);
         setTab('usuarios');
-        setSelEmp(parsed.employees[0]?.cpf || null);
+        setSelEmp(null);
         setCalIdx(0);
       } catch(ex) { console.error('AFD error:', ex); setErr('Erro ao processar o arquivo: '+ex.message); }
       setLoad(false);
