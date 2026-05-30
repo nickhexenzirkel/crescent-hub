@@ -247,13 +247,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           <div style={{display:'flex',alignItems:'center',gap:16}}>
             {/* avatar */}
             <div onClick={openPhoto} title="Editar foto" style={{
-              width:68,height:68,borderRadius:'50%',flexShrink:0,cursor:'pointer',
+              width:92,height:92,borderRadius:'50%',flexShrink:0,cursor:'pointer',
               background:photo?undefined:'rgba(255,255,255,.92)',
               ...avatarBg,
               display:photo?'block':'flex', alignItems:'center', justifyContent:'center',
-              fontSize:22,fontWeight:700,color:T.blue,
-              border:'2.5px solid rgba(255,255,255,.44)',
-              boxShadow:'0 0 0 5px rgba(255,255,255,.08),0 0 0 10px rgba(255,255,255,.04),0 6px 24px rgba(0,0,0,.30)',
+              fontSize:28,fontWeight:700,color:T.blue,
+              border:'3px solid rgba(255,255,255,.50)',
+              boxShadow:'0 0 0 6px rgba(255,255,255,.10),0 0 0 12px rgba(255,255,255,.04),0 8px 28px rgba(0,0,0,.32)',
               position:'relative',overflow:'hidden',
             }}>
               {!photo && USER.avatar}
