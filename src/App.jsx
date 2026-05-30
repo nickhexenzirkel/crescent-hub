@@ -64,22 +64,22 @@ export default function CrescentHub() {
     } catch {}
   };
 
-  /* Chime ascendente C5→E5→G5→C6, dura ~2 segundos */
+  /* Chime ascendente C5→E5→G5→C6, dura ~3 segundos */
   const playReminder = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       [
-        { freq: 523.25, start: 0.0,  dur: 0.75 },
-        { freq: 659.25, start: 0.35, dur: 0.75 },
-        { freq: 783.99, start: 0.70, dur: 0.80 },
-        { freq: 1046.5, start: 1.10, dur: 0.90 },
+        { freq: 523.25, start: 0.0,  dur: 1.1 },
+        { freq: 659.25, start: 0.5,  dur: 1.1 },
+        { freq: 783.99, start: 1.0,  dur: 1.2 },
+        { freq: 1046.5, start: 1.6,  dur: 1.4 },
       ].forEach(({ freq, start, dur }) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
         o.type = 'sine';
         o.frequency.value = freq;
         g.gain.setValueAtTime(0, ctx.currentTime + start);
-        g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + start + 0.04);
+        g.gain.linearRampToValueAtTime(0.55, ctx.currentTime + start + 0.04);
         g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
         o.start(ctx.currentTime + start);
         o.stop(ctx.currentTime + start + dur);
