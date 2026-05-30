@@ -19,11 +19,12 @@ const TabFinanceiro = () => {
   const [eventosOpen, setEventosOpen] = useState(true);
   const [salVisible, setSalVisible] = useState(false);
 
-  /* cálculos: Salário Bruto + 1K Service - INSS = Líquido */
+  /* cálculos: Salário Bruto + 1K Service - (INSS + IR) = Líquido */
   const gross1k        = USER.salary_1k || 0;
   const inss           = USER.inss      || 0;
+  const ir             = USER.ir        || 0;   // desconto adicional (ex: INSS 1K)
   const totalBruto     = USER.salary + gross1k;
-  const totalDescontos = inss;
+  const totalDescontos = inss + ir;
   const liquido        = totalBruto - totalDescontos;
 
   useEffect(() => {

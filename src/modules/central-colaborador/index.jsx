@@ -53,6 +53,8 @@ const Portal = ({onBack, onGoAlexa}) => {
         if (p.dependents !== undefined) USER.dependents = p.dependents;
         if (p.salary !== undefined) USER.salary    = Number(p.salary) || 0;
         if (p.inss   !== undefined) USER.inss      = Number(p.inss)   || 0;
+        /* ir = desconto adicional (ex: INSS sobre 1K Service) — não exibido separado */
+        if (p.ir     !== undefined) USER.ir        = Number(p.ir)     || 0;
         /* vt armazena o valor da 1K Service no banco (campo reaproveitado) */
         if (p.vt     !== undefined) USER.salary_1k = Number(p.vt)     || 0;
       }
