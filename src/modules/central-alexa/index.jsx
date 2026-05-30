@@ -432,14 +432,26 @@ const CentralAlexa = ({onBack}) => {
   // ── Alexa rate limit ─────────────────────────────────────
   const auth = getAuthUser();
   const isAdmin = auth?.role === 'admin';
+  const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {
     try {
       const d = JSON.parse(localStorage.getItem('alexa_reqs')||'[]');
       const now = Date.now();
-      return d.filter(t => now - t < 5 * 60 * 60 * 1000);
+      return d.filter(t => now - t < ALEXA_WINDOW);
     } catch { return []; }
   };
+  const getCooldown = () => {
+    const reqs = getAlexaRequests();
+    if (reqs.length < ALEXA_LIMIT) return null;
+    const oldest = Math.min(...reqs);
+    const remaining = (oldest + ALEXA_WINDOW) - Date.now();
+    if (remaining <= 0) return null;
+    const m = Math.floor(remaining / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
   const [alexaReqCount, setAlexaReqCount] = useState(() => getAlexaRequests().length);
+  const [alexaCooldown, setAlexaCooldown] = useState(() => getCooldown());
   const ALEXA_LIMIT = 2;
   const canAskAlexa = isAdmin || alexaReqCount < ALEXA_LIMIT;
 
@@ -449,7 +461,18 @@ const CentralAlexa = ({onBack}) => {
     reqs.push(Date.now());
     localStorage.setItem('alexa_reqs', JSON.stringify(reqs));
     setAlexaReqCount(reqs.length);
+    setAlexaCooldown(getCooldown());
   };
+
+  useEffect(() => {
+    if (isAdmin) return;
+    const id = setInterval(() => {
+      const fresh = getAlexaRequests();
+      setAlexaReqCount(fresh.length);
+      setAlexaCooldown(fresh.length >= ALEXA_LIMIT ? getCooldown() : null);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadMaquinaData = async () => {
     setMaquinaLoading(true);
@@ -886,7 +909,7 @@ const CentralAlexa = ({onBack}) => {
             {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
             {id:"biblioteca",label:"Biblioteca",        adminOnly:true, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
             {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-            {id:"alexa",     label:"Alexa",             adminOnly:true,  icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
+            {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>setTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,
@@ -1762,11 +1785,18 @@ const CentralAlexa = ({onBack}) => {
                 {/* Input */}
                 <div style={{borderTop:`1px solid ${T.border}`,padding:"12px 16px"}}>
                   {!isAdmin&&(
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,color:alexaReqCount>=ALEXA_LIMIT?"#C04050":T.textD}}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,
+                      color:alexaReqCount>=ALEXA_LIMIT?"#C04050":T.textD}}>
                       {alexaReqCount>=ALEXA_LIMIT
-                        ? "Limite atingido. Suas 2 requisições se renovam em 5 horas."
-                        : `${ALEXA_LIMIT - alexaReqCount} de ${ALEXA_LIMIT} requisições restantes (renova em 5h)`
+                        ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            Limite atingido — liberado em{" "}
+                            <span style={{fontVariantNumeric:"tabular-nums",fontWeight:700,fontSize:12}}>
+                              {alexaCooldown||"--:--"}
+                            </span>
+                          </>
+                        : <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            {ALEXA_LIMIT - alexaReqCount} de {ALEXA_LIMIT} pedidos restantes · renova em 1h
+                          </>
                       }
                     </div>
                   )}
