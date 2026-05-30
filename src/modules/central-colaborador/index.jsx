@@ -16,7 +16,7 @@ import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import CentralLembretes from '../central-lembretes';
 
-const Portal = ({onBack}) => {
+const Portal = ({onBack, onGoAlexa}) => {
   const [tab,st]=useState('inicio');
   const [activeTheme,setActiveTheme]=useState('blue');
   const [showSettings,setShowSettings]=useState(false);
@@ -88,7 +88,7 @@ const Portal = ({onBack}) => {
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);};
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados/>;
     if(tab==='horas')      return <TabHoras/>;

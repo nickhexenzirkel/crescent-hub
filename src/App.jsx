@@ -184,7 +184,7 @@ export default function CrescentHub() {
           {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout}/>}
-          {screen==='colaborador' && <Portal         onBack={()=>ss('modules')}/>}
+          {screen==='colaborador' && <Portal         onBack={()=>ss('modules')} onGoAlexa={()=>ss('alexa')}/>}
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa     onBack={()=>ss('modules')}/>}
