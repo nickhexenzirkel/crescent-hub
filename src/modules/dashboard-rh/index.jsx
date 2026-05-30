@@ -794,8 +794,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
                         {label:'1K Service (R$)',key:'vt',type:'number'},
                         {label:'Motivo do reajuste (ex: Promoção)',key:'salary_event',type:'text',placeholder:'Ex: Reajuste anual, Promoção...'},
-                        {label:'Desconto INSS — Salário (R$)',key:'inss',type:'number'},
-                        {label:'Desconto INSS — 1K Service (R$)',key:'ir',type:'number'},
+                        {label:'Desconto INSS (R$)',key:'inss',type:'number'},
                       ]},
                     ].map(sec=>(
                       <div key={sec.title} style={{marginBottom:20}}>

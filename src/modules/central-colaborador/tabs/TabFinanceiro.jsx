@@ -19,12 +19,11 @@ const TabFinanceiro = () => {
   const [eventosOpen, setEventosOpen] = useState(true);
   const [salVisible, setSalVisible] = useState(false);
 
-  /* cálculos: Salário Bruto + 1K Service - (INSS + IR) = Líquido */
+  /* cálculos: Salário Bruto + 1K Service - INSS = Líquido */
   const gross1k        = USER.salary_1k || 0;
   const inss           = USER.inss      || 0;
-  const ir             = USER.ir        || 0;   // desconto adicional (ex: INSS 1K)
   const totalBruto     = USER.salary + gross1k;
-  const totalDescontos = inss + ir;
+  const totalDescontos = inss;
   const liquido        = totalBruto - totalDescontos;
 
   useEffect(() => {
@@ -179,24 +178,13 @@ const TabFinanceiro = () => {
 
           {eventosOpen && (
             <div style={{ borderTop:'1px solid rgba(192,64,80,0.15)', padding:'4px 0 8px' }}>
-              {inss > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>INSS — Salário</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(inss)}` : '- R$ ••••,••'}
-                  </span>
-                </div>
-              )}
-              {ir > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>INSS — 1K Service</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(ir)}` : '- R$ ••••,••'}
-                  </span>
-                </div>
-              )}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                padding:'10px 22px' }}>
+                <span style={{ fontSize:13, color:T.textS }}>INSS</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
+                  {salVisible ? `- R$ ${BRL(inss)}` : '- R$ ••••,••'}
+                </span>
+              </div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
                 padding:'10px 22px', borderTop:'1px solid rgba(192,64,80,0.14)', marginTop:2 }}>
                 <span style={{ fontSize:12, color:'#C04050', fontWeight:700, letterSpacing:'.04em',
