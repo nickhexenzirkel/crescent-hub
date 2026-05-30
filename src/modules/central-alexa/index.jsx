@@ -1290,12 +1290,17 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                             </div>
                             {/* Pedido por */}
                             <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-                              <AvatarCircle
-                                name={s.requested_by||'?'}
-                                photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
-                                size={18} fontSize={7} rounded="5px"
-                              />
-                              <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.requested_by}</span>
+                              {(!s.requested_by || s.requested_by==='Autoplay' || s.requested_by==='Sistema')
+                                ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:18,height:18,borderRadius:5,objectFit:"cover",flexShrink:0}}/>
+                                : <AvatarCircle
+                                    name={s.requested_by}
+                                    photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
+                                    size={18} fontSize={7} rounded="5px"
+                                  />
+                              }
+                              <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                {(!s.requested_by||s.requested_by==='Autoplay'||s.requested_by==='Sistema') ? 'Uniko' : s.requested_by}
+                              </span>
                             </div>
                             {/* Skip — temporariamente apenas admin */}
                             {iAmPlaying && isAdmin && (
@@ -1786,7 +1791,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                               </div>
                             )}
                             {m.role==="alexa"&&(
-                              <div style={{fontSize:11,fontWeight:700,color:T.gold,marginBottom:3}}>Alexa</div>
+                              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                                <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:14,height:14,borderRadius:3,objectFit:"cover"}}/>
+                                <span style={{fontSize:11,fontWeight:700,color:T.gold}}>Uniko</span>
+                              </div>
                             )}
                             <div style={{fontSize:13,color:m.role==="user"?"white":T.text,lineHeight:1.5}}>
                               {m.role==="user"
@@ -1829,7 +1837,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   })}
                   {alexaTyping&&(
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:`radial-gradient(circle at 35% 35%,${T.goldL||T.gold}cc,${T.gold})`}}/>
+                      <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,overflow:"hidden"}}>
+                        <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      </div>
                       <div style={{padding:"12px 16px",borderRadius:"4px 14px 14px 14px",background:T.goldGl,border:`1px solid ${T.goldLine}44`,display:"flex",gap:4,alignItems:"center"}}>
                         {[0,0.15,0.3].map((d,i)=>(
                           <div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.gold,animation:`typingDot 1.4s ${d}s ease-in-out infinite`}}/>
