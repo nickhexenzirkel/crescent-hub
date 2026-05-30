@@ -337,7 +337,8 @@ const CentralAlexa = ({onBack}) => {
   const loadSpPlaylists = async () => {
     setPlLoading(true);
     const r = await api('get', '/api/playlists');
-    setSpPlaylists(r.playlists || []);
+    if (r.playlists) setSpPlaylists(r.playlists);
+    else console.error('loadSpPlaylists error:', r.error);
     setPlLoading(false);
   };
 
@@ -368,6 +369,8 @@ const CentralAlexa = ({onBack}) => {
     if (r.ok) {
       setPlTracks(t => [...t, { id: track.id, uri: track.uri, title: track.title, artist: track.artist, album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str }]);
       setSpPlaylists(p => p.map(pl => pl.id === openPlaylist.id ? {...pl, total: pl.total + 1} : pl));
+    } else {
+      setPlMsg('⚠️ Erro ao adicionar: ' + (r.error || 'Tente novamente'));
     }
   };
 
