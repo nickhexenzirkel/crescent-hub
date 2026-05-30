@@ -432,6 +432,7 @@ const CentralAlexa = ({onBack}) => {
   // ── Alexa rate limit ─────────────────────────────────────
   const auth = getAuthUser();
   const isAdmin = auth?.role === 'admin';
+  const ALEXA_LIMIT  = 2;
   const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {
     try {
@@ -452,7 +453,6 @@ const CentralAlexa = ({onBack}) => {
   };
   const [alexaReqCount, setAlexaReqCount] = useState(() => getAlexaRequests().length);
   const [alexaCooldown, setAlexaCooldown] = useState(() => getCooldown());
-  const ALEXA_LIMIT = 2;
   const canAskAlexa = isAdmin || alexaReqCount < ALEXA_LIMIT;
 
   const consumeAlexaRequest = () => {
