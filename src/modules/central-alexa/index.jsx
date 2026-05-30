@@ -163,6 +163,7 @@ const CentralAlexa = ({onBack}) => {
   const [festLoading, setFestLoading]   = useState(true);
   const [serverMsg, setServerMsg]       = useState("");
   const searchTimer = useRef(null);
+  const plSearchTimer = useRef(null);
 
   // ID único por sessão (para sistema de votos)
   const [userId] = useState(() => {
@@ -337,8 +338,13 @@ const CentralAlexa = ({onBack}) => {
   const loadSpPlaylists = async () => {
     setPlLoading(true);
     const r = await api('get', '/api/playlists');
-    if (r.playlists) setSpPlaylists(r.playlists);
-    else console.error('loadSpPlaylists error:', r.error);
+    if (r.playlists) {
+      setSpPlaylists(prev => {
+        const ids = new Set(r.playlists.map(p => p.id));
+        const localOnly = prev.filter(p => !ids.has(p.id));
+        return [...r.playlists, ...localOnly];
+      });
+    } else console.error('loadSpPlaylists error:', r.error);
     setPlLoading(false);
   };
 
@@ -379,7 +385,7 @@ const CentralAlexa = ({onBack}) => {
   };
 
   const removeTrackFromPlaylist = async (track) => {
-    const r = await api('delete', `/api/playlists/${openPlaylist.id}/tracks`, { uri: track.uri });
+    const r = await api('delete', `/api/playlists/${openPlaylist.id}/tracks`, { uri: track.uri || track.spotify_uri });
     if (r.ok) setPlTracks(t => t.filter(x => x.id !== track.id));
   };
 
@@ -395,6 +401,18 @@ const CentralAlexa = ({onBack}) => {
     const r = await api('get', `/api/search?q=${encodeURIComponent(plSearchQ)}`);
     setPlSearchRes(r.tracks || []);
     setPlSearching(false);
+  };
+
+  const handlePlSearch = (val) => {
+    setPlSearchQ(val);
+    clearTimeout(plSearchTimer.current);
+    if (!val.trim()) { setPlSearchRes([]); return; }
+    setPlSearching(true);
+    plSearchTimer.current = setTimeout(async () => {
+      const r = await api('get', `/api/search?q=${encodeURIComponent(val)}`);
+      setPlSearchRes(r.tracks || []);
+      setPlSearching(false);
+    }, 450);
   };
 
   // ── Alexa rate limit ─────────────────────────────────────
@@ -1409,7 +1427,7 @@ const CentralAlexa = ({onBack}) => {
 
                 {/* Buscar músicas para adicionar */}
                 <div style={{display:"flex",gap:8,marginBottom:14}}>
-                  <input value={plSearchQ} onChange={e=>setPlSearchQ(e.target.value)}
+                  <input value={plSearchQ} onChange={e=>handlePlSearch(e.target.value)}
                     onKeyDown={e=>e.key==='Enter'&&searchForPlaylist()}
                     placeholder="Buscar música para adicionar..."
                     style={{flex:1,padding:"9px 13px",borderRadius:9,border:`1.5px solid ${T.border}`,background:isDark?T.surface:"white",fontSize:13,color:T.text,outline:"none",fontFamily:"var(--font-body)"}}/>
