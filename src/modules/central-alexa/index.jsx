@@ -724,6 +724,7 @@ const CentralAlexa = ({onBack}) => {
         @keyframes bubblePop{0%{opacity:0;transform:scale(0.7) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes alexaOrb{0%,100%{box-shadow:0 0 20px ${T.gold}44,0 0 40px ${T.gold}22}50%{box-shadow:0 0 40px ${T.gold}88,0 0 80px ${T.gold}33}}
+        @keyframes alexaFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-10px)}}
         @keyframes hdrBlob1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(28px,-8px) scale(1.15)}66%{transform:translate(-12px,10px) scale(0.92)}}
         @keyframes hdrBlob2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-18px,14px) scale(1.08)}}
         @keyframes typingDot{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
@@ -1418,9 +1419,7 @@ const CentralAlexa = ({onBack}) => {
                 <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:T.gold,filter:"blur(40px)",opacity:0.08,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.goldL||T.gold,filter:"blur(30px)",opacity:0.06,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
-                <div style={{width:80,height:80,borderRadius:"50%",animation:"alexaOrb 2.5s ease-in-out infinite",boxShadow:`0 0 30px ${T.gold}55`,position:"relative",zIndex:1,overflow:"hidden"}}>
-                  <img src="/UnikoQuadrado.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                </div>
+                <img src="/Uniko.png" alt="Uniko" style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 3s ease-in-out infinite"}}/>
                 <div style={{textAlign:"center",position:"relative",zIndex:1}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Alexa</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:2}}>Pergunte sobre tempo, eventos, músicas, lembretes...</div>
