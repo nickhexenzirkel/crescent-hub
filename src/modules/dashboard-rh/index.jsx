@@ -314,7 +314,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       }
       await loadLembretes();
       setLembModal(null);
-      setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true});
+      setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'});
     } catch { setLembMsg('Erro ao salvar'); }
     setLembSaving(false);
   };
@@ -940,7 +940,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Lembretes & Alexa Programada</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Programe o que a Alexa vai falar e quando — aparece para todos os colaboradores</div>
                 </div>
-                <button onClick={()=>{ setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true}); setLembMsg(''); setLembModal('new'); }}
+                <button onClick={()=>{ setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'}); setLembMsg(''); setLembModal('new'); }}
                   style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
                   + Novo Lembrete
                 </button>
@@ -1006,7 +1006,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                                   : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                 }
                               </button>
-                              <button onClick={()=>{ setLembForm({title:l.title,message:l.message||'',time:l.time||'',date:l.date||'',type:l.type||'lembrete',repeat:l.repeat||'never',active:l.active}); setLembMsg(''); setLembModal(l); }}
+                              <button onClick={()=>{ setLembForm({title:l.title,message:l.message||'',time:l.time||'',date:l.date||'',type:l.type||'lembrete',repeat:l.repeat||'never',active:l.active,fanfare:!!l.fanfare,sound:l.sound||'fanfarra'}); setLembMsg(''); setLembModal(l); }}
                                 title="Editar"
                                 style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
