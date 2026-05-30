@@ -1289,19 +1289,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                               <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
                             </div>
                             {/* Pedido por */}
-                            <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-                              {(!s.requested_by || s.requested_by==='Autoplay' || s.requested_by==='Sistema')
-                                ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:18,height:18,borderRadius:5,objectFit:"cover",flexShrink:0}}/>
-                                : <AvatarCircle
-                                    name={s.requested_by}
-                                    photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
-                                    size={18} fontSize={7} rounded="5px"
-                                  />
-                              }
-                              <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                {(!s.requested_by||s.requested_by==='Autoplay'||s.requested_by==='Sistema') ? 'Uniko' : s.requested_by}
-                              </span>
-                            </div>
+                            {(()=>{
+                              const rb = (s.requested_by||'').trim().toLowerCase();
+                              const isSystem = !rb || rb==='autoplay' || rb==='sistema' || rb==='uniko';
+                              return (
+                                <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                                  {isSystem
+                                    ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:18,height:18,borderRadius:5,objectFit:"cover",flexShrink:0}}/>
+                                    : <AvatarCircle
+                                        name={s.requested_by}
+                                        photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
+                                        size={18} fontSize={7} rounded="5px"
+                                      />
+                                  }
+                                  <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                    {isSystem ? 'Uniko' : s.requested_by}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                             {/* Skip — temporariamente apenas admin */}
                             {iAmPlaying && isAdmin && (
                               <button onClick={()=>handleVote(s)} title="Pular (Admin)"
