@@ -74,6 +74,7 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
   const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
+  const [notas,     setNotas]     = useState([]);
   const [evts,      setEvts]      = useState([]);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
@@ -118,8 +119,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
 
   /* ── Fetch ── */
   useEffect(() => {
-    _supabase.from('reminders').select('*').eq('active',true).eq('created_by',USER.name)
+    _supabase.from('reminders').select('*').eq('type','lembrete').eq('active',true).eq('created_by',USER.name)
       .then(({data})=>setLembs(data||[]));
+    _supabase.from('reminders').select('*').eq('type','anotacao').eq('created_by',USER.name)
+      .order('created_at',{ascending:false}).limit(4)
+      .then(({data})=>setNotas(data||[]));
     _supabase.from('calendar_events').select('*').order('event_date',{ascending:true})
       .then(({data})=>setEvts(data||[]));
     _supabase.from('comunicados').select('*').eq('active',true)
@@ -441,6 +445,33 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           }
         </Card>
       </div>
+
+      {/* ══ WIDGET ANOTAÇÕES ═══════════════════════════════════════ */}
+      {notas.length > 0 && (
+        <Card style={{padding:'16px',marginTop:12}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+            <span style={{fontSize:13,fontWeight:600,color:T.text}}>📝 Anotações Recentes</span>
+            <BtnVer tab="lembretes"/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {notas.slice(0,3).map(n=>{
+              const dotColors={default:'#AAB8C4',amber:'#C8960A',blue:'#2A6FB5',green:'#1A9060',red:'#C02030',purple:'#7040C8'};
+              const dot = dotColors[n.repeat||'default']||'#AAB8C4';
+              const bgMap={default:'transparent',amber:'rgba(255,200,50,0.08)',blue:'rgba(50,130,255,0.07)',green:'rgba(40,180,100,0.07)',red:'rgba(200,50,50,0.07)',purple:'rgba(120,70,220,0.08)'};
+              const bg  = bgMap[n.repeat||'default']||'transparent';
+              return(
+                <div key={n.id} style={{display:'flex',gap:10,padding:'10px 12px',borderRadius:10,background:bg,border:`1px solid ${T.border}`}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:dot,flexShrink:0,marginTop:5}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    {n.title&&n.title!=='Anotação'&&<div style={{fontSize:12,fontWeight:700,color:T.text,marginBottom:2}}>{n.title}</div>}
+                    <div style={{fontSize:12,color:T.textS,lineHeight:1.5,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{n.message}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* ══ MODAL: FOTO DE PERFIL ═══════════════════════════════════ */}
       {showPhoto&&(
