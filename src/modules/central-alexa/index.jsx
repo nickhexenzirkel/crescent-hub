@@ -617,12 +617,21 @@ const CentralAlexa = ({onBack}) => {
     setAlexaTyping(true);
     try {
       const r = await api('post', '/api/alexa/ask', { question, userName: myName });
-      setAlexaConvo(c => [...c, {
-        role: "alexa",
-        text: r.response || "Não consegui processar sua pergunta.",
-        ts: new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}),
-        spoke: !!r.spoke,
-      }]);
+      const ts = new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+      if (r.ok) {
+        setAlexaConvo(c => [...c, {
+          role: "alexa",
+          text: "Ouça a resposta no Echo Dot! 🔊",
+          ts,
+          spoke: true,
+        }]);
+      } else {
+        setAlexaConvo(c => [...c, {
+          role: "alexa",
+          text: r.error || "Não consegui enviar para a Alexa.",
+          ts,
+        }]);
+      }
     } catch {
       setAlexaConvo(c => [...c, {
         role: "alexa",
