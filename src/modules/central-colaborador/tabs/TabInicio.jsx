@@ -63,9 +63,10 @@ const Planet = ({ p1, p2, p3, rings, spot }) => {
 };
 
 const STARS_POS = [
-  {x:'8%',y:'20%',r:2.4,d:'0s'},{x:'19%',y:'12%',r:1.6,d:'1.1s'},{x:'33%',y:'30%',r:2.2,d:'0.5s'},
-  {x:'48%',y:'14%',r:1.5,d:'1.8s'},{x:'57%',y:'32%',r:1.8,d:'0.3s'},{x:'13%',y:'65%',r:1.4,d:'2.3s'},
-  {x:'41%',y:'70%',r:1.7,d:'0.9s'},{x:'67%',y:'22%',r:1.2,d:'1.6s'},
+  {x:'54%',y:'18%',r:1.6,d:'0.4s'},{x:'60%',y:'62%',r:2.0,d:'1.3s'},
+  {x:'65%',y:'30%',r:1.4,d:'2.0s'},{x:'71%',y:'72%',r:1.8,d:'0.8s'},
+  {x:'57%',y:'82%',r:1.5,d:'1.6s'},{x:'76%',y:'18%',r:1.2,d:'0.2s'},
+  {x:'68%',y:'50%',r:1.3,d:'1.9s'},{x:'62%',y:'88%',r:1.6,d:'0.6s'},
 ];
 /* Delays negativos = começam no meio da animação ao montar (aparecem imediatamente) */
 const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
@@ -225,6 +226,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           <div style={{position:'absolute',width:190,height:190,borderRadius:'50%',top:8,left:'44%',background:`radial-gradient(circle,${P.b3} 0%,transparent 68%)`,filter:'blur(24px)',animation:'hb3 7s ease-in-out infinite'}}/>
         </div>
 
+
+        {/* estrelas */}
+        {STARS_POS.map((s,i)=>(
+          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.88)',pointerEvents:'none',animation:`twinkle ${2.2+i*.32}s ease-in-out infinite`,animationDelay:s.d}}/>
+        ))}
 
         {/* estrelas cadentes — wrapper translaciona, filho roda estático */}
         {P.shooting && SHOOT_POS.map((s,i)=>(
