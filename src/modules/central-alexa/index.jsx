@@ -724,7 +724,7 @@ const CentralAlexa = ({onBack}) => {
         @keyframes bubblePop{0%{opacity:0;transform:scale(0.7) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes alexaOrb{0%,100%{box-shadow:0 0 20px ${T.gold}44,0 0 40px ${T.gold}22}50%{box-shadow:0 0 40px ${T.gold}88,0 0 80px ${T.gold}33}}
-        @keyframes alexaFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-10px)}}
+        @keyframes alexaFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
         @keyframes hdrBlob1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(28px,-8px) scale(1.15)}66%{transform:translate(-12px,10px) scale(0.92)}}
         @keyframes hdrBlob2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-18px,14px) scale(1.08)}}
         @keyframes typingDot{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
@@ -768,7 +768,7 @@ const CentralAlexa = ({onBack}) => {
             {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
             {id:"biblioteca",label:"Biblioteca",        adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
             {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-            {id:"alexa",     label:"Alexa",             adminOnly:true,  icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12a4 4 0 008 0"/><line x1="8" y1="8" x2="8.01" y2="8" strokeWidth="2.5"/><line x1="16" y1="8" x2="16.01" y2="8" strokeWidth="2.5"/></svg>},
+            {id:"alexa",     label:"Alexa",             adminOnly:true,  icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>setTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,
@@ -1419,9 +1419,9 @@ const CentralAlexa = ({onBack}) => {
                 <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:T.gold,filter:"blur(40px)",opacity:0.08,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.goldL||T.gold,filter:"blur(30px)",opacity:0.06,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
-                <img src="/Uniko.png" alt="Uniko" style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 3s ease-in-out infinite"}}/>
+                <img src="/Uniko.png" alt="Uniko" style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
                 <div style={{textAlign:"center",position:"relative",zIndex:1}}>
-                  <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Alexa</div>
+                  <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Uniko x Alexa</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:2}}>Pergunte sobre tempo, eventos, músicas, lembretes...</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 12px",borderRadius:8,background:T.goldGl,border:`1px solid ${T.goldLine}44`,position:"relative",zIndex:1}}>
