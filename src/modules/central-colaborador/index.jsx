@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
-import { USER, SERVER_URL } from '../../contexts/user';
+import { USER, SERVER_URL, getAuthUser } from '../../contexts/user';
 import { SettingsModal } from '../../shared/SettingsModal';
 import { Sidebar, TopBar } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
@@ -14,12 +14,15 @@ import { TabConquistas } from './tabs/TabConquistas';
 import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
+import CentralLembretes from '../central-lembretes';
 
 const Portal = ({onBack}) => {
   const [tab,st]=useState('inicio');
   const [activeTheme,setActiveTheme]=useState('blue');
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const tabRef = useRef(tab);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
 
   // Busca o perfil completo do usuário ao abrir o Portal
   useEffect(() => {
@@ -59,19 +62,44 @@ const Portal = ({onBack}) => {
     .finally(() => setProfileReady(true));
   }, []);
 
+  /* Ticker de fundo para o My Uniko — mantém stats atualizados em outros tabs */
+  useEffect(() => {
+    const key = (() => { try { const a = getAuthUser(); return a?.cpf ? `uniko_doko_${a.cpf}` : 'uniko_doko'; } catch { return 'uniko_doko'; } })();
+    const id = setInterval(() => {
+      if (tabRef.current === 'uniko') return; // TabMyDoko cuida quando ativo
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        let { fome = 75, energia = 70, sono = 70, dormindo = false } = data;
+        if (dormindo) {
+          fome = Math.max(0,   fome - 0.008);
+          sono = Math.min(100, sono + 2.5);
+        } else {
+          fome    = Math.max(0, fome    - 0.025);
+          energia = Math.max(0, energia - 0.025);
+          sono    = Math.max(0, sono    - 0.016);
+        }
+        localStorage.setItem(key, JSON.stringify({ ...data, fome, energia, sono, lastUpdated: Date.now() }));
+      } catch {}
+    }, 8000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);};
   const render=()=>{
     if(tab==='inicio')     return <TabInicio setTab={st}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados/>;
     if(tab==='horas')      return <TabHoras/>;
+    if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='games')      return <TabGames/>;
     if(tab==='conquistas') return <TabConquistas/>;
     if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
-    if(tab==='doko')        return <TabMyDoko/>;
+    if(tab==='uniko')       return <TabMyDoko/>;
     return null;
   };
 

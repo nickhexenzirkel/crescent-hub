@@ -9,7 +9,6 @@ import { Portal } from './modules/central-colaborador';
 import PontoEletronico from './modules/ponto-eletronico';
 import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
-import CentralLembretes from './modules/central-lembretes';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -189,7 +188,6 @@ export default function CrescentHub() {
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa     onBack={()=>ss('modules')}/>}
-          {screen==='lembretes'   && <CentralLembretes onBack={()=>ss('modules')} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}

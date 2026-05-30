@@ -10,19 +10,20 @@ const I = (p) => (
 );
 const NAV=[
   /* Grupo 1 — Pessoal */
-  {id:'inicio',     label:'Início',        icon:<I><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1z"/></I>},
-  {id:'dados',      label:'Seus Dados',    icon:<I><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></I>},
-  {id:'financeiro', label:'Financeiro',    icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 7v1.5M12 15.5V17M9.5 10.5c0-1.1.9-2 2.5-2s2.5.9 2.5 2-2.5 2-2.5 2-2.5.9-2.5 2 .9 2 2.5 2 2.5-.9 2.5-2"/></I>},
-  {id:'horas',      label:'Banco de Horas',icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
+  {id:'inicio',     label:'Início',         icon:<I><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1z"/></I>},
+  {id:'dados',      label:'Seus Dados',     icon:<I><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></I>},
+  {id:'financeiro', label:'Financeiro',     icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 7v1.5M12 15.5V17M9.5 10.5c0-1.1.9-2 2.5-2s2.5.9 2.5 2-2.5 2-2.5 2-2.5.9-2.5 2 .9 2 2.5 2 2.5-.9 2.5-2"/></I>},
+  {id:'horas',      label:'Banco de Horas', icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
+  {id:'lembretes',  label:'Meus Lembretes', icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
   /* Grupo 2 — Corporativo (divider antes) */
-  {id:'comunicados',label:'Comunicados',   icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
-  {id:'eventos',    label:'Eventos',       icon:<I><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></I>},
-  {id:'feedback',   label:'Feedback',      icon:<I><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></I>},
-  {id:'conquistas', label:'Conquistas',    icon:<I><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></I>},
+  {id:'comunicados',label:'Comunicados',    icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
+  {id:'eventos',    label:'Eventos',        icon:<I><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></I>},
+  {id:'feedback',   label:'Feedback',       icon:<I><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></I>},
+  {id:'conquistas', label:'Conquistas',     icon:<I><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></I>},
   /* Grupo 3 — Entretenimento (divider antes) */
-  {id:'feed',       label:'Feed',          icon:<I><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="11" y2="18"/></I>},
-  {id:'doko',       label:'My Doko',       icon:<I><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></I>},
-  {id:'games',      label:'Games',         icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
+  {id:'feed',       label:'Feed',           icon:<I><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="11" y2="18"/></I>},
+  {id:'uniko',      label:'My Uniko',       icon:<I><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></I>},
+  {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
 ];
 
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
@@ -84,7 +85,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
 
         {NAV.map((n,idx)=>{
           const a=tab===n.id;
-          const showDivider = idx===4 || idx===8; /* dividers between logical groups */
+          const showDivider = idx===5 || idx===9; /* dividers between logical groups */
           return(
             <div key={n.id}>
               {showDivider && <StarDivider my={5} dim/>}
@@ -161,8 +162,9 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
 /* ── TOP BAR ── */
 const TopBar = ({tab,onBack}) => {
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
-    feedback:'Feedback',eventos:'Eventos',games:'Games',conquistas:'Conquistas',feed:'Feed',
-    comunicados:'Comunicados',simulador:'Simulação',doko:'My Doko'};
+    lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
+    conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
+    uniko:'My Uniko'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState(NOTIFS_DATA);
   const unread=notifs.filter(n=>!n.read).length;

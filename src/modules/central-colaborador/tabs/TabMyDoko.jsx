@@ -1232,7 +1232,7 @@ const TabMyDoko = () => {
     <div className="fi" style={{fontFamily:'var(--font-body)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
-          <div style={{fontSize:22,fontWeight:600,color:T.text}}>My Doko</div>
+          <div style={{fontSize:22,fontWeight:600,color:T.text}}>My Uniko</div>
           <div style={{fontSize:15,color:T.textT,marginTop:4}}>
             Seu companheiro virtual —{' '}
             <span style={{color:activeSkin.color,fontWeight:500}}>{activeSkin.label}</span>
@@ -1249,7 +1249,7 @@ const TabMyDoko = () => {
             <circle cx="12" cy="8" r="4"/>
             <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
           </svg>
-          Trocar Doko
+          Trocar Uniko
         </button>
       </div>
       <StarDivider my={16}/>
@@ -1257,7 +1257,7 @@ const TabMyDoko = () => {
       {showSkins&&(
         <Card style={{padding:'18px',marginBottom:16}}>
           <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:14}}>
-            Escolha seu Doko
+            Escolha seu Uniko
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
             {DOKO_SKINS.map(s=>(
@@ -1422,7 +1422,7 @@ const TabMyDoko = () => {
           </div>
 
           <div style={{position:'relative',zIndex:1,fontSize:12,color:T.textT,marginBottom:10}}>
-            Clique no Doko para ele falar
+            Clique no Uniko para ele falar
           </div>
 
           {/* Notificação de stat baixo */}
@@ -1578,7 +1578,7 @@ const TabMyDoko = () => {
           {/* Barras */}
           <Card style={{padding:'22px'}}>
             <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:16}}>
-              Estado do Doko
+              Estado do Uniko
             </div>
             {[
               {label:'Fome',   val:fome,   d:<path d="M3 11l19-9-9 19-2-8-8-2z"/>},
@@ -1609,9 +1609,9 @@ const TabMyDoko = () => {
             ))}
             <StarDivider my={8} dim/>
             <div style={{fontSize:12,color:T.textT,textAlign:'center',marginTop:4}}>
-              {mood==='feliz'?'Seu Doko está muito feliz!'
-               :mood==='neutro'?'Seu Doko precisa de atenção'
-               :'Seu Doko precisa de cuidados urgentes!'}
+              {mood==='feliz'?'Seu Uniko está muito feliz!'
+               :mood==='neutro'?'Seu Uniko precisa de atenção'
+               :'Seu Uniko precisa de cuidados urgentes!'}
             </div>
           </Card>
 
@@ -1622,7 +1622,7 @@ const TabMyDoko = () => {
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               {[
-                {fn:alimentar,       label:'Alimentar',     sub:showComidas?'Escolhendo comida...':'Escolha o que dar para o Doko',
+                {fn:alimentar,       label:'Alimentar',     sub:showComidas?'Escolhendo comida...':'Escolha o que dar para o Uniko',
                   d:<path d="M3 11l19-9-9 19-2-8-8-2z"/>},
                 {fn:carinho,         label:'Fazer Carinho', sub:'Recupera energia +22',
                   d:<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>},
@@ -1659,7 +1659,7 @@ const TabMyDoko = () => {
             </div>
           </Card>
 
-          {/* Dica do Doko */}
+          {/* Dica do Uniko */}
           <div style={{padding:'14px 16px',
             background:`linear-gradient(135deg,${activeSkin.color}14,${T.surface} 80%)`,
             border:`1px solid ${activeSkin.color}33`,borderRadius:12}}>

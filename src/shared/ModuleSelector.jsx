@@ -30,19 +30,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout}) => {
       <circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/>
     </svg>
   );
-  const IcoLembretes = (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-      <path d="M13.73 21a2 2 0 01-3.46 0"/>
-    </svg>
-  );
-
   const allMods=[
-    {id:'colaborador', label:'Central do Colaborador', sub:'Portal RH completo',              icon:IcoColab,     color:T.gold, bg:T.goldGl, tag:'Principal', adminOnly:false},
-    {id:'alexa',       label:'Central Alexa',          sub:'Festival · Música · Biblioteca',  icon:IcoAlexa,     color:T.gold, bg:T.goldGl, tag:'Música',    adminOnly:false},
-    {id:'lembretes',   label:'Lembretes',               sub:'Seus lembretes pessoais',         icon:IcoLembretes, color:T.gold, bg:T.goldGl, tag:'Pessoal',   adminOnly:false},
-    {id:'dashboard',   label:'Dashboard RH',           sub:'Gestão · Funcionários',           icon:IcoDash,      color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
-    {id:'ponto',       label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',           icon:IcoPonto,     color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
+    {id:'colaborador', label:'Central do Colaborador', sub:'Portal RH completo',             icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', adminOnly:false},
+    {id:'alexa',       label:'Central Alexa',          sub:'Festival · Música · Biblioteca', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Música',    adminOnly:false},
+    {id:'dashboard',   label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,  color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
+    {id:'ponto',       label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto, color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
   const cols  = mods.length <= 3 ? 3 : 3;
