@@ -36,7 +36,7 @@ const SettingsModal = ({activeTheme,onTheme,onClose}) => {
                 letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO CLARO</span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:7}}>
-              {['blue','purple','pink','green','orange'].map(key=>{
+              {['blue','purple','pink','red','green','orange'].map(key=>{
                 const th=THEMES[key]; const isActive=activeTheme===key;
                 return(<div key={key} onClick={()=>onTheme(key)}
                   style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
@@ -69,7 +69,7 @@ const SettingsModal = ({activeTheme,onTheme,onClose}) => {
                 letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO ESCURO</span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:7}}>
-              {['blueDark','purpleDark','pinkDark','greenDark','orangeDark'].map(key=>{
+              {['blueDark','purpleDark','pinkDark','redDark','greenDark','orangeDark'].map(key=>{
                 const th=THEMES[key]; const isActive=activeTheme===key;
                 if(!th)return null;
                 return(<div key={key} onClick={()=>onTheme(key)}
