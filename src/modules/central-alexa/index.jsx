@@ -1291,7 +1291,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                             {/* Pedido por */}
                             {(()=>{
                               const rb = (s.requested_by||'').trim().toLowerCase();
-                              const isSystem = !rb || rb==='autoplay' || rb==='sistema' || rb==='uniko';
+                              const isSystem = !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
                               return (
                                 <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
                                   {isSystem
