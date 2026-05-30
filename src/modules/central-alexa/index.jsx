@@ -354,9 +354,10 @@ const CentralAlexa = ({onBack}) => {
     setCreatingPl(true); setPlMsg('');
     const r = await api('post', '/api/playlists', { name: newPlaylistName.trim() });
     if (r.playlist) {
-      setPlMsg(`✅ "${r.playlist.name}" criada!`);
+      // Adiciona direto no estado — não aguarda Spotify indexar
+      setSpPlaylists(p => [...p, { id: r.playlist.id, name: r.playlist.name, total: 0, image: null, owner: USER.short }]);
       setNewPlaylistName('');
-      await loadSpPlaylists();
+      setPlMsg(`✅ "${r.playlist.name}" criada!`);
       setTimeout(() => setPlMsg(''), 3000);
     } else { setPlMsg('⚠️ ' + (r.error || 'Erro')); }
     setCreatingPl(false);
