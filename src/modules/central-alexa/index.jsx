@@ -1011,8 +1011,12 @@ const CentralAlexa = ({onBack}) => {
                       <button
                         onClick={async () => {
                           if (!window.confirm('Limpar toda a fila? Esta ação não pode ser desfeita.')) return;
-                          await api('delete', '/api/queue');
+                          // Tenta via servidor; independente do resultado, limpa direto no Supabase
+                          api('delete', '/api/queue').catch(() => {});
+                          await _supabase.from('queue').update({ status: 'removed' }).in('status', ['pending', 'playing']);
+                          await _supabase.from('player_state').upsert({ id: 1, is_playing: false, current_song_id: null, current_spotify_id: null, updated_at: new Date().toISOString() });
                           loadQueue();
+                          loadPlayerState();
                         }}
                         title="Limpar fila (Admin)"
                         style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,
