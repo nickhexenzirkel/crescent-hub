@@ -65,7 +65,8 @@ const STARS_POS = [
   {x:'48%',y:'14%',r:1.5,d:'1.8s'},{x:'57%',y:'32%',r:1.8,d:'0.3s'},{x:'13%',y:'65%',r:1.4,d:'2.3s'},
   {x:'41%',y:'70%',r:1.7,d:'0.9s'},{x:'67%',y:'22%',r:1.2,d:'1.6s'},
 ];
-const SHOOT_POS = [{x:'18%',y:'16%',delay:'2s'},{x:'50%',y:'8%',delay:'5.5s'},{x:'34%',y:'26%',delay:'9.5s'}];
+/* Delays negativos = começam no meio da animação ao montar (aparecem imediatamente) */
+const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
@@ -73,7 +74,30 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
   const [lembs,     setLembs]     = useState([]);
   const [evts,      setEvts]      = useState([]);
   const [comuns,    setComuns]    = useState([]);
-  const [uniko,     setUniko]     = useState(() => loadLS(DK, {}));
+  /* Lê Doko com cálculo retroativo — chave computada ao vivo para evitar
+     problema de módulo carregado antes do token estar no localStorage */
+  const readDoko = () => {
+    try {
+      const auth = getAuthUser();
+      const key  = auth?.cpf ? `uniko_doko_${auth.cpf}` : 'uniko_doko';
+      const data = JSON.parse(localStorage.getItem(key) || '{}');
+      if (!data.lastUpdated) return data;
+      const elapsed = Math.max(0, Date.now() - data.lastUpdated);
+      if (elapsed < 5000) return data;
+      const ticks = elapsed / 8000;
+      let { fome=75, energia=70, sono=70, dormindo=false } = data;
+      if (dormindo) {
+        fome = Math.max(0,   fome - ticks * 0.008);
+        sono = Math.min(100, sono + ticks * 2.5);
+      } else {
+        fome    = Math.max(0, fome    - ticks * 0.025);
+        energia = Math.max(0, energia - ticks * 0.025);
+        sono    = Math.max(0, sono    - ticks * 0.016);
+      }
+      return { ...data, fome, energia, sono };
+    } catch { return {}; }
+  };
+  const [uniko, setUniko] = useState(readDoko);
   const [nowPlay,   setNowPlay]   = useState(null);
   const [isPlay,    setIsPlay]    = useState(false);
   const [photo,     setPhoto]     = useState(() => localStorage.getItem(PHK)||null);
@@ -113,10 +137,12 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
       });
   },[]);
 
-  /* ── Uniko stats: atualiza a cada 8s do ticker do Portal ── */
+  /* ── Uniko stats: atualiza a cada 2s (skin, fome, energia, sono) ── */
   useEffect(() => {
-    const id = setInterval(() => setUniko(loadLS(DK,{})), 8000);
+    setUniko(readDoko()); // lê imediatamente no mount
+    const id = setInterval(() => setUniko(readDoko()), 2000);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   /* ── Derived ── */
@@ -182,7 +208,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
         @keyframes hb3{0%,100%{transform:translate(0,0)scale(1)}50%{transform:translate(12px,14px)scale(1.06)}}
         @keyframes twinkle{0%,100%{opacity:.22;transform:scale(1)}50%{opacity:.92;transform:scale(1.35)}}
         @keyframes moonP{0%,100%{opacity:.72}50%{opacity:1}}
-        @keyframes shootStar{0%,80%{opacity:0;transform:translate(0,0)}82%{opacity:0;transform:translate(0,0)}84%{opacity:1;transform:translate(6px,6px)}92%{opacity:0.5;transform:translate(72px,72px)}100%{opacity:0;transform:translate(115px,115px)}}
+        @keyframes shootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:0.45;transform:translate(82px,82px)}72%,100%{opacity:0;transform:translate(108px,108px)}}
         @keyframes nowP{0%,100%{box-shadow:0 0 0 0 rgba(212,168,67,.16)}50%{box-shadow:0 0 0 5px rgba(212,168,67,.05)}}
       `}</style>
 
@@ -203,7 +229,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
 
         {/* estrelas cadentes — wrapper translaciona, filho roda estático */}
         {P.shooting && SHOOT_POS.map((s,i)=>(
-          <div key={i} style={{position:'absolute',left:s.x,top:s.y,pointerEvents:'none',animation:`shootStar 9s ${s.delay} linear infinite`}}>
+          <div key={i} style={{position:'absolute',left:s.x,top:s.y,pointerEvents:'none',animation:`shootStar 5s ${s.delay} linear infinite`}}>
             <div style={{width:58,height:1.5,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
           </div>
         ))}
