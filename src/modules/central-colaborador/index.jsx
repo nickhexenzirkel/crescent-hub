@@ -18,7 +18,7 @@ import CentralLembretes from '../central-lembretes';
 
 const Portal = ({onBack, onGoAlexa}) => {
   const [tab,st]=useState('inicio');
-  const [activeTheme,setActiveTheme]=useState('blue');
+  const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const tabRef = useRef(tab);
@@ -87,7 +87,7 @@ const Portal = ({onBack, onGoAlexa}) => {
     return () => clearInterval(id);
   }, []);
 
-  const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);};
+  const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);};
   const render=()=>{
     if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
