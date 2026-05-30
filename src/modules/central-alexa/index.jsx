@@ -331,6 +331,8 @@ const CentralAlexa = ({onBack}) => {
   const [creatingPl, setCreatingPl]           = useState(false);
   const [plMsg, setPlMsg]                     = useState('');
   const [plTrackMsg, setPlTrackMsg]           = useState('');
+  const [showCoverInput, setShowCoverInput]   = useState(false);
+  const [coverInputVal, setCoverInputVal]     = useState('');
   const [plSearchQ, setPlSearchQ]             = useState('');
   const [plSearchRes, setPlSearchRes]         = useState([]);
   const [plSearching, setPlSearching]         = useState(false);
@@ -362,7 +364,7 @@ const CentralAlexa = ({onBack}) => {
     setCreatingPl(true); setPlMsg('');
     const r = await api('post', '/api/playlists', { name: newPlaylistName.trim() });
     if (r.playlist) {
-      setSpPlaylists(p => [...p, { id: r.playlist.id, name: r.playlist.name, total: 0, image: null, owner: USER.short }]);
+      setSpPlaylists(p => [...p, r.playlist]);
       setNewPlaylistName('');
       setPlMsg(`✅ "${r.playlist.name}" criada!`);
       setTimeout(() => setPlMsg(''), 3000);
@@ -384,6 +386,15 @@ const CentralAlexa = ({onBack}) => {
     } else {
       setPlTrackMsg('⚠️ Erro ao adicionar: ' + (r.error || 'Tente novamente'));
       setTimeout(() => setPlTrackMsg(''), 4000);
+    }
+  };
+
+  const setCover = async (imageUrl) => {
+    const r = await api('patch', `/api/playlists/${openPlaylist.id}/cover`, { image_url: imageUrl });
+    if (r.ok) {
+      setOpenPlaylist(p => ({ ...p, image: imageUrl }));
+      setSpPlaylists(p => p.map(pl => pl.id === openPlaylist.id ? { ...pl, image: imageUrl } : pl));
+      setShowCoverInput(false); setCoverInputVal('');
     }
   };
 
@@ -1411,15 +1422,33 @@ const CentralAlexa = ({onBack}) => {
                   <button onClick={()=>setOpenPlaylist(null)} style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.textS,outline:"none",flexShrink:0}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
                   </button>
-                  {openPlaylist.image
-                    ? <img src={openPlaylist.image} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
-                    : <div style={{width:52,height:52,borderRadius:10,background:`linear-gradient(135deg,${T.gold}33,${T.gold}11)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                      </div>
-                  }
+                  <div style={{position:"relative",flexShrink:0}}>
+                    {openPlaylist.image
+                      ? <img src={openPlaylist.image} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover"}}/>
+                      : <div style={{width:52,height:52,borderRadius:10,background:`linear-gradient(135deg,${T.gold}33,${T.gold}11)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        </div>
+                    }
+                    <button onClick={()=>{setShowCoverInput(p=>!p);setCoverInputVal('');}} title="Trocar capa"
+                      style={{position:"absolute",bottom:-6,right:-6,width:22,height:22,borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,outline:"none"}}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </button>
+                  </div>
                   <div style={{flex:1}}>
                     <div style={{fontFamily:"var(--font-brand)",fontSize:18,fontWeight:700,color:T.text}}>{openPlaylist.name}</div>
-                    <div style={{fontSize:12,color:T.textS}}>{plTracks.length} músicas · salva no Spotify</div>
+                    <div style={{fontSize:12,color:T.textS}}>{plTracks.length} músicas{openPlaylist.created_by ? ` · por ${openPlaylist.created_by}` : ''}</div>
+                    {showCoverInput && (
+                      <div style={{display:"flex",gap:6,marginTop:6}}>
+                        <input autoFocus value={coverInputVal} onChange={e=>setCoverInputVal(e.target.value)}
+                          onKeyDown={e=>e.key==='Enter'&&coverInputVal.trim()&&setCover(coverInputVal.trim())}
+                          placeholder="Cole a URL da imagem..."
+                          style={{flex:1,padding:"5px 9px",borderRadius:7,border:`1.5px solid ${T.border}`,background:isDark?T.surface:"white",fontSize:12,color:T.text,outline:"none",fontFamily:"var(--font-body)"}}/>
+                        <button onClick={()=>coverInputVal.trim()&&setCover(coverInputVal.trim())} disabled={!coverInputVal.trim()}
+                          style={{padding:"5px 10px",borderRadius:7,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontSize:11,fontWeight:600,fontFamily:"var(--font-body)"}}>
+                          OK
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button onClick={()=>playPlaylist(openPlaylist)} disabled={playingPl===openPlaylist.id||plTracks.length===0}
                     style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,border:"none",cursor:"pointer",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontWeight:600,fontSize:13,fontFamily:"var(--font-body)",opacity:playingPl===openPlaylist.id?0.6:1}}>
@@ -1453,10 +1482,18 @@ const CentralAlexa = ({onBack}) => {
                           <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
                           <div style={{fontSize:11,color:T.textS}}>{t.artist}</div>
                         </div>
-                        <button onClick={()=>{ addTrackToPlaylist(t); setPlSearchRes([]); setPlSearchQ(''); }}
-                          style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${T.goldLine}55`,background:T.goldGl,color:T.gold,fontSize:12,fontWeight:600,cursor:"pointer",outline:"none",fontFamily:"var(--font-body)",flexShrink:0}}>
-                          + Adicionar
-                        </button>
+                        <div style={{display:"flex",gap:5,flexShrink:0}}>
+                          {t.album_art && (
+                            <button onClick={()=>setCover(t.album_art)} title="Usar como capa da playlist"
+                              style={{padding:"5px 8px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",color:T.textS,fontSize:12,cursor:"pointer",outline:"none",fontFamily:"var(--font-body)"}}>
+                              📷
+                            </button>
+                          )}
+                          <button onClick={()=>{ addTrackToPlaylist(t); setPlSearchRes([]); setPlSearchQ(''); }}
+                            style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${T.goldLine}55`,background:T.goldGl,color:T.gold,fontSize:12,fontWeight:600,cursor:"pointer",outline:"none",fontFamily:"var(--font-body)"}}>
+                            + Adicionar
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1538,6 +1575,7 @@ const CentralAlexa = ({onBack}) => {
                             </div>
                             <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pl.name}</div>
                             <div style={{fontSize:11,color:T.textT,marginTop:2}}>{pl.total} músicas</div>
+                            {pl.created_by && <div style={{fontSize:10,color:T.textD,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>por {pl.created_by}</div>}
                             <button onClick={e=>{e.stopPropagation();playPlaylist(pl);}} disabled={playingPl===pl.id}
                               style={{marginTop:10,width:"100%",padding:"6px",borderRadius:8,border:"none",cursor:"pointer",background:playingPl===pl.id?T.surfaceSub:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontSize:11,fontWeight:600,fontFamily:"var(--font-body)"}}>
                               {playingPl===pl.id?"▶ Tocando...":"▶ Tocar"}
