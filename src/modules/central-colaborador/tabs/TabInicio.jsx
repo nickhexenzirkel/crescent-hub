@@ -225,10 +225,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           <div style={{position:'absolute',width:190,height:190,borderRadius:'50%',top:8,left:'44%',background:`radial-gradient(circle,${P.b3} 0%,transparent 68%)`,filter:'blur(24px)',animation:'hb3 7s ease-in-out infinite'}}/>
         </div>
 
-        {/* estrelas */}
-        {STARS_POS.map((s,i)=>(
-          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.88)',pointerEvents:'none',animation:`twinkle ${2.2+i*.32}s ease-in-out infinite`,animationDelay:s.d}}/>
-        ))}
 
         {/* estrelas cadentes — wrapper translaciona, filho roda estático */}
         {P.shooting && SHOOT_POS.map((s,i)=>(
