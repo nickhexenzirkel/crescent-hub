@@ -17,7 +17,9 @@ const LoginScreen = ({ onLogin }) => {
   const [loading,  setLoading]  = useState(false);
   const [err,      setErr]      = useState('');
 
-  const isDark = !!T.dark;
+  const isDark  = !!T.dark;
+  const panelL  = isDark ? 'rgba(0,0,0,0.38)' : 'rgba(255,255,255,0.30)';
+  const panelR  = isDark ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.18)';
 
   const maskCpf = (v) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -54,12 +56,9 @@ const LoginScreen = ({ onLogin }) => {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '12px 16px', borderRadius: 11,
     border: `1.5px solid ${T.border}`,
-    background: T.surfaceInput || T.surface || (isDark ? 'rgba(255,255,255,0.06)' : 'white'),
+    background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.55)',
+    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
   };
-
-  const leftBg = isDark
-    ? (T.surface || 'rgba(17,27,46,0.95)')
-    : 'rgba(240,248,255,0.60)';
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', position: 'relative', zIndex: 1 }}>
@@ -68,18 +67,18 @@ const LoginScreen = ({ onLogin }) => {
       <div className="fsu" style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', padding: 64,
-        background: leftBg,
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        background: panelL,
+        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderRight: `1px solid ${T.border}`,
       }}>
 
         {/* logos de parceria */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 28 }}>
           <img src={unikoLogo} alt="Uniko"
-            style={{ width: 88, height: 88, objectFit: 'contain', filter: 'drop-shadow(0 6px 24px rgba(14,60,180,0.22))' }}/>
-          <div style={{ width: 1, height: 64, background: T.border, flexShrink: 0 }}/>
+            style={{ width: 96, height: 96, objectFit: 'contain', filter: 'drop-shadow(0 6px 24px rgba(14,60,180,0.28))' }}/>
+          <div style={{ width: 1, height: 72, background: T.border, flexShrink: 0, opacity: 0.6 }}/>
           <img src={logoNicolas} alt="Nicolas Andrade"
-            style={{ height: 52, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.85 : 1 }}/>
+            style={{ height: 96, width: 'auto', objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.85 : 1 }}/>
         </div>
 
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 38, fontWeight: 700, color: T.text, letterSpacing: '.10em', textAlign: 'center', lineHeight: 1 }}>
@@ -95,7 +94,11 @@ const LoginScreen = ({ onLogin }) => {
       </div>
 
       {/* ── RIGHT ── */}
-      <div className="fsu2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}>
+      <div className="fsu2" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64,
+        background: panelR,
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      }}>
         <div style={{ width: '100%', maxWidth: 400 }}>
           <div style={{ marginBottom: 36 }}>
             <div style={{ fontFamily: 'var(--font-body)', fontSize: 28, fontWeight: 600, color: T.text, marginBottom: 7 }}>
