@@ -182,7 +182,7 @@ const TopBar = ({tab,onBack}) => {
           padding:'4px 9px',borderRadius:7,transition:'background .14s'}}>← Voltar</button>
       <div style={{width:1,height:16,background:T.divider}}/>
       <div style={{fontSize:14,color:T.textT,flex:1}}>
-        Central do Colaborador<span style={{color:T.textD,margin:'0 5px'}}>›</span>
+        Portal do Colaborador<span style={{color:T.textD,margin:'0 5px'}}>›</span>
         <strong style={{color:T.text,fontWeight:500}}>{nm[tab]||tab}</strong>
       </div>
       <div style={{position:'relative'}}>
