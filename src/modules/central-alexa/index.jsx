@@ -125,6 +125,7 @@ const CentralAlexa = ({onBack}) => {
   const [alexaConvo, setAlexaConvo] = useState([]);
   const [alexaInput, setAlexaInput]   = useState("");
   const [alexaTyping, setAlexaTyping] = useState(false);
+  const [typedChars, setTypedChars]   = useState({}); // {msgId: charCount} para animação de digitação
   const [myName, setMyName] = useState(() => {
     const auth = getAuthUser();
     return auth?.name || USER.name || 'Colaborador';
@@ -553,10 +554,31 @@ const CentralAlexa = ({onBack}) => {
     const chatSub = _supabase.channel('alexa_chat_rt')
       .on('postgres_changes', {event:'INSERT', schema:'public', table:'alexa_chat'}, ({new:m}) => {
         setAlexaConvo(c => [...c, toMsg(m)]);
+        // Inicia animação de digitação apenas para mensagens da Alexa novas
+        if (m.role === 'alexa') setTypedChars(p => ({...p, [m.id]: 0}));
       })
       .subscribe();
     return () => _supabase.removeChannel(chatSub);
   }, []);
+  // Avança a animação de digitação: 4 caracteres a cada 14ms (~280 chars/s — bem rápido)
+  useEffect(() => {
+    const pending = Object.entries(typedChars).filter(([id, n]) => {
+      const msg = alexaConvo.find(m => m.id === id);
+      return msg && n < msg.text.length;
+    });
+    if (!pending.length) return;
+    const timer = setTimeout(() => {
+      setTypedChars(prev => {
+        const next = {...prev};
+        pending.forEach(([id, n]) => {
+          const msg = alexaConvo.find(m => m.id === id);
+          if (msg) next[id] = Math.min(n + 4, msg.text.length);
+        });
+        return next;
+      });
+    }, 14);
+    return () => clearTimeout(timer);
+  }, [typedChars, alexaConvo]);
   useEffect(() => {
     if (chatScrollRef.current)
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -761,35 +783,31 @@ const CentralAlexa = ({onBack}) => {
     const question = alexaInput;
     setAlexaInput("");
     setAlexaTyping(true);
-    // Salva mensagem do usuário — realtime vai propagar para todos
+    // Salva mensagem do usuário
     await _supabase.from('alexa_chat').insert({ role:'user', text:question, name:USER.short||myName });
-    try {
-      const r = await api('post', '/api/alexa/ask', { question, userName: myName });
-      if (r.ok && r.playlist) {
-        await _supabase.from('alexa_chat').insert({
+    // Gera e salva resposta da Alexa imediatamente (animação de digitação via realtime)
+    const firstName = (USER.short || myName || 'pessoal').split(' ')[0];
+    const cleanQ    = question.replace(/^alexa[,.\s]*/i, '').trim();
+    const summary   = cleanQ.length > 38 ? cleanQ.slice(0, 38).trim() + '...' : cleanQ;
+    await _supabase.from('alexa_chat').insert({
+      role:'alexa', spoke:true,
+      text:`Olá, ${firstName}! Vou pesquisar sobre "${summary}"`,
+    });
+    // Dispara o comando para a Alexa em paralelo
+    api('post', '/api/alexa/ask', { question, userName: myName }).then(r => {
+      if (r?.ok && r.playlist) {
+        _supabase.from('alexa_chat').insert({
           role:'alexa', spoke:false,
-          text:`Iniciando playlist "${r.playlist}" no UnikoWave! As músicas vão tocar uma por uma. 🎵`,
+          text:`🎵 Iniciando playlist "${r.playlist}" no UnikoWave!`,
         });
         setPlayingPl(null);
-      } else if (r.ok && r.not_found) {
-        await _supabase.from('alexa_chat').insert({
+      } else if (r?.ok && r.not_found) {
+        _supabase.from('alexa_chat').insert({
           role:'alexa', spoke:false,
-          text:`Não encontrei nenhuma playlist com o nome "${r.not_found}" na sua biblioteca. Verifique o nome na aba Biblioteca.`,
-        });
-      } else if (r.ok) {
-        await _supabase.from('alexa_chat').insert({
-          role:'alexa', spoke:true, text:"Ouça a resposta no Echo Dot! 🔊",
-        });
-      } else {
-        await _supabase.from('alexa_chat').insert({
-          role:'alexa', spoke:false, text:r.error || "Não consegui enviar para a Alexa.",
+          text:`Playlist "${r.not_found}" não encontrada na biblioteca.`,
         });
       }
-    } catch {
-      await _supabase.from('alexa_chat').insert({
-        role:'alexa', spoke:false, text:"Não consegui me conectar ao servidor. Tente novamente!",
-      });
-    }
+    }).catch(() => {});
     setAlexaTyping(false);
   };
 
@@ -874,6 +892,7 @@ const CentralAlexa = ({onBack}) => {
         @keyframes dokoFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
         @keyframes bubblePop{0%{opacity:0;transform:scale(0.7) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         @keyframes alexaOrb{0%,100%{box-shadow:0 0 20px ${T.gold}44,0 0 40px ${T.gold}22}50%{box-shadow:0 0 40px ${T.gold}88,0 0 80px ${T.gold}33}}
         @keyframes alexaFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
         @keyframes hdrBlob1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(28px,-8px) scale(1.15)}66%{transform:translate(-12px,10px) scale(0.92)}}
@@ -1757,7 +1776,19 @@ const CentralAlexa = ({onBack}) => {
                             <div style={{fontSize:13,color:m.role==="user"?"white":T.text,lineHeight:1.5}}>
                               {m.role==="user"
                                 ? <span style={{fontStyle:"italic"}}>"{m.text}"</span>
-                                : m.text
+                                : (() => {
+                                    const count = typedChars[m.id];
+                                    const isTypingNow = count !== undefined && count < m.text.length;
+                                    const shown = count !== undefined ? m.text.slice(0, count) : m.text;
+                                    return <>
+                                      {shown}
+                                      {isTypingNow && <span style={{
+                                        display:'inline-block',width:2,height:'1em',
+                                        background:'currentColor',marginLeft:1,verticalAlign:'text-bottom',
+                                        animation:'blink .5s step-end infinite'
+                                      }}/>}
+                                    </>;
+                                  })()
                               }
                             </div>
                           </div>
