@@ -200,4 +200,21 @@ const SHead = ({children,sub}) => (
 );
 
 
-export { LavaLamp, Moon, StarDivider, Logo, BrandLogo, UnikoIcon, Card, Tag, Btn, Inp, SHead };
+const AvatarCircle = ({ name='?', photo=null, size=38, fontSize=13, rounded='50%', style={} }) => {
+  const initials = name.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
+  return (
+    <div style={{
+      width:size, height:size, borderRadius:rounded, flexShrink:0, overflow:'hidden',
+      background: photo ? undefined : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,
+      backgroundImage: photo ? `url(${photo})` : undefined,
+      backgroundSize:'cover', backgroundPosition:'center',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontSize, fontWeight:700, color:'#fff',
+      ...style,
+    }}>
+      {!photo && initials}
+    </div>
+  );
+};
+
+export { LavaLamp, Moon, StarDivider, Logo, BrandLogo, UnikoIcon, Card, Tag, Btn, Inp, SHead, AvatarCircle };

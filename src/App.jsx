@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
-import { SERVER_URL, supabase as _supabase } from './contexts/user';
+import { SERVER_URL, supabase as _supabase, loadUserPhoto } from './contexts/user';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
@@ -14,6 +14,7 @@ export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
   const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [userPhoto, setUserPhoto] = useState(null);
 
   // Verifica token salvo ao carregar o app
   useEffect(() => {
@@ -22,14 +23,18 @@ export default function CrescentHub() {
     fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d?.user) { setAuthUser(d.user); ss('modules'); }
+        if (d?.user) { setAuthUser(d.user); ss('modules'); loadUserPhoto().then(p => { if (p) setUserPhoto(p); }); }
         else localStorage.removeItem('ch_token');
       })
       .catch(() => {})
       .finally(() => setAuthChecked(true));
   }, []);
 
-  const handleLogin = (user) => { setAuthUser(user); ss('modules'); };
+  const handleLogin = (user) => {
+    setAuthUser(user);
+    ss('modules');
+    loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('ch_token');
@@ -183,11 +188,11 @@ export default function CrescentHub() {
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout}/>}
-          {screen==='colaborador' && <Portal         onBack={()=>ss('modules')} onGoAlexa={()=>ss('alexa')}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto}/>}
+          {screen==='colaborador' && <Portal         onBack={()=>ss('modules')} onGoAlexa={()=>ss('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
-          {screen==='alexa'       && <CentralAlexa     onBack={()=>ss('modules')}/>}
+          {screen==='alexa'       && <CentralAlexa     onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}

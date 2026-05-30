@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser } from '../../contexts/user';
-import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag } from '../../shared/components';
+import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
 
 // Extrai cores dominantes da capa do álbum via Canvas
@@ -112,7 +112,7 @@ const ALEXA_RESPONSES = [
   { pat: /(obrigad)/i, resp: "😊 Por nada! Sempre aqui pra ajudar a equipe da 7SERV!" },
 ];
 
-const CentralAlexa = ({onBack}) => {
+const CentralAlexa = ({onBack, userPhoto}) => {
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||"rgba(255,255,255,0.78)");
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||"rgba(255,255,255,0.82)");
@@ -1802,12 +1802,12 @@ const CentralAlexa = ({onBack}) => {
 
                         {/* Avatar usuário */}
                         {m.role==="user"&&(
-                          <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,
-                            background:`linear-gradient(135deg,${nameColor},${nameColor}bb)`,
-                            display:"flex",alignItems:"center",justifyContent:"center",
-                            fontSize:11,fontWeight:700,color:"white",marginBottom:2}}>
-                            {(m.name||myName).split(" ").map(n=>n[0]).slice(0,2).join("")}
-                          </div>
+                          <AvatarCircle
+                            name={m.name||myName}
+                            photo={(m.name===myName||!m.name) ? userPhoto : null}
+                            size={32} fontSize={11}
+                            style={{marginBottom:2, background: userPhoto ? undefined : `linear-gradient(135deg,${nameColor},${nameColor}bb)`}}
+                          />
                         )}
                       </div>
                     );

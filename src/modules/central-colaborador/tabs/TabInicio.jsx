@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
-import { USER, supabase as _supabase, getAuthUser } from '../../../contexts/user';
+import { USER, supabase as _supabase, getAuthUser, saveUserPhoto } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
@@ -74,7 +74,7 @@ const STARS_POS = [
 const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
 
 /* ══════════════════════════════════════════════════════════════════ */
-const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
+const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange }) => {
   const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
@@ -103,7 +103,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
   const [uniko, setUniko] = useState(readDoko);
   const [nowPlay,   setNowPlay]   = useState(null);
   const [isPlay,    setIsPlay]    = useState(false);
-  const [photo,     setPhoto]     = useState(() => localStorage.getItem(PHK)||null);
+  const [photo,     setPhoto]     = useState(() => userPhotoProp || localStorage.getItem(PHK) || null);
   const [photoPos,  setPhotoPos]  = useState(() => loadLS(PHPK,{x:50,y:50}));
   const [photoSc,   setPhotoSc]   = useState(() => loadLS(PHSK, 100));
   const [showPhoto, setShowPhoto] = useState(false);
@@ -199,9 +199,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
     const r = new FileReader(); r.onload=ev=>setTmpPhoto(ev.target.result); r.readAsDataURL(f);
   };
   const savePhoto = () => {
-    if(tmpPhoto){ localStorage.setItem(PHK,tmpPhoto); setPhoto(tmpPhoto); }
-    localStorage.setItem(PHPK,JSON.stringify(tmpPos));
-    localStorage.setItem(PHSK,JSON.stringify(tmpSc));
+    if (tmpPhoto) {
+      setPhoto(tmpPhoto);
+      saveUserPhoto(tmpPhoto);
+      if (onPhotoChange) onPhotoChange(tmpPhoto);
+    }
+    localStorage.setItem(PHPK, JSON.stringify(tmpPos));
+    localStorage.setItem(PHSK, JSON.stringify(tmpSc));
     setPhotoPos(tmpPos); setPhotoSc(tmpSc); setShowPhoto(false);
   };
 

@@ -51,6 +51,37 @@ const TEAM_DATA = [];
 const EVENTS    = [];
 const RANK      = [];
 
+/* ── Foto de perfil — salva no Supabase e cache no localStorage ── */
+const _photoAuth = getAuthUser();
+const PHOTO_KEY  = _photoAuth?.cpf
+  ? `uniko_photo_${_photoAuth.cpf}`
+  : (_photoAuth?.name ? `uniko_photo_${_photoAuth.name}` : 'uniko_photo');
+
+const getUserPhotoFromCache = () => {
+  try { return localStorage.getItem(PHOTO_KEY) || null; } catch { return null; }
+};
+
+const loadUserPhoto = async () => {
+  if (!USER.name || USER.name === 'Colaborador') return null;
+  try {
+    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', USER.name).single();
+    if (data?.photo) { localStorage.setItem(PHOTO_KEY, data.photo); return data.photo; }
+  } catch {}
+  return getUserPhotoFromCache();
+};
+
+const saveUserPhoto = async (base64) => {
+  try { localStorage.setItem(PHOTO_KEY, base64); } catch {}
+  try { await _supabase.from('profile_photos').upsert({ employee_name: USER.name, photo: base64, updated_at: new Date().toISOString() }); } catch {}
+};
+
+const fetchPhotoByName = async (name) => {
+  try {
+    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', name).single();
+    return data?.photo || null;
+  } catch { return null; }
+};
+
 export {
   SERVER_URL,
   _supabase as supabase,
@@ -62,4 +93,9 @@ export {
   TEAM_DATA,
   EVENTS,
   RANK,
+  PHOTO_KEY,
+  getUserPhotoFromCache,
+  loadUserPhoto,
+  saveUserPhoto,
+  fetchPhotoByName,
 };

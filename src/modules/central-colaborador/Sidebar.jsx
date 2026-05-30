@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { T, THEMES } from '../../contexts/theme';
 import { USER, NOTIFS_DATA } from '../../contexts/user';
-import { StarDivider, UnikoIcon, Logo } from '../../shared/components';
+import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 
 const I = (p) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -26,7 +26,7 @@ const NAV=[
   {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
 ];
 
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto}) => {
   const [hov,sh]=useState(null);
   return(
     <div style={{width:252,minHeight:'100vh',
@@ -134,12 +134,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
         <div style={{marginTop:4,display:'flex',alignItems:'center',gap:11,padding:'12px 13px',
           background:T.goldGl,borderRadius:12,
           border:`1px solid rgba(212,168,75,0.15)`,marginBottom:7}}>
-          <div style={{width:38,height:38,borderRadius:'50%',
-            background:`linear-gradient(135deg,${T.blue},${T.blueL})`,
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:14,fontWeight:600,color:'#fff',flexShrink:0}}>
-            {USER.avatar}
-          </div>
+          <AvatarCircle name={USER.name} photo={userPhoto} size={38} fontSize={13}/>
           <div style={{overflow:'hidden',flex:1}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,
               whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{USER.name}</div>

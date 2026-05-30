@@ -16,7 +16,7 @@ import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import CentralLembretes from '../central-lembretes';
 
-const Portal = ({onBack, onGoAlexa}) => {
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [tab,st]=useState('inicio');
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
@@ -89,7 +89,7 @@ const Portal = ({onBack, onGoAlexa}) => {
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);};
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados/>;
     if(tab==='horas')      return <TabHoras/>;
@@ -116,7 +116,7 @@ const Portal = ({onBack, onGoAlexa}) => {
   );
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)}/>
+      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto}/>
       <div style={{marginLeft:252,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
         <TopBar tab={tab} onBack={()=>st('inicio')}/>
         <div style={{flex:1,padding:'28px 34px',overflowY:'auto',

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { T } from '../contexts/theme';
-import { BrandLogo, StarDivider, Logo, Tag } from './components';
+import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 
-const ModuleSelector = ({onSelect, authUser, onLogout}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov,sh]=useState(null);
   const isAdmin = authUser?.role === 'admin';
 
@@ -47,9 +47,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout}) => {
       {authUser&&(
         <div style={{position:'fixed',top:16,right:20,display:'flex',alignItems:'center',gap:8,zIndex:10}}>
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
-            <div style={{width:24,height:24,borderRadius:7,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'white'}}>
-              {authUser.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
-            </div>
+            <AvatarCircle name={authUser.name} photo={userPhoto} size={26} fontSize={9} rounded="7px"/>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>{authUser.name}</span>
             {isAdmin&&<span style={{fontSize:10,color:T.gold,fontWeight:700,padding:'1px 6px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
           </div>
