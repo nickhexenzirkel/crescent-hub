@@ -345,12 +345,30 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setTestingAlexa(true); setLembMsg('');
     const r = await fetch(`${SERVER_URL}/api/alexa/speak`, {
       method: 'POST', headers: authHeader(),
-      body: JSON.stringify({ text: lembForm.message || lembForm.title, sound: lembForm.fanfare ? lembForm.sound : null }),
+      body: JSON.stringify({ text: lembForm.message || lembForm.title }),
     });
     const d = await r.json();
     setLembMsg(r.ok ? '✅ Alexa anunciou com sucesso!' : `❌ ${d.error}`);
     setTestingAlexa(false);
     setTimeout(() => setLembMsg(''), 4000);
+  };
+
+  const sendNow = async () => {
+    if (!lembForm.message && !lembForm.title) { setLembMsg('Preencha o título ou mensagem'); return; }
+    setLembSaving(true); setLembMsg('');
+    try {
+      const endpoint = lembForm.type === 'alexa' ? '/api/alexa/speak' : '/api/notifications';
+      const body = lembForm.type === 'alexa'
+        ? { text: lembForm.message || lembForm.title }
+        : { type: lembForm.type, title: lembForm.title, message: lembForm.message || lembForm.title };
+      const r = await fetch(`${SERVER_URL}${endpoint}`, {
+        method: 'POST', headers: authHeader(), body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      setLembMsg(r.ok ? '✅ Enviado com sucesso!' : `❌ ${d.error || 'Erro'}`);
+      setTimeout(() => setLembMsg(''), 4000);
+    } catch { setLembMsg('❌ Erro de conexão'); }
+    setLembSaving(false);
   };
 
   const genPw = () => {
@@ -390,7 +408,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
-    {id:'alexa',          label:'Central Alexa',      icon:<><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 010 20"/><path d="M12 6a6 6 0 010 12"/><path d="M12 22v-4M12 6V2"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
     {id:'spotify',        label:'API do Spotify',     icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
@@ -1045,7 +1062,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div style={{marginBottom:12}}>
                       <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Tipo</div>
                       <div style={{display:'flex',gap:6}}>
-                        {[{v:'lembrete',l:'Lembrete'},{v:'alexa',l:'Alexa fala'},{v:'reuniao',l:'Reunião'},{v:'aviso',l:'Aviso RH'}].map(({v,l})=>(
+                        {[{v:'alexa',l:'🎙 Alexa Fala'},{v:'aviso_urgente',l:'🚨 Aviso Urgente'},{v:'lembrete',l:'🔔 Lembrete'}].map(({v,l})=>(
                           <button key={v} onClick={()=>setLembForm(p=>({...p,type:v}))}
                             style={{flex:1,padding:'7px 4px',borderRadius:8,border:`1.5px solid ${lembForm.type===v?T.gold:T.border}`,background:lembForm.type===v?T.goldGl:'transparent',fontSize:11,fontWeight:lembForm.type===v?700:400,color:lembForm.type===v?T.gold:T.textS,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)'}}>
                             {l}
@@ -1090,52 +1107,32 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       </select>
                     </div>
 
-                    {/* Fanfarra */}
-                    <div style={{marginBottom:16,padding:'12px 14px',borderRadius:10,border:`1.5px solid ${lembForm.fanfare?T.goldLine+'66':T.border}`,background:lembForm.fanfare?T.goldGl:'transparent'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:lembForm.fanfare?10:0}}>
-                        <div>
-                          <div style={{fontSize:13,fontWeight:600,color:T.text}}>Som de entrada</div>
-                          <div style={{fontSize:11,color:T.textD,marginTop:2}}>Alexa toca um som antes de falar a mensagem</div>
-                        </div>
-                        <button onClick={()=>setLembForm(p=>({...p,fanfare:!p.fanfare}))}
-                          style={{width:42,height:24,borderRadius:12,border:'none',cursor:'pointer',outline:'none',
-                            background:lembForm.fanfare?T.gold:'rgba(0,0,0,0.15)',transition:'background .2s',
-                            position:'relative'}}>
-                          <div style={{position:'absolute',top:3,width:18,height:18,borderRadius:'50%',background:'white',
-                            transition:'left .2s',left:lembForm.fanfare?21:3,boxShadow:'0 1px 4px rgba(0,0,0,0.2)'}}/>
-                        </button>
-                      </div>
-                      {lembForm.fanfare&&(
-                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
-                          {[
-                            {v:'fanfarra',l:'🎺 Fanfarra'},
-                            {v:'campainha',l:'🔔 Campainha'},
-                            {v:'aplauso',l:'👏 Aplauso'},
-                            {v:'corneta',l:'📯 Corneta'},
-                            {v:'notificacao',l:'🔔 Notificação'},
-                          ].map(({v,l})=>(
-                            <button key={v} onClick={()=>setLembForm(p=>({...p,sound:v}))}
-                              style={{padding:'4px 10px',borderRadius:7,border:`1.5px solid ${lembForm.sound===v?T.gold:T.border}`,
-                                background:lembForm.sound===v?T.goldGl:'transparent',fontSize:11,
-                                color:lembForm.sound===v?T.gold:T.textS,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)'}}>
-                              {l}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    {/* Descrição do tipo */}
+                    <div style={{marginBottom:16,padding:'10px 14px',borderRadius:10,background:T.surfaceSub||'rgba(0,0,0,0.03)',border:`1px solid ${T.border}`,fontSize:12,color:T.textS,lineHeight:1.5}}>
+                      {lembForm.type==='alexa'       && '🎙 A Alexa vai falar a mensagem no Echo Dot. Pode enviar agora ou programar um horário.'}
+                      {lembForm.type==='aviso_urgente'&& '🚨 Aparece como tela cheia para todos os colaboradores. Eles só conseguem fechar digitando "Ok". Pode enviar agora ou programar.'}
+                      {lembForm.type==='lembrete'    && '🔔 O Uniko aparece no canto inferior esquerdo com a mensagem. O colaborador fecha clicando em Ok.'}
                     </div>
 
                     {lembMsg&&<div style={{fontSize:12,color:lembMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:lembMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)'}}>{lembMsg}</div>}
-                    <div style={{display:'flex',gap:8}}>
+                    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                       <button onClick={()=>setLembModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
-                      <button onClick={testAlexa} disabled={testingAlexa}
-                        title="Reproduz agora na Alexa para testar"
-                        style={{padding:'11px 14px',borderRadius:10,border:`1px solid ${T.goldLine}55`,cursor:testingAlexa?'wait':'pointer',background:T.goldGl,color:T.gold,fontSize:13,fontFamily:'var(--font-body)',outline:'none',fontWeight:600}}>
-                        {testingAlexa?'...' : '▶ Testar'}
-                      </button>
+                      {lembForm.type==='alexa'&&(
+                        <button onClick={testAlexa} disabled={testingAlexa}
+                          title="Testa na Alexa agora sem salvar"
+                          style={{padding:'11px 14px',borderRadius:10,border:`1px solid ${T.goldLine}55`,cursor:testingAlexa?'wait':'pointer',background:T.goldGl,color:T.gold,fontSize:13,fontFamily:'var(--font-body)',outline:'none',fontWeight:600}}>
+                          {testingAlexa?'...':'▶ Testar'}
+                        </button>
+                      )}
+                      {(lembForm.type==='alexa'||lembForm.type==='aviso_urgente')&&(
+                        <button onClick={sendNow} disabled={lembSaving}
+                          style={{padding:'11px 16px',borderRadius:10,border:'none',cursor:'pointer',background:'linear-gradient(135deg,#C04050,#E05565)',color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                          ⚡ Enviar agora
+                        </button>
+                      )}
                       <button onClick={saveLembrete} disabled={lembSaving}
                         style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
-                        {lembSaving?'Salvando...':'Salvar'}
+                        {lembSaving?'Salvando...':'Salvar programado'}
                       </button>
                     </div>
                   </div>
@@ -1196,7 +1193,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             </div>
           )}
 
-          {/* ── TAB: CENTRAL ALEXA ── */}
+          {/* ── TAB: CENTRAL ALEXA — removida, funcionalidade unificada em Lembretes & Alexa ── */}
           {tab==='alexa'&&(()=>{
             const [alexaMsgs, setAlexaMsgs] = React.useState([
               {id:1,title:'Reunião de Equipe',msg:'Atenção! Reunião de equipe hoje às 14h na sala de conferências.',dest:'todos',status:'enviado',date:'23/05/2026',hora:'09:15'},
