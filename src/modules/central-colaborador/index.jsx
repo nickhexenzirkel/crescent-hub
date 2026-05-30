@@ -88,7 +88,7 @@ const Portal = ({onBack, onGoAlexa}) => {
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);};
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados/>;
     if(tab==='horas')      return <TabHoras/>;
