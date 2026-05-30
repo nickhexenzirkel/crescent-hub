@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
-import { SERVER_URL, supabase as _supabase, USER, getAuthUser } from '../../contexts/user';
+import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
 
@@ -130,10 +130,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const auth = getAuthUser();
     return auth?.name || USER.name || 'Colaborador';
   });
+  const [photoCache, setPhotoCache] = useState({});
 
   // ── Festival: estado real (Spotify + Supabase) ───────────
   const [queue, setQueue]               = useState([]);
   const [isPlaying, setIsPlaying]       = useState(false);
+
+  // Carrega fotos de outros usuários que aparecem na fila e no chat
+  useEffect(() => {
+    const names = [...new Set([
+      ...queue.map(s => s.requested_by),
+      ...alexaConvo.filter(m => m.role === 'user' && m.name).map(m => m.name),
+    ])].filter(n => n && n !== myName && !photoCache[n]);
+    names.forEach(async name => {
+      const photo = await fetchPhotoByName(name);
+      if (photo) setPhotoCache(p => ({ ...p, [name]: photo }));
+    });
+  }, [queue, alexaConvo]); // eslint-disable-line
   const [currentSong, setCurrentSong]   = useState(null);
   const [currentGenre, setCurrentGenre] = useState('');
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
@@ -1277,9 +1290,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                             </div>
                             {/* Pedido por */}
                             <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-                              <div style={{width:18,height:18,borderRadius:5,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:700,color:"#fff"}}>
-                                {(s.requested_by||'?')[0].toUpperCase()}
-                              </div>
+                              <AvatarCircle
+                                name={s.requested_by||'?'}
+                                photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
+                                size={18} fontSize={7} rounded="5px"
+                              />
                               <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.requested_by}</span>
                             </div>
                             {/* Skip — temporariamente apenas admin */}
@@ -1804,9 +1819,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         {m.role==="user"&&(
                           <AvatarCircle
                             name={m.name||myName}
-                            photo={(m.name===myName||!m.name) ? userPhoto : null}
+                            photo={(m.name===myName||!m.name) ? userPhoto : photoCache[m.name]}
                             size={32} fontSize={11}
-                            style={{marginBottom:2, background: userPhoto ? undefined : `linear-gradient(135deg,${nameColor},${nameColor}bb)`}}
+                            style={{marginBottom:2, background:`linear-gradient(135deg,${nameColor},${nameColor}bb)`}}
                           />
                         )}
                       </div>
