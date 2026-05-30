@@ -96,12 +96,24 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [trophyType, setTrophyType]   = useState('ouro');
   const [trophyMsg, setTrophyMsg]     = useState('');
   const [trophyHistory, setTrophyHistory] = useState([]);
-  const [bancoExtra] = useState([
-    {id:1,col:'Maria Santos',date:'20/05/2026',tipo:'Hora Extra',valor:'+2h30',status:'pendente',obs:'Ficou além do horário para entrega do relatório'},
-    {id:2,col:'João Alves',date:'19/05/2026',tipo:'Banco Negativo',valor:'-1h00',status:'aprovado',obs:'Saída antecipada autorizada pelo gestor'},
-    {id:3,col:'Fernanda Costa',date:'18/05/2026',tipo:'Hora Extra',valor:'+1h45',status:'pendente',obs:'Reunião com cliente fora do horário'},
-    {id:4,col:'Maria Santos',date:'15/05/2026',tipo:'Hora Extra',valor:'+3h00',status:'rejeitado',obs:'Horas não autorizadas previamente'},
-  ]);
+  const [bancoHoras,    setBancoHoras]    = useState([]);
+  const [bancoLoading,  setBancoLoading]  = useState(false);
+  const [bancoAcaoId,   setBancoAcaoId]   = useState(null);
+
+  const loadBancoHoras = async () => {
+    setBancoLoading(true);
+    const { data } = await _supabase.from('banco_horas')
+      .select('*').order('created_at', { ascending: false });
+    setBancoHoras(data || []);
+    setBancoLoading(false);
+  };
+
+  const atualizarStatus = async (id, status) => {
+    setBancoAcaoId(id);
+    await _supabase.from('banco_horas').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    await loadBancoHoras();
+    setBancoAcaoId(null);
+  };
   const [changePw, setChangePw] = useState({old:'',new1:'',new2:''});
   const [changePwMsg, setChangePwMsg] = useState('');
 
@@ -199,6 +211,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const maskCpfDisp = (v) => v; // já vem mascarado do servidor
 
   useEffect(()=>{ if(tab==='funcionarios') loadEmployees(); }, [tab]);
+  useEffect(()=>{ if(tab==='banco') loadBancoHoras(); }, [tab]);
 
   // ── Gerenciar Usuários — perfil completo ─────────────────
   const [gerList, setGerList]         = useState([]);
@@ -931,60 +944,112 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             </div>
           )}
 
-          {/* ── TAB: BANCO EXTRA ── */}
-          {tab==='banco'&&(
-            <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <div>
-                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Banco de Horas Extra</div>
-                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Solicitações enviadas pelos colaboradores via Central do Colaborador</div>
+          {/* ── TAB: BANCO DE HORAS ── */}
+          {tab==='banco'&&(()=>{
+            const fmtH = h => { if(!h||h<=0) return '0h'; const hh=Math.floor(h); const mm=Math.round((h-hh)*60); return mm>0?`${hh}h${mm.toString().padStart(2,'0')}`:`${hh}h`; };
+            const fmtD = iso => iso ? new Date(iso+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+            const BRL  = v => 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+            const pendentes  = bancoHoras.filter(b=>b.status==='pendente');
+            const aprovados  = bancoHoras.filter(b=>b.status==='aprovado');
+            const rejeitados = bancoHoras.filter(b=>b.status==='rejeitado');
+            const totalHorasAprov = aprovados.reduce((a,b)=>a+Number(b.horas_calculadas||0),0);
+            const totalValorAprov = aprovados.reduce((a,b)=>a+Number(b.valor_total||0),0);
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Banco de Horas</div>
+                    <div style={{fontSize:13,color:T.textS,marginTop:2}}>Registros enviados pelos colaboradores · {bancoHoras.length} no total</div>
+                  </div>
+                  <Moon size={24} color={T.goldL} opacity={0.35} float/>
                 </div>
-                <Moon size={24} color={T.goldL} opacity={0.35} float/>
+
+                {/* cards de resumo */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+                  {[
+                    {l:'Pendentes',   v:pendentes.length,  c:'#D89030'},
+                    {l:'Aprovados',   v:aprovados.length,  c:'#1A9C70'},
+                    {l:'Rejeitados',  v:rejeitados.length, c:'#C04050'},
+                    {l:'Horas aprovadas', v:fmtH(totalHorasAprov), c:T.blue||'#2A6FB5'},
+                  ].map(({l,v,c})=>(
+                    <Card key={l} style={{padding:'16px 20px'}} elevated>
+                      <div style={{fontSize:26,fontWeight:700,color:c}}>{v}</div>
+                      <div style={{fontSize:12,color:T.textT,marginTop:3}}>{l}</div>
+                      {l==='Aprovados'&&totalValorAprov>0&&<div style={{fontSize:11,color:'#1A9C70',marginTop:2,fontWeight:600}}>{BRL(totalValorAprov)}</div>}
+                    </Card>
+                  ))}
+                </div>
+
+                {/* tabela */}
+                <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+                  {bancoLoading
+                    ? <div style={{textAlign:'center',padding:48,color:T.textT}}>Carregando...</div>
+                    : bancoHoras.length===0
+                      ? <div style={{textAlign:'center',padding:48,color:T.textT,fontSize:13}}>Nenhum registro ainda.</div>
+                      : <div style={{overflowX:'auto'}}>
+                          <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',minWidth:900}}>
+                            <thead><tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
+                              {['Colaborador','Data','Descrição','Horário','Horas','Cálculo','Valor','Status','Ações'].map(h=>(
+                                <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 14px',whiteSpace:'nowrap'}}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {bancoHoras.map(b=>{
+                                const ss = b.status==='pendente'
+                                  ? {bg:'rgba(216,144,48,0.15)',c:'#D89030'}
+                                  : b.status==='aprovado'
+                                    ? {bg:'rgba(26,156,112,0.12)',c:'#1A9C70'}
+                                    : {bg:'rgba(192,64,80,0.12)',c:'#C04050'};
+                                const emAcao = bancoAcaoId===b.id;
+                                return (
+                                  <tr key={b.id} style={{borderTop:`1px solid ${T.border}`}}>
+                                    <td style={{padding:'11px 14px',fontSize:13,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{b.created_by}</td>
+                                    <td style={{padding:'11px 14px',fontSize:12,color:T.textS,whiteSpace:'nowrap'}}>{fmtD(b.data)}</td>
+                                    <td style={{padding:'11px 14px',fontSize:12,color:T.text,maxWidth:200}}>
+                                      <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.descricao}</div>
+                                    </td>
+                                    <td style={{padding:'11px 14px',fontSize:12,color:T.textS,whiteSpace:'nowrap'}}>{b.hora_inicio} → {b.hora_fim}</td>
+                                    <td style={{padding:'11px 14px',whiteSpace:'nowrap'}}>
+                                      <div style={{fontSize:13,fontWeight:600,color:T.text}}>{fmtH(Number(b.total_horas))}</div>
+                                      {b.feriado_domingo&&<span style={{fontSize:10,fontWeight:600,color:'#D89030',background:'rgba(216,144,48,0.12)',borderRadius:4,padding:'1px 5px'}}>Feriado/Dom</span>}
+                                    </td>
+                                    <td style={{padding:'11px 14px',whiteSpace:'nowrap'}}>
+                                      <div style={{fontSize:13,fontWeight:700,color:b.feriado_domingo?'#D89030':T.text}}>{fmtH(Number(b.horas_calculadas))}</div>
+                                      {b.feriado_domingo&&<div style={{fontSize:10,color:T.textD}}>×2 no banco</div>}
+                                    </td>
+                                    <td style={{padding:'11px 14px',fontSize:13,fontWeight:700,color:'#1A9C70',whiteSpace:'nowrap'}}>
+                                      {b.valor_total>0 ? BRL(b.valor_total) : <span style={{color:T.textD,fontWeight:400,fontSize:12}}>—</span>}
+                                    </td>
+                                    <td style={{padding:'11px 14px'}}>
+                                      <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:ss.bg,color:ss.c,textTransform:'capitalize',whiteSpace:'nowrap'}}>{b.status}</span>
+                                    </td>
+                                    <td style={{padding:'11px 14px'}}>
+                                      {b.status==='pendente'
+                                        ? <div style={{display:'flex',gap:5}}>
+                                            <button onClick={()=>atualizarStatus(b.id,'aprovado')} disabled={emAcao}
+                                              style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(26,156,112,0.3)',background:'rgba(26,156,112,0.10)',color:'#1A9C70',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none',fontWeight:600}}>
+                                              {emAcao?'...':'Aprovar'}
+                                            </button>
+                                            <button onClick={()=>atualizarStatus(b.id,'rejeitado')} disabled={emAcao}
+                                              style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.08)',color:'#C04050',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none'}}>
+                                              {emAcao?'...':'Recusar'}
+                                            </button>
+                                          </div>
+                                        : <span style={{fontSize:11,color:T.textD}}>—</span>
+                                      }
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                  }
+                </Card>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
-                {[{l:'Pendentes',v:bancoExtra.filter(b=>b.status==='pendente').length,c:'#D89030'},{l:'Aprovados',v:bancoExtra.filter(b=>b.status==='aprovado').length,c:'#1A9C70'},{l:'Rejeitados',v:bancoExtra.filter(b=>b.status==='rejeitado').length,c:'#C04050'}].map(({l,v,c})=>(
-                  <Card key={l} style={{padding:'16px 20px'}} elevated>
-                    <div style={{fontSize:28,fontWeight:700,color:c}}>{v}</div>
-                    <div style={{fontSize:12,color:T.textT,marginTop:3}}>{l}</div>
-                  </Card>
-                ))}
-              </div>
-              <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
-                <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)'}}>
-                  <thead><tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
-                    {['Colaborador','Data','Tipo','Valor','Status','Observação','Ações'].map(h=>(
-                      <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 14px'}}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {bancoExtra.map(b=>(
-                      <tr key={b.id} style={{borderTop:`1px solid ${T.border}`}}>
-                        <td style={{padding:'11px 14px',fontSize:13,fontWeight:600,color:T.text}}>{b.col}</td>
-                        <td style={{padding:'11px 14px',fontSize:12,color:T.textS}}>{b.date}</td>
-                        <td style={{padding:'11px 14px'}}>
-                          <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:b.tipo==='Hora Extra'?'rgba(26,156,112,0.12)':'rgba(192,64,80,0.12)',color:b.tipo==='Hora Extra'?'#1A9C70':'#C04050'}}>{b.tipo}</span>
-                        </td>
-                        <td style={{padding:'11px 14px',fontSize:14,fontWeight:700,color:b.valor.startsWith('+')?'#1A9C70':'#C04050'}}>{b.valor}</td>
-                        <td style={{padding:'11px 14px'}}>
-                          <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:b.status==='pendente'?'rgba(216,144,48,0.15)':b.status==='aprovado'?'rgba(26,156,112,0.12)':'rgba(192,64,80,0.12)',color:b.status==='pendente'?'#D89030':b.status==='aprovado'?'#1A9C70':'#C04050'}}>{b.status}</span>
-                        </td>
-                        <td style={{padding:'11px 14px',fontSize:12,color:T.textS,maxWidth:200}}>{b.obs}</td>
-                        <td style={{padding:'11px 14px'}}>
-                          {b.status==='pendente'&&(
-                            <div style={{display:'flex',gap:5}}>
-                              <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(26,156,112,0.3)',background:'rgba(26,156,112,0.10)',color:'#1A9C70',cursor:'pointer',fontSize:11,outline:'none',fontWeight:600}}>Aprovar</button>
-                              <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.08)',color:'#C04050',cursor:'pointer',fontSize:11,outline:'none'}}>Recusar</button>
-                            </div>
-                          )}
-                          {b.status!=='pendente'&&<span style={{fontSize:11,color:T.textD}}>—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Card>
-            </div>
-          )}
+            );
+          })()}
+
 
           {/* ── TAB: COMUNICADOS ── */}
           {tab==='comunicados'&&(
