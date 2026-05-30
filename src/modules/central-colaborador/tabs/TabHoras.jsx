@@ -65,6 +65,12 @@ const TabHoras = () => {
 
   useEffect(() => { loadRegistros(); }, []);
 
+  const delRegistro = async (id) => {
+    if (!window.confirm('Remover este registro?')) return;
+    await _supabase.from('banco_horas').delete().eq('id', id);
+    await loadRegistros();
+  };
+
   const totalHorasCalc = registros.reduce((a, r) => a + Number(r.horas_calculadas || 0), 0);
   const totalValor     = registros.reduce((a, r) => a + Number(r.valor_total || 0), 0);
 
@@ -195,9 +201,17 @@ const TabHoras = () => {
                           {r.valor_total > 0 && ` · ${BRL(r.valor_total)}`}
                         </div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: ss.bg, color: ss.color, flexShrink: 0, textTransform: 'capitalize' }}>
-                        {r.status}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: ss.bg, color: ss.color, textTransform: 'capitalize' }}>
+                          {r.status}
+                        </span>
+                        {r.status === 'rejeitado' && (
+                          <button onClick={() => delRegistro(r.id)} title="Excluir"
+                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(192,64,80,0.25)', background: 'rgba(192,64,80,0.06)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C04050', outline: 'none' }}>
+                            <Ico d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></>} size={11} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

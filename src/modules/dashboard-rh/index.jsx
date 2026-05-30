@@ -114,6 +114,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     await loadBancoHoras();
     setBancoAcaoId(null);
   };
+
+  const delBancoHoras = async (id) => {
+    if (!window.confirm('Excluir este registro permanentemente?')) return;
+    await _supabase.from('banco_horas').delete().eq('id', id);
+    await loadBancoHoras();
+  };
+
+  const [empSearch, setEmpSearch] = useState('');
+  const [gerSearch, setGerSearch] = useState('');
   const [changePw, setChangePw] = useState({old:'',new1:'',new2:''});
   const [changePwMsg, setChangePwMsg] = useState('');
 
@@ -584,6 +593,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </button>
               </div>
 
+              {/* Busca */}
+              <div style={{position:'relative'}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>
+                  <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input value={empSearch} onChange={e=>setEmpSearch(e.target.value)}
+                  placeholder="Buscar por nome ou CPF..."
+                  style={{width:'100%',padding:'10px 14px 10px 36px',borderRadius:11,border:`1.5px solid ${T.border}`,background:cardBg,fontSize:13,color:T.text,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
+              </div>
+
               {/* Table */}
               <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 {/* Head */}
@@ -597,9 +616,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>
                       Carregando...
                     </div>
-                  : empList.length===0
-                    ? <div style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:13}}>Nenhum funcionário cadastrado ainda.</div>
-                    : empList.map((emp,i)=>(
+                  : empList.filter(e=>e.name.toLowerCase().includes(empSearch.toLowerCase())||e.cpf.includes(empSearch)).length===0
+                    ? <div style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:13}}>Nenhum resultado encontrado.</div>
+                    : empList.filter(e=>e.name.toLowerCase().includes(empSearch.toLowerCase())||e.cpf.includes(empSearch)).map((emp,i)=>(
                         <div key={emp.id} style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 80px 80px 120px',gap:0,padding:'12px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:emp.active?1:0.55,transition:'opacity .15s'}}>
                           {/* Nome */}
                           <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -739,6 +758,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
                 <button onClick={loadGerList} style={{padding:'8px 16px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>↻ Atualizar</button>
               </div>
+              {/* Busca */}
+              <div style={{position:'relative'}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>
+                  <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input value={gerSearch} onChange={e=>setGerSearch(e.target.value)}
+                  placeholder="Buscar por nome ou CPF..."
+                  style={{width:'100%',padding:'10px 14px 10px 36px',borderRadius:11,border:`1.5px solid ${T.border}`,background:cardBg,fontSize:13,color:T.text,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
+              </div>
+
               <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
                   {['Nome','CPF','Cargo','Status','Editar'].map(h=>(
@@ -749,7 +778,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
                       <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
                     </div>
-                  : gerList.map((emp,i)=>(
+                  : gerList.filter(e=>e.name.toLowerCase().includes(gerSearch.toLowerCase())||(e.cpf||'').includes(gerSearch)).map((emp,i)=>(
                       <div key={emp.id} style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'11px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:emp.active?1:0.55}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
                           <div style={{width:30,height:30,borderRadius:8,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0}}>
@@ -1024,19 +1053,22 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                                       <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:ss.bg,color:ss.c,textTransform:'capitalize',whiteSpace:'nowrap'}}>{b.status}</span>
                                     </td>
                                     <td style={{padding:'11px 14px'}}>
-                                      {b.status==='pendente'
-                                        ? <div style={{display:'flex',gap:5}}>
-                                            <button onClick={()=>atualizarStatus(b.id,'aprovado')} disabled={emAcao}
-                                              style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(26,156,112,0.3)',background:'rgba(26,156,112,0.10)',color:'#1A9C70',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none',fontWeight:600}}>
-                                              {emAcao?'...':'Aprovar'}
-                                            </button>
-                                            <button onClick={()=>atualizarStatus(b.id,'rejeitado')} disabled={emAcao}
-                                              style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.08)',color:'#C04050',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none'}}>
-                                              {emAcao?'...':'Recusar'}
-                                            </button>
-                                          </div>
-                                        : <span style={{fontSize:11,color:T.textD}}>—</span>
-                                      }
+                                      <div style={{display:'flex',gap:5,alignItems:'center'}}>
+                                        {b.status==='pendente'&&<>
+                                          <button onClick={()=>atualizarStatus(b.id,'aprovado')} disabled={emAcao}
+                                            style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(26,156,112,0.3)',background:'rgba(26,156,112,0.10)',color:'#1A9C70',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none',fontWeight:600}}>
+                                            {emAcao?'...':'Aprovar'}
+                                          </button>
+                                          <button onClick={()=>atualizarStatus(b.id,'rejeitado')} disabled={emAcao}
+                                            style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(192,64,80,0.3)',background:'rgba(192,64,80,0.08)',color:'#C04050',cursor:emAcao?'wait':'pointer',fontSize:11,outline:'none'}}>
+                                            {emAcao?'...':'Recusar'}
+                                          </button>
+                                        </>}
+                                        <button onClick={()=>delBancoHoras(b.id)} title="Excluir"
+                                          style={{width:26,height:26,borderRadius:6,border:'1px solid rgba(192,64,80,0.25)',background:'rgba(192,64,80,0.06)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#C04050',outline:'none',flexShrink:0}}>
+                                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
