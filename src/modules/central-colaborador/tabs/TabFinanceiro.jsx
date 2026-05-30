@@ -133,27 +133,25 @@ const TabFinanceiro = () => {
           </div>
         </div>
 
-        {/* 1K SERVICE */}
-        {gross1k > 0 && (
-          <div style={{
-            background:'rgba(42,109,181,0.08)', border:`1px solid ${T.blue}30`,
-            borderRadius:13, padding:'18px 22px', marginBottom:10,
-            display:'flex', justifyContent:'space-between', alignItems:'center',
-          }}>
-            <div>
-              <div style={{ fontSize:10.5, color:T.blue, letterSpacing:'.08em',
-                textTransform:'uppercase', marginBottom:5, fontWeight:600 }}>+ 1K Service</div>
-              <div style={{ fontSize:22, fontWeight:700, color:T.blue }}>
-                {salVisible ? `+ R$ ${BRL(gross1k)}` : '+ R$ ••••,••'}
-              </div>
-            </div>
-            <div style={{ width:44, height:44, borderRadius:'50%', background:T.blue,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:`0 4px 14px ${T.blue}44` }}>
-              <Ico size={18} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
+        {/* 1K SERVICE — todos os colaboradores recebem */}
+        <div style={{
+          background:'rgba(42,109,181,0.08)', border:`1px solid ${T.blue}30`,
+          borderRadius:13, padding:'18px 22px', marginBottom:10,
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+        }}>
+          <div>
+            <div style={{ fontSize:10.5, color:T.blue, letterSpacing:'.08em',
+              textTransform:'uppercase', marginBottom:5, fontWeight:600 }}>+ 1K Service</div>
+            <div style={{ fontSize:22, fontWeight:700, color:T.blue }}>
+              {salVisible ? `+ R$ ${BRL(gross1k)}` : '+ R$ ••••,••'}
             </div>
           </div>
-        )}
+          <div style={{ width:44, height:44, borderRadius:'50%', background:T.blue,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:`0 4px 14px ${T.blue}44` }}>
+            <Ico size={18} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
+          </div>
+        </div>
 
         {/* EVENTOS / DESCONTOS */}
         <div style={{
@@ -263,12 +261,10 @@ const TabFinanceiro = () => {
           <span style={{ fontSize:13, fontWeight:600, color:'#28A870' }}>
             R$ {salVisible ? BRL(USER.salary) : '••••'}
           </span>
-          {gross1k > 0 && <>
-            <span style={{ fontSize:13, color:T.textD }}>+</span>
-            <span style={{ fontSize:13, fontWeight:600, color:T.blue }}>
-              R$ {salVisible ? BRL(gross1k) : '••••'}
-            </span>
-          </>}
+          <span style={{ fontSize:13, color:T.textD }}>+</span>
+          <span style={{ fontSize:13, fontWeight:600, color:T.blue }}>
+            R$ {salVisible ? BRL(gross1k) : '••••'}
+          </span>
           {totalDescontos > 0 && <>
             <span style={{ fontSize:13, color:T.textD }}>−</span>
             <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
