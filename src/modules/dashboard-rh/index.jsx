@@ -110,6 +110,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [spotifySecret, setSpotifySecret]     = useState(() => localStorage.getItem('spotify_client_secret') || '');
   const [spotifyMsg, setSpotifyMsg]           = useState('');
   const [spotifySaving, setSpotifySaving]     = useState(false);
+  const [spotifyServerStatus, setSpotifyServerStatus] = useState(null); // null | {client_id, has_client_secret, has_refresh_token}
+
+  const loadSpotifyServerStatus = async () => {
+    try {
+      const r = await fetch(`${SERVER_URL}/api/spotify/credentials`, { headers: authHeader() });
+      if (r.ok) setSpotifyServerStatus(await r.json());
+    } catch {}
+  };
+
+  useEffect(() => { if (tab === 'spotify') loadSpotifyServerStatus(); }, [tab]);
 
   const saveSpotifyCreds = async () => {
     if (!spotifyClientId.trim() || !spotifySecret.trim()) { setSpotifyMsg('⚠️ Preencha ambos os campos'); return; }
@@ -121,11 +131,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
         method: 'POST', headers: authHeader(),
         body: JSON.stringify({ client_id: spotifyClientId.trim(), client_secret: spotifySecret.trim() }),
       });
-      if (r.ok) setSpotifyMsg('✅ Credenciais salvas e sincronizadas com o servidor!');
-      else setSpotifyMsg('✅ Credenciais salvas localmente. (Servidor não sincronizado)');
-    } catch { setSpotifyMsg('✅ Credenciais salvas localmente. (Servidor offline)'); }
+      if (r.ok) {
+        setSpotifyMsg('✅ Credenciais salvas! Agora autentique a conta clicando no botão abaixo.');
+        await loadSpotifyServerStatus();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setSpotifyMsg(`⚠️ ${d.error || 'Erro ao salvar no servidor'}`);
+      }
+    } catch { setSpotifyMsg('⚠️ Servidor offline — credenciais salvas apenas localmente.'); }
     setSpotifySaving(false);
-    setTimeout(() => setSpotifyMsg(''), 5000);
   };
 
   // ── Funcionários (real, conectado ao servidor) ───────────
@@ -1497,11 +1511,22 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </div>
                 </div>
 
-                {/* Status atual */}
-                {(localStorage.getItem('spotify_client_id')) && (
-                  <div style={{padding:'10px 14px',borderRadius:9,background:'rgba(29,185,84,0.07)',border:'1px solid rgba(29,185,84,0.2)',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:7,height:7,borderRadius:'50%',background:'#1DB954',flexShrink:0}}/>
-                    <div style={{fontSize:12,color:'#1DB954',fontWeight:500}}>Credenciais salvas · Client ID: <span style={{fontFamily:'monospace'}}>{localStorage.getItem('spotify_client_id').slice(0,8)}••••</span></div>
+                {/* Status do servidor */}
+                {spotifyServerStatus && (
+                  <div style={{padding:'10px 14px',borderRadius:9,marginBottom:16,
+                    background: spotifyServerStatus.has_refresh_token ? 'rgba(29,185,84,0.07)' : 'rgba(216,144,48,0.08)',
+                    border: `1px solid ${spotifyServerStatus.has_refresh_token ? 'rgba(29,185,84,0.2)' : 'rgba(216,144,48,0.25)'}`,
+                    display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:7,height:7,borderRadius:'50%',flexShrink:0,
+                      background: spotifyServerStatus.has_refresh_token ? '#1DB954' : '#D89030'}}/>
+                    <div style={{fontSize:12,fontWeight:500,
+                      color: spotifyServerStatus.has_refresh_token ? '#1DB954' : '#D89030'}}>
+                      {spotifyServerStatus.has_refresh_token
+                        ? `Servidor autenticado · Client ID: ${spotifyServerStatus.client_id}`
+                        : spotifyServerStatus.client_id
+                          ? `Credenciais no servidor · ${spotifyServerStatus.client_id} — ainda não autenticado`
+                          : 'Servidor sem credenciais — salve abaixo'}
+                    </div>
                   </div>
                 )}
 
@@ -1514,7 +1539,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </div>
                 )}
 
-                <div style={{display:'flex',gap:10}}>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                   <button onClick={()=>{ setSpotifyClientId(''); setSpotifySecret(''); localStorage.removeItem('spotify_client_id'); localStorage.removeItem('spotify_client_secret'); setSpotifyMsg(''); }}
                     style={{padding:'10px 18px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
                     Limpar
@@ -1524,6 +1549,21 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     {spotifySaving ? 'Salvando...' : '💾 Salvar Credenciais'}
                   </button>
                 </div>
+
+                {/* Botão de autenticação — aparece quando há credenciais no servidor mas não tem refresh token */}
+                {spotifyServerStatus?.client_id && (
+                  <div style={{marginTop:14,padding:'14px 16px',borderRadius:10,border:`1.5px solid ${spotifyServerStatus.has_refresh_token ? 'rgba(29,185,84,0.25)' : 'rgba(29,185,84,0.5)'}`,background:spotifyServerStatus.has_refresh_token?'rgba(29,185,84,0.04)':'rgba(29,185,84,0.06)'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:T.text,marginBottom:8}}>
+                      {spotifyServerStatus.has_refresh_token ? '✅ Conta autenticada — para trocar de conta:' : '⚠️ Credenciais salvas mas conta não autenticada ainda:'}
+                    </div>
+                    <a href={`${SERVER_URL}/login`} target="_blank" rel="noopener noreferrer"
+                      style={{display:'inline-flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:9,background:'#1DB954',color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',textDecoration:'none',boxShadow:'0 3px 12px rgba(29,185,84,0.4)'}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      {spotifyServerStatus.has_refresh_token ? 'Autenticar nova conta Spotify' : 'Autenticar conta Spotify'}
+                    </a>
+                    <div style={{fontSize:11,color:T.textD,marginTop:8}}>Abre o login do Spotify no servidor. Após autorizar, volte aqui.</div>
+                  </div>
+                )}
               </Card>
 
               {/* Dica de uso */}
