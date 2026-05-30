@@ -92,6 +92,36 @@ const TabFinanceiro = () => {
           </div>
         ))}
       </div>
+      {/* ── 1k Service ── */}
+      {(USER.salary_1k > 0 || USER.inss_1k > 0 || USER.ir_1k > 0) && (
+        <Card style={{padding:'28px',marginBottom:18}} elevated>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+            <div style={{width:4,height:18,borderRadius:2,background:'linear-gradient(180deg,#7C3AED,#9F67FF)'}}/>
+            <div>
+              <div style={{fontSize:19,fontWeight:600,color:T.text}}>1k Service</div>
+              <div style={{fontSize:13,color:T.textT,marginTop:2}}>Remuneração complementar via 1k Service</div>
+            </div>
+          </div>
+          <StarDivider my={14}/>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+            {[['Valor Bruto',USER.salary_1k||0,'#7C3AED','rgba(124,58,237,0.08)'],
+              ['INSS',USER.inss_1k||0,'#C04050','rgba(192,64,80,0.06)'],
+              ['IR Retido',USER.ir_1k||0,'#D89030','rgba(216,144,48,0.08)']].map(([l,v,c,bg])=>(
+              <div key={l} style={{background:bg,border:`1px solid ${c}22`,borderRadius:12,padding:'16px 18px'}}>
+                <div style={{fontSize:11,color:c,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6,fontWeight:500}}>{l}</div>
+                <div style={{fontSize:18,fontWeight:700,color:c}}>R$ {(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:14,padding:'12px 16px',borderRadius:10,background:'rgba(124,58,237,0.06)',border:'1px solid rgba(124,58,237,0.15)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:13,color:T.textS}}>Líquido 1k Service</span>
+            <span style={{fontSize:16,fontWeight:700,color:'#7C3AED'}}>
+              R$ {((USER.salary_1k||0)-(USER.inss_1k||0)-(USER.ir_1k||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+            </span>
+          </div>
+        </Card>
+      )}
+
       <Card style={{padding:'28px',marginBottom:16}}>
         <div style={{fontSize:19,fontWeight:600,color:T.text,marginBottom:4}}>Evolução Salarial</div>
         <div style={{fontSize:14,color:T.textT,marginBottom:14}}>Histórico de reajustes</div>

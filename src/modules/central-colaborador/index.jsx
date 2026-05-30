@@ -13,7 +13,6 @@ import { TabGames } from './tabs/TabGames';
 import { TabConquistas } from './tabs/TabConquistas';
 import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
-import { TabSimulador } from './tabs/TabSimulador';
 import { TabMyDoko } from './tabs/TabMyDoko';
 
 const Portal = ({onBack}) => {
@@ -72,7 +71,6 @@ const Portal = ({onBack}) => {
     if(tab==='conquistas') return <TabConquistas/>;
     if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
-    if(tab==='simulador')   return <TabSimulador/>;
     if(tab==='doko')        return <TabMyDoko/>;
     return null;
   };

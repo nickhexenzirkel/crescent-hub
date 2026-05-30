@@ -996,15 +996,17 @@ const DOKO_SCENES = {
   ),
 };
 
+const _dokoLoad = () => { try { return JSON.parse(localStorage.getItem('uniko_doko') || '{}'); } catch { return {}; } };
+
 const TabMyDoko = () => {
-  const [fome,       setFome]       = useState(75);
-  const [energia,    setEnergia]    = useState(70);
+  const [fome,       setFome]       = useState(() => _dokoLoad().fome    ?? 75);
+  const [energia,    setEnergia]    = useState(() => _dokoLoad().energia ?? 70);
   const [fala,       setFala]       = useState('Olá! Que bom te ver por aqui!');
-  const [skin,       setSkin]       = useState('tecnico');
+  const [skin,       setSkin]       = useState(() => _dokoLoad().skin    || 'tecnico');
   const [showSkins,  setShowSkins]  = useState(false);
   const [showComidas,setShowComidas]= useState(false);
-  const [dormindo,   setDormindo]   = useState(false);
-  const [sono,       setSono]       = useState(70);
+  const [dormindo,   setDormindo]   = useState(() => _dokoLoad().dormindo ?? false);
+  const [sono,       setSono]       = useState(() => _dokoLoad().sono    ?? 70);
   const [notif,      setNotif]      = useState(null); /* alerta de stat baixo */
   const alertasRef   = {fome:false, energia:false, sono:false}; /* controle de duplicata */
   const [bounce,     setBounce]     = useState(false);
@@ -1017,6 +1019,10 @@ const TabMyDoko = () => {
   const [sessaoAtiva,setSessaoAtiva]= useState(false);
   const [sessaoFim,  setSessaoFim]  = useState(false);
   const [pergAtual,  setPergAtual]  = useState('');    /* pergunta fixa visível */
+
+  useEffect(()=>{
+    localStorage.setItem('uniko_doko', JSON.stringify({ skin, fome, energia, sono, dormindo }));
+  }, [skin, fome, energia, sono, dormindo]);
 
   useEffect(()=>{
     const id=setInterval(()=>{

@@ -78,7 +78,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
         </button>
         <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:40,height:40,borderRadius:10,objectFit:'cover'}}/>
         <div>
-          <div style={{fontFamily:'var(--font-brand)',fontSize:22,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Central Lembretes</div>
+          <div style={{fontFamily:'var(--font-brand)',fontSize:22,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Lembretes</div>
           <div style={{fontSize:13,color:T.textT,marginTop:2}}>O Uniko te lembra no horário certo · {userName}</div>
         </div>
         <div style={{flex:1}}/>

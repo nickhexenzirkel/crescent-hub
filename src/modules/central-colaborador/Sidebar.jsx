@@ -23,7 +23,6 @@ const NAV=[
   {id:'feed',       label:'Feed',          icon:<I><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="11" y2="18"/></I>},
   {id:'doko',       label:'My Doko',       icon:<I><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></I>},
   {id:'games',      label:'Games',         icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
-  {id:'simulador',  label:'Simulação',     icon:<I><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></I>},
 ];
 
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings}) => {
