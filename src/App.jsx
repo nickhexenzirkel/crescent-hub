@@ -64,6 +64,29 @@ export default function CrescentHub() {
     } catch {}
   };
 
+  /* Chime ascendente C5→E5→G5→C6, dura ~2 segundos */
+  const playReminder = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [
+        { freq: 523.25, start: 0.0,  dur: 0.75 },
+        { freq: 659.25, start: 0.35, dur: 0.75 },
+        { freq: 783.99, start: 0.70, dur: 0.80 },
+        { freq: 1046.5, start: 1.10, dur: 0.90 },
+      ].forEach(({ freq, start, dur }) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine';
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0, ctx.currentTime + start);
+        g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + start + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+        o.start(ctx.currentTime + start);
+        o.stop(ctx.currentTime + start + dur);
+      });
+    } catch {}
+  };
+
   const playAlarm = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -86,7 +109,7 @@ export default function CrescentHub() {
         if (!n?.active || seenNotifIds.current.has(n.id)) return;
         seenNotifIds.current.add(n.id);
         setNotifQueue(q => [...q, n]);
-        if (n.type === 'aviso_urgente') playAlarm(); else playBell();
+        if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
       })
       .subscribe();
     return () => _supabase.removeChannel(channel);
