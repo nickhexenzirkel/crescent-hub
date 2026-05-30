@@ -119,9 +119,9 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
 
   /* ── Fetch ── */
   useEffect(() => {
-    _supabase.from('reminders').select('*').eq('type','lembrete').eq('active',true).eq('created_by',USER.name)
+    _supabase.from('reminders').select('*').eq('type','lembrete').or('time.is.null,time.not.like.nota:%').eq('active',true).eq('created_by',USER.name)
       .then(({data})=>setLembs(data||[]));
-    _supabase.from('reminders').select('*').eq('type','anotacao').eq('created_by',USER.name)
+    _supabase.from('reminders').select('*').eq('type','lembrete').like('time','nota:%').eq('created_by',USER.name)
       .order('created_at',{ascending:false}).limit(4)
       .then(({data})=>setNotas(data||[]));
     _supabase.from('calendar_events').select('*').order('event_date',{ascending:true})

@@ -55,6 +55,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
     setLLoading(true);
     const { data } = await _supabase.from('reminders')
       .select('*').eq('type','lembrete').eq('created_by', userName)
+      .or('time.is.null,time.not.like.nota:%')
       .order('created_at', { ascending: false });
     setLembretes(data || []);
     setLLoading(false);
@@ -63,7 +64,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const loadNotas = async () => {
     setNLoading(true);
     const { data } = await _supabase.from('reminders')
-      .select('*').eq('type','anotacao').eq('created_by', userName)
+      .select('*').eq('type','lembrete').like('time','nota:%').eq('created_by', userName)
       .order('created_at', { ascending: false });
     setNotas(data || []);
     setNLoading(false);
@@ -99,16 +100,16 @@ const CentralLembretes = ({ onBack, authUser }) => {
 
   /* ── anotações CRUD ── */
   const openNewN = () => { setNForm({ title:'', message:'', color:'default' }); setNEdit(null); setNMsg(''); setNModal(true); };
-  const openEditN = (n) => { setNForm({ title:n.title||'', message:n.message||'', color:n.time||'default' }); setNEdit(n); setNMsg(''); setNModal(true); };
+  const openEditN = (n) => { setNForm({ title:n.title||'', message:n.message||'', color:(n.time||'').slice(5)||'default' }); setNEdit(n); setNMsg(''); setNModal(true); };
   const saveN = async () => {
     if (!nForm.message.trim()) { setNMsg('Escreva algo na anotação'); return; }
     setNSaving(true); setNMsg('');
     const payload = {
       title:   nForm.title || 'Anotação',
       message: nForm.message,
-      time:    nForm.color,   // campo time guarda a cor (sem constraint)
-      repeat:  'never',       // valor válido para a check constraint
-      type:    'anotacao',
+      time:    'nota:' + nForm.color,
+      repeat:  'never',
+      type:    'lembrete',
       active:  true,
       created_by: userName,
       updated_at: new Date().toISOString(),
@@ -251,7 +252,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
                 </div>
               : <div style={{ display:'flex', flexDirection:'column', gap:12, maxWidth:720, margin:'0 auto' }}>
                   {notas.map(n => {
-                    const cs = corStyle(n.time || 'default');
+                    const cs = corStyle((n.time||'').startsWith('nota:') ? n.time.slice(5) : 'default');
                     const expanded = nExpanded.has(n.id);
                     const longBody = (n.message || '').length > 160;
                     return (
