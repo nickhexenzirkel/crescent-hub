@@ -792,7 +792,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       ]},
                       { title:'Remuneração', fields:[
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
-                        {label:'1K Service (R$)',key:'salary_1k',type:'number'},
+                        {label:'1K Service (R$)',key:'vt',type:'number'},
                         {label:'Motivo do reajuste (ex: Promoção)',key:'salary_event',type:'text',placeholder:'Ex: Reajuste anual, Promoção...'},
                         {label:'Desconto INSS (R$)',key:'inss',type:'number'},
                       ]},
