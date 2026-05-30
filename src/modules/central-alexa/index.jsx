@@ -365,9 +365,13 @@ const CentralAlexa = ({onBack}) => {
   };
 
   const addTrackToPlaylist = async (track) => {
-    const r = await api('post', `/api/playlists/${openPlaylist.id}/tracks`, { uris: [track.uri] });
+    const r = await api('post', `/api/playlists/${openPlaylist.id}/tracks`, {
+      uri: track.uri, spotify_id: track.id,
+      title: track.title, artist: track.artist, album_art: track.album_art,
+      duration_ms: track.duration_ms, duration_str: track.duration_str,
+    });
     if (r.ok) {
-      setPlTracks(t => [...t, { id: track.id, uri: track.uri, title: track.title, artist: track.artist, album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str }]);
+      setPlTracks(t => [...t, r.track || { id: track.id, uri: track.uri, title: track.title, artist: track.artist, album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str }]);
       setSpPlaylists(p => p.map(pl => pl.id === openPlaylist.id ? {...pl, total: pl.total + 1} : pl));
     } else {
       setPlMsg('⚠️ Erro ao adicionar: ' + (r.error || 'Tente novamente'));
