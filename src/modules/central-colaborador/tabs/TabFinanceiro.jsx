@@ -19,15 +19,12 @@ const TabFinanceiro = () => {
   const [eventosOpen, setEventosOpen] = useState(true);
   const [salVisible, setSalVisible] = useState(false);
 
-  /* cálculos */
-  const gross1k     = USER.salary_1k || 0;
-  const inss        = USER.inss  || 0;
-  const ir          = USER.ir    || 0;
-  const inss1k      = USER.inss_1k || 0;
-  const ir1k        = USER.ir_1k   || 0;
-  const totalBruto  = USER.salary + gross1k;
-  const totalDescontos = inss + ir + inss1k + ir1k;
-  const liquido     = totalBruto - totalDescontos;
+  /* cálculos: Salário Bruto + 1K Service - INSS = Líquido */
+  const gross1k        = USER.salary_1k || 0;
+  const inss           = USER.inss      || 0;
+  const totalBruto     = USER.salary + gross1k;
+  const totalDescontos = inss;
+  const liquido        = totalBruto - totalDescontos;
 
   useEffect(() => {
     const token = localStorage.getItem('ch_token');
@@ -181,42 +178,13 @@ const TabFinanceiro = () => {
 
           {eventosOpen && (
             <div style={{ borderTop:'1px solid rgba(192,64,80,0.15)', padding:'4px 0 8px' }}>
-              {inss > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>INSS (CLT)</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(inss)}` : '- R$ ••,••'}
-                  </span>
-                </div>
-              )}
-              {ir > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>IR Retido</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(ir)}` : '- R$ ••,••'}
-                  </span>
-                </div>
-              )}
-              {inss1k > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>INSS 1K Service</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(inss1k)}` : '- R$ ••,••'}
-                  </span>
-                </div>
-              )}
-              {ir1k > 0 && (
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                  padding:'10px 22px' }}>
-                  <span style={{ fontSize:13, color:T.textS }}>IR 1K Service</span>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
-                    {salVisible ? `- R$ ${BRL(ir1k)}` : '- R$ ••,••'}
-                  </span>
-                </div>
-              )}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                padding:'10px 22px' }}>
+                <span style={{ fontSize:13, color:T.textS }}>INSS</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
+                  {salVisible ? `- R$ ${BRL(inss)}` : '- R$ ••••,••'}
+                </span>
+              </div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
                 padding:'10px 22px', borderTop:'1px solid rgba(192,64,80,0.14)', marginTop:2 }}>
                 <span style={{ fontSize:12, color:'#C04050', fontWeight:700, letterSpacing:'.04em',
@@ -228,30 +196,6 @@ const TabFinanceiro = () => {
             </div>
           )}
         </div>
-
-        {/* VT / VA */}
-        {(USER.vt > 0 || USER.va > 0) && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
-            {USER.vt > 0 && (
-              <div style={{ background:T.blueGl, border:`1px solid ${T.blue}22`,
-                borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span style={{ fontSize:12, color:T.textS }}>Vale Transporte</span>
-                <span style={{ fontSize:13, fontWeight:700, color:T.blue }}>
-                  {salVisible ? `R$ ${BRL(USER.vt)}` : 'R$ ••,••'}
-                </span>
-              </div>
-            )}
-            {USER.va > 0 && (
-              <div style={{ background:'rgba(40,168,112,0.08)', border:'1px solid rgba(40,168,112,0.22)',
-                borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span style={{ fontSize:12, color:T.textS }}>Vale Alimentação</span>
-                <span style={{ fontSize:13, fontWeight:700, color:'#28A870' }}>
-                  {salVisible ? `R$ ${BRL(USER.va)}` : 'R$ ••,••'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
 
         <StarDivider my={16}/>
 

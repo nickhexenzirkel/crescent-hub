@@ -792,11 +792,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       ]},
                       { title:'Remuneração', fields:[
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
+                        {label:'1K Service (R$)',key:'salary_1k',type:'number'},
                         {label:'Motivo do reajuste (ex: Promoção)',key:'salary_event',type:'text',placeholder:'Ex: Reajuste anual, Promoção...'},
-                        {label:'INSS (R$)',key:'inss',type:'number'},
-                        {label:'IR (R$)',key:'ir',type:'number'},
-                        {label:'Vale Transporte (R$)',key:'vt',type:'number'},
-                        {label:'Vale Alimentação (R$)',key:'va',type:'number'},
+                        {label:'Desconto INSS (R$)',key:'inss',type:'number'},
                       ]},
                     ].map(sec=>(
                       <div key={sec.title} style={{marginBottom:20}}>
