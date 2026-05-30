@@ -7,11 +7,11 @@ import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
 import dokoAmbiental  from '../../../assets/DodocoAmbientalista.jpg';
 import dokoContador   from '../../../assets/DodocoContador.jpg';
+import { DOKO_KEY }   from './TabMyDoko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = { tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMedico, ambiental:dokoAmbiental, contador:dokoContador };
 const _auth  = getAuthUser();
-const DK     = _auth?.cpf ? `uniko_doko_${_auth.cpf}`       : 'uniko_doko';
 const PHK    = _auth?.cpf ? `uniko_photo_${_auth.cpf}`      : 'uniko_photo';
 const PHPK   = _auth?.cpf ? `uniko_photo_pos_${_auth.cpf}`  : 'uniko_photo_pos';
 const PHSK   = _auth?.cpf ? `uniko_photo_scale_${_auth.cpf}`: 'uniko_photo_scale';
@@ -74,13 +74,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
   const [lembs,     setLembs]     = useState([]);
   const [evts,      setEvts]      = useState([]);
   const [comuns,    setComuns]    = useState([]);
-  /* Lê Doko com cálculo retroativo — chave computada ao vivo para evitar
-     problema de módulo carregado antes do token estar no localStorage */
+  /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {
     try {
-      const auth = getAuthUser();
-      const key  = auth?.cpf ? `uniko_doko_${auth.cpf}` : 'uniko_doko';
-      const data = JSON.parse(localStorage.getItem(key) || '{}');
+      const data = JSON.parse(localStorage.getItem(DOKO_KEY) || '{}');
       if (!data.lastUpdated) return data;
       const elapsed = Math.max(0, Date.now() - data.lastUpdated);
       if (elapsed < 5000) return data;

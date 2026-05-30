@@ -996,8 +996,9 @@ const DOKO_SCENES = {
   ),
 };
 
-/* Chave de localStorage individualizada por usuário (CPF do JWT) */
-const DOKO_KEY = (() => {
+/* Chave de localStorage individualizada por usuário (CPF do JWT) — exportada
+   para que outros módulos (TabInicio) usem exatamente a mesma chave */
+export const DOKO_KEY = (() => {
   try {
     const auth = getAuthUser();
     return auth?.cpf ? `uniko_doko_${auth.cpf}` : 'uniko_doko';
