@@ -51,11 +51,12 @@ const Portal = ({onBack, onGoAlexa}) => {
         if (p.state)      USER.state      = p.state;
         if (p.cep)        USER.cep        = p.cep;
         if (p.dependents !== undefined) USER.dependents = p.dependents;
-        if (p.salary  !== undefined)    USER.salary     = Number(p.salary)  || 0;
-        if (p.inss    !== undefined)    USER.inss       = Number(p.inss)    || 0;
-        if (p.ir      !== undefined)    USER.ir         = Number(p.ir)      || 0;
-        if (p.vt      !== undefined)    USER.vt         = Number(p.vt)      || 0;
-        if (p.va      !== undefined)    USER.va         = Number(p.va)      || 0;
+        if (p.salary    !== undefined) USER.salary    = Number(p.salary)    || 0;
+        if (p.salary_1k !== undefined) USER.salary_1k = Number(p.salary_1k) || 0;
+        if (p.inss      !== undefined) USER.inss      = Number(p.inss)      || 0;
+        if (p.ir        !== undefined) USER.ir        = Number(p.ir)        || 0;
+        if (p.vt        !== undefined) USER.vt        = Number(p.vt)        || 0;
+        if (p.va        !== undefined) USER.va        = Number(p.va)        || 0;
       }
     })
     .catch(() => {})

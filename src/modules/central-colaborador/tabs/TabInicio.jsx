@@ -272,8 +272,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:38,height:38,borderRadius:10,flexShrink:0,background:'rgba(40,168,112,.10)',border:'1px solid rgba(40,168,112,.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#28A870',fontWeight:700,fontSize:16}}>$</div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:11,color:T.textT}}>Último Salário</div>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{sv?`R$ ${USER.salary.toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'R$ ••••,••'}</div>
+              <div style={{fontSize:11,color:T.textT}}>Salário Líquido</div>
+              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{sv?`R$ ${((USER.salary||0)+(USER.salary_1k||0)-(USER.inss||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'R$ ••••,••'}</div>
             </div>
             <button onClick={()=>setSv(!sv)} style={{background:'none',border:'none',cursor:'pointer',color:sv?T.gold:T.textD,padding:3,flexShrink:0}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
