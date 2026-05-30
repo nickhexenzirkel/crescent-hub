@@ -122,9 +122,7 @@ const CentralAlexa = ({onBack}) => {
   const [dokoMsg, setDokoMsg]     = useState(DOKO_MSGS_IDLE[0]);
   const [voiceVal, setVoiceVal]   = useState("");
   const [voiceFocus, setVoiceFocus] = useState(false);
-  const [alexaConvo, setAlexaConvo] = useState([
-    {role:"alexa",text:"👋 Olá, equipe! Estou online e pronta. Pode falar!",ts:"agora"}
-  ]);
+  const [alexaConvo, setAlexaConvo] = useState([]);
   const [alexaInput, setAlexaInput]   = useState("");
   const [alexaTyping, setAlexaTyping] = useState(false);
   const [myName, setMyName] = useState(() => {
@@ -162,8 +160,9 @@ const CentralAlexa = ({onBack}) => {
   const [volumeSaving, setVolumeSaving] = useState(false);
   const [festLoading, setFestLoading]   = useState(true);
   const [serverMsg, setServerMsg]       = useState("");
-  const searchTimer = useRef(null);
+  const searchTimer   = useRef(null);
   const plSearchTimer = useRef(null);
+  const chatScrollRef = useRef(null);
 
   // ID único por sessão (para sistema de votos)
   const [userId] = useState(() => {
@@ -543,6 +542,26 @@ const CentralAlexa = ({onBack}) => {
 
   useEffect(() => { loadSkipVotes(); }, [queue]);
 
+  // ── Chat Alexa compartilhado ─────────────────────────────
+  const toMsg = (m) => ({
+    id: m.id, role: m.role, text: m.text, name: m.name, spoke: m.spoke,
+    ts: new Date(m.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}),
+  });
+  useEffect(() => {
+    _supabase.from('alexa_chat').select('*').order('created_at', {ascending:true}).limit(150)
+      .then(({data}) => { if (data) setAlexaConvo(data.map(toMsg)); });
+    const chatSub = _supabase.channel('alexa_chat_rt')
+      .on('postgres_changes', {event:'INSERT', schema:'public', table:'alexa_chat'}, ({new:m}) => {
+        setAlexaConvo(c => [...c, toMsg(m)]);
+      })
+      .subscribe();
+    return () => _supabase.removeChannel(chatSub);
+  }, []);
+  useEffect(() => {
+    if (chatScrollRef.current)
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+  }, [alexaConvo]);
+
   // Busca genre real do Spotify quando a música muda (com cache local por sessão)
   useEffect(() => {
     if (!currentSong?.spotify_id) { setCurrentGenre(''); return; }
@@ -740,45 +759,36 @@ const CentralAlexa = ({onBack}) => {
     if (!canAskAlexa) return;
     consumeAlexaRequest();
     const question = alexaInput;
-    const ts = new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
-    setAlexaConvo(c => [...c, {role:"user", text:question, ts, name:USER.short||'Você'}]);
     setAlexaInput("");
     setAlexaTyping(true);
+    // Salva mensagem do usuário — realtime vai propagar para todos
+    await _supabase.from('alexa_chat').insert({ role:'user', text:question, name:USER.short||myName });
     try {
       const r = await api('post', '/api/alexa/ask', { question, userName: myName });
-      const ts = new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
       if (r.ok && r.playlist) {
-        setAlexaConvo(c => [...c, {
-          role: "alexa",
-          text: `Iniciando playlist "${r.playlist}" no UnikoWave! As músicas vão tocar uma por uma. 🎵`,
-          ts, spoke: false,
-        }]);
-        setPlayingPl(null); // reseta estado visual se estava marcado
+        await _supabase.from('alexa_chat').insert({
+          role:'alexa', spoke:false,
+          text:`Iniciando playlist "${r.playlist}" no UnikoWave! As músicas vão tocar uma por uma. 🎵`,
+        });
+        setPlayingPl(null);
       } else if (r.ok && r.not_found) {
-        setAlexaConvo(c => [...c, {
-          role: "alexa",
-          text: `Não encontrei nenhuma playlist com o nome "${r.not_found}" na sua biblioteca. Verifique o nome na aba Biblioteca.`,
-          ts, spoke: false,
-        }]);
+        await _supabase.from('alexa_chat').insert({
+          role:'alexa', spoke:false,
+          text:`Não encontrei nenhuma playlist com o nome "${r.not_found}" na sua biblioteca. Verifique o nome na aba Biblioteca.`,
+        });
       } else if (r.ok) {
-        setAlexaConvo(c => [...c, {
-          role: "alexa",
-          text: "Ouça a resposta no Echo Dot! 🔊",
-          ts, spoke: true,
-        }]);
+        await _supabase.from('alexa_chat').insert({
+          role:'alexa', spoke:true, text:"Ouça a resposta no Echo Dot! 🔊",
+        });
       } else {
-        setAlexaConvo(c => [...c, {
-          role: "alexa",
-          text: r.error || "Não consegui enviar para a Alexa.",
-          ts,
-        }]);
+        await _supabase.from('alexa_chat').insert({
+          role:'alexa', spoke:false, text:r.error || "Não consegui enviar para a Alexa.",
+        });
       }
     } catch {
-      setAlexaConvo(c => [...c, {
-        role: "alexa",
-        text: "Não consegui me conectar ao servidor. Tente novamente!",
-        ts: new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}),
-      }]);
+      await _supabase.from('alexa_chat').insert({
+        role:'alexa', spoke:false, text:"Não consegui me conectar ao servidor. Tente novamente!",
+      });
     }
     setAlexaTyping(false);
   };
@@ -1707,7 +1717,7 @@ const CentralAlexa = ({onBack}) => {
 
               {/* Conversation — estilo grupo WhatsApp */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
-                <div style={{maxHeight:400,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8}}>
+                <div ref={chatScrollRef} style={{height:520,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8,scrollbarWidth:"thin"}}>
                   {alexaConvo.map((m,i)=>{
                     // Gera cor única por nome (estilo WhatsApp grupo)
                     const nameColors = ["#E53935","#8E24AA","#1976D2","#00897B","#F4511E","#6D4C41","#039BE5","#7CB342"];
