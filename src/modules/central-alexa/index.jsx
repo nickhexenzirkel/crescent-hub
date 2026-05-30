@@ -330,6 +330,7 @@ const CentralAlexa = ({onBack}) => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [creatingPl, setCreatingPl]           = useState(false);
   const [plMsg, setPlMsg]                     = useState('');
+  const [plTrackMsg, setPlTrackMsg]           = useState('');
   const [plSearchQ, setPlSearchQ]             = useState('');
   const [plSearchRes, setPlSearchRes]         = useState([]);
   const [plSearching, setPlSearching]         = useState(false);
@@ -361,16 +362,17 @@ const CentralAlexa = ({onBack}) => {
     setCreatingPl(true); setPlMsg('');
     const r = await api('post', '/api/playlists', { name: newPlaylistName.trim() });
     if (r.playlist) {
-      // Adiciona direto no estado — não aguarda Spotify indexar
       setSpPlaylists(p => [...p, { id: r.playlist.id, name: r.playlist.name, total: 0, image: null, owner: USER.short }]);
       setNewPlaylistName('');
       setPlMsg(`✅ "${r.playlist.name}" criada!`);
       setTimeout(() => setPlMsg(''), 3000);
+      loadSpPlaylists();
     } else { setPlMsg('⚠️ ' + (r.error || 'Erro')); }
     setCreatingPl(false);
   };
 
   const addTrackToPlaylist = async (track) => {
+    setPlTrackMsg('');
     const r = await api('post', `/api/playlists/${openPlaylist.id}/tracks`, {
       uri: track.uri, spotify_id: track.id,
       title: track.title, artist: track.artist, album_art: track.album_art,
@@ -380,7 +382,8 @@ const CentralAlexa = ({onBack}) => {
       setPlTracks(t => [...t, r.track || { id: track.id, uri: track.uri, title: track.title, artist: track.artist, album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str }]);
       setSpPlaylists(p => p.map(pl => pl.id === openPlaylist.id ? {...pl, total: pl.total + 1} : pl));
     } else {
-      setPlMsg('⚠️ Erro ao adicionar: ' + (r.error || 'Tente novamente'));
+      setPlTrackMsg('⚠️ Erro ao adicionar: ' + (r.error || 'Tente novamente'));
+      setTimeout(() => setPlTrackMsg(''), 4000);
     }
   };
 
@@ -1424,6 +1427,9 @@ const CentralAlexa = ({onBack}) => {
                     {playingPl===openPlaylist.id ? "Tocando..." : "Tocar"}
                   </button>
                 </div>
+
+                {/* Mensagem de erro ao adicionar faixa */}
+                {plTrackMsg && <div style={{fontSize:12,color:"#C04050",marginBottom:10}}>{plTrackMsg}</div>}
 
                 {/* Buscar músicas para adicionar */}
                 <div style={{display:"flex",gap:8,marginBottom:14}}>
