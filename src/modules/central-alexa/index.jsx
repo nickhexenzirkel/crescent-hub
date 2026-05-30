@@ -1431,37 +1431,72 @@ const CentralAlexa = ({onBack}) => {
                 </div>
               </div>
 
-              {/* Conversation */}
+              {/* Conversation — estilo grupo WhatsApp */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
-                <div style={{maxHeight:360,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}}>
-                  {alexaConvo.map((m,i)=>(
-                    <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",justifyContent:m.role==="user"?"flex-end":"flex-start",animation:"bubblePop .25s ease-out"}}>
-                      {m.role==="alexa"&&(
-                        <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:`radial-gradient(circle at 35% 35%,${T.goldL||T.gold}cc,${T.gold})`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 13a3.5 3.5 0 007 0"/></svg>
+                <div style={{maxHeight:400,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8}}>
+                  {alexaConvo.map((m,i)=>{
+                    // Gera cor única por nome (estilo WhatsApp grupo)
+                    const nameColors = ["#E53935","#8E24AA","#1976D2","#00897B","#F4511E","#6D4C41","#039BE5","#7CB342"];
+                    const nameColor = m.role==="user"
+                      ? nameColors[(m.name||"").split("").reduce((a,c)=>a+c.charCodeAt(0),0) % nameColors.length]
+                      : T.gold;
+
+                    return (
+                      <div key={i} style={{display:"flex",gap:8,alignItems:"flex-end",justifyContent:m.role==="user"?"flex-end":"flex-start",animation:"bubblePop .2s ease-out"}}>
+                        {/* Avatar Alexa */}
+                        {m.role==="alexa"&&(
+                          <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`radial-gradient(circle at 35% 35%,${T.goldL||T.gold}cc,${T.gold})`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:2}}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 13a3.5 3.5 0 007 0"/></svg>
+                          </div>
+                        )}
+
+                        <div style={{maxWidth:"72%",display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start"}}>
+                          {/* Bolha */}
+                          <div style={{
+                            padding:"8px 12px",
+                            borderRadius:m.role==="alexa"?"2px 14px 14px 14px":"14px 2px 14px 14px",
+                            background:m.role==="alexa"
+                              ? (isDark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.95)")
+                              : (isDark?"rgba(0,100,0,0.25)":"rgba(220,255,220,0.95)"),
+                            border:`1px solid ${m.role==="alexa"?T.border:"rgba(0,180,0,0.15)"}`,
+                            boxShadow:"0 1px 2px rgba(0,0,0,0.08)",
+                          }}>
+                            {/* Nome do remetente (estilo grupo WhatsApp) */}
+                            {m.role==="user"&&(
+                              <div style={{fontSize:11,fontWeight:700,color:nameColor,marginBottom:3,letterSpacing:".02em"}}>
+                                {m.name||myName} solicitou para a Alexa:
+                              </div>
+                            )}
+                            {m.role==="alexa"&&(
+                              <div style={{fontSize:11,fontWeight:700,color:T.gold,marginBottom:3}}>Alexa</div>
+                            )}
+                            <div style={{fontSize:13,color:T.text,lineHeight:1.5}}>
+                              {m.role==="user"
+                                ? <span style={{fontStyle:"italic"}}>"{m.text}"</span>
+                                : m.text
+                              }
+                            </div>
+                          </div>
+                          {/* Timestamp */}
+                          <div style={{fontSize:10,color:T.textD,marginTop:2,display:"flex",alignItems:"center",gap:3}}>
+                            {m.role==="alexa"&&m.spoke&&<span style={{color:"#1A9C70",fontSize:11}}>🔊</span>}
+                            {m.ts}
+                            {m.role==="user"&&<span style={{color:"#1A9C70",fontSize:11}}>✓✓</span>}
+                          </div>
                         </div>
-                      )}
-                      <div style={{maxWidth:"70%"}}>
-                        <div style={{
-                          padding:"10px 14px",borderRadius:m.role==="alexa"?"4px 14px 14px 14px":"14px 4px 14px 14px",
-                          background:m.role==="alexa"?T.goldGl:(T.surfaceSub||"rgba(0,0,0,0.05)"),
-                          border:`1px solid ${m.role==="alexa"?T.goldLine+"44":T.border}`,
-                          fontSize:13,color:T.text,lineHeight:1.5,
-                        }}>
-                          {m.text}
-                        </div>
-                        <div style={{fontSize:10,color:T.textD,marginTop:3,textAlign:m.role==="user"?"right":"left",display:"flex",alignItems:"center",gap:4,justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-                          {m.role==="alexa"&&m.spoke&&<span title="Falou no Echo Dot" style={{color:"#1A9C70"}}>🔊</span>}
-                          {m.ts}
-                        </div>
+
+                        {/* Avatar usuário */}
+                        {m.role==="user"&&(
+                          <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,
+                            background:`linear-gradient(135deg,${nameColor},${nameColor}bb)`,
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontSize:11,fontWeight:700,color:"white",marginBottom:2}}>
+                            {(m.name||myName).split(" ").map(n=>n[0]).slice(0,2).join("")}
+                          </div>
+                        )}
                       </div>
-                      {m.role==="user"&&(
-                        <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"white"}}>
-                          {myName[0]||"E"}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                   {alexaTyping&&(
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:`radial-gradient(circle at 35% 35%,${T.goldL||T.gold}cc,${T.gold})`}}/>
