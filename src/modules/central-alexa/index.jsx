@@ -1445,8 +1445,8 @@ const CentralAlexa = ({onBack}) => {
                       <div key={i} style={{display:"flex",gap:8,alignItems:"flex-end",justifyContent:m.role==="user"?"flex-end":"flex-start",animation:"bubblePop .2s ease-out"}}>
                         {/* Avatar Alexa */}
                         {m.role==="alexa"&&(
-                          <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`radial-gradient(circle at 35% 35%,${T.goldL||T.gold}cc,${T.gold})`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:2}}>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 13a3.5 3.5 0 007 0"/></svg>
+                          <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,overflow:"hidden",marginBottom:2,flexShrink:0}}>
+                            <img src="/UnikoQuadrado.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                           </div>
                         )}
 
@@ -1457,20 +1457,20 @@ const CentralAlexa = ({onBack}) => {
                             borderRadius:m.role==="alexa"?"2px 14px 14px 14px":"14px 2px 14px 14px",
                             background:m.role==="alexa"
                               ? (isDark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.95)")
-                              : (isDark?"rgba(0,100,0,0.25)":"rgba(220,255,220,0.95)"),
-                            border:`1px solid ${m.role==="alexa"?T.border:"rgba(0,180,0,0.15)"}`,
+                              : `linear-gradient(135deg,${T.blue||"#1A6FB5"},${T.blue||"#1A6FB5"}cc)`,
+                            border:`1px solid ${m.role==="alexa"?T.border:"transparent"}`,
                             boxShadow:"0 1px 2px rgba(0,0,0,0.08)",
                           }}>
                             {/* Nome do remetente (estilo grupo WhatsApp) */}
                             {m.role==="user"&&(
-                              <div style={{fontSize:11,fontWeight:700,color:nameColor,marginBottom:3,letterSpacing:".02em"}}>
+                              <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.85)",marginBottom:3,letterSpacing:".02em"}}>
                                 {m.name||myName} solicitou para a Alexa:
                               </div>
                             )}
                             {m.role==="alexa"&&(
                               <div style={{fontSize:11,fontWeight:700,color:T.gold,marginBottom:3}}>Alexa</div>
                             )}
-                            <div style={{fontSize:13,color:T.text,lineHeight:1.5}}>
+                            <div style={{fontSize:13,color:m.role==="user"?"white":T.text,lineHeight:1.5}}>
                               {m.role==="user"
                                 ? <span style={{fontStyle:"italic"}}>"{m.text}"</span>
                                 : m.text
@@ -1481,7 +1481,7 @@ const CentralAlexa = ({onBack}) => {
                           <div style={{fontSize:10,color:T.textD,marginTop:2,display:"flex",alignItems:"center",gap:3}}>
                             {m.role==="alexa"&&m.spoke&&<span style={{color:"#1A9C70",fontSize:11}}>🔊</span>}
                             {m.ts}
-                            {m.role==="user"&&<span style={{color:"#1A9C70",fontSize:11}}>✓✓</span>}
+                            {m.role==="user"&&<span style={{color:T.blue||"#1A6FB5",fontSize:11}}>✓✓</span>}
                           </div>
                         </div>
 
