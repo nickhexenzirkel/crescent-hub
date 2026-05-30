@@ -996,7 +996,45 @@ const DOKO_SCENES = {
   ),
 };
 
-const _dokoLoad = () => { try { return JSON.parse(localStorage.getItem('uniko_doko') || '{}'); } catch { return {}; } };
+/* Chave de localStorage individualizada por usuário (CPF do JWT) */
+const DOKO_KEY = (() => {
+  try {
+    const auth = getAuthUser();
+    return auth?.cpf ? `uniko_doko_${auth.cpf}` : 'uniko_doko';
+  } catch { return 'uniko_doko'; }
+})();
+
+/* Taxas por tick de 8s — calibradas para ~7h de jornada */
+const TICK_MS       = 8000;
+const RATE_FOME_ON  = 0.025;  /* fome acordado:  100→~21 em 7h */
+const RATE_ENER_ON  = 0.025;  /* energia acordado */
+const RATE_SONO_ON  = 0.016;  /* sono acordado:   70→~20 em 7h */
+const RATE_FOME_OFF = 0.008;  /* fome dormindo: cai devagar overnight */
+const RATE_SONO_OFF = 2.5;    /* sono dormindo: recupera rápido */
+
+const _dokoLoad = () => {
+  try {
+    const data = JSON.parse(localStorage.getItem(DOKO_KEY) || '{}');
+    if (!data.lastUpdated) return data;
+
+    const elapsed = Math.max(0, Date.now() - data.lastUpdated);
+    if (elapsed < 10000) return data;
+
+    const ticks   = elapsed / TICK_MS;
+    let { fome = 75, energia = 70, sono = 70, dormindo = false } = data;
+
+    if (dormindo) {
+      fome = Math.max(0,   fome - ticks * RATE_FOME_OFF);
+      sono = Math.min(100, sono + ticks * RATE_SONO_OFF);
+    } else {
+      fome    = Math.max(0, fome    - ticks * RATE_FOME_ON);
+      energia = Math.max(0, energia - ticks * RATE_ENER_ON);
+      sono    = Math.max(0, sono    - ticks * RATE_SONO_ON);
+    }
+
+    return { ...data, fome, energia, sono };
+  } catch { return {}; }
+};
 
 const TabMyDoko = () => {
   const [fome,       setFome]       = useState(() => _dokoLoad().fome    ?? 75);
@@ -1021,21 +1059,20 @@ const TabMyDoko = () => {
   const [pergAtual,  setPergAtual]  = useState('');    /* pergunta fixa visível */
 
   useEffect(()=>{
-    localStorage.setItem('uniko_doko', JSON.stringify({ skin, fome, energia, sono, dormindo }));
+    localStorage.setItem(DOKO_KEY, JSON.stringify({ skin, fome, energia, sono, dormindo, lastUpdated: Date.now() }));
   }, [skin, fome, energia, sono, dormindo]);
 
   useEffect(()=>{
     const id=setInterval(()=>{
       if(dormindo){
-        /* Dormindo: recupera sono, não perde fome/energia */
-        setSono(s=>Math.min(100,s+2.5));
+        setFome(f=>Math.max(0,   f - RATE_FOME_OFF));
+        setSono(s=>Math.min(100, s + RATE_SONO_OFF));
       } else {
-        /* Acordado: perde fome, energia e sono gradualmente */
-        setFome(f=>Math.max(0,f-1));
-        setEnergia(e=>Math.max(0,e-0.5));
-        setSono(s=>Math.max(0,s-0.8));
+        setFome(f=>Math.max(0,   f - RATE_FOME_ON));
+        setEnergia(e=>Math.max(0,e - RATE_ENER_ON));
+        setSono(s=>Math.max(0,   s - RATE_SONO_ON));
       }
-    },8000);
+    }, TICK_MS);
     return ()=>clearInterval(id);
   },[dormindo]);
 

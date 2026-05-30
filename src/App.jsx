@@ -47,7 +47,8 @@ export default function CrescentHub() {
   // ── Sistema de notificações em tempo real ────────────────
   const [notifQueue, setNotifQueue] = useState([]);
   const [okInput, setOkInput]       = useState('');
-  const seenNotifIds = useRef(new Set());
+  const seenNotifIds  = useRef(new Set());
+  const firedTodayRef = useRef(new Set());
 
   const playBell = () => {
     try {
@@ -91,8 +92,58 @@ export default function CrescentHub() {
     return () => _supabase.removeChannel(channel);
   }, [authUser]);
 
+  // ── Verificador de horário: dispara lembretes agendados ──
+  useEffect(() => {
+    if (!authUser) return;
+
+    const check = async () => {
+      const now   = new Date();
+      const hhmm  = now.toTimeString().slice(0, 5);   // "HH:MM"
+      const today = now.toISOString().slice(0, 10);   // "YYYY-MM-DD"
+      const dow   = now.getDay();                      // 0=dom … 6=sab
+      const dom   = now.getDate();                     // dia do mês
+
+      const { data: reminders } = await _supabase
+        .from('reminders')
+        .select('*')
+        .eq('active', true)
+        .eq('created_by', authUser.name);
+
+      if (!reminders?.length) return;
+
+      for (const r of reminders) {
+        if (!r.time || r.time.slice(0, 5) !== hhmm) continue;
+
+        let due = false;
+        switch (r.repeat) {
+          case 'daily':   due = true; break;
+          case 'weekly':  due = r.date ? new Date(r.date + 'T00:00:00').getDay() === dow : true; break;
+          case 'monthly': due = r.date ? parseInt(r.date.split('-')[2]) === dom : true; break;
+          default:        due = !r.date || r.date === today; break; // 'never'
+        }
+        if (!due) continue;
+
+        const fireKey = `${r.id}_${today}_${hhmm}`;
+        if (firedTodayRef.current.has(fireKey)) continue;
+        firedTodayRef.current.add(fireKey);
+
+        await _supabase.from('notifications').insert({
+          type:       r.type === 'alexa' ? 'lembrete' : (r.type || 'lembrete'),
+          title:      r.title  || 'Lembrete',
+          message:    r.message || r.title || 'Você tem um lembrete!',
+          active:     true,
+          created_at: new Date().toISOString(),
+        });
+      }
+    };
+
+    check(); // verifica ao logar (caso tenha acabado de chegar no horário)
+    const id = setInterval(check, 30000); // verifica a cada 30 segundos
+    return () => clearInterval(id);
+  }, [authUser]);
+
   const urgentNotif   = notifQueue.find(n => n.type === 'aviso_urgente');
-  const lembreteNotif = !urgentNotif && notifQueue.find(n => n.type === 'lembrete');
+  const lembreteNotif = !urgentNotif && notifQueue.find(n => n.type === 'lembrete' || n.type === 'alexa');
   const dismissNotif  = (id) => { setNotifQueue(q => q.filter(n => n.id !== id)); setOkInput(''); };
 
   if (!authChecked) return (
