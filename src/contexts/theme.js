@@ -310,10 +310,12 @@ const THEMES = {
 
 };
 
-/* T é mutável — atualizado pelo seletor de tema */
-/* Set initial CSS var on load */
+/* T é mutável — inicializado com o tema salvo no localStorage */
+const _initThemeKey = (typeof localStorage !== 'undefined' && localStorage.getItem('ch_theme')) || 'blue';
+const _initTheme    = THEMES[_initThemeKey] || THEMES.blue;
+
 if(typeof document !== 'undefined') {
-  document.documentElement.style.setProperty('--scroll-color', THEMES.blue.goldLine + '55');
+  document.documentElement.style.setProperty('--scroll-color', _initTheme.goldLine + '55');
 }
 
 let T = {
@@ -327,7 +329,7 @@ let T = {
   sh:'0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.06)',
   shM:'0 2px 8px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08)',
   shL:'0 4px 16px rgba(0,0,0,0.07), 0 16px 44px rgba(0,0,0,0.10)',
-  ...THEMES.blue,
+  ..._initTheme,
 };
 
 const applyTheme = (key) => {
