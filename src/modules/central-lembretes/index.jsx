@@ -99,14 +99,15 @@ const CentralLembretes = ({ onBack, authUser }) => {
 
   /* ── anotações CRUD ── */
   const openNewN = () => { setNForm({ title:'', message:'', color:'default' }); setNEdit(null); setNMsg(''); setNModal(true); };
-  const openEditN = (n) => { setNForm({ title:n.title||'', message:n.message||'', color:n.repeat||'default' }); setNEdit(n); setNMsg(''); setNModal(true); };
+  const openEditN = (n) => { setNForm({ title:n.title||'', message:n.message||'', color:n.time||'default' }); setNEdit(n); setNMsg(''); setNModal(true); };
   const saveN = async () => {
     if (!nForm.message.trim()) { setNMsg('Escreva algo na anotação'); return; }
     setNSaving(true); setNMsg('');
     const payload = {
       title:   nForm.title || 'Anotação',
       message: nForm.message,
-      repeat:  nForm.color,   // reaproveitamos repeat para guardar a cor
+      time:    nForm.color,   // campo time guarda a cor (sem constraint)
+      repeat:  'never',       // valor válido para a check constraint
       type:    'anotacao',
       active:  true,
       created_by: userName,
@@ -162,8 +163,20 @@ const CentralLembretes = ({ onBack, authUser }) => {
       {/* ── ABAS ── */}
       <div style={{ display:'flex', gap:4, marginBottom:22, padding:'4px', background:T.surfaceSub||'rgba(0,0,0,0.04)', borderRadius:14, width:'fit-content' }}>
         {[
-          { id:'lembretes', label:'⏰ Lembretes' },
-          { id:'anotacoes', label:'📝 Anotações' },
+          {
+            id:'lembretes',
+            label: <span style={{display:'flex',alignItems:'center',gap:6}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></svg>
+              Lembretes
+            </span>,
+          },
+          {
+            id:'anotacoes',
+            label: <span style={{display:'flex',alignItems:'center',gap:6}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Anotações
+            </span>,
+          },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             padding:'8px 20px', borderRadius:11, border:'none', cursor:'pointer',
@@ -238,7 +251,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
                 </div>
               : <div style={{ display:'flex', flexDirection:'column', gap:12, maxWidth:720, margin:'0 auto' }}>
                   {notas.map(n => {
-                    const cs = corStyle(n.repeat || 'default');
+                    const cs = corStyle(n.time || 'default');
                     const expanded = nExpanded.has(n.id);
                     const longBody = (n.message || '').length > 160;
                     return (

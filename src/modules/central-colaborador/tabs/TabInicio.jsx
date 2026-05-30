@@ -456,9 +456,9 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {notas.slice(0,3).map(n=>{
               const dotColors={default:'#AAB8C4',amber:'#C8960A',blue:'#2A6FB5',green:'#1A9060',red:'#C02030',purple:'#7040C8'};
-              const dot = dotColors[n.repeat||'default']||'#AAB8C4';
+              const dot = dotColors[n.time||'default']||'#AAB8C4';
               const bgMap={default:'transparent',amber:'rgba(255,200,50,0.08)',blue:'rgba(50,130,255,0.07)',green:'rgba(40,180,100,0.07)',red:'rgba(200,50,50,0.07)',purple:'rgba(120,70,220,0.08)'};
-              const bg  = bgMap[n.repeat||'default']||'transparent';
+              const bg  = bgMap[n.time||'default']||'transparent';
               return(
                 <div key={n.id} style={{display:'flex',gap:10,padding:'10px 12px',borderRadius:10,background:bg,border:`1px solid ${T.border}`}}>
                   <div style={{width:8,height:8,borderRadius:'50%',background:dot,flexShrink:0,marginTop:5}}/>
