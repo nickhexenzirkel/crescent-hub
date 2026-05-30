@@ -200,11 +200,16 @@ const CentralAlexa = ({onBack}) => {
 
   const loadPlayerState = async () => {
     const { data } = await _supabase
-      .from('player_state').select('*, current:queue!player_state_current_song_id_fkey(*)')
+      .from('player_state').select('*')
       .eq('id', 1).single();
-    if (data) {
-      setIsPlaying(!!data.is_playing);
-      setCurrentSong(data.current || null);
+    if (!data) return;
+    setIsPlaying(!!data.is_playing);
+    if (data.current_song_id) {
+      const { data: song } = await _supabase
+        .from('queue').select('*').eq('id', data.current_song_id).single();
+      setCurrentSong(song || null);
+    } else {
+      setCurrentSong(null);
     }
   };
 
