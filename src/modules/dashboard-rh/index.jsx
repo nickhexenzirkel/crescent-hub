@@ -308,14 +308,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       const isEdit = lembModal && lembModal !== 'new';
       const payload = { ...lembForm, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
       if (isEdit) {
-        await _supabase.from('reminders').update(payload).eq('id', lembModal.id);
+        const { error } = await _supabase.from('reminders').update(payload).eq('id', lembModal.id);
+        if (error) throw new Error(error.message);
       } else {
-        await _supabase.from('reminders').insert({ ...payload, created_at: new Date().toISOString() });
+        const { error } = await _supabase.from('reminders').insert({ ...payload, created_at: new Date().toISOString() });
+        if (error) throw new Error(error.message);
       }
       await loadLembretes();
       setLembModal(null);
       setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'});
-    } catch { setLembMsg('Erro ao salvar'); }
+    } catch (e) { setLembMsg('Erro ao salvar: ' + e.message); }
     setLembSaving(false);
   };
 
@@ -1122,6 +1124,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           title="Testa na Alexa agora sem salvar"
                           style={{padding:'11px 14px',borderRadius:10,border:`1px solid ${T.goldLine}55`,cursor:testingAlexa?'wait':'pointer',background:T.goldGl,color:T.gold,fontSize:13,fontFamily:'var(--font-body)',outline:'none',fontWeight:600}}>
                           {testingAlexa?'...':'▶ Testar'}
+                        </button>
+                      )}
+                      {lembForm.type==='lembrete'&&(
+                        <button onClick={sendNow} disabled={lembSaving}
+                          title="Dispara a bolha do Uniko agora para testar"
+                          style={{padding:'11px 14px',borderRadius:10,border:`1px solid ${T.goldLine}55`,cursor:'pointer',background:T.goldGl,color:T.gold,fontSize:13,fontFamily:'var(--font-body)',outline:'none',fontWeight:600}}>
+                          📲 Testar
                         </button>
                       )}
                       {(lembForm.type==='alexa'||lembForm.type==='aviso_urgente')&&(

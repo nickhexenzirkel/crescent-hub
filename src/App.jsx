@@ -136,9 +136,7 @@ export default function CrescentHub() {
         {authUser && lembreteNotif && (
           <div style={{position:'fixed',bottom:24,left:24,zIndex:9998,display:'flex',alignItems:'flex-end',gap:10,animation:'slideUp .35s ease'}}>
             <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-            <div style={{width:50,height:50,borderRadius:'50%',background:'linear-gradient(135deg,#D89030,#F0A840)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0,boxShadow:'0 4px 16px rgba(216,144,48,0.5)'}}>
-              🎵
-            </div>
+            <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:54,height:54,borderRadius:14,objectFit:'cover',flexShrink:0,boxShadow:'0 4px 20px rgba(216,144,48,0.5)'}}/>
             <div style={{background:'white',borderRadius:16,padding:'14px 16px',boxShadow:'0 8px 30px rgba(0,0,0,0.15)',border:'1.5px solid rgba(216,144,48,0.3)',maxWidth:300}}>
               <div style={{fontSize:10,color:'#D89030',fontWeight:700,marginBottom:5,letterSpacing:'.06em'}}>UNIKO</div>
               <div style={{fontSize:13,color:'#333',lineHeight:1.5,marginBottom:10}}>
