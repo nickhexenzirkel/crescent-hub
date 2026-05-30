@@ -450,7 +450,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue' }) => {
       {notas.length > 0 && (
         <Card style={{padding:'16px',marginTop:12}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-            <span style={{fontSize:13,fontWeight:600,color:T.text}}>📝 Anotações Recentes</span>
+            <span style={{fontSize:13,fontWeight:600,color:T.text,display:'flex',alignItems:'center',gap:6}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Anotações Recentes
+            </span>
             <BtnVer tab="lembretes"/>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>

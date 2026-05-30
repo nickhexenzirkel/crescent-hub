@@ -1103,7 +1103,7 @@ const CentralAlexa = ({onBack}) => {
               {/* Search Bar */}
               <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.gold,filter:"blur(35px)",opacity:0.07,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
-                <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12,position:"relative",zIndex:1}}>🔍 Pesquisar música</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12,position:"relative",zIndex:1}}>Pesquisar música</div>
                 <div style={{position:"relative",zIndex:2}}>
                   <div style={{
                     display:"flex",alignItems:"center",gap:12,
