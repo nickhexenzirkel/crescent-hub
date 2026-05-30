@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
-import { SERVER_URL, _supabase } from './contexts/user';
+import { SERVER_URL, supabase as _supabase } from './contexts/user';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
