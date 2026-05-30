@@ -606,20 +606,31 @@ const CentralAlexa = ({onBack}) => {
     }, 300);
   };
 
-  const sendAlexa = () => {
-    if(!alexaInput.trim()) return;
-    if(!canAskAlexa) return;
+  const sendAlexa = async () => {
+    if (!alexaInput.trim()) return;
+    if (!canAskAlexa) return;
     consumeAlexaRequest();
-    const userMsg = {role:"user",text:alexaInput,ts:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),name:USER.short||'Você'};
-    setAlexaConvo(c=>[...c,userMsg]);
-    setAlexaInput(""); setAlexaTyping(true);
-    const found = ALEXA_RESPONSES.find(r=>r.pat.test(alexaInput));
-    const resp = found ? (typeof found.resp==="function" ? found.resp() : found.resp) :
-      "Hmm, não tenho certeza sobre isso. Posso ajudar com previsão do tempo, horários, músicas e comunicados!";
-    setTimeout(()=>{
-      setAlexaConvo(c=>[...c,{role:"alexa",text:resp,ts:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}]);
-      setAlexaTyping(false);
-    }, 1200);
+    const question = alexaInput;
+    const ts = new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+    setAlexaConvo(c => [...c, {role:"user", text:question, ts, name:USER.short||'Você'}]);
+    setAlexaInput("");
+    setAlexaTyping(true);
+    try {
+      const r = await api('post', '/api/alexa/ask', { question, userName: myName });
+      setAlexaConvo(c => [...c, {
+        role: "alexa",
+        text: r.response || "Não consegui processar sua pergunta.",
+        ts: new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}),
+        spoke: !!r.spoke,
+      }]);
+    } catch {
+      setAlexaConvo(c => [...c, {
+        role: "alexa",
+        text: "Não consegui me conectar ao servidor. Tente novamente!",
+        ts: new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}),
+      }]);
+    }
+    setAlexaTyping(false);
   };
 
   const VETO    = 4;
@@ -1430,7 +1441,10 @@ const CentralAlexa = ({onBack}) => {
                         }}>
                           {m.text}
                         </div>
-                        <div style={{fontSize:10,color:T.textD,marginTop:3,textAlign:m.role==="user"?"right":"left"}}>{m.ts}</div>
+                        <div style={{fontSize:10,color:T.textD,marginTop:3,textAlign:m.role==="user"?"right":"left",display:"flex",alignItems:"center",gap:4,justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+                          {m.role==="alexa"&&m.spoke&&<span title="Falou no Echo Dot" style={{color:"#1A9C70"}}>🔊</span>}
+                          {m.ts}
+                        </div>
                       </div>
                       {m.role==="user"&&(
                         <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"white"}}>
