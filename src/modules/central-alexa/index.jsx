@@ -155,6 +155,7 @@ const CentralAlexa = ({onBack}) => {
   const [skipVotes, setSkipVotes]       = useState({});   // song_id → contagem
   const [myVotedSongs, setMyVotedSongs] = useState(new Set());
   const [spotifyOk, setSpotifyOk]       = useState(false);
+  const [spotifyChecked, setSpotifyChecked] = useState(false);
   const [devices, setDevices]           = useState([]);
   const [showDevices, setShowDevices]   = useState(false);
   const [volume, setVolume]             = useState(50);   // 0-100
@@ -225,6 +226,7 @@ const CentralAlexa = ({onBack}) => {
   const checkSpotify = async () => {
     const r = await api('get', '/api/status').catch(()=>({ok:false}));
     setSpotifyOk(!!r?.ok);
+    setSpotifyChecked(true);
   };
 
   // ── LRCLIB: busca letra sincronizada ─────────────────────
@@ -775,8 +777,8 @@ const CentralAlexa = ({onBack}) => {
 
               {/* Player controls */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
-                {/* Spotify connect banner */}
-                {!spotifyOk&&(
+                {/* Spotify connect banner — só mostra após verificar */}
+                {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11}}>⚠️</span>
                     <span style={{fontSize:11,color:"#C04050",flex:1}}>Spotify desconectado</span>
