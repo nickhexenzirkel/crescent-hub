@@ -138,6 +138,9 @@ export default function CrescentHub() {
       if (!reminders?.length) return;
 
       for (const r of reminders) {
+        // Apenas lembretes pessoais são gerenciados pelo cliente.
+        // alexa, lembrete e aviso_urgente são responsabilidade do cron do servidor.
+        if (r.type !== 'personal') continue;
         if (!r.time || r.time.slice(0, 5) !== hhmm) continue;
 
         let due = false;
