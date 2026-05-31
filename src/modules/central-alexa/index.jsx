@@ -213,6 +213,18 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setFestLoading(false);
   };
 
+  const loadAutoplayState = async () => {
+    const r = await api('get', '/api/player/autoplay').catch(() => null);
+    if (r?.enabled !== undefined) setAutoplayEnabled(r.enabled);
+  };
+
+  const handleToggleAutoplay = async () => {
+    const next = !autoplayEnabled;
+    setAutoplayEnabled(next);
+    const r = await api('post', '/api/player/autoplay', { enabled: next });
+    if (r?.enabled !== undefined) setAutoplayEnabled(r.enabled);
+  };
+
   const loadPlayerState = async () => {
     const { data } = await _supabase
       .from('player_state').select('*')
@@ -333,6 +345,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // ── Máquina do Tempo ─────────────────────────────────────
   const [maquinaData, setMaquinaData]   = useState(null);
   const [maquinaLoading, setMaquinaLoading] = useState(false);
+
+  const [autoplayEnabled, setAutoplayEnabled] = useState(true);
 
   // ── Biblioteca ───────────────────────────────────────────
   const [spPlaylists, setSpPlaylists]         = useState([]);
@@ -526,6 +540,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     checkSpotify();
     loadQueue();
     loadPlayerState();
+    if (isAdmin) loadAutoplayState();
 
     const qSub = _supabase.channel('ch_queue_rt')
       .on('postgres_changes', {event:'*',schema:'public',table:'queue'}, () => loadQueue())
@@ -1051,6 +1066,21 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     title="Pular música (Admin)"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                  </button>
+                  )}
+                  {isAdmin && (
+                  <button onClick={handleToggleAutoplay}
+                    title={autoplayEnabled ? "Desativar autoplay (Admin)" : "Ativar autoplay (Admin)"}
+                    style={{width:36,height:36,borderRadius:9,
+                      border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
+                      background:autoplayEnabled ? T.goldGl : "transparent",
+                      cursor:"pointer",color:autoplayEnabled ? T.gold : T.textS,
+                      display:"flex",alignItems:"center",justifyContent:"center",outline:"none",
+                      transition:"all .15s"}}>
+                    {autoplayEnabled
+                      ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/><polyline points="19 3 19 21"/></svg>
+                      : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v6m0-6L5 3m4 6l10 6m0 0l4 3M19 3v5"/></svg>
+                    }
                   </button>
                   )}
                   {isAdmin && (
