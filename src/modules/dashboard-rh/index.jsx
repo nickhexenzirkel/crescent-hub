@@ -370,7 +370,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const loadLembretes = async () => {
     setLembLoading(true);
     try {
-      const { data } = await _supabase.from('reminders').select('*').order('created_at', { ascending: false });
+      const { data } = await _supabase.from('reminders')
+        .select('*').neq('type', 'personal').order('created_at', { ascending: false });
       setLembretes(data || []);
     } catch {}
     setLembLoading(false);

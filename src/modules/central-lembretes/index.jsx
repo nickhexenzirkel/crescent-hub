@@ -54,7 +54,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const loadLembretes = async () => {
     setLLoading(true);
     const { data } = await _supabase.from('reminders')
-      .select('*').eq('type','lembrete').eq('created_by', userName)
+      .select('*').in('type', ['personal', 'lembrete']).eq('created_by', userName)
       .or('time.is.null,time.not.like.nota:%')
       .order('created_at', { ascending: false });
     setLembretes(data || []);
@@ -64,7 +64,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const loadNotas = async () => {
     setNLoading(true);
     const { data } = await _supabase.from('reminders')
-      .select('*').eq('type','lembrete').like('time','nota:%').eq('created_by', userName)
+      .select('*').in('type', ['personal', 'lembrete']).like('time','nota:%').eq('created_by', userName)
       .order('created_at', { ascending: false });
     setNotas(data || []);
     setNLoading(false);
@@ -78,7 +78,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const saveL = async () => {
     if (!lForm.title.trim()) { setLMsg('Título obrigatório'); return; }
     setLSaving(true); setLMsg('');
-    const payload = { ...lForm, type:'lembrete', created_by: userName, updated_at: new Date().toISOString() };
+    const payload = { ...lForm, type:'personal', created_by: userName, updated_at: new Date().toISOString() };
     if (lEdit) {
       const { error } = await _supabase.from('reminders').update(payload).eq('id', lEdit.id);
       if (error) { setLMsg('Erro: ' + error.message); setLSaving(false); return; }
@@ -109,7 +109,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
       message: nForm.message,
       time:    'nota:' + nForm.color,
       repeat:  'never',
-      type:    'lembrete',
+      type:    'personal',
       active:  true,
       created_by: userName,
       updated_at: new Date().toISOString(),
