@@ -9,14 +9,75 @@ const TrophyIco = ({size=16, stroke='currentColor'}) => (
 const MEDAL_COLORS = ['#D89030','#8A9BB0','#B07040'];
 
 const RANK_CFG = [
-  { bg:'linear-gradient(135deg,#1e0c40 0%,#2d1654 45%,#0d0520 100%)', border:'#9B6FE8', text:'#f0e8ff', count:'#D89030', medalBg:'linear-gradient(135deg,#D89030,#9B6FE8)', ring:'#9B6FE8' },
-  { bg:'linear-gradient(135deg,#2a1800 0%,#4a2e00 55%,#1a0e00 100%)', border:'#D89030', text:'#ffe8c0', count:'#F4C55A', medalBg:'linear-gradient(135deg,#8A9BB0,#b8c8d8)', ring:'#D89030' },
-  { bg:'linear-gradient(135deg,#1a0f3a 0%,#2a1f5a 55%,#1f152e 100%)', border:'#4A9FE8', text:'#e8d8ff', count:'#4A9FE8', medalBg:'linear-gradient(135deg,#B07040,#d4904a)', ring:'#4A9FE8' },
+  // 1º - Estelar
+  { bg:'linear-gradient(135deg,#2a1800 0%,#4a2e00 55%,#1a0e00 100%)', border:'#D89030', text:'#ffe8c0', count:'#F4C55A', medalBg:'linear-gradient(135deg,#D89030,#F4C55A)', ring:'#D89030' },
+  // 2º - Nebula
+  { bg:'linear-gradient(135deg,#1a0f3a 0%,#2a1f5a 55%,#1f152e 100%)', border:'#4A9FE8', text:'#e8d8ff', count:'#4A9FE8', medalBg:'linear-gradient(135deg,#8A9BB0,#b8c8d8)', ring:'#4A9FE8' },
+  // 3º - Supernova
+  { bg:'linear-gradient(135deg,#1e0c40 0%,#2d1654 45%,#0d0520 100%)', border:'#9B6FE8', text:'#f0e8ff', count:'#D89030', medalBg:'linear-gradient(135deg,#B07040,#d4904a)', ring:'#9B6FE8' },
 ];
 
 const RankBg = ({ idx }) => {
   const s = { position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' };
   if (idx === 0) return (
+    // Estelar
+    <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style={s}>
+      <defs>
+        <radialGradient id="rk-est-gl" cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stopColor="#D89030" stopOpacity="0.2"/>
+          <stop offset="100%" stopColor="#D89030" stopOpacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="100" cy="80" rx="75" ry="70" fill="url(#rk-est-gl)"/>
+      <path d="M100,15 L106,42 L128,22 L114,46 L142,46 L118,62 L138,88 L108,74 L108,108 L100,82 L92,108 L92,74 L62,88 L82,62 L58,46 L86,46 L72,22 L94,42 Z" fill="#D89030" opacity="0.07"/>
+      <circle cx="28" cy="28" r="2" fill="#F4C55A" opacity="0.55"/>
+      <circle cx="168" cy="22" r="1.5" fill="#F4C55A" opacity="0.5"/>
+      <circle cx="182" cy="80" r="1" fill="#D89030" opacity="0.65"/>
+      <circle cx="18" cy="135" r="1.5" fill="#F4C55A" opacity="0.4"/>
+      <circle cx="178" cy="172" r="2" fill="#D89030" opacity="0.5"/>
+      <circle cx="42" cy="192" r="1" fill="#F4C55A" opacity="0.55"/>
+      <circle cx="155" cy="150" r="1" fill="#D89030" opacity="0.4"/>
+      <path d="M155,52 L157.2,58 L163,60 L157.2,62 L155,68 L152.8,62 L147,60 L152.8,58 Z" fill="#F4C55A" opacity="0.55"/>
+      <path d="M38,72 L39.8,76.5 L44,78 L39.8,79.5 L38,84 L36.2,79.5 L32,78 L36.2,76.5 Z" fill="#D89030" opacity="0.5"/>
+      <path d="M170,120 L171.5,124 L175,125.5 L171.5,127 L170,131 L168.5,127 L165,125.5 L168.5,124 Z" fill="#F4C55A" opacity="0.4"/>
+      <circle cx="32" cy="28" r="11" fill="#E8C050" opacity="0.22"/>
+      <circle cx="38" cy="24" r="9" fill="#060200" opacity="0.9"/>
+      <path d="M100,195 Q128,178 134,152 Q140,126 122,106 Q104,86 82,98" fill="none" stroke="#D89030" strokeWidth="1.2" opacity="0.18" strokeLinecap="round"/>
+    </svg>
+  );
+  if (idx === 1) return (
+    // Nebula
+    <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style={s}>
+      <defs>
+        <radialGradient id="rk-nb-o1" cx="35%" cy="38%" r="45%">
+          <stop offset="0%" stopColor="#4A9FE8" stopOpacity="0.2"/>
+          <stop offset="100%" stopColor="#4A9FE8" stopOpacity="0"/>
+        </radialGradient>
+        <radialGradient id="rk-nb-o2" cx="68%" cy="62%" r="40%">
+          <stop offset="0%" stopColor="#E87FC5" stopOpacity="0.18"/>
+          <stop offset="100%" stopColor="#E87FC5" stopOpacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="70" cy="84" rx="65" ry="65" fill="url(#rk-nb-o1)"/>
+      <ellipse cx="136" cy="136" rx="55" ry="55" fill="url(#rk-nb-o2)"/>
+      <circle cx="24" cy="18" r="1.5" fill="#C8D8F0" opacity="0.8"/>
+      <circle cx="82" cy="8" r="1" fill="#E8E0FF" opacity="0.7"/>
+      <circle cx="172" cy="14" r="1.5" fill="#C8D8F0" opacity="0.6"/>
+      <circle cx="188" cy="52" r="1" fill="#E8E0FF" opacity="0.55"/>
+      <circle cx="8" cy="92" r="1.5" fill="#C8D8F0" opacity="0.5"/>
+      <circle cx="192" cy="132" r="1" fill="#E8E0FF" opacity="0.6"/>
+      <circle cx="28" cy="188" r="1.5" fill="#C8D8F0" opacity="0.4"/>
+      <circle cx="172" cy="202" r="1" fill="#E8E0FF" opacity="0.5"/>
+      <circle cx="145" cy="52" r="1" fill="#C8D8F0" opacity="0.5"/>
+      <circle cx="58" cy="172" r="1.5" fill="#E8E0FF" opacity="0.45"/>
+      <path d="M100,195 Q132,175 142,145 Q152,115 130,88 Q108,62 78,72 Q48,82 54,114" fill="none" stroke="#4A9FE8" strokeWidth="1.2" opacity="0.28" strokeLinecap="round"/>
+      <path d="M58,28 Q36,62 48,96 Q60,130 94,142 Q128,154 145,122" fill="none" stroke="#E87FC5" strokeWidth="1" opacity="0.22" strokeLinecap="round"/>
+      <path d="M158,38 L159.8,43.5 L165,45.5 L159.8,47.5 L158,53 L156.2,47.5 L151,45.5 L156.2,43.5 Z" fill="#C8D8F0" opacity="0.5"/>
+      <path d="M28,142 L29.5,146 L33.5,147.5 L29.5,149 L28,153 L26.5,149 L22.5,147.5 L26.5,146 Z" fill="#E87FC5" opacity="0.45"/>
+    </svg>
+  );
+  return (
+    // Supernova
     <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style={s}>
       <defs>
         <radialGradient id="rk-sn-gl" cx="50%" cy="30%" r="60%">
@@ -46,61 +107,6 @@ const RankBg = ({ idx }) => {
       <circle cx="168" cy="32" r="12" fill="#C8B0F0" opacity="0.25"/>
       <circle cx="175" cy="28" r="9.5" fill="#050012" opacity="0.95"/>
       <ellipse cx="100" cy="118" rx="60" ry="20" fill="none" stroke="#9B6FE8" strokeWidth="0.8" opacity="0.22" strokeDasharray="5 3"/>
-    </svg>
-  );
-  if (idx === 1) return (
-    <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style={s}>
-      <defs>
-        <radialGradient id="rk-est-gl" cx="50%" cy="40%" r="55%">
-          <stop offset="0%" stopColor="#D89030" stopOpacity="0.2"/>
-          <stop offset="100%" stopColor="#D89030" stopOpacity="0"/>
-        </radialGradient>
-      </defs>
-      <ellipse cx="100" cy="80" rx="75" ry="70" fill="url(#rk-est-gl)"/>
-      <path d="M100,15 L106,42 L128,22 L114,46 L142,46 L118,62 L138,88 L108,74 L108,108 L100,82 L92,108 L92,74 L62,88 L82,62 L58,46 L86,46 L72,22 L94,42 Z" fill="#D89030" opacity="0.07"/>
-      <circle cx="28" cy="28" r="2" fill="#F4C55A" opacity="0.55"/>
-      <circle cx="168" cy="22" r="1.5" fill="#F4C55A" opacity="0.5"/>
-      <circle cx="182" cy="80" r="1" fill="#D89030" opacity="0.65"/>
-      <circle cx="18" cy="135" r="1.5" fill="#F4C55A" opacity="0.4"/>
-      <circle cx="178" cy="172" r="2" fill="#D89030" opacity="0.5"/>
-      <circle cx="42" cy="192" r="1" fill="#F4C55A" opacity="0.55"/>
-      <circle cx="155" cy="150" r="1" fill="#D89030" opacity="0.4"/>
-      <path d="M155,52 L157.2,58 L163,60 L157.2,62 L155,68 L152.8,62 L147,60 L152.8,58 Z" fill="#F4C55A" opacity="0.55"/>
-      <path d="M38,72 L39.8,76.5 L44,78 L39.8,79.5 L38,84 L36.2,79.5 L32,78 L36.2,76.5 Z" fill="#D89030" opacity="0.5"/>
-      <path d="M170,120 L171.5,124 L175,125.5 L171.5,127 L170,131 L168.5,127 L165,125.5 L168.5,124 Z" fill="#F4C55A" opacity="0.4"/>
-      <circle cx="32" cy="28" r="11" fill="#E8C050" opacity="0.22"/>
-      <circle cx="38" cy="24" r="9" fill="#060200" opacity="0.9"/>
-      <path d="M100,195 Q128,178 134,152 Q140,126 122,106 Q104,86 82,98" fill="none" stroke="#D89030" strokeWidth="1.2" opacity="0.18" strokeLinecap="round"/>
-    </svg>
-  );
-  return (
-    <svg viewBox="0 0 200 220" preserveAspectRatio="xMidYMid slice" style={s}>
-      <defs>
-        <radialGradient id="rk-nb-o1" cx="35%" cy="38%" r="45%">
-          <stop offset="0%" stopColor="#4A9FE8" stopOpacity="0.2"/>
-          <stop offset="100%" stopColor="#4A9FE8" stopOpacity="0"/>
-        </radialGradient>
-        <radialGradient id="rk-nb-o2" cx="68%" cy="62%" r="40%">
-          <stop offset="0%" stopColor="#E87FC5" stopOpacity="0.18"/>
-          <stop offset="100%" stopColor="#E87FC5" stopOpacity="0"/>
-        </radialGradient>
-      </defs>
-      <ellipse cx="70" cy="84" rx="65" ry="65" fill="url(#rk-nb-o1)"/>
-      <ellipse cx="136" cy="136" rx="55" ry="55" fill="url(#rk-nb-o2)"/>
-      <circle cx="24" cy="18" r="1.5" fill="#C8D8F0" opacity="0.8"/>
-      <circle cx="82" cy="8" r="1" fill="#E8E0FF" opacity="0.7"/>
-      <circle cx="172" cy="14" r="1.5" fill="#C8D8F0" opacity="0.6"/>
-      <circle cx="188" cy="52" r="1" fill="#E8E0FF" opacity="0.55"/>
-      <circle cx="8" cy="92" r="1.5" fill="#C8D8F0" opacity="0.5"/>
-      <circle cx="192" cy="132" r="1" fill="#E8E0FF" opacity="0.6"/>
-      <circle cx="28" cy="188" r="1.5" fill="#C8D8F0" opacity="0.4"/>
-      <circle cx="172" cy="202" r="1" fill="#E8E0FF" opacity="0.5"/>
-      <circle cx="145" cy="52" r="1" fill="#C8D8F0" opacity="0.5"/>
-      <circle cx="58" cy="172" r="1.5" fill="#E8E0FF" opacity="0.45"/>
-      <path d="M100,195 Q132,175 142,145 Q152,115 130,88 Q108,62 78,72 Q48,82 54,114" fill="none" stroke="#4A9FE8" strokeWidth="1.2" opacity="0.28" strokeLinecap="round"/>
-      <path d="M58,28 Q36,62 48,96 Q60,130 94,142 Q128,154 145,122" fill="none" stroke="#E87FC5" strokeWidth="1" opacity="0.22" strokeLinecap="round"/>
-      <path d="M158,38 L159.8,43.5 L165,45.5 L159.8,47.5 L158,53 L156.2,47.5 L151,45.5 L156.2,43.5 Z" fill="#C8D8F0" opacity="0.5"/>
-      <path d="M28,142 L29.5,146 L33.5,147.5 L29.5,149 L28,153 L26.5,149 L22.5,147.5 L26.5,146 Z" fill="#E87FC5" opacity="0.45"/>
     </svg>
   );
 };
