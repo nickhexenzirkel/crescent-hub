@@ -1891,7 +1891,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.07em', display:'block', marginBottom:6 }}>Funcionário</label>
                     <select value={chForm.employee_name}
                       onChange={e => setChForm(f => ({ ...f, employee_name: e.target.value }))}
-                      style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${chForm.employee_name ? T.goldLine+'88' : T.border}`, borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text, background: cardBg, outline:'none', cursor:'pointer', colorScheme: isDark ? 'dark' : 'light' }}>
+                      style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${chForm.employee_name ? T.goldLine+'88' : T.border}`, borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text, background: isDark ? T.surface : '#ffffff', outline:'none', cursor:'pointer', colorScheme: isDark ? 'dark' : 'light' }}>
                       <option value="">Selecione o funcionário...</option>
                       {empList.filter(e => e.active !== false).sort((a,b) => a.name.localeCompare(b.name)).map(e => (
                         <option key={e.id} value={e.name}>{e.name}</option>
