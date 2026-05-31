@@ -54,56 +54,55 @@ export default function CrescentHub() {
   const seenNotifIds  = useRef(new Set());
   const firedTodayRef = useRef(new Set());
 
-  const playBell = () => {
+  const withCtx = (fn) => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [0, 0.18, 0.36].forEach(d => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = 'sine'; o.frequency.value = 880;
-        g.gain.setValueAtTime(0.25, ctx.currentTime + d);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 1.4);
-        o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 1.4);
-      });
+      const run = () => { try { fn(ctx); } catch {} };
+      ctx.state === 'suspended' ? ctx.resume().then(run).catch(() => {}) : run();
     } catch {}
   };
+
+  const playBell = () => withCtx(ctx => {
+    [0, 0.18, 0.36].forEach(d => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.25, ctx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 1.4);
+      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 1.4);
+    });
+  });
 
   /* Chime ascendente C5→E5→G5→C6, dura ~3 segundos */
-  const playReminder = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [
-        { freq: 523.25, start: 0.0,  dur: 1.1 },
-        { freq: 659.25, start: 0.5,  dur: 1.1 },
-        { freq: 783.99, start: 1.0,  dur: 1.2 },
-        { freq: 1046.5, start: 1.6,  dur: 1.4 },
-      ].forEach(({ freq, start, dur }) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = 'sine';
-        o.frequency.value = freq;
-        g.gain.setValueAtTime(0, ctx.currentTime + start);
-        g.gain.linearRampToValueAtTime(0.55, ctx.currentTime + start + 0.04);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-        o.start(ctx.currentTime + start);
-        o.stop(ctx.currentTime + start + dur);
-      });
-    } catch {}
-  };
+  const playReminder = () => withCtx(ctx => {
+    [
+      { freq: 523.25, start: 0.0,  dur: 1.1 },
+      { freq: 659.25, start: 0.5,  dur: 1.1 },
+      { freq: 783.99, start: 1.0,  dur: 1.2 },
+      { freq: 1046.5, start: 1.6,  dur: 1.4 },
+    ].forEach(({ freq, start, dur }) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, ctx.currentTime + start);
+      g.gain.linearRampToValueAtTime(0.55, ctx.currentTime + start + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      o.start(ctx.currentTime + start);
+      o.stop(ctx.currentTime + start + dur);
+    });
+  });
 
-  const playAlarm = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [0, 0.35, 0.7, 1.05, 1.4].forEach((d, i) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = 'square'; o.frequency.value = i % 2 === 0 ? 880 : 660;
-        g.gain.setValueAtTime(0.15, ctx.currentTime + d);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.3);
-        o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.3);
-      });
-    } catch {}
-  };
+  const playAlarm = () => withCtx(ctx => {
+    [0, 0.35, 0.7, 1.05, 1.4].forEach((d, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'square'; o.frequency.value = i % 2 === 0 ? 880 : 660;
+      g.gain.setValueAtTime(0.15, ctx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.3);
+      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.3);
+    });
+  });
 
   useEffect(() => {
     if (!authUser) return;
@@ -154,13 +153,27 @@ export default function CrescentHub() {
         if (firedTodayRef.current.has(fireKey)) continue;
         firedTodayRef.current.add(fireKey);
 
-        await _supabase.from('notifications').insert({
+        const payload = {
           type:       'lembrete',
           title:      r.title  || 'Lembrete',
           message:    r.message || r.title || 'Você tem um lembrete!',
           active:     true,
           created_at: new Date().toISOString(),
-        });
+        };
+
+        // Insere no banco e obtém o id gerado
+        const { data: inserted } = await _supabase
+          .from('notifications').insert(payload).select('id').single();
+
+        // Monta o objeto local (com id real ou fireKey como fallback)
+        const notifObj = { ...payload, id: inserted?.id ?? fireKey };
+
+        // Marca como visto para o canal realtime não duplicar
+        seenNotifIds.current.add(notifObj.id);
+
+        // Dispara popup e som diretamente, sem esperar o realtime
+        setNotifQueue(q => [...q, notifObj]);
+        playReminder();
       }
     };
 
