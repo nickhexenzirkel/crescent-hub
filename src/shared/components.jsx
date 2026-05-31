@@ -205,8 +205,8 @@ const AvatarCircle = ({ name='?', photo=null, size=38, fontSize=13, rounded='50%
   return (
     <div style={{
       width:size, height:size, borderRadius:rounded, flexShrink:0, overflow:'hidden',
-      background: photo ? undefined : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,
-      backgroundImage: photo ? `url(${photo})` : undefined,
+      backgroundColor: T.gold,
+      backgroundImage: photo ? `url(${photo})` : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,
       backgroundSize:'cover', backgroundPosition:'center',
       display:'flex', alignItems:'center', justifyContent:'center',
       fontSize, fontWeight:700, color:'#fff',
