@@ -78,6 +78,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
+  const [myTrophies,setMyTrophies]= useState([]);
   const [evts,      setEvts]      = useState([]);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
@@ -122,6 +123,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
   /* ── Fetch ── */
   useEffect(() => {
+    _supabase.from('trophies').select('*').eq('to_name', USER.name).order('created_at',{ascending:false})
+      .then(({data})=>setMyTrophies(data||[]));
     _supabase.from('reminders').select('*').in('type',['personal','lembrete']).or('time.is.null,time.not.like.nota:%').eq('active',true).eq('created_by',USER.name)
       .then(({data})=>setLembs(data||[]));
     _supabase.from('reminders').select('*').in('type',['personal','lembrete']).like('time','nota:%').eq('created_by',USER.name)
@@ -334,13 +337,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:11,color:T.textT}}>Troféus</div>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{USER.trophies.length}</div>
+              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{myTrophies.length}</div>
             </div>
             <BtnVer tab="conquistas" label="Ver"/>
           </div>
-          <div style={{display:'flex',gap:4,marginTop:8,minHeight:18}}>
-            {USER.trophies.length>0?USER.trophies.slice(0,5).map((t,i)=><span key={i} style={{fontSize:14}}>{t.icon}</span>)
-              :<span style={{fontSize:11,color:T.textT}}>Nenhum ainda</span>}
+          <div style={{display:'flex',gap:6,marginTop:10,flexWrap:'wrap',minHeight:20}}>
+            {myTrophies.length > 0
+              ? (() => {
+                  const IMGS = { nebula:'/TroféuNebula.png', estelar:'/TroféuEstelar.png', supernova:'/TroféuSupernova.png' };
+                  return myTrophies.slice(0,6).map((t,i) => (
+                    <img key={i} src={IMGS[t.type]||IMGS.nebula} alt={t.type}
+                      onError={e=>{e.target.onerror=null;e.target.style.opacity='0';}}
+                      style={{width:28,height:28,objectFit:'contain'}}/>
+                  ));
+                })()
+              : <span style={{fontSize:11,color:T.textT}}>Nenhum ainda</span>}
           </div>
         </Card>
 
