@@ -78,7 +78,9 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
-  const [myTrophies,setMyTrophies]= useState([]);
+  const [myTrophies,    setMyTrophies]     = useState([]);
+  const [showTrophyModal, setTrophyModal] = useState(false);
+  const [hovTrophyIdx,    setHovTrophy]   = useState(null);
   const [evts,      setEvts]      = useState([]);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
@@ -339,7 +341,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               <div style={{fontSize:11,color:T.textT}}>Troféus</div>
               <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{myTrophies.length}</div>
             </div>
-            <BtnVer tab="conquistas" label="Ver"/>
+            <BtnVer tab="conquistas" onClick={myTrophies.length>0?()=>setTrophyModal(true):undefined} label="Ver"/>
           </div>
           <div style={{display:'flex',gap:6,marginTop:10,flexWrap:'wrap',minHeight:20}}>
             {myTrophies.length > 0
@@ -554,6 +556,77 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setShowPhoto(false)} style={{flex:1,padding:'10px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
               <button onClick={savePhoto} style={{flex:1,padding:'10px',borderRadius:9,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE TROFÉUS ───────────────────────────────────── */}
+      {showTrophyModal && (
+        <div style={{position:'fixed',inset:0,zIndex:3000,background:'rgba(0,0,0,0.65)',
+          backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+          display:'flex',alignItems:'center',justifyContent:'center',padding:24}}
+          onClick={()=>{setTrophyModal(false);setHovTrophy(null);}}>
+          <div onClick={e=>e.stopPropagation()} style={{
+            background:T.dark?T.surface:'#fff',borderRadius:22,
+            width:'100%',maxWidth:700,maxHeight:'85vh',
+            display:'flex',flexDirection:'column',
+            boxShadow:'0 32px 80px rgba(0,0,0,0.40)',
+            border:`1px solid ${T.border}`,overflow:'hidden',
+          }}>
+            {/* Header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'20px 26px',borderBottom:`1px solid ${T.border}`,flexShrink:0,
+              background:`linear-gradient(135deg,${T.goldGl},transparent)`}}>
+              <div>
+                <div style={{fontSize:18,fontWeight:700,color:T.text,fontFamily:'var(--font-body)'}}>Meus Troféus</div>
+                <div style={{fontSize:12,color:T.textT,marginTop:2}}>{myTrophies.length} troféu{myTrophies.length!==1?'s':''} recebido{myTrophies.length!==1?'s':''}</div>
+              </div>
+              <button onClick={()=>{setTrophyModal(false);setHovTrophy(null);}}
+                style={{width:32,height:32,borderRadius:9,border:`1px solid ${T.border}`,
+                  background:'transparent',cursor:'pointer',display:'flex',
+                  alignItems:'center',justifyContent:'center',color:T.textS,fontSize:18}}>×</button>
+            </div>
+
+            {/* Grid */}
+            <div style={{overflowY:'auto',padding:'24px 26px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:16}}>
+                {myTrophies.map((t, i) => {
+                  const IMGS = {nebula:'/TroféuNebula.png',estelar:'/TroféuEstelar.png',supernova:'/TroféuSupernova.png'};
+                  const img  = IMGS[t.type] || IMGS.nebula;
+                  const isHov = hovTrophyIdx === i;
+                  return (
+                    <div key={i}
+                      onMouseEnter={()=>setHovTrophy(i)}
+                      onMouseLeave={()=>setHovTrophy(null)}
+                      style={{position:'relative',borderRadius:16,overflow:'hidden',cursor:'default',
+                        background:T.dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.02)',
+                        border:`1.5px solid ${isHov?T.goldLine+'66':T.border}`,
+                        padding:'20px 12px 14px',textAlign:'center',
+                        transition:'all .15s',
+                        transform:isHov?'translateY(-3px)':'none',
+                        boxShadow:isHov?T.shM:'none'}}>
+                      <img src={img} alt={t.type}
+                        onError={e=>{e.target.onerror=null;e.target.style.opacity='0.2';}}
+                        style={{width:110,height:110,objectFit:'contain',display:'block',margin:'0 auto 10px',
+                          filter:isHov?'drop-shadow(0 6px 18px rgba(0,0,0,0.25))':'none',
+                          transition:'filter .2s, transform .2s',
+                          transform:isHov?'scale(1.06)':'scale(1)'}}/>
+                      {/* Info sempre visível abaixo */}
+                      <div style={{fontSize:12,fontWeight:700,color:T.text,lineHeight:1.3,
+                        overflow:'hidden',textOverflow:'ellipsis',
+                        display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',
+                        marginBottom:4}}>
+                        {t.description}
+                      </div>
+                      <div style={{fontSize:11,color:T.textT}}>De: {t.from_name}</div>
+                      <div style={{fontSize:10,color:T.textD,marginTop:2}}>
+                        {t.created_at?new Date(t.created_at).toLocaleDateString('pt-BR'):''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
