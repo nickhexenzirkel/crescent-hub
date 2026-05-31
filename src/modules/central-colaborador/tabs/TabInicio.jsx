@@ -113,7 +113,9 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [tmpPhoto,  setTmpPhoto]  = useState(null);
   const [tmpPos,    setTmpPos]    = useState({x:50,y:50});
   const [tmpSc,     setTmpSc]     = useState(100);
-  const fileRef = useRef(null);
+  const fileRef     = useRef(null);
+  const dragRef     = useRef(null);   // drag state
+  const imgAspect   = useRef(1);      // naturalHeight/naturalWidth of current photo
 
   const P    = getBanner(activeTheme);
   const now  = new Date();
@@ -239,6 +241,39 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       setPhotoPos(tmpPos); setPhotoSc(tmpSc); setShowPhoto(false);
     }
   };
+
+  /* Mede aspect ratio ao trocar foto */
+  useEffect(() => {
+    if (!tmpPhoto) return;
+    const img = new window.Image();
+    img.onload = () => { imgAspect.current = img.naturalHeight / img.naturalWidth; };
+    img.src = tmpPhoto;
+  }, [tmpPhoto]);
+
+  /* Listeners de drag no documento enquanto modal está aberto */
+  useEffect(() => {
+    if (!showPhoto) return;
+    const PREVIEW = 180;
+    const onMove = (e) => {
+      if (!dragRef.current) return;
+      const dx = e.clientX - dragRef.current.sx;
+      const dy = e.clientY - dragRef.current.sy;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragRef.current.moved = true;
+      const sc = dragRef.current.sc;
+      const spaceX = PREVIEW * (sc / 100 - 1);
+      const spaceY = PREVIEW * (sc / 100 * imgAspect.current - 1);
+      const nx = spaceX > 0.5 ? dragRef.current.px - (dx / spaceX) * 100 : dragRef.current.px;
+      const ny = spaceY > 0.5 ? dragRef.current.py - (dy / spaceY) * 100 : dragRef.current.py;
+      setTmpPos({ x: Math.max(0, Math.min(100, nx)), y: Math.max(0, Math.min(100, ny)) });
+    };
+    const onUp = () => { dragRef.current = null; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [showPhoto]);
 
   /* ════════════════════════════════════════════════════════════════ */
   return (
@@ -526,33 +561,52 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       {/* ══ MODAL: FOTO DE PERFIL ═══════════════════════════════════ */}
       {showPhoto&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.62)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9000,backdropFilter:'blur(6px)'}}>
-          <div style={{background:T.surface,borderRadius:20,padding:28,width:360,boxShadow:'0 20px 60px rgba(0,0,0,.35)',border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:20}}>Editar Foto de Perfil</div>
-            <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
-              <div onClick={()=>fileRef.current?.click()} style={{
-                width:100,height:100,borderRadius:'50%',overflow:'hidden',cursor:'pointer',
-                background:tmpPhoto?undefined:'rgba(0,0,0,.08)',
-                backgroundImage:tmpPhoto?`url(${tmpPhoto})`:undefined,
-                backgroundSize:`${tmpSc}%`,backgroundPosition:`${tmpPos.x}% ${tmpPos.y}%`,backgroundRepeat:'no-repeat',
-                border:`3px solid ${T.gold}44`,display:tmpPhoto?'block':'flex',alignItems:'center',justifyContent:'center',fontSize:32,color:T.textD,
-              }}>{!tmpPhoto&&'📷'}</div>
+          <div style={{background:T.surface,borderRadius:20,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,.35)',border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:6}}>Editar Foto de Perfil</div>
+            {tmpPhoto&&<div style={{fontSize:11,color:T.textT,marginBottom:18}}>
+              Arraste para mover · Scroll para zoom
+            </div>}
+            {!tmpPhoto&&<div style={{height:10}}/>}
+
+            {/* Preview com drag */}
+            <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
+              <div
+                onMouseDown={e=>{
+                  if (!tmpPhoto) return;
+                  e.preventDefault();
+                  dragRef.current = { sx:e.clientX, sy:e.clientY, px:tmpPos.x, py:tmpPos.y, sc:tmpSc, moved:false };
+                }}
+                onWheel={e=>{
+                  if (!tmpPhoto) return;
+                  e.preventDefault();
+                  setTmpSc(s=>Math.max(100, Math.min(300, s+(e.deltaY>0?-8:8))));
+                }}
+                style={{
+                  width:180,height:180,borderRadius:'50%',overflow:'hidden',
+                  cursor: tmpPhoto ? (dragRef.current ? 'grabbing' : 'grab') : 'default',
+                  background:tmpPhoto?undefined:'rgba(0,0,0,.08)',
+                  backgroundImage:tmpPhoto?`url(${tmpPhoto})`:undefined,
+                  backgroundSize:`${tmpSc}%`,backgroundPosition:`${tmpPos.x}% ${tmpPos.y}%`,
+                  backgroundRepeat:'no-repeat',
+                  border:`3px solid ${T.gold}44`,
+                  userSelect:'none', WebkitUserSelect:'none',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:40,color:T.textD,
+                }}>
+                {!tmpPhoto&&(
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="1.4" strokeLinecap="round">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                )}
+              </div>
             </div>
+
             <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:'none'}}/>
             <button onClick={()=>fileRef.current?.click()} style={{width:'100%',padding:'9px',borderRadius:9,border:`1.5px dashed ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)',marginBottom:16}}>
               {tmpPhoto?'↑ Trocar imagem':'↑ Escolher imagem'}
             </button>
-            {tmpPhoto&&(<>
-              {[{label:'Posição horizontal',key:'x'},{label:'Posição vertical',key:'y'}].map(sl=>(
-                <div key={sl.key} style={{marginBottom:12}}>
-                  <div style={{fontSize:12,color:T.textS,marginBottom:4}}>{sl.label}</div>
-                  <input type="range" min={0} max={100} value={tmpPos[sl.key]} onChange={e=>setTmpPos(p=>({...p,[sl.key]:+e.target.value}))} style={{width:'100%',accentColor:T.gold}}/>
-                </div>
-              ))}
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:12,color:T.textS,marginBottom:4}}>Zoom ({tmpSc}%)</div>
-                <input type="range" min={100} max={220} value={tmpSc} onChange={e=>setTmpSc(+e.target.value)} style={{width:'100%',accentColor:T.gold}}/>
-              </div>
-            </>)}
+
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setShowPhoto(false)} style={{flex:1,padding:'10px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
               <button onClick={savePhoto} style={{flex:1,padding:'10px',borderRadius:9,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>Salvar</button>
