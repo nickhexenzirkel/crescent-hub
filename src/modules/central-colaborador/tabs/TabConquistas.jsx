@@ -217,7 +217,7 @@ const TabConquistas = () => {
                 <span style={{ fontSize:15, fontWeight:700, color:T.text }}>Top 3 Ranking</span>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-                {[1,0,2].map(idx => {
+                {[0,1,2].map(idx => {
                   const emp = top3[idx];
                   if (!emp) return <div key={idx}/>;
                   const isFirst = idx === 0;
