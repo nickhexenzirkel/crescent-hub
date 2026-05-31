@@ -133,6 +133,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [spotifySaving, setSpotifySaving]     = useState(false);
   const [spotifyServerStatus, setSpotifyServerStatus] = useState(null); // null | {client_id, has_client_secret, has_refresh_token}
 
+  // ── Contracheques ─────────────────────────────────────────
+  const [chList,       setChList]       = useState([]);
+  const [chLoading,    setChLoading]    = useState(false);
+  const [chForm,       setChForm]       = useState({ employee_name: '', competencia: '' });
+  const [chFile,       setChFile]       = useState(null);
+  const [chFileName,   setChFileName]   = useState('');
+  const [chSaving,     setChSaving]     = useState(false);
+  const [chMsg,        setChMsg]        = useState('');
+  const [chEmpFilter,  setChEmpFilter]  = useState('');
+
   const loadSpotifyServerStatus = async () => {
     try {
       const r = await fetch(`${SERVER_URL}/api/spotify/credentials`, { headers: authHeader() });
@@ -432,6 +442,63 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setLembSaving(false);
   };
 
+  // ── Contracheques: funções ────────────────────────────────
+  const loadContracheques = async () => {
+    setChLoading(true);
+    const { data } = await _supabase.from('contracheques').select('*').order('created_at', { ascending: false });
+    setChList(data || []);
+    setChLoading(false);
+  };
+
+  const uploadContracheque = async () => {
+    if (!chForm.employee_name || !chForm.competencia || !chFile) {
+      setChMsg('⚠️ Selecione o funcionário, competência e o arquivo PDF');
+      setTimeout(() => setChMsg(''), 4000);
+      return;
+    }
+    setChSaving(true); setChMsg('');
+    try {
+      const safeName = chForm.employee_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const safeComp = chForm.competencia.replace(/[\\/]/g, '-').replace(/\s+/g, '_');
+      const filePath = `${safeName}/${safeComp}_${Date.now()}.pdf`;
+
+      const { error: upErr } = await _supabase.storage
+        .from('contracheques')
+        .upload(filePath, chFile, { contentType: 'application/pdf', upsert: false });
+      if (upErr) throw new Error('Erro no upload: ' + upErr.message);
+
+      const { data: urlData } = _supabase.storage.from('contracheques').getPublicUrl(filePath);
+
+      const { error: insErr } = await _supabase.from('contracheques').insert({
+        employee_name: chForm.employee_name,
+        competencia:   chForm.competencia,
+        file_url:      urlData.publicUrl,
+        created_at:    new Date().toISOString(),
+      });
+      if (insErr) throw new Error('Erro ao salvar: ' + insErr.message);
+
+      setChMsg('✅ Contracheque anexado com sucesso!');
+      setChForm({ employee_name: '', competencia: '' });
+      setChFile(null); setChFileName('');
+      await loadContracheques();
+    } catch (e) { setChMsg('❌ ' + (e.message || 'Tente novamente')); }
+    setChSaving(false);
+    setTimeout(() => setChMsg(''), 6000);
+  };
+
+  const deleteContracheque = async (id) => {
+    if (!window.confirm('Remover este contracheque permanentemente?')) return;
+    await _supabase.from('contracheques').delete().eq('id', id);
+    await loadContracheques();
+  };
+
+  useEffect(() => {
+    if (tab === 'contracheques') {
+      loadContracheques();
+      if (empList.length === 0) loadEmployees();
+    }
+  }, [tab]);
+
   const genPw = () => {
     const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
     return Array.from({length:10},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
@@ -465,6 +532,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const TABS=[
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
@@ -1790,6 +1858,216 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     </div>
                   ))}
                 </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── TAB: CONTRACHEQUES ── */}
+          {tab === 'contracheques' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+              {/* Header */}
+              <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+                <div>
+                  <div style={{ fontFamily:'var(--font-brand)', fontSize:18, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>Contracheques</div>
+                  <div style={{ fontSize:13, color:T.textS, marginTop:2 }}>
+                    {chList.length} documento{chList.length !== 1 ? 's' : ''} · Envie PDFs de pagamento para cada colaborador
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 14px', borderRadius:10, background:T.goldGl, border:`1px solid ${T.goldLine}44` }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span style={{ fontSize:12, fontWeight:600, color:T.gold }}>Supabase Storage</span>
+                </div>
+              </div>
+
+              {/* Form: anexar novo */}
+              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+                <div style={{ fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>Anexar Novo Contracheque</div>
+                <div style={{ fontSize:13, color:T.textT, marginBottom:18 }}>Selecione o funcionário, informe a competência e faça upload do PDF.</div>
+
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                  {/* Funcionário */}
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.07em', display:'block', marginBottom:6 }}>Funcionário</label>
+                    <select value={chForm.employee_name}
+                      onChange={e => setChForm(f => ({ ...f, employee_name: e.target.value }))}
+                      style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${chForm.employee_name ? T.goldLine+'88' : T.border}`, borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text, background:isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : (T.surface||'white'), outline:'none', cursor:'pointer' }}>
+                      <option value="">Selecione o funcionário...</option>
+                      {empList.filter(e => e.active !== false).sort((a,b) => a.name.localeCompare(b.name)).map(e => (
+                        <option key={e.id} value={e.name}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Competência */}
+                  <div>
+                    <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.07em', display:'block', marginBottom:6 }}>Competência</label>
+                    <input
+                      value={chForm.competencia}
+                      onChange={e => setChForm(f => ({ ...f, competencia: e.target.value }))}
+                      placeholder="Ex: Janeiro/2025"
+                      style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${chForm.competencia ? T.goldLine+'88' : T.border}`, borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text, background:isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : (T.surface||'white'), outline:'none', boxSizing:'border-box' }}/>
+                  </div>
+                </div>
+
+                {/* File picker */}
+                <div style={{ marginBottom:18 }}>
+                  <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.07em', display:'block', marginBottom:6 }}>Arquivo PDF</label>
+                  <label style={{
+                    display:'flex', alignItems:'center', gap:12, padding:'14px 18px',
+                    border:`2px dashed ${chFile ? T.goldLine : T.border}`,
+                    borderRadius:12, cursor:'pointer',
+                    background: chFile ? T.goldGl : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'),
+                    transition:'all .15s',
+                  }}>
+                    <input type="file" accept="application/pdf" style={{ display:'none' }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) { setChFile(f); setChFileName(f.name); }
+                        e.target.value = '';
+                      }}/>
+                    <div style={{ width:38, height:38, borderRadius:10, background: chFile ? T.goldGl : (T.surfaceSub||'rgba(0,0,0,0.04)'), border:`1px solid ${chFile ? T.goldLine+'44' : T.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={chFile ? T.gold : T.textD} strokeWidth="1.8" strokeLinecap="round">
+                        {chFile
+                          ? <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></>
+                          : <><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>}
+                      </svg>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color: chFile ? T.text : T.textD, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {chFileName || 'Clique para selecionar o PDF'}
+                      </div>
+                      <div style={{ fontSize:11, color:T.textT, marginTop:2 }}>
+                        {chFile ? `${(chFile.size/1024/1024).toFixed(2)} MB` : 'Apenas arquivos .pdf'}
+                      </div>
+                    </div>
+                    {chFile && (
+                      <button type="button"
+                        onClick={e => { e.preventDefault(); setChFile(null); setChFileName(''); }}
+                        style={{ background:'none', border:'none', cursor:'pointer', color:T.textD, padding:4, borderRadius:6, flexShrink:0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    )}
+                  </label>
+                </div>
+
+                {/* Mensagem */}
+                {chMsg && (
+                  <div style={{ padding:'10px 14px', borderRadius:9, marginBottom:14, fontSize:12,
+                    background: chMsg.startsWith('✅') ? 'rgba(34,197,94,0.08)' : 'rgba(192,64,80,0.06)',
+                    border:`1px solid ${chMsg.startsWith('✅') ? 'rgba(34,197,94,0.25)' : 'rgba(192,64,80,0.20)'}`,
+                    color: chMsg.startsWith('✅') ? '#16a34a' : '#C04050' }}>
+                    {chMsg}
+                  </div>
+                )}
+
+                <button onClick={uploadContracheque} disabled={chSaving}
+                  style={{ width:'100%', padding:'12px', borderRadius:10, border:'none', cursor: chSaving ? 'wait' : 'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', boxShadow:`0 4px 16px ${T.goldLine}44`, transition:'opacity .15s', opacity: chSaving ? 0.7 : 1 }}>
+                  {chSaving ? 'Enviando...' : '📎 Anexar Contracheque'}
+                </button>
+              </Card>
+
+              {/* Lista de contracheques */}
+              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+                  <div>
+                    <div style={{ fontSize:16, fontWeight:700, color:T.text }}>Contracheques Enviados</div>
+                    <div style={{ fontSize:13, color:T.textT, marginTop:2 }}>Todos os documentos anexados</div>
+                  </div>
+                  {/* Filtro por funcionário */}
+                  <div style={{ position:'relative' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}>
+                      <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input
+                      value={chEmpFilter}
+                      onChange={e => setChEmpFilter(e.target.value)}
+                      placeholder="Filtrar por funcionário..."
+                      style={{ paddingLeft:30, paddingRight:12, paddingTop:8, paddingBottom:8, border:`1.5px solid ${T.border}`, borderRadius:9, fontFamily:'var(--font-body)', fontSize:12, color:T.text, background:isDark?(T.surfaceSub||'rgba(255,255,255,0.05)'):(T.surface||'white'), outline:'none', width:200 }}/>
+                  </div>
+                </div>
+
+                {chLoading ? (
+                  <div style={{ textAlign:'center', padding:'32px 0', color:T.textT }}>
+                    <div style={{ width:20, height:20, borderRadius:'50%', border:`2px solid ${T.gold}`, borderTopColor:'transparent', animation:'spin .7s linear infinite', margin:'0 auto 10px' }}/>
+                    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                    Carregando contracheques...
+                  </div>
+                ) : chList.filter(c => !chEmpFilter || c.employee_name?.toLowerCase().includes(chEmpFilter.toLowerCase())).length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'36px 0', color:T.textT }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="1.4" strokeLinecap="round" style={{ margin:'0 auto 12px', display:'block' }}>
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <div style={{ fontSize:14, fontWeight:500 }}>{chEmpFilter ? 'Nenhum resultado para o filtro' : 'Nenhum contracheque cadastrado ainda'}</div>
+                    <div style={{ fontSize:12, marginTop:4, opacity:.6 }}>Use o formulário acima para anexar</div>
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {chList
+                      .filter(c => !chEmpFilter || c.employee_name?.toLowerCase().includes(chEmpFilter.toLowerCase()))
+                      .map((ch, i) => (
+                        <div key={ch.id || i} style={{
+                          display:'flex', alignItems:'center', gap:14, padding:'14px 18px',
+                          background: isDark ? (T.surfaceSub||'rgba(255,255,255,0.03)') : (T.surface||'rgba(0,0,0,0.015)'),
+                          border:`1px solid ${T.border}`, borderRadius:12, transition:'border-color .15s',
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = `${T.goldLine}55`}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+                          {/* Ícone PDF */}
+                          <div style={{ width:40, height:40, borderRadius:10, background:T.goldGl, border:`1px solid ${T.goldLine}22`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round">
+                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                          </div>
+                          {/* Info */}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:14, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              {ch.employee_name}
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:3 }}>
+                              <span style={{ fontSize:12, fontWeight:500, color:T.gold, background:T.goldGl, border:`1px solid ${T.goldLine}33`, borderRadius:6, padding:'1px 8px' }}>
+                                {ch.competencia}
+                              </span>
+                              <span style={{ fontSize:11, color:T.textT }}>
+                                {ch.created_at ? new Date(ch.created_at).toLocaleDateString('pt-BR') : '—'}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Ações */}
+                          <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+                            {ch.file_url && (
+                              <a href={ch.file_url} target="_blank" rel="noreferrer" title="Visualizar PDF"
+                                style={{ width:34, height:34, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(42,109,181,0.10)', border:`1px solid rgba(42,109,181,0.25)`, color:'#2A6DB5', textDecoration:'none', transition:'background .14s' }}
+                                onMouseEnter={e => e.currentTarget.style.background='rgba(42,109,181,0.20)'}
+                                onMouseLeave={e => e.currentTarget.style.background='rgba(42,109,181,0.10)'}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                              </a>
+                            )}
+                            {ch.file_url && (
+                              <a href={ch.file_url} download title="Baixar PDF"
+                                style={{ width:34, height:34, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(40,168,112,0.10)', border:'1px solid rgba(40,168,112,0.25)', color:'#28A870', textDecoration:'none', transition:'background .14s' }}
+                                onMouseEnter={e => e.currentTarget.style.background='rgba(40,168,112,0.20)'}
+                                onMouseLeave={e => e.currentTarget.style.background='rgba(40,168,112,0.10)'}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                              </a>
+                            )}
+                            <button title="Remover" onClick={() => deleteContracheque(ch.id)}
+                              style={{ width:34, height:34, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(192,64,80,0.08)', border:'1px solid rgba(192,64,80,0.22)', color:'#C04050', cursor:'pointer', transition:'background .14s' }}
+                              onMouseEnter={e => e.currentTarget.style.background='rgba(192,64,80,0.18)'}
+                              onMouseLeave={e => e.currentTarget.style.background='rgba(192,64,80,0.08)'}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </Card>
             </div>
           )}
