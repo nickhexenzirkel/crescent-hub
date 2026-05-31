@@ -30,11 +30,20 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/>
     </svg>
   );
+  const IcoMercado = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <path d="M16 10a4 4 0 01-8 0"/>
+      <path d="M12 13l1.5 1.5L16 12"/>
+    </svg>
+  );
   const allMods=[
-    {id:'colaborador', label:'Portal do Colaborador', sub:'Portal RH completo',             icon:IcoColab, color:T.gold, bg:T.goldGl, tag:'Principal', adminOnly:false},
-    {id:'alexa',       label:'Central Alexa',          sub:'Festival · Música · Biblioteca', icon:IcoAlexa, color:T.gold, bg:T.goldGl, tag:'Música',    adminOnly:false},
-    {id:'dashboard',   label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,  color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
-    {id:'ponto',       label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto, color:T.gold, bg:T.goldGl, tag:'Admin',     adminOnly:true},
+    {id:'colaborador',    label:'Portal do Colaborador', sub:'Portal RH completo',             icon:IcoColab,   color:T.gold,    bg:T.goldGl,              tag:'Principal', adminOnly:false},
+    {id:'alexa',          label:'Central Alexa',          sub:'Festival · Música · Biblioteca', icon:IcoAlexa,   color:T.gold,    bg:T.goldGl,              tag:'Música',    adminOnly:false},
+    {id:'mercado-estelar',label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',icon:IcoMercado, color:'#8B5CF6', bg:'rgba(139,92,246,0.09)', tag:'Em Breve',  adminOnly:false, comingSoon:true},
+    {id:'dashboard',      label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,    color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
+    {id:'ponto',          label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto,   color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
   const cols  = mods.length <= 3 ? 3 : 3;
@@ -75,18 +84,23 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       </div>
 
       <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,
-        gap:18,width:'100%',maxWidth: mods.length<=3 ? 900 : 1050}}>
+        gap:18,width:'100%',maxWidth: mods.length<=3 ? 900 : 1200}}>
         {mods.map(m=>(
-          <div key={m.id} onClick={()=>onSelect(m.id)}
+          <div key={m.id}
+            onClick={m.comingSoon ? undefined : ()=>onSelect(m.id)}
             onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
             style={{background:T.surface,
-              border:`1px solid ${hov===m.id?m.color+'55':T.border}`,
-              borderRadius:18,boxShadow:hov===m.id?T.shL:T.sh,padding:'36px 30px',
-              cursor:'pointer',transform:hov===m.id?'translateY(-6px)':'none',
+              border:`1px solid ${hov===m.id && !m.comingSoon ? m.color+'55' : m.comingSoon ? m.color+'33' : T.border}`,
+              borderRadius:18,
+              boxShadow: m.comingSoon ? T.sh : hov===m.id ? T.shL : T.sh,
+              padding:'36px 30px',
+              cursor: m.comingSoon ? 'default' : 'pointer',
+              transform: m.comingSoon ? 'none' : hov===m.id ? 'translateY(-6px)' : 'none',
+              opacity: m.comingSoon ? 0.82 : 1,
               transition:'all .25s cubic-bezier(.16,1,.3,1)',
               position:'relative',overflow:'hidden',fontFamily:'var(--font-body)'}}>
             <div style={{position:'absolute',top:0,left:'15%',right:'15%',height:2,
-              background:`linear-gradient(90deg,transparent,${T.goldV},transparent)`,
+              background:`linear-gradient(90deg,transparent,${m.comingSoon?m.color+'66':T.goldV},transparent)`,
               borderRadius:999}}/>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
               <div style={{width:54,height:54,borderRadius:14,background:m.bg,
@@ -97,18 +111,26 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             <div style={{fontSize:19,fontWeight:600,color:T.text,marginBottom:7}}>{m.label}</div>
             <div style={{fontSize:14,color:T.textS,marginBottom:22,lineHeight:1.65}}>{m.sub}</div>
             <div style={{marginBottom:18}}></div>
-            <div style={{display:'flex',alignItems:'center',gap:8,color:m.color,fontSize:13,fontWeight:500}}>
-              <svg width="11" height="11" viewBox="0 0 14 14"
-                style={{flexShrink:0,animation:'starPulse 2s ease-in-out infinite',animationDelay:`${mods.indexOf(m)*0.3}s`}}>
-                <path d="M7 1 L7.8 5.4 L12 7 L7.8 8.6 L7 13 L6.2 8.6 L2 7 L6.2 5.4 Z" fill={m.color}/>
-              </svg>
-              Acessar
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                style={{transition:'transform .18s',transform:hov===m.id?'translateX(4px)':'none'}}>
-                <path d="M2.5 7H11.5M11.5 7L8 3.5M11.5 7L8 10.5"
-                  stroke={m.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+            {m.comingSoon
+              ? <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:m.color}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={m.color} strokeWidth="1.8" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  Em breve
+                </div>
+              : <div style={{display:'flex',alignItems:'center',gap:8,color:m.color,fontSize:13,fontWeight:500}}>
+                  <svg width="11" height="11" viewBox="0 0 14 14"
+                    style={{flexShrink:0,animation:'starPulse 2s ease-in-out infinite',animationDelay:`${mods.indexOf(m)*0.3}s`}}>
+                    <path d="M7 1 L7.8 5.4 L12 7 L7.8 8.6 L7 13 L6.2 8.6 L2 7 L6.2 5.4 Z" fill={m.color}/>
+                  </svg>
+                  Acessar
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                    style={{transition:'transform .18s',transform:hov===m.id?'translateX(4px)':'none'}}>
+                    <path d="M2.5 7H11.5M11.5 7L8 3.5M11.5 7L8 10.5"
+                      stroke={m.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+            }
           </div>
         ))}
       </div>
