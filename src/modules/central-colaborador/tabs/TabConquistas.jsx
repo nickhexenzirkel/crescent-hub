@@ -30,7 +30,7 @@ const TrophyCard = ({ trophy, highlighted, onClick }) => {
       }}>
       <img src={def.img} alt={def.label}
         onError={e => { e.target.onerror=null; e.target.style.opacity='0'; }}
-        style={{ width:80, height:80, objectFit:'contain' }}/>
+        style={{ width:110, height:110, objectFit:'contain' }}/>
       <div style={{ textAlign:'center', width:'100%' }}>
         <div style={{ fontSize:13, fontWeight:700, color:T.text, marginBottom:4,
           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -167,7 +167,7 @@ const TabConquistas = () => {
             <div style={{ fontSize:14, color:T.textT }}>Nenhum troféu ainda</div>
           </Card>
         ) : (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:16 }}>
             {empTrophies.map((t, i) => (
               <TrophyCard key={i} trophy={t} highlighted={i===0} onClick={() => setDetail(t)}/>
             ))}
@@ -253,49 +253,49 @@ const TabConquistas = () => {
                 outline:'none', boxSizing:'border-box' }}/>
           </div>
 
-          {/* Employee grid */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
+          {/* Employee grid — máximo 5 colunas */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
             {filtered.map((emp, i) => {
               const rank = rankingAll.findIndex(e => e.name === emp.name) + 1;
               const isMe = emp.name === USER.name;
               return (
                 <div key={emp.id || emp.name} style={{
-                  borderRadius:16, border:`1.5px solid ${isMe ? T.goldLine+'55' : T.border}`,
+                  borderRadius:18, border:`1.5px solid ${isMe ? T.goldLine+'55' : T.border}`,
                   background: isMe ? T.goldGl : (T.dark ? T.surface : '#fff'),
-                  padding:'20px 16px', position:'relative',
+                  padding:'26px 18px 20px', position:'relative',
                 }}>
                   {/* Rank badge */}
-                  <div style={{ position:'absolute', top:10, right:12,
-                    width:24, height:24, borderRadius:'50%', fontSize:11, fontWeight:700,
+                  <div style={{ position:'absolute', top:12, right:14,
+                    width:28, height:28, borderRadius:'50%', fontSize:12, fontWeight:700,
                     display:'flex', alignItems:'center', justifyContent:'center',
                     background: rank===1?'#D89030':rank===2?'#8A9BB0':rank===3?'#B07040':T.surfaceSub||'rgba(0,0,0,0.07)',
                     color: rank<=3?'white':T.textD }}>
                     {rank<=3 ? ['🥇','🥈','🥉'][rank-1] : rank}
                   </div>
 
-                  <div style={{ display:'flex', justifyContent:'center', marginBottom:12 }}>
-                    <AvatarCircle name={emp.name} photo={photos[emp.name]} size={58} fontSize={20}/>
+                  <div style={{ display:'flex', justifyContent:'center', marginBottom:14 }}>
+                    <AvatarCircle name={emp.name} photo={photos[emp.name]} size={76} fontSize={24}/>
                   </div>
                   <div style={{ textAlign:'center' }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:T.text, lineHeight:1.35, marginBottom:3,
+                    <div style={{ fontSize:14, fontWeight:700, color:T.text, lineHeight:1.35, marginBottom:4,
                       overflow:'hidden', textOverflow:'ellipsis',
                       display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
                       {emp.name}
                     </div>
-                    <div style={{ fontSize:11, color:T.textT, marginBottom:10,
+                    <div style={{ fontSize:12, color:T.textT, marginBottom:12,
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                       {emp.cargo || emp.role || 'Colaborador'}
                     </div>
-                    <div style={{ fontSize:13, fontWeight:600, color:T.gold, marginBottom:12 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:T.gold, marginBottom:14 }}>
                       🏆 {emp.count} troféu{emp.count !== 1 ? 's' : ''}
                     </div>
                     <button onClick={() => setViewing(emp)}
-                      style={{ width:'100%', padding:'8px', borderRadius:9,
+                      style={{ width:'100%', padding:'10px', borderRadius:10,
                         border:`1.5px solid ${T.goldLine}44`,
                         background: T.goldGl, color:T.gold, fontWeight:600,
                         fontSize:12, cursor:'pointer', fontFamily:'var(--font-body)',
                         display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-                      <span style={{ fontSize:13 }}>🏆</span> Ver Conquistas
+                      <span style={{ fontSize:14 }}>🏆</span> Ver Conquistas
                     </button>
                   </div>
                 </div>
