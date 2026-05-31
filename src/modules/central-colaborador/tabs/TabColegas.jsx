@@ -94,6 +94,12 @@ const TabColegas = () => {
     setMonthly((data||[]).length);
   };
 
+  const openProfile = (emp) => {
+    setSelected(emp);
+    setShowGift(false);
+    setGiftResult('');
+  };
+
   const openGift = async () => {
     setGiftType(isAdmin ? 'nebula' : 'nebula');
     setGiftDesc(''); setGiftMsg(''); setGiftResult('');
