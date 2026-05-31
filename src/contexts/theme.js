@@ -310,6 +310,22 @@ const THEMES = {
 
 };
 
+/* Mapeamento tema → imagem do Uniko (arquivos em /public) */
+const UNIKO_SRC = {
+  blue:        '/Uniko.png',
+  blueDark:    '/Uniko.png',
+  purple:      '/UnikoRoxo.png',
+  purpleDark:  '/UnikoRoxo.png',
+  pink:        '/UnikoRosa.png',
+  pinkDark:    '/UnikoRosa.png',
+  green:       '/UnikoVerde.png',
+  greenDark:   '/UnikoVerde.png',
+  orange:      '/UnikoLaranja.png',
+  orangeDark:  '/UnikoLaranja.png',
+  red:         '/UnikoVermelho.png',
+  redDark:     '/UnikoVermelho.png',
+};
+
 /* T é mutável — inicializado com o tema salvo no localStorage */
 const _initThemeKey = (typeof localStorage !== 'undefined' && localStorage.getItem('ch_theme')) || 'blue';
 const _initTheme    = THEMES[_initThemeKey] || THEMES.blue;
@@ -329,6 +345,7 @@ let T = {
   sh:'0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.06)',
   shM:'0 2px 8px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08)',
   shL:'0 4px 16px rgba(0,0,0,0.07), 0 16px 44px rgba(0,0,0,0.10)',
+  unikoSrc: UNIKO_SRC[_initThemeKey] || '/Uniko.png',
   ..._initTheme,
 };
 
@@ -337,8 +354,7 @@ const applyTheme = (key) => {
     border:'rgba(0,0,0,0.07)', divider:'rgba(0,0,0,0.05)',
     surface:'#FFFFFF', surfaceW:'rgba(255,255,255,0.85)',
   };
-  Object.assign(T, base, THEMES[key]);
-  /* Atualiza scrollbar via CSS variable */
+  Object.assign(T, base, THEMES[key], { unikoSrc: UNIKO_SRC[key] || '/Uniko.png' });
   document.documentElement.style.setProperty(
     '--scroll-color', THEMES[key].goldLine + '55'
   );

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import { SERVER_URL } from '../contexts/user';
 import { StarDivider, Logo } from './components';
-import unikoLogo from '../assets/Uniko.png';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
 
 const Ico = ({ d, size = 16, stroke = 'currentColor' }) => (
@@ -74,8 +73,8 @@ const LoginScreen = ({ onLogin }) => {
 
         {/* logos de parceria */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 28 }}>
-          <img src={unikoLogo} alt="Uniko"
-            style={{ width: 96, height: 96, objectFit: 'contain', filter: 'drop-shadow(0 6px 24px rgba(14,60,180,0.28))' }}/>
+          <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko"
+            style={{ width: 96, height: 96, objectFit: 'contain', filter: `drop-shadow(0 6px 24px ${T.goldLine}44)` }}/>
           <div style={{ width: 1, height: 72, background: T.border, flexShrink: 0, opacity: 0.6 }}/>
           <img src={logoNicolas} alt="Nicolas Andrade"
             style={{ height: 96, width: 'auto', objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.85 : 1 }}/>

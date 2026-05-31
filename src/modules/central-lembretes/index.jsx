@@ -200,7 +200,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
               </div>
             : lembretes.length === 0
               ? <div style={{ textAlign:'center', padding:'60px 0', color:T.textT }}>
-                  <img src="/Uniko.png" alt="" style={{ width:70, opacity:.35, display:'block', margin:'0 auto 14px' }}/>
+                  <img src={T.unikoSrc || '/Uniko.png'} alt="" style={{ width:70, opacity:.35, display:'block', margin:'0 auto 14px' }}/>
                   <div style={{ fontSize:15, marginBottom:6 }}>Nenhum lembrete ainda</div>
                   <div style={{ fontSize:13, opacity:.65 }}>Crie um e o Uniko te avisa no horário!</div>
                 </div>

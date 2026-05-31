@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
-import unikoLogo from '../assets/Uniko.png';
 
 const LavaLamp = () => (
   <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
@@ -93,15 +92,15 @@ const Logo = ({size=64}) => (
     }}/>
 );
 
-/* Logo principal da marca — Uniko.png (hero em login, landing, módulos) */
+/* Logo principal da marca — troca com o tema via T.unikoSrc */
 const BrandLogo = ({size=120}) => (
-  <img src={unikoLogo} alt="Uniko"
+  <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko"
     style={{
       width:size, height:size,
       objectFit:'contain',
       display:'block',
       flexShrink:0,
-      filter:'drop-shadow(0 6px 24px rgba(14,60,180,0.22))',
+      filter:`drop-shadow(0 6px 24px ${T.goldLine}44)`,
     }}/>
 );
 

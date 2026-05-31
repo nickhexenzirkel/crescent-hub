@@ -223,7 +223,7 @@ export default function CrescentHub() {
                 100%{border-color:#1A6FB5;box-shadow:0 8px 30px rgba(26,111,181,0.35)}
               }
             `}</style>
-            <img src="/Uniko.png" alt="Uniko" style={{width:64,height:64,objectFit:'contain',flexShrink:0,filter:'drop-shadow(0 4px 12px rgba(26,111,181,0.4))'}}/>
+            <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko" style={{width:64,height:64,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 4px 12px ${T.goldLine}66)`}}/>
             <div style={{background:'white',borderRadius:16,padding:'14px 16px',maxWidth:300,border:'2px solid #1A6FB5',animation:'bluePulse 1.8s ease-in-out infinite'}}>
               <div style={{fontSize:10,color:'#1A6FB5',fontWeight:700,marginBottom:5,letterSpacing:'.06em'}}>UNIKO</div>
               <div style={{fontSize:13,color:'#333',lineHeight:1.5,marginBottom:10}}>

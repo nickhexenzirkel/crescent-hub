@@ -1749,7 +1749,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:T.gold,filter:"blur(40px)",opacity:0.08,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.goldL||T.gold,filter:"blur(30px)",opacity:0.06,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
-                <img src="/Uniko.png" alt="Uniko" style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
+                <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko" style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
                 <div style={{textAlign:"center",position:"relative",zIndex:1}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Uniko x Alexa</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:2}}>Pergunte sobre tempo, eventos, músicas, lembretes...</div>
