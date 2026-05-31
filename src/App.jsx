@@ -166,14 +166,19 @@ export default function CrescentHub() {
           created_at: new Date().toISOString(),
         };
 
-        // Insere no banco e obtém o id gerado
-        const { data: inserted } = await _supabase
-          .from('notifications').insert(payload).select('id').single();
+        // Lembretes pessoais (type='personal') só disparam localmente — sem inserir
+        // na tabela notifications, para não vazar o aviso para outros usuários via realtime.
+        // Lembretes do DashboardRH (lembrete/alexa/urgente) inserem no banco → broadcast.
+        let notifObj;
+        if (r.type === 'personal') {
+          notifObj = { ...payload, id: fireKey };
+        } else {
+          const { data: inserted } = await _supabase
+            .from('notifications').insert(payload).select('id').single();
+          notifObj = { ...payload, id: inserted?.id ?? fireKey };
+        }
 
-        // Monta o objeto local (com id real ou fireKey como fallback)
-        const notifObj = { ...payload, id: inserted?.id ?? fireKey };
-
-        // Marca como visto para o canal realtime não duplicar
+        // Marca como visto para o canal realtime não duplicar (broadcast)
         seenNotifIds.current.add(notifObj.id);
 
         // Dispara popup e som diretamente, sem esperar o realtime
