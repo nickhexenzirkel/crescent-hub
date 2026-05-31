@@ -379,14 +379,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const saveLembrete = async () => {
     if(!lembForm.title.trim()) { setLembMsg('Título obrigatório'); return; }
-    // aviso_urgente não pode ser agendado (check constraint da tabela reminders)
-    if(lembForm.type === 'aviso_urgente') { sendNow(); return; }
     setLembSaving(true); setLembMsg('');
     const auth = getAuthUser();
     try {
       const isEdit = lembModal && lembModal !== 'new';
       const { fanfare: _f, sound: _s, ...lembData } = lembForm;
-      const payload = { ...lembData, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
+      // aviso_urgente não é permitido no type check constraint da tabela reminders.
+      // Guardamos como 'lembrete' com prefixo __urgent__ na mensagem para o scheduler identificar.
+      const storedType    = lembData.type === 'aviso_urgente' ? 'lembrete' : lembData.type;
+      const storedMessage = lembData.type === 'aviso_urgente' ? '__urgent__' + (lembData.message || '') : lembData.message;
+      const payload = { ...lembData, type: storedType, message: storedMessage, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
       if (isEdit) {
         const { error } = await _supabase.from('reminders').update(payload).eq('id', lembModal.id);
         if (error) throw new Error(error.message);
@@ -1295,9 +1297,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         Nenhum lembrete criado ainda.
                       </div>
                     : lembretes.map((l,i)=>{
-                        const typeColor = {lembrete:T.blue,alexa:T.gold,reuniao:T.purple||'#7060C8',aviso:'#E91E8C'};
-                        const color = typeColor[l.type]||T.gold;
-                        const typeLabel = {lembrete:'Lembrete',alexa:'Alexa fala',reuniao:'Reunião',aviso:'Aviso RH'};
+                        const isUrgent     = l.message?.startsWith('__urgent__');
+                        const displayType  = isUrgent ? 'aviso_urgente' : l.type;
+                        const displayMsg   = isUrgent ? l.message.slice('__urgent__'.length) : l.message;
+                        const typeColor = {lembrete:T.blue,alexa:T.gold,reuniao:T.purple||'#7060C8',aviso:'#E91E8C',aviso_urgente:'#C04050'};
+                        const color = typeColor[displayType]||T.gold;
+                        const typeLabel = {lembrete:'Lembrete',alexa:'Alexa fala',reuniao:'Reunião',aviso:'Aviso RH',aviso_urgente:'Aviso Urgente'};
                         return(
                           <div key={l.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,opacity:l.active?1:0.5}}>
                             {/* Color bar */}
@@ -1305,12 +1310,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                             {/* Info */}
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
-                                <span style={{fontSize:11,fontWeight:600,padding:'1px 7px',borderRadius:4,background:`${color}18`,color}}>{typeLabel[l.type]||l.type}</span>
+                                <span style={{fontSize:11,fontWeight:600,padding:'1px 7px',borderRadius:4,background:`${color}18`,color}}>{typeLabel[displayType]||displayType}</span>
                                 {l.repeat!=='never'&&<span style={{fontSize:10,color:T.textD}}>↻ {l.repeat==='daily'?'Diário':l.repeat==='weekly'?'Semanal':'Mensal'}</span>}
                                 {!l.active&&<span style={{fontSize:10,color:T.textD}}>Pausado</span>}
                               </div>
                               <div style={{fontSize:14,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.title}</div>
-                              {l.message&&<div style={{fontSize:12,color:T.textT,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.message}</div>}
+                              {displayMsg&&<div style={{fontSize:12,color:T.textT,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{displayMsg}</div>}
                             </div>
                             {/* Time */}
                             <div style={{flexShrink:0,textAlign:'right'}}>
@@ -1328,7 +1333,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                                   : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                 }
                               </button>
-                              <button onClick={()=>{ setLembForm({title:l.title,message:l.message||'',time:l.time||'',date:l.date||'',type:l.type||'lembrete',repeat:l.repeat||'never',active:l.active,fanfare:!!l.fanfare,sound:l.sound||'fanfarra'}); setLembMsg(''); setLembModal(l); }}
+                              <button onClick={()=>{ setLembForm({title:l.title,message:displayMsg||'',time:l.time||'',date:l.date||'',type:displayType||'lembrete',repeat:l.repeat||'never',active:l.active,fanfare:false,sound:'fanfarra'}); setLembMsg(''); setLembModal(l); }}
                                 title="Editar"
                                 style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1442,12 +1447,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           ⚡ Enviar agora
                         </button>
                       )}
-                      {lembForm.type !== 'aviso_urgente' && (
-                        <button onClick={saveLembrete} disabled={lembSaving}
-                          style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
-                          {lembSaving?'Salvando...':'Salvar programado'}
-                        </button>
-                      )}
+                      <button onClick={saveLembrete} disabled={lembSaving}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {lembSaving?'Salvando...':'Salvar programado'}
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -153,10 +153,15 @@ export default function CrescentHub() {
         if (firedTodayRef.current.has(fireKey)) continue;
         firedTodayRef.current.add(fireKey);
 
+        // __urgent__ prefix indica aviso_urgente salvo como 'lembrete' por limitação do check constraint
+        const isUrgent  = r.message?.startsWith('__urgent__');
+        const cleanMsg  = isUrgent ? r.message.slice('__urgent__'.length) : r.message;
+        const notifType = isUrgent ? 'aviso_urgente' : 'lembrete';
+
         const payload = {
-          type:       'lembrete',
-          title:      r.title  || 'Lembrete',
-          message:    r.message || r.title || 'Você tem um lembrete!',
+          type:       notifType,
+          title:      r.title  || (isUrgent ? 'Aviso Urgente' : 'Lembrete'),
+          message:    cleanMsg  || r.title || (isUrgent ? 'Você tem um aviso urgente!' : 'Você tem um lembrete!'),
           active:     true,
           created_at: new Date().toISOString(),
         };
@@ -173,7 +178,7 @@ export default function CrescentHub() {
 
         // Dispara popup e som diretamente, sem esperar o realtime
         setNotifQueue(q => [...q, notifObj]);
-        playReminder();
+        if (isUrgent) playAlarm(); else playReminder();
       }
     };
 
