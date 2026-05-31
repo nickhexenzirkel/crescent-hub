@@ -155,7 +155,7 @@ export default function CrescentHub() {
         firedTodayRef.current.add(fireKey);
 
         await _supabase.from('notifications').insert({
-          type:       r.type === 'alexa' ? 'lembrete' : (r.type || 'lembrete'),
+          type:       'lembrete',
           title:      r.title  || 'Lembrete',
           message:    r.message || r.title || 'Você tem um lembrete!',
           active:     true,
