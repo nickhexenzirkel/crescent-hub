@@ -379,6 +379,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const saveLembrete = async () => {
     if(!lembForm.title.trim()) { setLembMsg('Título obrigatório'); return; }
+    // aviso_urgente não pode ser agendado (check constraint da tabela reminders)
+    if(lembForm.type === 'aviso_urgente') { sendNow(); return; }
     setLembSaving(true); setLembMsg('');
     const auth = getAuthUser();
     try {
@@ -1440,10 +1442,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           ⚡ Enviar agora
                         </button>
                       )}
-                      <button onClick={saveLembrete} disabled={lembSaving}
-                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
-                        {lembSaving?'Salvando...':'Salvar programado'}
-                      </button>
+                      {lembForm.type !== 'aviso_urgente' && (
+                        <button onClick={saveLembrete} disabled={lembSaving}
+                          style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                          {lembSaving?'Salvando...':'Salvar programado'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
