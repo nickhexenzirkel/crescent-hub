@@ -39,7 +39,9 @@ const TabFinanceiro = () => {
     _supabase.from('contracheques').select('*')
       .eq('employee_name', USER.name)
       .order('competencia', { ascending: false })
-      .then(({ data }) => { setContracheques(data || []); setChLoading(false); });
+      .then(({ data }) => setContracheques(data || []))
+      .catch(() => {})
+      .finally(() => setChLoading(false));
   }, []);
 
   const fmtDate = iso => {
