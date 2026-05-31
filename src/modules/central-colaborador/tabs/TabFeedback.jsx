@@ -3,11 +3,23 @@ import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider, SHead } from '../../../shared/components';
 
+const Ico = ({d, size=20, stroke='currentColor'}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+
 const CATS = [
-  { id:'Sugestão',         icon:'💡', desc:'Ideias para melhorar' },
-  { id:'Elogio',           icon:'⭐', desc:'Reconheça algo positivo' },
-  { id:'Crítica',          icon:'📝', desc:'Aponte algo a melhorar' },
-  { id:'Reportar Problema',icon:'🔧', desc:'Relate um problema técnico ou operacional' },
+  { id:'Sugestão',
+    iconD:<><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 018.91 14"/></>,
+    desc:'Ideias para melhorar' },
+  { id:'Elogio',
+    iconD:<><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>,
+    desc:'Reconheça algo positivo' },
+  { id:'Crítica',
+    iconD:<><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+    desc:'Aponte algo a melhorar' },
+  { id:'Reportar Problema',
+    iconD:<><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></>,
+    desc:'Relate um problema técnico ou operacional' },
 ];
 
 const CAT_COLOR = {
@@ -16,11 +28,6 @@ const CAT_COLOR = {
   'Crítica':           '#D89030',
   'Reportar Problema': '#C04050',
 };
-
-const Ico = ({ d, size=16, stroke='currentColor' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
-);
 
 const TabFeedback = () => {
   const [cat,      setCat]      = useState('Sugestão');
@@ -57,8 +64,8 @@ const TabFeedback = () => {
       justifyContent:'center', minHeight:420, gap:20, fontFamily:'var(--font-body)' }}>
       <div style={{ width:72, height:72, borderRadius:'50%',
         background:`${CAT_COLOR[cat]}15`, border:`2px solid ${CAT_COLOR[cat]}33`,
-        display:'flex', alignItems:'center', justifyContent:'center', fontSize:34 }}>
-        {CATS.find(c => c.id === cat)?.icon}
+        display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <Ico d={CATS.find(c => c.id === cat)?.iconD} size={34} stroke={CAT_COLOR[cat]}/>
       </div>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:22, fontWeight:700, color:T.text, marginBottom:6 }}>Feedback enviado!</div>
@@ -94,7 +101,7 @@ const TabFeedback = () => {
               background: active ? `${col}10` : 'transparent',
               transition:'all .15s', outline:'none',
             }}>
-              <div style={{ fontSize:20, marginBottom:6 }}>{c.icon}</div>
+              <div style={{ marginBottom:8 }}><Ico d={c.iconD} size={22} stroke={active ? col : T.textS}/></div>
               <div style={{ fontSize:13, fontWeight:700, color: active ? col : T.text, marginBottom:2 }}>{c.id}</div>
               <div style={{ fontSize:11, color:T.textT, lineHeight:1.4 }}>{c.desc}</div>
             </button>
@@ -106,8 +113,8 @@ const TabFeedback = () => {
       <Card style={{ padding:'24px 26px' }} elevated>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:18 }}>
           <div style={{ width:32, height:32, borderRadius:9, background:`${color}15`,
-            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
-            {CATS.find(c => c.id === cat)?.icon}
+            display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Ico d={CATS.find(c => c.id === cat)?.iconD} size={18} stroke={color}/>
           </div>
           <div>
             <div style={{ fontSize:15, fontWeight:700, color:T.text }}>{cat}</div>

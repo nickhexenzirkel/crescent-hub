@@ -214,8 +214,8 @@ const CentralLembretes = ({ onBack, authUser }) => {
                         <div style={{ fontSize:14, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.title}</div>
                         {l.message&&l.message!==l.title&&<div style={{ fontSize:12, color:T.textS, marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.message}</div>}
                         <div style={{ display:'flex', gap:8, marginTop:4, flexWrap:'wrap' }}>
-                          {l.time&&<span style={{ fontSize:11, color:T.textD }}>⏰ {l.time}</span>}
-                          {l.date&&<span style={{ fontSize:11, color:T.textD }}>📅 {l.date}</span>}
+                          {l.time&&<span style={{ fontSize:11, color:T.textD, display:'inline-flex', alignItems:'center', gap:3 }}><Ico d={<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 14.5 14"/></>} size={11} stroke={T.textD}/>{l.time}</span>}
+                          {l.date&&<span style={{ fontSize:11, color:T.textD, display:'inline-flex', alignItems:'center', gap:3 }}><Ico d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>} size={11} stroke={T.textD}/>{l.date}</span>}
                           {l.repeat&&l.repeat!=='never'&&<span style={{ fontSize:11, color:T.gold }}>↻ {repeatLabel[l.repeat]||l.repeat}</span>}
                         </div>
                       </div>
@@ -278,7 +278,10 @@ const CentralLembretes = ({ onBack, authUser }) => {
                             }}>{n.message}</div>
                             {longBody && (
                               <button onClick={() => toggleExpand(n.id)} style={{ background:'none', border:'none', cursor:'pointer', color:T.gold, fontSize:12, fontFamily:'var(--font-body)', padding:'4px 0 0', fontWeight:600 }}>
-                                {expanded ? '▲ Ver menos' : '▼ Ver mais'}
+                                <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                  <Ico d={expanded ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>} size={12} stroke={T.gold}/>
+                  {expanded ? 'Ver menos' : 'Ver mais'}
+                </span>
                               </button>
                             )}
                             <div style={{ fontSize:11, color:T.textD, marginTop:8 }}>
@@ -341,7 +344,10 @@ const CentralLembretes = ({ onBack, authUser }) => {
               </select>
             </div>
             <div style={{ fontSize:11, color:T.blue||'#1A6FB5', background:'rgba(26,111,181,0.06)', border:'1px solid rgba(26,111,181,0.2)', borderRadius:8, padding:'8px 12px', marginBottom:14 }}>
-              🔔 O Uniko aparece no canto esquerdo no horário programado.
+              <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                <Ico d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>} size={13} stroke={T.blue||'#1A6FB5'}/>
+                O Uniko aparece no canto esquerdo no horário programado.
+              </span>
             </div>
             {lMsg&&<div style={{ fontSize:12, color:lMsg.startsWith('Erro')?'#C04050':'#16a34a', marginBottom:12, padding:'7px 12px', borderRadius:7 }}>{lMsg}</div>}
             <div style={{ display:'flex', gap:8 }}>

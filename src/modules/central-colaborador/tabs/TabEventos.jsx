@@ -3,6 +3,10 @@ import { T } from '../../../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../../../contexts/user';
 import { Card, Tag, StarDivider, SHead } from '../../../shared/components';
 
+const Ico = ({d, size=16, stroke='currentColor'}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+
 const TabEventos = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +58,7 @@ const TabEventos = () => {
               </div>
               {eventsThisMonth.length === 0
                 ? <Card style={{padding:'32px',textAlign:'center'}}>
-                    <div style={{fontSize:32,marginBottom:8}}>📅</div>
+                    <div style={{marginBottom:12,display:'flex',justifyContent:'center'}}><Ico size={40} stroke={T.textD} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/></div>
                     <div style={{color:T.textT,fontSize:14}}>Nenhum evento este mês.</div>
                   </Card>
                 : eventsThisMonth.map((ev, i) => {
@@ -76,7 +80,7 @@ const TabEventos = () => {
                             <div style={{flex:1}}>
                               <div style={{marginBottom:6}}><Tag color={color}>{ev.type}</Tag></div>
                               <div style={{fontSize:15,fontWeight:500,color:T.text}}>{ev.title}</div>
-                              <div style={{fontSize:12,color:T.textT,marginTop:2}}>◷ {ev.event_time||'Dia todo'}</div>
+                              <div style={{fontSize:12,color:T.textT,marginTop:2,display:'flex',alignItems:'center',gap:4}}><Ico size={12} stroke={T.textT} d={<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 14.5 14"/></>}/>{ev.event_time||'Dia todo'}</div>
                               {ev.description&&<div style={{fontSize:12,color:T.textS,marginTop:4}}>{ev.description}</div>}
                             </div>
                           </div>

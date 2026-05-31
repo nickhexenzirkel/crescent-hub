@@ -3,6 +3,11 @@ import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, SERVER_URL, getAuthUser, fetchPhotoByName } from '../../../contexts/user';
 import { Card, StarDivider, SHead, AvatarCircle } from '../../../shared/components';
 
+const TrophyIco = ({size=16, stroke='currentColor'}) => (
+  <Ico size={size} stroke={stroke} d={<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>}/>
+);
+const MEDAL_COLORS = ['#D89030','#8A9BB0','#B07040'];
+
 const TROPHY_TYPES = [
   { id:'nebula',    label:'Troféu Nebula',    img:'/TroféuNebula.png',    color:'#4A9FE8' },
   { id:'estelar',   label:'Troféu Estelar',   img:'/TroféuEstelar.png',   color:'#D89030' },
@@ -163,7 +168,7 @@ const TabConquistas = () => {
 
         {empTrophies.length === 0 ? (
           <Card style={{ padding:'40px', textAlign:'center' }} elevated>
-            <div style={{ fontSize:36, marginBottom:12 }}>🏆</div>
+            <div style={{ marginBottom:14, display:'flex', justifyContent:'center' }}><TrophyIco size={44} stroke={T.textD}/></div>
             <div style={{ fontSize:14, color:T.textT }}>Nenhum troféu ainda</div>
           </Card>
         ) : (
@@ -187,7 +192,7 @@ const TabConquistas = () => {
             borderRadius:8, background:T.goldGl, border:`1px solid ${T.goldLine}33`, marginTop:4 }}>
             <span style={{ fontSize:12, color:T.textS }}>Sua posição:</span>
             <span style={{ fontSize:12, fontWeight:700, color:T.gold }}>#{myRank}</span>
-            <span style={{ fontSize:12 }}>🏆</span>
+            <TrophyIco size={13} stroke={T.gold}/>
             <span style={{ fontSize:12, fontWeight:700, color:T.gold }}>{myTrophies.length}</span>
           </div>
         )}
@@ -208,20 +213,23 @@ const TabConquistas = () => {
               background:`linear-gradient(135deg,${T.goldGl},${T.dark?T.surface:'#fff'} 70%)`,
               border:`1px solid ${T.goldLine}33` }} elevated>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-                <span style={{ fontSize:16 }}>🏆</span>
+                <TrophyIco size={17} stroke={T.gold}/>
                 <span style={{ fontSize:15, fontWeight:700, color:T.text }}>Top 3 Ranking</span>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
                 {[1,0,2].map(idx => {
                   const emp = top3[idx];
                   if (!emp) return <div key={idx}/>;
-                  const medals = ['🥇','🥈','🥉'];
                   const isFirst = idx === 0;
                   return (
                     <div key={emp.name} style={{ textAlign:'center', padding:'16px 8px',
                       borderRadius:14, background: isFirst ? T.goldGl : 'transparent',
                       border:`1px solid ${isFirst ? T.goldLine+'44' : 'transparent'}` }}>
-                      <div style={{ fontSize:22, marginBottom:8 }}>{medals[idx]}</div>
+                      <div style={{ width:28, height:28, borderRadius:'50%', background:MEDAL_COLORS[idx],
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        margin:'0 auto 8px', fontSize:13, fontWeight:700, color:'white' }}>
+                        {idx+1}
+                      </div>
                       <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
                         <AvatarCircle name={emp.name} photo={photos[emp.name]} size={isFirst?52:44} fontSize={isFirst?18:15} style={{ boxShadow:`0 0 0 ${isFirst?4:3}px rgba(0,0,0,0.10)` }}/>
                       </div>
@@ -230,8 +238,8 @@ const TabConquistas = () => {
                         display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
                         {emp.name}
                       </div>
-                      <div style={{ fontSize:11, color:T.gold, fontWeight:700, marginTop:4 }}>
-                        🏆 {emp.count}
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:11, color:T.gold, fontWeight:700, marginTop:4 }}>
+                        <TrophyIco size={12} stroke={T.gold}/> {emp.count}
                       </div>
                     </div>
                   );
@@ -270,7 +278,7 @@ const TabConquistas = () => {
                     display:'flex', alignItems:'center', justifyContent:'center',
                     background: rank===1?'#D89030':rank===2?'#8A9BB0':rank===3?'#B07040':T.surfaceSub||'rgba(0,0,0,0.07)',
                     color: rank<=3?'white':T.textD }}>
-                    {rank<=3 ? ['🥇','🥈','🥉'][rank-1] : rank}
+                    {rank}
                   </div>
 
                   <div style={{ display:'flex', justifyContent:'center', marginBottom:14 }}>
@@ -286,8 +294,8 @@ const TabConquistas = () => {
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                       {emp.cargo || emp.role || 'Colaborador'}
                     </div>
-                    <div style={{ fontSize:14, fontWeight:700, color:T.gold, marginBottom:14 }}>
-                      🏆 {emp.count} troféu{emp.count !== 1 ? 's' : ''}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:5, fontSize:14, fontWeight:700, color:T.gold, marginBottom:14 }}>
+                      <TrophyIco size={14} stroke={T.gold}/> {emp.count} troféu{emp.count !== 1 ? 's' : ''}
                     </div>
                     <button onClick={() => setViewing(emp)}
                       style={{ width:'100%', padding:'10px', borderRadius:10,
@@ -295,7 +303,7 @@ const TabConquistas = () => {
                         background: T.goldGl, color:T.gold, fontWeight:600,
                         fontSize:12, cursor:'pointer', fontFamily:'var(--font-body)',
                         display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-                      <span style={{ fontSize:14 }}>🏆</span> Ver Conquistas
+                      <TrophyIco size={14} stroke={T.gold}/> Ver Conquistas
                     </button>
                   </div>
                 </div>
