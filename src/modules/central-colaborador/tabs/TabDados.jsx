@@ -3,7 +3,7 @@ import { T } from '../../../contexts/theme';
 import { USER, SERVER_URL } from '../../../contexts/user';
 import { Card, Btn, StarDivider, SHead } from '../../../shared/components';
 
-const TabDados = () => {
+const TabDados = ({ onProfileSaved }) => {
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [msg,     setMsg]     = useState('');
@@ -37,6 +37,7 @@ const TabDados = () => {
       USER.state    = form.state;
       setMsg('✅ Dados atualizados com sucesso!');
       setEditing(false);
+      onProfileSaved?.();
     } catch { setMsg('Erro de conexão'); }
     setSaving(false);
     setTimeout(() => setMsg(''), 4000);

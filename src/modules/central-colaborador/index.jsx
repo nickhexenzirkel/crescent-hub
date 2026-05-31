@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
-import { USER, SERVER_URL, getAuthUser } from '../../contexts/user';
+import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete } from '../../contexts/user';
 import { SettingsModal } from '../../shared/SettingsModal';
 import { Sidebar, TopBar } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
@@ -22,6 +22,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(false);
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
 
@@ -61,7 +62,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
       }
     })
     .catch(() => {})
-    .finally(() => setProfileReady(true));
+    .finally(() => { setProfileReady(true); setProfileComplete(checkProfileComplete()); });
   }, []);
 
   /* Ticker de fundo para o My Uniko — mantém stats atualizados em outros tabs */
@@ -89,10 +90,11 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   }, []);
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);};
+  const handleProfileSaved = () => setProfileComplete(checkProfileComplete());
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
-    if(tab==='dados')      return <TabDados/>;
+    if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
     if(tab==='horas')      return <TabHoras/>;
     if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
@@ -118,7 +120,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   );
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto}/>
+      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete}/>
       <div style={{marginLeft:252,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
         <TopBar tab={tab} onBack={()=>st('inicio')}/>
         <div style={{flex:1,padding:'28px 34px',overflowY:'auto',

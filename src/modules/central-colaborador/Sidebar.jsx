@@ -39,7 +39,14 @@ const NAV=[
   {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
 ];
 
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto}) => {
+const LockIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0110 0v4"/>
+  </svg>
+);
+
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete}) => {
   const [hov,sh]=useState(null);
   return(
     <div style={{width:252,minHeight:'100vh',
@@ -98,22 +105,27 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 
         {NAV.map((n,idx)=>{
           const a=tab===n.id;
+          const locked = n.id==='uniko' && !profileComplete;
           const showDivider = idx===5 || idx===10; /* dividers between logical groups */
           return(
             <div key={n.id}>
               {showDivider && <StarDivider my={5} dim/>}
-              <div onClick={()=>setTab(n.id)}
+              <div
+                onClick={()=> locked ? setTab('dados') : setTab(n.id)}
                 onMouseEnter={()=>sh(n.id)} onMouseLeave={()=>sh(null)}
+                title={locked ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined}
                 style={{display:'flex',alignItems:'center',gap:11,padding:'11px 13px',
                   borderRadius:10,cursor:'pointer',
                   background:a?T.goldGl:hov===n.id?(T.surfaceSub||'rgba(0,0,0,0.03)'):'transparent',
                   border:a?`1px solid rgba(212,168,75,0.22)`:'1px solid transparent',
                   color:a?T.gold:hov===n.id?T.text:T.textS,
+                  opacity:locked?0.45:1,
                   transition:'all .14s'}}>
                 <span style={{color:a?T.gold:hov===n.id?T.textS:T.textT,fontSize:18,
                   minWidth:22,textAlign:'center'}}>{n.icon}</span>
                 <span style={{fontSize:15,fontWeight:a?600:400}}>{n.label}</span>
-                {a&&<span style={{marginLeft:'auto',flexShrink:0}}>
+                {locked && <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>}
+                {a&&!locked&&<span style={{marginLeft:'auto',flexShrink:0}}>
                 </span>}
               </div>
             </div>
@@ -124,25 +136,30 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
       {/* User footer */}
       <div style={{padding:'10px 12px 18px'}}>
         <StarDivider my={0}/>
-        <div onClick={onOpenSettings}
+        <div onClick={profileComplete ? onOpenSettings : () => setTab('dados')}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+          title={!profileComplete ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined}
           style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',
-            borderRadius:9,cursor:'pointer',marginBottom:6,transition:'background .14s'}}>
+            borderRadius:9,cursor:'pointer',marginBottom:6,transition:'background .14s',
+            opacity:profileComplete?1:0.45}}>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none"
             stroke={T.textS} strokeWidth="1.6" strokeLinecap="round">
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
           </svg>
           <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textS}}>Configurações</span>
-          <span style={{marginLeft:'auto',fontFamily:'var(--font-body)',fontSize:10,
-            fontWeight:500,
-            color:THEMES[activeTheme]?.dark ? '#fff' : T.gold,
-            background:THEMES[activeTheme]?.dark ? T.gold+'CC' : T.goldGl,
-            border:`1px solid ${T.gold}44`,
-            padding:'2px 8px',borderRadius:6}}>
-            {THEMES[activeTheme]?.name?.split(' ')[0]||'Azul'}
-          </span>
+          {profileComplete
+            ? <span style={{marginLeft:'auto',fontFamily:'var(--font-body)',fontSize:10,
+                fontWeight:500,
+                color:THEMES[activeTheme]?.dark ? '#fff' : T.gold,
+                background:THEMES[activeTheme]?.dark ? T.gold+'CC' : T.goldGl,
+                border:`1px solid ${T.gold}44`,
+                padding:'2px 8px',borderRadius:6}}>
+                {THEMES[activeTheme]?.name?.split(' ')[0]||'Azul'}
+              </span>
+            : <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>
+          }
         </div>
         <div style={{marginTop:4,display:'flex',alignItems:'center',gap:11,padding:'12px 13px',
           background:T.goldGl,borderRadius:12,

@@ -74,7 +74,7 @@ const STARS_POS = [
 const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
 
 /* ══════════════════════════════════════════════════════════════════ */
-const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange }) => {
+const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete }) => {
   const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
@@ -331,21 +331,32 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         <div style={{position:'relative',zIndex:1,padding:'26px 30px',height:'100%',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:16}}>
             {/* avatar */}
-            <div onClick={openPhoto} title="Editar foto" style={{
-              width:92,height:92,borderRadius:'50%',flexShrink:0,cursor:'pointer',
-              background:photo?undefined:'rgba(255,255,255,.92)',
-              ...avatarBg,
-              display:photo?'block':'flex', alignItems:'center', justifyContent:'center',
-              fontSize:28,fontWeight:700,color:T.blue,
-              border:'3px solid rgba(255,255,255,.50)',
-              boxShadow:'0 0 0 6px rgba(255,255,255,.10),0 0 0 12px rgba(255,255,255,.04),0 8px 28px rgba(0,0,0,.32)',
-              position:'relative',overflow:'hidden',
-            }}>
+            <div
+              onClick={profileComplete ? openPhoto : () => setTab('dados')}
+              title={profileComplete ? 'Editar foto' : 'Preencha seus dados (email, endereço, etc.) para editar a foto'}
+              style={{
+                width:92,height:92,borderRadius:'50%',flexShrink:0,cursor:'pointer',
+                background:photo?undefined:'rgba(255,255,255,.92)',
+                ...avatarBg,
+                display:photo?'block':'flex', alignItems:'center', justifyContent:'center',
+                fontSize:28,fontWeight:700,color:T.blue,
+                border:'3px solid rgba(255,255,255,.50)',
+                boxShadow:'0 0 0 6px rgba(255,255,255,.10),0 0 0 12px rgba(255,255,255,.04),0 8px 28px rgba(0,0,0,.32)',
+                position:'relative',overflow:'hidden',
+              }}>
               {!photo && USER.avatar}
-              <div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.28)',display:'flex',alignItems:'center',justifyContent:'center',opacity:0,transition:'opacity .18s'}}
-                onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0}>
-                <Ico d={<><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></>} stroke="white" size={14}/>
-              </div>
+              {profileComplete
+                ? <div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.28)',display:'flex',alignItems:'center',justifyContent:'center',opacity:0,transition:'opacity .18s'}}
+                    onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0}>
+                    <Ico d={<><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></>} stroke="white" size={14}/>
+                  </div>
+                : <div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,.42)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0110 0v4"/>
+                    </svg>
+                  </div>
+              }
             </div>
             <div>
               <div style={{fontSize:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>

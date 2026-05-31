@@ -87,6 +87,11 @@ const fetchPhotoByName = async (name) => {
   } catch { return null; }
 };
 
+const isProfileComplete = () => {
+  const needed = [USER.email, USER.phone, USER.street, USER.district, USER.cep, USER.city, USER.state];
+  return needed.every(f => f && f !== '—' && String(f).trim() !== '');
+};
+
 export {
   SERVER_URL,
   _supabase as supabase,
@@ -103,4 +108,5 @@ export {
   loadUserPhoto,
   saveUserPhoto,
   fetchPhotoByName,
+  isProfileComplete,
 };
