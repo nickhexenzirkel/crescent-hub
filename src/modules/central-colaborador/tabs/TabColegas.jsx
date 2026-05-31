@@ -101,7 +101,7 @@ const GiftModal = ({ show, onClose, selected, photos, isAdmin, availTrophies, re
             <div style={{ fontSize:11, color:T.textD, textTransform:'uppercase',
               letterSpacing:'.07em', fontWeight:600, marginBottom:8 }}>Presenteando para:</div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13}/>
+              <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13} style={{ border:`2px solid ${T.goldLine}`, boxShadow:`0 0 0 3px ${T.goldLine}22` }}/>
               <div>
                 <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{selected.name}</div>
                 <div style={{ fontSize:11, color:T.textT }}>{selected.cargo || selected.role || 'Colaborador'}</div>
@@ -361,7 +361,7 @@ const TabColegas = () => {
         {/* Header card */}
         <Card style={{ padding:'22px 24px', marginBottom:14 }} elevated>
           <div style={{ display:'flex', alignItems:'center', gap:18, flexWrap:'wrap' }}>
-            <AvatarCircle name={emp.name} photo={photo} size={70} fontSize={24}/>
+            <AvatarCircle name={emp.name} photo={photo} size={70} fontSize={24} style={{ border:`3px solid ${T.goldLine}`, boxShadow:`0 0 0 4px ${T.goldLine}22` }}/>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:19, fontWeight:700, color:T.text }}>{emp.name}</div>
               <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
@@ -491,7 +491,7 @@ const TabColegas = () => {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
                 {/* Avatar */}
                 <div style={{ display:'flex', justifyContent:'center', marginBottom:12, position:'relative' }}>
-                  <AvatarCircle name={emp.name} photo={photo} size={64} fontSize={22}/>
+                  <AvatarCircle name={emp.name} photo={photo} size={64} fontSize={22} style={{ border:`2.5px solid ${T.goldLine}`, boxShadow:`0 0 0 3px ${T.goldLine}22` }}/>
                   {doko?.dormindo && (
                     <span style={{ position:'absolute', bottom:0, right:'calc(50% - 40px)', fontSize:14 }}>😴</span>
                   )}

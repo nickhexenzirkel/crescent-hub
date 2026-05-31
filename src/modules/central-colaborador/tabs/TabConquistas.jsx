@@ -152,7 +152,7 @@ const TabConquistas = () => {
         </button>
 
         <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:22 }}>
-          <AvatarCircle name={viewing.name} photo={photos[viewing.name]} size={52} fontSize={18}/>
+          <AvatarCircle name={viewing.name} photo={photos[viewing.name]} size={52} fontSize={18} style={{ border:`3px solid ${T.goldLine}`, boxShadow:`0 0 0 4px ${T.goldLine}22` }}/>
           <div>
             <div style={{ fontSize:18, fontWeight:700, color:T.text }}>Troféus Conquistados</div>
             <div style={{ fontSize:13, color:T.textT, marginTop:2 }}>
@@ -223,7 +223,7 @@ const TabConquistas = () => {
                       border:`1px solid ${isFirst ? T.goldLine+'44' : 'transparent'}` }}>
                       <div style={{ fontSize:22, marginBottom:8 }}>{medals[idx]}</div>
                       <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
-                        <AvatarCircle name={emp.name} photo={photos[emp.name]} size={isFirst?52:44} fontSize={isFirst?18:15}/>
+                        <AvatarCircle name={emp.name} photo={photos[emp.name]} size={isFirst?52:44} fontSize={isFirst?18:15} style={{ border:`${isFirst?3:2}px solid ${T.goldLine}`, boxShadow:`0 0 0 ${isFirst?4:3}px ${T.goldLine}22` }}/>
                       </div>
                       <div style={{ fontSize:12, fontWeight:600, color:T.text, lineHeight:1.3,
                         overflow:'hidden', textOverflow:'ellipsis',
@@ -274,7 +274,7 @@ const TabConquistas = () => {
                   </div>
 
                   <div style={{ display:'flex', justifyContent:'center', marginBottom:14 }}>
-                    <AvatarCircle name={emp.name} photo={photos[emp.name]} size={76} fontSize={24}/>
+                    <AvatarCircle name={emp.name} photo={photos[emp.name]} size={76} fontSize={24} style={{ border:`3px solid ${T.goldLine}`, boxShadow:`0 0 0 4px ${T.goldLine}22` }}/>
                   </div>
                   <div style={{ textAlign:'center' }}>
                     <div style={{ fontSize:14, fontWeight:700, color:T.text, lineHeight:1.35, marginBottom:4,
