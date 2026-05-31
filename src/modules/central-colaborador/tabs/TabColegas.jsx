@@ -12,9 +12,9 @@ const DOKO_IMG = { tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMe
 const DOKO_LABEL = { tecnico:'Técnico', cozinheiro:'Cozinheiro', medico:'Médico', ambiental:'Ambientalista', contador:'Contador' };
 
 const TROPHY_TYPES = [
-  { id:'nebula',    label:'Troféu Nebula',    img:'/TrofeuNebula.png',    color:'#4A9FE8', adminOnly:false },
-  { id:'estelar',   label:'Troféu Estelar',   img:'/TrofeuEstelar.png',   color:'#D89030', adminOnly:true  },
-  { id:'supernova', label:'Troféu Supernova', img:'/TrofeuSupernova.png', color:'#C04050', adminOnly:true  },
+  { id:'nebula',    label:'Troféu Nebula',    img:'/TroféuNebula.png',    color:'#4A9FE8', adminOnly:false },
+  { id:'estelar',   label:'Troféu Estelar',   img:'/TroféuEstelar.png',   color:'#D89030', adminOnly:true  },
+  { id:'supernova', label:'Troféu Supernova', img:'/TroféuSupernova.png', color:'#9B6FE8', adminOnly:true  },
 ];
 
 const Ico = ({ d, size=16, stroke='currentColor' }) => (
@@ -140,139 +140,137 @@ const TabColegas = () => {
   const availTrophies = TROPHY_TYPES.filter(t => isAdmin || !t.adminOnly);
   const remaining = Math.max(0, 3 - monthlyUsed);
 
-  /* ── PROFILE VIEW ─────────────────────────────────────────── */
-  if (selected) {
-    const emp    = selected;
-    const photo  = photos[emp.name];
-    const emTrophy = trophies[emp.name] || [];
-    const doko   = dokoStates[emp.name];
-    const skin   = doko?.skin || 'tecnico';
-
+  /* ── GIFT MODAL OVERLAY ──────────────────────────────────── */
+  const GiftModal = () => {
+    if (!showGift || !selected) return null;
+    const activeDef = TROPHY_TYPES.find(t => t.id === giftType) || TROPHY_TYPES[0];
     return (
-      <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
-        {/* Back */}
-        <button onClick={() => { setSelected(null); setShowGift(false); }}
-          style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none',
-            cursor:'pointer', color:T.textS, fontSize:13, fontFamily:'var(--font-body)',
-            padding:'0 0 18px', marginBottom:0 }}>
-          <Ico size={14} d={<polyline points="15 18 9 12 15 6"/>}/> Voltar para Colegas
-        </button>
-
-        {/* Header card */}
-        <Card style={{ padding:'24px 26px', marginBottom:14 }} elevated>
-          <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-            <AvatarCircle name={emp.name} photo={photo} size={72} fontSize={24}/>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:20, fontWeight:700, color:T.text }}>{emp.name}</div>
-              <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
-              {emp.admission && <div style={{ fontSize:12, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
+      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.55)',
+        backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center',
+        padding:16, fontFamily:'var(--font-body)' }} onClick={() => setShowGift(false)}>
+        <div onClick={e => e.stopPropagation()} style={{
+          background: T.dark ? T.surface : '#fff', borderRadius:20, width:'100%', maxWidth:420,
+          maxHeight:'90vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.35)',
+          border:`1px solid ${T.border}`,
+        }}>
+          {/* Header */}
+          <div style={{ background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+            padding:'18px 22px', borderRadius:'20px 20px 0 0',
+            display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.22)',
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🎁</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:17, fontWeight:700, color:'white' }}>Presentear Troféu</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', marginTop:1 }}>{activeDef.label}</div>
             </div>
-            {!showGift && (
-              <button onClick={openGift} style={{
-                display:'flex', alignItems:'center', gap:8, padding:'10px 18px',
-                borderRadius:11, border:'none', cursor:'pointer',
-                background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-                color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)',
-                boxShadow:`0 4px 16px ${T.goldLine}44`,
-              }}>
-                🏆 Presentear Troféu
-              </button>
-            )}
+            <button onClick={() => setShowGift(false)}
+              style={{ background:'rgba(255,255,255,0.18)', border:'none', borderRadius:8,
+                width:30, height:30, cursor:'pointer', color:'white', display:'flex',
+                alignItems:'center', justifyContent:'center', fontSize:16 }}>×</button>
           </div>
-        </Card>
 
-        {/* Gift panel */}
-        {showGift && (
-          <Card style={{ padding:'24px 26px', marginBottom:14, border:`1.5px solid ${T.goldLine}44` }} elevated>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <div style={{ fontSize:16, fontWeight:700, color:T.text }}>Presentear Troféu</div>
-              <button onClick={() => setShowGift(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:T.textD, padding:4 }}>
-                <Ico size={16} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}/>
-              </button>
+          <div style={{ padding:'20px 22px' }}>
+            {/* Presentando para */}
+            <div style={{ padding:'12px 14px', borderRadius:12, background:T.goldGl,
+              border:`1px solid ${T.goldLine}22`, marginBottom:18 }}>
+              <div style={{ fontSize:11, color:T.textD, textTransform:'uppercase',
+                letterSpacing:'.07em', fontWeight:600, marginBottom:8 }}>Presenteando para:</div>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13}/>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{selected.name}</div>
+                  <div style={{ fontSize:11, color:T.textT }}>{selected.cargo || selected.role || 'Colaborador'}</div>
+                </div>
+              </div>
             </div>
 
-            {/* Limite mensal */}
+            {/* Imagem do troféu */}
+            <div style={{ borderRadius:14, background: T.dark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
+              padding:'20px', display:'flex', justifyContent:'center', marginBottom:18 }}>
+              <img src={activeDef.img} alt={activeDef.label}
+                onError={e => { e.target.onerror=null; e.target.style.opacity='0.3'; }}
+                style={{ width:110, height:110, objectFit:'contain', transition:'all .2s' }}/>
+            </div>
+
+            {/* Seleção de tipo (thumbnails) */}
+            <div style={{ display:'flex', gap:8, marginBottom:18, justifyContent:'center' }}>
+              {availTrophies.map(t => {
+                const active   = giftType === t.id;
+                const disabled = !isAdmin && t.id === 'nebula' && remaining === 0;
+                return (
+                  <button key={t.id} onClick={() => !disabled && setGiftType(t.id)}
+                    style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5,
+                      padding:'8px 12px', borderRadius:10, cursor: disabled?'not-allowed':'pointer',
+                      border:`2px solid ${active ? t.color : T.border}`,
+                      background: active ? `${t.color}12` : 'transparent',
+                      opacity: disabled ? 0.4 : 1, transition:'all .15s', outline:'none' }}>
+                    <img src={t.img} alt={t.label}
+                      onError={e => { e.target.onerror=null; e.target.style.opacity='0'; }}
+                      style={{ width:32, height:32, objectFit:'contain' }}/>
+                    <span style={{ fontSize:9, fontWeight: active?700:400,
+                      color: active ? t.color : T.textD, textAlign:'center', lineHeight:1.2 }}>
+                      {t.label.replace('Troféu ','')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Nome do troféu */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
+                Nome do Troféu <span style={{ color:'#C04050' }}>*</span>
+              </label>
+              <input value={giftDesc} onChange={e => { setGiftDesc(e.target.value); setGiftResult(''); }}
+                placeholder="Ex: Melhor do mês, Troféu Inovação..."
+                style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
+                  borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
+                  background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
+                  outline:'none', boxSizing:'border-box', transition:'border-color .15s' }}
+                onFocus={e => e.target.style.borderColor = T.goldLine}
+                onBlur={e  => e.target.style.borderColor = T.border}/>
+            </div>
+
+            {/* Mensagem personalizada */}
+            <div style={{ marginBottom:18 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
+                Mensagem Personalizada <span style={{ fontSize:11, color:T.textD, fontWeight:400 }}>(opcional)</span>
+              </label>
+              <textarea value={giftMsg} onChange={e => setGiftMsg(e.target.value)}
+                placeholder="Ex: Parabéns pelo excelente trabalho!"
+                rows={3}
+                style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
+                  borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
+                  background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
+                  outline:'none', resize:'vertical', lineHeight:1.6, boxSizing:'border-box',
+                  transition:'border-color .15s' }}
+                onFocus={e => e.target.style.borderColor = T.goldLine}
+                onBlur={e  => e.target.style.borderColor = T.border}/>
+            </div>
+
+            {/* Troféus disponíveis */}
             {!isAdmin && (
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
-                borderRadius:10, marginBottom:16,
-                background: remaining === 0 ? 'rgba(192,64,80,0.07)' : T.goldGl,
-                border:`1px solid ${remaining === 0 ? 'rgba(192,64,80,0.25)' : T.goldLine+'33'}` }}>
-                <span style={{ fontSize:16 }}>{remaining === 0 ? '🚫' : '🎁'}</span>
-                <div>
-                  <div style={{ fontSize:12, fontWeight:600, color: remaining === 0 ? '#C04050' : T.gold }}>
-                    {remaining === 0 ? 'Limite mensal atingido' : `${remaining} de 3 Troféus Nebula disponíveis`}
-                  </div>
-                  <div style={{ fontSize:11, color:T.textT, marginTop:1 }}>Renova no início do próximo mês</div>
+              <div style={{ padding:'12px 14px', borderRadius:11, marginBottom:16,
+                background: remaining === 0 ? 'rgba(192,64,80,0.06)' : T.goldGl,
+                border:`1px solid ${remaining === 0 ? 'rgba(192,64,80,0.22)' : T.goldLine+'33'}` }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:13, fontWeight:600, color: remaining===0 ? '#C04050' : T.textS }}>
+                    Troféus disponíveis:
+                  </span>
+                  <span style={{ fontSize:22, fontWeight:800, color: remaining===0 ? '#C04050' : T.gold }}>
+                    {remaining}
+                  </span>
+                </div>
+                <div style={{ fontSize:11, color:T.textT, marginTop:3 }}>
+                  {remaining === 0
+                    ? 'Limite mensal atingido. Renova no próximo mês.'
+                    : `Você poderá presentear mais ${remaining - (giftDesc.trim() ? 1 : 0) >= 0 ? remaining - 1 : 0} troféu(s) após este.`}
                 </div>
               </div>
             )}
 
-            {/* Seleção de troféu */}
-            <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase',
-                letterSpacing:'.07em', display:'block', marginBottom:10 }}>Troféu</label>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-                {availTrophies.map(t => {
-                  const active = giftType === t.id;
-                  const disabled = !isAdmin && t.id === 'nebula' && remaining === 0;
-                  return (
-                    <button key={t.id} onClick={() => !disabled && setGiftType(t.id)}
-                      disabled={disabled}
-                      style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8,
-                        padding:'14px 18px', borderRadius:13, cursor: disabled ? 'not-allowed' : 'pointer',
-                        border:`2px solid ${active ? t.color+'88' : T.border}`,
-                        background: active ? `${t.color}10` : 'transparent',
-                        opacity: disabled ? 0.4 : 1, transition:'all .15s', outline:'none' }}>
-                      <img src={t.img} alt={t.label}
-                        onError={e => { e.target.onerror=null; e.target.style.display='none'; }}
-                        style={{ width:56, height:56, objectFit:'contain' }}/>
-                      <span style={{ fontSize:11, fontWeight: active ? 700 : 500,
-                        color: active ? t.color : T.textS }}>{t.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Descrição obrigatória */}
-            <div style={{ marginBottom:12 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase',
-                letterSpacing:'.07em', display:'block', marginBottom:7 }}>
-                Motivo <span style={{ color:'#C04050' }}>*</span>
-              </label>
-              <textarea value={giftDesc} onChange={e => { setGiftDesc(e.target.value); setGiftResult(''); }}
-                placeholder="Por que você está presenteando este troféu?"
-                rows={3}
-                style={{ width:'100%', background: T.dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-                  border:`1.5px solid ${T.border}`, borderRadius:10, padding:'12px',
-                  color:T.text, fontFamily:'var(--font-body)', fontSize:13,
-                  outline:'none', resize:'vertical', lineHeight:1.6, boxSizing:'border-box',
-                  transition:'border-color .15s' }}
-                onFocus={e => e.target.style.borderColor = T.goldLine}
-                onBlur={e  => e.target.style.borderColor = T.border}/>
-            </div>
-
-            {/* Mensagem opcional */}
-            <div style={{ marginBottom:16 }}>
-              <label style={{ fontSize:11, fontWeight:600, color:T.textD, textTransform:'uppercase',
-                letterSpacing:'.07em', display:'block', marginBottom:7 }}>
-                Mensagem adicional <span style={{ color:T.textD, fontWeight:400 }}>(opcional)</span>
-              </label>
-              <textarea value={giftMsg} onChange={e => setGiftMsg(e.target.value)}
-                placeholder="Uma mensagem especial para o colega..."
-                rows={2}
-                style={{ width:'100%', background: T.dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-                  border:`1.5px solid ${T.border}`, borderRadius:10, padding:'12px',
-                  color:T.text, fontFamily:'var(--font-body)', fontSize:13,
-                  outline:'none', resize:'vertical', lineHeight:1.6, boxSizing:'border-box',
-                  transition:'border-color .15s' }}
-                onFocus={e => e.target.style.borderColor = T.goldLine}
-                onBlur={e  => e.target.style.borderColor = T.border}/>
-            </div>
-
             {giftResult && (
-              <div style={{ padding:'9px 14px', borderRadius:9, marginBottom:12, fontSize:12,
+              <div style={{ padding:'9px 14px', borderRadius:9, marginBottom:14, fontSize:12,
                 background: giftResult.startsWith('✅') ? 'rgba(40,168,112,0.08)' : 'rgba(192,64,80,0.06)',
                 border:`1px solid ${giftResult.startsWith('✅') ? 'rgba(40,168,112,0.25)' : 'rgba(192,64,80,0.22)'}`,
                 color: giftResult.startsWith('✅') ? '#28A870' : '#C04050' }}>
@@ -280,28 +278,79 @@ const TabColegas = () => {
               </div>
             )}
 
-            <button onClick={sendTrophy}
-              disabled={gifting || !giftDesc.trim() || (!isAdmin && giftType==='nebula' && remaining===0)}
-              style={{ width:'100%', padding:'12px', borderRadius:10, border:'none',
-                cursor: (gifting || !giftDesc.trim()) ? 'not-allowed' : 'pointer',
-                background: (gifting || !giftDesc.trim())
-                  ? T.border
-                  : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-                color: (gifting || !giftDesc.trim()) ? T.textD : 'white',
-                fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', transition:'all .15s',
-                boxShadow: (!gifting && giftDesc.trim()) ? `0 4px 16px ${T.goldLine}44` : 'none' }}>
-              {gifting ? 'Enviando...' : '🏆 Enviar Troféu'}
-            </button>
-          </Card>
-        )}
+            {/* Botões */}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setShowGift(false)}
+                style={{ flex:1, padding:'11px', borderRadius:10, border:`1px solid ${T.border}`,
+                  background:'transparent', cursor:'pointer', fontFamily:'var(--font-body)',
+                  fontSize:13, fontWeight:600, color:T.textS }}>
+                Cancelar
+              </button>
+              <button onClick={sendTrophy}
+                disabled={gifting || !giftDesc.trim() || (!isAdmin && giftType==='nebula' && remaining===0)}
+                style={{ flex:2, padding:'11px', borderRadius:10, border:'none',
+                  cursor: (gifting || !giftDesc.trim()) ? 'not-allowed' : 'pointer',
+                  background: (gifting || !giftDesc.trim()) ? T.border : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+                  color: (gifting || !giftDesc.trim()) ? T.textD : 'white',
+                  fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', transition:'all .15s',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  boxShadow: (!gifting && giftDesc.trim()) ? `0 4px 16px ${T.goldLine}44` : 'none' }}>
+                {gifting ? 'Enviando...' : <><span>🎁</span> Presentear</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
-        {/* Troféus recebidos */}
-        <Card style={{ padding:'24px 26px', marginBottom:14 }} elevated>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
-            <span style={{ fontSize:18 }}>🏆</span>
+  /* ── PROFILE VIEW ─────────────────────────────────────────── */
+  if (selected) {
+    const emp      = selected;
+    const photo    = photos[emp.name];
+    const emTrophy = trophies[emp.name] || [];
+    const doko     = dokoStates[emp.name];
+    const skin     = doko?.skin || 'tecnico';
+
+    return (
+      <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
+        <GiftModal/>
+
+        {/* Back */}
+        <button onClick={() => { setSelected(null); setShowGift(false); }}
+          style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none',
+            cursor:'pointer', color:T.textS, fontSize:13, fontFamily:'var(--font-body)',
+            padding:'0 0 18px' }}>
+          <Ico size={14} d={<polyline points="15 18 9 12 15 6"/>}/> Voltar para Colegas
+        </button>
+
+        {/* Header card */}
+        <Card style={{ padding:'22px 24px', marginBottom:14 }} elevated>
+          <div style={{ display:'flex', alignItems:'center', gap:18, flexWrap:'wrap' }}>
+            <AvatarCircle name={emp.name} photo={photo} size={70} fontSize={24}/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:19, fontWeight:700, color:T.text }}>{emp.name}</div>
+              <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
+              {emp.admission && <div style={{ fontSize:11, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
+            </div>
+            <button onClick={openGift} style={{
+              display:'flex', alignItems:'center', gap:8, padding:'10px 20px',
+              borderRadius:11, border:'none', cursor:'pointer',
+              background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+              color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)',
+              boxShadow:`0 4px 16px ${T.goldLine}44`, flexShrink:0 }}>
+              🎁 Presentear Troféu
+            </button>
+          </div>
+        </Card>
+
+        {/* Troféus recebidos — grid de cards */}
+        <Card style={{ padding:'22px 24px', marginBottom:14 }} elevated>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+            <span style={{ fontSize:17 }}>🏆</span>
             <div>
-              <div style={{ fontSize:15, fontWeight:700, color:T.text }}>Troféus Recebidos</div>
-              <div style={{ fontSize:12, color:T.textT, marginTop:1 }}>{emTrophy.length} troféu{emTrophy.length !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize:15, fontWeight:700, color:T.text }}>Troféus Conquistados</div>
+              <div style={{ fontSize:12, color:T.textT, marginTop:1 }}>{emTrophy.length} troféu{emTrophy.length!==1?'s':''}</div>
             </div>
           </div>
           <StarDivider my={10}/>
@@ -310,26 +359,33 @@ const TabColegas = () => {
               Nenhum troféu ainda.
             </div>
           ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
               {emTrophy.map((t, i) => {
                 const def = TROPHY_TYPES.find(x => x.id === t.type) || TROPHY_TYPES[0];
+                const [hov, setHov] = React.useState(false);
                 return (
-                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:14,
-                    padding:'12px 14px', borderRadius:12,
-                    background:`${def.color}08`, border:`1px solid ${def.color}22` }}>
+                  <div key={i}
+                    onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+                    style={{ borderRadius:13, border:`2px solid ${(i===0||hov) ? T.goldLine+'88' : T.border}`,
+                      background: i===0 ? T.goldGl : (T.dark ? T.surface : '#fff'),
+                      padding:'16px 12px', textAlign:'center',
+                      transition:'all .15s', transform: hov ? 'translateY(-2px)' : 'none',
+                      boxShadow: hov ? T.shM : 'none' }}>
                     <img src={def.img} alt={def.label}
-                      onError={e => { e.target.onerror=null; e.target.style.display='none'; }}
-                      style={{ width:40, height:40, objectFit:'contain', flexShrink:0 }}/>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:def.color }}>{def.label}</div>
-                      <div style={{ fontSize:12, color:T.text, marginTop:3, lineHeight:1.5 }}>{t.description}</div>
-                      {t.message && <div style={{ fontSize:11, color:T.textS, marginTop:3, fontStyle:'italic' }}>"{t.message}"</div>}
-                      <div style={{ fontSize:11, color:T.textD, marginTop:4, display:'flex', gap:6 }}>
-                        <span>de {t.from_name}</span>
-                        <span>·</span>
-                        <span>{t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—'}</span>
-                      </div>
+                      onError={e => { e.target.onerror=null; e.target.style.opacity='0.2'; }}
+                      style={{ width:70, height:70, objectFit:'contain', marginBottom:8 }}/>
+                    <div style={{ fontSize:12, fontWeight:700, color:T.text, marginBottom:3,
+                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
+                    <div style={{ fontSize:10, color:T.textT, marginBottom:2 }}>
+                      {t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—'}
                     </div>
+                    <div style={{ fontSize:10, color:T.textS }}>De: {t.from_name}</div>
+                    {t.message && (
+                      <div style={{ fontSize:10, color:T.textD, marginTop:4, fontStyle:'italic',
+                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        "{t.message}"
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -338,25 +394,23 @@ const TabColegas = () => {
         </Card>
 
         {/* My Uniko */}
-        <Card style={{ padding:'24px 26px' }} elevated>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
-            <span style={{ fontSize:18 }}>🐾</span>
+        <Card style={{ padding:'22px 24px' }} elevated>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+            <span style={{ fontSize:17 }}>🐾</span>
             <div style={{ fontSize:15, fontWeight:700, color:T.text }}>My Uniko</div>
           </div>
           <StarDivider my={10}/>
           {!doko ? (
             <div style={{ textAlign:'center', padding:'20px 0', color:T.textT, fontSize:13 }}>
-              {emp.name.split(' ')[0]} ainda não configurou o My Uniko.
+              {emp.name.split(' ')[0]} ainda não abriu o My Uniko.
             </div>
           ) : (
-            <div style={{ display:'flex', gap:20, alignItems:'flex-start', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', gap:20, alignItems:'center', flexWrap:'wrap' }}>
               <div style={{ position:'relative', flexShrink:0 }}>
                 <img src={DOKO_IMG[skin] || DOKO_IMG.tecnico} alt="Uniko"
-                  style={{ width:90, height:90, borderRadius:16, objectFit:'cover',
+                  style={{ width:88, height:88, borderRadius:16, objectFit:'cover',
                     border:`2px solid ${T.border}`, boxShadow:T.sh }}/>
-                {doko.dormindo && (
-                  <div style={{ position:'absolute', top:-6, right:-6, fontSize:16 }}>😴</div>
-                )}
+                {doko.dormindo && <div style={{ position:'absolute', top:-6, right:-6, fontSize:16 }}>😴</div>}
               </div>
               <div style={{ flex:1, minWidth:160 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:T.text, marginBottom:12 }}>
