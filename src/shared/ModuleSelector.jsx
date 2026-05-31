@@ -41,7 +41,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const allMods=[
     {id:'colaborador',    label:'Portal do Colaborador', sub:'Portal RH completo',             icon:IcoColab,   color:T.gold,    bg:T.goldGl,              tag:'Principal', adminOnly:false},
     {id:'alexa',          label:'Central Alexa',          sub:'Festival · Música · Biblioteca', icon:IcoAlexa,   color:T.gold,    bg:T.goldGl,              tag:'Música',    adminOnly:false},
-    {id:'mercado-estelar',label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',icon:IcoMercado, color:'#8B5CF6', bg:'rgba(139,92,246,0.09)', tag:'Em Breve',  adminOnly:false, comingSoon:true},
+    {id:'mercado-estelar',label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',icon:IcoMercado, color:T.gold,    bg:T.goldGl,              tag:'Em Breve',  adminOnly:false, comingSoon:true},
     {id:'dashboard',      label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,    color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
     {id:'ponto',          label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto,   color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
   ];
