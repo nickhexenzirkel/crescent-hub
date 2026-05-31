@@ -1670,9 +1670,37 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         {/* ══════════ MÁQUINA DO TEMPO TAB ══════════ */}
         {tab==="maquina"&&(
           <div style={{position:"relative",zIndex:1}}>
-            <div style={{marginBottom:20}}>
-              <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
-              <div style={{fontSize:13,color:T.textT,marginTop:3}}>O que a galera mais pediu no UnikoWave</div>
+            <div style={{marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+              <div>
+                <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
+                <div style={{fontSize:13,color:T.textT,marginTop:3}}>
+                  O que a galera mais pediu no UnikoWave
+                  {maquinaData?.resetAt && (
+                    <span style={{marginLeft:8,fontSize:11,color:T.textD}}>
+                      · zerado em {new Date(maquinaData.resetAt).toLocaleDateString('pt-BR',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Zerar o histórico da Máquina do Tempo? Músicas tocadas a partir de agora serão contadas do zero.')) return;
+                    await _supabase.from('settings').upsert({key:'maquina_reset_at', value: new Date().toISOString()}, {onConflict:'key'});
+                    loadMaquinaData();
+                  }}
+                  style={{flexShrink:0,padding:'7px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,
+                    background:'transparent',cursor:'pointer',fontFamily:'var(--font-body)',
+                    fontSize:12,fontWeight:600,color:T.textS,display:'flex',alignItems:'center',gap:6,
+                    transition:'all .15s'}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textS;}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                  </svg>
+                  Zerar contador
+                </button>
+              )}
             </div>
             {maquinaLoading
               ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
