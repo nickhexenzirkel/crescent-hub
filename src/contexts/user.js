@@ -77,7 +77,7 @@ const saveUserPhoto = async (base64) => {
 
 const fetchPhotoByName = async (name) => {
   try {
-    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', name).single();
+    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', name).maybeSingle();
     return data?.photo || null;
   } catch { return null; }
 };

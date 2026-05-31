@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, SERVER_URL, getAuthUser, fetchPhotoByName } from '../../../contexts/user';
 import { Card, StarDivider, SHead, AvatarCircle } from '../../../shared/components';
@@ -33,6 +33,196 @@ const StatBar = ({ label, value=0, color }) => (
     </div>
   </div>
 );
+
+/* ── Componente de card de troféu — fora do TabColegas para não recriar a cada render ── */
+const TrophyMiniCard = ({ trophy, highlighted }) => {
+  const [hov, setHov] = useState(false);
+  const def = TROPHY_TYPES.find(x => x.id === trophy.type) || TROPHY_TYPES[0];
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ borderRadius:13, border:`2px solid ${(highlighted||hov) ? T.goldLine+'88' : T.border}`,
+        background: highlighted ? T.goldGl : (T.dark ? T.surface : '#fff'),
+        padding:'16px 12px', textAlign:'center',
+        transition:'all .15s', transform: hov ? 'translateY(-2px)' : 'none',
+        boxShadow: hov ? T.shM : 'none' }}>
+      <img src={def.img} alt={def.label}
+        onError={e => { e.target.onerror=null; e.target.style.opacity='0.2'; }}
+        style={{ width:70, height:70, objectFit:'contain', marginBottom:8 }}/>
+      <div style={{ fontSize:12, fontWeight:700, color:T.text, marginBottom:3,
+        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{trophy.description}</div>
+      <div style={{ fontSize:10, color:T.textT, marginBottom:2 }}>
+        {trophy.created_at ? new Date(trophy.created_at).toLocaleDateString('pt-BR') : '—'}
+      </div>
+      <div style={{ fontSize:10, color:T.textS }}>De: {trophy.from_name}</div>
+      {trophy.message && (
+        <div style={{ fontSize:10, color:T.textD, marginTop:4, fontStyle:'italic',
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          "{trophy.message}"
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── Modal de presentear — fora do TabColegas para não recriar a cada keystroke ── */
+const GiftModal = ({ show, onClose, selected, photos, isAdmin, availTrophies, remaining,
+  giftType, setGiftType, giftDesc, setGiftDesc, giftMsg, setGiftMsg,
+  gifting, giftResult, onSend }) => {
+  if (!show || !selected) return null;
+  const activeDef = TROPHY_TYPES.find(t => t.id === giftType) || TROPHY_TYPES[0];
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.55)',
+      backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center',
+      padding:16, fontFamily:'var(--font-body)' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: T.dark ? T.surface : '#fff', borderRadius:20, width:'100%', maxWidth:420,
+        maxHeight:'90vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.35)',
+        border:`1px solid ${T.border}`,
+      }}>
+        {/* Header */}
+        <div style={{ background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+          padding:'18px 22px', borderRadius:'20px 20px 0 0',
+          display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.22)',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🎁</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:17, fontWeight:700, color:'white' }}>Presentear Troféu</div>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', marginTop:1 }}>{activeDef.label}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.18)', border:'none',
+            borderRadius:8, width:30, height:30, cursor:'pointer', color:'white',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>×</button>
+        </div>
+
+        <div style={{ padding:'20px 22px' }}>
+          {/* Presentando para */}
+          <div style={{ padding:'12px 14px', borderRadius:12, background:T.goldGl,
+            border:`1px solid ${T.goldLine}22`, marginBottom:18 }}>
+            <div style={{ fontSize:11, color:T.textD, textTransform:'uppercase',
+              letterSpacing:'.07em', fontWeight:600, marginBottom:8 }}>Presenteando para:</div>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13}/>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{selected.name}</div>
+                <div style={{ fontSize:11, color:T.textT }}>{selected.cargo || selected.role || 'Colaborador'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Imagem do troféu */}
+          <div style={{ borderRadius:14, background: T.dark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
+            padding:'20px', display:'flex', justifyContent:'center', marginBottom:18 }}>
+            <img src={activeDef.img} alt={activeDef.label}
+              onError={e => { e.target.onerror=null; e.target.style.opacity='0.3'; }}
+              style={{ width:110, height:110, objectFit:'contain', transition:'all .2s' }}/>
+          </div>
+
+          {/* Seleção de tipo */}
+          <div style={{ display:'flex', gap:8, marginBottom:18, justifyContent:'center' }}>
+            {availTrophies.map(t => {
+              const active   = giftType === t.id;
+              const disabled = !isAdmin && t.id === 'nebula' && remaining === 0;
+              return (
+                <button key={t.id} onClick={() => !disabled && setGiftType(t.id)}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5,
+                    padding:'8px 12px', borderRadius:10, cursor: disabled?'not-allowed':'pointer',
+                    border:`2px solid ${active ? t.color : T.border}`,
+                    background: active ? `${t.color}12` : 'transparent',
+                    opacity: disabled ? 0.4 : 1, transition:'all .15s', outline:'none' }}>
+                  <img src={t.img} alt={t.label}
+                    onError={e => { e.target.onerror=null; e.target.style.opacity='0'; }}
+                    style={{ width:32, height:32, objectFit:'contain' }}/>
+                  <span style={{ fontSize:9, fontWeight: active?700:400,
+                    color: active ? t.color : T.textD, textAlign:'center', lineHeight:1.2 }}>
+                    {t.label.replace('Troféu ','')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Nome do troféu */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
+              Nome do Troféu <span style={{ color:'#C04050' }}>*</span>
+            </label>
+            <input value={giftDesc} onChange={e => setGiftDesc(e.target.value)}
+              placeholder="Ex: Melhor do mês, Troféu Inovação..."
+              style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
+                borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
+                background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
+                outline:'none', boxSizing:'border-box', transition:'border-color .15s' }}
+              onFocus={e => e.target.style.borderColor = T.goldLine}
+              onBlur={e  => e.target.style.borderColor = T.border}/>
+          </div>
+
+          {/* Mensagem */}
+          <div style={{ marginBottom:18 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
+              Mensagem Personalizada <span style={{ fontSize:11, color:T.textD, fontWeight:400 }}>(opcional)</span>
+            </label>
+            <textarea value={giftMsg} onChange={e => setGiftMsg(e.target.value)}
+              placeholder="Ex: Parabéns pelo excelente trabalho!"
+              rows={3}
+              style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
+                borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
+                background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
+                outline:'none', resize:'vertical', lineHeight:1.6, boxSizing:'border-box',
+                transition:'border-color .15s' }}
+              onFocus={e => e.target.style.borderColor = T.goldLine}
+              onBlur={e  => e.target.style.borderColor = T.border}/>
+          </div>
+
+          {/* Troféus disponíveis */}
+          {!isAdmin && (
+            <div style={{ padding:'12px 14px', borderRadius:11, marginBottom:16,
+              background: remaining === 0 ? 'rgba(192,64,80,0.06)' : T.goldGl,
+              border:`1px solid ${remaining === 0 ? 'rgba(192,64,80,0.22)' : T.goldLine+'33'}` }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:13, fontWeight:600, color: remaining===0 ? '#C04050' : T.textS }}>Troféus disponíveis:</span>
+                <span style={{ fontSize:22, fontWeight:800, color: remaining===0 ? '#C04050' : T.gold }}>{remaining}</span>
+              </div>
+              <div style={{ fontSize:11, color:T.textT, marginTop:3 }}>
+                {remaining === 0
+                  ? 'Limite mensal atingido. Renova no próximo mês.'
+                  : `Você poderá presentear mais ${remaining - 1} troféu(s) após este.`}
+              </div>
+            </div>
+          )}
+
+          {giftResult && (
+            <div style={{ padding:'9px 14px', borderRadius:9, marginBottom:14, fontSize:12,
+              background: giftResult.startsWith('✅') ? 'rgba(40,168,112,0.08)' : 'rgba(192,64,80,0.06)',
+              border:`1px solid ${giftResult.startsWith('✅') ? 'rgba(40,168,112,0.25)' : 'rgba(192,64,80,0.22)'}`,
+              color: giftResult.startsWith('✅') ? '#28A870' : '#C04050' }}>
+              {giftResult}
+            </div>
+          )}
+
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={onClose}
+              style={{ flex:1, padding:'11px', borderRadius:10, border:`1px solid ${T.border}`,
+                background:'transparent', cursor:'pointer', fontFamily:'var(--font-body)',
+                fontSize:13, fontWeight:600, color:T.textS }}>
+              Cancelar
+            </button>
+            <button onClick={onSend}
+              disabled={gifting || !giftDesc.trim() || (!isAdmin && giftType==='nebula' && remaining===0)}
+              style={{ flex:2, padding:'11px', borderRadius:10, border:'none',
+                cursor: (gifting||!giftDesc.trim()) ? 'not-allowed' : 'pointer',
+                background: (gifting||!giftDesc.trim()) ? T.border : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+                color: (gifting||!giftDesc.trim()) ? T.textD : 'white',
+                fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', transition:'all .15s',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                boxShadow: (!gifting&&giftDesc.trim()) ? `0 4px 16px ${T.goldLine}44` : 'none' }}>
+              {gifting ? 'Enviando...' : <><span>🎁</span> Presentear</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TabColegas = () => {
   const auth     = getAuthUser();
@@ -140,170 +330,6 @@ const TabColegas = () => {
   const availTrophies = TROPHY_TYPES.filter(t => isAdmin || !t.adminOnly);
   const remaining = Math.max(0, 3 - monthlyUsed);
 
-  /* ── GIFT MODAL OVERLAY ──────────────────────────────────── */
-  const GiftModal = () => {
-    if (!showGift || !selected) return null;
-    const activeDef = TROPHY_TYPES.find(t => t.id === giftType) || TROPHY_TYPES[0];
-    return (
-      <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,0.55)',
-        backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center',
-        padding:16, fontFamily:'var(--font-body)' }} onClick={() => setShowGift(false)}>
-        <div onClick={e => e.stopPropagation()} style={{
-          background: T.dark ? T.surface : '#fff', borderRadius:20, width:'100%', maxWidth:420,
-          maxHeight:'90vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.35)',
-          border:`1px solid ${T.border}`,
-        }}>
-          {/* Header */}
-          <div style={{ background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-            padding:'18px 22px', borderRadius:'20px 20px 0 0',
-            display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:40, height:40, borderRadius:12, background:'rgba(255,255,255,0.22)',
-              display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🎁</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:17, fontWeight:700, color:'white' }}>Presentear Troféu</div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', marginTop:1 }}>{activeDef.label}</div>
-            </div>
-            <button onClick={() => setShowGift(false)}
-              style={{ background:'rgba(255,255,255,0.18)', border:'none', borderRadius:8,
-                width:30, height:30, cursor:'pointer', color:'white', display:'flex',
-                alignItems:'center', justifyContent:'center', fontSize:16 }}>×</button>
-          </div>
-
-          <div style={{ padding:'20px 22px' }}>
-            {/* Presentando para */}
-            <div style={{ padding:'12px 14px', borderRadius:12, background:T.goldGl,
-              border:`1px solid ${T.goldLine}22`, marginBottom:18 }}>
-              <div style={{ fontSize:11, color:T.textD, textTransform:'uppercase',
-                letterSpacing:'.07em', fontWeight:600, marginBottom:8 }}>Presenteando para:</div>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13}/>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{selected.name}</div>
-                  <div style={{ fontSize:11, color:T.textT }}>{selected.cargo || selected.role || 'Colaborador'}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Imagem do troféu */}
-            <div style={{ borderRadius:14, background: T.dark ? 'rgba(255,255,255,0.05)' : '#f5f5f5',
-              padding:'20px', display:'flex', justifyContent:'center', marginBottom:18 }}>
-              <img src={activeDef.img} alt={activeDef.label}
-                onError={e => { e.target.onerror=null; e.target.style.opacity='0.3'; }}
-                style={{ width:110, height:110, objectFit:'contain', transition:'all .2s' }}/>
-            </div>
-
-            {/* Seleção de tipo (thumbnails) */}
-            <div style={{ display:'flex', gap:8, marginBottom:18, justifyContent:'center' }}>
-              {availTrophies.map(t => {
-                const active   = giftType === t.id;
-                const disabled = !isAdmin && t.id === 'nebula' && remaining === 0;
-                return (
-                  <button key={t.id} onClick={() => !disabled && setGiftType(t.id)}
-                    style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5,
-                      padding:'8px 12px', borderRadius:10, cursor: disabled?'not-allowed':'pointer',
-                      border:`2px solid ${active ? t.color : T.border}`,
-                      background: active ? `${t.color}12` : 'transparent',
-                      opacity: disabled ? 0.4 : 1, transition:'all .15s', outline:'none' }}>
-                    <img src={t.img} alt={t.label}
-                      onError={e => { e.target.onerror=null; e.target.style.opacity='0'; }}
-                      style={{ width:32, height:32, objectFit:'contain' }}/>
-                    <span style={{ fontSize:9, fontWeight: active?700:400,
-                      color: active ? t.color : T.textD, textAlign:'center', lineHeight:1.2 }}>
-                      {t.label.replace('Troféu ','')}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Nome do troféu */}
-            <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
-                Nome do Troféu <span style={{ color:'#C04050' }}>*</span>
-              </label>
-              <input value={giftDesc} onChange={e => { setGiftDesc(e.target.value); setGiftResult(''); }}
-                placeholder="Ex: Melhor do mês, Troféu Inovação..."
-                style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
-                  borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
-                  background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
-                  outline:'none', boxSizing:'border-box', transition:'border-color .15s' }}
-                onFocus={e => e.target.style.borderColor = T.goldLine}
-                onBlur={e  => e.target.style.borderColor = T.border}/>
-            </div>
-
-            {/* Mensagem personalizada */}
-            <div style={{ marginBottom:18 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:T.textS, display:'block', marginBottom:6 }}>
-                Mensagem Personalizada <span style={{ fontSize:11, color:T.textD, fontWeight:400 }}>(opcional)</span>
-              </label>
-              <textarea value={giftMsg} onChange={e => setGiftMsg(e.target.value)}
-                placeholder="Ex: Parabéns pelo excelente trabalho!"
-                rows={3}
-                style={{ width:'100%', padding:'10px 13px', border:`1.5px solid ${T.border}`,
-                  borderRadius:10, fontFamily:'var(--font-body)', fontSize:13, color:T.text,
-                  background: T.dark ? 'rgba(255,255,255,0.05)' : '#fff',
-                  outline:'none', resize:'vertical', lineHeight:1.6, boxSizing:'border-box',
-                  transition:'border-color .15s' }}
-                onFocus={e => e.target.style.borderColor = T.goldLine}
-                onBlur={e  => e.target.style.borderColor = T.border}/>
-            </div>
-
-            {/* Troféus disponíveis */}
-            {!isAdmin && (
-              <div style={{ padding:'12px 14px', borderRadius:11, marginBottom:16,
-                background: remaining === 0 ? 'rgba(192,64,80,0.06)' : T.goldGl,
-                border:`1px solid ${remaining === 0 ? 'rgba(192,64,80,0.22)' : T.goldLine+'33'}` }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span style={{ fontSize:13, fontWeight:600, color: remaining===0 ? '#C04050' : T.textS }}>
-                    Troféus disponíveis:
-                  </span>
-                  <span style={{ fontSize:22, fontWeight:800, color: remaining===0 ? '#C04050' : T.gold }}>
-                    {remaining}
-                  </span>
-                </div>
-                <div style={{ fontSize:11, color:T.textT, marginTop:3 }}>
-                  {remaining === 0
-                    ? 'Limite mensal atingido. Renova no próximo mês.'
-                    : `Você poderá presentear mais ${remaining - (giftDesc.trim() ? 1 : 0) >= 0 ? remaining - 1 : 0} troféu(s) após este.`}
-                </div>
-              </div>
-            )}
-
-            {giftResult && (
-              <div style={{ padding:'9px 14px', borderRadius:9, marginBottom:14, fontSize:12,
-                background: giftResult.startsWith('✅') ? 'rgba(40,168,112,0.08)' : 'rgba(192,64,80,0.06)',
-                border:`1px solid ${giftResult.startsWith('✅') ? 'rgba(40,168,112,0.25)' : 'rgba(192,64,80,0.22)'}`,
-                color: giftResult.startsWith('✅') ? '#28A870' : '#C04050' }}>
-                {giftResult}
-              </div>
-            )}
-
-            {/* Botões */}
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setShowGift(false)}
-                style={{ flex:1, padding:'11px', borderRadius:10, border:`1px solid ${T.border}`,
-                  background:'transparent', cursor:'pointer', fontFamily:'var(--font-body)',
-                  fontSize:13, fontWeight:600, color:T.textS }}>
-                Cancelar
-              </button>
-              <button onClick={sendTrophy}
-                disabled={gifting || !giftDesc.trim() || (!isAdmin && giftType==='nebula' && remaining===0)}
-                style={{ flex:2, padding:'11px', borderRadius:10, border:'none',
-                  cursor: (gifting || !giftDesc.trim()) ? 'not-allowed' : 'pointer',
-                  background: (gifting || !giftDesc.trim()) ? T.border : `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-                  color: (gifting || !giftDesc.trim()) ? T.textD : 'white',
-                  fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', transition:'all .15s',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                  boxShadow: (!gifting && giftDesc.trim()) ? `0 4px 16px ${T.goldLine}44` : 'none' }}>
-                {gifting ? 'Enviando...' : <><span>🎁</span> Presentear</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   /* ── PROFILE VIEW ─────────────────────────────────────────── */
   if (selected) {
     const emp      = selected;
@@ -314,7 +340,15 @@ const TabColegas = () => {
 
     return (
       <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
-        <GiftModal/>
+        <GiftModal
+          show={showGift} onClose={() => setShowGift(false)}
+          selected={selected} photos={photos} isAdmin={isAdmin}
+          availTrophies={availTrophies} remaining={remaining}
+          giftType={giftType} setGiftType={setGiftType}
+          giftDesc={giftDesc} setGiftDesc={setGiftDesc}
+          giftMsg={giftMsg} setGiftMsg={setGiftMsg}
+          gifting={gifting} giftResult={giftResult} onSend={sendTrophy}
+        />
 
         {/* Back */}
         <button onClick={() => { setSelected(null); setShowGift(false); }}
@@ -360,35 +394,9 @@ const TabColegas = () => {
             </div>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
-              {emTrophy.map((t, i) => {
-                const def = TROPHY_TYPES.find(x => x.id === t.type) || TROPHY_TYPES[0];
-                const [hov, setHov] = React.useState(false);
-                return (
-                  <div key={i}
-                    onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-                    style={{ borderRadius:13, border:`2px solid ${(i===0||hov) ? T.goldLine+'88' : T.border}`,
-                      background: i===0 ? T.goldGl : (T.dark ? T.surface : '#fff'),
-                      padding:'16px 12px', textAlign:'center',
-                      transition:'all .15s', transform: hov ? 'translateY(-2px)' : 'none',
-                      boxShadow: hov ? T.shM : 'none' }}>
-                    <img src={def.img} alt={def.label}
-                      onError={e => { e.target.onerror=null; e.target.style.opacity='0.2'; }}
-                      style={{ width:70, height:70, objectFit:'contain', marginBottom:8 }}/>
-                    <div style={{ fontSize:12, fontWeight:700, color:T.text, marginBottom:3,
-                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
-                    <div style={{ fontSize:10, color:T.textT, marginBottom:2 }}>
-                      {t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—'}
-                    </div>
-                    <div style={{ fontSize:10, color:T.textS }}>De: {t.from_name}</div>
-                    {t.message && (
-                      <div style={{ fontSize:10, color:T.textD, marginTop:4, fontStyle:'italic',
-                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        "{t.message}"
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {emTrophy.map((t, i) => (
+                <TrophyMiniCard key={i} trophy={t} highlighted={i === 0}/>
+              ))}
             </div>
           )}
         </Card>
