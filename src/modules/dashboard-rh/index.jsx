@@ -383,7 +383,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     const auth = getAuthUser();
     try {
       const isEdit = lembModal && lembModal !== 'new';
-      const payload = { ...lembForm, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
+      const { fanfare: _f, sound: _s, ...lembData } = lembForm;
+      const payload = { ...lembData, created_by: auth?.name || 'Admin', updated_at: new Date().toISOString() };
       if (isEdit) {
         const { error } = await _supabase.from('reminders').update(payload).eq('id', lembModal.id);
         if (error) throw new Error(error.message);
