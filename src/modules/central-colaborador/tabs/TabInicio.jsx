@@ -199,14 +199,40 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     const r = new FileReader(); r.onload=ev=>setTmpPhoto(ev.target.result); r.readAsDataURL(f);
   };
   const savePhoto = () => {
+    const applyAndCommit = (cropped) => {
+      const defaultPos = {x:50, y:50};
+      const defaultSc  = 100;
+      setPhoto(cropped);
+      saveUserPhoto(cropped);
+      if (onPhotoChange) onPhotoChange(cropped);
+      localStorage.setItem(PHPK, JSON.stringify(defaultPos));
+      localStorage.setItem(PHSK, JSON.stringify(defaultSc));
+      setPhotoPos(defaultPos); setPhotoSc(defaultSc);
+      setShowPhoto(false);
+    };
+
     if (tmpPhoto) {
-      setPhoto(tmpPhoto);
-      saveUserPhoto(tmpPhoto);
-      if (onPhotoChange) onPhotoChange(tmpPhoto);
+      // Aplica zoom/posição via canvas para que todos vejam a mesma versão
+      const img = new window.Image();
+      img.onload = () => {
+        const SIZE = 300;
+        const canvas = document.createElement('canvas');
+        canvas.width = SIZE; canvas.height = SIZE;
+        const ctx = canvas.getContext('2d');
+        const renderedW = SIZE * (tmpSc / 100);
+        const renderedH = renderedW * (img.naturalHeight / img.naturalWidth);
+        const offsetX   = (tmpPos.x / 100) * (SIZE - renderedW);
+        const offsetY   = (tmpPos.y / 100) * (SIZE - renderedH);
+        ctx.drawImage(img, offsetX, offsetY, renderedW, renderedH);
+        applyAndCommit(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.src = tmpPhoto;
+    } else {
+      // Só mudou posição/zoom sem trocar a foto
+      localStorage.setItem(PHPK, JSON.stringify(tmpPos));
+      localStorage.setItem(PHSK, JSON.stringify(tmpSc));
+      setPhotoPos(tmpPos); setPhotoSc(tmpSc); setShowPhoto(false);
     }
-    localStorage.setItem(PHPK, JSON.stringify(tmpPos));
-    localStorage.setItem(PHSK, JSON.stringify(tmpSc));
-    setPhotoPos(tmpPos); setPhotoSc(tmpSc); setShowPhoto(false);
   };
 
   /* ════════════════════════════════════════════════════════════════ */
