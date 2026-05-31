@@ -66,7 +66,7 @@ const TabConquistas = () => {
   useEffect(() => {
     const load = async () => {
       const [empRes, trophyRes] = await Promise.all([
-        fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() }).then(r => r.json()).catch(() => ({ employees:[] })),
+        fetch(`${SERVER_URL}/api/team`, { headers: authHeader() }).then(r => r.json()).catch(() => ({ employees:[] })),
         _supabase.from('trophies').select('*').order('created_at', { ascending:false }),
       ]);
 

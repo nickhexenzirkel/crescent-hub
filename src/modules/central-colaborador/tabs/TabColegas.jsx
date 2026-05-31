@@ -250,7 +250,7 @@ const TabColegas = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() });
+      const r = await fetch(`${SERVER_URL}/api/team`, { headers: authHeader() });
       const d = await r.json();
       const list = (d.employees || []).filter(e => e.active !== false && e.name !== USER.name);
       setEmployees(list);
