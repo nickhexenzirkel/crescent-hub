@@ -18,6 +18,7 @@ const NAV=[
   /* Grupo 2 — Corporativo (divider antes) */
   {id:'comunicados',label:'Comunicados',    icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
   {id:'eventos',    label:'Eventos',        icon:<I><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></I>},
+  {id:'colegas',    label:'Colegas',        icon:<I><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></I>},
   {id:'feedback',   label:'Feedback',       icon:<I><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></I>},
   {id:'conquistas', label:'Conquistas',     icon:<I><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></I>},
   /* Grupo 3 — Entretenimento (divider antes) */
@@ -85,7 +86,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 
         {NAV.map((n,idx)=>{
           const a=tab===n.id;
-          const showDivider = idx===5 || idx===9; /* dividers between logical groups */
+          const showDivider = idx===5 || idx===10; /* dividers between logical groups */
           return(
             <div key={n.id}>
               {showDivider && <StarDivider my={5} dim/>}
@@ -159,7 +160,7 @@ const TopBar = ({tab,onBack}) => {
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
-    uniko:'My Uniko'};
+    uniko:'My Uniko',colegas:'Colegas'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState(NOTIFS_DATA);
   const unread=notifs.filter(n=>!n.read).length;

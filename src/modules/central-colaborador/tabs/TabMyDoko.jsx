@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
-import { USER, SERVER_URL } from '../../../contexts/user';
+import { USER, SERVER_URL, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider, SHead } from '../../../shared/components';
 import dokoTecnico      from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro   from '../../../assets/DodocoCozinheiro.jpg';
@@ -1061,6 +1061,19 @@ const TabMyDoko = () => {
 
   useEffect(()=>{
     localStorage.setItem(DOKO_KEY, JSON.stringify({ skin, fome, energia, sono, dormindo, lastUpdated: Date.now() }));
+  }, [skin, fome, energia, sono, dormindo]);
+
+  /* Sync Doko state to Supabase so colegas can see it */
+  const _dokoSyncRef = useRef(null);
+  useEffect(() => {
+    if (!USER.name || USER.name === 'Colaborador') return;
+    clearTimeout(_dokoSyncRef.current);
+    _dokoSyncRef.current = setTimeout(() => {
+      _supabase.from('doko_states').upsert(
+        { employee_name: USER.name, skin, fome, energia, sono, dormindo, updated_at: new Date().toISOString() },
+        { onConflict: 'employee_name' }
+      );
+    }, 4000);
   }, [skin, fome, energia, sono, dormindo]);
 
   useEffect(()=>{

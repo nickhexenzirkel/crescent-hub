@@ -14,6 +14,7 @@ import { TabConquistas } from './tabs/TabConquistas';
 import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
+import { TabColegas } from './tabs/TabColegas';
 import CentralLembretes from '../central-lembretes';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
@@ -95,6 +96,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='horas')      return <TabHoras/>;
     if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
+    if(tab==='colegas')    return <TabColegas/>;
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='games')      return <TabGames/>;
     if(tab==='conquistas') return <TabConquistas/>;
