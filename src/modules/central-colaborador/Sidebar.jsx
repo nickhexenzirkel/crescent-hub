@@ -1,7 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { T, THEMES } from '../../contexts/theme';
-import { USER, NOTIFS_DATA } from '../../contexts/user';
+import { USER, supabase as _supabase } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
+
+const READ_KEY = 'uniko_notif_read';
+const getReadIds = () => { try { return new Set(JSON.parse(localStorage.getItem(READ_KEY)) || []); } catch { return new Set(); } };
+const saveReadId = (id) => { try { const s = getReadIds(); s.add(id); localStorage.setItem(READ_KEY, JSON.stringify([...s])); } catch {} };
+const markAllRead = (ids) => { try { localStorage.setItem(READ_KEY, JSON.stringify(ids)); } catch {} };
+const comumToNotif = (c) => ({
+  id:   c.id,
+  icon: c.urgent ? '🚨' : c.cat === 'Evento' ? '📅' : '📋',
+  msg:  c.title || c.body || 'Novo comunicado',
+  time: c.created_at ? new Date(c.created_at).toLocaleDateString('pt-BR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '',
+  read: getReadIds().has(c.id),
+});
 
 const I = (p) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -162,8 +174,23 @@ const TopBar = ({tab,onBack}) => {
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'My Uniko',colegas:'Colegas'};
   const [notifOpen,setNO]=useState(false);
-  const [notifs,setNotifs]=useState(NOTIFS_DATA);
+  const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
+
+  useEffect(()=>{
+    _supabase.from('comunicados').select('*').eq('active',true)
+      .order('created_at',{ascending:false}).limit(15)
+      .then(({data})=>setNotifs((data||[]).map(comumToNotif)));
+
+    const sub = _supabase.channel('topbar_comuns_rt')
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'comunicados'},({new:c})=>{
+        if(!c?.active) return;
+        setNotifs(p=>[comumToNotif(c), ...p]);
+      })
+      .subscribe();
+    return ()=>_supabase.removeChannel(sub);
+  },[]);
+
   if(tab==='inicio')return null;
   return(
     <div style={{height:52,display:'flex',alignItems:'center',gap:12,padding:'0 30px',
@@ -206,14 +233,14 @@ const TopBar = ({tab,onBack}) => {
                 borderRadius:999,padding:'1px 8px',fontSize:11,
                 border:`1px solid ${T.goldLine}44`}}>{unread} novas</span>}
             </div>
-            {unread>0&&<button onClick={()=>setNotifs(n=>n.map(x=>({...x,read:true})))}
+            {unread>0&&<button onClick={()=>{ const ids=notifs.map(n=>n.id); markAllRead(ids); setNotifs(n=>n.map(x=>({...x,read:true}))); }}
               style={{background:'none',border:'none',cursor:'pointer',
                 color:T.gold,fontSize:12,fontFamily:'var(--font-body)'}}>Marcar lidas</button>}
           </div>
           <div style={{maxHeight:300,overflowY:'auto'}}>
             {notifs.map(n=>(
               <div key={n.id}
-                onClick={()=>setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x))}
+                onClick={()=>{ saveReadId(n.id); setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x)); }}
                 style={{display:'flex',gap:12,padding:'12px 16px',cursor:'pointer',
                   background:n.read?'transparent':T.goldGl,
                   borderBottom:`1px solid ${T.divider}`,transition:'background .14s'}}>

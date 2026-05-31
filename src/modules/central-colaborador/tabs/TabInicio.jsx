@@ -125,7 +125,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const greeting = hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite';
   const todayFmt = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
 
-  /* ── Fetch ── */
+  /* ── Fetch helpers ── */
+  const fetchEvts   = () => _supabase.from('calendar_events').select('*').order('event_date',{ascending:true}).then(({data})=>setEvts(data||[]));
+  const fetchComuns = () => _supabase.from('comunicados').select('*').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setComuns(data||[]));
+
+  /* ── Fetch inicial + realtime ── */
   useEffect(() => {
     _supabase.from('trophies').select('*').eq('to_name', USER.name).order('created_at',{ascending:false})
       .then(({data})=>setMyTrophies(data||[]));
@@ -134,11 +138,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     _supabase.from('reminders').select('*').in('type',['personal','lembrete']).like('time','nota:%').eq('created_by',USER.name)
       .order('created_at',{ascending:false}).limit(4)
       .then(({data})=>setNotas(data||[]));
-    _supabase.from('calendar_events').select('*').order('event_date',{ascending:true})
-      .then(({data})=>setEvts(data||[]));
-    _supabase.from('comunicados').select('*').eq('active',true)
-      .order('created_at',{ascending:false}).limit(3)
-      .then(({data})=>setComuns(data||[]));
+    fetchEvts();
+    fetchComuns();
     _supabase.from('player_state').select('*').eq('id',1).single()
       .then(async({data})=>{
         if(!data) return;
@@ -148,6 +149,16 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           if(s) setNowPlay(s);
         }
       });
+
+    const subEvts = _supabase.channel('inicio_evts_rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'calendar_events'}, fetchEvts)
+      .subscribe();
+    const subComuns = _supabase.channel('inicio_comuns_rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'comunicados'}, fetchComuns)
+      .subscribe();
+
+    return () => { _supabase.removeChannel(subEvts); _supabase.removeChannel(subComuns); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   /* ── Uniko stats: atualiza a cada 2s (skin, fome, energia, sono) ── */
