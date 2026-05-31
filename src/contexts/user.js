@@ -64,10 +64,15 @@ const getUserPhotoFromCache = () => {
 const loadUserPhoto = async () => {
   if (!USER.name || USER.name === 'Colaborador') return null;
   try {
-    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', USER.name).single();
+    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', USER.name).maybeSingle();
     if (data?.photo) { localStorage.setItem(PHOTO_KEY, data.photo); return data.photo; }
   } catch {}
-  return getUserPhotoFromCache();
+  // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver
+  const cached = getUserPhotoFromCache();
+  if (cached) {
+    _supabase.from('profile_photos').upsert({ employee_name: USER.name, photo: cached, updated_at: new Date().toISOString() }).catch(() => {});
+  }
+  return cached;
 };
 
 const saveUserPhoto = async (base64) => {
