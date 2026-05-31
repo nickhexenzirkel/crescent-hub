@@ -74,6 +74,7 @@ const LoginScreen = ({ onLogin }) => {
         {/* logos de parceria */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 28 }}>
           <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko"
+            onError={e => { e.target.onerror = null; e.target.src = '/Uniko.png'; }}
             style={{ width: 96, height: 96, objectFit: 'contain', filter: `drop-shadow(0 6px 24px ${T.goldLine}44)` }}/>
           <div style={{ width: 1, height: 72, background: T.border, flexShrink: 0, opacity: 0.6 }}/>
           <img src={logoNicolas} alt="Nicolas Andrade"

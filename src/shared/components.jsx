@@ -95,6 +95,7 @@ const Logo = ({size=64}) => (
 /* Logo principal da marca — troca com o tema via T.unikoSrc */
 const BrandLogo = ({size=120}) => (
   <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko"
+    onError={e => { e.target.onerror = null; e.target.src = '/Uniko.png'; }}
     style={{
       width:size, height:size,
       objectFit:'contain',
