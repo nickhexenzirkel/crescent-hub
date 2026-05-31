@@ -133,6 +133,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [spotifySaving, setSpotifySaving]     = useState(false);
   const [spotifyServerStatus, setSpotifyServerStatus] = useState(null); // null | {client_id, has_client_secret, has_refresh_token}
 
+  // ── Feedback ──────────────────────────────────────────────
+  const [fbList,      setFbList]      = useState([]);
+  const [fbLoading,   setFbLoading]   = useState(false);
+  const [fbCatFilter, setFbCatFilter] = useState('Todos');
+  const [fbReadFilter,setFbReadFilter]= useState('Todos');
+  const [fbExpanded,  setFbExpanded]  = useState(null);
+
   // ── Contracheques ─────────────────────────────────────────
   const [chList,       setChList]       = useState([]);
   const [chLoading,    setChLoading]    = useState(false);
@@ -442,6 +449,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setLembSaving(false);
   };
 
+  // ── Feedback: funções ─────────────────────────────────────
+  const loadFeedbacks = async () => {
+    setFbLoading(true);
+    const { data } = await _supabase.from('feedbacks').select('*').order('created_at', { ascending: false });
+    setFbList(data || []);
+    setFbLoading(false);
+  };
+
+  const markFbRead = async (id, current) => {
+    await _supabase.from('feedbacks').update({ read: !current }).eq('id', id);
+    setFbList(prev => prev.map(f => f.id === id ? { ...f, read: !current } : f));
+  };
+
+  const deleteFb = async (id) => {
+    if (!window.confirm('Remover este feedback permanentemente?')) return;
+    await _supabase.from('feedbacks').delete().eq('id', id);
+    setFbList(prev => prev.filter(f => f.id !== id));
+  };
+
+  useEffect(() => { if (tab === 'feedback') loadFeedbacks(); }, [tab]);
+
   // ── Contracheques: funções ────────────────────────────────
   const loadContracheques = async () => {
     setChLoading(true);
@@ -533,6 +561,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
+    {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
@@ -1861,6 +1890,149 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </Card>
             </div>
           )}
+
+          {/* ── TAB: FEEDBACK ── */}
+          {tab === 'feedback' && (() => {
+            const FB_CAT_COLOR = {
+              'Sugestão':          '#2A82D2',
+              'Elogio':            '#28A870',
+              'Crítica':           '#D89030',
+              'Reportar Problema': '#C04050',
+            };
+            const FB_CAT_ICON = {
+              'Sugestão':'💡','Elogio':'⭐','Crítica':'📝','Reportar Problema':'🔧',
+            };
+            const cats = ['Todos','Sugestão','Elogio','Crítica','Reportar Problema'];
+            const unread = fbList.filter(f => !f.read).length;
+
+            const filtered = fbList.filter(f => {
+              const catOk  = fbCatFilter  === 'Todos' || f.category === fbCatFilter;
+              const readOk = fbReadFilter === 'Todos' || (fbReadFilter === 'Não lidos' ? !f.read : f.read);
+              return catOk && readOk;
+            });
+
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+                {/* Header */}
+                <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+                  <div>
+                    <div style={{ fontFamily:'var(--font-brand)', fontSize:18, fontWeight:700, color:T.text, letterSpacing:'.04em', display:'flex', alignItems:'center', gap:10 }}>
+                      Feedback dos Colaboradores
+                      {unread > 0 && (
+                        <span style={{ fontSize:11, fontWeight:700, background:'#C04050', color:'white', borderRadius:20, padding:'2px 9px' }}>{unread} novo{unread > 1 ? 's' : ''}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize:13, color:T.textS, marginTop:2 }}>{fbList.length} recebido{fbList.length !== 1 ? 's' : ''} · {unread} não lido{unread !== 1 ? 's' : ''}</div>
+                  </div>
+                  <button onClick={loadFeedbacks} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:9, border:`1px solid ${T.border}`, background:'transparent', cursor:'pointer', fontFamily:'var(--font-body)', fontSize:12, color:T.textS }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                    Atualizar
+                  </button>
+                </div>
+
+                {/* Filtros */}
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                  {/* por categoria */}
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {cats.map(c => (
+                      <button key={c} onClick={() => setFbCatFilter(c)}
+                        style={{ padding:'6px 14px', borderRadius:8, border:`1.5px solid ${fbCatFilter===c ? (FB_CAT_COLOR[c]||T.goldLine)+'88' : T.border}`, background: fbCatFilter===c ? `${FB_CAT_COLOR[c]||T.gold}12` : 'transparent', color: fbCatFilter===c ? (FB_CAT_COLOR[c]||T.gold) : T.textS, fontFamily:'var(--font-body)', fontSize:12, fontWeight:fbCatFilter===c?600:400, cursor:'pointer', transition:'all .15s', outline:'none' }}>
+                        {c !== 'Todos' && <span style={{ marginRight:4 }}>{FB_CAT_ICON[c]}</span>}{c}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ width:1, height:20, background:T.border, margin:'0 4px' }}/>
+                  {/* por leitura */}
+                  {['Todos','Não lidos','Lidos'].map(r => (
+                    <button key={r} onClick={() => setFbReadFilter(r)}
+                      style={{ padding:'6px 14px', borderRadius:8, border:`1.5px solid ${fbReadFilter===r ? T.goldLine+'88' : T.border}`, background: fbReadFilter===r ? T.goldGl : 'transparent', color: fbReadFilter===r ? T.gold : T.textS, fontFamily:'var(--font-body)', fontSize:12, fontWeight:fbReadFilter===r?600:400, cursor:'pointer', transition:'all .15s', outline:'none' }}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Lista */}
+                {fbLoading ? (
+                  <div style={{ textAlign:'center', padding:'40px 0', color:T.textT }}>
+                    <div style={{ width:20, height:20, borderRadius:'50%', border:`2px solid ${T.gold}`, borderTopColor:'transparent', animation:'spin .7s linear infinite', margin:'0 auto 10px' }}/>
+                    Carregando feedbacks...
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <Card style={{ padding:'40px', textAlign:'center', background:cardBg }} elevated>
+                    <div style={{ fontSize:32, marginBottom:10 }}>💬</div>
+                    <div style={{ fontSize:14, color:T.textT }}>Nenhum feedback encontrado</div>
+                    <div style={{ fontSize:12, color:T.textD, marginTop:4 }}>Ajuste os filtros ou aguarde novas mensagens</div>
+                  </Card>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {filtered.map(fb => {
+                      const col     = FB_CAT_COLOR[fb.category] || T.gold;
+                      const icon    = FB_CAT_ICON[fb.category]  || '💬';
+                      const isOpen  = fbExpanded === fb.id;
+                      const isAnon  = fb.anonymous || !fb.employee_name;
+                      return (
+                        <div key={fb.id} style={{ borderRadius:13, border:`1px solid ${fb.read ? T.border : col+'55'}`, background: fb.read ? cardBg : `${col}06`, overflow:'hidden', transition:'border-color .15s' }}>
+                          {/* Cabeçalho do card */}
+                          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px', cursor:'pointer' }}
+                            onClick={() => setFbExpanded(isOpen ? null : fb.id)}>
+                            {/* ícone categoria */}
+                            <div style={{ width:40, height:40, borderRadius:10, background:`${col}15`, border:`1px solid ${col}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
+                              {icon}
+                            </div>
+                            {/* info */}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                                <span style={{ fontSize:12, fontWeight:700, color:col, background:`${col}12`, border:`1px solid ${col}22`, borderRadius:6, padding:'1px 8px' }}>{fb.category}</span>
+                                {!fb.read && <span style={{ fontSize:10, fontWeight:700, background:'#C04050', color:'white', borderRadius:6, padding:'1px 7px' }}>NOVO</span>}
+                                {isAnon && (
+                                  <span style={{ fontSize:10, color:T.textD, display:'flex', alignItems:'center', gap:3 }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22"/></svg>
+                                    Anônimo
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize:13, fontWeight:600, color:T.text, marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace: isOpen ? 'normal' : 'nowrap' }}>
+                                {isAnon ? 'Colaborador Anônimo' : fb.employee_name}
+                              </div>
+                              <div style={{ fontSize:11, color:T.textT, marginTop:1 }}>
+                                {fb.created_at ? new Date(fb.created_at).toLocaleString('pt-BR') : '—'}
+                              </div>
+                            </div>
+                            {/* chevron */}
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ flexShrink:0, transition:'transform .2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>
+                              <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                          </div>
+
+                          {/* Mensagem expandida */}
+                          {isOpen && (
+                            <div style={{ borderTop:`1px solid ${T.border}`, padding:'16px 18px 18px' }}>
+                              <div style={{ fontSize:14, color:T.text, lineHeight:1.7, whiteSpace:'pre-wrap', marginBottom:16 }}>
+                                {fb.message}
+                              </div>
+                              <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                                <button onClick={() => markFbRead(fb.id, fb.read)}
+                                  style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:9, border:`1px solid ${fb.read ? T.border : 'rgba(40,168,112,0.3)'}`, background: fb.read ? 'transparent' : 'rgba(40,168,112,0.08)', color: fb.read ? T.textS : '#28A870', cursor:'pointer', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600 }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                  {fb.read ? 'Marcar como não lido' : 'Marcar como lido'}
+                                </button>
+                                <button onClick={() => deleteFb(fb.id)}
+                                  style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:9, border:'1px solid rgba(192,64,80,0.25)', background:'rgba(192,64,80,0.07)', color:'#C04050', cursor:'pointer', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600 }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                                  Remover
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── TAB: CONTRACHEQUES ── */}
           {tab === 'contracheques' && (
