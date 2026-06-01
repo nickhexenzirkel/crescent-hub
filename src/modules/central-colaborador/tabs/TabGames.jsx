@@ -88,40 +88,105 @@ const getBest = k => { try { return +localStorage.getItem('ug_' + k) || 0; } cat
 const saveBest = (k, v) => { try { if (v > getBest(k)) localStorage.setItem('ug_' + k, v); } catch {} };
 
 // ═══════════════════════════════════════════════════════════════════════
-// JOGO 1 — UnikoRun (corredor infinito, estilo dinossauro)
+// JOGO 1 — UnikoRun  (corredor infinito com pulo e agachamento)
+// Pulo: Espaço / Seta cima / tap metade superior da tela
+// Agachar: Seta baixo / S / tap metade inferior da tela
 // ═══════════════════════════════════════════════════════════════════════
-const UnikoRun = ({ onClose }) => {
+const UnikoRun = () => {
   const cv = useRef(null);
   useEffect(() => {
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const GY = H - 38;    // chão y
-    const UX = 80;        // uniko x fixo
-    const US = 38;        // uniko size
+    const GY  = H - 48;   // chão
+    const UX  = 90;       // x fixo do Uniko
+    const US  = 44;       // tamanho base do sprite
+
+    // Alturas de referência para colisão (relativas ao GY)
+    const LEG_H     = Math.round(US * .28);  // ≈12 — comprimento das pernas
+    const STAND_H   = LEG_H + US;            // ≈56 — altura total em pé
+    const DUCK_H    = Math.round(US * .48);  // ≈21 — altura agachado (sem pernas)
+    // Obstáculo aéreo: voa entre GY-STAND_H e GY-DUCK_H
+    // → bate em pé, passa se agachado
+    const AIR_BOT   = GY - Math.round(STAND_H * .70);  // fundo do obstáculo aéreo
+    const AIR_H     = 22;                               // altura do alien voador
 
     const s = {
       started: false, dead: false, tick: 0,
-      uy: GY, uvy: 0, onGround: true,
-      obs: [], score: 0, speed: 5,
+      uy: GY, uvy: 0, onGround: true, ducking: false,
+      obs: [], score: 0, speed: 3.5, lastType: 'ground',
     };
 
     const jump = () => {
       if (!s.started) { s.started = true; return; }
-      if (s.dead) { reset(); return; }
-      if (s.onGround) { s.uvy = -15; s.onGround = false; }
+      if (s.dead)     { reset(); return; }
+      if (s.onGround && !s.ducking) { s.uvy = -16; s.onGround = false; }
     };
-    const reset = () => {
-      s.dead = false; s.started = true; s.uy = GY;
-      s.uvy = 0; s.onGround = true; s.obs = [];
-      s.score = 0; s.speed = 5; s.tick = 0;
+    const duck    = () => { if (s.started && !s.dead && s.onGround) s.ducking = true; };
+    const unduck  = () => { s.ducking = false; };
+    const reset   = () => {
+      Object.assign(s, {
+        dead: false, started: true, uy: GY, uvy: 0, onGround: true,
+        ducking: false, obs: [], score: 0, speed: 3.5, tick: 0, lastType: 'ground',
+      });
     };
 
-    const onKey = e => { if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); jump(); } };
-    const onTouch = e => { e.preventDefault(); jump(); };
+    const onKey = e => {
+      if (e.code === 'Space' || e.code === 'ArrowUp')   { e.preventDefault(); jump(); }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS')  { e.preventDefault(); duck(); }
+    };
+    const onKeyUp = e => {
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') unduck();
+    };
+    const onTouch = e => {
+      e.preventDefault();
+      if (!s.started || s.dead) { jump(); return; }
+      const rect = canvas.getBoundingClientRect();
+      const ty = (e.touches[0].clientY - rect.top) * (H / rect.height);
+      if (ty > H * .55) duck(); else jump();
+    };
+    const onTouchEnd = () => unduck();
+
     window.addEventListener('keydown', onKey);
-    canvas.addEventListener('touchstart', onTouch, { passive: false });
+    window.addEventListener('keyup',   onKeyUp);
+    canvas.addEventListener('touchstart', onTouch,   { passive: false });
+    canvas.addEventListener('touchend',   onTouchEnd);
     canvas.addEventListener('mousedown', jump);
+
+    // ── Desenha alien voador (pterodáctilo alienígena) ────────────────
+    const drawBird = (x, yBot, w) => {
+      const bh = AIR_H;
+      const yT = yBot - bh;
+      // asa esquerda (2 retângulos)
+      ctx.fillStyle = '#7040B8';
+      ctx.fillRect(x,            yT + bh*.3,  w*.28, bh*.35);
+      ctx.fillRect(x + w*.05,    yT + bh*.05, w*.18, bh*.28);
+      // asa direita
+      ctx.fillRect(x + w*.72,    yT + bh*.3,  w*.28, bh*.35);
+      ctx.fillRect(x + w*.77,    yT + bh*.05, w*.18, bh*.28);
+      // corpo
+      ctx.fillStyle = '#9060D8';
+      ctx.fillRect(x + w*.28,    yT + bh*.1,  w*.44, bh*.75);
+      // olhos
+      ctx.fillStyle = '#FF3050';
+      ctx.fillRect(x + w*.34, yT + bh*.18, w*.12, bh*.22);
+      ctx.fillRect(x + w*.54, yT + bh*.18, w*.12, bh*.22);
+      // bico
+      ctx.fillStyle = '#C8A030';
+      ctx.fillRect(x + w*.38, yT + bh*.42, w*.24, bh*.18);
+    };
+
+    // ── Desenha Uniko agachado ────────────────────────────────────────
+    const drawUnikoDuck = (cx) => {
+      const dH = DUCK_H;
+      // perninha achatada
+      ctx.fillStyle = '#D0D8F0';
+      ctx.fillRect(cx - US*.22, GY - 3, US*.19, 3);
+      ctx.fillRect(cx + US*.03, GY - 3, US*.19, 3);
+      // sprite comprimido verticalmente
+      if (UNIKO_IMG.complete && UNIKO_IMG.naturalHeight)
+        ctx.drawImage(UNIKO_IMG, cx - US/2, GY - dH, US, dH);
+    };
 
     let raf;
     const loop = () => {
@@ -132,77 +197,102 @@ const UnikoRun = ({ onClose }) => {
       // chão
       ctx.fillStyle = '#1A3050'; ctx.fillRect(0, GY + 4, W, 4);
       ctx.fillStyle = '#0D2040'; ctx.fillRect(0, GY + 8, W, H - GY - 8);
-      // grid no chão
       ctx.fillStyle = '#1E3A60';
-      for (let gx = (s.tick * s.speed) % 40; gx < W; gx += 40)
+      for (let gx = (s.tick * s.speed) % 44; gx < W; gx += 44)
         ctx.fillRect(gx, GY + 6, 1, 2);
 
       if (!s.started) {
-        drawUniko(ctx, UX, s.uy, US, s.tick);
+        drawUniko(ctx, UX, GY, US, s.tick);
         ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.font = '13px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('ESPAÇO / toque para começar', W / 2, H / 2 + 6);
+        ctx.fillText('↑ ESPAÇO para pular  |  ↓ S para agachar', W/2, H/2 - 8);
+        ctx.fillText('No celular: toque em cima para pular, embaixo para agachar', W/2, H/2 + 10);
         raf = requestAnimationFrame(loop); return;
       }
 
       if (!s.dead) {
         s.score += .1;
-        s.speed = Math.min(10, 3.5 + s.score * .015);
-        s.uvy += .7; s.uy += s.uvy;
-        if (s.uy >= GY) { s.uy = GY; s.uvy = 0; s.onGround = true; }
-        else s.onGround = false;
+        s.speed = Math.min(11, 3.5 + s.score * .016);
 
-        // gera obstáculos — espaço generoso entre eles
+        // física
+        if (!s.ducking) {
+          s.uvy += .72; s.uy += s.uvy;
+          if (s.uy >= GY) { s.uy = GY; s.uvy = 0; s.onGround = true; }
+          else s.onGround = false;
+        } else {
+          s.uy = GY; s.uvy = 0; s.onGround = true;
+        }
+
+        // gera obstáculos (chão e aéreo misturados)
         const last = s.obs[s.obs.length - 1];
-        if (!last || last.x < W - (220 + Math.random() * 200)) {
-          const oh = 20 + Math.random() * 22;  // mais baixos
-          const ow = 14 + Math.random() * 8;
-          s.obs.push({ x: W + 20, w: ow, h: oh, eye: Math.random() > .5 });
+        const gap  = 240 + Math.random() * 200;
+        if (!last || last.x < W - gap) {
+          // aéreo só após score 18 e nunca dois seguidos
+          const canAir = s.score > 18 && s.lastType !== 'air';
+          const isAir  = canAir && Math.random() < .38;
+          if (isAir) {
+            const bw = 28 + Math.random() * 16;
+            s.obs.push({ x: W + 20, w: bw, type: 'air' });
+            s.lastType = 'air';
+          } else {
+            const oh = 22 + Math.random() * 22;
+            const ow = 15 + Math.random() * 9;
+            s.obs.push({ x: W + 20, w: ow, h: oh, type: 'ground', eye: Math.random() > .5 });
+            s.lastType = 'ground';
+          }
         }
         for (const o of s.obs) o.x -= s.speed;
-        s.obs = s.obs.filter(o => o.x > -40);
+        s.obs = s.obs.filter(o => o.x > -60);
 
-        // colisão AABB — usa os PÉS do Uniko (s.uy) vs topo do obstáculo
-        // Uniko limpou o obstáculo quando seus pés (s.uy) estão acima do topo (GY - o.h)
+        // colisão
         for (const o of s.obs) {
-          const hitX = o.x < UX + US * .32 && o.x + o.w > UX - US * .32;
-          const hitY = s.uy > GY - o.h + 5;   // pés abaixo do topo = colisão
-          if (hitX && hitY) {
-            s.dead = true;
-            saveBest('run', Math.floor(s.score));
+          if (o.type === 'ground') {
+            const hitX = o.x < UX + US*.30 && o.x + o.w > UX - US*.30;
+            const hitY = s.uy > GY - o.h + 5;       // pés abaixo do topo da rocha
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); }
+          } else {
+            // obstáculo aéreo: acerta em pé, passa se agachado
+            const hitX = o.x < UX + US*.38 && o.x + o.w > UX - US*.38;
+            const bodyTop = s.ducking ? (GY - DUCK_H) : (s.uy - STAND_H);
+            // colide se o corpo do Uniko sobrepõe o range [AIR_BOT-AIR_H , AIR_BOT]
+            const hitY = bodyTop < AIR_BOT && s.uy > (AIR_BOT - AIR_H);
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); }
           }
         }
       }
 
-      // obstáculos (rochas alienígenas)
+      // desenha obstáculos
       for (const o of s.obs) {
-        ctx.fillStyle = PC.meteor;
-        rrect(ctx, o.x, GY - o.h, o.w, o.h, 3); ctx.fill();
-        ctx.fillStyle = PC.rock;
-        ctx.fillRect(o.x + 3, GY - o.h + 4, o.w - 6, 3);
-        if (o.eye) {
-          ctx.fillStyle = PC.red;
-          ctx.fillRect(o.x + o.w / 2 - 4, GY - o.h + 9, 8, 5);
+        if (o.type === 'ground') {
+          ctx.fillStyle = PC.meteor;
+          rrect(ctx, o.x, GY - o.h, o.w, o.h, 3); ctx.fill();
+          ctx.fillStyle = PC.rock;
+          ctx.fillRect(o.x + 3, GY - o.h + 4, o.w - 6, 3);
+          if (o.eye) { ctx.fillStyle = PC.red; ctx.fillRect(o.x + o.w/2 - 4, GY - o.h + 9, 8, 5); }
+        } else {
+          drawBird(o.x, AIR_BOT, o.w);
         }
       }
 
-      drawUniko(ctx, UX, s.uy, US, s.onGround ? s.tick : 0);
+      // desenha Uniko (agachado ou normal)
+      if (s.ducking && s.onGround) drawUnikoDuck(UX);
+      else drawUniko(ctx, UX, s.uy, US, s.onGround ? s.tick : 0);
 
-      // score
-      ctx.fillStyle = PC.gold; ctx.font = 'bold 15px monospace';
+      // HUD
+      ctx.fillStyle = PC.gold; ctx.font = 'bold 16px monospace';
       ctx.textAlign = 'right';
-      ctx.fillText(Math.floor(s.score), W - 18, 26);
+      ctx.fillText(Math.floor(s.score), W - 18, 28);
       ctx.textAlign = 'left'; ctx.fillStyle = '#4A7090'; ctx.font = '10px monospace';
-      ctx.fillText('BEST ' + getBest('run'), 18, 26);
+      ctx.fillText('BEST ' + getBest('run'), 18, 28);
 
       if (s.dead) {
         ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center';
-        ctx.fillText('GAME OVER', W / 2, H / 2 - 22);
-        ctx.font = '13px monospace';
-        ctx.fillText('Pontuação: ' + Math.floor(s.score), W / 2, H / 2 + 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', W/2, H/2 - 24);
+        ctx.font = '14px monospace';
+        ctx.fillText('Pontuação: ' + Math.floor(s.score), W/2, H/2 + 8);
         ctx.fillStyle = PC.gold;
-        ctx.fillText('Toque ou ESPAÇO para reiniciar', W / 2, H / 2 + 30);
+        ctx.fillText('Toque ou ESPAÇO para reiniciar', W/2, H/2 + 34);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -210,11 +300,13 @@ const UnikoRun = ({ onClose }) => {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup',   onKeyUp);
       canvas.removeEventListener('touchstart', onTouch);
-      canvas.removeEventListener('mousedown', jump);
+      canvas.removeEventListener('touchend',   onTouchEnd);
+      canvas.removeEventListener('mousedown',  jump);
     };
   }, []);
-  return <canvas ref={cv} width={720} height={280} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={860} height={320} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -389,7 +481,7 @@ const MeteorStorm = () => {
         .forEach((ev, i) => canvas.removeEventListener(ev, [onTouch,onTouch,onTouchEnd,onMouse,onMouse,onMouseUp][i]));
     };
   }, []);
-  return <canvas ref={cv} width={520} height={580} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none', cursor: 'none' }} />;
+  return <canvas ref={cv} width={640} height={700} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none', cursor: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -628,7 +720,7 @@ const AlienInvaders = () => {
       canvas.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
-  return <canvas ref={cv} width={540} height={580} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={660} height={700} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -770,7 +862,7 @@ const UnikoFlap = () => {
       canvas.removeEventListener('mousedown', flap);
     };
   }, []);
-  return <canvas ref={cv} width={500} height={600} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={600} height={720} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -924,12 +1016,12 @@ const TabGames = () => {
 
           {/* Canvas do jogo */}
           <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,.6)',
-            maxWidth: '100%', maxHeight: '88vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <game.Component key={active} />
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center' }}>
-            {active === 'run' && 'ESPAÇO / tap para pular • toque na tela no celular'}
+            {active === 'run' && '↑ ESPAÇO para pular  •  ↓ S para agachar  |  celular: toque em cima = pular, embaixo = agachar'}
             {active === 'meteor' && '← → para mover • arraste no celular'}
             {active === 'invaders' && '← → para mover • ESPAÇO para atirar • toque: esq/dir/centro'}
             {active === 'flap' && 'ESPAÇO / tap para subir'}
