@@ -120,7 +120,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const P    = getBanner(activeTheme);
   const now  = new Date();
   const hour = now.getHours();
-  const today = now.toISOString().slice(0,10);
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const hhmm  = now.toTimeString().slice(0,5);
   const greeting = hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite';
   const todayFmt = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
