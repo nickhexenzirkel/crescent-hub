@@ -128,10 +128,20 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   /* ── Fetch helpers ── */
   const fetchEvts   = () => _supabase.from('calendar_events').select('*').order('event_date',{ascending:true}).then(({data})=>setEvts(data||[]));
   const fetchComuns = () => _supabase.from('comunicados').select('*').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setComuns(data||[]));
-  const fetchLembs  = () => _supabase.from('reminders').select('*').eq('created_by',USER.name).eq('active',true).then(({data,error})=>{
-    if(error){console.error('[TabInicio] fetchLembs error',error);return;}
-    setLembs((data||[]).filter(r=>(r.type==='personal'||r.type==='lembrete')&&!r.time?.startsWith('nota:')));
-  });
+  const fetchLembs  = () => {
+    console.log('[DEBUG lembs] USER.name =', JSON.stringify(USER.name));
+    _supabase.from('reminders').select('*').eq('created_by',USER.name).eq('active',true)
+      .then(({data,error})=>{
+        console.log('[DEBUG lembs] query result → data:', data, '| error:', error);
+        if(error){console.error('[TabInicio] fetchLembs error',error);return;}
+        const filtered=(data||[]).filter(r=>(r.type==='personal'||r.type==='lembrete')&&!r.time?.startsWith('nota:'));
+        console.log('[DEBUG lembs] after filter:', filtered);
+        setLembs(filtered);
+      });
+    // diagnóstico extra: busca sem filtro de created_by para ver todos os reminders do banco
+    _supabase.from('reminders').select('id,created_by,type,active,title').then(({data})=>
+      console.log('[DEBUG lembs] ALL reminders no banco:', data));
+  };
   const fetchNotas  = () => _supabase.from('reminders').select('*').eq('created_by',USER.name).order('created_at',{ascending:false}).then(({data,error})=>{
     if(error){console.error('[TabInicio] fetchNotas error',error);return;}
     setNotas((data||[]).filter(r=>(r.type==='personal'||r.type==='lembrete')&&r.time?.startsWith('nota:')).slice(0,4));
