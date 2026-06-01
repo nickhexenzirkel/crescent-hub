@@ -214,7 +214,7 @@ const UnikoRun = ({ onClose }) => {
       canvas.removeEventListener('mousedown', jump);
     };
   }, []);
-  return <canvas ref={cv} width={600} height={200} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={720} height={280} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -389,7 +389,7 @@ const MeteorStorm = () => {
         .forEach((ev, i) => canvas.removeEventListener(ev, [onTouch,onTouch,onTouchEnd,onMouse,onMouse,onMouseUp][i]));
     };
   }, []);
-  return <canvas ref={cv} width={380} height={460} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none', cursor: 'none' }} />;
+  return <canvas ref={cv} width={520} height={580} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none', cursor: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -628,7 +628,7 @@ const AlienInvaders = () => {
       canvas.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
-  return <canvas ref={cv} width={400} height={480} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={540} height={580} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -640,7 +640,7 @@ const UnikoFlap = () => {
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const GAP = 190, PIPE_W = 44, PIPE_SPEED = 2;
+    const GAP = 270, PIPE_W = 38, PIPE_SPEED = 1.5;
 
     const s = {
       y: H / 2, vy: 0, started: false, dead: false,
@@ -648,13 +648,13 @@ const UnikoFlap = () => {
     };
 
     const flap = () => {
-      if (!s.started) { s.started = true; s.vy = -8; return; }
+      if (!s.started) { s.started = true; s.vy = -6; return; }
       if (s.dead) {
         s.y = H / 2; s.vy = 0; s.pipes = [];
         s.score = 0; s.dead = false; s.started = false; s.tick = 0;
         return;
       }
-      s.vy = -8;
+      s.vy = -6;
     };
 
     const onKey = e => { if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); } };
@@ -702,11 +702,11 @@ const UnikoFlap = () => {
       }
 
       if (!s.dead) {
-        s.vy += .32; s.y += s.vy;
+        s.vy += .20; s.y += s.vy;
 
-        // gera pipes
-        if (s.pipes.length === 0 || s.pipes[s.pipes.length - 1].x < W - 200) {
-          const topH = 50 + Math.random() * (H - GAP - 100);
+        // gera pipes — distância bem maior entre eles
+        if (s.pipes.length === 0 || s.pipes[s.pipes.length - 1].x < W - 310) {
+          const topH = 60 + Math.random() * (H - GAP - 120);
           s.pipes.push({ x: W + PIPE_W, topH, botY: topH + GAP, passed: false });
         }
         for (const p of s.pipes) p.x -= PIPE_SPEED;
@@ -720,12 +720,12 @@ const UnikoFlap = () => {
           }
         }
 
-        // colisão
-        const ux = 60, ur = 20;
+        // colisão — hitbox reduzida (mais perdoadora)
+        const ux = 60, ur = 15;
         if (s.y - ur < 0 || s.y + ur > H) { s.dead = true; saveBest('flap', s.score); }
         for (const p of s.pipes) {
-          const inX = ux + ur > p.x && ux - ur < p.x + PIPE_W;
-          if (inX && (s.y - ur < p.topH || s.y + ur > p.botY)) {
+          const inX = ux + ur > p.x + 4 && ux - ur < p.x + PIPE_W - 4;
+          if (inX && (s.y - ur < p.topH + 4 || s.y + ur > p.botY - 4)) {
             s.dead = true; saveBest('flap', s.score);
           }
         }
@@ -770,7 +770,7 @@ const UnikoFlap = () => {
       canvas.removeEventListener('mousedown', flap);
     };
   }, []);
-  return <canvas ref={cv} width={380} height={480} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
+  return <canvas ref={cv} width={500} height={600} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -906,7 +906,7 @@ const TabGames = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 640, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 780, justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ borderRadius: 8, overflow: 'hidden' }}>{game.icon}</div>
               <div>
@@ -924,7 +924,7 @@ const TabGames = () => {
 
           {/* Canvas do jogo */}
           <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,.6)',
-            maxWidth: '100%', maxHeight: '75vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            maxWidth: '100%', maxHeight: '88vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <game.Component key={active} />
           </div>
 
