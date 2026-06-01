@@ -184,7 +184,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [empList, setEmpList]         = useState([]);
   const [empLoading, setEmpLoading]   = useState(false);
   const [empModal, setEmpModal]       = useState(null); // null | 'new' | {employee}
-  const [empForm, setEmpForm]         = useState({name:'',cpf:'',role:'employee'});
+  const [empForm, setEmpForm]         = useState({name:'',cpf:'',cargo:'',role:'employee'});
   const [empFormErr, setEmpFormErr]   = useState('');
   const [empSaving, setEmpSaving]     = useState(false);
   const [pwModal, setPwModal]         = useState(null); // null | employee
@@ -212,11 +212,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       const isEdit = empModal && empModal !== 'new';
       const url  = isEdit ? `${SERVER_URL}/api/employees/${empModal.id}` : `${SERVER_URL}/api/employees`;
       const meth = isEdit ? 'PUT' : 'POST';
-      const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify({ name:empForm.name.trim(), cpf:cpfClean, role:empForm.role }) });
+      const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify({ name:empForm.name.trim(), cpf:cpfClean, cargo:empForm.cargo.trim(), role:empForm.role }) });
       const d = await r.json();
       if(!r.ok){ setEmpFormErr(d.error||'Erro ao salvar'); setEmpSaving(false); return; }
       await loadEmployees();
-      setEmpModal(null); setEmpForm({name:'',cpf:'',role:'employee'});
+      setEmpModal(null); setEmpForm({name:'',cpf:'',cargo:'',role:'employee'});
     } catch { setEmpFormErr('Erro de conexão'); }
     setEmpSaving(false);
   };
@@ -690,7 +690,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Funcionários</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>!e.active).length} inativos</div>
                 </div>
-                <button onClick={()=>{ setEmpForm({name:'',cpf:'',role:'employee'}); setEmpFormErr(''); setEmpModal('new'); }}
+                <button onClick={()=>{ setEmpForm({name:'',cpf:'',cargo:'',role:'employee'}); setEmpFormErr(''); setEmpModal('new'); }}
                   style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
                   + Novo Funcionário
                 </button>
@@ -736,11 +736,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           {/* CPF */}
                           <div style={{fontSize:12,color:T.textS,fontFamily:'monospace'}}>{emp.cpf}</div>
                           {/* Role */}
-                          <div>
-                            <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,
+                          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3}}>
+                            {emp.cargo&&<span style={{fontSize:11,color:T.textS,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.cargo}</span>}
+                            <span style={{fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
                               background:emp.role==='admin'?`${T.gold}18`:'rgba(0,0,0,0.04)',
-                              color:emp.role==='admin'?T.gold:T.textS}}>
-                              {emp.role==='admin'?'Admin':'Func.'}
+                              color:emp.role==='admin'?T.gold:T.textD}}>
+                              {emp.role==='admin'?'Admin':'Colaborador'}
                             </span>
                           </div>
                           {/* Status */}
@@ -753,7 +754,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           </div>
                           {/* Ações */}
                           <div style={{display:'flex',gap:5}}>
-                            <button onClick={()=>{ setEmpForm({name:emp.name,cpf:emp.cpf,role:emp.role}); setEmpFormErr(''); setEmpModal(emp); }}
+                            <button onClick={()=>{ setEmpForm({name:emp.name,cpf:emp.cpf,cargo:emp.cargo||'',role:emp.role}); setEmpFormErr(''); setEmpModal(emp); }}
                               title="Editar"
                               style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -800,14 +801,31 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:empModal==='new'?(T.surface||'white'):`${T.border}44`,fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',cursor:empModal==='new'?'text':'not-allowed'}}/>
                       {empModal==='new'&&<div style={{fontSize:11,color:T.textD,marginTop:4}}>💡 Senha inicial = CPF (somente números)</div>}
                     </div>
-                    {/* Cargo */}
+                    {/* Cargo real */}
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Cargo / Função</div>
+                      <input value={empForm.cargo} onChange={e=>setEmpForm(f=>({...f,cargo:e.target.value}))}
+                        list="cargo-suggestions" placeholder="Ex: Auxiliar Administrativo"
+                        style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                      <datalist id="cargo-suggestions">
+                        <option value="Auxiliar Administrativo"/>
+                        <option value="Auxiliar Financeiro"/>
+                        <option value="Assistente Administrativo"/>
+                        <option value="Analista Financeiro"/>
+                        <option value="Suporte Técnico / Telemetria"/>
+                        <option value="Suporte Técnico"/>
+                        <option value="MEI"/>
+                      </datalist>
+                    </div>
+                    {/* Nível de acesso ao sistema */}
                     <div style={{marginBottom:20}}>
-                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Cargo</div>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Nível de Acesso</div>
                       <select value={empForm.role} onChange={e=>setEmpForm(f=>({...f,role:e.target.value}))}
                         style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
-                        <option value="employee">Funcionário</option>
-                        <option value="admin">Administrador</option>
+                        <option value="employee">Colaborador (acesso ao portal)</option>
+                        <option value="admin">Administrador (dashboard RH + ponto)</option>
                       </select>
+                      <div style={{fontSize:11,color:T.textD,marginTop:4}}>⚠️ Somente Administrador acessa o dashboard RH e o ponto eletrônico.</div>
                     </div>
                     {empFormErr&&<div style={{fontSize:12,color:'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)'}}>⚠️ {empFormErr}</div>}
                     <div style={{display:'flex',gap:10}}>
