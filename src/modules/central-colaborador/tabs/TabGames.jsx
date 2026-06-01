@@ -5,11 +5,15 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
 
 // ── Paleta pixel ──────────────────────────────────────────────────────
 const PC = {
-  space:'#06101E', star:'#E8D060', meteor:'#8B6840', rock:'#5A3A1A',
+  space:'#06101E', star:'#E8D060', meteor:'#A06030', rock:'#4A2A10',
   blue:'#2A82D2', blueDk:'#1A5280', gold:'#D4A843', eye:'#FFFFFF',
-  pupil:'#0A1428', green:'#28C870', red:'#C04050', purple:'#8B5FD8',
-  pipe:'#3A2870', pipeL:'#5040A8', teal:'#20B090',
+  pupil:'#0A1428', green:'#28C870', red:'#D04060', purple:'#9060E0',
+  pipe:'#2A1E60', pipeL:'#4030A0', teal:'#20B090',
 };
+
+// ── Imagem do UnikoPixel — carregada uma vez ──────────────────────────
+const UNIKO_IMG = new Image();
+UNIKO_IMG.src = '/UnikoPixel.png';
 
 // ── Utilitário: retângulo com bordas arredondadas ─────────────────────
 function rrect(ctx, x, y, w, h, r) {
@@ -26,65 +30,46 @@ function rrect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── Desenha Uniko ─────────────────────────────────────────────────────
+// ── Desenha Uniko com pernas brancas pixel ────────────────────────────
+// legAnim > 0 = pernas animadas (corrida), = 0 = parado
 function drawUniko(ctx, cx, bot, size, legAnim = 0) {
-  const w = size, h = size * 1.15;
-  const x = cx - w / 2, y = bot - h;
-  // antenas
-  ctx.fillStyle = PC.gold;
-  ctx.fillRect(x + w * .32, y - h * .17, 3, h * .18);
-  ctx.fillRect(x + w * .62, y - h * .17, 3, h * .18);
-  ctx.fillRect(x + w * .26, y - h * .23, 9, 5);
-  ctx.fillRect(x + w * .56, y - h * .23, 9, 5);
-  // corpo
-  ctx.fillStyle = PC.blue;
-  rrect(ctx, x + w * .08, y + h * .38, w * .84, h * .62, 5); ctx.fill();
-  // cabeça
-  rrect(ctx, x + w * .1, y, w * .8, h * .46, 8); ctx.fill();
-  // reflexo cabeça
-  ctx.fillStyle = '#4AAAE8';
-  ctx.fillRect(x + w * .2, y + h * .03, w * .22, h * .1);
-  // olhos
-  ctx.fillStyle = PC.eye;
-  ctx.fillRect(x + w * .14, y + h * .09, w * .27, h * .24);
-  ctx.fillRect(x + w * .57, y + h * .09, w * .27, h * .24);
-  // pupilas
-  ctx.fillStyle = PC.pupil;
-  ctx.fillRect(x + w * .21, y + h * .13, w * .13, h * .13);
-  ctx.fillRect(x + w * .64, y + h * .13, w * .13, h * .13);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + w * .23, y + h * .13, 3, 3);
-  ctx.fillRect(x + w * .66, y + h * .13, 3, 3);
-  // pernas
-  ctx.fillStyle = PC.blueDk;
-  const lo = Math.sin(legAnim * .35) * 3;
-  ctx.fillRect(x + w * .22, y + h * .9, w * .2, h * .18 + lo);
-  ctx.fillRect(x + w * .58, y + h * .9, w * .2, h * .18 - lo);
+  const legW  = Math.max(4, Math.round(size * .19));
+  const legH  = Math.max(6, Math.round(size * .3));
+  const gap   = Math.max(2, Math.round(size * .05));
+  const bounce = legAnim ? Math.round(Math.sin(legAnim * .42) * size * .07) : 0;
+
+  // Perna esquerda (sobe quando direita desce)
+  ctx.fillStyle = '#EEF2FF';
+  ctx.fillRect(cx - gap - legW, bot - legH + bounce, legW, legH - bounce);
+  // Sola esquerda
+  ctx.fillStyle = '#B0BADA';
+  ctx.fillRect(cx - gap - legW - 1, bot - 3, legW + 2, 3);
+
+  // Perna direita
+  ctx.fillStyle = '#EEF2FF';
+  ctx.fillRect(cx + gap, bot - legH - bounce, legW, legH + bounce);
+  // Sola direita
+  ctx.fillStyle = '#B0BADA';
+  ctx.fillRect(cx + gap - 1, bot - 3, legW + 2, 3);
+
+  // Corpo — UnikoPixel.png
+  if (UNIKO_IMG.complete && UNIKO_IMG.naturalHeight) {
+    ctx.drawImage(UNIKO_IMG, cx - size / 2, bot - legH - size, size, size);
+  } else {
+    ctx.fillStyle = '#FFFFFF';
+    rrect(ctx, cx - size / 2, bot - legH - size, size, size, 4); ctx.fill();
+  }
 }
 
-// ── Desenha Uniko UFO (para AlienInvaders e Flap) ────────────────────
+// ── Desenha Uniko voando (sem pernas — Flap e Invaders) ──────────────
 function drawUFO(ctx, cx, cy, size) {
-  const r = size;
-  // cúpula
-  ctx.fillStyle = PC.blue;
-  rrect(ctx, cx - r * .55, cy - r * .8, r * 1.1, r * .85, r * .4); ctx.fill();
-  ctx.fillStyle = '#4AAAE8';
-  ctx.fillRect(cx - r * .3, cy - r * .7, r * .3, r * .15);
-  // disco
-  ctx.fillStyle = '#1A5280';
-  rrect(ctx, cx - r, cy - r * .1, r * 2, r * .4, r * .2); ctx.fill();
-  ctx.fillStyle = PC.blue;
-  rrect(ctx, cx - r * .8, cy, r * 1.6, r * .2, r * .1); ctx.fill();
-  // luzes
-  const lc = ['#FFD700','#FF4444','#44FF88'];
-  for (let i = 0; i < 3; i++) {
-    ctx.fillStyle = lc[i];
-    ctx.fillRect(cx - r * .5 + i * r * .45, cy + r * .05, r * .18, r * .12);
+  const s = size * 2;
+  if (UNIKO_IMG.complete && UNIKO_IMG.naturalHeight) {
+    ctx.drawImage(UNIKO_IMG, cx - s / 2, cy - s / 2, s, s);
+  } else {
+    ctx.fillStyle = '#FFFFFF';
+    rrect(ctx, cx - s / 2, cy - s / 2, s, s, 4); ctx.fill();
   }
-  // antena
-  ctx.fillStyle = PC.gold;
-  ctx.fillRect(cx - 2, cy - r * 1.1, 4, r * .35);
-  ctx.fillRect(cx - 5, cy - r * 1.12, 10, 5);
 }
 
 // ── Estrelas fixas ────────────────────────────────────────────────────
