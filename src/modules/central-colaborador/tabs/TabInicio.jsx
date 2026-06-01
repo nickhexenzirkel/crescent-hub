@@ -128,24 +128,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   /* ── Fetch helpers ── */
   const fetchEvts   = () => _supabase.from('calendar_events').select('*').order('event_date',{ascending:true}).then(({data})=>setEvts(data||[]));
   const fetchComuns = () => _supabase.from('comunicados').select('*').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setComuns(data||[]));
-  const fetchLembs  = () => {
-    console.log('[DEBUG lembs] USER.name =', JSON.stringify(USER.name));
-    _supabase.from('reminders').select('*').eq('created_by',USER.name).eq('active',true)
-      .then(({data,error})=>{
-        console.log('[DEBUG lembs] query result → data:', data, '| error:', error);
-        if(error){console.error('[TabInicio] fetchLembs error',error);return;}
-        const filtered=(data||[]).filter(r=>(r.type==='personal'||r.type==='lembrete')&&!r.time?.startsWith('nota:'));
-        console.log('[DEBUG lembs] after filter:', filtered);
-        setLembs(filtered);
-      });
-    // diagnóstico extra: busca sem filtro de created_by para ver todos os reminders do banco
-    _supabase.from('reminders').select('id,created_by,type,active,title').then(({data})=>
-      console.log('[DEBUG lembs] ALL reminders no banco:', data));
-  };
-  const fetchNotas  = () => _supabase.from('reminders').select('*').eq('created_by',USER.name).order('created_at',{ascending:false}).then(({data,error})=>{
-    if(error){console.error('[TabInicio] fetchNotas error',error);return;}
-    setNotas((data||[]).filter(r=>(r.type==='personal'||r.type==='lembrete')&&r.time?.startsWith('nota:')).slice(0,4));
-  });
+  const fetchLembs = () =>
+    _supabase.from('reminders').select('*').eq('created_by', USER.name).eq('active', true)
+      .then(({ data }) =>
+        setLembs((data || []).filter(r =>
+          (r.type === 'personal' || r.type === 'lembrete') && !String(r.time || '').startsWith('nota:')
+        ))
+      );
+  const fetchNotas = () =>
+    _supabase.from('reminders').select('*').eq('created_by', USER.name).eq('active', true)
+      .order('created_at', { ascending: false })
+      .then(({ data }) =>
+        setNotas((data || []).filter(r =>
+          (r.type === 'personal' || r.type === 'lembrete') && String(r.time || '').startsWith('nota:')
+        ).slice(0, 4))
+      );
 
   /* ── Fetch inicial + realtime ── */
   useEffect(() => {
@@ -192,25 +189,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   },[]);
 
   /* ── Derived ── */
-  const upcoming = lembs
-    .filter(r => {
-      // recorrente → sempre mostra
-      if (r.repeat && r.repeat !== 'never') return true;
-      // sem data → sempre relevante (lembrete genérico)
-      if (!r.date) return true;
-      // data futura
-      if (r.date > today) return true;
-      // hoje: mostra se sem horário ou se horário ainda não passou
-      if (r.date === today) return !r.time || r.time >= hhmm;
-      // data passada sem recorrência → não mostra
-      return false;
-    })
+  const upcoming = [...lembs]
     .sort((a, b) => {
-      // hoje e sem data antes de futuros
-      const rank = r => (!r.date || r.date === today) ? 0 : 1;
-      if (rank(a) !== rank(b)) return rank(a) - rank(b);
-      return (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || '');
-    }).slice(0, 4);
+      const aD = a.date || '9999', bD = b.date || '9999';
+      if (aD !== bD) return aD.localeCompare(bD);
+      return String(a.time || '').localeCompare(String(b.time || ''));
+    })
+    .slice(0, 4);
   const todayEvts = evts.filter(e=>e.event_date===today);
   const { fome=75,energia=70,sono=70,dormindo=false,skin='tecnico' } = uniko;
   const avg = (fome+energia)/2;
