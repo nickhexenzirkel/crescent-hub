@@ -178,16 +178,23 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   /* ── Derived ── */
   const upcoming = lembs
     .filter(r => {
-      if(!r.time) return false;
-      if(r.repeat!=='never') return true;
-      if(!r.date||r.date>today) return true;
-      return r.date===today&&r.time>=hhmm;
+      // recorrente → sempre mostra
+      if (r.repeat && r.repeat !== 'never') return true;
+      // sem data → sempre relevante (lembrete genérico)
+      if (!r.date) return true;
+      // data futura
+      if (r.date > today) return true;
+      // hoje: mostra se sem horário ou se horário ainda não passou
+      if (r.date === today) return !r.time || r.time >= hhmm;
+      // data passada sem recorrência → não mostra
+      return false;
     })
-    .sort((a,b) => {
-      const aH = r=>r.repeat!=='never'||!r.date||r.date===today;
-      if(aH(a)!==aH(b)) return aH(a)?-1:1;
-      return (a.date||'').localeCompare(b.date||'')||a.time.localeCompare(b.time);
-    }).slice(0,4);
+    .sort((a, b) => {
+      // hoje e sem data antes de futuros
+      const rank = r => (!r.date || r.date === today) ? 0 : 1;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      return (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || '');
+    }).slice(0, 4);
   const todayEvts = evts.filter(e=>e.event_date===today);
   const { fome=75,energia=70,sono=70,dormindo=false,skin='tecnico' } = uniko;
   const avg = (fome+energia)/2;
