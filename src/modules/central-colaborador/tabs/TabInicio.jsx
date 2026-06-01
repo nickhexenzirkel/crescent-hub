@@ -128,16 +128,15 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   /* ── Fetch helpers ── */
   const fetchEvts   = () => _supabase.from('calendar_events').select('*').order('event_date',{ascending:true}).then(({data})=>setEvts(data||[]));
   const fetchComuns = () => _supabase.from('comunicados').select('*').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setComuns(data||[]));
+  const fetchLembs  = () => _supabase.from('reminders').select('*').in('type',['personal','lembrete']).or('time.is.null,time.not.like.nota:%').eq('active',true).eq('created_by',USER.name).then(({data})=>setLembs(data||[]));
+  const fetchNotas  = () => _supabase.from('reminders').select('*').in('type',['personal','lembrete']).like('time','nota:%').eq('created_by',USER.name).order('created_at',{ascending:false}).limit(4).then(({data})=>setNotas(data||[]));
 
   /* ── Fetch inicial + realtime ── */
   useEffect(() => {
     _supabase.from('trophies').select('*').eq('to_name', USER.name).order('created_at',{ascending:false})
       .then(({data})=>setMyTrophies(data||[]));
-    _supabase.from('reminders').select('*').in('type',['personal','lembrete']).or('time.is.null,time.not.like.nota:%').eq('active',true).eq('created_by',USER.name)
-      .then(({data})=>setLembs(data||[]));
-    _supabase.from('reminders').select('*').in('type',['personal','lembrete']).like('time','nota:%').eq('created_by',USER.name)
-      .order('created_at',{ascending:false}).limit(4)
-      .then(({data})=>setNotas(data||[]));
+    fetchLembs();
+    fetchNotas();
     fetchEvts();
     fetchComuns();
     _supabase.from('player_state').select('*').eq('id',1).single()
@@ -156,8 +155,15 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     const subComuns = _supabase.channel('inicio_comuns_rt')
       .on('postgres_changes',{event:'*',schema:'public',table:'comunicados'}, fetchComuns)
       .subscribe();
+    const subLembs = _supabase.channel('inicio_lembs_rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'reminders'}, () => { fetchLembs(); fetchNotas(); })
+      .subscribe();
 
-    return () => { _supabase.removeChannel(subEvts); _supabase.removeChannel(subComuns); };
+    return () => {
+      _supabase.removeChannel(subEvts);
+      _supabase.removeChannel(subComuns);
+      _supabase.removeChannel(subLembs);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
