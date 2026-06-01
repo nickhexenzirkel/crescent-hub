@@ -124,7 +124,7 @@ const UnikoRun = ({ onClose }) => {
     const jump = () => {
       if (!s.started) { s.started = true; return; }
       if (s.dead) { reset(); return; }
-      if (s.onGround) { s.uvy = -13; s.onGround = false; }
+      if (s.onGround) { s.uvy = -15; s.onGround = false; }
     };
     const reset = () => {
       s.dead = false; s.started = true; s.uy = GY;
@@ -162,26 +162,27 @@ const UnikoRun = ({ onClose }) => {
 
       if (!s.dead) {
         s.score += .1;
-        s.speed = Math.min(14, 5 + s.score * .025);
-        s.uvy += .75; s.uy += s.uvy;
+        s.speed = Math.min(10, 3.5 + s.score * .015);
+        s.uvy += .7; s.uy += s.uvy;
         if (s.uy >= GY) { s.uy = GY; s.uvy = 0; s.onGround = true; }
         else s.onGround = false;
 
-        // gera obstáculos
+        // gera obstáculos — espaço generoso entre eles
         const last = s.obs[s.obs.length - 1];
-        if (!last || last.x < W - (160 + Math.random() * 180)) {
-          const oh = 22 + Math.random() * 28;
-          const ow = 14 + Math.random() * 10;
-          s.obs.push({ x: W + 20, w: ow, h: oh,
-            eye: Math.random() > .5 });
+        if (!last || last.x < W - (220 + Math.random() * 200)) {
+          const oh = 20 + Math.random() * 22;  // mais baixos
+          const ow = 14 + Math.random() * 8;
+          s.obs.push({ x: W + 20, w: ow, h: oh, eye: Math.random() > .5 });
         }
         for (const o of s.obs) o.x -= s.speed;
         s.obs = s.obs.filter(o => o.x > -40);
 
-        // colisão AABB
+        // colisão AABB — usa os PÉS do Uniko (s.uy) vs topo do obstáculo
+        // Uniko limpou o obstáculo quando seus pés (s.uy) estão acima do topo (GY - o.h)
         for (const o of s.obs) {
-          if (o.x < UX + US * .4 && o.x + o.w > UX - US * .4 &&
-              s.uy - US * 1.1 < GY - o.h + 6) {
+          const hitX = o.x < UX + US * .32 && o.x + o.w > UX - US * .32;
+          const hitY = s.uy > GY - o.h + 5;   // pés abaixo do topo = colisão
+          if (hitX && hitY) {
             s.dead = true;
             saveBest('run', Math.floor(s.score));
           }
@@ -246,14 +247,14 @@ const MeteorStorm = () => {
     const s = {
       ux: W / 2, speed: 0,
       meteors: [], stars: [],
-      score: 0, lives: 3, dead: false, started: false, tick: 0,
+      score: 0, lives: 5, dead: false, started: false, tick: 0,
       keys: {}, touchX: null,
     };
 
     const start = () => { if (!s.started) s.started = true; };
     const reset = () => {
       s.ux = W / 2; s.meteors = []; s.stars = [];
-      s.score = 0; s.lives = 3; s.dead = false; s.started = true; s.tick = 0;
+      s.score = 0; s.lives = 5; s.dead = false; s.started = true; s.tick = 0;
     };
 
     const onKey = e => {
@@ -315,16 +316,16 @@ const MeteorStorm = () => {
         }
         s.ux = Math.max(US, Math.min(W - US, s.ux));
 
-        // gera meteoros
-        if (s.tick % Math.max(22, 55 - Math.floor(s.score * .4)) === 0) {
+        // gera meteoros — mais espaçados e mais lentos
+        if (s.tick % Math.max(40, 90 - Math.floor(s.score * .3)) === 0) {
           const mx = 20 + Math.random() * (W - 40);
-          const ms = 14 + Math.random() * 14;
+          const ms = 10 + Math.random() * 10;
           s.meteors.push({ x: mx, y: -20, r: ms,
-            vx: (Math.random() - .5) * 1.5, vy: spd * (.6 + Math.random() * .6) });
+            vx: (Math.random() - .5) * .8, vy: spd * (.4 + Math.random() * .4) });
         }
         // gera estrelas coletáveis
-        if (s.tick % 80 === 0) {
-          s.stars.push({ x: 20 + Math.random() * (W - 40), y: -10, vy: 2.5 });
+        if (s.tick % 60 === 0) {
+          s.stars.push({ x: 20 + Math.random() * (W - 40), y: -10, vy: 2.2 });
         }
 
         for (const m of s.meteors) { m.y += m.vy; m.x += m.vx; }
@@ -332,10 +333,10 @@ const MeteorStorm = () => {
         s.meteors = s.meteors.filter(m => m.y < H + 30);
         s.stars   = s.stars.filter(st => st.y < H + 20);
 
-        // colisão meteoros
+        // colisão meteoros — hitbox mais generosa
         for (const m of s.meteors) {
           const dx = m.x - s.ux, dy = m.y - (H - 20 - US / 2);
-          if (Math.sqrt(dx * dx + dy * dy) < m.r + US * .4) {
+          if (Math.sqrt(dx * dx + dy * dy) < m.r + US * .25) {
             s.meteors = s.meteors.filter(x => x !== m);
             s.lives--;
             if (s.lives <= 0) { s.dead = true; saveBest('meteor', Math.floor(s.score * 10)); }
@@ -428,16 +429,16 @@ const AlienInvaders = () => {
     const s = {
       ux: W / 2, bullets: [], enemyBullets: [],
       aliens: buildAliens(), dir: 1,
-      score: 0, lives: 3, dead: false, win: false, started: false, tick: 0,
+      score: 0, lives: 5, dead: false, win: false, started: false, tick: 0,
       keys: {}, level: 1, canShoot: true, shotCooldown: 0,
       alienMoveTimer: 0, alienDir: 1,
     };
 
     const shoot = () => {
       if (s.canShoot && !s.dead && !s.win && s.started) {
-        s.bullets.push({ x: s.ux, y: H - 55, vy: -10 });
+        s.bullets.push({ x: s.ux, y: H - 55, vy: -12 });
         s.canShoot = false;
-        s.shotCooldown = 18;
+        s.shotCooldown = 10;  // cooldown menor = atira mais rápido
       }
     };
 
@@ -447,7 +448,7 @@ const AlienInvaders = () => {
       if (!s.started && e.type === 'keydown') s.started = true;
       if ((s.dead || s.win) && e.type === 'keydown') {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
-        s.ux = W / 2; s.score = 0; s.lives = 3; s.dead = false; s.win = false;
+        s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
         s.level = 1; s.alienDir = 1; s.tick = 0;
       }
     };
@@ -456,7 +457,7 @@ const AlienInvaders = () => {
       if (!s.started) { s.started = true; return; }
       if (s.dead || s.win) {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
-        s.ux = W / 2; s.score = 0; s.lives = 3; s.dead = false; s.win = false;
+        s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
         s.level = 1; s.tick = 0; return;
       }
       const rect = canvas.getBoundingClientRect();
@@ -518,6 +519,7 @@ const AlienInvaders = () => {
         if (s.shotCooldown > 0) s.shotCooldown--;
         else s.canShoot = true;
 
+
         // move balas do jogador
         for (const b of s.bullets) b.y += b.vy;
         s.bullets = s.bullets.filter(b => b.y > -10);
@@ -526,8 +528,8 @@ const AlienInvaders = () => {
         for (const b of s.enemyBullets) b.y += b.vy;
         s.enemyBullets = s.enemyBullets.filter(b => b.y < H + 10);
 
-        // move alienígenas em bloco
-        const speed = .8 + s.level * .3;
+        // move alienígenas em bloco — velocidade reduzida
+        const speed = .4 + s.level * .18;
         s.alienMoveTimer += speed;
         if (s.alienMoveTimer >= 1) {
           s.alienMoveTimer = 0;
@@ -538,17 +540,17 @@ const AlienInvaders = () => {
             const minX = Math.min(...alive.map(a => a.x));
             if ((s.alienDir > 0 && maxX > W - 40) || (s.alienDir < 0 && minX < 40)) {
               s.alienDir *= -1;
-              for (const a of s.aliens) a.y += 12;
+              for (const a of s.aliens) a.y += 8;  // desce menos a cada virada
             }
             for (const a of s.aliens) a.x += s.alienDir;
           }
         }
 
-        // tiro inimigo aleatório
+        // tiro inimigo — cadência bem mais lenta
         const alive = s.aliens.filter(a => a.alive);
-        if (alive.length && s.tick % Math.max(40, 80 - s.level * 8) === 0) {
+        if (alive.length && s.tick % Math.max(70, 140 - s.level * 10) === 0) {
           const shooter = alive[Math.floor(Math.random() * alive.length)];
-          s.enemyBullets.push({ x: shooter.x, y: shooter.y + 16, vy: 4 + s.level * .5 });
+          s.enemyBullets.push({ x: shooter.x, y: shooter.y + 16, vy: 3 + s.level * .3 });
         }
 
         // colisão bala jogador × alien
@@ -653,7 +655,7 @@ const UnikoFlap = () => {
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const GAP = 140, PIPE_W = 44, PIPE_SPEED = 3;
+    const GAP = 190, PIPE_W = 44, PIPE_SPEED = 2;
 
     const s = {
       y: H / 2, vy: 0, started: false, dead: false,
@@ -661,13 +663,13 @@ const UnikoFlap = () => {
     };
 
     const flap = () => {
-      if (!s.started) { s.started = true; s.vy = -7; return; }
+      if (!s.started) { s.started = true; s.vy = -8; return; }
       if (s.dead) {
         s.y = H / 2; s.vy = 0; s.pipes = [];
         s.score = 0; s.dead = false; s.started = false; s.tick = 0;
         return;
       }
-      s.vy = -7;
+      s.vy = -8;
     };
 
     const onKey = e => { if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); } };
@@ -715,7 +717,7 @@ const UnikoFlap = () => {
       }
 
       if (!s.dead) {
-        s.vy += .45; s.y += s.vy;
+        s.vy += .32; s.y += s.vy;
 
         // gera pipes
         if (s.pipes.length === 0 || s.pipes[s.pipes.length - 1].x < W - 200) {
@@ -870,11 +872,6 @@ const GAMES = [
   },
 ];
 
-const PLACEHOLDERS = [
-  { label: 'Tetris', tag: 'Clássico', c: '#2A82D2', desc: 'Em breve', icon: '◈' },
-  { label: 'Snake',  tag: 'Arcade',   c: '#28A870', desc: 'Em breve', icon: '◉' },
-  { label: 'Memória',tag: 'Casual',   c: '#8B5FD8', desc: 'Em breve', icon: '◎' },
-];
 
 const TabGames = () => {
   const isMobile = useIsMobile();
@@ -916,24 +913,6 @@ const TabGames = () => {
         ))}
       </div>
 
-      {/* Placeholders (em breve) */}
-      <div style={{ fontSize: 11, color: T.textD, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Em breve</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
-        {PLACEHOLDERS.map((p, i) => (
-          <Card key={i} style={{ padding: '18px 20px', opacity: .6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22, color: p.c }}>{p.icon}</span>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{p.label}</div>
-                  <div style={{ fontSize: 11, color: T.textD }}>{p.desc}</div>
-                </div>
-              </div>
-              <Tag color={p.c}>{p.tag}</Tag>
-            </div>
-          </Card>
-        ))}
-      </div>
 
       {/* Overlay do jogo ativo */}
       {active && game && (
