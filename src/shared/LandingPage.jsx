@@ -22,7 +22,7 @@ const LandingPage = ({onStart}) => {
             color:T.gold,letterSpacing:'.30em',marginTop:6}}>HUB</div>
         </div>
 
-        <div className="fsu3" style={{margin:'22px 0 10px',width:'460px'}}>
+        <div className="fsu3" style={{margin:'22px 0 10px',width:'min(460px,90vw)'}}>
           <StarDivider/>
         </div>
 

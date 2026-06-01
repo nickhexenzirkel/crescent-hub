@@ -3,6 +3,7 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Extrai cores dominantes da capa do álbum via Canvas
 // Usa proxy do servidor para contornar CORS da CDN do Spotify
@@ -113,6 +114,7 @@ const ALEXA_RESPONSES = [
 ];
 
 const CentralAlexa = ({onBack, userPhoto}) => {
+  const isMobile = useIsMobile();
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||"rgba(255,255,255,0.78)");
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||"rgba(255,255,255,0.82)");
@@ -960,8 +962,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:1200,margin:"0 auto",padding:"24px",position:"relative",zIndex:2}}>
-        <div style={{display:"flex",gap:6,marginBottom:20,padding:4,width:"fit-content",background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",position:"relative",zIndex:2}}>
+        <div style={{display:"flex",gap:isMobile?4:6,marginBottom:isMobile?14:20,padding:4,
+          width:isMobile?"100%":"fit-content",overflowX:isMobile?"auto":"visible",
+          background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),
+          backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
+          border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh,
+          scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
           {[
             {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
             {id:"biblioteca",label:"Biblioteca",        adminOnly:true, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>},
@@ -969,9 +976,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>setTab(id)} style={{
-              display:"flex",alignItems:"center",gap:6,
-              padding:"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
-              fontFamily:"var(--font-body)",fontSize:13,fontWeight:tab===id?700:400,
+              display:"flex",alignItems:"center",gap:6,flexShrink:0,
+              padding:isMobile?"8px 14px":"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
+              fontFamily:"var(--font-body)",fontSize:isMobile?12:13,fontWeight:tab===id?700:400,
               background:tab===id?T.goldGl:"transparent",color:tab===id?T.gold:T.textS,
               border:`1.5px solid ${tab===id?T.goldLine+"55":T.border}`,transition:"all .15s"
             }}>{icon}{label}</button>
@@ -981,21 +988,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
           <div style={{position:"relative",zIndex:1}}>
-          <div style={{display:"flex",gap:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: UnikoWave + Player */}
-            <div style={{width:280,flexShrink:0,display:"flex",flexDirection:"column",gap:16}}>
-              <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative"}}>
+            <div style={{width:isMobile?"100%":280,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
+              <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative",
+                width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined}}>
                 <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                 <UnikoMascot
                   track={currentSong ? { name: currentSong.title, artist: currentSong.artist, genre: currentGenre } : null}
                   colors={festColors}
-                  size={160}
+                  size={isMobile?110:160}
                 />
               </div>
 
               {/* Player controls */}
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
+              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh,
+                flex:isMobile?"1 1 0":undefined,minWidth:isMobile?0:undefined}}>
                 {/* Spotify connect banner — só mostra após verificar */}
                 {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
@@ -1177,7 +1186,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                   {/* Search results dropdown */}
                   {searchResults.length>0&&(
-                    <div style={{position:"absolute",top:"calc(100% + 6px)",left:0,right:0,borderRadius:14,background:isDark?T.surface:"white",border:`1px solid ${T.border}`,boxShadow:T.shL,overflow:"hidden",zIndex:50}}>
+                    <div style={{position:isMobile?"fixed":"absolute",
+                      top:isMobile?"auto":"calc(100% + 6px)",
+                      bottom:isMobile?"70px":undefined,
+                      left:isMobile?12:"0",right:isMobile?12:"0",
+                      borderRadius:14,background:isDark?T.surface:"white",
+                      border:`1px solid ${T.border}`,boxShadow:T.shL,
+                      overflow:"hidden",zIndex:500,
+                      maxHeight:isMobile?"55vh":"auto",overflowY:isMobile?"auto":"hidden"}}>
                       {searchResults.map(t=>(
                         <div key={t.id} onClick={()=>addToQueue(t)}
                           style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
@@ -1743,7 +1759,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     <div style={{fontSize:14}}>Nenhuma música tocada ainda.</div>
                     <div style={{fontSize:12,marginTop:4,opacity:.7}}>Volte depois que o UnikoWave tocar algumas músicas!</div>
                   </div>
-                : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+                : <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20}}>
                     {/* Top Músicas */}
                     <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
@@ -1799,7 +1815,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
         {/* ══════════ ALEXA TAB ══════════ */}
         {tab==="alexa"&&(
-          <div style={{display:"flex",gap:20,alignItems:"flex-start",maxWidth:900,margin:"0 auto"}}>
+          <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",maxWidth:900,margin:"0 auto"}}>
             {/* Chat interface */}
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:16}}>
               {/* Alexa orb header */}

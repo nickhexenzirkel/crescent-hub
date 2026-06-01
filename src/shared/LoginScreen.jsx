@@ -3,6 +3,7 @@ import { T } from '../contexts/theme';
 import { SERVER_URL } from '../contexts/user';
 import { StarDivider, Logo } from './components';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const Ico = ({ d, size = 16, stroke = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -10,6 +11,7 @@ const Ico = ({ d, size = 16, stroke = 'currentColor' }) => (
 );
 
 const LoginScreen = ({ onLogin }) => {
+  const isMobile = useIsMobile();
   const [cpf,      setCpf]      = useState('');
   const [pass,     setPass]     = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -60,11 +62,13 @@ const LoginScreen = ({ onLogin }) => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr', position: 'relative', zIndex: 1 }}>
+    <div style={{ minHeight: '100vh', display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+      position: 'relative', zIndex: 1 }}>
 
-      {/* ── LEFT ── */}
+      {/* ── LEFT — oculto no mobile ── */}
       <div className="fsu" style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        display: isMobile ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', padding: 64,
         background: panelL,
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
@@ -95,11 +99,20 @@ const LoginScreen = ({ onLogin }) => {
 
       {/* ── RIGHT ── */}
       <div className="fsu2" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: isMobile ? '32px 24px' : 64,
         background: panelR,
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
       }}>
-        <div style={{ width: '100%', maxWidth: 400 }}>
+        <div style={{ width: '100%', maxWidth: isMobile ? '100%' : 400 }}>
+          {/* Logo mini no mobile (painel esquerdo está oculto) */}
+          {isMobile && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32 }}>
+              <Logo size={52}/>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 700, color: T.text, letterSpacing: '.10em', marginTop: 10 }}>UNIKO HUB</div>
+              <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>Portal do Colaborador</div>
+            </div>
+          )}
           <div style={{ marginBottom: 36 }}>
             <div style={{ fontFamily: 'var(--font-body)', fontSize: 28, fontWeight: 600, color: T.text, marginBottom: 7 }}>
               Entrar no Sistema

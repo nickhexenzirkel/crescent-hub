@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { T, THEMES } from '../../contexts/theme';
 import { USER, supabase as _supabase } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const READ_KEY = 'uniko_notif_read';
 const getReadIds = () => { try { return new Set(JSON.parse(localStorage.getItem(READ_KEY)) || []); } catch { return new Set(); } };
@@ -47,7 +48,9 @@ const LockIcon = () => (
 );
 
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete}) => {
+  const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
+  if (isMobile) return null;
   return(
     <div style={{width:252,minHeight:'100vh',
       background:T.sidebarBg,
@@ -186,6 +189,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 
 /* ── TOP BAR ── */
 const TopBar = ({tab,onBack}) => {
+  const isMobile = useIsMobile();
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
@@ -210,7 +214,7 @@ const TopBar = ({tab,onBack}) => {
 
   if(tab==='inicio')return null;
   return(
-    <div style={{height:52,display:'flex',alignItems:'center',gap:12,padding:'0 30px',
+    <div style={{height:52,display:'flex',alignItems:'center',gap:isMobile?8:12,padding:isMobile?'0 14px':'0 30px',
       background:T.topbarBg,backdropFilter:'blur(12px)',
       borderBottom:`1px solid ${T.border}`,flexShrink:0,
       fontFamily:'var(--font-body)',position:'relative',zIndex:300}}>
