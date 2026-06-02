@@ -62,22 +62,29 @@ const getUserPhotoFromCache = () => {
 };
 
 const loadUserPhoto = async () => {
-  if (!USER.name || USER.name === 'Colaborador') return null;
+  // Lê o token atual (pode ter sido salvo após o carregamento do módulo)
+  const _auth = getAuthUser();
+  const name = _auth?.name || USER.name;
+  if (!name || name === 'Colaborador') return null;
+  const dynKey = _auth?.cpf ? `uniko_photo_${_auth.cpf}` : `uniko_photo_${name}`;
   try {
-    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', USER.name).maybeSingle();
-    if (data?.photo) { localStorage.setItem(PHOTO_KEY, data.photo); return data.photo; }
+    const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', name).maybeSingle();
+    if (data?.photo) { localStorage.setItem(dynKey, data.photo); return data.photo; }
   } catch {}
   // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver
-  const cached = getUserPhotoFromCache();
+  const cached = localStorage.getItem(dynKey) || null;
   if (cached) {
-    _supabase.from('profile_photos').upsert({ employee_name: USER.name, photo: cached, updated_at: new Date().toISOString() }).catch(() => {});
+    _supabase.from('profile_photos').upsert({ employee_name: name, photo: cached, updated_at: new Date().toISOString() }).catch(() => {});
   }
   return cached;
 };
 
 const saveUserPhoto = async (base64) => {
-  try { localStorage.setItem(PHOTO_KEY, base64); } catch {}
-  try { await _supabase.from('profile_photos').upsert({ employee_name: USER.name, photo: base64, updated_at: new Date().toISOString() }); } catch {}
+  const _auth = getAuthUser();
+  const name = _auth?.name || USER.name;
+  const dynKey = _auth?.cpf ? `uniko_photo_${_auth.cpf}` : `uniko_photo_${name}`;
+  try { localStorage.setItem(dynKey, base64); } catch {}
+  try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo: base64, updated_at: new Date().toISOString() }); } catch {}
 };
 
 const fetchPhotoByName = async (name) => {
