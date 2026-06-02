@@ -5,27 +5,27 @@ import logoNicolas from '../assets/LogoTipoNicolas.png';
 const LavaLamp = () => (
   <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
     <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
-    <div style={{position:'absolute',width:780,height:780,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b1} 0%,transparent 65%)`,
-      top:'-180px',left:'-160px',filter:'blur(85px)',animation:'blob1 11s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:680,height:680,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b2} 0%,transparent 65%)`,
-      top:'0%',right:'-140px',filter:'blur(80px)',animation:'blob2 13s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:600,height:600,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b3} 0%,transparent 62%)`,
-      bottom:'-80px',left:'20%',filter:'blur(72px)',animation:'blob3 10s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:540,height:540,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b4} 0%,transparent 65%)`,
-      bottom:'15%',right:'5%',filter:'blur(78px)',animation:'blob4 12s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:460,height:460,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b5} 0%,transparent 62%)`,
-      top:'35%',left:'38%',filter:'blur(65px)',animation:'blob5 14s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:420,height:420,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b6} 0%,transparent 65%)`,
-      top:'52%',left:'1%',filter:'blur(70px)',animation:'blob2 10s ease-in-out infinite 2s'}}/>
-    <div style={{position:'absolute',width:380,height:380,borderRadius:'50%',
-      background:`radial-gradient(circle,${T.b7} 0%,transparent 65%)`,
-      bottom:'5%',right:'30%',filter:'blur(68px)',animation:'blob1 9s ease-in-out infinite 3s'}}/>
+    <div style={{position:'absolute',width:'210%',height:460,borderRadius:'50%',
+      background:`radial-gradient(ellipse 80% 50% at 50% 50%,${T.b1} 0%,transparent 70%)`,
+      top:'-180px',left:'-55%',filter:'blur(92px)',animation:'wave1 13s ease-in-out infinite'}}/>
+    <div style={{position:'absolute',width:'200%',height:420,borderRadius:'50%',
+      background:`radial-gradient(ellipse 78% 50% at 50% 50%,${T.b2} 0%,transparent 70%)`,
+      top:'8%',left:'-50%',filter:'blur(86px)',animation:'wave2 16s ease-in-out infinite'}}/>
+    <div style={{position:'absolute',width:'190%',height:400,borderRadius:'50%',
+      background:`radial-gradient(ellipse 75% 50% at 50% 50%,${T.b3} 0%,transparent 68%)`,
+      top:'28%',left:'-45%',filter:'blur(82px)',animation:'wave3 11s ease-in-out infinite'}}/>
+    <div style={{position:'absolute',width:'200%',height:430,borderRadius:'50%',
+      background:`radial-gradient(ellipse 78% 50% at 50% 50%,${T.b4} 0%,transparent 70%)`,
+      top:'46%',left:'-50%',filter:'blur(88px)',animation:'wave1 14s ease-in-out infinite 2s'}}/>
+    <div style={{position:'absolute',width:'190%',height:400,borderRadius:'50%',
+      background:`radial-gradient(ellipse 75% 50% at 50% 50%,${T.b5} 0%,transparent 68%)`,
+      bottom:'10%',left:'-45%',filter:'blur(80px)',animation:'wave2 12s ease-in-out infinite 1s'}}/>
+    <div style={{position:'absolute',width:'210%',height:450,borderRadius:'50%',
+      background:`radial-gradient(ellipse 80% 50% at 50% 50%,${T.b6} 0%,transparent 70%)`,
+      bottom:'-160px',left:'-55%',filter:'blur(90px)',animation:'wave3 17s ease-in-out infinite 3s'}}/>
+    <div style={{position:'absolute',width:'170%',height:370,borderRadius:'50%',
+      background:`radial-gradient(ellipse 70% 50% at 50% 50%,${T.b7} 0%,transparent 68%)`,
+      top:'63%',left:'-35%',filter:'blur(78px)',animation:'wave1 10s ease-in-out infinite 4s'}}/>
     <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>
   </div>
 )
