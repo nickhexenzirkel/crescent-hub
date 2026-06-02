@@ -74,7 +74,7 @@ const loadUserPhoto = async () => {
   // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver
   const cached = localStorage.getItem(dynKey) || null;
   if (cached) {
-    _supabase.from('profile_photos').upsert({ employee_name: name, photo: cached, updated_at: new Date().toISOString() }).catch(() => {});
+    (async () => { try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo: cached, updated_at: new Date().toISOString() }); } catch {} })();
   }
   return cached;
 };
