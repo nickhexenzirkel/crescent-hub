@@ -13,6 +13,40 @@ import dokoMedicoCansado      from '../../../assets/DodocoMedicoCansado.jpg';
 import dokoAmbientalCansado   from '../../../assets/DodocoAmbientalistaCansada.jpg';
 import dokoContadorCansado    from '../../../assets/DodocoContadorCansado.jpg';
 
+import UnikoWaveImg      from '../../../assets/UnikoWave.png';
+import UnikoKpopImg      from '../../../assets/UnikoKPOP.png';
+import UnikoMPBImg       from '../../../assets/UnikoMPB.png';
+import UnikoRockImg      from '../../../assets/UnikoRock.png';
+import UnikoRapImg       from '../../../assets/UnikoRap.png';
+import UnikoPopImg       from '../../../assets/UnikoPop.png';
+import UnikoCowboyImg    from '../../../assets/UnikoCowboy.png';
+import UnikoGospelImg    from '../../../assets/UnikoGospel.png';
+import UnikoColumbinaImg from '../../../assets/UnikoColumbina.png';
+
+// XP total acumulado necessário para atingir cada nível (índice = nível)
+const XP_LEVELS = [0, 0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200];
+
+// Unikos comuns desbloqueados por nível (raridade Comum)
+const UNIKO_COMMON = [
+  { level:2,  key:'pop',       name:'UnikoPop',       title:'Voz da Multidão',       img:UnikoPopImg       },
+  { level:3,  key:'kpop',      name:'UnikoKpop',      title:'Stan Supremo',           img:UnikoKpopImg      },
+  { level:4,  key:'mpb',       name:'UnikoMPB',       title:'DJ da Alma Brasileira',  img:UnikoMPBImg       },
+  { level:5,  key:'rock',      name:'UnikoRock',      title:'DJ Rita Lee',            img:UnikoRockImg      },
+  { level:6,  key:'rap',       name:'UnikoRap',       title:'True Damage DJ',         img:UnikoRapImg       },
+  { level:7,  key:'cowboy',    name:'UnikoCowboy',    title:'DJ da Sofrência',        img:UnikoCowboyImg    },
+  { level:8,  key:'gospel',    name:'UnikoGospel',    title:'DJ da Fé',              img:UnikoGospelImg    },
+  { level:9,  key:'columbina', name:'UnikoColumbina', title:'Deusa da Lua',           img:UnikoColumbinaImg },
+  { level:10, key:'wave',      name:'UnikoWave',      title:'DJ da 7 Benefícios',    img:UnikoWaveImg      },
+];
+
+const xpToLevel = xp => {
+  let lv = 1;
+  for (let i = XP_LEVELS.length - 1; i >= 2; i--) {
+    if (xp >= XP_LEVELS[i]) { lv = i; break; }
+  }
+  return Math.min(lv, XP_LEVELS.length - 1);
+};
+
 const DOKO_SKINS = [
   {id:'tecnico',    label:'Técnico',       img:dokoTecnico,    imgCansado:dokoTecnicoCansado,    color:'#2E8DD4'},
   {id:'cozinheiro', label:'Cozinheiro',    img:dokoCozinheiro, imgCansado:dokoCozinheiroCansado, color:'#E05030'},
@@ -1022,7 +1056,7 @@ const _dokoLoad = () => {
     if (elapsed < 10000) return data;
 
     const ticks   = elapsed / TICK_MS;
-    let { fome = 75, energia = 70, sono = 70, dormindo = false } = data;
+    let { fome = 75, energia = 70, sono = 70, dormindo = false, xp = 0 } = data;
 
     if (dormindo) {
       fome = Math.max(0,   fome - ticks * RATE_FOME_OFF);
@@ -1033,7 +1067,7 @@ const _dokoLoad = () => {
       sono    = Math.max(0, sono    - ticks * RATE_SONO_ON);
     }
 
-    return { ...data, fome, energia, sono };
+    return { ...data, fome, energia, sono, xp };
   } catch { return {}; }
 };
 
@@ -1046,6 +1080,8 @@ const TabMyDoko = () => {
   const [showComidas,setShowComidas]= useState(false);
   const [dormindo,   setDormindo]   = useState(() => _dokoLoad().dormindo ?? false);
   const [sono,       setSono]       = useState(() => _dokoLoad().sono    ?? 70);
+  const [xp,         setXp]         = useState(() => _dokoLoad().xp ?? 0);
+  const [levelUpMsg, setLevelUpMsg] = useState(null);
   const [notif,      setNotif]      = useState(null); /* alerta de stat baixo */
   const alertasRef   = {fome:false, energia:false, sono:false}; /* controle de duplicata */
   const [bounce,     setBounce]     = useState(false);
@@ -1060,8 +1096,8 @@ const TabMyDoko = () => {
   const [pergAtual,  setPergAtual]  = useState('');    /* pergunta fixa visível */
 
   useEffect(()=>{
-    localStorage.setItem(DOKO_KEY, JSON.stringify({ skin, fome, energia, sono, dormindo, lastUpdated: Date.now() }));
-  }, [skin, fome, energia, sono, dormindo]);
+    localStorage.setItem(DOKO_KEY, JSON.stringify({ skin, fome, energia, sono, dormindo, xp, lastUpdated: Date.now() }));
+  }, [skin, fome, energia, sono, dormindo, xp]);
 
   /* Sync Doko state to Supabase so colegas can see it */
   const _dokoSyncRef = useRef(null);
@@ -1069,12 +1105,13 @@ const TabMyDoko = () => {
     if (!USER.name || USER.name === 'Colaborador') return;
     clearTimeout(_dokoSyncRef.current);
     _dokoSyncRef.current = setTimeout(() => {
+      const nivel = xpToLevel(xp);
       _supabase.from('doko_states').upsert(
-        { employee_name: USER.name, skin, fome, energia, sono, dormindo, updated_at: new Date().toISOString() },
+        { employee_name: USER.name, skin, fome, energia, sono, dormindo, xp, nivel, updated_at: new Date().toISOString() },
         { onConflict: 'employee_name' }
       );
     }, 4000);
-  }, [skin, fome, energia, sono, dormindo]);
+  }, [skin, fome, energia, sono, dormindo, xp]);
 
   useEffect(()=>{
     const id=setInterval(()=>{
@@ -1115,6 +1152,22 @@ const TabMyDoko = () => {
     }
   },[Math.floor(sono/10)]);
 
+  const nivel = xpToLevel(xp);
+
+  const ganharXP = (amount) => {
+    setXp(prev => {
+      const oldLv = xpToLevel(prev);
+      const newXp = prev + amount;
+      const newLv = xpToLevel(newXp);
+      if (newLv > oldLv) {
+        const unlocked = UNIKO_COMMON.find(u => u.level === newLv);
+        setLevelUpMsg({ nivel: newLv, uniko: unlocked || null });
+        setTimeout(() => setLevelUpMsg(null), 7000);
+      }
+      return newXp;
+    });
+  };
+
   const pers       = DOKO_PERSONALIDADES[skin];
   const activeSkin = DOKO_SKINS.find(s=>s.id===skin);
   const mood       = (fome+energia)/2>=70?'feliz':(fome+energia)/2>=35?'neutro':'triste';
@@ -1148,6 +1201,7 @@ const TabMyDoko = () => {
   const escolherComida = (comida) => {
     setFome(f=>Math.min(100, f+comida.fome));
     setEnergia(e=>Math.min(100, e+comida.energia));
+    ganharXP(Math.round(comida.fome / 2)); /* 9–18 XP por refeição */
     setShowComidas(false);
     setConversa(null); setRespondeu(false); setTyping(false);
     setSessaoAtiva(false); setSessaoFim(false); setFila([]); setFilaTotal(0); setPergAtual('');
@@ -1156,6 +1210,7 @@ const TabMyDoko = () => {
   const carinho = () => {
     setEnergia(e=>Math.min(100,e+22));
     setFome(f=>Math.min(100,f+3));
+    ganharXP(15); /* +15 XP por carinho */
     setConversa(null); setRespondeu(false); setTyping(false); setSessaoAtiva(false); setSessaoFim(false); setFila([]); setFilaTotal(0); setPergAtual('');
     dizer(rnd(pers.pet));
   };
@@ -1181,6 +1236,7 @@ const TabMyDoko = () => {
       setSessaoAtiva(false);
       setSessaoFim(true);
       setEnergia(e=>Math.min(100,e+35));
+      ganharXP(20); /* +20 XP bônus por completar a sessão */
       dizer(pers.conclusao||'Você finalizou todas as perguntas por hoje! Até mais tarde!');
       setTimeout(()=>setSessaoFim(false),10000);
     }
@@ -1190,6 +1246,7 @@ const TabMyDoko = () => {
   const responderOpcao = (opcao) => {
     setEnergia(e=>Math.min(100,e+(opcao.d||5)));
     setFome(f=>Math.min(100,f+3));
+    ganharXP(10); /* +10 XP por resposta */
     setRespondeu(true);
     setPergAtual(''); /* limpa pergunta fixa ao responder */
     dizer(opcao.r);
@@ -1244,12 +1301,66 @@ const TabMyDoko = () => {
 
   return(
     <div className="fi" style={{fontFamily:'var(--font-body)'}}>
+      {/* Toast de level-up */}
+      {levelUpMsg && (
+        <div style={{position:'fixed',top:24,left:'50%',transform:'translateX(-50%)',
+          zIndex:9999,background:T.surface,border:`2px solid ${T.gold}`,
+          borderRadius:18,padding:'16px 28px',boxShadow:`0 8px 32px ${T.gold}44`,
+          display:'flex',alignItems:'center',gap:14,maxWidth:420,minWidth:280,
+          animation:'bubblePop .35s ease'}}>
+          {levelUpMsg.uniko && (
+            <img src={levelUpMsg.uniko.img} alt={levelUpMsg.uniko.name}
+              style={{width:56,height:56,borderRadius:12,objectFit:'cover',flexShrink:0,
+                border:`2px solid ${T.gold}55`}}/>
+          )}
+          <div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.gold,marginBottom:2}}>
+              🎉 Nível {levelUpMsg.nivel} atingido!
+            </div>
+            {levelUpMsg.uniko
+              ? <div style={{fontSize:13,color:T.text}}>
+                  <strong>{levelUpMsg.uniko.name}</strong> desbloqueado!
+                  <span style={{fontSize:11,color:T.textT,display:'block',marginTop:2}}>
+                    {levelUpMsg.uniko.title} · Raridade Comum
+                  </span>
+                </div>
+              : <div style={{fontSize:13,color:T.textS}}>Continue interagindo para desbloquear mais!</div>
+            }
+          </div>
+        </div>
+      )}
+
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
-          <div style={{fontSize:22,fontWeight:600,color:T.text}}>My Uniko</div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{fontSize:22,fontWeight:600,color:T.text}}>My Uniko</div>
+            <div style={{padding:'3px 10px',borderRadius:8,
+              background:`${T.gold}22`,border:`1px solid ${T.goldLine}55`,
+              fontSize:12,fontWeight:700,color:T.gold,letterSpacing:'.04em'}}>
+              Nv. {nivel}
+            </div>
+          </div>
           <div style={{fontSize:15,color:T.textT,marginTop:4}}>
             Seu companheiro virtual —{' '}
             <span style={{color:activeSkin.color,fontWeight:500}}>{activeSkin.label}</span>
+          </div>
+          {/* Barra de XP */}
+          <div style={{marginTop:10,display:'flex',alignItems:'center',gap:10,maxWidth:320}}>
+            <div style={{flex:1,height:6,borderRadius:99,
+              background:T.surfaceSub||'rgba(0,0,0,0.06)',overflow:'hidden'}}>
+              <div style={{height:'100%',borderRadius:99,
+                background:`linear-gradient(90deg,${T.gold},${T.gold}bb)`,
+                width: nivel < XP_LEVELS.length - 1
+                  ? `${Math.min(100,((xp - XP_LEVELS[nivel]) / (XP_LEVELS[nivel+1] - XP_LEVELS[nivel])) * 100)}%`
+                  : '100%',
+                transition:'width .5s ease',
+                boxShadow:`0 0 6px ${T.gold}55`}}/>
+            </div>
+            <div style={{fontSize:11,color:T.textT,flexShrink:0}}>
+              {nivel < XP_LEVELS.length - 1
+                ? `${xp - XP_LEVELS[nivel]} / ${XP_LEVELS[nivel+1] - XP_LEVELS[nivel]} XP`
+                : 'Nível máximo!'}
+            </div>
           </div>
         </div>
         <button onClick={()=>setShowSkins(s=>!s)}
@@ -1636,11 +1747,11 @@ const TabMyDoko = () => {
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               {[
-                {fn:alimentar,       label:'Alimentar',     sub:showComidas?'Escolhendo comida...':'Escolha o que dar para o Uniko',
+                {fn:alimentar,       label:'Alimentar',     sub:showComidas?'Escolhendo comida...':'Escolha o que dar · +9 a +18 XP',
                   d:<path d="M3 11l19-9-9 19-2-8-8-2z"/>},
-                {fn:carinho,         label:'Fazer Carinho', sub:'Recupera energia +22',
+                {fn:carinho,         label:'Fazer Carinho', sub:'Recupera energia +22 · +15 XP',
                   d:<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>},
-                {fn:iniciarConversa, label:'Conversar',     sub:`Sessão completa · ${pers.conversa.length} perguntas`,
+                {fn:iniciarConversa, label:'Conversar',     sub:`+10 XP/resposta · bônus +20 XP ao completar`,
                   d:<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>},
                 {fn:toggleDormir,    label:dormindo?'Acordar':'Colocar pra Dormir',
                   sub:dormindo?`Dormindo... sono ${Math.round(sono)}%`:'Pausa o gasto de energia e fome',
@@ -1696,6 +1807,73 @@ const TabMyDoko = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Coleção de Unikos Comuns ── */}
+      <StarDivider my={24}/>
+      <Card style={{padding:'22px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+          <div style={{fontSize:16,fontWeight:700,color:T.text}}>Coleção Uniko</div>
+          <div style={{padding:'3px 10px',borderRadius:7,background:`${T.gold}18`,
+            border:`1px solid ${T.goldLine}44`,fontSize:11,color:T.gold,fontWeight:600}}>
+            ✦ Raridade Comum
+          </div>
+        </div>
+        <div style={{fontSize:12,color:T.textT,marginBottom:16}}>
+          Suba de nível interagindo com seu Uniko para desbloquear novos companheiros musicais.
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:12}}>
+          {UNIKO_COMMON.map(u => {
+            const desbloqueado = nivel >= u.level;
+            return (
+              <div key={u.key} style={{borderRadius:14,overflow:'hidden',
+                border:`2px solid ${desbloqueado ? T.gold+'55' : T.border}`,
+                background:desbloqueado ? `${T.gold}08` : T.surfaceSub||'rgba(0,0,0,0.03)',
+                transition:'all .2s',
+                boxShadow:desbloqueado ? `0 4px 16px ${T.gold}22` : 'none'}}>
+                <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
+                  <img src={u.img} alt={u.name}
+                    style={{width:'100%',height:'100%',objectFit:'cover',display:'block',
+                      filter:desbloqueado ? 'none' : 'grayscale(1) brightness(.7)',
+                      transition:'filter .3s'}}/>
+                  {!desbloqueado && (
+                    <div style={{position:'absolute',inset:0,display:'flex',
+                      flexDirection:'column',alignItems:'center',justifyContent:'center',
+                      background:'rgba(0,0,0,0.35)'}}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="white" strokeWidth="2" strokeLinecap="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0110 0v4"/>
+                      </svg>
+                      <div style={{fontSize:10,color:'white',fontWeight:700,marginTop:4}}>
+                        Nv. {u.level}
+                      </div>
+                    </div>
+                  )}
+                  {desbloqueado && (
+                    <div style={{position:'absolute',top:5,right:5,
+                      width:18,height:18,borderRadius:'50%',
+                      background:T.gold,display:'flex',alignItems:'center',
+                      justifyContent:'center',fontSize:10}}>
+                      ✓
+                    </div>
+                  )}
+                </div>
+                <div style={{padding:'8px 10px',textAlign:'center'}}>
+                  <div style={{fontSize:12,fontWeight:600,
+                    color:desbloqueado ? T.text : T.textT,
+                    marginBottom:2,lineHeight:1.3}}>
+                    {u.name}
+                  </div>
+                  <div style={{fontSize:10,color:desbloqueado ? T.gold : T.textT,
+                    fontWeight:desbloqueado?600:400}}>
+                    {desbloqueado ? u.title : `🔒 Nível ${u.level}`}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 };
