@@ -107,6 +107,10 @@ const FONTS = `
   0%,100% { transform: translate(0px,0px) scale(1); }
   50%     { transform: translate(10px,10px) scale(1.1); }
 }
+@keyframes themeBtnPulse {
+  0%,100% { box-shadow: 0 4px 14px rgba(0,0,0,0.22); transform: scale(1); }
+  50%     { box-shadow: 0 6px 22px rgba(0,0,0,0.32); transform: scale(1.07); }
+}
 @keyframes confettiL {
   0%   { transform: translateY(-30px) rotate(0deg);             opacity: 1; }
   75%  { opacity: 1; }

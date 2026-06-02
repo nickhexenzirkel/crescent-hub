@@ -93,7 +93,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     return () => clearInterval(id);
   }, []);
 
-  const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);};
+  const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);window.dispatchEvent(new CustomEvent('ch_themechange',{detail:key}));};
   const handleProfileSaved = () => setProfileComplete(checkProfileComplete());
   const render=()=>{
     if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
