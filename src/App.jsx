@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto } from './contexts/user';
-import { LavaLamp } from './shared/components';
+import { LavaLamp, Confetti } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
 import { ModuleSelector } from './shared/ModuleSelector';
@@ -15,6 +15,7 @@ export default function CrescentHub() {
   const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
+  const [confettiTheme, setConfettiTheme] = useState(null);
 
   // Verifica token salvo ao carregar o app
   useEffect(() => {
@@ -45,6 +46,11 @@ export default function CrescentHub() {
   const handleModuleSelect = (id) => {
     const adminOnly = ['dashboard','ponto'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
+    const theme = localStorage.getItem('ch_theme') || 'vozBrasil';
+    if (['vozBrasil','vozBrasilDark','orgulho','orgulhoDark'].includes(theme)) {
+      setConfettiTheme(theme);
+      setTimeout(() => setConfettiTheme(null), 3200);
+    }
     ss(id);
   };
 
@@ -211,6 +217,7 @@ export default function CrescentHub() {
       <style>{FONTS}</style>
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
+        {confettiTheme && <Confetti themeKey={confettiTheme}/>}
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { T } from '../contexts/theme';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
 
@@ -217,4 +217,47 @@ const AvatarCircle = ({ name='?', photo=null, size=38, fontSize=13, rounded='50%
   );
 };
 
-export { LavaLamp, Moon, StarDivider, Logo, BrandLogo, UnikoIcon, Card, Tag, Btn, Inp, SHead, AvatarCircle };
+const CONFETTI_PALETTES = {
+  vozBrasil:     ['#FFE000','#F5C800','#FFDD00','#00A040','#009C3B','#66CC00','#FFFFFF','#FFD700'],
+  vozBrasilDark: ['#FFE000','#F5C800','#FFDD00','#00A040','#009C3B','#66CC00','#FFFFFF','#FFD700'],
+  orgulho:       ['#FF0000','#FF7700','#FFEE00','#00DD00','#0044FF','#8800FF','#FF00CC','#FF88AA'],
+  orgulhoDark:   ['#FF0000','#FF7700','#FFEE00','#00DD00','#0044FF','#8800FF','#FF00CC','#FF88AA'],
+};
+
+const Confetti = ({ themeKey }) => {
+  const palette = CONFETTI_PALETTES[themeKey];
+  const pieces  = useMemo(() => {
+    if (!palette) return [];
+    return Array.from({ length: 160 }, (_, i) => {
+      const isCircle = Math.random() > 0.65;
+      const w = 5 + Math.random() * 8;
+      return {
+        id: i,
+        x:        Math.random() * 100,
+        delay:    Math.random() * 0.7,
+        duration: 1.3 + Math.random() * 1.4,
+        w,
+        h:        isCircle ? w : 3 + Math.random() * 5,
+        color:    palette[Math.floor(Math.random() * palette.length)],
+        anim:     Math.random() > 0.5 ? 'confettiL' : 'confettiR',
+        radius:   isCircle ? '50%' : '1px',
+      };
+    });
+  }, [themeKey]); // eslint-disable-line
+
+  if (!palette) return null;
+  return (
+    <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9998,overflow:'hidden'}}>
+      {pieces.map(p => (
+        <div key={p.id} style={{
+          position:'absolute', left:`${p.x}%`, top:0,
+          width:p.w, height:p.h,
+          backgroundColor:p.color, borderRadius:p.radius,
+          animation:`${p.anim} ${p.duration}s ${p.delay}s ease-in forwards`,
+        }}/>
+      ))}
+    </div>
+  );
+};
+
+export { LavaLamp, Moon, StarDivider, Logo, BrandLogo, UnikoIcon, Card, Tag, Btn, Inp, SHead, AvatarCircle, Confetti };

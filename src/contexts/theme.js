@@ -107,6 +107,16 @@ const FONTS = `
   0%,100% { transform: translate(0px,0px) scale(1); }
   50%     { transform: translate(10px,10px) scale(1.1); }
 }
+@keyframes confettiL {
+  0%   { transform: translateY(-30px) rotate(0deg);             opacity: 1; }
+  75%  { opacity: 1; }
+  100% { transform: translateY(110vh) translateX(-90px) rotate(780deg);  opacity: 0; }
+}
+@keyframes confettiR {
+  0%   { transform: translateY(-30px) rotate(0deg);            opacity: 1; }
+  75%  { opacity: 1; }
+  100% { transform: translateY(110vh) translateX(90px) rotate(-620deg); opacity: 0; }
+}
 @keyframes wave1 {
   0%,100% { transform: translateY(0px) scaleX(1); }
   30%     { transform: translateY(-55px) scaleX(1.04); }
