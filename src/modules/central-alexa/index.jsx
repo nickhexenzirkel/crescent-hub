@@ -133,6 +133,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     return auth?.name || USER.name || 'Colaborador';
   });
   const [photoCache, setPhotoCache] = useState({});
+  // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
+  const [myPhoto, setMyPhoto] = useState(userPhoto);
+  useEffect(() => { if (userPhoto) setMyPhoto(userPhoto); }, [userPhoto]);
+  useEffect(() => {
+    if (!myPhoto && myName && myName !== 'Colaborador') {
+      fetchPhotoByName(myName).then(p => { if (p) setMyPhoto(p); });
+    }
+  }, [myName]); // eslint-disable-line
 
   // ── Festival: estado real (Spotify + Supabase) ───────────
   const [queue, setQueue]               = useState([]);
@@ -1344,7 +1352,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                     ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:18,height:18,borderRadius:5,objectFit:"cover",flexShrink:0}}/>
                                     : <AvatarCircle
                                         name={s.requested_by}
-                                        photo={s.requested_by===myName ? userPhoto : photoCache[s.requested_by]}
+                                        photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
                                         size={18} fontSize={7} rounded="5px"
                                       />
                                   }
@@ -1907,7 +1915,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         {m.role==="user"&&(
                           <AvatarCircle
                             name={m.name||myName}
-                            photo={(m.name===myName||!m.name) ? userPhoto : photoCache[m.name]}
+                            photo={(m.name===myName||!m.name) ? myPhoto : photoCache[m.name]}
                             size={32} fontSize={11}
                             style={{marginBottom:2, background:`linear-gradient(135deg,${nameColor},${nameColor}bb)`}}
                           />
