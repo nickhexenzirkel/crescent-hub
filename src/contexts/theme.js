@@ -420,7 +420,9 @@ if(typeof document !== 'undefined') {
 }
 
 let T = {
-  surfaceW:'rgba(255,255,255,0.97)',
+  surface:'#FFFFFF', surfaceW:'rgba(255,255,255,0.97)',
+  border:'rgba(0,0,0,0.07)', divider:'rgba(0,0,0,0.05)',
+  surfaceInput:'rgba(0,0,0,0.025)', inputFocus:'#FFFFFF',
   goldPale:'#D6EAFA', cream:'#EDF4FB', ivory:'#F5FAFF',
   green:'#1A9C70',  greenGl:'rgba(26,156,112,0.08)',
   danger:'#C04050', dangerGl:'rgba(192,64,80,0.07)',
