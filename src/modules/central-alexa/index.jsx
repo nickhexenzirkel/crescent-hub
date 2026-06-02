@@ -661,6 +661,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     fetchLyrics(currentSong);
   }, [currentSong?.spotify_id, currentSong?.id]);
 
+  // Reinicia polling e zera progresso quando muda a música
+  useEffect(() => {
+    setProgressMs(0);
+    if (isPlaying) { stopProgressPolling(); startProgressPolling(); }
+  }, [currentSong?.id]); // eslint-disable-line
+
   // Inicia/para polling de progresso conforme isPlaying
   useEffect(() => {
     if (isPlaying) startProgressPolling();
@@ -853,11 +859,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const cur     = currentSong || queue.find(s=>s.status==='playing') || queue[0];
   const curIdx  = queue.findIndex(s=>s.id===cur?.id);
 
-  const EqBar = ({i}) => (
-    <div style={{width:3,borderRadius:2,background:T.gold,
-      animation:isPlaying?`alexaEq${(i%5)+1} ${0.5+i*0.07}s ease-in-out infinite alternate`:"none",
-      height:isPlaying?undefined:4,minHeight:4,maxHeight:22}}/>
-  );
 
   return (
     <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
@@ -962,7 +963,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         {isPlaying&&cur&&(
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:9,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
             <div style={{display:"flex",alignItems:"flex-end",gap:2,height:20}}>
-              {[1,2,3,4,5].map(i=><EqBar key={i} i={i}/>)}
+              {[1,2,3,4,5].map(i=><div key={i} style={{width:3,borderRadius:2,background:T.gold,animation:`alexaEq${(i%5)+1} ${0.5+i*0.07}s ease-in-out infinite alternate`,minHeight:4,maxHeight:22}}/>)}
             </div>
             <span style={{fontSize:12,fontWeight:600,color:T.gold,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title} — {cur.artist}</span>
           </div>
@@ -1043,7 +1044,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         return (
                           <div style={{marginBottom:14}}>
                             <div style={{height:3,borderRadius:99,background:`${T.border}`,overflow:"hidden",marginBottom:5}}>
-                              <div style={{height:"100%",width:`${pct}%`,borderRadius:99,background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`,transition:"width .9s linear"}}/>
+                              <div key={cur?.id} style={{height:"100%",width:`${pct}%`,borderRadius:99,background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`,transition:"width .9s linear"}}/>
                             </div>
                             <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textD}}>
                               <span>{elapsed}</span>
