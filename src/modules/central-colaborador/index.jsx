@@ -42,6 +42,15 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [onbPhoto, setOnbPhoto] = useState(null);
   const onbFileRef = useRef(null);
 
+  // Novidades — exibido uma vez por usuário
+  const [showNovidades, setShowNovidades] = useState(() => {
+    try { return !localStorage.getItem('ch_novidades_junho2026'); } catch { return false; }
+  });
+  const dismissNovidades = () => {
+    try { localStorage.setItem('ch_novidades_junho2026', '1'); } catch {}
+    setShowNovidades(false);
+  };
+
   // Busca o perfil completo do usuário ao abrir o Portal
   useEffect(() => {
     const token = localStorage.getItem('ch_token');
@@ -235,6 +244,130 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
         <SettingsModal activeTheme={activeTheme}
           onTheme={(k)=>{handleTheme(k);}}
           onClose={()=>setShowSettings(false)}/>
+      )}
+
+      {/* ── Novidades de Junho — aparece uma vez por usuário ── */}
+      {showNovidades&&!showOnboarding&&(
+        <div style={{position:'fixed',inset:0,zIndex:5000,
+          background:'rgba(0,0,0,.88)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          padding:16,fontFamily:'var(--font-body)'}}>
+          <div style={{background:T.surface,borderRadius:24,width:'100%',maxWidth:600,
+            overflow:'hidden',position:'relative',
+            boxShadow:'0 32px 80px rgba(0,0,0,.55)',border:`1px solid ${T.border}`}}>
+
+            {/* Header festivo */}
+            <div style={{
+              background:'linear-gradient(135deg,#009C3B 0%,#00B040 30%,#FFE000 60%,#FF8C00 80%,#FF0018 90%,#750787 100%)',
+              padding:'28px 36px 22px',position:'relative',overflow:'hidden'}}>
+              {/* brilhos decorativos */}
+              {[{l:'10%',t:'20%',s:80},{l:'60%',t:'10%',s:60},{l:'85%',t:'40%',s:90},{l:'30%',t:'60%',s:50}].map((b,i)=>(
+                <div key={i} style={{position:'absolute',left:b.l,top:b.t,
+                  width:b.s,height:b.s,borderRadius:'50%',
+                  background:'rgba(255,255,255,0.12)',filter:'blur(20px)',pointerEvents:'none'}}/>
+              ))}
+              <div style={{position:'relative',zIndex:1}}>
+                <div style={{fontSize:28,marginBottom:6}}>🎉</div>
+                <div style={{fontSize:20,fontWeight:800,color:'#fff',marginBottom:4,
+                  textShadow:'0 2px 8px rgba(0,0,0,.3)'}}>
+                  Novidades de Junho!
+                </div>
+                <div style={{fontSize:13,color:'rgba(255,255,255,.85)'}}>
+                  Dois temas exclusivos chegaram ao Crescent Hub
+                </div>
+              </div>
+            </div>
+
+            {/* Cards dos Unikos */}
+            <div style={{padding:'24px 28px 20px',display:'grid',
+              gridTemplateColumns:'1fr 1fr',gap:14}}>
+
+              {/* ── UnikoJunino — VozBrasil ── */}
+              <div style={{borderRadius:16,overflow:'hidden',
+                border:'2px solid #009C3B66',
+                background:'linear-gradient(160deg,#009C3B0E,#FFE0000E)'}}>
+                {/* banner */}
+                <div style={{background:'linear-gradient(135deg,#009C3B,#00B040,#FFE000)',
+                  padding:'14px 14px 10px',display:'flex',alignItems:'center',gap:10}}>
+                  <img src="/UnikoJunino.png" alt="UnikoJunino"
+                    style={{width:52,height:52,borderRadius:'50%',objectFit:'cover',
+                      border:'2.5px solid rgba(255,255,255,.7)',flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#fff',
+                      textShadow:'0 1px 4px rgba(0,0,0,.3)'}}>UnikoJunino</div>
+                    <div style={{fontSize:11,color:'rgba(255,255,255,.85)'}}>Voz do Brasil</div>
+                  </div>
+                </div>
+                {/* conteúdo */}
+                <div style={{padding:'12px 14px 14px'}}>
+                  <div style={{fontSize:12,color:T.text,fontWeight:600,marginBottom:4}}>
+                    🎪 Festa Junina & Copa do Mundo
+                  </div>
+                  <div style={{fontSize:11,color:T.textS,lineHeight:1.6,marginBottom:12}}>
+                    Paleta verde e amarela com o troféu da Copa.
+                    Chuva de confetti nas cores do Brasil ao clicar no botão flutuante!
+                  </div>
+                  <button
+                    onClick={()=>{handleTheme('vozBrasil'); dismissNovidades();}}
+                    style={{width:'100%',padding:'9px',borderRadius:10,border:'none',cursor:'pointer',
+                      background:'linear-gradient(135deg,#009C3B,#00B040)',
+                      color:'#fff',fontWeight:700,fontSize:12,fontFamily:'var(--font-body)'}}>
+                    🏆 Aplicar tema
+                  </button>
+                </div>
+              </div>
+
+              {/* ── UnikoOrgulho — Pride ── */}
+              <div style={{borderRadius:16,overflow:'hidden',
+                border:'2px solid rgba(255,100,0,.4)',
+                background:'linear-gradient(160deg,rgba(255,0,24,.06),rgba(117,7,135,.06))'}}>
+                {/* banner */}
+                <div style={{background:'linear-gradient(135deg,#FF0018 0%,#FF8C00 25%,#FFED00 50%,#008026 75%,#750787 100%)',
+                  padding:'14px 14px 10px',display:'flex',alignItems:'center',gap:10}}>
+                  <img src="/UnikoOrgulho.png" alt="UnikoOrgulho"
+                    style={{width:52,height:52,borderRadius:'50%',objectFit:'cover',
+                      border:'2.5px solid rgba(255,255,255,.7)',flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#fff',
+                      textShadow:'0 1px 4px rgba(0,0,0,.3)'}}>UnikoOrgulho</div>
+                    <div style={{fontSize:11,color:'rgba(255,255,255,.85)'}}>Mês do Orgulho</div>
+                  </div>
+                </div>
+                {/* conteúdo */}
+                <div style={{padding:'12px 14px 14px'}}>
+                  <div style={{fontSize:12,color:T.text,fontWeight:600,marginBottom:4}}>
+                    🏳️‍🌈 Mês do Orgulho LGBTQIA+
+                  </div>
+                  <div style={{fontSize:11,color:T.textS,lineHeight:1.6,marginBottom:12}}>
+                    Paleta arco-íris vibrante com a bandeira colorida.
+                    Confetti multicolorido ao clicar no botão flutuante!
+                  </div>
+                  <button
+                    onClick={()=>{handleTheme('orgulho'); dismissNovidades();}}
+                    style={{width:'100%',padding:'9px',borderRadius:10,border:'none',cursor:'pointer',
+                      background:'linear-gradient(135deg,#FF0018 0%,#FF8C00 33%,#008026 66%,#750787 100%)',
+                      color:'#fff',fontWeight:700,fontSize:12,fontFamily:'var(--font-body)'}}>
+                    🏳️‍🌈 Aplicar tema
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Rodapé */}
+            <div style={{padding:'0 28px 24px',textAlign:'center'}}>
+              <div style={{fontSize:11,color:T.textT,marginBottom:14}}>
+                Você pode trocar o tema a qualquer momento em <strong>Configurações ⚙️</strong>
+              </div>
+              <button onClick={dismissNovidades}
+                style={{padding:'10px 32px',borderRadius:12,border:`1px solid ${T.border}`,
+                  background:'transparent',color:T.textS,cursor:'pointer',
+                  fontSize:13,fontWeight:500,fontFamily:'var(--font-body)'}}>
+                Entendido! ✓
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {/* ── Onboarding — aparece enquanto não há foto de perfil ── */}
