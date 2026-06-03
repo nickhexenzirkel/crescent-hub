@@ -7,10 +7,23 @@ import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
 import dokoAmbiental  from '../../../assets/DodocoAmbientalista.jpg';
 import dokoContador   from '../../../assets/DodocoContador.jpg';
+import unikoWave      from '../../../assets/UnikoWave.png';
+import unikoKpop      from '../../../assets/UnikoKPOP.png';
+import unikoMpb       from '../../../assets/UnikoMPB.png';
+import unikoRock      from '../../../assets/UnikoRock.png';
+import unikoRap       from '../../../assets/UnikoRap.png';
+import unikoPop       from '../../../assets/UnikoPop.png';
+import unikoCowboy    from '../../../assets/UnikoCowboy.png';
+import unikoGospel    from '../../../assets/UnikoGospel.png';
+import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
-const SKINS  = { tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMedico, ambiental:dokoAmbiental, contador:dokoContador };
+const SKINS  = {
+  tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMedico, ambiental:dokoAmbiental, contador:dokoContador,
+  wave:unikoWave, kpop:unikoKpop, mpb:unikoMpb, rock:unikoRock, rap:unikoRap,
+  pop:unikoPop, cowboy:unikoCowboy, gospel:unikoGospel, columbina:unikoColumbina,
+};
 const _auth  = getAuthUser();
 const PHK    = _auth?.cpf ? `uniko_photo_${_auth.cpf}`      : 'uniko_photo';
 const PHPK   = _auth?.cpf ? `uniko_photo_pos_${_auth.cpf}`  : 'uniko_photo_pos';
