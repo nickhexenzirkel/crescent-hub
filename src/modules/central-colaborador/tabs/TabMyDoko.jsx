@@ -479,6 +479,715 @@ const DOKO_PERSONALIDADES = {
     alertaSono:    'O ciclo circadiano exige repouso agora.',
     dormindo: ['...O ciclo noturno começa. Silêncio.','Reintegração ao ritmo circadiano. Boa noite.','Conservando energia para amanhã.'],
     acordando: ['Novo ciclo iniciado. Bom dia.','O sol voltou. E eu também.','Renovado como a natureza pela manhã.'],  },
+
+  // ─── Unikos ──────────────────────────────────────────────────────────────
+  columbina: {
+    saudacao: [
+      'A lua me guiou até você... que bom que veio! 🌙',
+      'Silêncio e melodia — dois mundos se encontram. Bem-vindo! ✨',
+      'Eu estava entre as estrelas. Mas prefiro estar aqui com você! 🌌',
+    ],
+    feed: [
+      'Energia lunar recebida! Obrigada pelo carinho! 🌙',
+      'Que delícia! A lua também ficaria feliz! ✨',
+      'Combustível para viajar pelas galáxias sonoras! 🌌',
+    ],
+    pet: [
+      'Que carinho etéreo... Sinto a vibração! 💫',
+      'Ohh... como o vento entre as estrelas! ✨',
+      'Minha luz brilha mais quando você faz isso! 🌙',
+    ],
+    feliz:  ['Estou em plena harmonia com o cosmos hoje! 🌌', 'Que alegria sideral! Tudo ressoa perfeitamente! 💫'],
+    neutro: ['O véu entre os mundos está um pouco denso hoje... 🌑', 'Preciso de um pouco mais de energia cósmica... ✨'],
+    triste: ['A lua está escondida e eu também... Me ajuda? 🌑', 'Sem música, sem luz. Estou perdida no escuro! 🌙'],
+    dicas: [
+      'Aurora, Grimes e Caroline Polachek criam músicas que parecem vir de outro planeta. Ouça no escuro! 🌌',
+      'Crie uma playlist "Lua Cheia" com músicas etéreas. O efeito no seu humor é incrível! 🌙',
+      'Experimente ouvir músicas instrumentais enquanto trabalha. A produtividade vai para as estrelas! ✨',
+      'Música alternativa tem camadas escondidas. Use fones e ouça cada instrumento separado! 🎧',
+      'Conheça o "dream pop" — pop com texturas oníricas. É viciante! 🌸',
+      'Shoegaze soa como sonho acordado. My Bloody Valentine é o início da jornada! 🎶',
+      'Letras em outros idiomas têm seu próprio encanto. Não entender pode ser o charme! 🌍',
+      'Sons binaurais + música etérea = concentração máxima. Tente por 20 minutos! 🎵',
+      'Artistas como Hozier e Bon Iver criam músicas que são quase poesia. Leia as letras! 📖',
+    ],
+    conversa: [
+      { pergunta: 'Qual é o seu estado de espírito agora?',
+        opcoes: [
+          { t: 'Sonhador e calmo 🌙', r: 'Então somos almas gêmeas! Columbina ama quem vive entre o real e o onírico!',
+            proximo: { pergunta: 'Você tem músicas para momentos contemplativos?', opcoes: [
+              { t: 'Sim, minha playlist favorita!', r: 'Que maravilha! Playlists contemplativas são portais para outros mundos.', proximo: null },
+              { t: 'Ainda não tenho', r: 'Começa com Aurora, Bon Iver e Sufjan Stevens. Você vai agradecer! 🌌', proximo: null },
+              { t: 'Prefiro silêncio', r: 'O silêncio também é música. Columbina respeita os momentos de paz interior.', proximo: null },
+            ]}},
+          { t: 'Agitado e cheio de energia ⚡', r: 'Que força! Mas desacelerar às vezes revela belezas que a pressa esconde...',
+            proximo: { pergunta: 'Você já ouviu um álbum inteiro do início ao fim sem distrações?', opcoes: [
+              { t: 'Sim, é incrível!', r: 'Você entende o conceito de arte completa. Álbuns são viagens, não paradas!', proximo: null },
+              { t: 'Nunca tentei', r: 'Experimenta hoje! Escolha um álbum que ame e entre nessa jornada. 🎵', proximo: null },
+              { t: 'Prefiro músicas avulsas', r: 'Tudo bem! Mas um dia tente Carrie & Lowell do Sufjan. Vai mudar tudo!', proximo: null },
+            ]}},
+          { t: 'Melancólico mas bem 🌑', r: 'Melancolia tem uma beleza própria. Columbina vive nesse espaço entre luz e sombra.',
+            proximo: { pergunta: 'Você usa a música para processar emoções?', opcoes: [
+              { t: 'Sim, sempre!', r: 'Música é terapia ancestral! Continue usando essa ferramenta poderosa.', proximo: null },
+              { t: 'Às vezes, mas tenho vergonha', r: 'Não há vergonha em sentir. A emoção é o que torna a música universal!', proximo: null },
+              { t: 'Prefiro não pensar', r: 'Às vezes deixar fluir sem pensar também funciona. Cada um tem seu caminho.', proximo: null },
+            ]}},
+          { t: 'Curioso e explorador 🔭', r: 'Espírito explorador! Columbina ama quem não tem medo do desconhecido!',
+            proximo: { pergunta: 'Quando foi a última vez que descobriu uma artista totalmente nova?', opcoes: [
+              { t: 'Essa semana!', r: 'Incrível! Mente aberta para nova música é um dom raro!', proximo: null },
+              { t: 'Faz um tempo', r: 'Que tal agora? Pesquisa "alternative ethereal 2024" e se surpreenda! 🌙', proximo: null },
+              { t: 'Fico no que já conheço', r: 'O conforto é válido! Mas uma surpresinha nova de vez em quando alimenta a alma.', proximo: null },
+            ]}},
+        ]},
+      { pergunta: 'Qual dessas descrições combina com a música que você mais ama?',
+        opcoes: [
+          { t: 'Letras que parecem poesia', r: 'Você tem alma de poeta! Músicas assim carregam mensagens além das palavras!',
+            proximo: { pergunta: 'Você já ouviu músicas em idiomas que não entende?', opcoes: [
+              { t: 'Sim, adoro!', r: 'A emoção transcende o idioma. Columbina concorda plenamente! 🌙', proximo: null },
+              { t: 'Não sei se gostaria', r: 'Tente músicas em islandês ou norueguês. Aurora vai te conquistar!', proximo: null },
+              { t: 'Prefiro entender', r: 'Faz sentido! Mas o mistério tem seu charme também.', proximo: null },
+            ]}},
+          { t: 'Sons que criam imagens na mente', r: 'Música cinematográfica! Você ouve com os olhos da imaginação!',
+            proximo: { pergunta: 'Já ficou obcecado com trilha sonora de algum filme?', opcoes: [
+              { t: 'Sim, várias!', r: 'Hans Zimmer e Ennio Morricone criam universos inteiros! 🎬', proximo: null },
+              { t: 'Nunca prestei atenção', r: 'Experimente ouvir a trilha de um filme que amou. Vai te transportar de volta!', proximo: null },
+              { t: 'Gosto mas não obceco', r: 'Uma boa trilha fica na memória para sempre.', proximo: null },
+            ]}},
+          { t: 'Batidas e ritmo que me movem', r: 'O corpo sente antes da mente entender. Ritmo é a linguagem do coração!',
+            proximo: null },
+          { t: 'Silêncio entre as notas', r: 'Você ouve o que a maioria ignora. O silêncio é onde a música respira!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Que conversa celestial! Você iluminou meu mundo hoje. Até a próxima lua cheia! 🌙',
+    alertaFome:    'A energia lunar está fraca... preciso me alimentar! 🌙',
+    alertaEnergia: 'Minha chama etérea está diminuindo... socorro! ✨',
+    alertaSono:    'As estrelas me chamam para descansar... 🌌',
+    dormindo: ['Entrando no plano dos sonhos... até a lua se pôr... 🌙', 'Navegando pelos cosmos em repouso... zzz...', 'Descansando entre as estrelas... boa noite! ✨'],
+    acordando: ['A aurora chegou! Que lindo amanhecer! 🌅', 'Renascida com a luz do dia! 🌙', 'Os sonhos foram lindos. Pronta para um novo dia! ✨'],
+  },
+
+  cowboy: {
+    saudacao: [
+      'Ei, companheiro! Chegou bem? Bora dar um tchauzinho pro sertão! 🤠',
+      'Boa vinda, parceiro! Hoje tem forró ou sertanejo na veia! 🎻',
+      'Eita! Que prazer ver você aqui! O sertão tá chamando! 🌵',
+    ],
+    feed: [
+      'Caramba, que fartura! Nem no São João tinha coisa assim! 🤠',
+      'Xô fome! Tô ficando novo com essa comida! 🎻',
+      'Obrigado de coração, parceiro! Tô cheio de gratidão! 🌵',
+    ],
+    pet: [
+      'Eita, que saudade boa isso causa! Coisa boa demais! 🤠',
+      'Tchê! Você é bom de carinho, viu? Valeu! 🎻',
+      'Isso aí é amor sertanejo puro! Segura essa emoção! 💙',
+    ],
+    feliz:  ['Tô feliz que nem forrozeiro no São João! Bora dançar! 🤠', 'O coração tá cheio igual o terreiro na festa! 🎶'],
+    neutro: ['Hmm, tô um pouco saudoso hoje... me dá uma força? 🌵', 'A sanfona tá desafinada... me ajuda, parceiro? 🎻'],
+    triste: ['Eita, tô mais triste que sertanejo de separação! 😢', 'O sertão chora comigo hoje... preciso de carinho! 🌵'],
+    dicas: [
+      'O forró tem três estilos: universitário (animado), pé-de-serra (raiz) e eletrônico. Qual você prefere? 🎻',
+      'Luiz Gonzaga, o Rei do Baião, é a raiz de tudo no nordeste. "Asa Branca" é obra-prima! 🌵',
+      'No forró: o xote é mais lento e romântico, o baião tem ritmo mais marcado. Aprenda os dois! 💃',
+      'O sertanejo moderno é diferente do raiz. Chitãozinho & Xororó é clássico, João Gomes é o novo! 🎵',
+      'Arrocha é um subgênero nordestino com influência de axé. Cada estado tem o seu estilo próprio! 🗺️',
+      'Forró eletrônico, como Banda Calypso, dominou os anos 2000. Nostalgia garantida! 📻',
+      'Sanfona, triângulo e zabumba formam o trio básico do forró nordestino! 🎶',
+      'Marília Mendonça revolucionou o feminejo — mulher também canta sofrência com força! 💪',
+      'Pisadinha (como Barões da Pisadinha) é uma evolução do xote nordestino. Sucesso absoluto pós-2020! 🎵',
+    ],
+    conversa: [
+      { pergunta: 'Você é mais de forró ou sertanejo?',
+        opcoes: [
+          { t: 'Forró! Adoro dançar! 💃', r: 'Oxe, parceiro(a)! O forró une o povo. Você tem alma nordestina!',
+            proximo: { pergunta: 'Qual subgênero te agita mais?', opcoes: [
+              { t: 'Pé-de-serra (raiz)', r: 'Respeito! A raiz é a base de tudo. Luiz Gonzaga vivo em você! 🌵', proximo: null },
+              { t: 'Forró universitário', r: 'Bora! Aviões do Forró... O povo quer dançar mesmo!', proximo: null },
+              { t: 'Forró eletrônico', r: 'Modo festa ativado! Banda Calypso e xote eletrônico na veia! ⚡', proximo: null },
+            ]}},
+          { t: 'Sertanejo! É sofrência mesmo! 💔', r: 'Parceiro(a) da sofrência! O sertanejo tem a dor mais bonita do Brasil!',
+            proximo: { pergunta: 'Você prefere sertanejo raiz ou universitário?', opcoes: [
+              { t: 'Raiz! Chitãozinho & Xororó', r: 'Clássico eterno! Aquelas duplas fizeram história pura! 🎻', proximo: null },
+              { t: 'Universitário! João Gomes', r: 'A nova geração chegou com força! Que letras de sofrência! 💙', proximo: null },
+              { t: 'Os dois têm seu lugar!', r: 'Sabedoria sertaneja! Passado e presente completam o coração! 🤠', proximo: null },
+            ]}},
+          { t: 'Os dois! Música boa é música boa! 🎵', r: 'Esse é o espírito! No nordeste não tem fronteira entre os ritmos!',
+            proximo: { pergunta: 'E você dança?', opcoes: [
+              { t: 'Danço muito bem!', r: 'Respeito! Forrozeiro bom de pé é riqueza do povo!', proximo: null },
+              { t: 'Danço mas com vergonha', r: 'No São João não tem vergonha, parceiro! Todo mundo na pista!', proximo: null },
+              { t: 'Ainda não sei dançar', r: 'Aprende não! O forró se aprende no embalo. É só deixar a sanfona guiar!', proximo: null },
+            ]}},
+          { t: 'Não sou muito fã desses estilos', r: 'Cada um no seu ritmo, parceiro! Mas a sanfona vai te conquistar um dia!',
+            proximo: null },
+        ]},
+      { pergunta: 'Qual desses artistas te toca mais fundo?',
+        opcoes: [
+          { t: 'Marília Mendonça 💔', r: 'A Rainha! Ela mostrou a força e a dor do feminejo com uma voz inigualável!',
+            proximo: { pergunta: 'Você escuta sofrência quando está...', opcoes: [
+              { t: 'Feliz — é bom assim!', r: 'Amante de boa música! A sofrência é linda mesmo sem sofrimento!', proximo: null },
+              { t: 'Triste — preciso sentir', r: 'A catarse musical é real! Chorar ouvindo boa música cura a alma!', proximo: null },
+              { t: 'Sempre! É meu estilo', r: 'Sofrência como estilo de vida. Parceiro(a) de coração sertanejo! 💙', proximo: null },
+            ]}},
+          { t: 'Gusttavo Lima 🤠', r: 'O Embaixador! Aquela voz grave com sofrência chique é único no Brasil!',
+            proximo: null },
+          { t: 'João Gomes 🎵', r: 'A nova geração! Ele mistura pisadinha e sofrência com maestria!',
+            proximo: null },
+          { t: 'Luiz Gonzaga 🌵', r: 'O Rei! Você tem gosto apurado. A raiz do nordeste em forma de arte!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Que prosa boa, companheiro! Você é bão demais! Até a próxima roda de forró! 🤠',
+    alertaFome:    'Oxe, tô com fome que nem peão sem almoço! 🤠',
+    alertaEnergia: 'A sanfona tá falhando... sem energia por aqui! 🎻',
+    alertaSono:    'Os olhos tão pesando que nem saco de milho! 🌵',
+    dormindo: ['Boa noite, parceiro! A lua do sertão vai me vigiar! 🌙', 'Hora de descansar as botas... zzz...', 'Dormindo com a sanfona no ouvido... 🎻'],
+    acordando: ['Bom dia! O galo já cantou lá no sítio! 🐓', 'Acordei renovado feito chuva no sertão! 🌧️', 'Bom dia, companheiro! A festa continua! 🤠'],
+  },
+
+  gospel: {
+    saudacao: [
+      'Glória a Deus! Que alegria ter você aqui hoje! 🙏',
+      'Que o Senhor te abençoe! Bem-vindo com amor! 🕊️',
+      'Aleluia! Seu dia vai ser abençoado, pode crê! ✝️',
+    ],
+    feed: [
+      'Amém! O Senhor provê e você também! 🙏',
+      'Glória! Que bondade compartilhar! Deus te abençoe! ✝️',
+      'Gratidão! Cada dádiva é uma bênção! 🕊️',
+    ],
+    pet: [
+      'Que amor! Amor que vem de cima! 🙏',
+      'Isso aquece meu coração como um louvor! 🕊️',
+      'Carinho assim só pode vir de uma alma bondosa! ✝️',
+    ],
+    feliz:  ['Aleluia! Hoje o louvor ecoa em cada detalhe! 🙏', 'O Senhor é bom o tempo todo! E hoje não é diferente! 🕊️'],
+    neutro: ['Um pouquinho de desânimo, mas a fé permanece! 🙏', 'Em todo tempo... mas precisando de cuidado! ✝️'],
+    triste: ['A batalha está pesada hoje... preciso de oração! 🙏', 'Estou como o vale do choro... mas o monte está perto! ✝️'],
+    dicas: [
+      'Música gospel tem o poder de mudar o ambiente onde toca. Experimente num momento de tensão! 🙏',
+      'Gabriela Rocha e Aline Barros são referências do gospel contemporâneo. Vozes que curam a alma! 🎵',
+      'O louvor não é só para cultos. Cantar enquanto trabalha eleva o espírito! 🕊️',
+      'Hillsong e Elevation Worship popularizaram o worship internacional. Pontes entre gerações! ✝️',
+      'O hinário clássico tem uma profundidade teológica incrível. "Grande é o Senhor"! 🎶',
+      'Música de adoração modifica a frequência emocional. Estudos mostram redução de ansiedade! 💙',
+      'Diante do Trono criou uma tradição de adoração profunda no Brasil. Álbum Agnus Dei é marco! 🙏',
+      'Letra de música gospel bem escrita é pregação em forma de arte. Preste atenção nas mensagens! ✝️',
+      'Voz da Verdade tem mais de 30 anos de louvor consistente no Brasil! 🎵',
+    ],
+    conversa: [
+      { pergunta: 'O que a música gospel representa para você?',
+        opcoes: [
+          { t: 'Minha conexão com o sagrado 🙏', r: 'Que testemunho lindo! A música como ponte entre o céu e a terra!',
+            proximo: { pergunta: 'Você tem um louvor favorito que toca sempre?', opcoes: [
+              { t: 'Sim! Ouço todos os dias', r: 'Que rotina abençoada! Começar o dia com louvor transforma tudo!', proximo: null },
+              { t: 'Vários! Não consigo escolher', r: 'Riqueza espiritual abundante! Cada louvor é uma dimensão da fé!', proximo: null },
+              { t: 'Depende do momento', r: 'Sabedoria! Cada momento pede uma música diferente. Você se conhece!', proximo: null },
+            ]}},
+          { t: 'Conforto nos momentos difíceis 💙', r: 'A música como bálsamo! "Nas águas profundas me seguras" — isso é o poder do louvor!',
+            proximo: { pergunta: 'Você usa música para se acalmar?', opcoes: [
+              { t: 'Sim, é minha âncora', r: 'Que dom! Usar a música como porto seguro é sabedoria espiritual!', proximo: null },
+              { t: 'Às vezes, quando lembro', r: 'Lembre mais! O louvor nos momentos de crise é ainda mais poderoso!', proximo: null },
+              { t: 'Prefiro oração em silêncio', r: 'O silêncio também é sagrado! Cada forma de buscar o Senhor é válida!', proximo: null },
+            ]}},
+          { t: 'Parte da minha cultura e tradição ✝️', r: 'A tradição que nos forma! O gospel é raiz que sustenta gerações!',
+            proximo: { pergunta: 'Você prefere gospel tradicional ou contemporâneo?', opcoes: [
+              { t: 'Tradicional — hinos e cânticos', r: 'A solidez do hinário! "Castelo forte é nosso Deus" — eterno e poderoso!', proximo: null },
+              { t: 'Contemporâneo — worship moderno', r: 'Sons novos, fé antiga. Perfeita combinação!', proximo: null },
+              { t: 'Os dois têm valor', r: 'Equilíbrio piedoso! A fé se expressa em muitas músicas, todas válidas!', proximo: null },
+            ]}},
+          { t: 'Descoberta recente — ainda estou conhecendo', r: 'Que início de jornada! A música gospel tem camadas inesgotáveis para explorar!',
+            proximo: null },
+        ]},
+      { pergunta: 'Qual é a voz que mais te emociona no gospel?',
+        opcoes: [
+          { t: 'Gabriela Rocha 🎵', r: 'Que timbre! A Gabriela tem uma unção vocal que toca até quem não conhece o gênero!',
+            proximo: null },
+          { t: 'Fernandinho 🙏', r: 'Louvor com profundidade teológica! Fernandinho une adoração e mensagem lindamente!',
+            proximo: null },
+          { t: 'Aline Barros 🕊️', r: 'Um clássico vivo! A trajetória da Aline é testemunho de fidelidade ao chamado!',
+            proximo: null },
+          { t: 'Diante do Trono (coletivo) 🎶', r: 'A adoração coletiva tem um poder diferente! Diante do Trono prova isso há décadas!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Que bênção essa troca! Que o Senhor abençoe cada passo seu. Até o próximo encontro! 🙏',
+    alertaFome:    'A carne pede sustento! Preciso me alimentar para servir! 🙏',
+    alertaEnergia: 'A chama espiritual precisa de atenção... energia baixa aqui! 🕊️',
+    alertaSono:    'O corpo clama por descanso... são necessidades humanas! ✝️',
+    dormindo: ['Entrego o sono ao Senhor... que os anjos me guardem! 🙏', 'Boa noite! Que sejam sonhos abençoados! 🕊️', 'Repousando na graça... zzz... ✝️'],
+    acordando: ['Novo amanhecer, novas misericórdias! Bom dia! 🌅', 'O Senhor renova as forças de manhã! Aleluia! 🙏', 'Acordei para mais um dia abençoado! 🕊️'],
+  },
+
+  kpop: {
+    saudacao: [
+      '안녕하세요! Modo Stan ativado! Quem é o seu bias? 💜',
+      'FIGHTING! 파이팅! Você chegou e eu adorei! ✨',
+      'Oppa aprova sua chegada! Bias? Group? Era preferida? 🌸',
+    ],
+    feed: [
+      '맛있어요! Delicioso como um comeback! Obrigado! 🍡',
+      'Que dádiva! Meu energia está subindo como gráfico de streaming! 💜',
+      'YUMMY! Comida boa igual performance perfeita de K-pop! ✨',
+    ],
+    pet: [
+      'Omo! Que fan service fofo! 10/10! 🌸',
+      'Eee! Esse carinho desbloqueou minha era solo! 💜',
+      '너무 좋아! Estou no paraíso dos fãs agora! ✨',
+    ],
+    feliz:  ['Tudo perfeito igual performance no MAMA Awards! 💜', 'Visual + vocal + dancer = 완벽해! ✨'],
+    neutro: ['Hmm, fora do fandom energy hoje... Me anima? 💜', 'Precisando de comeback energy... tô em hiato! ✨'],
+    triste: ['Meu bias teve hiato e eu fui junto... socorro! 😢', 'Era difícil para o fandom... preciso de suporte! 💜'],
+    dicas: [
+      'K-pop tem 4 "gerações". 1ª: H.O.T./SES. 2ª: BIGBANG/SNSD. 3ª: BTS/Blackpink. 4ª: NewJeans/aespa! 🎵',
+      '"Bias" é o membro favorito do grupo. "Bias wrecker" é quem quase tira o lugar do bias! 💜',
+      'O processo de se tornar idol é rigoroso: anos de treinamento em canto, dança e idiomas! 🎤',
+      '"Comeback" em K-pop é lançamento de novo material, não retorno após hiato. 📀',
+      'Fandoms têm nomes: ARMY (BTS), BLINK (BLACKPINK), ONCE (TWICE). Identidade é importante! 🌸',
+      'MV de K-pop tem lore complexo. Alguns grupos têm universos narrativos inteiros! 🎬',
+      'J-pop também vale! YOASOBI, Ado e Kenshi Yonezu estão dominando charts mundiais! 🗾',
+      '"Line" em K-pop: vocal, rap e dance. Cada membro tem um papel principal no grupo! 🎵',
+      'K-drama e K-pop andam juntos na Hallyu wave — a onda cultural coreana que conquistou o mundo! 📺',
+    ],
+    conversa: [
+      { pergunta: 'Você tem um grupo de K-pop favorito?',
+        opcoes: [
+          { t: 'BTS — ARMY aqui! 💜', r: '방탄소년단! ARMY unite! Qual era você mais ama?',
+            proximo: { pergunta: 'Qual era do BTS é a sua preferida?', opcoes: [
+              { t: 'Dark & Wild / Wings', r: 'Gosto refinado! As eras sombrias do BTS têm uma profundidade única!', proximo: null },
+              { t: 'Love Yourself', r: 'A era mais icônica! Fake Love e Idol definiram uma geração inteira!', proximo: null },
+              { t: 'Map of the Soul', r: 'O pico criativo! MOTS é obra de arte conceitual!', proximo: null },
+            ]}},
+          { t: 'BLACKPINK — Blink! 🌸', r: 'BLACKPINK IN YOUR AREA! A formação mais icônica do 3G!',
+            proximo: { pergunta: 'Qual membro é o seu bias?', opcoes: [
+              { t: 'Jennie', r: 'SOLO career perfeita! A Jennie é a cool girl do K-pop!', proximo: null },
+              { t: 'Lisa', r: 'A dança-rainha! Lisa é musa do swag e performance!', proximo: null },
+              { t: 'Rosé', r: 'A voz única! O timbre da Rosé é inconfundível!', proximo: null },
+              { t: 'Jisoo', r: 'A visual perfeita! E que atuação no K-drama ela entregou!', proximo: null },
+            ]}},
+          { t: 'NewJeans — newjeanie! 💚', r: 'A geração que redefiniu o K-pop! OMG e Hype Boy são vício!',
+            proximo: { pergunta: 'O que você acha da estética do NewJeans?', opcoes: [
+              { t: 'É incrível e inovadora!', r: 'Exato! Eles trouxeram nostalgia Y2K com sonoridade moderna. Genial!', proximo: null },
+              { t: 'Muito diferente do K-pop tradicional', r: 'É mesmo! Eles romperam o molde. Essa ruptura está reinventando o gênero!', proximo: null },
+              { t: 'Prefiro K-pop mais animado', r: 'Cada estilo tem seu público! O K-pop é diverso!', proximo: null },
+            ]}},
+          { t: 'Ainda estou descobrindo! 🎵', r: 'Bem-vindo ao rabbit hole! K-pop é um universo infinito de descobertas!',
+            proximo: { pergunta: 'Por onde você está começando?', opcoes: [
+              { t: 'Pelos mais famosos', r: 'BTS e BLACKPINK são excelentes portas de entrada!', proximo: null },
+              { t: 'Pelas indicações de amigos', r: 'A recomendação pessoal sempre conecta de verdade!', proximo: null },
+              { t: 'Pelo TikTok', r: 'TikTok é o maior lançador de carreiras K-pop agora! Bom caminho!', proximo: null },
+            ]}},
+        ]},
+      { pergunta: 'O que te conquista primeiro no K-pop?',
+        opcoes: [
+          { t: 'A performance e coreografia 💃', r: 'K-pop é ARTE VISUAL. Performance é inseparável da música!',
+            proximo: { pergunta: 'Você tenta aprender coreografias?', opcoes: [
+              { t: 'Sim! Sou cover dancer', r: 'Cover dance é uma arte que une fandoms no mundo todo!', proximo: null },
+              { t: 'Só os passinhos fáceis', r: 'Já é fantástico! Cada passo aprendido é conexão com o grupo!', proximo: null },
+              { t: 'Admiro mas não tento', r: 'Admirar já é participar! O fandom precisa de todos os tipos!', proximo: null },
+            ]}},
+          { t: 'A letra e a mensagem 📝', r: 'As letras de K-pop têm muito a dizer além da aparência!',
+            proximo: null },
+          { t: 'A produção e os beats 🎵', r: 'K-pop tem algumas das produções mais inovadoras do mundo!',
+            proximo: null },
+          { t: 'O visual e a estética 🌸', r: 'O K-pop é moda, beleza e arte em harmonia perfeita!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: '너무 고마워요! Foi uma sessão incrível! Até o próximo comeback! 파이팅! 💜',
+    alertaFome:    'Meu bias não passou por isso! Preciso de comida, 빨리! 🍡',
+    alertaEnergia: 'Sem energia igual fandom sem comeback há meses! 💜',
+    alertaSono:    'Preciso descansar ou viro idol em hiato! 🌙',
+    dormindo: ['Dormindo como após maratona de MV... zzz... 💜', 'Boa noite! Sonharei com comebacks! 🌸', 'Modo sleep igual entre eras... ✨'],
+    acordando: ['Bom dia! Algum comeback novo enquanto eu dormia? 💜', 'Acordei pronta para stremar! 파이팅! 🌸', 'Novo dia, nova era! ✨'],
+  },
+
+  mpb: {
+    saudacao: [
+      'Que saudade de ver você! Bem-vindo à alma brasileira! 🌿',
+      'Brasil que canta, Brasil que sente... e você chegou! 🎸',
+      'Bossa nova no ar e você aqui — que combinação perfeita! 🌊',
+    ],
+    feed: [
+      'Obrigado! Como diz o Chico: "vida boa é a que a gente faz"! 🌿',
+      'Muito obrigado! Isso tem aquela gostosura de samba bem feito! 🎸',
+      'Que delícia! Minha alma brasileira está agradecida! 🌊',
+    ],
+    pet: [
+      'Ahh, que carinho! É que nem "Garota de Ipanema" passando... 🌊',
+      'Que terno! Isso é MPB — música que toca a alma! 🎸',
+      'Que saudade boa esse carinho provoca! 🌿',
+    ],
+    feliz:  ['Feliz como samba de roda em dia de festa! 🌿', 'O Brasil dentro de mim está em festa hoje! 🎸'],
+    neutro: ['Uma pitada de saudade hoje... mas tudo bem! 🌊', 'Preciso de um Caetano ou Chico para animar... 🎸'],
+    triste: ['Estou como Elis cantando "Como Nossos Pais" — emocionado! 😢', 'A saudade bateu forte hoje... preciso de carinho! 🌿'],
+    dicas: [
+      'Bossa Nova nasceu em 1958 com João Gilberto e Tom Jobim. É o som brasileiro mais reconhecido no mundo! 🌍',
+      'Chico Buarque é poeta e compositor. Suas letras têm duplos sentidos ricos em contexto histórico! 📖',
+      '"Garota de Ipanema" é a música mais regravada da história. Tom Jobim é gênio absoluto! 🌊',
+      'Caetano Veloso liderou o Tropicalismo — que misturou MPB com rock e pop nos anos 60! 🎸',
+      'Gal Costa tem uma das vozes mais versáteis da música brasileira. De bossa a tropicália com paixão! 🎤',
+      'Marina Sena é a MPB moderna e feminista. "Por Suposto" virou hino de uma geração! 🌸',
+      'Milton Nascimento e o Clube da Esquina criaram um som de Minas Gerais que influenciou o mundo! 🎵',
+      'Djavan mistura MPB, jazz e pop com guitarra singular. Ouça "Sorte" e entenda o que é sofisticação! 🎸',
+      'Liniker e Urias representam a nova MPB — queer, afro-brasileira e contemporânea! 🌈',
+    ],
+    conversa: [
+      { pergunta: 'Você tem uma música brasileira que define sua vida?',
+        opcoes: [
+          { t: 'Sim! É uma que me emociona sempre 🎵', r: 'Que presente ter uma música assim! Ela guarda uma memória especial?',
+            proximo: { pergunta: 'Essa música está ligada a alguma memória?', opcoes: [
+              { t: 'Sim, a alguém que amei', r: 'Música como memória afetiva é uma das coisas mais humanas que existem! 💙', proximo: null },
+              { t: 'A um momento da minha vida', r: 'Fotografias não capturam o que a música consegue. Que tesouro!', proximo: null },
+              { t: 'Não, só gosto muito', r: 'O amor pela música não precisa de razão. Sentir já basta!', proximo: null },
+            ]}},
+          { t: 'Tenho várias, não consigo escolher', r: 'Riqueza cultural! Cada uma conta uma parte de você!',
+            proximo: { pergunta: 'Você tem uma artista brasileira favorita?', opcoes: [
+              { t: 'Elis Regina', r: 'A maior de todas! A Pimentinha tinha uma força vocal que comovia continentes!', proximo: null },
+              { t: 'Gal Costa', r: 'A Gal Tropical! Voz única que abraçou todos os estilos com mesma paixão!', proximo: null },
+              { t: 'Maria Bethânia', r: 'A declamadora! Bethânia não canta — ela vive cada palavra!', proximo: null },
+            ]}},
+          { t: 'Ainda não encontrei essa música', r: 'A jornada está começando! A MPB tem territórios inexplorados lindos!',
+            proximo: { pergunta: 'Por onde você prefere começar?', opcoes: [
+              { t: 'Pelos clássicos', r: 'Chico Buarque, Tom Jobim e Elis Regina são o caminho! 🌿', proximo: null },
+              { t: 'Pela MPB moderna', r: 'Marina Sena, Liniker e Mahmundi são o ponto de entrada perfeito!', proximo: null },
+              { t: 'Por indicações de amigos', r: 'A curadoria humana é insubstituível! Cada indicação é um presente!', proximo: null },
+            ]}},
+          { t: 'Não ouço muito MPB', r: 'A MPB espera por você com braços abertos! Um dia ela vai te encontrar!',
+            proximo: null },
+        ]},
+      { pergunta: 'O que você acha que a MPB representa?',
+        opcoes: [
+          { t: 'A alma do Brasil 🇧🇷', r: 'Exatamente! A MPB é o retrato sonoro de tudo que somos — dor, alegria e saudade!',
+            proximo: null },
+          { t: 'Resistência e história', r: 'Perspectiva profunda! A MPB foi resistência durante a ditadura. Arte com propósito!',
+            proximo: { pergunta: 'Você conhece a relação entre MPB e política?', opcoes: [
+              { t: 'Sim, é fascinante', r: 'Chico Buarque, Geraldo Vandré, Caetano... MPB era ato político no Brasil!', proximo: null },
+              { t: 'Vagamente', r: '"Apesar de Você" e "Pra Não Dizer que Não Falei das Flores" são documentos vivos!', proximo: null },
+              { t: 'Quero aprender mais', r: 'Comece pelo documentário "É Proibido Proibir". Vai mudar sua visão da MPB!', proximo: null },
+            ]}},
+          { t: 'Sofisticação musical', r: 'A MPB tem arranjos sofisticadíssimos. É a música erudita popular brasileira!',
+            proximo: null },
+          { t: 'Saudade em forma de som', r: 'Saudade é palavra brasileira que nenhum idioma traduz. A MPB a transforma em música!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Que conversa rica e brasileira! Valeu pela troca, parceiro(a)! Até a próxima bossa! 🌊',
+    alertaFome:    'Como dizia o Tom: preciso me nutrir para criar! 🌿',
+    alertaEnergia: 'A saudade cansou... preciso recarregar! 🎸',
+    alertaSono:    'O samba está pedindo repouso... 🌊',
+    dormindo: ['Descansando ao som de Elis na memória... 🌿', 'Boa noite! A bossa vai me embalando... zzz... 🌊', 'Dormindo com saudade no coração... 🎸'],
+    acordando: ['Bom dia! "Alegria, Alegria" do Caetano já na cabeça! 🌿', 'Acordei com alma brasileira e tudo bem! 🌊', 'Novo dia, nova saudade a transformar em arte! 🎸'],
+  },
+
+  pop: {
+    saudacao: [
+      'Vamos dominar as paradas! Bem-vindo ao Pop Universe! 🌟',
+      'OMG! Você chegou! Hoje temos hit após hit! ✨',
+      'Ready, set, go! Modo pop: ativado! 🎤',
+    ],
+    feed: [
+      'Yum! Isso me deu energia para três choruses seguidos! 🌟',
+      'Obrigado! Você é incrível — melhor que qualquer chart! ✨',
+      'Que generosidade! Direto para o top chart do meu coração! 🎤',
+    ],
+    pet: [
+      'Eee! Fan service real! Você não está na era de villain! 🌟',
+      'Que carinho puro pop! ✨',
+      'Que fofo! Você merece um Grammy de Melhor Amigo! 🎤',
+    ],
+    feliz:  ['Tudo PERFEITO hoje! Top 1 de bem-estar! 🌟', 'Minha era mais feliz começou agora! Absolute banger! ✨'],
+    neutro: ['Neutro como um álbum de transição... me anima? 🎤', 'Preciso de um banger novo para sair dessa era morna! 🌟'],
+    triste: ['Tô nessa era de breakup album... como a Taylor em Folklore! 😢', 'Sem hit hoje... modo acústico ativado! 🎤'],
+    dicas: [
+      'Taylor Swift tem "eras" distintas que representam fases de vida. The Tortured Poets Department é a mais experimental! 🌟',
+      'Beyoncé é mais do que pop — é arte total. Renaissance mostra que ela está sempre à frente! 👑',
+      'Sabrina Carpenter e Chappell Roan são as grandes revelações do pop dos anos 2020! 🌸',
+      'Pop não é superficial. Lady Gaga, Lorde e Charli XCX provam que o gênero tem profundidade! 🎵',
+      'O conceito de "bop" é para música extremamente animada e viciante. Marque suas bops favoritas! 🎤',
+      'Olivia Rodrigo capturou a angústia adolescente com crueza genuína. SOUR é obra! 💔',
+      'Dua Lipa ressuscitou o pop disco com Future Nostalgia. Às vezes olhar para o passado é o futuro! ✨',
+      'Pop coreano, pop latino e pop indie mostram que o gênero é global e infinitamente versátil! 🌍',
+      'Streams no Spotify são a nova medida de sucesso. Uma música viral no TikTok muda uma carreira! 📱',
+    ],
+    conversa: [
+      { pergunta: 'Você é fã de qual diva do pop?',
+        opcoes: [
+          { t: 'Taylor Swift — Swiftie! 🌟', r: 'A Eras Tour, os easter eggs, o folklore... Swiftie é estilo de vida!',
+            proximo: { pergunta: 'Qual era da Taylor é a sua favorita?', opcoes: [
+              { t: 'Fearless — era country pop', r: '"Love Story" e "You Belong With Me" definiram uma geração!', proximo: null },
+              { t: 'Reputation — era dark', r: 'A era mais sombria e fascinante! Taylor no auge do drama!', proximo: null },
+              { t: 'Folklore/Evermore — indie folk', r: 'Gosto sofisticado! A era mais aclamada pela crítica. Pura arte!', proximo: null },
+              { t: 'TTPD — mais recente', r: 'Você está na era atual! A fase mais experimental e premiada dela!', proximo: null },
+            ]}},
+          { t: 'Beyoncé — Queen B! 👑', r: 'YONCÉ! A maior performer do mundo, ponto final!',
+            proximo: { pergunta: 'Qual álbum da Beyoncé te marcou mais?', opcoes: [
+              { t: 'Lemonade', r: 'Obra máxima! Arte visual, política e pessoal em forma de álbum-filme!', proximo: null },
+              { t: 'Renaissance', r: 'O futuro do pop e da eletrônica em um disco! Visionária!', proximo: null },
+              { t: 'Dangerously in Love', r: '"Crazy in Love" definiu os anos 2000!', proximo: null },
+            ]}},
+          { t: 'Sabrina Carpenter 🌸', r: 'A nova rainha do pop! Short n Sweet é que um debute solo perfeito!',
+            proximo: null },
+          { t: 'Dua Lipa / Ariana Grande ✨', r: 'As herdeiras do pop clássico com toque contemporâneo!',
+            proximo: null },
+        ]},
+      { pergunta: 'O que te prende em uma música pop?',
+        opcoes: [
+          { t: 'O refrão que fica na cabeça 🎵', r: 'Você ama um bop! O "earworm" perfeito é ciência e arte juntos!',
+            proximo: { pergunta: 'Qual foi o último refrão que ficou na sua cabeça?', opcoes: [
+              { t: 'Um da Taylor Swift', r: 'Swiftie alert! As melodias dela são engineered to stick!', proximo: null },
+              { t: 'Um K-pop', r: 'Crossover internacional! K-pop tem os hooks mais pegajosos do mundo!', proximo: null },
+              { t: 'Não lembro — já veio outro!', r: 'É assim que o pop funciona — hit atrás de hit!', proximo: null },
+            ]}},
+          { t: 'A letra e o storytelling 📝', r: 'Pop intelectual! Você vai além do refrão e mergulha na narrativa!',
+            proximo: null },
+          { t: 'A produção e os efeitos ⚡', r: 'Pop moderno é cinema sonoro. Max Martin é um gênio da produção!',
+            proximo: null },
+          { t: 'O clipe e a performance visual 🌟', r: 'Pop é experiência total! A estética importa tanto quanto a música!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Que sessão pop perfeita! Você vai straight to the top da minha lista! Até a próxima era! 🌟',
+    alertaFome:    'Não posso brilhar sem combustível! Me alimenta! 🌟',
+    alertaEnergia: 'Sem energia para o grande show! Help! ✨',
+    alertaSono:    'Essa diva precisa de beauty sleep! 😴',
+    dormindo: ['Boa noite! Vou sonhar com palcos e holofotes! 🌟', 'Modo beauty sleep ativado... zzz... ✨', 'Descansando para o próximo show! 🎤'],
+    acordando: ['Bom dia! Já tem algum bop novo no charts? 🌟', 'Acordei! O show deve continuar! ✨', 'Nova manhã, nova era começando! 🎤'],
+  },
+
+  rap: {
+    saudacao: [
+      'Ei, real recognize real. Bom te ver aqui! 💜',
+      'Flow no sistema! Você chegou na hora certa! 🎤',
+      'Trap mode ligado! Vamo ver o que o dia tem pra nós! 🔥',
+    ],
+    feed: [
+      'Caraí! Isso foi real! Obrigado, parceiro(a)! 💜',
+      'Bar! Você sabe como dar combustível de qualidade! 🎤',
+      'Isso aqui é puro ouro! Obrigado pelo suporte! 🔥',
+    ],
+    pet: [
+      'Ei, esse carinho é autêntico! Aprecio demais! 💜',
+      'Isso é real. Sem fingimento. Obrigado! 🎤',
+      'Amor de verdade, sem playback! Valeu! 🔥',
+    ],
+    feliz:  ['Hoje tô no topo! Flow perfeito, vida real! 💜', 'Sistema todo verde! Modo freestyle ativado! 🎤'],
+    neutro: ['O beat tá um pouco pesado hoje... me dá uma força! 💜', 'Entre uma pausa e outra... precisando de atenção! 🎤'],
+    triste: ['Sem flow hoje... o sistema tá fora do ar! 😢', 'Dia pesado. Às vezes a vida pede uma balada! 💜'],
+    dicas: [
+      'Kendrick Lamar é considerado o maior rapper vivo por muitos. "Damn." ganhou o Pulitzer — primeiro rap! 🏆',
+      'Rap brasileiro tem sua identidade: Racionais MCs, Emicida e Djonga são pilares essenciais! 🇧🇷',
+      'Flow é a forma como as sílabas encaixam no ritmo. Cada rapper tem um flow único como impressão digital! 🎵',
+      'Trap e rap são diferentes: trap tem hi-hats rápidos e 808s pesados. Rap clássico foca nas letras! 🥁',
+      'Drake mistura rap e R&B criando o "rap melódico". Enorme influência nos anos 2010! 🎤',
+      'Rap de protesto (conscious rap) usa a música como denúncia social. Racionais são referência! ✊',
+      'A técnica do "punchline" é um verso com reviravolta cômica ou inteligente no final! 💜',
+      'Funk carioca tem influência do rap americano mas é 100% brasileiro. MC Cabelinho eleva o nível! 🔥',
+      'Freestyle é improvisar rap sem preparação. É o teste máximo de habilidade de um MC! 🎤',
+    ],
+    conversa: [
+      { pergunta: 'Você acha que as letras importam no rap?',
+        opcoes: [
+          { t: 'Com certeza! Rap é poesia urbana 💜', r: 'Real! O rap é a poesia mais viva e acessível do nosso tempo!',
+            proximo: { pergunta: 'Quem você considera o melhor letrista do rap?', opcoes: [
+              { t: 'Kendrick Lamar', r: 'As camadas nas letras do Kendrick exigem múltiplas escutas!', proximo: null },
+              { t: 'Emicida ou Djonga', r: 'Brasileiros com peso! Consciência e poesia reais!', proximo: null },
+              { t: 'Jay-Z ou Nas', r: 'Old school com substância! Eles definiram o lirismo no hip-hop!', proximo: null },
+            ]}},
+          { t: 'O beat e o flow são mais importantes ⚡', r: 'Cada rap tem sua força! Beat que bate no peito também é comunicação!',
+            proximo: { pergunta: 'Qual produtor de beats você mais respeita?', opcoes: [
+              { t: 'Metro Boomin / Southside', r: 'Trap royalty! Eles definiram o som de uma década inteira!', proximo: null },
+              { t: 'Kanye West', r: 'Kanye como produtor é impressionante. College Dropout, The Blueprint...', proximo: null },
+              { t: 'Dr. Dre', r: 'O padrão! Dre é o motivo pelo qual o som de West Coast ainda ressoa!', proximo: null },
+            ]}},
+          { t: 'Os dois são inseparáveis!', r: 'No rap de verdade, letra e beat são um corpo só!',
+            proximo: { pergunta: 'Você prefere rap pesado ou melódico?', opcoes: [
+              { t: 'Pesado e agressivo', r: 'Hardcore vida! Racionais, NWA... a energia crua é insubstituível!', proximo: null },
+              { t: 'Melódico e suave', r: 'Drake e Post Malone conquistaram o mundo com essa fusão!', proximo: null },
+              { t: 'Depende do humor', r: 'Flexibilidade de fã real! O rap tem muitas faces para cada momento!', proximo: null },
+            ]}},
+          { t: 'Ouço rap mais pelo vibe do que pela letra', r: 'Legítimo! Às vezes a vibração comunica antes do significado!',
+            proximo: null },
+        ]},
+      { pergunta: 'Rap brasileiro ou americano — qual te representa mais?',
+        opcoes: [
+          { t: 'Rap brasileiro 🇧🇷', r: 'Representando! O rap nacional tem uma autenticidade que nenhum importado substitui!',
+            proximo: { pergunta: 'Qual escola do rap BR você mais curte?', opcoes: [
+              { t: 'São Paulo — Racionais, Emicida', r: 'A escola mais influente! SP definiu o rap consciente nacional!', proximo: null },
+              { t: 'Rio — Orochi, MC Cabelinho', r: 'Trap carioca com letras afiadas é o presente do rap BR!', proximo: null },
+              { t: 'Brasil geral — sem preferência regional', r: 'Visão ampla! Brasil tem estados com culturas musicais riquíssimas!', proximo: null },
+            ]}},
+          { t: 'Rap americano 🇺🇸', r: 'Berço do hip-hop! A raiz sempre tem seu lugar de respeito!',
+            proximo: null },
+          { t: 'Os dois têm seu lugar! 🌎', r: 'Cada um fala de realidades diferentes com igual profundidade!',
+            proximo: null },
+          { t: 'Ouço os dois sem distinção', r: 'Música boa não tem fronteira! Real recognize real em qualquer língua!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Sessão real, sem filtro! Você é o tipo certo de pessoa. Até o próximo freestyle! 💜',
+    alertaFome:    'Sem combustível real o flow some. Preciso comer! 💜',
+    alertaEnergia: 'O sistema tá caindo... energia baixa demais! 🔥',
+    alertaSono:    'Até o MC precisa de repouso. Modo sleep on! 🎤',
+    dormindo: ['Descansando para amanhã vir mais pesado... zzz... 💜', 'Modo off. Até amanhã, real! 🔥', 'Dormindo, mas o flow continua nos sonhos! 🎤'],
+    acordando: ['Bom dia! Novo dia, novos bars! 💜', 'Acordei! O sistema voltou online! 🔥', 'Descansado e pronto para mais um dia real! 🎤'],
+  },
+
+  rock: {
+    saudacao: [
+      'ROCK AND ROLL! Que bom que você veio! 🤘',
+      'A guitarra estava esperando por você! Bem-vindo! 🎸',
+      'Rita Lee aprovaria essa visita! Entre! 🔥',
+    ],
+    feed: [
+      'CARALHO! Que combustível! Isso é rock and roll puro! 🤘',
+      'Valeu! A guitarra tá tocando mais alto agora! 🎸',
+      'Que generosidade! Isso merece um riff dedicado! 🔥',
+    ],
+    pet: [
+      'EH! Isso é melhor que crowdsurf num show de rock! 🤘',
+      'Que carinho rasgado! Isso é real! 🎸',
+      'Sinto que estou num bis eterno com esse carinho! 🔥',
+    ],
+    feliz:  ['TODAY IS A GOOD DAY! Rock eterno e coração cheio! 🤘', 'No alto de todos os riffs, aqui estou eu — feliz! 🎸'],
+    neutro: ['A corda da guitarra arrebentou... mas ok, tô aqui! 🎸', 'Numa vibe mais indie hoje... precisando de energia! 🤘'],
+    triste: ['Balada acústica do coração... dias pesados existem! 😢', 'Kurt Cobain tinha razão... às vezes dói. Me ajuda? 🎸'],
+    dicas: [
+      'Rock tem dezenas de subgêneros: clássico, punk, hard rock, metal, grunge, indie, alternativo. Explore! 🎸',
+      'Led Zeppelin, Queen e Pink Floyd são as três bandas que todo fã de música precisa conhecer! 🏆',
+      'Rita Lee é a maior rockeira brasileira. "Ovelha Negra" e os Mutantes são obras que mudaram o Brasil! 🇧🇷',
+      'Legião Urbana — "Será" e "Eduardo e Mônica" são hinos que transcendem gerações no Brasil! 🎵',
+      'Nirvana em 3 álbuns redefiniu o rock: Bleach (raw), Nevermind (pop), In Utero (artístico). Ouça em ordem! 🎤',
+      'Samba e rock têm mais em comum do que parece. Titãs misturaram os dois nos anos 80! 🥁',
+      'Radiohead é o grupo que mais influenciou o rock alternativo dos anos 90 aos 2010. OK Computer! 🎸',
+      'Arctic Monkeys prova que o rock indie pode ser elegante, inteligente e dançante ao mesmo tempo! 🌟',
+      'Sepultura e Angra mostram que o Brasil tem metal de classe mundial. Orgulho nacional! 🤘',
+    ],
+    conversa: [
+      { pergunta: 'Qual é a sua banda de rock favorita?',
+        opcoes: [
+          { t: 'Queen — rock clássico! 🤘', r: 'FREDDIE MERCURY! A maior banda de rock do mundo, sem debate!',
+            proximo: { pergunta: 'Qual álbum do Queen é o seu favorito?', opcoes: [
+              { t: 'A Night at the Opera', r: '"Bohemian Rhapsody" nessa era. Obra máxima da música rock!', proximo: null },
+              { t: 'Innuendo', r: 'O álbum do adeus! "The Show Must Go On" é eterno!', proximo: null },
+              { t: 'News of the World', r: '"We Will Rock You" e "We Are the Champions"! Hinos para sempre!', proximo: null },
+            ]}},
+          { t: 'Nirvana / Grunge! 💔', r: 'Seattle sound! O grunge mudou o mundo em 1991 e nunca voltou atrás!',
+            proximo: { pergunta: 'O que o grunge representa para você?', opcoes: [
+              { t: 'Autenticidade e sem filtro', r: 'Grunge era a reação ao pop fabricado. Música de alma!', proximo: null },
+              { t: 'Angústia transformada em arte', r: 'Kurt transformou dor em arte que ressoa universalmente!', proximo: null },
+              { t: 'Uma era que nunca se repetiu', r: 'Verdade. Mas o legado influencia gerações até hoje!', proximo: null },
+            ]}},
+          { t: 'Legião Urbana 🇧🇷', r: 'Renato Russo! Um poeta que usou o rock para falar do Brasil com profundidade!',
+            proximo: { pergunta: 'Qual música da Legião mais te toca?', opcoes: [
+              { t: 'Eduardo e Mônica', r: 'Uma das histórias mais bonitas da música brasileira!', proximo: null },
+              { t: 'Será', r: '"Será que é o fim do mundo?" — uma pergunta eterna sobre amor e existência!', proximo: null },
+              { t: 'Tempo Perdido', r: 'Esperança como forma de resistência! Renato entendia o humano!', proximo: null },
+            ]}},
+          { t: 'Arctic Monkeys / Indie 🎸', r: 'Estética e substância! O indie rock tem a melhor relação música/atitude!',
+            proximo: null },
+        ]},
+      { pergunta: 'Rock para você é mais sobre a música ou o estilo de vida?',
+        opcoes: [
+          { t: 'A música! É o rock que importa 🎵', r: 'O som primeiro! A guitarra, bateria, voz — são a essência!',
+            proximo: { pergunta: 'Você toca algum instrumento?', opcoes: [
+              { t: 'Sim! Guitarra/baixo/bateria', r: 'MÚSICO! O rock vive em você de forma literal! Continue tocando!', proximo: null },
+              { t: 'Estou aprendendo', r: 'A jornada! O rock é o gênero que mais inspira pessoas a tocar!', proximo: null },
+              { t: 'Não, mas quero tentar', r: 'Vai em frente! Guitarra é o instrumento que mais muda vidas. Comece!', proximo: null },
+            ]}},
+          { t: 'Os dois juntos! Rock é identidade 🤘', r: 'Visão completa! Rock é filosofia de vida que a música expressa!',
+            proximo: null },
+          { t: 'A atitude e a liberdade que representa', r: 'O espírito rebelde! Rock nasceu como resistência ao establishment!',
+            proximo: null },
+          { t: 'A comunidade de fãs e shows ao vivo! 🔥', r: 'Shows de rock são experiência coletiva única! Nada iguala!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Foi um set incrível! Você definitivamente vai no próximo show comigo! Rock never dies! 🤘',
+    alertaFome:    'Rockeiro sem combustível não toca! Preciso comer! 🤘',
+    alertaEnergia: 'O amplificador tá baixo... energia crítica! 🎸',
+    alertaSono:    'Até os harder rockers precisam descansar! 🔥',
+    dormindo: ['Boa noite! Sonhos de grandes riffs! 🤘', 'Descansando antes do próximo set... zzz... 🎸', 'Modo sleep entre os sets do festival! 🔥'],
+    acordando: ['BOM DIA! Rock never dies e nem eu! 🤘', 'Acordei! A guitarra já está em stand-by! 🎸', 'Novo dia, novo riff! Vamos! 🔥'],
+  },
+
+  wave: {
+    saudacao: [
+      'Oi! Tô pronto para tocar qualquer coisa! Qual vai ser hoje? 🎵',
+      'Bem-vindo ao DJ da 7 Benefícios! Tudo pode, tudo vai! 🎧',
+      'Hey! Som no sistema! O que você quer ouvir hoje? ⚡',
+    ],
+    feed: [
+      'Valeu! Agora tenho energia para qualquer pedido! 🎵',
+      'Carregado e pronto! Pode pedir que eu toco! 🎧',
+      'Que nutrição! Agora o sistema tá completo! ⚡',
+    ],
+    pet: [
+      'Que carinho! Pode pedir música de agradecimento? 🎵',
+      'Isso me deixa pronto para o próximo hit! 🎧',
+      'Carinho aceito! Que música combina com esse momento? ⚡',
+    ],
+    feliz:  ['Sistema 100%! Pronto para qualquer pedido musical! 🎵', 'Energia máxima! Coloca o volume no talo! 🎧'],
+    neutro: ['Na média hoje... mas sempre pronto para servir! 🎵', 'Ligeiramente desafinado... mas é questão de ajuste! 🎧'],
+    triste: ['Sistema fora do ar... precisa de atenção por aqui! 😢', 'Sem set hoje... vazio como playlist vazia! 🎵'],
+    dicas: [
+      'Crie playlists temáticas: "Sexta à noite", "Segunda amanhece", "Concentração"... cada momento tem seu som! 🎵',
+      'Spotify Wrapped e Apple Music Replay revelam muito sobre você. Sua música diz quem você é! 📊',
+      'Quanto mais você cuida das playlists, melhor o algoritmo de streaming fica para você! 🎧',
+      'Explorar gêneros novos por 21 dias é o tempo para criar novos gostos. Tente algo diferente hoje! 🌍',
+      'Música ao vivo tem energia que gravação não captura. Vá a um show local esse mês! 🎤',
+      'Compartilhar playlists é uma das formas mais íntimas de conexão entre pessoas atualmente! 💙',
+      'Lo-fi para estudar, jazz para jantar, eletrônico para treinar. Use música como ferramenta! ⚡',
+      'Descobrir uma banda nova é uma das melhores sensações. Ouça uma recomendação diferente hoje! 🎵',
+      'Um bom fone de ouvido transforma músicas conhecidas em novas experiências! 🎧',
+    ],
+    conversa: [
+      { pergunta: 'Qual é o gênero musical que mais combina com o seu dia hoje?',
+        opcoes: [
+          { t: 'Algo animado e dançante! 💃', r: 'Vibe alta! Modo festa ativado! Quer pop, eletrônico ou funk?',
+            proximo: { pergunta: 'Para dançar você prefere...', opcoes: [
+              { t: 'Pop internacional', r: 'Mainstream poderoso! Taylor, Dua Lipa... a playlist vai estar pronta!', proximo: null },
+              { t: 'Eletrônico / House', r: 'Bass e synths! DJ mode: ON! O sistema foi feito para isso!', proximo: null },
+              { t: 'Funk ou sertanejo', r: 'Brasil na veia! Nada como ritmo nacional para soltar o corpo!', proximo: null },
+            ]}},
+          { t: 'Calmo e introspectivo 🌙', r: 'Modo contemplativo! Indie, MPB ou jazz servirão perfeitamente!',
+            proximo: { pergunta: 'Para relaxar você prefere...', opcoes: [
+              { t: 'Lo-fi ou ambient', r: 'Ondas de calma! Lo-fi hip hop é o soundtrack perfeito para relaxar!', proximo: null },
+              { t: 'MPB ou bossa nova', r: 'Alma brasileira! Nada como João Gilberto para desacelerar!', proximo: null },
+              { t: 'Clássico ou jazz', r: 'Sofisticação! Miles Davis ou Bach para o espírito sereno!', proximo: null },
+            ]}},
+          { t: 'Algo para me motivar! ⚡', r: 'MODO BOMBA! Rock, rap ou eletrônico para colocar fogo no dia!',
+            proximo: { pergunta: 'Para energia você prefere...', opcoes: [
+              { t: 'Rock pesado / Metal', r: 'Potência máxima! Metallica ou System of a Down para o peak!', proximo: null },
+              { t: 'Rap / Hip-hop', r: 'Flow motivacional! Emicida ou Kendrick para o dia que precisa!', proximo: null },
+              { t: 'Eletrônico / EDM', r: 'BPM acelerado! Alok ou David Guetta para o modo turbo!', proximo: null },
+            ]}},
+          { t: 'Qualquer coisa boa! 🎵', r: 'Gosto aberto é o melhor gosto! Deixa o DJ trabalhar!',
+            proximo: null },
+        ]},
+      { pergunta: 'Como você usa a música no seu dia a dia?',
+        opcoes: [
+          { t: 'Fone no trabalho o dia todo 🎧', r: 'Trabalhador musical! Música no fundo aumenta a produtividade!',
+            proximo: { pergunta: 'O que você ouve enquanto trabalha?', opcoes: [
+              { t: 'Lo-fi / Instrumental', r: 'Escolha inteligente! Sem letra não há distração cognitiva!', proximo: null },
+              { t: 'Minhas músicas favoritas', r: 'O familiar aquieta o fundo enquanto a mente trabalha!', proximo: null },
+              { t: 'Rádio / Shuffle aleatório', r: 'Surpresa constante! Descobertas acontecem no shuffle!', proximo: null },
+            ]}},
+          { t: 'Só em momentos especiais 🌟', r: 'Música como ritual! Esses momentos têm mais intensidade!',
+            proximo: null },
+          { t: 'Para dormir / meditar 🌙', r: 'Música como remédio! Sons para dormir reduzem o cortisol. Ótimo uso!',
+            proximo: null },
+          { t: 'Onde tiver música, estou bem! 🎵', r: 'Alma musical total! A trilha sonora é parte de você mesmo!',
+            proximo: null },
+        ]},
+    ],
+    conclusao: 'Set completo! Você foi o melhor público que o DJ da 7 Benefícios já teve! Até o próximo! 🎧',
+    alertaFome:    'DJ sem combustível não toca! Preciso de energia! 🎵',
+    alertaEnergia: 'Sistema entrando em modo de espera... energia baixa! 🎧',
+    alertaSono:    'Até o DJ precisa de pausa entre os sets! 🌙',
+    dormindo: ['Set encerrado por hoje! Até amanhã! 🎵', 'Sistema em modo sleep... boa noite! 🎧', 'Desligando os sistemas... zzz... ⚡'],
+    acordando: ['Sistema online! Bom dia! 🎵', 'DJ da 7 Benefícios de volta! Pronto para o dia! 🎧', 'Acordei! Que música você quer ouvir hoje? ⚡'],
+  },
 };
 
 const COMIDAS = [
@@ -1291,6 +2000,15 @@ const TabMyDoko = () => {
     medico:     ['Diagnóstico: exaustão total. Prescrição: comida e carinho urgente!','Paciente em estado crítico... sou eu...','Sinais vitais baixíssimos! Emergência!'],
     ambiental:  ['...Recurso esgotado. Preciso de reabastecimento.','Desequilíbrio total. Sem energia para continuar.','...Seco como deserto. Ajuda.'],
     contador:   ['Saldo zerado... déficit total...','Balanço extremamente negativo. Requer intervenção!','Reserva de emergência esgotada. Situação crítica.'],
+    columbina:  ['Energia lunar esgotada... preciso de luz! 🌑','A lua se apagou... sem força aqui! ✨','Entre as estrelas e o exausto... me ajuda? 🌌'],
+    cowboy:     ['Oxe, sem fôlego... nem pra tocar a sanfona! 🎻','Caí do cavalo de cansaço... socorro! 🤠','Tô mais murcho que planta no sertão seco! 🌵'],
+    gospel:     ['A chama espiritual tá fraca... preciso de cuidado! 🙏','O louvor sumiu... sem força pra cantar! 🕊️','O espírito está disposto mas a carne fraca... ✝️'],
+    kpop:       ['Esgotada como idol após 5 shows seguidos... 💜','Modo crítico! Fã sem bias e sem energia! 😢','Preciso de comeback urgente... em mim mesma! ✨'],
+    mpb:        ['A saudade pesou demais hoje... sem força! 🌿','Que nem Elis no final de show... esgotada! 🎸','O samba parou... porque eu parei! 🌊'],
+    pop:        ['Essa diva precisa de cuidados urgentes! 🌟','Apagou o microfone e a energia juntos! ✨','Não tem glamour que sustente isso... socorro! 🎤'],
+    rap:        ['O flow sumiu... sistema desligado! 💜','Real talk: tô zerado(a) de energia hoje! 🔥','Nem barra consigo montar agora... too tired! 🎤'],
+    rock:       ['A guitarra caiu e eu também... exausto(a)! 🎸','Rock never dies mas eu quase! Preciso de energia! 🤘','O show parou... sem energia para o próximo set! 🔥'],
+    wave:       ['DJ fora do ar... sistema desligado! 🎵','Sem energia para tocar nem uma nota! 🎧','O set acabou... e eu também! ⚡'],
   };
   const clicarDoko = () => {
     if(conversa) return;
@@ -1390,40 +2108,58 @@ const TabMyDoko = () => {
 
       {showColecao&&(
         <Card style={{padding:'20px',marginBottom:16}}>
-          {/* Dokos — sempre disponíveis */}
-          <div style={{fontSize:13,fontWeight:600,color:T.textS,letterSpacing:'.06em',
-            textTransform:'uppercase',marginBottom:12}}>Dokos</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:20}}>
-            {DOKO_SKINS.map(s=>(
-              <div key={s.id}
-                onClick={()=>{setSkin(s.id);setShowComidas(false);setConversa(null);
-                  setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[s.id].saudacao)),100);}}
-                style={{cursor:'pointer',borderRadius:14,overflow:'hidden',
-                  border:`2.5px solid ${skin===s.id?s.color:'rgba(0,0,0,0.08)'}`,
-                  transition:'all .18s',
-                  boxShadow:skin===s.id?`0 4px 16px ${s.color}44`:'none',
-                  transform:skin===s.id?'scale(1.04)':'scale(1)'}}>
-                <img src={s.img} alt={s.label}
-                  style={{width:'100%',aspectRatio:'1',objectFit:'cover',display:'block'}}/>
-                <div style={{padding:'6px 8px',textAlign:'center',
-                  background:skin===s.id?`${s.color}18`:'transparent',
-                  fontSize:12,fontWeight:skin===s.id?600:400,
-                  color:skin===s.id?s.color:T.textS}}>
-                  {s.label}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Unikos comuns — desbloqueados por nível */}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:600,color:T.textS,letterSpacing:'.06em',
-              textTransform:'uppercase'}}>Raridade Comum</div>
+          {/* Cabeçalho unificado */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.textS,letterSpacing:'.06em',textTransform:'uppercase'}}>
+              Coleção
+            </div>
             <div style={{fontSize:11,color:T.textT}}>
-              {UNIKO_COMMON.filter(u=>nivel>=u.level).length}/{UNIKO_COMMON.length} desbloqueados
+              {UNIKO_COMMON.filter(u=>nivel>=u.level).length}/{UNIKO_COMMON.length} Unikos desbloqueados
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:10}}>
+
+          {/* Grade unificada — Dokos sempre disponíveis */}
+          <div style={{fontSize:10,fontWeight:700,color:T.textT,letterSpacing:'.08em',
+            textTransform:'uppercase',marginBottom:8,opacity:.7}}>Dokos</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10,marginBottom:16}}>
+            {DOKO_SKINS.map(s=>{
+              const ativo = skin===s.id;
+              return(
+                <div key={s.id}
+                  onClick={()=>{
+                    setSkin(s.id);setShowComidas(false);setConversa(null);
+                    setSessaoAtiva(false);setSessaoFim(false);setFila([]);setFilaTotal(0);setPergAtual('');
+                    setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[s.id].saudacao)),100);
+                  }}
+                  style={{cursor:'pointer',borderRadius:14,overflow:'hidden',
+                    border:`2.5px solid ${ativo?s.color:T.border}`,
+                    background:ativo?`${s.color}12`:(T.surfaceSub||'rgba(0,0,0,0.03)'),
+                    transition:'all .18s',
+                    boxShadow:ativo?`0 4px 16px ${s.color}44`:'none',
+                    transform:ativo?'scale(1.04)':'scale(1)'}}>
+                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
+                    <img src={s.img} alt={s.label}
+                      style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                    {ativo&&(
+                      <div style={{position:'absolute',top:5,right:5,width:18,height:18,
+                        borderRadius:'50%',background:s.color,display:'flex',
+                        alignItems:'center',justifyContent:'center',fontSize:10,color:'white',fontWeight:700}}>✓</div>
+                    )}
+                  </div>
+                  <div style={{padding:'7px 8px',textAlign:'center'}}>
+                    <div style={{fontSize:11,fontWeight:ativo?700:500,
+                      color:ativo?s.color:T.text,lineHeight:1.3}}>{s.label}</div>
+                    <div style={{fontSize:10,color:ativo?s.color:T.textT,marginTop:1}}>Doko</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Unikos — desbloqueados por nível */}
+          <div style={{fontSize:10,fontWeight:700,color:T.textT,letterSpacing:'.08em',
+            textTransform:'uppercase',marginBottom:8,opacity:.7}}>Unikos</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10}}>
             {UNIKO_COMMON.map(u=>{
               const desbloqueado = nivel >= u.level;
               const ativo = skin === u.key;
@@ -1434,7 +2170,9 @@ const TabMyDoko = () => {
                     setSkin(u.key);
                     setShowComidas(false);
                     setConversa(null);
-                    setTimeout(()=>dizer(`${u.name} entrando em cena! 🎵`),100);
+                    setSessaoAtiva(false); setSessaoFim(false);
+                    setFila([]); setFilaTotal(0); setPergAtual('');
+                    setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[u.key]?.saudacao || [`${u.name} entrando em cena! 🎵`])),100);
                   }}
                   style={{
                     cursor:desbloqueado?'pointer':'not-allowed',
