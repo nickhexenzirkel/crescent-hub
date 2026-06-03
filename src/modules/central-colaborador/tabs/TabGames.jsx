@@ -2,6 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card, Tag, StarDivider, SHead } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import { DOKO_KEY } from './TabMyDoko';
+
+// Concede XP ao My Uniko via localStorage (funciona mesmo com o tab fechado)
+const addUnikoXP = (amount) => {
+  try {
+    const data = JSON.parse(localStorage.getItem(DOKO_KEY) || '{}');
+    data.xp = (data.xp || 0) + amount;
+    data.lastUpdated = Date.now();
+    localStorage.setItem(DOKO_KEY, JSON.stringify(data));
+  } catch {}
+};
 
 // ── Paleta pixel ──────────────────────────────────────────────────────
 const PC = {
@@ -115,6 +126,7 @@ const UnikoRun = () => {
       started: false, dead: false, tick: 0,
       uy: GY, uvy: 0, onGround: true, ducking: false,
       obs: [], score: 0, speed: 3.5, lastType: 'ground',
+      xpAwarded: false, xpGained: 0,
     };
 
     const jump = () => {
@@ -128,6 +140,7 @@ const UnikoRun = () => {
       Object.assign(s, {
         dead: false, started: true, uy: GY, uvy: 0, onGround: true,
         ducking: false, obs: [], score: 0, speed: 3.5, tick: 0, lastType: 'ground',
+        xpAwarded: false, xpGained: 0,
       });
     };
 
@@ -249,14 +262,14 @@ const UnikoRun = () => {
           if (o.type === 'ground') {
             const hitX = o.x < UX + US*.30 && o.x + o.w > UX - US*.30;
             const hitY = s.uy > GY - o.h + 5;       // pés abaixo do topo da rocha
-            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); }
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           } else {
             // obstáculo aéreo: acerta em pé, passa se agachado
             const hitX = o.x < UX + US*.38 && o.x + o.w > UX - US*.38;
             const bodyTop = s.ducking ? (GY - DUCK_H) : (s.uy - STAND_H);
             // colide se o corpo do Uniko sobrepõe o range [AIR_BOT-AIR_H , AIR_BOT]
             const hitY = bodyTop < AIR_BOT && s.uy > (AIR_BOT - AIR_H);
-            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); }
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
       }
@@ -290,9 +303,12 @@ const UnikoRun = () => {
         ctx.fillStyle = '#fff'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', W/2, H/2 - 24);
         ctx.font = '14px monospace';
-        ctx.fillText('Pontuação: ' + Math.floor(s.score), W/2, H/2 + 8);
+        ctx.fillText('Pontuacao: ' + Math.floor(s.score), W/2, H/2 + 8);
+        ctx.fillStyle = '#28C870';
+        ctx.font = '12px monospace';
+        ctx.fillText('+' + s.xpGained + ' XP para o My Uniko!', W/2, H/2 + 30);
         ctx.fillStyle = PC.gold;
-        ctx.fillText('Toque ou ESPAÇO para reiniciar', W/2, H/2 + 34);
+        ctx.fillText('Toque ou ESPACO para reiniciar', W/2, H/2 + 50);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -326,12 +342,14 @@ const MeteorStorm = () => {
       meteors: [], stars: [],
       score: 0, lives: 5, dead: false, started: false, tick: 0,
       keys: {}, touchX: null,
+      xpAwarded: false, xpGained: 0,
     };
 
     const start = () => { if (!s.started) s.started = true; };
     const reset = () => {
       s.ux = W / 2; s.meteors = []; s.stars = [];
       s.score = 0; s.lives = 5; s.dead = false; s.started = true; s.tick = 0;
+      s.xpAwarded = false; s.xpGained = 0;
     };
 
     const onKey = e => {
@@ -416,7 +434,7 @@ const MeteorStorm = () => {
           if (Math.sqrt(dx * dx + dy * dy) < m.r + US * .25) {
             s.meteors = s.meteors.filter(x => x !== m);
             s.lives--;
-            if (s.lives <= 0) { s.dead = true; saveBest('meteor', Math.floor(s.score * 10)); }
+            if (s.lives <= 0) { s.dead = true; saveBest('meteor', Math.floor(s.score * 10)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
         // coleta estrelas
@@ -466,9 +484,12 @@ const MeteorStorm = () => {
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', W / 2, H / 2 - 22);
         ctx.font = '13px monospace';
-        ctx.fillText('Pontuação: ' + Math.floor(s.score * 10), W / 2, H / 2 + 6);
+        ctx.fillText('Pontuacao: ' + Math.floor(s.score * 10), W / 2, H / 2 + 6);
+        ctx.fillStyle = '#28C870';
+        ctx.font = '12px monospace';
+        ctx.fillText('+' + s.xpGained + ' XP para o My Uniko!', W / 2, H / 2 + 26);
         ctx.fillStyle = PC.gold;
-        ctx.fillText('Toque ou ESPAÇO para reiniciar', W / 2, H / 2 + 30);
+        ctx.fillText('Toque ou ESPACO para reiniciar', W / 2, H / 2 + 46);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -509,6 +530,7 @@ const AlienInvaders = () => {
       score: 0, lives: 5, dead: false, win: false, started: false, tick: 0,
       keys: {}, level: 1, canShoot: true, shotCooldown: 0,
       alienMoveTimer: 0, alienDir: 1,
+      xpAwarded: false, xpGained: 0,
     };
 
     const shoot = () => {
@@ -527,6 +549,7 @@ const AlienInvaders = () => {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
         s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
         s.level = 1; s.alienDir = 1; s.tick = 0;
+        s.xpAwarded = false; s.xpGained = 0;
       }
     };
     const onTouch = e => {
@@ -535,7 +558,7 @@ const AlienInvaders = () => {
       if (s.dead || s.win) {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
         s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
-        s.level = 1; s.tick = 0; return;
+        s.level = 1; s.tick = 0; s.xpAwarded = false; s.xpGained = 0; return;
       }
       const rect = canvas.getBoundingClientRect();
       const tx = (e.touches[0].clientX - rect.left) * (W / rect.width);
@@ -646,12 +669,12 @@ const AlienInvaders = () => {
           if (Math.abs(b.x - s.ux) < 20 && Math.abs(b.y - (H - 55)) < 20) {
             s.enemyBullets = s.enemyBullets.filter(x => x !== b);
             s.lives--;
-            if (s.lives <= 0) { s.dead = true; saveBest('invaders', s.score); }
+            if (s.lives <= 0) { s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
         // aliens chegaram na base
         if (s.aliens.filter(a => a.alive).some(a => a.y > H - 90)) {
-          s.dead = true; saveBest('invaders', s.score);
+          s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; }
         }
         // vitória
         if (!s.aliens.find(a => a.alive)) {
@@ -703,11 +726,14 @@ const AlienInvaders = () => {
         ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = s.win ? PC.gold : '#fff';
         ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center';
-        ctx.fillText(s.win ? 'VITÓRIA!' : 'GAME OVER', W / 2, H / 2 - 22);
+        ctx.fillText(s.win ? 'VITORIA!' : 'GAME OVER', W / 2, H / 2 - 22);
         ctx.fillStyle = '#fff'; ctx.font = '13px monospace';
-        ctx.fillText('Pontuação: ' + s.score, W / 2, H / 2 + 6);
+        ctx.fillText('Pontuacao: ' + s.score, W / 2, H / 2 + 6);
+        ctx.fillStyle = '#28C870';
+        ctx.font = '12px monospace';
+        ctx.fillText('+' + s.xpGained + ' XP para o My Uniko!', W / 2, H / 2 + 26);
         ctx.fillStyle = PC.gold;
-        ctx.fillText('Toque ou ESPAÇO para reiniciar', W / 2, H / 2 + 30);
+        ctx.fillText('Toque ou ESPACO para reiniciar', W / 2, H / 2 + 46);
       }
       raf = requestAnimationFrame(loop);
     };
@@ -737,6 +763,7 @@ const UnikoFlap = () => {
     const s = {
       y: H / 2, vy: 0, started: false, dead: false,
       pipes: [], score: 0, tick: 0,
+      xpAwarded: false, xpGained: 0,
     };
 
     const flap = () => {
@@ -744,6 +771,7 @@ const UnikoFlap = () => {
       if (s.dead) {
         s.y = H / 2; s.vy = 0; s.pipes = [];
         s.score = 0; s.dead = false; s.started = false; s.tick = 0;
+        s.xpAwarded = false; s.xpGained = 0;
         return;
       }
       s.vy = -6;
@@ -814,11 +842,11 @@ const UnikoFlap = () => {
 
         // colisão — hitbox reduzida (mais perdoadora)
         const ux = 60, ur = 15;
-        if (s.y - ur < 0 || s.y + ur > H) { s.dead = true; saveBest('flap', s.score); }
+        if (s.y - ur < 0 || s.y + ur > H) { s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + s.score * 3); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
         for (const p of s.pipes) {
           const inX = ux + ur > p.x + 4 && ux - ur < p.x + PIPE_W - 4;
           if (inX && (s.y - ur < p.topH + 4 || s.y + ur > p.botY - 4)) {
-            s.dead = true; saveBest('flap', s.score);
+            s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + s.score * 3); addUnikoXP(s.xpGained); s.xpAwarded = true; }
           }
         }
       }
@@ -848,9 +876,12 @@ const UnikoFlap = () => {
         ctx.fillStyle = '#fff'; ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', W / 2, H / 2 - 22);
         ctx.font = '14px monospace';
-        ctx.fillText('Pontuação: ' + s.score, W / 2, H / 2 + 6);
+        ctx.fillText('Pontuacao: ' + s.score, W / 2, H / 2 + 6);
+        ctx.fillStyle = '#28C870';
+        ctx.font = '12px monospace';
+        ctx.fillText('+' + s.xpGained + ' XP para o My Uniko!', W / 2, H / 2 + 26);
         ctx.fillStyle = PC.gold;
-        ctx.fillText('Toque ou ESPAÇO para reiniciar', W / 2, H / 2 + 30);
+        ctx.fillText('Toque ou ESPACO para reiniciar', W / 2, H / 2 + 46);
       }
       raf = requestAnimationFrame(loop);
     };
