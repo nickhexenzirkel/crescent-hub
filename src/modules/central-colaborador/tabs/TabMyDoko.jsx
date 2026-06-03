@@ -1737,6 +1737,514 @@ const DOKO_SCENES = {
       <circle cx="268" cy="446" r="1.8" fill={color} strokeWidth="0" opacity="0.13"/>
     </svg>
   ),
+
+  // ─── Cenários dos Unikos ─────────────────────────────────────────────────
+
+  columbina: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* lua crescente — top-left */}
+      <g transform="rotate(-25 52 62)" opacity="0.26">
+        <path d="M28 36 A28 28 0 1 1 28 90 A20 20 0 1 0 28 36 Z" strokeWidth="1.4"/>
+      </g>
+      {/* estrelas pontudas — topo */}
+      {[{cx:170,cy:18},{cx:250,cy:10},{cx:340,cy:22},{cx:430,cy:12}].map(({cx,cy},i)=>(
+        <g key={i} transform={`rotate(${i*10-5} ${cx} ${cy})`} opacity="0.22">
+          <line x1={cx} y1={cy-9} x2={cx} y2={cy+9} strokeWidth="1.2"/>
+          <line x1={cx-9} y1={cy} x2={cx+9} y2={cy} strokeWidth="1.2"/>
+          <line x1={cx-6} y1={cy-6} x2={cx+6} y2={cy+6} strokeWidth="0.9"/>
+          <line x1={cx+6} y1={cy-6} x2={cx-6} y2={cy+6} strokeWidth="0.9"/>
+        </g>
+      ))}
+      {/* lua cheia com manchas — top-right */}
+      <g transform="rotate(10 496 58)" opacity="0.2">
+        <circle cx="496" cy="58" r="28" strokeWidth="1.4"/>
+        <circle cx="488" cy="48" r="7" fill={color} strokeWidth="0" opacity="0.18"/>
+        <circle cx="502" cy="62" r="5" fill={color} strokeWidth="0" opacity="0.14"/>
+      </g>
+      {/* notas musicais — left */}
+      <g transform="rotate(8 30 185)" opacity="0.2">
+        <circle cx="38" cy="178" r="7" strokeWidth="1.3"/>
+        <line x1="45" y1="178" x2="45" y2="152" strokeWidth="1.3"/>
+        <line x1="45" y1="152" x2="62" y2="156" strokeWidth="1.2"/>
+        <circle cx="60" cy="192" r="6" strokeWidth="1.2"/>
+        <line x1="66" y1="192" x2="66" y2="168" strokeWidth="1.2"/>
+      </g>
+      {/* cristal/gema — bottom-left */}
+      <g transform="rotate(-15 46 392)" opacity="0.22">
+        <polygon points="46,364 28,384 46,408 64,384" strokeWidth="1.4"/>
+        <line x1="28" y1="384" x2="64" y2="384" strokeWidth="0.9"/>
+        <line x1="46" y1="364" x2="46" y2="408" strokeWidth="0.9"/>
+      </g>
+      {/* véu ondulante — right */}
+      <g opacity="0.19">
+        <path d="M506 150 Q522 172 506 194 Q522 216 506 238 Q522 260 506 282" strokeWidth="1.5" strokeDasharray="4 3"/>
+        <path d="M520 158 Q536 178 520 198 Q536 218 520 238" strokeWidth="1.1" strokeDasharray="3 4"/>
+      </g>
+      {/* estrela grande — bottom-right */}
+      <g transform="rotate(12 498 392)" opacity="0.2">
+        <polygon points="498,368 504,384 522,384 508,394 514,410 498,400 482,410 488,394 474,384 492,384" strokeWidth="1.3"/>
+      </g>
+      {/* poeira estelar */}
+      {[{x:90,y:34},{x:140,y:58},{x:400,y:40},{x:478,y:92},{x:26,y:128},{x:530,y:134},
+        {x:20,y:320},{x:536,y:308},{x:78,y:440},{x:340,y:450},{x:508,y:442}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.2+i%3*0.4} fill={color} strokeWidth="0" opacity={0.12+i%4*0.02}/>
+      ))}
+    </svg>
+  ),
+
+  cowboy: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* chapéu de cowboy — top-left */}
+      <g transform="rotate(-12 54 54)" opacity="0.24">
+        <ellipse cx="54" cy="66" rx="40" ry="6" strokeWidth="1.4"/>
+        <path d="M24 66 Q22 46 54 40 Q86 46 84 66" strokeWidth="1.4"/>
+        <path d="M38 40 Q42 28 54 26 Q66 28 70 40" strokeWidth="1.2"/>
+      </g>
+      {/* violão acústico inclinado — top-right */}
+      <g transform="rotate(22 492 70)" opacity="0.22">
+        <ellipse cx="492" cy="82" rx="20" ry="26" strokeWidth="1.4"/>
+        <ellipse cx="492" cy="52" rx="14" ry="18" strokeWidth="1.3"/>
+        <circle cx="492" cy="66" r="5" strokeWidth="1" strokeDasharray="2 2"/>
+        <line x1="492" y1="34" x2="492" y2="18" strokeWidth="1.4"/>
+        <line x1="486" y1="18" x2="498" y2="18" strokeWidth="1.3"/>
+        {[0,1,2,3].map(i=>(<line key={i} x1="488" y1={76+i*3} x2="496" y2={76+i*3} strokeWidth="0.7"/>))}
+      </g>
+      {/* cacto — left */}
+      <g transform="rotate(4 32 235)" opacity="0.2">
+        <line x1="32" y1="192" x2="32" y2="284" strokeWidth="2.2"/>
+        <path d="M32 220 Q12 220 12 236" strokeWidth="1.6"/>
+        <path d="M32 248 Q52 248 52 264" strokeWidth="1.6"/>
+        <line x1="12" y1="226" x2="12" y2="236" strokeWidth="1.8"/>
+        <line x1="52" y1="254" x2="52" y2="264" strokeWidth="1.8"/>
+      </g>
+      {/* estrelas country — topo centro */}
+      {[{cx:195,cy:20},{cx:285,cy:12},{cx:370,cy:22}].map(({cx,cy},i)=>(
+        <polygon key={i}
+          points={`${cx},${cy-9} ${cx+2.5},${cy-3} ${cx+9},${cy-3} ${cx+4},${cy+2} ${cx+6},${cy+9} ${cx},${cy+5} ${cx-6},${cy+9} ${cx-4},${cy+2} ${cx-9},${cy-3} ${cx-2.5},${cy-3}`}
+          strokeWidth="1.1" opacity="0.2"/>
+      ))}
+      {/* bota — bottom-left */}
+      <g transform="rotate(-8 48 402)" opacity="0.2">
+        <path d="M26 382 L26 424 Q26 430 36 430 L66 430 Q70 430 70 424 Q70 420 58 420 L50 420 L50 382 Z" strokeWidth="1.3"/>
+        <line x1="26" y1="398" x2="50" y2="398" strokeWidth="0.9"/>
+      </g>
+      {/* sanfona — right */}
+      <g transform="rotate(-12 514 312)" opacity="0.19">
+        <rect x="494" y="280" width="42" height="62" rx="3" strokeWidth="1.4"/>
+        {[0,1,2,3,4].map(i=>(<line key={i} x1="494" y1={292+i*10} x2="536" y2={292+i*10} strokeWidth="0.8"/>))}
+        <rect x="490" y="278" width="10" height="66" rx="2" strokeWidth="1.2"/>
+        <rect x="540" y="278" width="10" height="66" rx="2" strokeWidth="1.2"/>
+      </g>
+      {/* notas musicais — bottom-right */}
+      <g transform="rotate(10 482 404)" opacity="0.2">
+        <circle cx="476" cy="408" r="7" strokeWidth="1.3"/>
+        <line x1="483" y1="408" x2="483" y2="380" strokeWidth="1.3"/>
+        <line x1="483" y1="380" x2="500" y2="384" strokeWidth="1.2"/>
+        <circle cx="500" cy="422" r="6" strokeWidth="1.2"/>
+        <line x1="506" y1="422" x2="506" y2="398" strokeWidth="1.2"/>
+      </g>
+      {[{x:100,y:18},{x:430,y:32},{x:14,y:155},{x:540,y:168},{x:16,y:370},{x:538,y:382},
+        {x:108,y:450},{x:300,y:454},{x:462,y:446}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.3+i%3*0.3} fill={color} strokeWidth="0" opacity={0.12+i%3*0.02}/>
+      ))}
+    </svg>
+  ),
+
+  gospel: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* cruz — top-left */}
+      <g transform="rotate(-8 46 50)" opacity="0.28">
+        <line x1="46" y1="20" x2="46" y2="80" strokeWidth="2.2"/>
+        <line x1="20" y1="42" x2="72" y2="42" strokeWidth="2.2"/>
+      </g>
+      {/* raios de luz — top-right */}
+      <g opacity="0.2">
+        {[[-40,-18],[-24,-28],[-6,-32],[12,-28],[30,-18],[44,-4]].map(([dx,dy],i)=>(
+          <line key={i} x1={482} y1={18} x2={482+dx*4} y2={18+dy*4+90} strokeWidth="1.1" opacity="0.7"/>
+        ))}
+        <circle cx="482" cy="18" r="8" fill={color} strokeWidth="0" opacity="0.35"/>
+      </g>
+      {/* pomba — left */}
+      <g transform="rotate(-18 36 205)" opacity="0.2">
+        <path d="M14 200 Q36 186 56 196 Q44 212 36 216 Z" strokeWidth="1.3"/>
+        <path d="M36 200 Q46 188 56 196" strokeWidth="1.1"/>
+        <line x1="36" y1="216" x2="30" y2="230" strokeWidth="1.2"/>
+      </g>
+      <g transform="rotate(14 34 308)" opacity="0.18">
+        <path d="M14 304 Q34 292 52 300 Q42 314 34 317 Z" strokeWidth="1.2"/>
+        <line x1="34" y1="317" x2="30" y2="328" strokeWidth="1.1"/>
+      </g>
+      {/* notas ascendentes — right */}
+      <g transform="rotate(-8 526 215)" opacity="0.2">
+        <circle cx="518" cy="212" r="7" strokeWidth="1.3"/>
+        <line x1="525" y1="212" x2="525" y2="184" strokeWidth="1.3"/>
+        <line x1="525" y1="184" x2="542" y2="188" strokeWidth="1.2"/>
+        <circle cx="540" cy="228" r="6" strokeWidth="1.2"/>
+        <line x1="546" y1="228" x2="546" y2="204" strokeWidth="1.2"/>
+      </g>
+      {/* ondas radiantes — bottom-left */}
+      <g opacity="0.19">
+        {[20,34,48].map((r,i)=>(
+          <path key={i} d={`M${46-r} 396 A${r} ${r} 0 0 1 ${46+r} 396`} strokeWidth="1.2" strokeDasharray="3 4"/>
+        ))}
+      </g>
+      {/* harpa simplificada — bottom-right */}
+      <g transform="rotate(8 498 392)" opacity="0.2">
+        <path d="M476 364 Q476 416 500 422" strokeWidth="1.6"/>
+        <path d="M500 422 L520 410 L520 372 Q510 358 476 364" strokeWidth="1.4"/>
+        {[0,1,2,3,4].map(i=>(
+          <line key={i} x1={480+i*8} y1={368+i*2} x2={516-i} y2={410-i*2} strokeWidth="0.9"/>
+        ))}
+      </g>
+      {/* mini-cruzes topo centro */}
+      {[{x:160,y:22,s:5},{x:320,y:16,s:4},{x:420,y:28,s:5}].map(({x,y,s},i)=>(
+        <g key={i} opacity="0.18">
+          <line x1={x} y1={y-s} x2={x} y2={y+s} strokeWidth="1"/>
+          <line x1={x-s*.7} y1={y} x2={x+s*.7} y2={y} strokeWidth="1"/>
+        </g>
+      ))}
+      {[{x:88,y:44},{x:248,y:30},{x:382,y:18},{x:14,y:262},{x:540,y:252},{x:118,y:448},{x:462,y:442}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.5+i%3*0.3} fill={color} strokeWidth="0" opacity={0.13+i%4*0.02}/>
+      ))}
+    </svg>
+  ),
+
+  kpop: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* holofote de palco — top-left */}
+      <g transform="rotate(-12 50 28)" opacity="0.22">
+        <circle cx="50" cy="28" r="12" strokeWidth="1.5"/>
+        <path d="M40 40 L8 122" strokeWidth="1.2" strokeDasharray="2 3"/>
+        <path d="M50 40 L38 122" strokeWidth="1.1" strokeDasharray="2 3"/>
+        <path d="M60 40 L72 122" strokeWidth="1.1" strokeDasharray="2 3"/>
+      </g>
+      {/* lightstick kpop — top-right */}
+      <g transform="rotate(10 502 58)" opacity="0.24">
+        <ellipse cx="502" cy="40" rx="13" ry="17" strokeWidth="1.4"/>
+        <rect x="497" y="57" width="10" height="50" rx="2" strokeWidth="1.3"/>
+        <line x1="493" y1="107" x2="511" y2="107" strokeWidth="1.5"/>
+      </g>
+      {/* estrelas kpop topo */}
+      {[{cx:168,cy:18},{cx:258,cy:10},{cx:358,cy:22},{cx:448,cy:12}].map(({cx,cy},i)=>(
+        <polygon key={i}
+          points={`${cx},${cy-10} ${cx+3},${cy-3} ${cx+10},${cy-3} ${cx+5},${cy+2} ${cx+7},${cy+10} ${cx},${cy+6} ${cx-7},${cy+10} ${cx-5},${cy+2} ${cx-10},${cy-3} ${cx-3},${cy-3}`}
+          fill={color} strokeWidth="0" opacity={0.18+i%2*0.05}/>
+      ))}
+      {/* diamante/sparkle — left */}
+      {[{x:22,y:178,s:14},{x:28,y:302,s:10}].map(({x,y,s},i)=>(
+        <polygon key={i} points={`${x},${y-s} ${x+s*.4},${y} ${x},${y+s} ${x-s*.4},${y}`}
+          transform={`rotate(${i*15} ${x} ${y})`} strokeWidth="1.3" opacity="0.2"/>
+      ))}
+      {/* notas musicais — right */}
+      <g transform="rotate(-8 528 222)" opacity="0.2">
+        <circle cx="520" cy="218" r="7" strokeWidth="1.3"/>
+        <line x1="527" y1="218" x2="527" y2="190" strokeWidth="1.3"/>
+        <line x1="527" y1="190" x2="544" y2="194" strokeWidth="1.2"/>
+        <circle cx="542" cy="234" r="6" strokeWidth="1.2"/>
+        <line x1="548" y1="234" x2="548" y2="210" strokeWidth="1.2"/>
+      </g>
+      {/* coroa — bottom-left */}
+      <g transform="rotate(-8 50 398)" opacity="0.22">
+        <path d="M20 420 L20 400 L36 413 L50 390 L64 413 L80 400 L80 420 Z" strokeWidth="1.4"/>
+        <line x1="20" y1="420" x2="80" y2="420" strokeWidth="1.3"/>
+      </g>
+      {/* segundo lightstick — bottom-right */}
+      <g transform="rotate(14 498 408)" opacity="0.2">
+        <ellipse cx="498" cy="392" rx="9" ry="12" strokeWidth="1.3"/>
+        <rect x="495" y="404" width="6" height="34" rx="1.5" strokeWidth="1.2"/>
+      </g>
+      {/* sparkles espalhados */}
+      {[{x:98,y:14},{x:310,y:28},{x:492,y:128},{x:24,y:398},{x:214,y:446},{x:398,y:452},{x:532,y:420}].map(({x,y},i)=>(
+        <g key={i} transform={`rotate(${i*15} ${x} ${y})`} opacity={0.14+i%3*0.03}>
+          <line x1={x-5} y1={y} x2={x+5} y2={y} strokeWidth="0.9"/>
+          <line x1={x} y1={y-5} x2={x} y2={y+5} strokeWidth="0.9"/>
+        </g>
+      ))}
+      {[{x:78,y:42},{x:450,y:48},{x:14,y:238},{x:540,y:342},{x:338,y:450}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r="1.4" fill={color} strokeWidth="0" opacity="0.14"/>
+      ))}
+    </svg>
+  ),
+
+  mpb: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* violão acústico — top-left */}
+      <g transform="rotate(-20 52 70)" opacity="0.24">
+        <ellipse cx="52" cy="78" rx="22" ry="28" strokeWidth="1.4"/>
+        <ellipse cx="52" cy="46" rx="15" ry="20" strokeWidth="1.3"/>
+        <circle cx="52" cy="62" r="5" strokeWidth="1" strokeDasharray="2 2"/>
+        <line x1="52" y1="26" x2="52" y2="10" strokeWidth="1.4"/>
+        <line x1="46" y1="10" x2="58" y2="10" strokeWidth="1.3"/>
+        {[0,1,2,3,4,5].map(i=>(<line key={i} x1={48+i} y1="72" x2={48+i} y2="86" strokeWidth="0.7"/>))}
+      </g>
+      {/* disco de vinil — top-right */}
+      <g transform="rotate(12 494 64)" opacity="0.22">
+        <circle cx="494" cy="64" r="38" strokeWidth="1.4"/>
+        <circle cx="494" cy="64" r="28" strokeWidth="0.8" strokeDasharray="4 3"/>
+        <circle cx="494" cy="64" r="18" strokeWidth="0.8" strokeDasharray="3 3"/>
+        <circle cx="494" cy="64" r="6" strokeWidth="1.2"/>
+        <circle cx="494" cy="64" r="2.5" fill={color} strokeWidth="0"/>
+      </g>
+      {/* folha tropical — left */}
+      <g transform="rotate(28 28 222)" opacity="0.2">
+        <path d="M14 202 Q44 196 52 230 Q28 242 14 202 Z" strokeWidth="1.4"/>
+        <line x1="14" y1="202" x2="52" y2="230" strokeWidth="1"/>
+        <line x1="26" y1="200" x2="38" y2="216" strokeWidth="0.8"/>
+        <line x1="22" y1="210" x2="44" y2="222" strokeWidth="0.8"/>
+      </g>
+      <g transform="rotate(-18 22 322)" opacity="0.18">
+        <path d="M10 302 Q38 298 44 328 Q22 338 10 302 Z" strokeWidth="1.3"/>
+        <line x1="10" y1="302" x2="44" y2="328" strokeWidth="0.9"/>
+      </g>
+      {/* notas musicais — right */}
+      <g transform="rotate(-8 524 202)" opacity="0.2">
+        <circle cx="516" cy="206" r="7" strokeWidth="1.3"/>
+        <line x1="523" y1="206" x2="523" y2="178" strokeWidth="1.3"/>
+        <line x1="523" y1="178" x2="540" y2="182" strokeWidth="1.2"/>
+        <circle cx="538" cy="220" r="6" strokeWidth="1.2"/>
+        <line x1="544" y1="220" x2="544" y2="196" strokeWidth="1.2"/>
+      </g>
+      {/* flores — bottom-left */}
+      <g opacity="0.2">
+        {[0,60,120,180,240,300].map((deg,i)=>{
+          const rad = deg*Math.PI/180;
+          const fx = 50+Math.cos(rad)*12, fy = 402+Math.sin(rad)*12;
+          return <ellipse key={i} cx={fx} cy={fy} rx="7" ry="4"
+            transform={`rotate(${deg} ${fx} ${fy})`} strokeWidth="1.2"/>;
+        })}
+        <circle cx="50" cy="402" r="5" fill={color} strokeWidth="0" opacity="0.3"/>
+      </g>
+      {/* onda — bottom-right */}
+      <g transform="rotate(4 462 422)" opacity="0.2">
+        <path d="M424 422 Q440 406 456 422 Q472 438 488 422 Q504 406 520 422" strokeWidth="1.6"/>
+        <path d="M428 438 Q444 422 460 438 Q476 454 492 438" strokeWidth="1.3"/>
+      </g>
+      {[{x:140,y:18},{x:240,y:28},{x:342,y:14},{x:16,y:140},{x:538,y:142},{x:24,y:382},{x:158,y:450},{x:382,y:446},{x:532,y:382}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.3+i%3*0.3} fill={color} strokeWidth="0" opacity={0.12+i%4*0.02}/>
+      ))}
+    </svg>
+  ),
+
+  pop: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* microfone — top-left */}
+      <g transform="rotate(-14 48 62)" opacity="0.26">
+        <rect x="38" y="18" width="20" height="34" rx="10" strokeWidth="1.5"/>
+        <line x1="48" y1="52" x2="48" y2="72" strokeWidth="1.4"/>
+        <line x1="38" y1="72" x2="58" y2="72" strokeWidth="1.4"/>
+        <path d="M34 44 Q34 58 48 64 Q62 58 62 44" strokeWidth="1.2"/>
+      </g>
+      {/* alto-falante — top-right */}
+      <g transform="rotate(16 502 56)" opacity="0.22">
+        <rect x="476" y="28" width="52" height="52" rx="6" strokeWidth="1.4"/>
+        <circle cx="502" cy="54" r="18" strokeWidth="1.3"/>
+        <circle cx="502" cy="54" r="8" strokeWidth="1.2"/>
+        <circle cx="502" cy="54" r="3" fill={color} strokeWidth="0" opacity="0.35"/>
+      </g>
+      {/* confetes espalhados */}
+      {[{x:132,y:14,r:0},{x:162,y:30,r:25},{x:202,y:16,r:-15},{x:262,y:22,r:35},
+        {x:312,y:12,r:10},{x:372,y:26,r:-30},{x:422,y:16,r:20},{x:24,y:98,r:40},
+        {x:536,y:102,r:-40},{x:16,y:392,r:20},{x:542,y:382,r:-20}].map(({x,y,r},i)=>(
+        <rect key={i} x={x-4} y={y-3} width="8" height="6" rx="1"
+          transform={`rotate(${r} ${x} ${y})`}
+          fill={color} strokeWidth="0" opacity={0.14+i%4*0.03}/>
+      ))}
+      {/* notas musicais — left */}
+      <g transform="rotate(8 28 212)" opacity="0.2">
+        <circle cx="28" cy="216" r="7" strokeWidth="1.3"/>
+        <line x1="35" y1="216" x2="35" y2="188" strokeWidth="1.3"/>
+        <line x1="35" y1="188" x2="52" y2="192" strokeWidth="1.2"/>
+        <circle cx="50" cy="230" r="6" strokeWidth="1.2"/>
+        <line x1="56" y1="230" x2="56" y2="206" strokeWidth="1.2"/>
+      </g>
+      {/* estrela pop — bottom-left */}
+      <g transform="rotate(-10 50 398)" opacity="0.24">
+        <polygon points="50,372 58,392 80,392 64,404 70,424 50,412 30,424 36,404 20,392 42,392" strokeWidth="1.4"/>
+      </g>
+      {/* confetes maiores — bottom-right */}
+      {[{x:448,y:390,r:20},{x:480,y:412,r:-35},{x:512,y:396,r:50},{x:502,y:438,r:-10},{x:462,y:447,r:30}].map(({x,y,r},i)=>(
+        <rect key={i} x={x-5} y={y-4} width="10" height="7" rx="1.5"
+          transform={`rotate(${r} ${x} ${y})`}
+          fill={color} strokeWidth="0" opacity={0.16+i%3*0.04}/>
+      ))}
+      {/* sparkles */}
+      {[{x:100,y:36},{x:400,y:34},{x:22,y:292},{x:532,y:272},{x:300,y:452}].map(({x,y},i)=>(
+        <g key={i} transform={`rotate(45 ${x} ${y})`} opacity="0.17">
+          <line x1={x-6} y1={y} x2={x+6} y2={y} strokeWidth="1"/>
+          <line x1={x} y1={y-6} x2={x} y2={y+6} strokeWidth="1"/>
+        </g>
+      ))}
+    </svg>
+  ),
+
+  rap: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* fone de ouvido — top-left */}
+      <g transform="rotate(-14 54 56)" opacity="0.26">
+        <path d="M22 52 A32 32 0 0 1 86 52" strokeWidth="1.8"/>
+        <rect x="14" y="52" width="16" height="26" rx="7" strokeWidth="1.4"/>
+        <rect x="82" y="52" width="16" height="26" rx="7" strokeWidth="1.4"/>
+      </g>
+      {/* vinil + agulha — top-right */}
+      <g transform="rotate(8 494 66)" opacity="0.22">
+        <circle cx="494" cy="66" r="38" strokeWidth="1.4"/>
+        <circle cx="494" cy="66" r="24" strokeWidth="1" strokeDasharray="5 3"/>
+        <circle cx="494" cy="66" r="10" strokeWidth="1"/>
+        <circle cx="494" cy="66" r="3.5" fill={color} strokeWidth="0" opacity="0.3"/>
+        <line x1="532" y1="30" x2="508" y2="54" strokeWidth="1.4"/>
+        <circle cx="534" cy="28" r="4" strokeWidth="1.2"/>
+      </g>
+      {/* caixa de som — left */}
+      <g transform="rotate(5 28 212)" opacity="0.2">
+        <rect x="8" y="174" width="44" height="76" rx="4" strokeWidth="1.4"/>
+        <circle cx="30" cy="200" r="14" strokeWidth="1.3"/>
+        <circle cx="30" cy="200" r="6" strokeWidth="1.1"/>
+        <rect x="16" y="230" width="28" height="8" rx="2" strokeWidth="1.1"/>
+      </g>
+      {/* frequências/beats — topo centro */}
+      <g opacity="0.19">
+        {[{x:168,h:20},{x:183,h:32},{x:198,h:16},{x:213,h:28},{x:228,h:12},{x:243,h:24},
+          {x:308,h:18},{x:323,h:30},{x:338,h:14},{x:353,h:26},{x:368,h:10},{x:383,h:22}].map(({x,h},i)=>(
+          <line key={i} x1={x} y1={28-h/2} x2={x} y2={28+h/2} strokeWidth="1.2"/>
+        ))}
+      </g>
+      {/* microfone rap — bottom-left */}
+      <g transform="rotate(-16 46 402)" opacity="0.22">
+        <rect x="36" y="366" width="20" height="36" rx="10" strokeWidth="1.4"/>
+        <line x1="46" y1="402" x2="46" y2="422" strokeWidth="1.4"/>
+        <line x1="36" y1="422" x2="56" y2="422" strokeWidth="1.4"/>
+        <path d="M32 384 Q32 398 46 404 Q60 398 60 384" strokeWidth="1.2"/>
+      </g>
+      {/* raio de energia — right */}
+      <g transform="rotate(-4 518 252)" opacity="0.2">
+        <polyline points="502,222 516,242 506,252 524,272 510,284 528,302" strokeWidth="1.6" strokeLinejoin="round"/>
+      </g>
+      {/* notas musicais — bottom-right */}
+      <g transform="rotate(10 484 406)" opacity="0.2">
+        <circle cx="478" cy="410" r="7" strokeWidth="1.3"/>
+        <line x1="485" y1="410" x2="485" y2="382" strokeWidth="1.3"/>
+        <line x1="485" y1="382" x2="502" y2="386" strokeWidth="1.2"/>
+        <circle cx="502" cy="424" r="6" strokeWidth="1.2"/>
+        <line x1="508" y1="424" x2="508" y2="400" strokeWidth="1.2"/>
+      </g>
+      {[{x:108,y:16},{x:422,y:22},{x:14,y:132},{x:540,y:132},{x:16,y:342},{x:538,y:312},
+        {x:138,y:450},{x:298,y:454},{x:468,y:446}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.4+i%3*0.3} fill={color} strokeWidth="0" opacity={0.12+i%4*0.03}/>
+      ))}
+    </svg>
+  ),
+
+  rock: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* guitarra elétrica — top-left */}
+      <g transform="rotate(-22 54 72)" opacity="0.26">
+        <path d="M28 86 Q28 68 44 62 Q60 56 68 70 Q76 82 70 98 Q62 110 46 108 Q28 104 28 86 Z" strokeWidth="1.4"/>
+        <line x1="52" y1="62" x2="52" y2="14" strokeWidth="1.5"/>
+        <rect x="46" y="8" width="12" height="16" rx="2" strokeWidth="1.3"/>
+        {[0,1,2,3,4,5].map(i=>(<line key={i} x1={47+i} y1="60" x2={47+i} y2="50" strokeWidth="0.7"/>))}
+      </g>
+      {/* raio elétrico — top-right */}
+      <g transform="rotate(8 494 56)" opacity="0.28">
+        <polyline points="506,14 490,52 504,52 488,96" strokeWidth="2.2" strokeLinejoin="round"/>
+      </g>
+      {/* amplificador — left */}
+      <g transform="rotate(4 34 242)" opacity="0.2">
+        <rect x="8" y="202" width="60" height="80" rx="4" strokeWidth="1.4"/>
+        <rect x="16" y="212" width="44" height="44" rx="3" strokeWidth="1.2"/>
+        <circle cx="38" cy="234" r="14" strokeWidth="1.2"/>
+        <circle cx="38" cy="234" r="6" strokeWidth="1"/>
+        <line x1="16" y1="268" x2="60" y2="268" strokeWidth="0.9"/>
+        <circle cx="52" cy="276" r="2" fill={color} strokeWidth="0" opacity="0.4"/>
+      </g>
+      {/* notas musicais — right */}
+      <g transform="rotate(-10 526 212)" opacity="0.2">
+        <circle cx="518" cy="216" r="7" strokeWidth="1.3"/>
+        <line x1="525" y1="216" x2="525" y2="188" strokeWidth="1.3"/>
+        <line x1="525" y1="188" x2="542" y2="192" strokeWidth="1.2"/>
+        <circle cx="540" cy="230" r="6" strokeWidth="1.2"/>
+        <line x1="546" y1="230" x2="546" y2="206" strokeWidth="1.2"/>
+      </g>
+      {/* estrela rock — bottom-left */}
+      <g transform="rotate(-10 50 398)" opacity="0.24">
+        <polygon points="50,370 58,392 82,392 64,406 70,428 50,414 30,428 36,406 18,392 42,392" strokeWidth="1.4"/>
+      </g>
+      {/* caixa de som — bottom-right */}
+      <g transform="rotate(5 488 402)" opacity="0.2">
+        <rect x="462" y="372" width="60" height="68" rx="4" strokeWidth="1.4"/>
+        <rect x="470" y="380" width="44" height="44" rx="3" strokeWidth="1.2"/>
+        <circle cx="492" cy="402" r="14" strokeWidth="1.2"/>
+        <circle cx="492" cy="402" r="6" strokeWidth="1.1"/>
+        <circle cx="492" cy="402" r="2.5" fill={color} strokeWidth="0" opacity="0.35"/>
+      </g>
+      {[{x:130,y:14},{x:280,y:20},{x:400,y:12},{x:14,y:372},{x:538,y:342},{x:198,y:450},{x:420,y:446}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.5+i%3*0.3} fill={color} strokeWidth="0" opacity={0.13+i%4*0.02}/>
+      ))}
+    </svg>
+  ),
+
+  wave: ({color,w=560,h=460}) => (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+      fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {/* fone de ouvido DJ — top-left */}
+      <g transform="rotate(-10 52 52)" opacity="0.26">
+        <path d="M20 48 A32 32 0 0 1 84 48" strokeWidth="1.8"/>
+        <rect x="12" y="48" width="16" height="26" rx="7" strokeWidth="1.4"/>
+        <rect x="80" y="48" width="16" height="26" rx="7" strokeWidth="1.4"/>
+      </g>
+      {/* ondas de rádio — top-right */}
+      <g transform="rotate(5 480 40)" opacity="0.22">
+        {[24,40,56].map((r,i)=>(
+          <path key={i} d={`M${480-r} 40 A${r} ${r} 0 0 1 ${480+r} 40`} strokeWidth={1.6-i*0.2}/>
+        ))}
+        <circle cx="480" cy="40" r="4" fill={color} strokeWidth="0" opacity="0.3"/>
+      </g>
+      {/* vinil — left */}
+      <g transform="rotate(15 28 222)" opacity="0.2">
+        <circle cx="28" cy="222" r="36" strokeWidth="1.4"/>
+        <circle cx="28" cy="222" r="22" strokeWidth="0.9" strokeDasharray="4 3"/>
+        <circle cx="28" cy="222" r="10" strokeWidth="0.9"/>
+        <circle cx="28" cy="222" r="4" fill={color} strokeWidth="0" opacity="0.3"/>
+      </g>
+      {/* equalizador — topo centro */}
+      <g opacity="0.2">
+        {[{x:175,h:28},{x:192,h:16},{x:209,h:38},{x:226,h:22},{x:243,h:44},{x:260,h:18},
+          {x:295,h:32},{x:312,h:20},{x:329,h:46},{x:346,h:16},{x:363,h:28},{x:380,h:38}].map(({x,h},i)=>(
+          <rect key={i} x={x-4} y={32-h} width="8" height={h} rx="2" fill={color} strokeWidth="0" opacity={0.25+i%3*0.08}/>
+        ))}
+      </g>
+      {/* notas musicais — right */}
+      <g transform="rotate(-8 526 202)" opacity="0.2">
+        <circle cx="518" cy="206" r="7" strokeWidth="1.3"/>
+        <line x1="525" y1="206" x2="525" y2="178" strokeWidth="1.3"/>
+        <line x1="525" y1="178" x2="542" y2="182" strokeWidth="1.2"/>
+        <circle cx="540" cy="220" r="6" strokeWidth="1.2"/>
+        <line x1="546" y1="220" x2="546" y2="196" strokeWidth="1.2"/>
+      </g>
+      {/* forma de onda — bottom */}
+      <g opacity="0.19">
+        <path d="M60 432 Q80 416 100 432 Q120 448 140 432 Q160 416 180 432 Q200 448 220 432 Q240 416 260 432 Q280 448 300 432 Q320 416 340 432 Q360 448 380 432 Q400 416 420 432 Q440 448 460 432 Q480 416 500 432"
+          strokeWidth="1.5"/>
+      </g>
+      {/* antena/sinal — bottom-left */}
+      <g transform="rotate(-4 46 392)" opacity="0.2">
+        <line x1="46" y1="360" x2="46" y2="422" strokeWidth="1.5"/>
+        {[16,30,44].map((r,i)=>(
+          <path key={i} d={`M${46-r} ${392-r*.2} A${r} ${r} 0 0 1 ${46+r} ${392-r*.2}`} strokeWidth={1.4-i*0.2}/>
+        ))}
+      </g>
+      {[{x:100,y:20},{x:440,y:28},{x:16,y:142},{x:538,y:152},{x:532,y:352},{x:198,y:450},{x:350,y:456}].map(({x,y},i)=>(
+        <circle key={i} cx={x} cy={y} r={1.4+i%3*0.3} fill={color} strokeWidth="0" opacity={0.13+i%4*0.02}/>
+      ))}
+    </svg>
+  ),
 };
 
 /* Chave de localStorage individualizada por usuário (CPF do JWT) — exportada
