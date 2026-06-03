@@ -1076,7 +1076,7 @@ const TabMyDoko = () => {
   const [energia,    setEnergia]    = useState(() => _dokoLoad().energia ?? 70);
   const [fala,       setFala]       = useState('Olá! Que bom te ver por aqui!');
   const [skin,       setSkin]       = useState(() => _dokoLoad().skin    || 'tecnico');
-  const [showSkins,  setShowSkins]  = useState(false);
+  const [showColecao,setShowColecao]= useState(false);
   const [showComidas,setShowComidas]= useState(false);
   const [dormindo,   setDormindo]   = useState(() => _dokoLoad().dormindo ?? false);
   const [sono,       setSono]       = useState(() => _dokoLoad().sono    ?? 70);
@@ -1168,8 +1168,11 @@ const TabMyDoko = () => {
     });
   };
 
-  const pers       = DOKO_PERSONALIDADES[skin];
-  const activeSkin = DOKO_SKINS.find(s=>s.id===skin);
+  const pers       = DOKO_PERSONALIDADES[skin] || DOKO_PERSONALIDADES['tecnico'];
+  const activeSkin = DOKO_SKINS.find(s=>s.id===skin) || (() => {
+    const u = UNIKO_COMMON.find(u=>u.key===skin);
+    return u ? { id:u.key, label:u.name, img:u.img, imgCansado:null, color:'#C9A000' } : DOKO_SKINS[0];
+  })();
   const mood       = (fome+energia)/2>=70?'feliz':(fome+energia)/2>=35?'neutro':'triste';
   /* Estado cansado: fome E energia ambos críticos (abaixo de 25) */
   const isCansado  = fome < 25 && energia < 25;
@@ -1201,7 +1204,7 @@ const TabMyDoko = () => {
   const escolherComida = (comida) => {
     setFome(f=>Math.min(100, f+comida.fome));
     setEnergia(e=>Math.min(100, e+comida.energia));
-    ganharXP(Math.round(comida.fome / 2)); /* 9–18 XP por refeição */
+    if (fome < 98) ganharXP(Math.round(comida.fome / 2)); /* XP só se a fome não estava cheia */
     setShowComidas(false);
     setConversa(null); setRespondeu(false); setTyping(false);
     setSessaoAtiva(false); setSessaoFim(false); setFila([]); setFilaTotal(0); setPergAtual('');
@@ -1210,7 +1213,7 @@ const TabMyDoko = () => {
   const carinho = () => {
     setEnergia(e=>Math.min(100,e+22));
     setFome(f=>Math.min(100,f+3));
-    ganharXP(15); /* +15 XP por carinho */
+    if (energia < 98) ganharXP(15); /* XP só se a energia não estava cheia */
     setConversa(null); setRespondeu(false); setTyping(false); setSessaoAtiva(false); setSessaoFim(false); setFila([]); setFilaTotal(0); setPergAtual('');
     dizer(rnd(pers.pet));
   };
@@ -1363,31 +1366,37 @@ const TabMyDoko = () => {
             </div>
           </div>
         </div>
-        <button onClick={()=>setShowSkins(s=>!s)}
+        <button onClick={()=>setShowColecao(s=>!s)}
           style={{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 16px',
-            background:showSkins?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.04)'),
-            border:`1px solid ${showSkins?T.goldLine+'55':T.border}`,borderRadius:10,
-            color:showSkins?T.gold:T.textS,cursor:'pointer',outline:'none',
+            background:showColecao?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.04)'),
+            border:`1px solid ${showColecao?T.goldLine+'55':T.border}`,borderRadius:10,
+            color:showColecao?T.gold:T.textS,cursor:'pointer',outline:'none',
             fontFamily:'var(--font-body)',fontSize:13,fontWeight:500,transition:'all .15s'}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-            <circle cx="12" cy="8" r="4"/>
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          Trocar Uniko
+          Coleção
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            {showColecao
+              ? <polyline points="18 15 12 9 6 15"/>
+              : <polyline points="6 9 12 15 18 9"/>}
+          </svg>
         </button>
       </div>
       <StarDivider my={16}/>
 
-      {showSkins&&(
-        <Card style={{padding:'18px',marginBottom:16}}>
-          <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:14}}>
-            Escolha seu Uniko
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
+      {showColecao&&(
+        <Card style={{padding:'20px',marginBottom:16}}>
+          {/* Dokos — sempre disponíveis */}
+          <div style={{fontSize:13,fontWeight:600,color:T.textS,letterSpacing:'.06em',
+            textTransform:'uppercase',marginBottom:12}}>Dokos</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:20}}>
             {DOKO_SKINS.map(s=>(
               <div key={s.id}
-                onClick={()=>{setSkin(s.id);setShowSkins(false);setShowComidas(false);setConversa(null);
+                onClick={()=>{setSkin(s.id);setShowComidas(false);setConversa(null);
                   setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[s.id].saudacao)),100);}}
                 style={{cursor:'pointer',borderRadius:14,overflow:'hidden',
                   border:`2.5px solid ${skin===s.id?s.color:'rgba(0,0,0,0.08)'}`,
@@ -1404,6 +1413,72 @@ const TabMyDoko = () => {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Unikos comuns — desbloqueados por nível */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:600,color:T.textS,letterSpacing:'.06em',
+              textTransform:'uppercase'}}>Raridade Comum</div>
+            <div style={{fontSize:11,color:T.textT}}>
+              {UNIKO_COMMON.filter(u=>nivel>=u.level).length}/{UNIKO_COMMON.length} desbloqueados
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(110px,1fr))',gap:10}}>
+            {UNIKO_COMMON.map(u=>{
+              const desbloqueado = nivel >= u.level;
+              const ativo = skin === u.key;
+              return(
+                <div key={u.key}
+                  onClick={()=>{
+                    if(!desbloqueado) return;
+                    setSkin(u.key);
+                    setShowComidas(false);
+                    setConversa(null);
+                    setTimeout(()=>dizer(`${u.name} entrando em cena! 🎵`),100);
+                  }}
+                  style={{
+                    cursor:desbloqueado?'pointer':'not-allowed',
+                    borderRadius:14,overflow:'hidden',
+                    border:`2.5px solid ${ativo?T.gold:desbloqueado?T.gold+'44':T.border}`,
+                    background:ativo?`${T.gold}12`:desbloqueado?`${T.gold}06`:(T.surfaceSub||'rgba(0,0,0,0.03)'),
+                    transition:'all .18s',
+                    boxShadow:ativo?`0 4px 16px ${T.gold}44`:'none',
+                    transform:ativo?'scale(1.04)':'scale(1)',
+                    opacity:desbloqueado?1:0.55}}>
+                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
+                    <img src={u.img} alt={u.name}
+                      style={{width:'100%',height:'100%',objectFit:'cover',display:'block',
+                        filter:desbloqueado?'none':'grayscale(1) brightness(.6)'}}/>
+                    {!desbloqueado&&(
+                      <div style={{position:'absolute',inset:0,display:'flex',
+                        flexDirection:'column',alignItems:'center',justifyContent:'center',
+                        background:'rgba(0,0,0,0.4)'}}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                          stroke="white" strokeWidth="2" strokeLinecap="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        </svg>
+                        <div style={{fontSize:10,color:'white',fontWeight:700,marginTop:3}}>Nv. {u.level}</div>
+                      </div>
+                    )}
+                    {ativo&&(
+                      <div style={{position:'absolute',top:5,right:5,width:18,height:18,
+                        borderRadius:'50%',background:T.gold,display:'flex',
+                        alignItems:'center',justifyContent:'center',fontSize:10,color:'white',fontWeight:700}}>✓</div>
+                    )}
+                  </div>
+                  <div style={{padding:'7px 8px',textAlign:'center'}}>
+                    <div style={{fontSize:11,fontWeight:ativo?700:500,
+                      color:ativo?T.gold:desbloqueado?T.text:T.textT,lineHeight:1.3}}>
+                      {u.name}
+                    </div>
+                    <div style={{fontSize:10,color:desbloqueado?T.gold:T.textT,marginTop:1}}>
+                      {desbloqueado?u.title:`🔒 Nível ${u.level}`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
@@ -1808,72 +1883,6 @@ const TabMyDoko = () => {
         </div>
       </div>
 
-      {/* ── Coleção de Unikos Comuns ── */}
-      <StarDivider my={24}/>
-      <Card style={{padding:'22px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-          <div style={{fontSize:16,fontWeight:700,color:T.text}}>Coleção Uniko</div>
-          <div style={{padding:'3px 10px',borderRadius:7,background:`${T.gold}18`,
-            border:`1px solid ${T.goldLine}44`,fontSize:11,color:T.gold,fontWeight:600}}>
-            ✦ Raridade Comum
-          </div>
-        </div>
-        <div style={{fontSize:12,color:T.textT,marginBottom:16}}>
-          Suba de nível interagindo com seu Uniko para desbloquear novos companheiros musicais.
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:12}}>
-          {UNIKO_COMMON.map(u => {
-            const desbloqueado = nivel >= u.level;
-            return (
-              <div key={u.key} style={{borderRadius:14,overflow:'hidden',
-                border:`2px solid ${desbloqueado ? T.gold+'55' : T.border}`,
-                background:desbloqueado ? `${T.gold}08` : T.surfaceSub||'rgba(0,0,0,0.03)',
-                transition:'all .2s',
-                boxShadow:desbloqueado ? `0 4px 16px ${T.gold}22` : 'none'}}>
-                <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
-                  <img src={u.img} alt={u.name}
-                    style={{width:'100%',height:'100%',objectFit:'cover',display:'block',
-                      filter:desbloqueado ? 'none' : 'grayscale(1) brightness(.7)',
-                      transition:'filter .3s'}}/>
-                  {!desbloqueado && (
-                    <div style={{position:'absolute',inset:0,display:'flex',
-                      flexDirection:'column',alignItems:'center',justifyContent:'center',
-                      background:'rgba(0,0,0,0.35)'}}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                        stroke="white" strokeWidth="2" strokeLinecap="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0110 0v4"/>
-                      </svg>
-                      <div style={{fontSize:10,color:'white',fontWeight:700,marginTop:4}}>
-                        Nv. {u.level}
-                      </div>
-                    </div>
-                  )}
-                  {desbloqueado && (
-                    <div style={{position:'absolute',top:5,right:5,
-                      width:18,height:18,borderRadius:'50%',
-                      background:T.gold,display:'flex',alignItems:'center',
-                      justifyContent:'center',fontSize:10}}>
-                      ✓
-                    </div>
-                  )}
-                </div>
-                <div style={{padding:'8px 10px',textAlign:'center'}}>
-                  <div style={{fontSize:12,fontWeight:600,
-                    color:desbloqueado ? T.text : T.textT,
-                    marginBottom:2,lineHeight:1.3}}>
-                    {u.name}
-                  </div>
-                  <div style={{fontSize:10,color:desbloqueado ? T.gold : T.textT,
-                    fontWeight:desbloqueado?600:400}}>
-                    {desbloqueado ? u.title : `🔒 Nível ${u.level}`}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
     </div>
   );
 };
