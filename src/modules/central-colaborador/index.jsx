@@ -30,6 +30,18 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
 
+  // Onboarding — exibido enquanto o usuário não tiver foto de perfil
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      const _a = getAuthUser();
+      const pk = _a?.cpf ? `uniko_photo_${_a.cpf}` : 'uniko_photo';
+      return !(userPhoto || localStorage.getItem(pk));
+    } catch { return false; }
+  });
+  const [onbStep,  setOnbStep]  = useState(0);
+  const [onbPhoto, setOnbPhoto] = useState(null);
+  const onbFileRef = useRef(null);
+
   // Busca o perfil completo do usuário ao abrir o Portal
   useEffect(() => {
     const token = localStorage.getItem('ch_token');
@@ -95,6 +107,14 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);window.dispatchEvent(new CustomEvent('ch_themechange',{detail:key}));};
   const handleProfileSaved = () => setProfileComplete(checkProfileComplete());
+  const onbSavePhoto = (photo) => {
+    try {
+      const _a = getAuthUser();
+      const pk = _a?.cpf ? `uniko_photo_${_a.cpf}` : 'uniko_photo';
+      localStorage.setItem(pk, photo);
+      if (onPhotoChange) onPhotoChange(photo);
+    } catch {}
+  };
   const render=()=>{
     if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
@@ -215,6 +235,253 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
         <SettingsModal activeTheme={activeTheme}
           onTheme={(k)=>{handleTheme(k);}}
           onClose={()=>setShowSettings(false)}/>
+      )}
+
+      {/* ── Onboarding — aparece enquanto não há foto de perfil ── */}
+      {showOnboarding&&(
+        <div style={{position:'fixed',inset:0,zIndex:5000,
+          background:'rgba(0,0,0,.90)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          padding:16,fontFamily:'var(--font-body)'}}>
+          <div style={{background:T.surface,borderRadius:24,width:'100%',maxWidth:540,
+            maxHeight:'92vh',display:'flex',flexDirection:'column',overflow:'hidden',
+            position:'relative',boxShadow:'0 32px 80px rgba(0,0,0,.55)',border:`1px solid ${T.border}`}}>
+
+            {/* Pular */}
+            <button onClick={()=>setShowOnboarding(false)}
+              style={{position:'absolute',top:16,right:16,zIndex:1,background:'transparent',
+                border:'none',cursor:'pointer',color:T.textT,fontSize:12,
+                padding:'4px 10px',borderRadius:8,fontFamily:'var(--font-body)'}}>
+              Pular ×
+            </button>
+
+            {/* Conteúdo scrollável */}
+            <div style={{flex:1,overflowY:'auto',padding:'36px 40px 24px'}}>
+
+              {/* ── PASSO 0 — PERFIL ── */}
+              {onbStep===0&&(
+                <div style={{textAlign:'center'}}>
+                  <div style={{fontSize:22,fontWeight:700,color:T.text,marginBottom:6}}>
+                    Bem-vindo(a), {USER.short}! 👋
+                  </div>
+                  <div style={{fontSize:13,color:T.textT,marginBottom:28}}>
+                    Adicione sua foto para personalizar o perfil
+                  </div>
+                  {/* Círculo de foto */}
+                  <div onClick={()=>onbFileRef.current?.click()}
+                    style={{width:128,height:128,borderRadius:'50%',margin:'0 auto 16px',
+                      cursor:'pointer',overflow:'hidden',flexShrink:0,
+                      border:`3px dashed ${onbPhoto?T.gold:T.border}`,
+                      background:onbPhoto?undefined:(T.surfaceSub||'rgba(0,0,0,.06)'),
+                      backgroundImage:onbPhoto?`url(${onbPhoto})`:undefined,
+                      backgroundSize:'cover',backgroundPosition:'center',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      transition:'border-color .2s'}}>
+                    {!onbPhoto&&(
+                      <div style={{color:T.textD,textAlign:'center'}}>
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                          <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <div style={{fontSize:10,marginTop:5}}>Adicionar foto</div>
+                      </div>
+                    )}
+                  </div>
+                  <input ref={onbFileRef} type="file" accept="image/*" style={{display:'none'}}
+                    onChange={e=>{
+                      const f=e.target.files?.[0]; if(!f) return;
+                      const r=new FileReader();
+                      r.onload=ev=>setOnbPhoto(ev.target.result);
+                      r.readAsDataURL(f);
+                    }}/>
+                  <button onClick={()=>onbFileRef.current?.click()}
+                    style={{padding:'9px 24px',borderRadius:10,marginBottom:28,
+                      border:`1.5px solid ${T.gold}55`,background:T.goldGl,
+                      color:T.gold,cursor:'pointer',fontSize:13,fontWeight:600,
+                      fontFamily:'var(--font-body)'}}>
+                    {onbPhoto?'↑ Trocar foto':'↑ Escolher foto'}
+                  </button>
+                  <div style={{background:T.surfaceSub||'rgba(0,0,0,.04)',borderRadius:12,
+                    padding:'14px 18px',textAlign:'left',border:`1px solid ${T.border}`}}>
+                    <div style={{fontSize:12,fontWeight:600,color:T.text,marginBottom:5}}>
+                      💡 Complete seu perfil
+                    </div>
+                    <div style={{fontSize:12,color:T.textS,lineHeight:1.6}}>
+                      Acesse <strong>Meus Dados</strong> na barra lateral para preencher
+                      e-mail, telefone e endereço — isso desbloqueia todas as funcionalidades
+                      do sistema.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── PASSO 1 — CENTRAL ALEXA ── */}
+              {onbStep===1&&(
+                <div>
+                  <div style={{textAlign:'center',marginBottom:28}}>
+                    <div style={{width:72,height:72,borderRadius:20,margin:'0 auto 16px',
+                      background:`${T.gold}18`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+                        stroke={T.gold} strokeWidth="1.7" strokeLinecap="round">
+                        <path d="M9 18V5l12-2v13"/>
+                        <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                      </svg>
+                    </div>
+                    <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>
+                      Central Alexa
+                    </div>
+                    <div style={{fontSize:13,color:T.textT}}>
+                      O player de música com personalidade da empresa
+                    </div>
+                  </div>
+                  {[
+                    {e:'🎧',t:'Fila colaborativa',
+                      d:'Todos os colaboradores podem pedir músicas — todos ouvem juntos em tempo real.'},
+                    {e:'🎭',t:'Mascotes Uniko reativos',
+                      d:'Cada gênero musical ativa um Uniko diferente na tela — KPop, Rock, MPB, Gospel, Sertanejo e mais.'},
+                    {e:'🎛️',t:'Equalizador & controles',
+                      d:'Ajuste de volume, equalizador personalizado, histórico e biblioteca completa de músicas.'},
+                    {e:'🌟',t:'Festival de músicas',
+                      d:'Evento especial onde cada colaborador escolhe sua trilha sonora favorita para tocar.'},
+                  ].map(({e,t,d},i,arr)=>(
+                    <div key={t} style={{display:'flex',gap:14,padding:'13px 0',
+                      borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+                      <div style={{fontSize:22,flexShrink:0,width:32,textAlign:'center',marginTop:1}}>{e}</div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:T.text,marginBottom:3}}>{t}</div>
+                        <div style={{fontSize:12,color:T.textS,lineHeight:1.55}}>{d}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── PASSO 2 — MY UNIKO ── */}
+              {onbStep===2&&(
+                <div>
+                  <div style={{textAlign:'center',marginBottom:28}}>
+                    <div style={{width:72,height:72,borderRadius:20,margin:'0 auto 16px',
+                      background:`${T.gold}18`,display:'flex',alignItems:'center',
+                      justifyContent:'center',fontSize:38}}>🐾</div>
+                    <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>
+                      My Uniko
+                    </div>
+                    <div style={{fontSize:13,color:T.textT}}>
+                      Seu companheiro virtual com personalidade própria
+                    </div>
+                  </div>
+                  {[
+                    {e:'💬',t:'Conversas temáticas',
+                      d:'Cada Uniko tem diálogos exclusivos sobre seu gênero musical — KPop, Rock, MPB, Gospel e mais.'},
+                    {e:'📈',t:'Sistema de níveis',
+                      d:'Ganhe XP interagindo com seu Uniko e desbloqueie novos personagens da coleção.'},
+                    {e:'🎴',t:'Coleção de mascotes',
+                      d:'5 Dokos sempre disponíveis + 9 Unikos temáticos desbloqueáveis conforme você sobe de nível.'},
+                    {e:'❤️',t:'Cuide do seu Uniko',
+                      d:'Alimente, faça carinho e coloque para dormir. Seu Uniko tem fome, energia e sono!'},
+                    {e:'💡',t:'Dicas musicais',
+                      d:'Curiosidades e recomendações de artistas do gênero do Uniko ativo, direto na tela.'},
+                  ].map(({e,t,d},i,arr)=>(
+                    <div key={t} style={{display:'flex',gap:14,padding:'13px 0',
+                      borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+                      <div style={{fontSize:22,flexShrink:0,width:32,textAlign:'center',marginTop:1}}>{e}</div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:T.text,marginBottom:3}}>{t}</div>
+                        <div style={{fontSize:12,color:T.textS,lineHeight:1.55}}>{d}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── PASSO 3 — MAIS RECURSOS ── */}
+              {onbStep===3&&(
+                <div>
+                  <div style={{textAlign:'center',marginBottom:28}}>
+                    <div style={{width:72,height:72,borderRadius:20,margin:'0 auto 16px',
+                      background:`${T.gold}18`,display:'flex',alignItems:'center',
+                      justifyContent:'center',fontSize:36}}>✨</div>
+                    <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>
+                      Tudo no mesmo lugar
+                    </div>
+                    <div style={{fontSize:13,color:T.textT}}>
+                      Recursos pensados para o seu dia a dia
+                    </div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                    {[
+                      {e:'🎮',t:'Games',
+                        d:'4 mini-jogos com o Uniko: UnikoRun, Meteor Storm, Alien Invaders e UnikoFlap.'},
+                      {e:'🏆',t:'Conquistas',
+                        d:'Receba troféus dos gestores e acompanhe seu histórico de reconhecimentos.'},
+                      {e:'📋',t:'Feed',
+                        d:'Publicações e novidades internas da empresa em um feed integrado.'},
+                      {e:'💰',t:'Financeiro',
+                        d:'Salário líquido, benefícios e histórico de pagamentos sempre à mão.'},
+                      {e:'🔔',t:'Lembretes',
+                        d:'Lembretes pessoais e anotações coloridas organizadas por categoria.'},
+                      {e:'👥',t:'Colegas',
+                        d:'Veja o Uniko e o status dos seus colegas de trabalho em tempo real.'},
+                    ].map(({e,t,d})=>(
+                      <div key={t} style={{padding:'14px 16px',borderRadius:12,
+                        background:T.surfaceSub||'rgba(0,0,0,.04)',border:`1px solid ${T.border}`}}>
+                        <div style={{fontSize:26,marginBottom:8}}>{e}</div>
+                        <div style={{fontSize:12,fontWeight:600,color:T.text,marginBottom:4}}>{t}</div>
+                        <div style={{fontSize:11,color:T.textS,lineHeight:1.55}}>{d}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* ── Navegação ── */}
+            <div style={{padding:'16px 40px 24px',borderTop:`1px solid ${T.border}`,
+              display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+              {/* Dots clicáveis */}
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                {[0,1,2,3].map(i=>(
+                  <div key={i} onClick={()=>setOnbStep(i)}
+                    style={{width:i===onbStep?22:8,height:8,borderRadius:99,cursor:'pointer',
+                      background:i===onbStep?T.gold:`${T.gold}40`,transition:'all .25s ease'}}/>
+                ))}
+              </div>
+              {/* Botões */}
+              <div style={{display:'flex',gap:8}}>
+                {onbStep>0&&(
+                  <button onClick={()=>setOnbStep(s=>s-1)}
+                    style={{padding:'9px 16px',borderRadius:10,border:`1px solid ${T.border}`,
+                      background:'transparent',color:T.textS,cursor:'pointer',
+                      fontSize:13,fontFamily:'var(--font-body)'}}>
+                    ← Anterior
+                  </button>
+                )}
+                {onbStep<3?(
+                  <button onClick={()=>{
+                    if(onbStep===0&&onbPhoto) onbSavePhoto(onbPhoto);
+                    setOnbStep(s=>s+1);
+                  }} style={{padding:'9px 24px',borderRadius:10,border:'none',cursor:'pointer',
+                    background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,
+                    color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>
+                    Próximo →
+                  </button>
+                ):(
+                  <button onClick={()=>{
+                    if(onbPhoto) onbSavePhoto(onbPhoto);
+                    setShowOnboarding(false);
+                  }} style={{padding:'9px 24px',borderRadius:10,border:'none',cursor:'pointer',
+                    background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,
+                    color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>
+                    Começar! 🚀
+                  </button>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
       )}
     </div>
   );
