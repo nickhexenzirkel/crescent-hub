@@ -4,7 +4,13 @@ import JSZip from 'jszip';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
-import { checkBackend, streamBackend } from '../../../utils/backendStream';
+
+const checkExtension = () => new Promise(resolve => {
+  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
+  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
+  window.addEventListener('message', h);
+  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
+});
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -161,8 +167,49 @@ export const TabOrdensServico = () => {
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(false);
 
+  const collectedRef = useRef(new Map());
+
   const addLog = (text, type = 'normal') =>
     setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
+
+  /* ── Escuta eventos da extensão ── */
+  React.useEffect(() => {
+    const handler = async (e) => {
+      const { type, log: l } = e.data || {};
+      if (!type?.startsWith('FAT_')) return;
+      if (type === 'FAT_LOG' && l)  setLog(prev => [...prev, l]);
+      if (type === 'FAT_ERROR')     { setRunning(false); }
+      if (type === 'FAT_SAVE_FILE') {
+        const { id, filename, base64, subfolder } = e.data;
+        const folder = subfolder ? subfolder.split('/')[0] : filename.replace(/\.[^.]+$/, '');
+        if (!collectedRef.current.has(folder)) collectedRef.current.set(folder, []);
+        collectedRef.current.get(folder).push({ filename, base64 });
+        window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
+      }
+      if (type === 'FAT_DONE') {
+        const collected = collectedRef.current;
+        if (collected.size > 0) {
+          addLog('Montando ZIP...', 'info');
+          const zip = new JSZip();
+          collected.forEach((list, folder) => {
+            list.forEach(({ filename, base64 }) => {
+              const bin = atob(base64); const bytes = new Uint8Array(bin.length);
+              for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+              zip.folder(folder).file(filename, bytes);
+            });
+          });
+          const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = 'Uniko_OrdensServico.zip'; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          addLog(`ZIP baixado com ${collected.size} pasta${collected.size!==1?'s':''}.`, 'ok');
+        }
+        setRunning(false); setDone(true);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
 
   const buildOsRows = (allRows, ci, oi, setorMap = setorByOs) => {
     if (ci < 0 || oi < 0) { setOsRows([]); setSelected(new Set()); return; }
@@ -243,53 +290,25 @@ export const TabOrdensServico = () => {
 
   const selectedCount = selected.size;
 
-  /* ── Download via backend ── */
+  /* ── Dispara extensão ── */
   const startDownload = async () => {
     const items = buildItems();
     if (!items.length || !credUser || !credPass) return;
 
-    const ok = await checkBackend();
-    if (!ok) {
-      setLog([{ text: 'Servidor local não encontrado. Inicie com: cd server && npm start', type: 'error' }]);
+    const extFound = await checkExtension();
+    if (!extFound) {
+      setLog([{ text: 'Extensão "Uniko Faturamento" não encontrada. Instale no Chrome/Opera e recarregue.', type: 'error' }]);
       return;
     }
 
+    collectedRef.current = new Map();
     setRunning(true); setDone(false);
-    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando download headless (${items.length} OS)...`, type: 'info' }]);
+    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando automação em background (${items.length} OS)...`, type: 'info' }]);
 
-    const collected = new Map(); // folder → [base64]
-
-    try {
-      for await (const event of streamBackend('/api/ordens/download', {
-        username: credUser, password: credPass,
-        orgName: orgName.trim(), items,
-      })) {
-        if (event.type === 'log')  setLog(prev => [...prev, { text: event.text, type: event.level || 'normal' }]);
-        if (event.type === 'pdf')  { if (!collected.has(event.folder)) collected.set(event.folder, []); collected.get(event.folder).push({ filename: event.filename, base64: event.base64 }); }
-        if (event.type === 'error') { addLog(event.text, 'error'); break; }
-        if (event.type === 'done') break;
-      }
-
-      if (collected.size > 0) {
-        addLog('Montando ZIP...', 'info');
-        const zip = new JSZip();
-        collected.forEach((list, folder) => {
-          list.forEach(({ filename, base64 }) => {
-            const bin = atob(base64); const bytes = new Uint8Array(bin.length);
-            for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-            zip.folder(folder).file(filename, bytes);
-          });
-        });
-        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-        downloadBlob(blob, 'Uniko_OrdensServico.zip');
-        addLog(`ZIP baixado com ${collected.size} pasta${collected.size!==1?'s':''}.`, 'ok');
-        setDone(true);
-      }
-    } catch (err) {
-      addLog(`Erro: ${err.message}`, 'error');
-    } finally {
-      setRunning(false);
-    }
+    window.postMessage({
+      type: 'UNIKO_FAT_START_OS',
+      data: { username: credUser, password: credPass, orgName: orgName.trim(), useFolder: true, items },
+    }, '*');
   };
 
   const step1Done = !!mainFile && osRows.length > 0;

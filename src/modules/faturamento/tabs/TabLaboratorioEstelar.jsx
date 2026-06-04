@@ -5,7 +5,13 @@ import { PDFDocument } from 'pdf-lib';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
-import { checkBackend, streamBackend } from '../../../utils/backendStream';
+
+const checkExtension = () => new Promise(resolve => {
+  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
+  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
+  window.addEventListener('message', h);
+  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
+});
 
 /* ── Helpers ── */
 const norm = (s) =>
@@ -363,16 +369,48 @@ export const TabLaboratorioEstelar = () => {
     catch { addLog('Erro ao ler ZIP de Retenção.', 'error'); }
   };
 
-  /* ── Coleta PDFs do stream ── */
-  const streamPDFs = async (endpoint, body) => {
-    const collected = new Map(); // folder → [{filename, base64}]
-    for await (const event of streamBackend(endpoint, body)) {
-      if (event.type === 'log')   setLog(prev => [...prev, { text: event.text, type: event.level || 'normal' }]);
-      if (event.type === 'pdf')   { if (!collected.has(event.folder)) collected.set(event.folder, []); collected.get(event.folder).push({ filename: event.filename, base64: event.base64 }); }
-      if (event.type === 'error') throw new Error(event.text);
-      if (event.type === 'done')  break;
-    }
-    return collected;
+  /* ── In-memory PDF collection ── */
+  const collectedRCRef = useRef(new Map()); // folder → [{filename, base64}]
+  const collectedOSRef = useRef(new Map());
+  const phaseRef       = useRef('idle');
+
+  /* ── Extension event listener ── */
+  useEffect(() => {
+    const handler = (e) => {
+      const { type, log: l } = e.data || {};
+      if (!type?.startsWith('FAT_')) return;
+      if (type === 'FAT_LOG' && l)  setLog(prev => [...prev, l]);
+      if (type === 'FAT_ERROR')     { phaseRef.current = 'idle'; setPhase('idle'); }
+      if (type === 'FAT_SAVE_FILE') {
+        const { id, filename, base64, subfolder } = e.data;
+        const folder = subfolder ? subfolder.split('/')[0] : filename.replace(/\.[^.]+$/, '');
+        const store  = phaseRef.current === 'rc' ? collectedRCRef.current : collectedOSRef.current;
+        if (!store.has(folder)) store.set(folder, []);
+        store.get(folder).push({ filename, base64 });
+        window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
+      }
+      if (type === 'FAT_DONE') {
+        if (phaseRef.current === 'rc') {
+          if (phaseRef._cat === 'service') {
+            const items = phaseRef._osItems;
+            if (items?.length) {
+              phaseRef.current = 'os';
+              setPhase('os');
+              setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando ${items.length} OS...`, type: 'info' }]);
+              window.postMessage({ type: 'UNIKO_FAT_START_OS', data: { username: phaseRef._user, password: phaseRef._pass, orgName: phaseRef._org, useFolder: true, items } }, '*');
+            } else { runBuildZip(); }
+          } else { runBuildZip(); }
+        } else if (phaseRef.current === 'os') {
+          runBuildZip();
+        }
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const runBuildZip = () => {
+    buildZip(collectedRCRef.current, collectedOSRef.current, phaseRef._folders, phaseRef._cat);
   };
 
   /* ── Build ZIP final ── */
@@ -451,42 +489,35 @@ export const TabLaboratorioEstelar = () => {
 
   /* ── Start automation ── */
   const startDownload = async () => {
-    const ok = await checkBackend();
-    if (!ok) {
-      setLog([{ text: 'Servidor local não encontrado. Inicie com: cd server && npm start', type: 'error' }]);
+    const extFound = await checkExtension();
+    if (!extFound) {
+      setLog([{ text: 'Extensão "Uniko Faturamento" não encontrada. Instale no Chrome/Opera e recarregue.', type: 'error' }]);
       return;
     }
+
     collectedRCRef.current = new Map();
     collectedOSRef.current = new Map();
     setLog([]);
     setFinalBlob(null);
+    phaseRef.current  = 'rc';
+    phaseRef._cat     = category;
+    phaseRef._user    = credUser;
+    phaseRef._pass    = credPass;
+    phaseRef._org     = orgName.trim();
+    phaseRef._folders = getFolders();
+    phaseRef._osItems = buildOSItems(rows, colIdx, osColIdx, clienteMap, temSetor, selSetores, selected);
     setPhase('rc');
+    addLog(`Iniciando automação em background (${selectedCount} item${selectedCount!==1?'s':''})...`, 'info');
 
-    try {
-      addLog(`Baixando Relatórios de Consumo (${selectedCount} item${selectedCount!==1?'s':''})...`, 'info');
-      const collectedRC = await streamPDFs('/api/consumo/download', {
+    window.postMessage({
+      type: 'UNIKO_FAT_START',
+      data: {
         username: credUser, password: credPass,
         startDate: dateToBR(startDate), endDate: dateToBR(endDate),
         category, downloadItems: buildRCItems(), orgName: orgName.trim(),
-      });
-
-      let collectedOS = new Map();
-      if (category === 'service') {
-        const osItems = buildOSItems(rows, colIdx, osColIdx, clienteMap, temSetor, selSetores, selected);
-        if (osItems.length) {
-          setPhase('os');
-          addLog(`Baixando ${osItems.length} Ordem${osItems.length!==1?'ns':''} de Serviço...`, 'info');
-          collectedOS = await streamPDFs('/api/ordens/download', {
-            username: credUser, password: credPass, orgName: orgName.trim(), items: osItems,
-          });
-        }
-      }
-
-      await buildZip(collectedRC, collectedOS, getFolders(), category);
-    } catch (err) {
-      addLog(`Erro: ${err.message}`, 'error');
-      setPhase('idle');
-    }
+        useFolder: true,
+      },
+    }, '*');
   };
 
   const downloadZip = () => {
