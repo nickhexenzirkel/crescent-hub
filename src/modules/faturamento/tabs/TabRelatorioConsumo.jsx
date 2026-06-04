@@ -1,15 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
-// Verifica se a extensão Uniko Faturamento está instalada no navegador
-const checkExtension = () => new Promise(resolve => {
-  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
-  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
-  window.addEventListener('message', h);
-  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
-});
+import { checkBackend, streamBackend } from '../../../utils/backendStream';
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -20,8 +15,7 @@ const readXLSX = (file) => new Promise((resolve, reject) => {
     try {
       const wb   = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       const ws   = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      resolve(rows);
+      resolve(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }));
     } catch (err) { reject(err); }
   };
   reader.readAsArrayBuffer(file);
@@ -31,27 +25,25 @@ const detectClienteCol = (headers) => {
   const h = headers.map(norm);
   const idx = h.findIndex(c => c === 'cliente');
   if (idx >= 0) return idx;
-  const terms = ['secretaria', 'orgao', 'orgão', 'setor', 'departamento'];
-  return h.findIndex(col => terms.some(t => col.includes(t)));
+  return h.findIndex(col => ['secretaria','orgao','orgão','setor','departamento'].some(t => col.includes(t)));
 };
 
-// "30 - JAGUARETAMA - SECRETARIA DOS ESPORTES - MUNICIPIO DE X" → "SECRETARIA DOS ESPORTES"
 const extractSecretaria = (s) => {
   const parts = String(s).split(' - ');
   return parts.length >= 3 ? parts[2].trim() : String(s).trim();
-};
-
-const detectCategory = (filename) => {
-  const n = filename.toLowerCase();
-  if (n.includes('combustivel') || n.includes('abastec')) return 'fuel';
-  if (n.includes('manutencao') || n.includes('manutenção')) return 'service';
-  return '';
 };
 
 const dateToBR = (d) => {
   if (!d) return '';
   const [y, m, dia] = d.split('-');
   return `${dia}/${m}/${y}`;
+};
+
+const downloadBlob = (blob, name) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 };
 
 /* ── Drop Zone ────────────────────────────────────────── */
@@ -92,21 +84,15 @@ const FileChip = ({ file, onRemove }) => (
   </div>
 );
 
-/* ── Section panel (card por etapa) ───────────────────── */
 const Section = ({ n, title, sub, done, children }) => (
-  <div style={{
-    background:T.surface, border:`1px solid ${done?T.gold+'55':T.border}`, borderRadius:18,
-    boxShadow:T.sh, padding:'22px 26px', marginBottom:18, transition:'border-color .25s',
-  }}>
+  <div style={{background:T.surface,border:`1px solid ${done?T.gold+'55':T.border}`,borderRadius:18,
+    boxShadow:T.sh,padding:'22px 26px',marginBottom:18,transition:'border-color .25s'}}>
     <div style={{display:'flex',alignItems:'center',gap:13}}>
-      <div style={{width:30,height:30,borderRadius:'50%',
-        background:done?T.gold:T.goldGl,border:`2px solid ${done?T.gold:T.gold+'44'}`,
-        display:'flex',alignItems:'center',justifyContent:'center',
+      <div style={{width:30,height:30,borderRadius:'50%',background:done?T.gold:T.goldGl,
+        border:`2px solid ${done?T.gold:T.gold+'44'}`,display:'flex',alignItems:'center',justifyContent:'center',
         fontSize:13,fontWeight:700,color:done?'#fff':T.gold,flexShrink:0,
         boxShadow:done?`0 0 0 4px ${T.gold}1a`:'none',transition:'all .25s'}}>
-        {done
-          ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          : n}
+        {done ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> : n}
       </div>
       <div>
         <div style={{fontSize:16,fontWeight:600,color:T.text,lineHeight:1.2}}>{title}</div>
@@ -118,7 +104,6 @@ const Section = ({ n, title, sub, done, children }) => (
   </div>
 );
 
-/* ── Log terminal ─────────────────────────────────────── */
 const Log = ({ lines }) => {
   const ref = useRef();
   React.useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [lines]);
@@ -138,42 +123,35 @@ const Log = ({ lines }) => {
 
 /* ── Main Tab ─────────────────────────────────────────── */
 export const TabRelatorioConsumo = () => {
-  // Arquivo principal
   const [mainFile,    setMainFile]    = useState(null);
   const [rows,        setRows]        = useState([]);
   const [headers,     setHeaders]     = useState([]);
   const [colIdx,      setColIdx]      = useState(-1);
-  const [clienteMap,  setClienteMap]  = useState(new Map()); // secName → full cliente string
+  const [clienteMap,  setClienteMap]  = useState(new Map());
   const [secretarias, setSecretarias] = useState([]);
   const [selected,    setSelected]    = useState(new Set());
   const [category,    setCategory]    = useState('fuel');
 
-  // Setor
   const [auxFile,    setAuxFile]    = useState(null);
-  const [setorMap,   setSetorMap]   = useState(new Map()); // secName → string[]
-  const [selSetores, setSelSetores] = useState(new Set()); // "sec::setor"
+  const [setorMap,   setSetorMap]   = useState(new Map());
+  const [selSetores, setSelSetores] = useState(new Set());
 
-  // Config
   const [startDate,  setStartDate]  = useState('');
   const [endDate,    setEndDate]    = useState('');
   const [orgName,    setOrgName]    = useState('');
 
-  // Pasta de destino (File System Access)
-  const [folderName, setFolderName] = useState('');
-  const dirHandleRef = useRef(null);  // pasta escolhida pelo usuário
-  const subDirRef    = useRef(null);  // subpasta "Uniko - Relatórios de Consumo"
-  const usedNamesRef = useRef(new Set()); // evita sobrescrever nomes repetidos
-  const fsSupported  = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
   const [credUser,   setCredUser]   = useState('');
   const [credPass,   setCredPass]   = useState('');
   const [showPass,   setShowPass]   = useState(false);
 
-  // Execução
   const [log,     setLog]     = useState([]);
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(false);
 
-  /* ── Build secretaria list from main file ── */
+  const addLog = (text, type = 'normal') =>
+    setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
+
+  /* ── Build secretaria list ── */
   const buildSecretarias = (allRows, ci, hdrs) => {
     const isCliente = norm(hdrs?.[ci] || '') === 'cliente';
     const map = new Map();
@@ -189,18 +167,16 @@ export const TabRelatorioConsumo = () => {
     setSelected(new Set(unique));
   };
 
-  /* ── Build setor map from auxiliary file ── */
   const buildSetorMap = async (f) => {
     setAuxFile(f);
     try {
       const allRows = await readXLSX(f);
       if (!allRows.length) return;
-      const hdrs      = allRows[0].map(h => norm(String(h)));
-      const cliIdx    = hdrs.findIndex(h => h === 'cliente');
-      const setorIdx  = hdrs.findIndex(h => h === 'setor');
+      const hdrs    = allRows[0].map(h => norm(String(h)));
+      const cliIdx  = hdrs.findIndex(h => h === 'cliente');
+      const setorIdx = hdrs.findIndex(h => h === 'setor');
       if (cliIdx < 0 || setorIdx < 0) return;
-
-      const map = new Map(); // secName → Set<setor>
+      const map = new Map();
       allRows.slice(1).forEach(r => {
         const cli   = String(r[cliIdx] || '').trim();
         const setor = String(r[setorIdx] || '').trim();
@@ -209,25 +185,21 @@ export const TabRelatorioConsumo = () => {
         if (!map.has(sec)) map.set(sec, new Set());
         map.get(sec).add(setor);
       });
-
-      // Convert Sets to sorted arrays
       const final = new Map([...map.entries()].map(([k, v]) => [k, [...v].sort()]));
       setSetorMap(final);
-
-      // Pre-select all
       const allKeys = new Set();
-      final.forEach((setores, sec) => setores.forEach(s => allKeys.add(`${sec}::${s}`)));
+      final.forEach((ss, sec) => ss.forEach(s => allKeys.add(`${sec}::${s}`)));
       setSelSetores(allKeys);
     } catch { /* ignore */ }
   };
 
-  /* ── Main file load ── */
   const loadMainFile = async (f) => {
     setMainFile(f);
     setRows([]); setHeaders([]); setColIdx(-1);
     setSecretarias([]); setSelected(new Set()); setClienteMap(new Map());
-    const cat = detectCategory(f.name);
-    if (cat) setCategory(cat);
+    const fn = f.name.toLowerCase();
+    if (fn.includes('combustivel') || fn.includes('abastec')) setCategory('fuel');
+    else if (fn.includes('manutenc')) setCategory('service');
     try {
       const allRows   = await readXLSX(f);
       const headerRow = allRows[0].map(c => String(c));
@@ -237,193 +209,88 @@ export const TabRelatorioConsumo = () => {
       if (auto >= 0) {
         setColIdx(auto);
         buildSecretarias(allRows, auto, headerRow);
-        // Pré-preenche o nome da organização com o último segmento do primeiro cliente
         const firstRaw = String(allRows[1]?.[auto] || '').trim();
-        if (firstRaw) {
-          const p = firstRaw.split(' - ');
-          setOrgName(p[p.length - 1]?.trim() || '');
-        }
+        if (firstRaw) { const p = firstRaw.split(' - '); setOrgName(p[p.length - 1]?.trim() || ''); }
       }
-    } catch { setLog([{ text: 'Erro ao ler o arquivo XLSX.', type: 'error' }]); }
+    } catch { addLog('Erro ao ler o arquivo XLSX.', 'error'); }
   };
 
-  const toggleSelect = (s) => setSelected(prev => {
-    const next = new Set(prev); next.has(s) ? next.delete(s) : next.add(s); return next;
-  });
+  const toggleSelect = (s) => setSelected(prev => { const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n; });
 
-  /* ── Setor checkbox helpers ── */
-  const secSetores = (sec) => setorMap.get(sec) || [];
-  const allSecSel  = (sec) => secSetores(sec).every(s => selSetores.has(`${sec}::${s}`));
-  const someSecSel = (sec) => secSetores(sec).some(s => selSetores.has(`${sec}::${s}`));
-
-  const toggleSetor = (sec, setor) => setSelSetores(prev => {
-    const next = new Set(prev);
-    const key = `${sec}::${setor}`;
-    next.has(key) ? next.delete(key) : next.add(key);
-    return next;
-  });
-
-  const toggleSecAll = (sec) => setSelSetores(prev => {
-    const next = new Set(prev);
-    const setores = secSetores(sec);
-    const all = setores.every(s => next.has(`${sec}::${s}`));
-    setores.forEach(s => all ? next.delete(`${sec}::${s}`) : next.add(`${sec}::${s}`));
-    return next;
-  });
-
-  /* ── temSetor: verdadeiro quando o auxiliar foi carregado com setores ── */
   const temSetor = !!auxFile && setorMap.size > 0;
+  const secSetores   = (sec) => setorMap.get(sec) || [];
+  const allSecSel    = (sec) => secSetores(sec).every(s => selSetores.has(`${sec}::${s}`));
+  const someSecSel   = (sec) => secSetores(sec).some(s  => selSetores.has(`${sec}::${s}`));
+  const toggleSetor  = (sec, setor) => setSelSetores(prev => { const n = new Set(prev); const k = `${sec}::${setor}`; n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const toggleSecAll = (sec) => setSelSetores(prev => {
+    const n = new Set(prev); const ss = secSetores(sec);
+    const all = ss.every(s => n.has(`${sec}::${s}`));
+    ss.forEach(s => all ? n.delete(`${sec}::${s}`) : n.add(`${sec}::${s}`));
+    return n;
+  });
 
-  /* ── Count selected items ── */
-  const selectedCount = temSetor && setorMap.size > 0
-    ? selSetores.size
-    : selected.size;
+  const selectedCount = temSetor ? selSetores.size : selected.size;
+  const totalCount    = temSetor ? [...setorMap.values()].reduce((s,v) => s+v.length, 0) : secretarias.length;
 
-  const totalCount = temSetor && setorMap.size > 0
-    ? [...setorMap.values()].reduce((s, v) => s + v.length, 0)
-    : secretarias.length;
-
-  /* ── Build download items for submission ── */
   const buildDownloadItems = () => {
     if (temSetor && setorMap.size > 0) {
       return [...selSetores].map(key => {
-        const sep  = key.indexOf('::');
-        const sec  = key.slice(0, sep);
-        const setor = key.slice(sep + 2);
-        return { clienteStr: clienteMap.get(sec) || sec, setor };
+        const sep = key.indexOf('::');
+        return { clienteStr: clienteMap.get(key.slice(0,sep)) || key.slice(0,sep), setor: key.slice(sep+2) };
       });
     }
     return [...selected].map(name => ({ clienteStr: clienteMap.get(name) || name, setor: '' }));
   };
 
-  /* ── Pasta de destino ── */
-  const pickFolder = async () => {
-    if (!fsSupported) return;
-    try {
-      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-      dirHandleRef.current = handle;
-      subDirRef.current = null;
-      setFolderName(handle.name);
-    } catch { /* usuário cancelou */ }
-  };
-
-  // Garante permissão e cria/abre a subpasta "Uniko - Relatórios de Consumo"
-  const ensureSubDir = async () => {
-    const handle = dirHandleRef.current;
-    if (!handle) return null;
-    if (handle.queryPermission) {
-      let perm = await handle.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted' && handle.requestPermission) {
-        perm = await handle.requestPermission({ mode: 'readwrite' });
-      }
-      if (perm !== 'granted') return null;
-    }
-    const sub = await handle.getDirectoryHandle('Uniko - Relatórios de Consumo', { create: true });
-    subDirRef.current = sub;
-    usedNamesRef.current = new Set();
-    return sub;
-  };
-
-  // base64 → Uint8Array
-  const b64ToBytes = (b64) => {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
-  };
-
-  // Grava o PDF na subpasta (cria subpastas aninhadas), evitando sobrescrever
-  const savePdfToFolder = async (filename, base64, subfolder = '') => {
-    let dir = subDirRef.current;
-    if (!dir) throw new Error('pasta não selecionada');
-    for (const part of String(subfolder).split('/').map(s => s.trim()).filter(Boolean)) {
-      dir = await dir.getDirectoryHandle(part, { create: true });
-    }
-    let name = filename;
-    const key = (n) => `${subfolder}/${n}`;
-    if (usedNamesRef.current.has(key(name))) {
-      const dot = name.lastIndexOf('.');
-      const stem = dot > 0 ? name.slice(0, dot) : name;
-      const ext  = dot > 0 ? name.slice(dot) : '';
-      let i = 2;
-      while (usedNamesRef.current.has(key(`${stem} (${i})${ext}`))) i++;
-      name = `${stem} (${i})${ext}`;
-    }
-    usedNamesRef.current.add(key(name));
-    const fileHandle = await dir.getFileHandle(name, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(b64ToBytes(base64));
-    await writable.close();
-  };
-
-  /* ── Recebe eventos da extensão ── */
-  React.useEffect(() => {
-    const handler = async (e) => {
-      const { type, log: l } = e.data || {};
-      if (!type?.startsWith('FAT_')) return;
-      if (type === 'FAT_LOG' && l)  setLog(prev => [...prev, l]);
-      if (type === 'FAT_DONE')      { setRunning(false); setDone(true); }
-      if (type === 'FAT_ERROR')     { setRunning(false); }
-      if (type === 'FAT_SAVE_FILE') {
-        const { id, filename, base64, subfolder } = e.data;
-        try {
-          await savePdfToFolder(filename, base64, subfolder || '');
-          window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
-        } catch (err) {
-          window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: false, error: String(err?.message || err) }, '*');
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
-
-  /* ── Start automation ── */
+  /* ── Download via backend ── */
   const startDownload = async () => {
     const items = buildDownloadItems();
     if (!items.length || !credUser || !credPass || !startDate || !endDate) return;
 
-    const extFound = await checkExtension();
-    if (!extFound) {
-      setLog([{ text: 'Extensão "Uniko Faturamento" não encontrada. Instale a extensão no Chrome/Opera e recarregue a página.', type: 'error' }]);
+    const ok = await checkBackend();
+    if (!ok) {
+      setLog([{ text: 'Servidor local não encontrado. Inicie com: cd server && npm start', type: 'error' }]);
       return;
     }
 
-    // Prepara a pasta de destino (se escolhida)
-    let useFolder = false;
-    if (dirHandleRef.current) {
-      try {
-        const sub = await ensureSubDir();
-        if (!sub) {
-          setLog([{ text: 'Permissão da pasta negada. Escolha a pasta novamente.', type: 'error' }]);
-          return;
-        }
-        useFolder = true;
-      } catch (err) {
-        setLog([{ text: `Erro ao preparar a pasta de destino: ${err?.message || err}`, type: 'error' }]);
-        return;
-      }
-    }
-
     setRunning(true); setDone(false);
-    setLog([{
-      text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando automação via extensão...${useFolder ? ` Salvando em "${folderName}/Uniko - Relatórios de Consumo".` : ' Salvando na pasta Downloads.'}`,
-      type: 'info',
-    }]);
+    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando download headless...`, type: 'info' }]);
 
-    window.postMessage({
-      type: 'UNIKO_FAT_START',
-      data: {
-        username:      credUser,
-        password:      credPass,
-        startDate:     dateToBR(startDate),
-        endDate:       dateToBR(endDate),
-        category,
-        downloadItems: items,
-        orgName:       orgName.trim(),
-        useFolder,
-      },
-    }, '*');
+    const collected = new Map(); // folder → [base64]
+
+    try {
+      for await (const event of streamBackend('/api/consumo/download', {
+        username: credUser, password: credPass,
+        startDate: dateToBR(startDate), endDate: dateToBR(endDate),
+        category, downloadItems: items, orgName: orgName.trim(),
+      })) {
+        if (event.type === 'log')  setLog(prev => [...prev, { text: event.text, type: event.level || 'normal' }]);
+        if (event.type === 'pdf')  { if (!collected.has(event.folder)) collected.set(event.folder, []); collected.get(event.folder).push(event.base64); }
+        if (event.type === 'error') { addLog(event.text, 'error'); break; }
+        if (event.type === 'done') break;
+      }
+
+      if (collected.size > 0) {
+        addLog('Montando ZIP...', 'info');
+        const zip = new JSZip();
+        collected.forEach((b64s, folder) => {
+          b64s.forEach((b64, i) => {
+            const fname = b64s.length > 1 ? `trans_${folder}_${i+1}.pdf` : `trans_${folder}.pdf`;
+            const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+            for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+            zip.folder(folder).file(fname, bytes);
+          });
+        });
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        downloadBlob(blob, 'Uniko_Consumo.zip');
+        addLog(`ZIP baixado com ${collected.size} pasta${collected.size!==1?'s':''}.`, 'ok');
+        setDone(true);
+      }
+    } catch (err) {
+      addLog(`Erro: ${err.message}`, 'error');
+    } finally {
+      setRunning(false);
+    }
   };
 
   const step1Done = !!mainFile && secretarias.length > 0;
@@ -435,7 +302,7 @@ export const TabRelatorioConsumo = () => {
       <StellarHero compact
         eyebrow="Automação · 7Benefícios"
         title="Relatório de Consumo"
-        subtitle="Baixa os PDFs de Relatório de Consumo de cada secretaria, direto na pasta que você escolher."
+        subtitle="Baixa os PDFs de Relatório de Consumo de cada secretaria em modo headless, sem janela visível."
         icon={(
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -443,12 +310,9 @@ export const TabRelatorioConsumo = () => {
         )}
       />
 
-
-      {/* ── Step 1 — Arquivos ── */}
-      <Section n={1} title="Envie os relatórios" sub="As secretarias são detectadas automaticamente. O relatório por organização é opcional." done={step1Done}>
+      {/* ── Step 1 ── */}
+      <Section n={1} title="Envie os relatórios" sub="As secretarias são detectadas automaticamente." done={step1Done}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-
-          {/* Principal */}
           <div>
             <div style={{fontSize:12.5,fontWeight:600,color:T.textS,marginBottom:8}}>
               Relatório de retenção de tributos <span style={{color:T.danger,fontWeight:700}}>*</span>
@@ -457,33 +321,20 @@ export const TabRelatorioConsumo = () => {
               ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
               : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setSecretarias([]);setSelected(new Set());setRows([]);setSetorMap(new Map());setAuxFile(null);}}/>
             }
-            {mainFile && headers.length > 0 && (
-              <div style={{marginTop:10}}>
-                {colIdx >= 0 ? (
-                  <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 10px',
-                    background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span style={{fontSize:12,color:T.textS}}>{secretarias.length} secretaria{secretarias.length!==1?'s':''} · coluna <strong style={{color:T.text}}>{headers[colIdx]||'Cliente'}</strong></span>
-                  </div>
-                ) : (
-                  <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 10px',
-                    background:T.dangerGl||'rgba(192,64,80,.08)',border:`1px solid ${T.danger}33`,borderRadius:8}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.danger} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <span style={{fontSize:12,color:T.textS}}>Coluna <strong>Cliente</strong> não encontrada.</span>
-                  </div>
-                )}
+            {mainFile && headers.length > 0 && colIdx >= 0 && (
+              <div style={{display:'inline-flex',alignItems:'center',gap:7,marginTop:10,padding:'6px 10px',
+                background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{fontSize:12,color:T.textS}}>
+                  {temSetor ? totalCount : secretarias.length} {temSetor?'setor':'secretaria'}{(temSetor?totalCount:secretarias.length)!==1?'s':''} · col. <strong style={{color:T.text}}>{headers[colIdx]||'Cliente'}</strong>
+                </span>
               </div>
             )}
           </div>
-
-          {/* Auxiliar por organização (setor) */}
           <div>
             <div style={{marginBottom:8}}>
               <span style={{fontSize:12.5,fontWeight:600,color:T.textS}}>Relatório por organização — setores</span>
               <span style={{fontSize:12,color:T.textT}}> — opcional</span>
-            </div>
-            <div style={{fontSize:11.5,color:T.textT,marginBottom:8,lineHeight:1.5}}>
-              Se o cliente tiver setores, importe para que as pastas sejam criadas com o nome correto (ex: SAÚDE - ATENÇÃO BÁSICA).
             </div>
             {!auxFile
               ? <DropZoneXLSX onFile={buildSetorMap} label="Selecionar relatório por organização (opcional)..."/>
@@ -495,15 +346,13 @@ export const TabRelatorioConsumo = () => {
                       background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                       <span style={{fontSize:12,color:T.textS}}>
-                        {[...setorMap.values()].reduce((s,v)=>s+v.length,0)} setor{[...setorMap.values()].reduce((s,v)=>s+v.length,0)!==1?'es':''} em {setorMap.size} secretaria{setorMap.size!==1?'s':''}
+                        {[...setorMap.values()].reduce((s,v)=>s+v.length,0)} setores em {setorMap.size} secretaria{setorMap.size!==1?'s':''}
                       </span>
                     </div>
                   )}
                 </div>
               )
             }
-
-            {/* Categoria — movida para cá, ao lado do auxiliar */}
             {mainFile && (
               <div style={{marginTop:16,display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:12.5,color:T.textS}}>Categoria:</span>
@@ -523,52 +372,41 @@ export const TabRelatorioConsumo = () => {
         </div>
       </Section>
 
-      {/* ── Step 2 — Lista de seleção + período + pasta ── */}
+      {/* ── Step 2 ── */}
       {step1Done && (
-        <Section n={2} title="Selecione e configure o período" sub="Marque as secretarias, defina o período e a pasta de destino." done={step2Done}>
+        <Section n={2} title="Selecione e configure o período" sub="Marque as secretarias e defina o período." done={step2Done}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-
-            {/* Lista */}
             <div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                 <span style={{fontSize:13,fontWeight:600,color:T.textS}}>{selectedCount}/{totalCount} selecionado{selectedCount!==1?'s':''}</span>
                 <div style={{display:'flex',gap:8}}>
                   <button onClick={()=>{
-                    if(temSetor&&setorMap.size>0){const all=new Set();setorMap.forEach((ss,sec)=>ss.forEach(s=>all.add(`${sec}::${s}`)));setSelSetores(all);}
+                    if(temSetor){const all=new Set();setorMap.forEach((ss,sec)=>ss.forEach(s=>all.add(`${sec}::${s}`)));setSelSetores(all);}
                     else setSelected(new Set(secretarias));
                   }} style={{fontSize:12,color:T.gold,background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>Todos</button>
-                  <button onClick={()=>{if(temSetor&&setorMap.size>0)setSelSetores(new Set());else setSelected(new Set());}}
+                  <button onClick={()=>{if(temSetor)setSelSetores(new Set());else setSelected(new Set());}}
                     style={{fontSize:12,color:T.textT,background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>Nenhum</button>
                 </div>
               </div>
-
               <div style={{maxHeight:260,overflowY:'auto',border:`1px solid ${T.border}`,borderRadius:10,background:T.surface}}>
                 {temSetor && setorMap.size > 0 ? (
-                  /* Vista agrupada: secretaria > setores */
                   [...setorMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([sec, setores]) => (
                     <div key={sec} style={{borderBottom:`1px solid ${T.divider}`}}>
-                      {/* Cabeçalho da secretaria */}
-                      <label style={{display:'flex',alignItems:'center',gap:9,padding:'9px 14px',
-                        cursor:'pointer',background:T.goldGl+'88'}}
+                      <label style={{display:'flex',alignItems:'center',gap:9,padding:'9px 14px',cursor:'pointer',background:T.goldGl+'88'}}
                         onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                         onMouseLeave={e=>e.currentTarget.style.background=T.goldGl+'88'}>
-                        <input type="checkbox"
-                          checked={allSecSel(sec)}
+                        <input type="checkbox" checked={allSecSel(sec)}
                           ref={el=>{ if(el) el.indeterminate = !allSecSel(sec) && someSecSel(sec); }}
                           onChange={()=>toggleSecAll(sec)}
                           style={{accentColor:T.gold,width:15,height:15,cursor:'pointer'}}/>
                         <span style={{fontSize:13,fontWeight:600,color:T.text}}>{sec}</span>
                         <span style={{marginLeft:'auto',fontSize:11,color:T.textT}}>{setores.length} setor{setores.length!==1?'es':''}</span>
                       </label>
-                      {/* Setores */}
                       {setores.map(setor => (
-                        <label key={setor} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 14px 7px 36px',
-                          cursor:'pointer',transition:'background .1s'}}
+                        <label key={setor} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 14px 7px 36px',cursor:'pointer',transition:'background .1s'}}
                           onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                          <input type="checkbox"
-                            checked={selSetores.has(`${sec}::${setor}`)}
-                            onChange={()=>toggleSetor(sec,setor)}
+                          <input type="checkbox" checked={selSetores.has(`${sec}::${setor}`)} onChange={()=>toggleSetor(sec,setor)}
                             style={{accentColor:T.gold,width:14,height:14,cursor:'pointer'}}/>
                           <span style={{fontSize:12,color:T.textS}}>{setor}</span>
                         </label>
@@ -576,10 +414,8 @@ export const TabRelatorioConsumo = () => {
                     </div>
                   ))
                 ) : (
-                  /* Vista plana: só secretarias */
                   secretarias.map(s=>(
-                    <label key={s} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',
-                      cursor:'pointer',borderBottom:`1px solid ${T.divider}`,transition:'background .1s'}}
+                    <label key={s} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',cursor:'pointer',borderBottom:`1px solid ${T.divider}`,transition:'background .1s'}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <input type="checkbox" checked={selected.has(s)} onChange={()=>toggleSelect(s)}
@@ -590,8 +426,6 @@ export const TabRelatorioConsumo = () => {
                 )}
               </div>
             </div>
-
-            {/* Config */}
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                 <div>
@@ -608,57 +442,19 @@ export const TabRelatorioConsumo = () => {
               <div>
                 <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>
                   Nome da organização no 7Benefícios
-                  <span style={{fontWeight:400,color:T.textD}}> (exatamente como aparece na aba Organizações)</span>
                 </label>
                 <input value={orgName} onChange={e=>setOrgName(e.target.value)}
                   placeholder="Ex: 30 - MUNICÍPIO DE JAGUARETAMA"
                   style={{width:'100%',padding:'9px 10px',borderRadius:9,border:`1px solid ${orgName?T.gold:T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
-                <div style={{fontSize:11,color:T.textT,marginTop:4}}>
-                  Vá na aba Organizações do 7Benefícios e copie o nome exato da linha da sua organização.
-                </div>
-              </div>
-
-              {/* Pasta de destino */}
-              <div>
-                <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>
-                  Pasta de destino
-                  <span style={{fontWeight:400,color:T.textD}}> (opcional)</span>
-                </label>
-                {!fsSupported ? (
-                  <div style={{fontSize:12,color:T.textT,padding:'9px 10px',border:`1px solid ${T.border}`,borderRadius:9,background:T.surface}}>
-                    Seu navegador não permite escolher a pasta. Os PDFs serão salvos em Downloads.
-                  </div>
-                ) : (
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <button onClick={pickFolder}
-                      style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',borderRadius:9,
-                        border:`1px solid ${folderName?T.gold:T.border}`,background:folderName?T.goldGl:T.surface,
-                        color:folderName?T.gold:T.textS,fontSize:13,fontWeight:500,cursor:'pointer',
-                        fontFamily:'var(--font-body)',transition:'all .15s',whiteSpace:'nowrap'}}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-                      </svg>
-                      {folderName ? 'Trocar pasta' : 'Escolher pasta'}
-                    </button>
-                    {folderName && (
-                      <span style={{fontSize:12,color:T.textS,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                        {folderName}/<strong style={{color:T.text}}>Uniko - Relatórios de Consumo</strong>
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div style={{fontSize:11,color:T.textT,marginTop:4}}>
-                  Os arquivos são salvos como <code>trans_SECRETARIA_SETOR.pdf</code>. Sem escolher pasta, vão para Downloads.
-                </div>
               </div>
             </div>
           </div>
         </Section>
       )}
 
-      {/* ── Step 3 — Credenciais + iniciar ── */}
+      {/* ── Step 3 ── */}
       {step2Done && (
-        <Section n={3} title="Credenciais do 7Benefícios e download" sub="Usadas apenas para esta automação — não ficam salvas." done={done}>
+        <Section n={3} title="Credenciais e download" sub="Usadas apenas para esta automação — não ficam salvas." done={done}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
             <div>
               <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>Usuário</label>
@@ -681,7 +477,6 @@ export const TabRelatorioConsumo = () => {
               </div>
             </div>
           </div>
-
           <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:20,flexWrap:'wrap'}}>
             <button onClick={startDownload} disabled={running||!step3Done}
               style={{display:'flex',alignItems:'center',gap:10,padding:'12px 28px',borderRadius:12,
@@ -690,13 +485,13 @@ export const TabRelatorioConsumo = () => {
                 fontFamily:'var(--font-body)',transition:'all .15s',
                 boxShadow:(running||!step3Done)?'none':`0 4px 16px ${T.gold}44`}}>
               {running
-                ? <><div style={{width:16,height:16,borderRadius:'50%',border:'2px solid rgba(255,255,255,.4)',borderTopColor:'#fff',animation:'spin .7s linear infinite'}}/> Baixando {selectedCount} PDF{selectedCount!==1?'s':''}...</>
+                ? <><div style={{width:16,height:16,borderRadius:'50%',border:'2px solid rgba(255,255,255,.4)',borderTopColor:'#fff',animation:'spin .7s linear infinite'}}/> Baixando...</>
                 : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Baixar {selectedCount} PDF{selectedCount!==1?'s':''}</>}
             </button>
             {done && (
               <div style={{display:'flex',alignItems:'center',gap:8,color:'#1A9C70',fontSize:14,fontWeight:500}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Concluído!
+                ZIP baixado!
               </div>
             )}
           </div>

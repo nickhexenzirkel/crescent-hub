@@ -5,13 +5,7 @@ import { PDFDocument } from 'pdf-lib';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
-
-const checkExtension = () => new Promise(resolve => {
-  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
-  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
-  window.addEventListener('message', h);
-  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
-});
+import { checkBackend, streamBackend } from '../../../utils/backendStream';
 
 /* ── Helpers ── */
 const norm = (s) =>
@@ -214,18 +208,9 @@ export const TabLaboratorioEstelar = () => {
   const rrZipRef = useRef(null);
 
   /* ── Runtime ── */
-  const [log, setLog]           = useState([]);
-  const [phase, setPhase]       = useState('idle'); // idle | rc | os | building | done
-  const [nextAction, setNextAction] = useState(null); // 'os' | 'build'
-  const [finalBlob, setFinalBlob]   = useState(null);
-
-  /* ── In-memory PDF collection (keyed by folder name) ── */
-  const collectedRCRef = useRef(new Map()); // folder → [{filename, base64}]
-  const collectedOSRef = useRef(new Map());
-  const phaseRef       = useRef('idle');
-  const categoryRef    = useRef('fuel');
-
-  useEffect(() => { categoryRef.current = category; }, [category]);
+  const [log, setLog]         = useState([]);
+  const [phase, setPhase]     = useState('idle'); // idle | rc | os | building | done
+  const [finalBlob, setFinalBlob] = useState(null);
 
   const addLog = (text, type = 'normal') =>
     setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
@@ -378,131 +363,76 @@ export const TabLaboratorioEstelar = () => {
     catch { addLog('Erro ao ler ZIP de Retenção.', 'error'); }
   };
 
-  /* ── Extension event listener (stable — only uses refs) ── */
-  useEffect(() => {
-    const handler = (e) => {
-      const { type, log: l } = e.data || {};
-      if (!type?.startsWith('FAT_')) return;
+  /* ── Coleta PDFs do stream ── */
+  const streamPDFs = async (endpoint, body) => {
+    const collected = new Map(); // folder → [{filename, base64}]
+    for await (const event of streamBackend(endpoint, body)) {
+      if (event.type === 'log')   setLog(prev => [...prev, { text: event.text, type: event.level || 'normal' }]);
+      if (event.type === 'pdf')   { if (!collected.has(event.folder)) collected.set(event.folder, []); collected.get(event.folder).push({ filename: event.filename, base64: event.base64 }); }
+      if (event.type === 'error') throw new Error(event.text);
+      if (event.type === 'done')  break;
+    }
+    return collected;
+  };
 
-      if (type === 'FAT_LOG' && l) {
-        setLog(prev => [...prev, l]);
-      }
-
-      if (type === 'FAT_DONE') {
-        if (phaseRef.current === 'rc') {
-          setNextAction(categoryRef.current === 'service' ? 'os' : 'build');
-        } else if (phaseRef.current === 'os') {
-          setNextAction('build');
-        }
-      }
-
-      if (type === 'FAT_ERROR') {
-        phaseRef.current = 'idle';
-        setPhase('idle');
-        setLog(prev => [...prev, { text: 'Erro na automação.', type: 'error' }]);
-      }
-
-      if (type === 'FAT_SAVE_FILE') {
-        const { id, filename, base64, subfolder } = e.data;
-        const folder = subfolder ? subfolder.split('/')[0] : filename.replace(/\.[^.]+$/, '');
-        const store  = phaseRef.current === 'rc' ? collectedRCRef.current : collectedOSRef.current;
-        if (!store.has(folder)) store.set(folder, []);
-        store.get(folder).push({ filename, base64 });
-        window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
-
-  /* ── OS phase start (called when RC is done and category=service) ── */
-  const startOSPhase = useCallback((osItems) => {
-    if (!osItems.length) { setNextAction('build'); return; }
-    phaseRef.current = 'os';
-    setPhase('os');
-    setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando ${osItems.length} Ordem(ns) de Serviço...`, type: 'info' }]);
-    window.postMessage({
-      type: 'UNIKO_FAT_START_OS',
-      data: { username: credUser, password: credPass, orgName: orgName.trim(), useFolder: true, items: osItems },
-    }, '*');
-  }, [credUser, credPass, orgName]);
-
-  /* ── Build ZIP (called after all downloads complete) ── */
-  const buildZip = useCallback(async (folders, cat) => {
-    phaseRef.current = 'building';
+  /* ── Build ZIP final ── */
+  const buildZip = async (collectedRC, collectedOS, folders, cat) => {
     setPhase('building');
-    setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] Organizando ${folders.length} pasta${folders.length!==1?'s':''}...`, type: 'info' }]);
+    addLog(`Organizando ${folders.length} pasta${folders.length!==1?'s':''}...`, 'info');
 
-    /* Flatten PDF entries from ZIPs */
     const nfEntries = [], rrEntries = [];
     if (nfZipRef.current) nfZipRef.current.forEach((path, e) => { if (!e.dir && /\.pdf$/i.test(path)) nfEntries.push({ path, stem: path.split('/').pop().replace(/\.[^.]+$/, '') }); });
     if (rrZipRef.current) rrZipRef.current.forEach((path, e) => { if (!e.dir && /\.pdf$/i.test(path)) rrEntries.push({ path, stem: path.split('/').pop().replace(/\.[^.]+$/, '') }); });
 
-    const outZip  = new JSZip();
-    const secDir  = outZip.folder('Uniko Secretarias');
-    const nfDir   = outZip.folder('Uniko Notas Fiscais');
+    const outZip = new JSZip();
+    const secDir = outZip.folder('Uniko Secretarias');
+    const nfDir  = outZip.folder('Uniko Notas Fiscais');
     let assembled = 0;
 
     for (const folder of folders) {
-      const docSlots = []; // {label, bytes (ArrayBuffer)}
+      const docSlots = [];
 
       /* 1 — Nota Fiscal */
       const nfMatch = matchToFolder(folder, nfEntries.map(e => e.stem));
       if (nfMatch) {
-        const entry = nfEntries.find(e => e.stem === nfMatch);
-        if (entry) {
-          const bytes = await nfZipRef.current.file(entry.path)?.async('arraybuffer');
-          if (bytes) docSlots.push({ label: '1 - Nota Fiscal', bytes });
-        }
+        const bytes = await nfZipRef.current.file(nfEntries.find(e => e.stem === nfMatch).path)?.async('arraybuffer');
+        if (bytes) docSlots.push({ label: '1 - Nota Fiscal', bytes });
       } else {
         setLog(prev => [...prev, { text: `  ⚠ NF não encontrada: ${folder}`, type: 'error' }]);
       }
 
       /* 2 — Relatório de Consumo */
-      const rcDocs = collectedRCRef.current.get(folder) || [];
-      for (const { base64 } of rcDocs) {
+      for (const { base64 } of (collectedRC.get(folder) || [])) {
         docSlots.push({ label: '2 - Relatorio de Consumo', bytes: b64ToBytes(base64).buffer });
       }
-      if (!rcDocs.length) setLog(prev => [...prev, { text: `  ⚠ RC não encontrado: ${folder}`, type: 'error' }]);
+      if (!collectedRC.has(folder)) setLog(prev => [...prev, { text: `  ⚠ RC não encontrado: ${folder}`, type: 'error' }]);
 
       /* 3 — Retenção de Tributos */
       const rrMatch = matchToFolder(folder, rrEntries.map(e => e.stem));
       if (rrMatch) {
-        const entry = rrEntries.find(e => e.stem === rrMatch);
-        if (entry) {
-          const bytes = await rrZipRef.current.file(entry.path)?.async('arraybuffer');
-          if (bytes) docSlots.push({ label: '3 - Relatorio de Retencao', bytes });
-        }
+        const bytes = await rrZipRef.current.file(rrEntries.find(e => e.stem === rrMatch).path)?.async('arraybuffer');
+        if (bytes) docSlots.push({ label: '3 - Relatorio de Retencao', bytes });
       } else {
         setLog(prev => [...prev, { text: `  ⚠ RR não encontrado: ${folder}`, type: 'error' }]);
       }
 
-      /* 4 — Ordem de Serviço (manutenção) */
+      /* 4 — Ordem de Serviço */
       if (cat === 'service') {
-        const osDocs = collectedOSRef.current.get(folder) || [];
-        for (const { base64 } of osDocs) {
+        for (const { base64 } of (collectedOS.get(folder) || [])) {
           docSlots.push({ label: '4 - Ordem de Servico', bytes: b64ToBytes(base64).buffer });
         }
-        if (!osDocs.length) setLog(prev => [...prev, { text: `  ⚠ OS não encontrada: ${folder}`, type: 'error' }]);
+        if (!collectedOS.has(folder)) setLog(prev => [...prev, { text: `  ⚠ OS não encontrada: ${folder}`, type: 'error' }]);
       }
 
       if (!docSlots.length) continue;
 
-      /* Individual files in Uniko Secretarias/PASTA/ */
       const folderDir = secDir.folder(folder);
-      for (const { label, bytes } of docSlots) {
-        folderDir.file(`${label} - ${folder}.pdf`, bytes);
-      }
+      for (const { label, bytes } of docSlots) folderDir.file(`${label} - ${folder}.pdf`, bytes);
 
-      /* Merged PDF in Uniko Notas Fiscais/ */
       try {
         const merged = await PDFDocument.create();
         for (const { bytes } of docSlots) {
-          try {
-            const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
-            const pages = await merged.copyPages(doc, doc.getPageIndices());
-            pages.forEach(p => merged.addPage(p));
-          } catch { /* skip corrupt page */ }
+          try { const doc = await PDFDocument.load(bytes, { ignoreEncryption: true }); (await merged.copyPages(doc, doc.getPageIndices())).forEach(p => merged.addPage(p)); } catch { /* skip */ }
         }
         nfDir.file(`${folder}.pdf`, await merged.save());
         assembled++;
@@ -512,55 +442,51 @@ export const TabLaboratorioEstelar = () => {
       }
     }
 
-    setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] Gerando ZIP final...`, type: 'info' }]);
+    addLog('Gerando ZIP final...', 'info');
     const blob = await outZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     setFinalBlob(blob);
-    phaseRef.current = 'done';
     setPhase('done');
-    setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] Concluído! ${assembled} secretaria${assembled!==1?'s':''} organizadas.`, type: 'ok' }]);
-  }, []);
-
-  /* ── React to nextAction (fresh state available here) ── */
-  useEffect(() => {
-    if (!nextAction) return;
-    setNextAction(null);
-    if (nextAction === 'os') {
-      const items = buildOSItems(rows, colIdx, osColIdx, clienteMap, temSetor, selSetores, selected);
-      startOSPhase(items);
-    } else if (nextAction === 'build') {
-      buildZip(getFolders(), category);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextAction]);
+    addLog(`Concluído! ${assembled} secretaria${assembled!==1?'s':''} organizadas.`, 'ok');
+  };
 
   /* ── Start automation ── */
   const startDownload = async () => {
-    const extFound = await checkExtension();
-    if (!extFound) {
-      addLog('Extensão "Uniko Faturamento" não encontrada. Instale e recarregue.', 'error');
+    const ok = await checkBackend();
+    if (!ok) {
+      setLog([{ text: 'Servidor local não encontrado. Inicie com: cd server && npm start', type: 'error' }]);
       return;
     }
     collectedRCRef.current = new Map();
     collectedOSRef.current = new Map();
     setLog([]);
     setFinalBlob(null);
-    phaseRef.current = 'rc';
     setPhase('rc');
-    addLog(`Iniciando download dos Relatórios de Consumo (${selectedCount} item${selectedCount!==1?'s':''})...`, 'info');
 
-    window.postMessage({
-      type: 'UNIKO_FAT_START',
-      data: {
-        username:      credUser,
-        password:      credPass,
-        startDate:     dateToBR(startDate),
-        endDate:       dateToBR(endDate),
-        category,
-        downloadItems: buildRCItems(),
-        orgName:       orgName.trim(),
-        useFolder:     true,
-      },
-    }, '*');
+    try {
+      addLog(`Baixando Relatórios de Consumo (${selectedCount} item${selectedCount!==1?'s':''})...`, 'info');
+      const collectedRC = await streamPDFs('/api/consumo/download', {
+        username: credUser, password: credPass,
+        startDate: dateToBR(startDate), endDate: dateToBR(endDate),
+        category, downloadItems: buildRCItems(), orgName: orgName.trim(),
+      });
+
+      let collectedOS = new Map();
+      if (category === 'service') {
+        const osItems = buildOSItems(rows, colIdx, osColIdx, clienteMap, temSetor, selSetores, selected);
+        if (osItems.length) {
+          setPhase('os');
+          addLog(`Baixando ${osItems.length} Ordem${osItems.length!==1?'ns':''} de Serviço...`, 'info');
+          collectedOS = await streamPDFs('/api/ordens/download', {
+            username: credUser, password: credPass, orgName: orgName.trim(), items: osItems,
+          });
+        }
+      }
+
+      await buildZip(collectedRC, collectedOS, getFolders(), category);
+    } catch (err) {
+      addLog(`Erro: ${err.message}`, 'error');
+      setPhase('idle');
+    }
   };
 
   const downloadZip = () => {
