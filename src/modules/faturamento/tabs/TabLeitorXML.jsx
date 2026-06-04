@@ -24,17 +24,34 @@ const fmtCNPJ = (s) => {
   return s || '';
 };
 
-const fmtValor = (s) => {
-  const n = parseFloat(s);
+const fmtValorNum = (s) => {
+  const n = parseFloat(String(s || '').replace(/\./g,'').replace(',','.'));
   if (isNaN(n)) return s || '—';
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 };
 
-const extractDiscriminacao = (disc) => {
-  // Formato: "PERIODO: 01/04/2026 a 30/04/2026 - SECRETARIA DE X [- SETOR]"
-  const match = disc.match(/PERIODO:\s*([\d\/]+)\s*a\s*([\d\/]+)\s*-\s*([^\n\r]+)/);
-  const periodo = match ? `${match[1]} a ${match[2]}` : '';
-  const resto   = match?.[3]?.trim() || '';
+/* Extrai valor monetário do texto: "R$ 194,45" → "194,45" */
+const pickBRL = (disc, pattern) => {
+  const m = disc.match(pattern);
+  return m?.[1]?.trim() || '0,00';
+};
+
+/* ── Extração da Discriminação ──────────────────────────
+   Exemplo:
+   PERIODO: 01/04/2026 a 30/04/2026 - SECRETARIA DE GOVERNO E DESENVOLVIMENTO
+   REEMBOLSO DE SERVICOS DE MANUT: R$ 23.047,98
+   DESCONTO DO CLIENTE: 0% ( R$ 0,00 )
+   VALOR DO IR RETIDO ... 1,20% = R$ 194,45
+   VALOR DO IR RETIDO ... 4,80% = R$ 168,00
+   VALOR DO IR RETIDO ... 0,24% = R$ 0,00
+   VALOR LIQUIDO A RECEBER DO CLIENTE: R$ 22.685,53
+──────────────────────────────────────────────────────── */
+const extractDisc = (disc) => {
+  // Período e secretaria/setor
+  const pmatch = disc.match(/PERIODO:\s*([\d\/]+)\s*a\s*([\d\/]+)\s*-\s*([^\n\r]+)/);
+  const inicio = pmatch?.[1]?.trim() || '';
+  const fim    = pmatch?.[2]?.trim() || '';
+  const resto  = pmatch?.[3]?.trim() || '';
 
   const dashIdx    = resto.indexOf(' - ');
   const secretaria = dashIdx >= 0 ? resto.slice(0, dashIdx).trim() : resto;
@@ -43,23 +60,33 @@ const extractDiscriminacao = (disc) => {
   const tipo = /SERVICOS DE MANUT/i.test(disc) ? 'MANUTENÇÃO'
              : /SERVICOS DE ABAST/i.test(disc) ? 'ABASTECIMENTO' : '';
 
-  return { periodo, secretaria, setor, tipo };
+  // IR retidos (cada alíquota em linha separada)
+  const irAbast  = pickBRL(disc, /0[,.]24%\s*=\s*R\$\s*([\d.,]+)/);  // 0,24% — abastecimento
+  const irPeca   = pickBRL(disc, /1[,.]20%\s*=\s*R\$\s*([\d.,]+)/);  // 1,20% — peças
+  const irServico= pickBRL(disc, /4[,.]80%\s*=\s*R\$\s*([\d.,]+)/);  // 4,80% — serviços manutenção
+
+  // Desconto do cliente: "DESCONTO DO CLIENTE: 0% ( R$ 0,00 )"
+  const descMatch  = disc.match(/DESCONTO DO CLIENTE:\s*([\d,]+%)\s*\(\s*R\$\s*([\d.,]+)/);
+  const taxaAdm    = descMatch?.[1] || '0%';
+  const valorDesc  = descMatch?.[2] || '0,00';
+
+  // Valor líquido a receber pelo cliente (após IR retido)
+  const vlrComRetencao = pickBRL(disc, /VALOR LIQUIDO A RECEBER DO CLIENTE:\s*R\$\s*([\d.,]+)/);
+
+  return { inicio, fim, secretaria, setor, tipo, irAbast, irPeca, irServico, taxaAdm, valorDesc, vlrComRetencao };
 };
 
 const parseGinfes = (xmlStr, filename) => {
   const parser = new DOMParser();
   const doc    = parser.parseFromString(xmlStr, 'text/xml');
 
-  if (doc.querySelector('parsererror')) {
+  if (doc.querySelector('parsererror'))
     return [{ error: true, filename, errorMsg: 'XML inválido ou corrompido' }];
-  }
 
   let infList = doc.getElementsByTagNameNS(GINFES_NS, 'InfNfse');
   if (!infList.length) infList = doc.getElementsByTagName('InfNfse');
-
-  if (!infList.length) {
+  if (!infList.length)
     return [{ error: true, filename, errorMsg: 'Formato não reconhecido (esperado NFS-e GINFES)' }];
-  }
 
   return Array.from(infList).map(inf => {
     const prestador       = getEl(inf, 'PrestadorServico');
@@ -70,25 +97,27 @@ const parseGinfes = (xmlStr, filename) => {
     const prestadorIdentif = getEl(prestador, 'IdentificacaoPrestador');
 
     const disc = getText(inf, 'Discriminacao');
-    const { periodo, secretaria, setor, tipo } = extractDiscriminacao(disc);
+    const d    = extractDisc(disc);
 
     return {
-      error:         false,
+      error:          false,
       filename,
-      numero:        getText(inf, 'Numero'),
-      codigoVerif:   getText(inf, 'CodigoVerificacao'),
-      chaveAcesso:   getText(inf, 'ChaveAcesso'),
-      dataEmissao:   fmtData(getText(inf, 'DataEmissao')),
-      periodo,
-      secretaria,
-      setor,
-      tipo,
-      tomadorNome:   getText(tomador, 'RazaoSocial'),
-      tomadorCNPJ:   getText(cpfCnpj, 'Cnpj') || getText(cpfCnpj, 'Cpf'),
-      prestadorNome: getText(prestador, 'RazaoSocial') || getText(prestador, 'NomeFantasia'),
-      prestadorCNPJ: getText(prestadorIdentif, 'Cnpj'),
-      valorServicos: getText(valores, 'ValorServicos'),
-      valorLiquido:  getText(valores, 'ValorLiquidoNfse'),
+      // identificação
+      numero:         getText(inf, 'Numero'),
+      codigoVerif:    getText(inf, 'CodigoVerificacao'),
+      chaveAcesso:    getText(inf, 'ChaveAcesso'),
+      dataEmissao:    fmtData(getText(inf, 'DataEmissao')),
+      // do extractDisc
+      ...d,
+      // tomador
+      tomadorNome:    getText(tomador, 'RazaoSocial'),
+      tomadorCNPJ:    getText(cpfCnpj, 'Cnpj') || getText(cpfCnpj, 'Cpf'),
+      // prestador
+      prestadorNome:  getText(prestador, 'RazaoSocial') || getText(prestador, 'NomeFantasia'),
+      prestadorCNPJ:  getText(prestadorIdentif, 'Cnpj'),
+      // valores NFS-e
+      valorServicos:  getText(valores, 'ValorServicos'),
+      valorLiquido:   getText(valores, 'ValorLiquidoNfse'),
     };
   });
 };
@@ -97,12 +126,10 @@ const parseGinfes = (xmlStr, filename) => {
 const DropZone = ({ onFiles }) => {
   const [drag, setDrag] = useState(false);
   const inputRef = useRef();
-
   const handle = useCallback((files) => {
     const xml = [...files].filter(f => f.name.toLowerCase().endsWith('.xml'));
     if (xml.length) onFiles(xml);
   }, [onFiles]);
-
   return (
     <div
       onClick={() => inputRef.current.click()}
@@ -131,7 +158,6 @@ const DropZone = ({ onFiles }) => {
   );
 };
 
-/* ── Badge tipo ───────────────────────────────────────── */
 const TipoBadge = ({ tipo }) => {
   if (!tipo) return <span style={{color:T.textD,fontSize:12}}>—</span>;
   const isManut = tipo === 'MANUTENÇÃO';
@@ -146,9 +172,9 @@ const TipoBadge = ({ tipo }) => {
 
 /* ── Main Tab ─────────────────────────────────────────── */
 export const TabLeitorXML = () => {
-  const [rows,    setRows]    = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [search,  setSearch]  = useState('');
+  const [rows,       setRows]       = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [search,     setSearch]     = useState('');
   const [filterTipo, setFilterTipo] = useState('todos');
 
   const processFiles = async (files) => {
@@ -169,33 +195,47 @@ export const TabLeitorXML = () => {
   const exportXLSX = () => {
     const valid = rows.filter(r => !r.error);
     if (!valid.length) return;
+
     const data = valid.map(r => ({
-      'Nº NFS-e':          r.numero,
-      'Cód. Verificação':  r.codigoVerif,
-      'Data de Emissão':   r.dataEmissao,
-      'Período':           r.periodo,
-      'Secretaria':        r.secretaria,
-      'Setor':             r.setor,
-      'Tipo':              r.tipo,
-      'Tomador':           r.tomadorNome,
-      'CNPJ Tomador':      fmtCNPJ(r.tomadorCNPJ),
-      'Valor Serviços (R$)': fmtValor(r.valorServicos),
-      'Valor Líquido (R$)':  fmtValor(r.valorLiquido),
-      'Chave de Acesso':   r.chaveAcesso,
+      'INICIO':            r.inicio,
+      'FINAL':             r.fim,
+      'CNPJ':              fmtCNPJ(r.tomadorCNPJ),
+      'MUNICIPIO':         r.tomadorNome,
+      'SECRETARIA / SETOR': r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria,
+      'VALOR BRUTO':       fmtValorNum(r.valorServicos),
+      'CATEGORIA':         r.tipo,
+      'IR ABAST':          r.irAbast,
+      'IR PEÇA':           r.irPeca,
+      'IR SERVIÇO':        r.irServico,
+      'TAXA ADM':          r.taxaAdm,
+      'VALOR DESCONTO':    r.valorDesc,
+      'VALOR LÍQUIDO':     fmtValorNum(r.valorLiquido),
+      'VALOR BRUTO ':      fmtValorNum(r.valorServicos),   // espaço extra para evitar col duplicada no XLSX
+      'VALOR C/ RETENÇÃO': r.vlrComRetencao,
+      'NOTA':              r.numero,
     }));
+
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [
-      {wch:10},{wch:14},{wch:14},{wch:24},{wch:36},{wch:32},{wch:14},
-      {wch:28},{wch:20},{wch:18},{wch:18},{wch:52},
+      {wch:12},{wch:12},{wch:20},{wch:28},{wch:42},
+      {wch:14},{wch:14},{wch:12},{wch:12},{wch:12},
+      {wch:10},{wch:14},{wch:14},{wch:14},{wch:16},{wch:10},
     ];
+
+    // Cabeçalho em negrito (linha 1)
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cell = ws[XLSX.utils.encode_cell({ r:0, c:C })];
+      if (cell) cell.s = { font:{ bold:true } };
+    }
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'NFS-e');
+    XLSX.utils.book_append_sheet(wb, ws, 'Faturamento');
     XLSX.writeFile(wb, `nfse_faturamento_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
   };
 
-  const valid  = rows.filter(r => !r.error);
-  const errors = rows.filter(r => r.error);
-
+  const valid   = rows.filter(r => !r.error);
+  const errors  = rows.filter(r => r.error);
   const filtered = valid.filter(r => {
     if (filterTipo !== 'todos' && r.tipo !== filterTipo) return false;
     if (!search) return true;
@@ -204,7 +244,7 @@ export const TabLeitorXML = () => {
         || (r.setor||'').toLowerCase().includes(q)
         || (r.tomadorNome||'').toLowerCase().includes(q)
         || (r.numero||'').includes(q)
-        || (r.periodo||'').includes(q);
+        || (r.inicio||'').includes(q);
   });
 
   return (
@@ -236,11 +276,10 @@ export const TabLeitorXML = () => {
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
               <input value={search} onChange={e=>setSearch(e.target.value)}
-                placeholder="Buscar por secretaria, setor, tomador..."
+                placeholder="Buscar por secretaria, município, número..."
                 style={{flex:1,border:'none',background:'transparent',outline:'none',fontSize:14,color:T.text,fontFamily:'var(--font-body)'}}/>
             </div>
 
-            {/* Filtro tipo */}
             <select value={filterTipo} onChange={e=>setFilterTipo(e.target.value)}
               style={{padding:'8px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
               <option value="todos">Todos os tipos</option>
@@ -256,7 +295,8 @@ export const TabLeitorXML = () => {
             <button onClick={exportXLSX} disabled={!valid.length}
               style={{display:'flex',alignItems:'center',gap:8,padding:'9px 20px',borderRadius:10,border:'none',
                 background:valid.length?T.gold:'transparent',color:valid.length?'#fff':T.textD,
-                fontSize:14,fontWeight:600,cursor:valid.length?'pointer':'not-allowed',fontFamily:'var(--font-body)',transition:'all .15s'}}>
+                fontSize:14,fontWeight:600,cursor:valid.length?'pointer':'not-allowed',
+                fontFamily:'var(--font-body)',transition:'all .15s'}}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
@@ -264,15 +304,12 @@ export const TabLeitorXML = () => {
               Exportar Excel
             </button>
 
-            {rows.length > 0 && (
-              <button onClick={()=>setRows([])}
-                style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>
-                Limpar
-              </button>
-            )}
+            <button onClick={()=>setRows([])}
+              style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>
+              Limpar
+            </button>
           </div>
 
-          {/* Erros */}
           {errors.length > 0 && (
             <div style={{background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,padding:'12px 16px',marginBottom:16}}>
               <div style={{fontSize:13,fontWeight:600,color:T.danger,marginBottom:6}}>Arquivos com erro:</div>
@@ -284,13 +321,13 @@ export const TabLeitorXML = () => {
             </div>
           )}
 
-          {/* Tabela */}
+          {/* Tabela de preview (colunas resumidas para visualização) */}
           <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',boxShadow:T.sh}}>
             <div style={{overflowX:'auto'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',fontSize:13}}>
                 <thead>
                   <tr style={{background:T.goldGl,borderBottom:`1px solid ${T.border}`}}>
-                    {['Nº','Data','Período','Secretaria','Setor','Tipo','Tomador','Valor Serv.','Valor Líq.'].map(h => (
+                    {['Nota','Início','Fim','Município','Secretaria / Setor','Categoria','V. Bruto','IR Abast','IR Peça','IR Serviço','V. Líquido','V. c/ Retenção'].map(h => (
                       <th key={h} style={{padding:'12px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:T.textS,letterSpacing:'.05em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
                         {h}
                       </th>
@@ -303,33 +340,27 @@ export const TabLeitorXML = () => {
                       style={{borderBottom:`1px solid ${T.divider}`,transition:'background .1s'}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <td style={{padding:'11px 14px',color:T.text,fontWeight:600,whiteSpace:'nowrap'}}>{r.numero}</td>
-                      <td style={{padding:'11px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.dataEmissao}</td>
-                      <td style={{padding:'11px 14px',color:T.textT,fontSize:12,whiteSpace:'nowrap'}}>{r.periodo}</td>
-                      <td style={{padding:'11px 14px',color:T.text,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.secretaria}>
-                        {r.secretaria}
+                      <td style={{padding:'10px 14px',color:T.text,fontWeight:600}}>{r.numero}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.inicio}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.fim}</td>
+                      <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{r.tomadorNome}</td>
+                      <td style={{padding:'10px 14px',color:T.text,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+                        title={r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria}>
+                        {r.setor ? <>{r.secretaria} <span style={{color:T.textT}}>/ {r.setor}</span></> : r.secretaria}
                       </td>
-                      <td style={{padding:'11px 14px',color:T.textS,maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12}} title={r.setor}>
-                        {r.setor || <span style={{color:T.textD}}>—</span>}
-                      </td>
-                      <td style={{padding:'11px 14px'}}><TipoBadge tipo={r.tipo}/></td>
-                      <td style={{padding:'11px 14px',color:T.text,maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>
-                        {r.tomadorNome}
-                      </td>
-                      <td style={{padding:'11px 14px',color:T.text,fontWeight:600,textAlign:'right',whiteSpace:'nowrap'}}>
-                        {fmtValor(r.valorServicos)}
-                      </td>
-                      <td style={{padding:'11px 14px',color:T.textS,textAlign:'right',whiteSpace:'nowrap'}}>
-                        {fmtValor(r.valorLiquido)}
-                      </td>
+                      <td style={{padding:'10px 14px'}}><TipoBadge tipo={r.tipo}/></td>
+                      <td style={{padding:'10px 14px',color:T.text,fontWeight:600,textAlign:'right',whiteSpace:'nowrap'}}>{fmtValorNum(r.valorServicos)}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,textAlign:'right',whiteSpace:'nowrap'}}>{r.irAbast}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,textAlign:'right',whiteSpace:'nowrap'}}>{r.irPeca}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,textAlign:'right',whiteSpace:'nowrap'}}>{r.irServico}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,textAlign:'right',whiteSpace:'nowrap'}}>{fmtValorNum(r.valorLiquido)}</td>
+                      <td style={{padding:'10px 14px',color:T.text,fontWeight:500,textAlign:'right',whiteSpace:'nowrap'}}>{r.vlrComRetencao}</td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={9} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
-                        {search || filterTipo !== 'todos'
-                          ? 'Nenhum resultado para o filtro aplicado'
-                          : 'Nenhuma NFS-e carregada'}
+                      <td colSpan={12} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
+                        {search || filterTipo !== 'todos' ? 'Nenhum resultado para o filtro aplicado' : 'Nenhuma NFS-e carregada'}
                       </td>
                     </tr>
                   )}
@@ -337,18 +368,24 @@ export const TabLeitorXML = () => {
               </table>
             </div>
 
-            {/* Totais */}
             {filtered.length > 0 && (
-              <div style={{padding:'12px 16px',borderTop:`1px solid ${T.border}`,display:'flex',gap:24,fontSize:13,background:T.goldGl}}>
-                <span style={{color:T.textS}}><strong style={{color:T.text}}>{filtered.length}</strong> NFS-e exibida{filtered.length!==1?'s':''}</span>
+              <div style={{padding:'12px 20px',borderTop:`1px solid ${T.border}`,display:'flex',gap:28,fontSize:13,background:T.goldGl,flexWrap:'wrap'}}>
                 <span style={{color:T.textS}}>
-                  Total serviços: <strong style={{color:T.text}}>
-                    {fmtValor(String(filtered.reduce((s,r)=>s+parseFloat(r.valorServicos||0),0)))}
+                  <strong style={{color:T.text}}>{filtered.length}</strong> NFS-e
+                </span>
+                <span style={{color:T.textS}}>
+                  Total bruto: <strong style={{color:T.text}}>
+                    {fmtValorNum(String(filtered.reduce((s,r)=>s+parseFloat(r.valorServicos||0),0)))}
                   </strong>
                 </span>
                 <span style={{color:T.textS}}>
-                  Total líquido: <strong style={{color:T.text}}>
-                    {fmtValor(String(filtered.reduce((s,r)=>s+parseFloat(r.valorLiquido||0),0)))}
+                  Total c/ retenção: <strong style={{color:T.text}}>
+                    {fmtValorNum(String(
+                      filtered.reduce((s,r) => {
+                        const v = parseFloat(String(r.vlrComRetencao||'0').replace(/\./g,'').replace(',','.'));
+                        return s + (isNaN(v) ? 0 : v);
+                      }, 0)
+                    ))}
                   </strong>
                 </span>
               </div>
