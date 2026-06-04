@@ -24,6 +24,13 @@ const fmtCNPJ = (s) => {
   return s || '';
 };
 
+// "MUNICIPIO DE EUSEBIO" → "Eusebio"
+const fmtMunicipio = (s) =>
+  (s || '')
+    .replace(/^MUNICIPIO\s+DE\s+/i, '')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+
 const fmtValorNum = (s) => {
   const n = parseFloat(String(s || '').replace(/\./g,'').replace(',','.'));
   if (isNaN(n)) return s || '—';
@@ -200,7 +207,7 @@ export const TabLeitorXML = () => {
       'INICIO':            r.inicio,
       'FINAL':             r.fim,
       'CNPJ':              fmtCNPJ(r.tomadorCNPJ),
-      'MUNICIPIO':         r.tomadorNome,
+      'MUNICIPIO':         fmtMunicipio(r.tomadorNome),
       'SECRETARIA / SETOR': r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria,
       'VALOR BRUTO':       fmtValorNum(r.valorServicos),
       'CATEGORIA':         r.tipo,
@@ -343,7 +350,7 @@ export const TabLeitorXML = () => {
                       <td style={{padding:'10px 14px',color:T.text,fontWeight:600}}>{r.numero}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.inicio}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.fim}</td>
-                      <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{r.tomadorNome}</td>
+                      <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{fmtMunicipio(r.tomadorNome)}</td>
                       <td style={{padding:'10px 14px',color:T.text,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
                         title={r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria}>
                         {r.setor ? <>{r.secretaria} <span style={{color:T.textT}}>/ {r.setor}</span></> : r.secretaria}
