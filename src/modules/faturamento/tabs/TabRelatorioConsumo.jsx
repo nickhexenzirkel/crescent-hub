@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
+import { StarDivider } from '../../../shared/components';
 // Verifica se a extensão Uniko Faturamento está instalada no navegador
 const checkExtension = () => new Promise(resolve => {
   const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
@@ -91,21 +92,29 @@ const FileChip = ({ file, onRemove }) => (
   </div>
 );
 
-/* ── Section header ───────────────────────────────────── */
-const Section = ({ n, title, done, children }) => (
-  <div style={{marginBottom:28}}>
-    <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-      <div style={{width:28,height:28,borderRadius:'50%',
+/* ── Section panel (card por etapa) ───────────────────── */
+const Section = ({ n, title, sub, done, children }) => (
+  <div style={{
+    background:T.surface, border:`1px solid ${done?T.gold+'55':T.border}`, borderRadius:18,
+    boxShadow:T.sh, padding:'22px 26px', marginBottom:18, transition:'border-color .25s',
+  }}>
+    <div style={{display:'flex',alignItems:'center',gap:13}}>
+      <div style={{width:30,height:30,borderRadius:'50%',
         background:done?T.gold:T.goldGl,border:`2px solid ${done?T.gold:T.gold+'44'}`,
         display:'flex',alignItems:'center',justifyContent:'center',
-        fontSize:12,fontWeight:700,color:done?'#fff':T.gold,flexShrink:0,transition:'all .2s'}}>
+        fontSize:13,fontWeight:700,color:done?'#fff':T.gold,flexShrink:0,
+        boxShadow:done?`0 0 0 4px ${T.gold}1a`:'none',transition:'all .25s'}}>
         {done
-          ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
           : n}
       </div>
-      <span style={{fontSize:15,fontWeight:600,color:T.text}}>{title}</span>
+      <div>
+        <div style={{fontSize:16,fontWeight:600,color:T.text,lineHeight:1.2}}>{title}</div>
+        {sub && <div style={{fontSize:12.5,color:T.textT,marginTop:2}}>{sub}</div>}
+      </div>
     </div>
-    <div style={{paddingLeft:40}}>{children}</div>
+    <StarDivider my={14} dim/>
+    <div>{children}</div>
   </div>
 );
 
@@ -434,7 +443,7 @@ export const TabRelatorioConsumo = () => {
 
 
       {/* ── Step 1 — Arquivo + categoria + setor ── */}
-      <Section n={1} title="Envie o Relatório de Retenção de Tributos" done={step1Done}>
+      <Section n={1} title="Envie o Relatório de Retenção de Tributos" sub="As secretarias são identificadas automaticamente pela coluna Cliente." done={step1Done}>
         {!mainFile
           ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
           : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setSecretarias([]);setSelected(new Set());setRows([]);setSetorMap(new Map());setAuxFile(null);}}/>
@@ -443,14 +452,21 @@ export const TabRelatorioConsumo = () => {
         {/* Coluna + categoria */}
         {mainFile && headers.length > 0 && (
           <div style={{display:'flex',alignItems:'center',gap:16,marginTop:14,flexWrap:'wrap'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:13,color:T.textS}}>Coluna:</span>
-              <select value={colIdx} onChange={e=>{const ci=Number(e.target.value);setColIdx(ci);if(ci>=0)buildSecretarias(rows,ci,headers);}}
-                style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
-                <option value={-1}>Selecionar...</option>
-                {headers.map((h,i)=><option key={i} value={i}>{h||`Col ${i+1}`}</option>)}
-              </select>
-            </div>
+            {colIdx >= 0 ? (
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 12px',
+                background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:9}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{fontSize:12.5,color:T.textS}}>
+                  {secretarias.length} secretaria{secretarias.length!==1?'s':''} · coluna <strong style={{color:T.text}}>{headers[colIdx] || 'Cliente'}</strong>
+                </span>
+              </div>
+            ) : (
+              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 12px',
+                background:T.dangerGl||'rgba(192,64,80,.08)',border:`1px solid ${T.danger}33`,borderRadius:9}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.danger} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{fontSize:12.5,color:T.textS}}>Coluna <strong>Cliente</strong> não encontrada neste arquivo.</span>
+              </div>
+            )}
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:13,color:T.textS}}>Categoria:</span>
               <div style={{display:'flex',gap:6}}>
@@ -501,7 +517,7 @@ export const TabRelatorioConsumo = () => {
 
       {/* ── Step 2 — Lista de seleção + período + pasta ── */}
       {step1Done && (
-        <Section n={2} title="Selecione e configure o período" done={step2Done}>
+        <Section n={2} title="Selecione e configure o período" sub="Marque as secretarias, defina o período e a pasta de destino." done={step2Done}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
 
             {/* Lista */}
@@ -634,7 +650,7 @@ export const TabRelatorioConsumo = () => {
 
       {/* ── Step 3 — Credenciais + iniciar ── */}
       {step2Done && (
-        <Section n={3} title="Credenciais do 7Benefícios e download" done={done}>
+        <Section n={3} title="Credenciais do 7Benefícios e download" sub="Usadas apenas para esta automação — não ficam salvas." done={done}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
             <div>
               <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>Usuário</label>
