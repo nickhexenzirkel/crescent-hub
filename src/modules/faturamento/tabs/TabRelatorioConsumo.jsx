@@ -271,6 +271,9 @@ export const TabRelatorioConsumo = () => {
     return next;
   });
 
+  /* ── temSetor: verdadeiro quando o auxiliar foi carregado com setores ── */
+  const temSetor = !!auxFile && setorMap.size > 0;
+
   /* ── Count selected items ── */
   const selectedCount = temSetor && setorMap.size > 0
     ? selSetores.size
@@ -423,7 +426,6 @@ export const TabRelatorioConsumo = () => {
     }, '*');
   };
 
-  const temSetor = auxFile && setorMap.size > 0;
   const step1Done = !!mainFile && secretarias.length > 0;
   const step2Done = step1Done && !!startDate && !!endDate && selectedCount > 0;
   const step3Done = step2Done && !!credUser && !!credPass;
