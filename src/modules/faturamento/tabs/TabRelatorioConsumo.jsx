@@ -320,21 +320,25 @@ export const TabRelatorioConsumo = () => {
     return bytes;
   };
 
-  // Grava o PDF na subpasta, evitando sobrescrever nomes repetidos
-  const savePdfToFolder = async (filename, base64) => {
-    const sub = subDirRef.current;
-    if (!sub) throw new Error('pasta não selecionada');
+  // Grava o PDF na subpasta (cria subpastas aninhadas), evitando sobrescrever
+  const savePdfToFolder = async (filename, base64, subfolder = '') => {
+    let dir = subDirRef.current;
+    if (!dir) throw new Error('pasta não selecionada');
+    for (const part of String(subfolder).split('/').map(s => s.trim()).filter(Boolean)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
     let name = filename;
-    if (usedNamesRef.current.has(name)) {
+    const key = (n) => `${subfolder}/${n}`;
+    if (usedNamesRef.current.has(key(name))) {
       const dot = name.lastIndexOf('.');
       const stem = dot > 0 ? name.slice(0, dot) : name;
       const ext  = dot > 0 ? name.slice(dot) : '';
       let i = 2;
-      while (usedNamesRef.current.has(`${stem} (${i})${ext}`)) i++;
+      while (usedNamesRef.current.has(key(`${stem} (${i})${ext}`))) i++;
       name = `${stem} (${i})${ext}`;
     }
-    usedNamesRef.current.add(name);
-    const fileHandle = await sub.getFileHandle(name, { create: true });
+    usedNamesRef.current.add(key(name));
+    const fileHandle = await dir.getFileHandle(name, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(b64ToBytes(base64));
     await writable.close();
@@ -349,9 +353,9 @@ export const TabRelatorioConsumo = () => {
       if (type === 'FAT_DONE')      { setRunning(false); setDone(true); }
       if (type === 'FAT_ERROR')     { setRunning(false); }
       if (type === 'FAT_SAVE_FILE') {
-        const { id, filename, base64 } = e.data;
+        const { id, filename, base64, subfolder } = e.data;
         try {
-          await savePdfToFolder(filename, base64);
+          await savePdfToFolder(filename, base64, subfolder || '');
           window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
         } catch (err) {
           window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: false, error: String(err?.message || err) }, '*');

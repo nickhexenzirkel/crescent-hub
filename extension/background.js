@@ -48,11 +48,11 @@ function buildFileName(secNome, setor) {
 const pendingSaves = {};
 let saveCounter = 0;
 
-function saveToFolder(callerTabId, filename, base64) {
+function saveToFolder(callerTabId, filename, base64, subfolder = '') {
   return new Promise((resolve) => {
     const id = ++saveCounter;
     pendingSaves[id] = resolve;
-    chrome.tabs.sendMessage(callerTabId, { type: 'FAT_SAVE_FILE', id, filename, base64 }).catch(() => {});
+    chrome.tabs.sendMessage(callerTabId, { type: 'FAT_SAVE_FILE', id, filename, base64, subfolder }).catch(() => {});
     setTimeout(() => {
       if (pendingSaves[id]) { delete pendingSaves[id]; resolve({ ok: false, error: 'timeout' }); }
     }, 30000);
@@ -116,50 +116,110 @@ async function exec(tabId, func, args = []) {
 
 /* ── Automação principal ─────────────────────────────────── */
 
+// Cria a função de log que envia cada linha para a página
+const mkLog = (callerTabId) => async (text, type = 'normal') => {
+  const entry = { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type };
+  try { await chrome.tabs.sendMessage(callerTabId, { type: 'FAT_LOG', log: entry }); } catch {}
+};
+
+// Faz login no 7Benefícios. Retorna true se logou com sucesso.
+async function doLogin(tabId, username, password) {
+  await exec(tabId, (user, pass) => {
+    const inputs = [...document.querySelectorAll('input')];
+    const userField = inputs.find(i =>
+      i.type === 'text' || i.type === 'email' || i.name?.toLowerCase().includes('login') ||
+      i.name?.toLowerCase().includes('user') || i.id?.toLowerCase().includes('user') ||
+      i.placeholder?.toLowerCase().includes('usuário') || i.placeholder?.toLowerCase().includes('usuario')
+    ) || inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'submit');
+    const passField = inputs.find(i => i.type === 'password');
+
+    if (userField) { userField.value = user; userField.dispatchEvent(new Event('input', { bubbles: true })); userField.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (passField) { passField.value = pass; passField.dispatchEvent(new Event('input', { bubbles: true })); passField.dispatchEvent(new Event('change', { bubbles: true })); }
+
+    const btn = document.querySelector('button[type="submit"], input[type="submit"]')
+              || document.querySelector('button');
+    btn?.click();
+  }, [username, password]);
+
+  await waitForLoad(tabId);
+  await sleep(1000);
+  const url = await exec(tabId, () => window.location.href);
+  return !url.includes('sessions');
+}
+
+// Carrega a lista de organizações e encontra a UUID pelo nome informado
+// (ou pelo cliente de exemplo do XLSX). Retorna { orgUUID, foundOrgName } ou null.
+async function findOrg(tabId, orgName, sampleCliente, log) {
+  await goto(tabId, `${BASE}/organizations`);
+  await sleep(2000);
+
+  const orgMap = await exec(tabId, async () => {
+    const map = {};
+    let lastCount = 0, noChange = 0;
+    while (noChange < 3) {
+      document.querySelectorAll('table tbody tr').forEach(row => {
+        const name = [...row.querySelectorAll('td')]
+          .map(td => td.textContent.trim()).filter(Boolean)
+          .join(' ').replace(/\s+/g, ' ').trim();
+        const uuid = [...row.querySelectorAll('a[href]')]
+          .map(a => a.getAttribute('href').match(/organizations\/([a-f0-9-]{36})/)?.[1])
+          .find(Boolean);
+        if (name && uuid) map[name] = uuid;
+      });
+      const count = Object.keys(map).length;
+      if (count === lastCount) noChange++; else { noChange = 0; lastCount = count; }
+      window.scrollTo(0, document.body.scrollHeight);
+      await new Promise(r => setTimeout(r, 900));
+    }
+    return map;
+  });
+
+  await log(`${Object.keys(orgMap).length} organizações carregadas.`);
+
+  const parts   = String(sampleCliente || '').split(' - ');
+  const munFull = parts[parts.length - 1]?.trim() || '';
+  const city    = parts[1]?.trim() || '';
+  const stripCode = (s) => normStr(s).replace(/^\d+\s*[-–—]?\s*/, '').trim();
+
+  const rawTerms = orgName?.trim() ? [orgName] : [munFull, city].filter(Boolean);
+  const searchTerms = [...new Set(
+    rawTerms.flatMap(t => [normStr(t), stripCode(t)]).filter(Boolean)
+  )];
+
+  for (const [name, uuid] of Object.entries(orgMap)) {
+    const n = normStr(name), core = stripCode(name);
+    const hit = searchTerms.some(t =>
+      n === t || n.includes(t) ||
+      (core && core.includes(t)) ||
+      (t.length > 3 && t.includes(core) && core.length > 3)
+    );
+    if (hit) return { orgUUID: uuid, foundOrgName: name };
+  }
+
+  const tried = orgName?.trim() || munFull;
+  const words = stripCode(tried).split(' ').filter(w => w.length > 3);
+  const near = Object.keys(orgMap)
+    .filter(name => words.some(w => normStr(name).includes(w))).slice(0, 5);
+  await log(`Organização "${tried}" não encontrada na lista. Verifique o nome exato na aba Organizações do 7Benefícios.`, 'error');
+  if (near.length) await log(`Nomes parecidos lidos: ${near.join(' | ')}`, 'error');
+  else await log(`Exemplos lidos: ${Object.keys(orgMap).slice(0, 3).join(' | ')}`, 'error');
+  return null;
+}
+
 async function runConsumoDownload(data, callerTabId) {
   const { username, password, startDate, endDate, category, downloadItems, orgName, useFolder } = data;
-  const logs = [];
-
-  const log = async (text, type = 'normal') => {
-    const entry = { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type };
-    logs.push(entry);
-    try { await chrome.tabs.sendMessage(callerTabId, { type: 'FAT_LOG', log: entry }); } catch {}
-  };
-
+  const log = mkLog(callerTabId);
   let tabId = null;
 
   try {
-    // ── Abre tab do 7Benefícios ──
+    // ── Abre tab do 7Benefícios e faz login ──
     await log('Abrindo 7Benefícios...');
     const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: true });
     tabId = tab.id;
     await waitForLoad(tabId);
 
-    // ── Login ──
     await log('Fazendo login...');
-    await exec(tabId, (user, pass) => {
-      // Preenche os campos pelo texto do label ou pelo tipo do input
-      const inputs = [...document.querySelectorAll('input')];
-      const userField = inputs.find(i =>
-        i.type === 'text' || i.type === 'email' || i.name?.toLowerCase().includes('login') ||
-        i.name?.toLowerCase().includes('user') || i.id?.toLowerCase().includes('user') ||
-        i.placeholder?.toLowerCase().includes('usuário') || i.placeholder?.toLowerCase().includes('usuario')
-      ) || inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'submit');
-      const passField = inputs.find(i => i.type === 'password');
-
-      if (userField) { userField.value = user; userField.dispatchEvent(new Event('input', { bubbles: true })); userField.dispatchEvent(new Event('change', { bubbles: true })); }
-      if (passField) { passField.value = pass; passField.dispatchEvent(new Event('input', { bubbles: true })); passField.dispatchEvent(new Event('change', { bubbles: true })); }
-
-      const btn = document.querySelector('button[type="submit"], input[type="submit"]')
-                || document.querySelector('button');
-      btn?.click();
-    }, [username, password]);
-
-    await waitForLoad(tabId);
-    await sleep(1000);
-
-    const urlAfterLogin = await exec(tabId, () => window.location.href);
-    if (urlAfterLogin.includes('sessions/new') || urlAfterLogin.includes('sessions')) {
+    if (!await doLogin(tabId, username, password)) {
       await log('Login falhou. Verifique usuário e senha.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: 'Login falhou' }).catch(() => {});
       chrome.tabs.remove(tabId).catch(() => {});
@@ -167,86 +227,15 @@ async function runConsumoDownload(data, callerTabId) {
     }
     await log('Login realizado.', 'ok');
 
-    // ── Carrega lista de organizações (scroll infinito) ──
+    // ── Encontra a organização ──
     await log('Carregando organizações...');
-    await goto(tabId, `${BASE}/organizations`);
-    await sleep(2000);
-
-    const orgMap = await exec(tabId, async () => {
-      const map = {};
-      let lastCount = 0;
-      let noChange = 0;
-
-      while (noChange < 3) {
-        document.querySelectorAll('table tbody tr').forEach(row => {
-          // Junta o texto de todas as células da linha — assim o nome é
-          // capturado mesmo que o número e o nome estejam em colunas separadas
-          const name = [...row.querySelectorAll('td')]
-            .map(td => td.textContent.trim())
-            .filter(Boolean)
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          const uuid = [...row.querySelectorAll('a[href]')]
-            .map(a => a.getAttribute('href').match(/organizations\/([a-f0-9-]{36})/)?.[1])
-            .find(Boolean);
-          if (name && uuid) map[name] = uuid;
-        });
-
-        const count = Object.keys(map).length;
-        if (count === lastCount) noChange++;
-        else { noChange = 0; lastCount = count; }
-
-        window.scrollTo(0, document.body.scrollHeight);
-        await new Promise(r => setTimeout(r, 900));
-      }
-      return map;
-    });
-
-    await log(`${Object.keys(orgMap).length} organizações carregadas.`);
-
-    // ── Encontra UUID da organização ──
-    // Estratégia 1: usa o nome exato informado pelo usuário
-    // Estratégia 2: fallback automático pelo cliente do XLSX
-    const exCliente = downloadItems[0]?.clienteStr || '';
-    const parts     = exCliente.split(' - ');
-    const munFull   = parts[parts.length - 1]?.trim() || '';
-    const city      = parts[1]?.trim() || '';
-
-    // "core" = texto normalizado sem o código numérico inicial (ex.: "30 - ")
-    const stripCode = (s) => normStr(s).replace(/^\d+\s*[-–—]?\s*/, '').trim();
-
-    const rawTerms = orgName?.trim() ? [orgName] : [munFull, city].filter(Boolean);
-    const searchTerms = [...new Set(
-      rawTerms.flatMap(t => [normStr(t), stripCode(t)]).filter(Boolean)
-    )];
-
-    let orgUUID = null, foundOrgName = '';
-    for (const [name, uuid] of Object.entries(orgMap)) {
-      const n    = normStr(name);
-      const core = stripCode(name);
-      const hit = searchTerms.some(t =>
-        n === t || n.includes(t) ||           // nome contém o termo
-        (core && core.includes(t)) ||          // nome sem código contém o termo
-        (t.length > 3 && t.includes(core) && core.length > 3) // termo contém o nome sem código
-      );
-      if (hit) { orgUUID = uuid; foundOrgName = name; break; }
-    }
-
-    if (!orgUUID) {
-      const tried = orgName?.trim() || munFull;
-      // Mostra nomes parecidos (qualquer palavra do termo em comum) para diagnóstico
-      const words = stripCode(tried).split(' ').filter(w => w.length > 3);
-      const near = Object.keys(orgMap)
-        .filter(name => words.some(w => normStr(name).includes(w)))
-        .slice(0, 5);
-      await log(`Organização "${tried}" não encontrada na lista. Verifique o nome exato na aba Organizações do 7Benefícios.`, 'error');
-      if (near.length) await log(`Nomes parecidos lidos: ${near.join(' | ')}`, 'error');
-      else await log(`Exemplos lidos: ${Object.keys(orgMap).slice(0, 3).join(' | ')}`, 'error');
+    const org = await findOrg(tabId, orgName, downloadItems[0]?.clienteStr, log);
+    if (!org) {
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
       chrome.tabs.remove(tabId).catch(() => {});
       return;
     }
+    const { orgUUID, foundOrgName } = org;
     await log(`Organização: ${foundOrgName}`, 'ok');
 
     // ── Processa cada secretaria/setor ──
@@ -403,12 +392,137 @@ async function runConsumoDownload(data, callerTabId) {
   }
 }
 
+/* ── Automação: Ordens de Serviço ────────────────────────── */
+// items: [{ osId, cliente, setor }] — uma OS por download, agrupadas por
+// secretaria em subpastas. Sem período: busca por order_id e baixa o PDF.
+async function runOrdensDownload(data, callerTabId) {
+  const { username, password, orgName, useFolder, items } = data;
+  const log = mkLog(callerTabId);
+  let tabId = null;
+
+  try {
+    await log('Abrindo 7Benefícios...');
+    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: true });
+    tabId = tab.id;
+    await waitForLoad(tabId);
+
+    await log('Fazendo login...');
+    if (!await doLogin(tabId, username, password)) {
+      await log('Login falhou. Verifique usuário e senha.', 'error');
+      chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: 'Login falhou' }).catch(() => {});
+      chrome.tabs.remove(tabId).catch(() => {});
+      return;
+    }
+    await log('Login realizado.', 'ok');
+
+    await log('Carregando organizações...');
+    const org = await findOrg(tabId, orgName, items[0]?.cliente, log);
+    if (!org) {
+      chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
+      chrome.tabs.remove(tabId).catch(() => {});
+      return;
+    }
+    const { orgUUID, foundOrgName } = org;
+    await log(`Organização: ${foundOrgName}`, 'ok');
+
+    let downloaded = 0;
+
+    for (const { osId, cliente, setor } of items) {
+      const sec      = String(cliente).split(' - ')[2]?.trim() || String(cliente).trim();
+      const folder   = fsClean(`${sec}${setor ? ` - ${setor}` : ''}`);
+      const fileName = `os_${fsClean(String(osId))}.pdf`;
+      const label    = `OS ${osId} — ${sec}${setor ? ` / ${setor}` : ''}`;
+
+      await log(`Processando: ${label}...`);
+
+      try {
+        const params = new URLSearchParams({
+          order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
+          inserted_at_range: '', updated_at_range: '', service_type: '',
+          repair_type: '', status: '', item_name: '',
+        });
+        await goto(tabId, `${BASE}/organizations/${orgUUID}/orders?${params}`);
+        await sleep(1500);
+
+        // Procura o link de download do PDF da OS
+        const href = await exec(tabId, () => {
+          const inBtns = document.querySelector('.buttons a[href]');
+          if (inBtns) return inBtns.href;
+          const a = [...document.querySelectorAll('a[href]')]
+            .find(a => /\.pdf($|\?)|\/download|\/print|relatorio|report/i.test(a.href));
+          return a ? a.href : '';
+        });
+
+        if (!href) {
+          await log(`OS não encontrada ou sem PDF: ${osId}`, 'error');
+          continue;
+        }
+
+        // ── Caminho A: pasta escolhida ──
+        if (useFolder) {
+          const pdf = await fetchPdfBase64(tabId, href);
+          const looksLikePdf = pdf?.ok && pdf.b64 &&
+            (pdf.ct.includes('pdf') || pdf.ct.includes('octet-stream')) &&
+            !pdf.ct.includes('html');
+          if (looksLikePdf) {
+            const res = await saveToFolder(callerTabId, fileName, pdf.b64, folder);
+            if (res?.ok) {
+              downloaded++;
+              await log(`✓ Salvo: ${folder}/${fileName}`, 'ok');
+              continue;
+            }
+            await log(`Falha ao gravar "${fileName}": ${res?.error || 'erro'}. Tentando Downloads...`, 'error');
+          } else {
+            await log(`Não consegui baixar o PDF da OS ${osId} (${pdf?.error || pdf?.ct || '?'}). Tentando Downloads...`, 'error');
+          }
+        }
+
+        // ── Caminho B (fallback): clique → Downloads ──
+        const popupListener = (newTab) => {
+          if (newTab.openerTabId === tabId) {
+            setTimeout(() => chrome.tabs.remove(newTab.id).catch(() => {}), 3000);
+            chrome.tabs.onCreated.removeListener(popupListener);
+          }
+        };
+        chrome.tabs.onCreated.addListener(popupListener);
+        await exec(tabId, () => {
+          const b = document.querySelector('.buttons a[href]')
+                 || document.querySelector('.buttons')
+                 || [...document.querySelectorAll('a')].find(a => /\.pdf/i.test(a.href));
+          b?.click();
+        });
+        await sleep(2500);
+        chrome.tabs.onCreated.removeListener(popupListener);
+        downloaded++;
+        await log(`✓ Baixado (Downloads): ${label}`, 'ok');
+
+      } catch (err) {
+        await log(`Erro em "${label}": ${err.message}`, 'error');
+      }
+    }
+
+    const destino = useFolder ? 'pasta "Uniko - Ordens de Serviço"' : 'pasta Downloads';
+    await log(`Concluído! ${downloaded}/${items.length} OS salva(s) na ${destino}.`, 'ok');
+    chrome.tabs.sendMessage(callerTabId, { type: 'FAT_DONE', total: downloaded }).catch(() => {});
+    setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 3000);
+
+  } catch (err) {
+    try { await chrome.tabs.sendMessage(callerTabId, { type: 'FAT_LOG', log: { text: `Erro inesperado: ${err.message}`, type: 'error' } }); } catch {}
+    chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: err.message }).catch(() => {});
+    if (tabId) setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 2000);
+  }
+}
+
 /* ── Listener de mensagens ───────────────────────────────── */
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type === 'UNIKO_FAT_START') {
     const callerTabId = sender.tab?.id;
     if (callerTabId) runConsumoDownload(message.data, callerTabId);
+  }
+  if (message.type === 'UNIKO_FAT_START_OS') {
+    const callerTabId = sender.tab?.id;
+    if (callerTabId) runOrdensDownload(message.data, callerTabId);
   }
   // Resposta da página após gravar (ou falhar ao gravar) um arquivo na pasta
   if (message.type === 'UNIKO_FAT_SAVE_RESULT') {
