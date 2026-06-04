@@ -15,6 +15,15 @@ const normStr = (s) =>
     .replace(/\s+/g, ' ').trim();
 
 /* ── Nome do arquivo: trans_SECRETARIA_SETOR ──────────────── */
+// Remove código inicial ("30 - ") e qualquer trecho de município
+const stripNoise = (s) =>
+  normStr(s)
+    .replace(/^\d+\s*[-–—]\s*/, '')                          // "30 - "
+    .replace(/\s*[-–—]?\s*MUNIC[IÍ]PIO\s+D[EO]\b.*$/, '')    // "- MUNICIPIO DE ..." até o fim
+    .replace(/\s*[-–—]\s*/g, ' ')                            // hífens soltos
+    .replace(/\s+/g, ' ')
+    .trim();
+
 // Remove prefixos "SECRETARIA (MUNICIPAL) DE/DA/DO/DOS/DAS"
 const stripSecPrefix = (s) =>
   s.replace(/^SECRETARIA\s+(MUNICIPAL\s+)?(DE|DA|DO|DOS|DAS)\s+/, '')
@@ -27,8 +36,8 @@ const fsClean = (s) =>
 
 // Monta "trans_SECRETARIA_SETOR" limitado a 75 caracteres (sem extensão)
 function buildFileName(secNome, setor) {
-  const sec   = fsClean(stripSecPrefix(normStr(secNome)));
-  const setS  = fsClean(normStr(setor));
+  const sec  = fsClean(stripSecPrefix(stripNoise(secNome)));
+  const setS = fsClean(stripNoise(setor));
   let base = setS ? `trans_${sec}_${setS}` : `trans_${sec}`;
   if (base.length > 75) base = base.slice(0, 75).trim();
   return `${base}.pdf`;
@@ -70,20 +79,19 @@ async function fetchPdfBase64(tabId, url) {
   }, [url]);
 }
 
-// Espera uma aba terminar de carregar
-function waitForLoad(tabId, timeout = 30000) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+// Espera uma aba terminar de carregar.
+// Resolve com true se carregou, false se estourou o tempo (nunca rejeita,
+// para não derrubar a automação por uma página lenta).
+function waitForLoad(tabId, timeout = 45000) {
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      clearTimeout(timer);
       chrome.tabs.onUpdated.removeListener(listener);
-      reject(new Error('Timeout aguardando página carregar'));
-    }, timeout);
-
+      resolve(ok);
+    };
+    const timer = setTimeout(() => done(false), timeout);
     const listener = (id, info) => {
-      if (id === tabId && info.status === 'complete') {
-        clearTimeout(timer);
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
+      if (id === tabId && info.status === 'complete') done(true);
     };
     chrome.tabs.onUpdated.addListener(listener);
   });
