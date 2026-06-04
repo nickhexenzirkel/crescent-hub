@@ -7,6 +7,7 @@ import { TabLeitorXML } from './tabs/TabLeitorXML';
 import { TabRelatorioConsumo } from './tabs/TabRelatorioConsumo';
 import { TabOrdensServico } from './tabs/TabOrdensServico';
 import { TabUnikoPDF } from './tabs/TabUnikoPDF';
+import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
 
 const FaturamentoPortal = ({ onBack }) => {
   const isMobile = useIsMobile();
@@ -23,8 +24,9 @@ const FaturamentoPortal = ({ onBack }) => {
       case 'xml':     return <TabLeitorXML/>;
       case 'consumo': return <TabRelatorioConsumo/>;
       case 'ordens':    return <TabOrdensServico/>;
-      case 'uniko-pdf': return <TabUnikoPDF/>;
-      default:          return <TabInicio setTab={setTab}/>;
+      case 'uniko-pdf':   return <TabUnikoPDF/>;
+      case 'laboratorio': return <TabLaboratorioEstelar/>;
+      default:            return <TabInicio setTab={setTab}/>;
     }
   };
 

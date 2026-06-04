@@ -35,6 +35,11 @@ const NAV = [
     label: 'Uniko PDF',
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></I>,
   },
+  {
+    id: 'laboratorio',
+    label: 'Laboratório Estelar',
+    icon: <I><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></I>,
+  },
 ];
 
 const Sidebar = ({ tab, setTab, onBack }) => {
@@ -119,7 +124,7 @@ const Sidebar = ({ tab, setTab, onBack }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Leitor de XML', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Uniko PDF' };
+  const nm = { inicio:'Início', xml:'Leitor de XML', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Uniko PDF', laboratorio:'Laboratório Estelar' };
   if (tab === 'inicio') return null;
   return (
     <div style={{
