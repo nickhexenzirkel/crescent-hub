@@ -609,7 +609,7 @@ export const TabLaboratorioEstelar = () => {
                 background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                 <span style={{fontSize:12,color:T.textS}}>
-                  {secretarias.length} secretaria{secretarias.length!==1?'s':''} · col. <strong style={{color:T.text}}>{headers[colIdx]||'Cliente'}</strong>
+                  {temSetor ? totalCount : secretarias.length} {temSetor ? 'setor' : 'secretaria'}{(temSetor ? totalCount : secretarias.length) !== 1 ? 's' : ''} · col. <strong style={{color:T.text}}>{headers[colIdx]||'Cliente'}</strong>
                   {osColIdx >= 0 && <span style={{color:T.textT}}> · OS: <strong style={{color:T.text}}>{headers[osColIdx]||'ID'}</strong></span>}
                 </span>
               </div>
