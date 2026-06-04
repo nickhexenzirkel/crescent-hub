@@ -147,8 +147,14 @@ export const TabRelatorioConsumo = () => {
   // Config
   const [startDate,  setStartDate]  = useState('');
   const [endDate,    setEndDate]    = useState('');
-  const [outputPath, setOutputPath] = useState('');
   const [orgName,    setOrgName]    = useState('');
+
+  // Pasta de destino (File System Access)
+  const [folderName, setFolderName] = useState('');
+  const dirHandleRef = useRef(null);  // pasta escolhida pelo usuário
+  const subDirRef    = useRef(null);  // subpasta "Uniko - Relatórios de Consumo"
+  const usedNamesRef = useRef(new Set()); // evita sobrescrever nomes repetidos
+  const fsSupported  = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
   const [credUser,   setCredUser]   = useState('');
   const [credPass,   setCredPass]   = useState('');
   const [showPass,   setShowPass]   = useState(false);
@@ -278,14 +284,79 @@ export const TabRelatorioConsumo = () => {
     return [...selected].map(name => ({ clienteStr: clienteMap.get(name) || name, setor: '' }));
   };
 
+  /* ── Pasta de destino ── */
+  const pickFolder = async () => {
+    if (!fsSupported) return;
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      dirHandleRef.current = handle;
+      subDirRef.current = null;
+      setFolderName(handle.name);
+    } catch { /* usuário cancelou */ }
+  };
+
+  // Garante permissão e cria/abre a subpasta "Uniko - Relatórios de Consumo"
+  const ensureSubDir = async () => {
+    const handle = dirHandleRef.current;
+    if (!handle) return null;
+    if (handle.queryPermission) {
+      let perm = await handle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted' && handle.requestPermission) {
+        perm = await handle.requestPermission({ mode: 'readwrite' });
+      }
+      if (perm !== 'granted') return null;
+    }
+    const sub = await handle.getDirectoryHandle('Uniko - Relatórios de Consumo', { create: true });
+    subDirRef.current = sub;
+    usedNamesRef.current = new Set();
+    return sub;
+  };
+
+  // base64 → Uint8Array
+  const b64ToBytes = (b64) => {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  };
+
+  // Grava o PDF na subpasta, evitando sobrescrever nomes repetidos
+  const savePdfToFolder = async (filename, base64) => {
+    const sub = subDirRef.current;
+    if (!sub) throw new Error('pasta não selecionada');
+    let name = filename;
+    if (usedNamesRef.current.has(name)) {
+      const dot = name.lastIndexOf('.');
+      const stem = dot > 0 ? name.slice(0, dot) : name;
+      const ext  = dot > 0 ? name.slice(dot) : '';
+      let i = 2;
+      while (usedNamesRef.current.has(`${stem} (${i})${ext}`)) i++;
+      name = `${stem} (${i})${ext}`;
+    }
+    usedNamesRef.current.add(name);
+    const fileHandle = await sub.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(b64ToBytes(base64));
+    await writable.close();
+  };
+
   /* ── Recebe eventos da extensão ── */
   React.useEffect(() => {
-    const handler = (e) => {
+    const handler = async (e) => {
       const { type, log: l } = e.data || {};
       if (!type?.startsWith('FAT_')) return;
       if (type === 'FAT_LOG' && l)  setLog(prev => [...prev, l]);
       if (type === 'FAT_DONE')      { setRunning(false); setDone(true); }
       if (type === 'FAT_ERROR')     { setRunning(false); }
+      if (type === 'FAT_SAVE_FILE') {
+        const { id, filename, base64 } = e.data;
+        try {
+          await savePdfToFolder(filename, base64);
+          window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: true }, '*');
+        } catch (err) {
+          window.postMessage({ type: 'UNIKO_FAT_SAVE_RESULT', id, ok: false, error: String(err?.message || err) }, '*');
+        }
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -302,8 +373,27 @@ export const TabRelatorioConsumo = () => {
       return;
     }
 
+    // Prepara a pasta de destino (se escolhida)
+    let useFolder = false;
+    if (dirHandleRef.current) {
+      try {
+        const sub = await ensureSubDir();
+        if (!sub) {
+          setLog([{ text: 'Permissão da pasta negada. Escolha a pasta novamente.', type: 'error' }]);
+          return;
+        }
+        useFolder = true;
+      } catch (err) {
+        setLog([{ text: `Erro ao preparar a pasta de destino: ${err?.message || err}`, type: 'error' }]);
+        return;
+      }
+    }
+
     setRunning(true); setDone(false);
-    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando automação via extensão...`, type: 'info' }]);
+    setLog([{
+      text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando automação via extensão...${useFolder ? ` Salvando em "${folderName}/Uniko - Relatórios de Consumo".` : ' Salvando na pasta Downloads.'}`,
+      type: 'info',
+    }]);
 
     window.postMessage({
       type: 'UNIKO_FAT_START',
@@ -315,6 +405,7 @@ export const TabRelatorioConsumo = () => {
         category,
         downloadItems: items,
         orgName:       orgName.trim(),
+        useFolder,
       },
     }, '*');
   };
@@ -490,6 +581,40 @@ export const TabRelatorioConsumo = () => {
                   style={{width:'100%',padding:'9px 10px',borderRadius:9,border:`1px solid ${orgName?T.gold:T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
                 <div style={{fontSize:11,color:T.textT,marginTop:4}}>
                   Vá na aba Organizações do 7Benefícios e copie o nome exato da linha da sua organização.
+                </div>
+              </div>
+
+              {/* Pasta de destino */}
+              <div>
+                <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>
+                  Pasta de destino
+                  <span style={{fontWeight:400,color:T.textD}}> (opcional)</span>
+                </label>
+                {!fsSupported ? (
+                  <div style={{fontSize:12,color:T.textT,padding:'9px 10px',border:`1px solid ${T.border}`,borderRadius:9,background:T.surface}}>
+                    Seu navegador não permite escolher a pasta. Os PDFs serão salvos em Downloads.
+                  </div>
+                ) : (
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <button onClick={pickFolder}
+                      style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',borderRadius:9,
+                        border:`1px solid ${folderName?T.gold:T.border}`,background:folderName?T.goldGl:T.surface,
+                        color:folderName?T.gold:T.textS,fontSize:13,fontWeight:500,cursor:'pointer',
+                        fontFamily:'var(--font-body)',transition:'all .15s',whiteSpace:'nowrap'}}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                      </svg>
+                      {folderName ? 'Trocar pasta' : 'Escolher pasta'}
+                    </button>
+                    {folderName && (
+                      <span style={{fontSize:12,color:T.textS,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {folderName}/<strong style={{color:T.text}}>Uniko - Relatórios de Consumo</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div style={{fontSize:11,color:T.textT,marginTop:4}}>
+                  Os arquivos são salvos como <code>trans_SECRETARIA_SETOR.pdf</code>. Sem escolher pasta, vão para Downloads.
                 </div>
               </div>
             </div>
