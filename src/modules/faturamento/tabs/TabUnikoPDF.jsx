@@ -233,7 +233,7 @@ const ModoCompilador = () => {
                     borderTop:`1px solid ${T.divider}`}}>
                     <div style={{width:18,height:18,borderRadius:5,background:T.goldGl,border:`1px solid ${T.gold}33`,
                       display:'flex',alignItems:'center',justifyContent:'center',
-                      fontSize:10,fontWeight:700,color:T.gold,flexShrink:0}}>{fileOrder(fname)}</div>
+                      fontSize:10,fontWeight:700,color:T.gold,flexShrink:0}}>{i + 1}</div>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
                       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
                       <polyline points="14 2 14 8 20 8"/>
