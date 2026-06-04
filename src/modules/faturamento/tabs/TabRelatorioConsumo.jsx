@@ -149,7 +149,6 @@ export const TabRelatorioConsumo = () => {
   const [category,    setCategory]    = useState('fuel');
 
   // Setor
-  const [temSetor,   setTemSetor]   = useState(false);
   const [auxFile,    setAuxFile]    = useState(null);
   const [setorMap,   setSetorMap]   = useState(new Map()); // secName → string[]
   const [selSetores, setSelSetores] = useState(new Set()); // "sec::setor"
@@ -424,7 +423,8 @@ export const TabRelatorioConsumo = () => {
     }, '*');
   };
 
-  const step1Done = !!mainFile && secretarias.length > 0 && (!temSetor || (auxFile && setorMap.size > 0));
+  const temSetor = auxFile && setorMap.size > 0;
+  const step1Done = !!mainFile && secretarias.length > 0;
   const step2Done = step1Done && !!startDate && !!endDate && selectedCount > 0;
   const step3Done = step2Done && !!credUser && !!credPass;
 
@@ -442,77 +442,83 @@ export const TabRelatorioConsumo = () => {
       />
 
 
-      {/* ── Step 1 — Arquivo + categoria + setor ── */}
-      <Section n={1} title="Envie o Relatório de Retenção de Tributos" sub="As secretarias são identificadas automaticamente pela coluna Cliente." done={step1Done}>
-        {!mainFile
-          ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
-          : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setSecretarias([]);setSelected(new Set());setRows([]);setSetorMap(new Map());setAuxFile(null);}}/>
-        }
+      {/* ── Step 1 — Arquivos ── */}
+      <Section n={1} title="Envie os relatórios" sub="As secretarias são detectadas automaticamente. O relatório por organização é opcional." done={step1Done}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
 
-        {/* Coluna + categoria */}
-        {mainFile && headers.length > 0 && (
-          <div style={{display:'flex',alignItems:'center',gap:16,marginTop:14,flexWrap:'wrap'}}>
-            {colIdx >= 0 ? (
-              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 12px',
-                background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:9}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span style={{fontSize:12.5,color:T.textS}}>
-                  {secretarias.length} secretaria{secretarias.length!==1?'s':''} · coluna <strong style={{color:T.text}}>{headers[colIdx] || 'Cliente'}</strong>
-                </span>
-              </div>
-            ) : (
-              <div style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 12px',
-                background:T.dangerGl||'rgba(192,64,80,.08)',border:`1px solid ${T.danger}33`,borderRadius:9}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.danger} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <span style={{fontSize:12.5,color:T.textS}}>Coluna <strong>Cliente</strong> não encontrada neste arquivo.</span>
+          {/* Principal */}
+          <div>
+            <div style={{fontSize:12.5,fontWeight:600,color:T.textS,marginBottom:8}}>
+              Relatório de retenção de tributos <span style={{color:T.danger,fontWeight:700}}>*</span>
+            </div>
+            {!mainFile
+              ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
+              : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setSecretarias([]);setSelected(new Set());setRows([]);setSetorMap(new Map());setAuxFile(null);}}/>
+            }
+            {mainFile && headers.length > 0 && (
+              <div style={{marginTop:10}}>
+                {colIdx >= 0 ? (
+                  <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 10px',
+                    background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span style={{fontSize:12,color:T.textS}}>{secretarias.length} secretaria{secretarias.length!==1?'s':''} · coluna <strong style={{color:T.text}}>{headers[colIdx]||'Cliente'}</strong></span>
+                  </div>
+                ) : (
+                  <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 10px',
+                    background:T.dangerGl||'rgba(192,64,80,.08)',border:`1px solid ${T.danger}33`,borderRadius:8}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.danger} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span style={{fontSize:12,color:T.textS}}>Coluna <strong>Cliente</strong> não encontrada.</span>
+                  </div>
+                )}
               </div>
             )}
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:13,color:T.textS}}>Categoria:</span>
-              <div style={{display:'flex',gap:6}}>
-                {[{v:'fuel',l:'Abastecimento'},{v:'service',l:'Manutenção'}].map(({v,l})=>(
-                  <button key={v} onClick={()=>setCategory(v)}
-                    style={{padding:'5px 14px',borderRadius:20,border:`1px solid ${category===v?T.gold:T.border}`,
-                      background:category===v?T.goldGl:'transparent',color:category===v?T.gold:T.textS,
-                      fontSize:13,fontWeight:category===v?600:400,cursor:'pointer',fontFamily:'var(--font-body)',transition:'all .15s'}}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
-        )}
 
-        {/* Toggle tem setor */}
-        {mainFile && (
-          <div style={{marginTop:16}}>
-            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',width:'fit-content'}}>
-              <input type="checkbox" checked={temSetor} onChange={e=>{setTemSetor(e.target.checked);if(!e.target.checked){setAuxFile(null);setSetorMap(new Map());setSelSetores(new Set());}}}
-                style={{width:16,height:16,cursor:'pointer',accentColor:T.gold}}/>
-              <span style={{fontSize:13,color:T.textS}}>Separar por setores (requer relatório auxiliar)</span>
-            </label>
-
-            {temSetor && (
-              <div style={{marginTop:12}}>
-                <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:8}}>
-                  Relatório auxiliar de {category==='fuel'?'abastecimento':'manutenção'}
-                </div>
-                {!auxFile
-                  ? <DropZoneXLSX onFile={buildSetorMap} label="Relatório auxiliar (.xlsx)"/>
-                  : (
-                    <div>
-                      <FileChip file={auxFile} onRemove={()=>{setAuxFile(null);setSetorMap(new Map());setSelSetores(new Set());}}/>
-                      {setorMap.size > 0 && (
-                        <div style={{marginTop:8,fontSize:12,color:T.textT}}>
-                          {[...setorMap.values()].reduce((s,v)=>s+v.length,0)} setor{[...setorMap.values()].reduce((s,v)=>s+v.length,0)!==1?'es':''} identificado{[...setorMap.values()].reduce((s,v)=>s+v.length,0)!==1?'s':''} em {setorMap.size} secretaria{setorMap.size!==1?'s':''}
-                        </div>
-                      )}
+          {/* Auxiliar por organização (setor) */}
+          <div>
+            <div style={{marginBottom:8}}>
+              <span style={{fontSize:12.5,fontWeight:600,color:T.textS}}>Relatório por organização — setores</span>
+              <span style={{fontSize:12,color:T.textT}}> — opcional</span>
+            </div>
+            <div style={{fontSize:11.5,color:T.textT,marginBottom:8,lineHeight:1.5}}>
+              Se o cliente tiver setores, importe para que as pastas sejam criadas com o nome correto (ex: SAÚDE - ATENÇÃO BÁSICA).
+            </div>
+            {!auxFile
+              ? <DropZoneXLSX onFile={buildSetorMap} label="Selecionar relatório por organização (opcional)..."/>
+              : (
+                <div>
+                  <FileChip file={auxFile} onRemove={()=>{setAuxFile(null);setSetorMap(new Map());setSelSetores(new Set());}}/>
+                  {setorMap.size > 0 && (
+                    <div style={{display:'inline-flex',alignItems:'center',gap:7,marginTop:10,padding:'6px 10px',
+                      background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span style={{fontSize:12,color:T.textS}}>
+                        {[...setorMap.values()].reduce((s,v)=>s+v.length,0)} setor{[...setorMap.values()].reduce((s,v)=>s+v.length,0)!==1?'es':''} em {setorMap.size} secretaria{setorMap.size!==1?'s':''}
+                      </span>
                     </div>
                   )}
+                </div>
+              )
+            }
+
+            {/* Categoria — movida para cá, ao lado do auxiliar */}
+            {mainFile && (
+              <div style={{marginTop:16,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12.5,color:T.textS}}>Categoria:</span>
+                <div style={{display:'flex',gap:6}}>
+                  {[{v:'fuel',l:'Abastecimento'},{v:'service',l:'Manutenção'}].map(({v,l})=>(
+                    <button key={v} onClick={()=>setCategory(v)}
+                      style={{padding:'5px 14px',borderRadius:20,border:`1px solid ${category===v?T.gold:T.border}`,
+                        background:category===v?T.goldGl:'transparent',color:category===v?T.gold:T.textS,
+                        fontSize:13,fontWeight:category===v?600:400,cursor:'pointer',fontFamily:'var(--font-body)',transition:'all .15s'}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        )}
+        </div>
       </Section>
 
       {/* ── Step 2 — Lista de seleção + período + pasta ── */}
