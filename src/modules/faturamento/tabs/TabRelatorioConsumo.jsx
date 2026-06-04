@@ -1,8 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
-// Automação Playwright precisa rodar no servidor LOCAL (salva arquivos na máquina do usuário)
-const LOCAL_URL = 'http://localhost:3001';
+// Verifica se a extensão Uniko Faturamento está instalada no navegador
+const checkExtension = () => new Promise(resolve => {
+  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
+  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
+  window.addEventListener('message', h);
+  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
+});
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -263,56 +268,44 @@ export const TabRelatorioConsumo = () => {
     return [...selected].map(name => ({ clienteStr: clienteMap.get(name) || name, setor: '' }));
   };
 
+  /* ── Recebe eventos da extensão ── */
+  React.useEffect(() => {
+    const handler = (e) => {
+      const { type, log: l } = e.data || {};
+      if (!type?.startsWith('FAT_')) return;
+      if (type === 'FAT_LOG' && l)  setLog(prev => [...prev, l]);
+      if (type === 'FAT_DONE')      { setRunning(false); setDone(true); }
+      if (type === 'FAT_ERROR')     { setRunning(false); }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   /* ── Start automation ── */
   const startDownload = async () => {
     const items = buildDownloadItems();
-    if (!mainFile || !items.length || !credUser || !credPass || !startDate || !endDate) return;
-    setRunning(true); setDone(false);
-    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando...`, type: 'info' }]);
+    if (!items.length || !credUser || !credPass || !startDate || !endDate) return;
 
-    try {
-      const form = new FormData();
-      form.append('mainFile',      mainFile);
-      form.append('username',      credUser);
-      form.append('password',      credPass);
-      form.append('startDate',     dateToBR(startDate));
-      form.append('endDate',       dateToBR(endDate));
-      form.append('category',      category);
-      form.append('outputPath',    outputPath);
-      form.append('downloadItems', JSON.stringify(items));
-
-      const res = await fetch(`${LOCAL_URL}/api/faturamento/consumo/download`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
-        body: form,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setLog(l => [...l, { text: `Erro: ${err.error || res.statusText}`, type: 'error' }]);
-        setRunning(false); return;
-      }
-
-      const { jobId } = await res.json();
-      const poll = setInterval(async () => {
-        try {
-          const s = await fetch(`${LOCAL_URL}/api/faturamento/consumo/status/${jobId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
-          }).then(r => r.json());
-
-          if (s.logs?.length) setLog(s.logs);
-          if (s.status === 'done')  { clearInterval(poll); setRunning(false); setDone(true); }
-          if (s.status === 'error') { clearInterval(poll); setRunning(false); }
-        } catch {
-          clearInterval(poll);
-          setLog(l => [...l, { text: 'Conexão com servidor perdida.', type: 'error' }]);
-          setRunning(false);
-        }
-      }, 2000);
-    } catch {
-      setLog(l => [...l, { text: `Servidor local não encontrado em ${LOCAL_URL}. Verifique se o servidor está rodando.`, type: 'error' }]);
-      setRunning(false);
+    const extFound = await checkExtension();
+    if (!extFound) {
+      setLog([{ text: 'Extensão "Uniko Faturamento" não encontrada. Instale a extensão no Chrome/Opera e recarregue a página.', type: 'error' }]);
+      return;
     }
+
+    setRunning(true); setDone(false);
+    setLog([{ text: `[${new Date().toLocaleTimeString('pt-BR')}] Iniciando automação via extensão...`, type: 'info' }]);
+
+    window.postMessage({
+      type: 'UNIKO_FAT_START',
+      data: {
+        username:      credUser,
+        password:      credPass,
+        startDate:     dateToBR(startDate),
+        endDate:       dateToBR(endDate),
+        category,
+        downloadItems: items,
+      },
+    }, '*');
   };
 
   const step1Done = !!mainFile && secretarias.length > 0 && (!temSetor || (auxFile && setorMap.size > 0));

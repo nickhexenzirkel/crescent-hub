@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Uniko Faturamento",
+  "version": "1.0.0",
+  "description": "Automação de downloads do módulo Faturamento do Uniko HUB para o sistema 7Benefícios",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://app.7beneficiosgestao.com.br/*",
+    "https://crescent-hub.vercel.app/*",
+    "http://localhost:5173/*",
+    "http://localhost:4173/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://crescent-hub.vercel.app/*",
+        "http://localhost:5173/*",
+        "http://localhost:4173/*",
+        "http://localhost:*/*"
+      ],
+      "js": ["content-script.js"]
+    }
+  ],
+  "action": {
+    "default_title": "Uniko Faturamento"
+  }
+}
