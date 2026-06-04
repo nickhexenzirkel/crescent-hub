@@ -53,7 +53,7 @@ async function exec(tabId, func, args = []) {
 /* ── Automação principal ─────────────────────────────────── */
 
 async function runConsumoDownload(data, callerTabId) {
-  const { username, password, startDate, endDate, category, downloadItems } = data;
+  const { username, password, startDate, endDate, category, downloadItems, orgName } = data;
   const logs = [];
 
   const log = async (text, type = 'normal') => {
@@ -135,26 +135,33 @@ async function runConsumoDownload(data, callerTabId) {
     await log(`${Object.keys(orgMap).length} organizações carregadas.`);
 
     // ── Encontra UUID da organização ──
+    // Estratégia 1: usa o nome exato informado pelo usuário
+    // Estratégia 2: fallback automático pelo cliente do XLSX
     const exCliente = downloadItems[0]?.clienteStr || '';
     const parts     = exCliente.split(' - ');
     const munFull   = parts[parts.length - 1]?.trim() || '';
     const city      = parts[1]?.trim() || '';
 
-    let orgUUID = null, orgName = '';
+    const searchTerms = orgName?.trim()
+      ? [normStr(orgName)]
+      : [normStr(munFull), normStr(city)].filter(Boolean);
+
+    let orgUUID = null, foundOrgName = '';
     for (const [name, uuid] of Object.entries(orgMap)) {
       const n = normStr(name);
-      if (n === normStr(munFull) || (city && n.includes(normStr(city)))) {
-        orgUUID = uuid; orgName = name; break;
+      if (searchTerms.some(t => n === t || n.includes(t))) {
+        orgUUID = uuid; foundOrgName = name; break;
       }
     }
 
     if (!orgUUID) {
-      await log(`Organização "${munFull}" não encontrada na lista.`, 'error');
+      const tried = orgName?.trim() || munFull;
+      await log(`Organização "${tried}" não encontrada na lista. Verifique o nome exato na aba Organizações do 7Benefícios.`, 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
       chrome.tabs.remove(tabId).catch(() => {});
       return;
     }
-    await log(`Organização: ${orgName}`, 'ok');
+    await log(`Organização: ${foundOrgName}`, 'ok');
 
     // ── Processa cada secretaria/setor ──
     let downloaded = 0;

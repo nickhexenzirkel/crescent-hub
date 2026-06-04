@@ -148,6 +148,7 @@ export const TabRelatorioConsumo = () => {
   const [startDate,  setStartDate]  = useState('');
   const [endDate,    setEndDate]    = useState('');
   const [outputPath, setOutputPath] = useState('');
+  const [orgName,    setOrgName]    = useState('');
   const [credUser,   setCredUser]   = useState('');
   const [credPass,   setCredPass]   = useState('');
   const [showPass,   setShowPass]   = useState(false);
@@ -218,7 +219,16 @@ export const TabRelatorioConsumo = () => {
       setHeaders(headerRow);
       setRows(allRows);
       const auto = detectClienteCol(headerRow);
-      if (auto >= 0) { setColIdx(auto); buildSecretarias(allRows, auto, headerRow); }
+      if (auto >= 0) {
+        setColIdx(auto);
+        buildSecretarias(allRows, auto, headerRow);
+        // Pré-preenche o nome da organização com o último segmento do primeiro cliente
+        const firstRaw = String(allRows[1]?.[auto] || '').trim();
+        if (firstRaw) {
+          const p = firstRaw.split(' - ');
+          setOrgName(p[p.length - 1]?.trim() || '');
+        }
+      }
     } catch { setLog([{ text: 'Erro ao ler o arquivo XLSX.', type: 'error' }]); }
   };
 
@@ -304,6 +314,7 @@ export const TabRelatorioConsumo = () => {
         endDate:       dateToBR(endDate),
         category,
         downloadItems: items,
+        orgName:       orgName.trim(),
       },
     }, '*');
   };
@@ -471,11 +482,15 @@ export const TabRelatorioConsumo = () => {
               </div>
               <div>
                 <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>
-                  Pasta de destino <span style={{fontWeight:400,color:T.textD}}>(opcional)</span>
+                  Nome da organização no 7Benefícios
+                  <span style={{fontWeight:400,color:T.textD}}> (exatamente como aparece na aba Organizações)</span>
                 </label>
-                <input value={outputPath} onChange={e=>setOutputPath(e.target.value)}
-                  placeholder="Ex: C:\Relatórios\Consumo"
-                  style={{width:'100%',padding:'9px 10px',borderRadius:9,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
+                <input value={orgName} onChange={e=>setOrgName(e.target.value)}
+                  placeholder="Ex: 30 - MUNICÍPIO DE JAGUARETAMA"
+                  style={{width:'100%',padding:'9px 10px',borderRadius:9,border:`1px solid ${orgName?T.gold:T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
+                <div style={{fontSize:11,color:T.textT,marginTop:4}}>
+                  Vá na aba Organizações do 7Benefícios e copie o nome exato da linha da sua organização.
+                </div>
               </div>
             </div>
           </div>
