@@ -31,8 +31,17 @@ const fmtMunicipio = (s) =>
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase());
 
+// XML usa ponto decimal ("23047.98"); textos BR usam vírgula ("22.685,53")
+const parseBRLorXML = (s) => {
+  const str = String(s ?? '').trim();
+  if (!str) return NaN;
+  return str.includes(',')
+    ? parseFloat(str.replace(/\./g, '').replace(',', '.'))
+    : parseFloat(str);
+};
+
 const fmtValorNum = (s) => {
-  const n = parseFloat(String(s || '').replace(/\./g,'').replace(',','.'));
+  const n = parseBRLorXML(s);
   if (isNaN(n)) return s || '—';
   return n.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 };
@@ -382,16 +391,13 @@ export const TabLeitorXML = () => {
                 </span>
                 <span style={{color:T.textS}}>
                   Total bruto: <strong style={{color:T.text}}>
-                    {fmtValorNum(String(filtered.reduce((s,r)=>s+parseFloat(r.valorServicos||0),0)))}
+                    {fmtValorNum(String(filtered.reduce((s,r)=>s+(parseBRLorXML(r.valorServicos)||0),0)))}
                   </strong>
                 </span>
                 <span style={{color:T.textS}}>
                   Total c/ retenção: <strong style={{color:T.text}}>
                     {fmtValorNum(String(
-                      filtered.reduce((s,r) => {
-                        const v = parseFloat(String(r.vlrComRetencao||'0').replace(/\./g,'').replace(',','.'));
-                        return s + (isNaN(v) ? 0 : v);
-                      }, 0)
+                      filtered.reduce((s,r) => s + (parseBRLorXML(r.vlrComRetencao) || 0), 0)
                     ))}
                   </strong>
                 </span>
