@@ -9,6 +9,7 @@ import { Portal } from './modules/central-colaborador';
 import PontoEletronico from './modules/ponto-eletronico';
 import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
+import FaturamentoPortal from './modules/faturamento';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -50,7 +51,7 @@ export default function CrescentHub() {
   };
 
   const handleModuleSelect = (id) => {
-    const adminOnly = ['dashboard','ponto'];
+    const adminOnly = ['dashboard','ponto','faturamento'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     const theme = localStorage.getItem('ch_theme') || 'vozBrasil';
     if (['vozBrasil','vozBrasilDark','orgulho','orgulhoDark'].includes(theme)) {
@@ -238,7 +239,8 @@ export default function CrescentHub() {
           {screen==='colaborador' && <Portal         onBack={()=>ss('modules')} onGoAlexa={()=>ss('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
-          {screen==='alexa'       && <CentralAlexa     onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
+          {screen==='alexa'       && <CentralAlexa        onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
+          {screen==='faturamento' && authUser?.role==='admin' && <FaturamentoPortal onBack={()=>ss('modules')}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
