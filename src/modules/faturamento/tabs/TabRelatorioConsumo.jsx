@@ -25,10 +25,23 @@ const readXLSX = (file) => new Promise((resolve, reject) => {
   reader.readAsArrayBuffer(file);
 });
 
+const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+
 const detectSecretariaCol = (headers) => {
-  const terms = ['secretaria','orgao','órgão','orgão','orgão','setor','departamento','orgão/secretaria'];
-  const h = headers.map(s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''));
+  const h = headers.map(norm);
+  // Prioridade: coluna "Cliente" (formato: "30 - CIDADE - SECRETARIA - MUNICIPIO")
+  const clienteIdx = h.findIndex(c => c === 'cliente');
+  if (clienteIdx >= 0) return clienteIdx;
+  // Fallback: outros termos comuns
+  const terms = ['secretaria','orgao','orgão','setor','departamento'];
   return h.findIndex(col => terms.some(t => col.includes(t)));
+};
+
+// Extrai nome da secretaria do padrão: "30 - CIDADE - SECRETARIA - MUNICIPIO DE X"
+const extractSecretaria = (clienteStr) => {
+  const parts = String(clienteStr).split(' - ');
+  if (parts.length >= 3) return parts[2].trim();
+  return String(clienteStr).trim();
 };
 
 /* ── Drop Zone ────────────────────────────────────────────── */
@@ -138,14 +151,18 @@ export const TabRelatorioConsumo = () => {
       const auto = detectSecretariaCol(headerRow);
       if (auto >= 0) {
         setColIdx(auto);
-        buildSecretarias(allRows, auto);
+        buildSecretarias(allRows, auto, headerRow);
       }
     } catch { addLog('Erro ao ler o arquivo XLSX.', 'error'); }
   };
 
-  const buildSecretarias = (allRows, ci) => {
+  const buildSecretarias = (allRows, ci, hdrs) => {
+    const isCliente = norm(hdrs?.[ci] || '') === 'cliente';
     const vals = allRows.slice(1)
-      .map(r => String(r[ci] || '').trim())
+      .map(r => {
+        const raw = String(r[ci] || '').trim();
+        return isCliente ? extractSecretaria(raw) : raw;
+      })
       .filter(Boolean);
     const unique = [...new Set(vals)].sort();
     setSecretarias(unique);
@@ -258,7 +275,7 @@ export const TabRelatorioConsumo = () => {
             <span style={{fontSize:13,color:T.textS}}>Coluna de secretaria:</span>
             <select
               value={colIdx}
-              onChange={e => { const ci = Number(e.target.value); setColIdx(ci); if(ci>=0) buildSecretarias(rows, ci); }}
+              onChange={e => { const ci = Number(e.target.value); setColIdx(ci); if(ci>=0) buildSecretarias(rows, ci, headers); }}
               style={{padding:'6px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
               <option value={-1}>Selecionar coluna...</option>
               {headers.map((h,i) => <option key={i} value={i}>{h || `Coluna ${i+1}`}</option>)}
