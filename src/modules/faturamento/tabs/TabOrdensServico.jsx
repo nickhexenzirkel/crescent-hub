@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
-import { SERVER_URL } from '../../../contexts/user';
+const LOCAL_URL = 'http://localhost:3001';
 
 const MESES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -137,7 +137,7 @@ export const TabOrdensServico = () => {
       form.append('ano', String(ano));
       form.append('outputPath', outputPath);
 
-      const res = await fetch(`${SERVER_URL}/api/faturamento/ordens/download`, {
+      const res = await fetch(`${LOCAL_URL}/api/faturamento/ordens/download`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
         body: form,
@@ -155,7 +155,7 @@ export const TabOrdensServico = () => {
 
       const poll = setInterval(async () => {
         try {
-          const s = await fetch(`${SERVER_URL}/api/faturamento/ordens/status/${jobId}`, {
+          const s = await fetch(`${LOCAL_URL}/api/faturamento/ordens/status/${jobId}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
           }).then(r => r.json());
 

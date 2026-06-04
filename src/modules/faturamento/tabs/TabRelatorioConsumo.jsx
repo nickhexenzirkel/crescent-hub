@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
-import { SERVER_URL } from '../../../contexts/user';
+// Automação Playwright precisa rodar no servidor LOCAL (salva arquivos na máquina do usuário)
+const LOCAL_URL = 'http://localhost:3001';
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -280,7 +281,7 @@ export const TabRelatorioConsumo = () => {
       form.append('outputPath',    outputPath);
       form.append('downloadItems', JSON.stringify(items));
 
-      const res = await fetch(`${SERVER_URL}/api/faturamento/consumo/download`, {
+      const res = await fetch(`${LOCAL_URL}/api/faturamento/consumo/download`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
         body: form,
@@ -295,7 +296,7 @@ export const TabRelatorioConsumo = () => {
       const { jobId } = await res.json();
       const poll = setInterval(async () => {
         try {
-          const s = await fetch(`${SERVER_URL}/api/faturamento/consumo/status/${jobId}`, {
+          const s = await fetch(`${LOCAL_URL}/api/faturamento/consumo/status/${jobId}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('ch_token')}` },
           }).then(r => r.json());
 
@@ -309,7 +310,7 @@ export const TabRelatorioConsumo = () => {
         }
       }, 2000);
     } catch {
-      setLog(l => [...l, { text: `Servidor não encontrado em ${SERVER_URL}.`, type: 'error' }]);
+      setLog(l => [...l, { text: `Servidor local não encontrado em ${LOCAL_URL}. Verifique se o servidor está rodando.`, type: 'error' }]);
       setRunning(false);
     }
   };
