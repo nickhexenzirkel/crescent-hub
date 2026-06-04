@@ -115,7 +115,14 @@ async function runConsumoDownload(data, callerTabId) {
 
       while (noChange < 3) {
         document.querySelectorAll('table tbody tr').forEach(row => {
-          const name = row.querySelector('td')?.textContent?.trim();
+          // Junta o texto de todas as células da linha — assim o nome é
+          // capturado mesmo que o número e o nome estejam em colunas separadas
+          const name = [...row.querySelectorAll('td')]
+            .map(td => td.textContent.trim())
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
           const uuid = [...row.querySelectorAll('a[href]')]
             .map(a => a.getAttribute('href').match(/organizations\/([a-f0-9-]{36})/)?.[1])
             .find(Boolean);
@@ -142,21 +149,36 @@ async function runConsumoDownload(data, callerTabId) {
     const munFull   = parts[parts.length - 1]?.trim() || '';
     const city      = parts[1]?.trim() || '';
 
-    const searchTerms = orgName?.trim()
-      ? [normStr(orgName)]
-      : [normStr(munFull), normStr(city)].filter(Boolean);
+    // "core" = texto normalizado sem o código numérico inicial (ex.: "30 - ")
+    const stripCode = (s) => normStr(s).replace(/^\d+\s*[-–—]?\s*/, '').trim();
+
+    const rawTerms = orgName?.trim() ? [orgName] : [munFull, city].filter(Boolean);
+    const searchTerms = [...new Set(
+      rawTerms.flatMap(t => [normStr(t), stripCode(t)]).filter(Boolean)
+    )];
 
     let orgUUID = null, foundOrgName = '';
     for (const [name, uuid] of Object.entries(orgMap)) {
-      const n = normStr(name);
-      if (searchTerms.some(t => n === t || n.includes(t))) {
-        orgUUID = uuid; foundOrgName = name; break;
-      }
+      const n    = normStr(name);
+      const core = stripCode(name);
+      const hit = searchTerms.some(t =>
+        n === t || n.includes(t) ||           // nome contém o termo
+        (core && core.includes(t)) ||          // nome sem código contém o termo
+        (t.length > 3 && t.includes(core) && core.length > 3) // termo contém o nome sem código
+      );
+      if (hit) { orgUUID = uuid; foundOrgName = name; break; }
     }
 
     if (!orgUUID) {
       const tried = orgName?.trim() || munFull;
+      // Mostra nomes parecidos (qualquer palavra do termo em comum) para diagnóstico
+      const words = stripCode(tried).split(' ').filter(w => w.length > 3);
+      const near = Object.keys(orgMap)
+        .filter(name => words.some(w => normStr(name).includes(w)))
+        .slice(0, 5);
       await log(`Organização "${tried}" não encontrada na lista. Verifique o nome exato na aba Organizações do 7Benefícios.`, 'error');
+      if (near.length) await log(`Nomes parecidos lidos: ${near.join(' | ')}`, 'error');
+      else await log(`Exemplos lidos: ${Object.keys(orgMap).slice(0, 3).join(' | ')}`, 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
       chrome.tabs.remove(tabId).catch(() => {});
       return;
