@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
+import { StellarHero } from '../StellarHero';
 
 // Verifica se a extensão Uniko Faturamento está instalada
 const checkExtension = () => new Promise(resolve => {
@@ -54,6 +55,9 @@ const extractSecretaria = (s) => {
   return parts.length >= 3 ? parts[2].trim() : String(s).trim();
 };
 
+// Nome da pasta de destino da OS (igual ao que a extensão usa): secretaria + setor
+const folderOf = (o) => `${o.secretaria}${o.setor ? ` - ${o.setor}` : ''}`;
+
 /* ── Drop Zone ────────────────────────────────────────── */
 const DropZoneXLSX = ({ onFile, label }) => {
   const [drag, setDrag] = useState(false);
@@ -90,6 +94,19 @@ const FileChip = ({ file, onRemove }) => (
     <span style={{fontSize:13,fontWeight:500,color:T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{file.name}</span>
     <button onClick={onRemove} style={{background:'none',border:'none',cursor:'pointer',color:T.danger,fontSize:12,fontFamily:'var(--font-body)',flexShrink:0}}>Remover</button>
   </div>
+);
+
+/* ── Ícones da árvore de pastas ───────────────────────── */
+const FolderIcon = ({ color, small }) => (
+  <svg width={small?14:16} height={small?14:16} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+  </svg>
+);
+const FileIcon = ({ color }) => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+  </svg>
 );
 
 /* ── Section header ───────────────────────────────────── */
@@ -182,7 +199,7 @@ export const TabOrdensServico = () => {
     });
     setCliMap(map);
     setOsRows(out);
-    setSelected(new Set(out.map(o => `${o.secretaria}::${o.osId}`)));
+    setSelected(new Set(out.map(o => `${folderOf(o)}::${o.osId}`)));
   };
 
   /* ── Lê arquivo auxiliar (mapeia OS → setor) ── */
@@ -233,34 +250,35 @@ export const TabOrdensServico = () => {
     } catch { setLog([{ text: 'Erro ao ler o arquivo XLSX.', type: 'error' }]); }
   };
 
-  /* ── Seleção (agrupada por secretaria) ── */
+  /* ── Seleção (agrupada por pasta de destino: secretaria + setor) ── */
   const grouped = React.useMemo(() => {
     const m = new Map();
     osRows.forEach(o => {
-      if (!m.has(o.secretaria)) m.set(o.secretaria, []);
-      m.get(o.secretaria).push(o);
+      const f = folderOf(o);
+      if (!m.has(f)) m.set(f, []);
+      m.get(f).push(o);
     });
     return [...m.entries()].sort(([a],[b]) => a.localeCompare(b));
   }, [osRows]);
 
-  const toggleOs = (sec, osId) => setSelected(prev => {
-    const next = new Set(prev); const k = `${sec}::${osId}`;
+  const toggleOs = (folder, osId) => setSelected(prev => {
+    const next = new Set(prev); const k = `${folder}::${osId}`;
     next.has(k) ? next.delete(k) : next.add(k); return next;
   });
-  const secOsList = (sec) => osRows.filter(o => o.secretaria === sec);
-  const allSecSel = (sec) => secOsList(sec).every(o => selected.has(`${sec}::${o.osId}`));
-  const someSecSel = (sec) => secOsList(sec).some(o => selected.has(`${sec}::${o.osId}`));
-  const toggleSecAll = (sec) => setSelected(prev => {
+  const folderOsList = (folder) => osRows.filter(o => folderOf(o) === folder);
+  const allFolderSel = (folder) => folderOsList(folder).every(o => selected.has(`${folder}::${o.osId}`));
+  const someFolderSel = (folder) => folderOsList(folder).some(o => selected.has(`${folder}::${o.osId}`));
+  const toggleFolderAll = (folder) => setSelected(prev => {
     const next = new Set(prev);
-    const list = secOsList(sec);
-    const all = list.every(o => next.has(`${sec}::${o.osId}`));
-    list.forEach(o => all ? next.delete(`${sec}::${o.osId}`) : next.add(`${sec}::${o.osId}`));
+    const list = folderOsList(folder);
+    const all = list.every(o => next.has(`${folder}::${o.osId}`));
+    list.forEach(o => all ? next.delete(`${folder}::${o.osId}`) : next.add(`${folder}::${o.osId}`));
     return next;
   });
 
   /* ── Monta itens para envio ── */
   const buildItems = () => osRows
-    .filter(o => selected.has(`${o.secretaria}::${o.osId}`))
+    .filter(o => selected.has(`${folderOf(o)}::${o.osId}`))
     .map(o => ({ osId: o.osId, cliente: cliMap.get(o.secretaria) || o.cliente, setor: o.setor }));
 
   /* ── Pasta de destino ── */
@@ -383,12 +401,16 @@ export const TabOrdensServico = () => {
 
   return (
     <div>
-      <div style={{marginBottom:28}}>
-        <h2 style={{fontSize:22,fontWeight:700,color:T.text,marginBottom:6}}>Ordens de Serviço</h2>
-        <p style={{fontSize:14,color:T.textS,lineHeight:1.6}}>
-          Baixa automaticamente os PDFs de Ordens de Serviço do 7Benefícios, organizados em uma pasta por secretaria.
-        </p>
-      </div>
+      <StellarHero compact
+        eyebrow="Automação · 7Benefícios"
+        title="Ordens de Serviço"
+        subtitle="Baixa o PDF de cada OS, organizado em uma subpasta por secretaria. Sem precisar informar período."
+        icon={(
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+        )}
+      />
 
       {/* ── Step 1 — Arquivo + colunas ── */}
       <Section n={1} title="Envie o Relatório de Retenção de Tributos" done={step1Done}>
@@ -397,25 +419,29 @@ export const TabOrdensServico = () => {
           : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setOsRows([]);setSelected(new Set());setRows([]);setAuxFile(null);setSetorByOs(new Map());setTemSetor(false);}}/>
         }
 
-        {/* Seleção de colunas */}
-        {mainFile && headers.length > 0 && (
-          <div style={{display:'flex',alignItems:'center',gap:16,marginTop:14,flexWrap:'wrap'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:13,color:T.textS}}>Coluna secretaria:</span>
-              <select value={cliIdx} onChange={e=>{const ci=Number(e.target.value);setCliIdx(ci);buildOsRows(rows,ci,osIdx);}}
-                style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
-                <option value={-1}>Selecionar...</option>
-                {headers.map((h,i)=><option key={i} value={i}>{h||`Col ${i+1}`}</option>)}
-              </select>
+        {/* Detecção automática da coluna ID da Ordem de Serviço */}
+        {mainFile && headers.length > 0 && osIdx >= 0 && (
+          <div style={{display:'inline-flex',alignItems:'center',gap:8,marginTop:14,padding:'7px 12px',
+            background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:9}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span style={{fontSize:12.5,color:T.textS}}>
+              Coluna detectada: <strong style={{color:T.text}}>{headers[osIdx] || `Coluna ${osIdx+1}`}</strong>
+            </span>
+          </div>
+        )}
+
+        {/* Fallback: só aparece se a coluna da OS não foi detectada */}
+        {mainFile && headers.length > 0 && osIdx < 0 && (
+          <div style={{marginTop:14,padding:'12px 14px',background:T.dangerGl||'rgba(192,64,80,.08)',
+            border:`1px solid ${T.danger}33`,borderRadius:9}}>
+            <div style={{fontSize:12.5,color:T.text,marginBottom:8}}>
+              Não encontrei a coluna <strong>ID da Ordem de Serviço</strong>. Selecione-a manualmente:
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:13,color:T.textS}}>Coluna OS:</span>
-              <select value={osIdx} onChange={e=>{const oi=Number(e.target.value);setOsIdx(oi);buildOsRows(rows,cliIdx,oi);}}
-                style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
-                <option value={-1}>Selecionar...</option>
-                {headers.map((h,i)=><option key={i} value={i}>{h||`Col ${i+1}`}</option>)}
-              </select>
-            </div>
+            <select value={osIdx} onChange={e=>{const oi=Number(e.target.value);setOsIdx(oi);buildOsRows(rows,cliIdx,oi);}}
+              style={{padding:'6px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',cursor:'pointer',outline:'none'}}>
+              <option value={-1}>Selecionar coluna...</option>
+              {headers.map((h,i)=><option key={i} value={i}>{h||`Col ${i+1}`}</option>)}
+            </select>
           </div>
         )}
 
@@ -453,44 +479,58 @@ export const TabOrdensServico = () => {
         <Section n={2} title="Selecione as Ordens de Serviço" done={step2Done}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
 
-            {/* Lista de OS agrupada por secretaria */}
+            {/* Pré-visualização da árvore de pastas */}
             <div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <span style={{fontSize:13,fontWeight:600,color:T.textS}}>{selectedCount}/{osRows.length} OS selecionada{selectedCount!==1?'s':''}</span>
+                <span style={{fontSize:13,fontWeight:600,color:T.textS}}>{selectedCount}/{osRows.length} OS · {grouped.length} pasta{grouped.length!==1?'s':''}</span>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>setSelected(new Set(osRows.map(o=>`${o.secretaria}::${o.osId}`)))}
+                  <button onClick={()=>setSelected(new Set(osRows.map(o=>`${folderOf(o)}::${o.osId}`)))}
                     style={{fontSize:12,color:T.gold,background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>Todos</button>
                   <button onClick={()=>setSelected(new Set())}
                     style={{fontSize:12,color:T.textT,background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-body)'}}>Nenhum</button>
                 </div>
               </div>
 
-              <div style={{maxHeight:300,overflowY:'auto',border:`1px solid ${T.border}`,borderRadius:10,background:T.surface}}>
-                {grouped.map(([sec, list]) => (
-                  <div key={sec} style={{borderBottom:`1px solid ${T.divider}`}}>
-                    <label style={{display:'flex',alignItems:'center',gap:9,padding:'9px 14px',cursor:'pointer',background:T.goldGl+'88'}}
+              <div style={{maxHeight:340,overflowY:'auto',border:`1px solid ${T.border}`,borderRadius:10,background:T.surface}}>
+                {/* Raiz */}
+                <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',
+                  borderBottom:`1px solid ${T.divider}`,background:T.goldGl}}>
+                  <FolderIcon color={T.gold}/>
+                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>Uniko - Ordens de Serviço</span>
+                </div>
+
+                {grouped.map(([folder, list]) => (
+                  <div key={folder} style={{borderBottom:`1px solid ${T.divider}`}}>
+                    {/* Pasta da secretaria */}
+                    <label style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px 8px 26px',cursor:'pointer',
+                      background:T.goldGl+'66',borderLeft:`2px solid ${T.gold}55`}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
-                      onMouseLeave={e=>e.currentTarget.style.background=T.goldGl+'88'}>
+                      onMouseLeave={e=>e.currentTarget.style.background=T.goldGl+'66'}>
                       <input type="checkbox"
-                        checked={allSecSel(sec)}
-                        ref={el=>{ if(el) el.indeterminate = !allSecSel(sec) && someSecSel(sec); }}
-                        onChange={()=>toggleSecAll(sec)}
+                        checked={allFolderSel(folder)}
+                        ref={el=>{ if(el) el.indeterminate = !allFolderSel(folder) && someFolderSel(folder); }}
+                        onChange={()=>toggleFolderAll(folder)}
                         style={{accentColor:T.gold,width:15,height:15,cursor:'pointer'}}/>
-                      <span style={{fontSize:13,fontWeight:600,color:T.text}}>{sec}</span>
-                      <span style={{marginLeft:'auto',fontSize:11,color:T.textT}}>{list.length} OS</span>
+                      <FolderIcon color={T.gold} small/>
+                      <span style={{fontSize:12.5,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{folder}</span>
+                      <span style={{marginLeft:'auto',fontSize:11,color:T.textT,flexShrink:0}}>{list.length} OS</span>
                     </label>
+                    {/* Arquivos os_NUMERO.pdf */}
                     {list.map(o => (
-                      <label key={o.osId} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 14px 7px 36px',cursor:'pointer',transition:'background .1s'}}
+                      <label key={o.osId} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px 6px 52px',cursor:'pointer',transition:'background .1s'}}
                         onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                        <input type="checkbox" checked={selected.has(`${sec}::${o.osId}`)} onChange={()=>toggleOs(sec,o.osId)}
-                          style={{accentColor:T.gold,width:14,height:14,cursor:'pointer'}}/>
-                        <span style={{fontSize:12,color:T.textS,fontFamily:'monospace'}}>os_{o.osId}</span>
-                        {o.setor && <span style={{marginLeft:'auto',fontSize:11,color:T.textT}}>{o.setor}</span>}
+                        <input type="checkbox" checked={selected.has(`${folder}::${o.osId}`)} onChange={()=>toggleOs(folder,o.osId)}
+                          style={{accentColor:T.gold,width:13,height:13,cursor:'pointer'}}/>
+                        <FileIcon color={T.textD}/>
+                        <span style={{fontSize:12,color:T.textS,fontFamily:'monospace'}}>os_{o.osId}.pdf</span>
                       </label>
                     ))}
                   </div>
                 ))}
+              </div>
+              <div style={{fontSize:11,color:T.textT,marginTop:6}}>
+                Cada secretaria vira uma subpasta com suas OS dentro. Marque o que deseja baixar.
               </div>
             </div>
 

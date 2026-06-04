@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
+import { StellarHero } from '../StellarHero';
 
 /* ── GINFES NFS-e Parser ──────────────────────────────── */
 const GINFES_NS = 'http://www.ginfes.com.br/tipos_v03.xsd';
@@ -265,12 +266,17 @@ export const TabLeitorXML = () => {
 
   return (
     <div>
-      <div style={{marginBottom:24}}>
-        <h2 style={{fontSize:22,fontWeight:700,color:T.text,marginBottom:6}}>Leitor de XML</h2>
-        <p style={{fontSize:14,color:T.textS,lineHeight:1.6}}>
-          Importa arquivos NFS-e (formato GINFES) e exporta para Excel no formato da planilha de faturamento.
-        </p>
-      </div>
+      <StellarHero compact
+        eyebrow="Nota Fiscal · Excel"
+        title="Leitor de XML"
+        subtitle="Importa arquivos NFS-e (formato GINFES) e exporta para Excel no formato da planilha de faturamento."
+        icon={(
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
+          </svg>
+        )}
+      />
+
 
       <div style={{marginBottom:24}}>
         <DropZone onFiles={processFiles}/>

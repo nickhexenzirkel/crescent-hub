@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
+import { StellarHero } from '../StellarHero';
 // Verifica se a extensão Uniko Faturamento está instalada no navegador
 const checkExtension = () => new Promise(resolve => {
   const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
@@ -420,12 +421,17 @@ export const TabRelatorioConsumo = () => {
 
   return (
     <div>
-      <div style={{marginBottom:28}}>
-        <h2 style={{fontSize:22,fontWeight:700,color:T.text,marginBottom:6}}>Relatório de Consumo</h2>
-        <p style={{fontSize:14,color:T.textS,lineHeight:1.6}}>
-          Baixa automaticamente os PDFs de Relatório de Consumo do sistema 7Benefícios para cada secretaria.
-        </p>
-      </div>
+      <StellarHero compact
+        eyebrow="Automação · 7Benefícios"
+        title="Relatório de Consumo"
+        subtitle="Baixa os PDFs de Relatório de Consumo de cada secretaria, direto na pasta que você escolher."
+        icon={(
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        )}
+      />
+
 
       {/* ── Step 1 — Arquivo + categoria + setor ── */}
       <Section n={1} title="Envie o Relatório de Retenção de Tributos" done={step1Done}>
