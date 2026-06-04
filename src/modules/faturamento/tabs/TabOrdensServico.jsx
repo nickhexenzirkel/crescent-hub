@@ -36,11 +36,16 @@ const detectClienteCol = (headers) => {
 
 const detectOSCol = (headers) => {
   const h = headers.map(norm);
-  const exact = h.findIndex(c => c === 'os' || c === 'o.s' || c === 'o.s.');
-  if (exact >= 0) return exact;
-  return h.findIndex(col =>
-    col.endsWith(' os') || col.includes('ordem') || col.includes('order') ||
-    col.includes('pedido') || col.includes('o.s'));
+  // 1. "ID da Ordem de Serviço" (mais específico)
+  let idx = h.findIndex(c => c.includes('id') && c.includes('ordem'));
+  if (idx >= 0) return idx;
+  // 2. Qualquer "ordem"/"order"
+  idx = h.findIndex(c => c.includes('ordem') || c.includes('order'));
+  if (idx >= 0) return idx;
+  // 3. OS exata / pedido
+  return h.findIndex(c =>
+    c === 'os' || c === 'o.s' || c === 'o.s.' || c.endsWith(' os') ||
+    c.includes('o.s') || c.includes('pedido'));
 };
 
 // "30 - JAGUARETAMA - SECRETARIA DOS ESPORTES - MUNICIPIO DE X" → "SECRETARIA DOS ESPORTES"
