@@ -510,9 +510,11 @@ export const TabLaboratorioEstelar = () => {
         if (pageCount === 0) {
           setLog(prev => [...prev, { text: `  ✗ "${folder}" — sem páginas válidas, PDF ignorado`, type: 'error' }]);
         } else {
-          nfDir.file(`${folder}.pdf`, await merged.save());
+          const nfNumber = nfMatch ? (nfMatch.match(/\d+/)?.[0] || '') : '';
+          const nfFileName = nfNumber ? `NF ${nfNumber} - ${folder}.pdf` : `${folder}.pdf`;
+          nfDir.file(nfFileName, await merged.save());
           assembled++;
-          setLog(prev => [...prev, { text: `  ✓ ${folder}`, type: 'ok' }]);
+          setLog(prev => [...prev, { text: `  ✓ ${nfFileName}`, type: 'ok' }]);
         }
       } catch (err) {
         setLog(prev => [...prev, { text: `  Erro ao mesclar "${folder}": ${err.message}`, type: 'error' }]);
