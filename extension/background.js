@@ -240,6 +240,13 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     // milhares de opções (ex: Credenciado) que confundiriam a busca
     const divSelectM = html2.match(/<select[^>]+name="division_id"[^>]*>([\s\S]*?)<\/select>/i);
     const divSelectHtml = divSelectM?.[1] || '';
+    // DIAGNÓSTICO: verifica se division_id aparece no HTML e mostra contexto
+    const divIdx = html2.indexOf('division_id');
+    if (log) await log(`RC diagnóstico: division_id pos=${divIdx} | selectMatch=${!!divSelectM} | html2 tamanho=${html2.length}`, 'info');
+    if (divIdx >= 0 && !divSelectM) {
+      const ctx = html2.slice(Math.max(0, divIdx - 80), divIdx + 300).replace(/\s+/g, ' ');
+      if (log) await log(`RC diagnóstico contexto: ...${ctx}...`, 'info');
+    }
     const divOpts = [...divSelectHtml.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
       .map(m => ({ value: m[1], text: m[2].trim() }));
     const sn2 = normStr(setor);
