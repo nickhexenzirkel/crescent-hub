@@ -178,7 +178,7 @@ export const TabRelatorioConsumo = () => {
             list.forEach(({ filename, base64 }) => {
               const bin = atob(base64); const bytes = new Uint8Array(bin.length);
               for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-              zip.folder(folder).file(filename, bytes);
+              zip.file(filename, bytes);
             });
           });
           const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
