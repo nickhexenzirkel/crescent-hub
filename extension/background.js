@@ -266,7 +266,8 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
   const hasPdf = probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46);
   if (!hasPdf) {
-    if (log) await log(`RC: arquivo baixado não é PDF válido (assinatura %PDF não encontrada).`, 'error');
+    const preview = new TextDecoder('utf-8', { fatal: false }).decode(probe.slice(0, 120)).replace(/\s+/g, ' ').trim();
+    if (log) await log(`RC: não é PDF. content-type="${ct}" tamanho=${buf.byteLength}B início="${preview}"`, 'error');
     return null;
   }
   return bufToBase64(buf);
@@ -275,7 +276,7 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
 /* ── Baixa PDF de Ordem de Serviço ──────────────────────── */
 
 async function fetchOsPdf(orgUUID, osId, log) {
-  // Passo 1: busca a lista de OS com o ID
+  // Passo 1: busca a lista de OS com o ID para obter o UUID completo
   const params = new URLSearchParams({
     order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
     inserted_at_range: '', updated_at_range: '', service_type: '',
@@ -283,54 +284,49 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Passo 2: encontra o link da página de detalhes da OS
-  const detailM = listHtml.match(new RegExp(`href="([^"]*organizations/${orgUUID}/orders/${osId}[^"]*)"`, 'i'))
-               || listHtml.match(new RegExp(`href="([^"]*orders/${osId}[^"]*)"`, 'i'))
-               || listHtml.match(new RegExp(`href="([^"]*orders[^"]*${osId}[^"]*)"`, 'i'));
+  // Extrai UUID completo da OS a partir dos links da lista
+  const uuidM = listHtml.match(new RegExp(`/orders/([a-f0-9-]{36})`, 'i'));
+  const orderUUID = uuidM?.[1] || osId;
 
-  if (!detailM?.[1]) {
-    const allHrefs = [...listHtml.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
-      .filter(h => h.includes('order')).slice(0, 6);
-    if (log) await log(`OS: OS ${osId} não encontrada na lista. Links de ordens: ${allHrefs.join(' | ') || 'nenhum'}`, 'error');
-    return null;
+  if (log) await log(`OS: UUID da ordem = ${orderUUID}`, 'info');
+
+  // Passo 2: tenta URLs diretas de PDF sem precisar abrir a página de detalhes
+  const candidates = [
+    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/print`,
+    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/relatorio`,
+    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/pdf`,
+    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/download`,
+  ];
+
+  for (const tryUrl of candidates) {
+    let res;
+    try { res = await bf(tryUrl); } catch { continue; }
+    if (!res.ok) continue;
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('html')) {
+      // Pode ser a página de print — tenta extrair iframe/embed com PDF ou o PDF embutido
+      const html = await res.text();
+      const embedM = html.match(/(?:src|href)="([^"]+\.pdf[^"]*)"/i)
+                  || html.match(/<iframe[^>]+src="([^"]+)"/i);
+      if (!embedM?.[1]) continue;
+      try {
+        const pdfRes2 = await bf(absUrl(embedM[1]));
+        if (!pdfRes2.ok) continue;
+        const buf2 = await pdfRes2.arrayBuffer();
+        const probe2 = new Uint8Array(buf2, 0, Math.min(1024, buf2.byteLength));
+        if (probe2.some((b, i) => b === 0x25 && probe2[i+1] === 0x50 && probe2[i+2] === 0x44 && probe2[i+3] === 0x46))
+          return bufToBase64(buf2);
+      } catch { continue; }
+      continue;
+    }
+    const buf = await res.arrayBuffer();
+    const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
+    if (probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46))
+      return bufToBase64(buf);
   }
 
-  // Passo 3: busca a página de detalhes da OS
-  const detailUrl = absUrl(detailM[1]);
-  if (log) await log(`OS: acessando detalhes em ${detailUrl}`, 'info');
-  const detailHtml = await getHtml(detailUrl);
-
-  // Passo 4: encontra o link do PDF/print na página de detalhes
-  const pdfM = detailHtml.match(/href="([^"]+(?:\/print|\/pdf|\.pdf|\/download|relatorio)[^"]*)"/i)
-            || detailHtml.match(/href="([^"]*orders[^"]+(?:print|pdf|relatorio)[^"]*)"/i);
-
-  if (!pdfM?.[1]) {
-    const allHrefs = [...detailHtml.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
-      .filter(h => h.includes('order') || h.includes('pdf') || h.includes('print') || h.includes('download'))
-      .slice(0, 8);
-    if (log) await log(`OS: link de PDF não encontrado na página de detalhes. Links disponíveis: ${allHrefs.join(' | ') || 'nenhum'}`, 'error');
-    return null;
-  }
-
-  // Passo 5: baixa o PDF
-  const pdfRes = await bf(absUrl(pdfM[1]));
-  if (!pdfRes.ok) {
-    if (log) await log(`OS: PDF URL retornou HTTP ${pdfRes.status}: ${pdfM[1]}`, 'error');
-    return null;
-  }
-  const ct = pdfRes.headers.get('content-type') || '';
-  if (ct.includes('html')) {
-    if (log) await log(`OS: resposta é HTML, não PDF (content-type: ${ct}).`, 'error');
-    return null;
-  }
-  const buf = await pdfRes.arrayBuffer();
-  const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
-  const hasPdf = probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46);
-  if (!hasPdf) {
-    if (log) await log(`OS: arquivo baixado não é PDF válido (assinatura %PDF não encontrada).`, 'error');
-    return null;
-  }
-  return bufToBase64(buf);
+  if (log) await log(`OS: nenhuma das URLs de PDF funcionou para ordem ${orderUUID}.`, 'error');
+  return null;
 }
 
 /* ── Automação RC ─────────────────────────────────────────── */
