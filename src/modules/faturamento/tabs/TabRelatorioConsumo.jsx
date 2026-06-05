@@ -7,6 +7,7 @@ import { StarDivider } from '../../../shared/components';
 import { checkExtension } from '../../../utils/checkExtension';
 import { useCredenciais } from '../../../hooks/useCredenciais';
 import { CredenciaisPanel } from '../CredenciaisPanel';
+import { CatbotStatus } from '../CatbotStatus';
 import { saveFile, loadFile, deleteFile } from '../../../utils/fileStorage';
 
 const KEY_MAIN = 'rc_main';
@@ -329,7 +330,8 @@ export const TabRelatorioConsumo = () => {
 
   const step1Done = !!mainFile && secretarias.length > 0;
   const step2Done = step1Done && !!startDate && !!endDate && selectedCount > 0;
-  const step3Done = step2Done && !!credUser && !!credPass;
+  const step3Done  = step2Done && !!credUser && !!credPass;
+  const catPhase   = running ? 'rc' : done ? 'done' : log.some(l => l.type === 'error') ? 'error' : 'idle';
 
   return (
     <div>
@@ -510,6 +512,7 @@ export const TabRelatorioConsumo = () => {
               </div>
             )}
           </div>
+          <CatbotStatus phase={catPhase}/>
           <Log lines={log}/>
         </Section>
       )}

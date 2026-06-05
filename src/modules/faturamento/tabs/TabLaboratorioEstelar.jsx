@@ -9,6 +9,7 @@ import { StarDivider } from '../../../shared/components';
 import { checkExtension } from '../../../utils/checkExtension';
 import { useCredenciais } from '../../../hooks/useCredenciais';
 import { CredenciaisPanel } from '../CredenciaisPanel';
+import { CatbotStatus } from '../CatbotStatus';
 import { saveFile, loadFile, deleteFile } from '../../../utils/fileStorage';
 
 const KEY_MAIN = 'lab_main';
@@ -806,6 +807,12 @@ export const TabLaboratorioEstelar = () => {
             )}
           </div>
 
+          <CatbotStatus
+            phase={phase === 'idle' ? 'idle' : phase}
+            doneText={log.filter(l => l.type === 'ok').length
+              ? `${log.filter(l => l.type === 'ok').length} secretaria${log.filter(l => l.type === 'ok').length !== 1 ? 's' : ''} organizadas! ZIP pronto.`
+              : undefined}
+          />
           <Log lines={log}/>
         </Section>
       )}

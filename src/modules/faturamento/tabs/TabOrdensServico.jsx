@@ -7,6 +7,7 @@ import { StarDivider } from '../../../shared/components';
 import { checkExtension } from '../../../utils/checkExtension';
 import { useCredenciais } from '../../../hooks/useCredenciais';
 import { CredenciaisPanel } from '../CredenciaisPanel';
+import { CatbotStatus } from '../CatbotStatus';
 import { saveFile, loadFile, deleteFile } from '../../../utils/fileStorage';
 
 const KEY_MAIN = 'os_main';
@@ -324,6 +325,7 @@ export const TabOrdensServico = () => {
   const step1Done = !!mainFile && osRows.length > 0;
   const step2Done = step1Done && selectedCount > 0 && !!orgName.trim();
   const step3Done = step2Done && !!credUser && !!credPass;
+  const catPhase  = running ? 'os' : done ? 'done' : log.some(l => l.type === 'error') ? 'error' : 'idle';
 
   return (
     <div>
@@ -465,6 +467,7 @@ export const TabOrdensServico = () => {
               </div>
             )}
           </div>
+          <CatbotStatus phase={catPhase}/>
           <Log lines={log}/>
         </Section>
       )}
