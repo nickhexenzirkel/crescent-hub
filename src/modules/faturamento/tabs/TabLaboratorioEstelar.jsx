@@ -279,6 +279,7 @@ export const TabLaboratorioEstelar = () => {
     saveFile(KEY_MAIN, f).catch(() => {});
     setRows([]); setHeaders([]); setColIdx(-1); setOsColIdx(-1);
     setSecretarias([]); setSelected(new Set()); setClienteMap(new Map());
+    // Detecção inicial pelo nome (fallback)
     const fn = f.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (fn.includes('manutenc')) setCategory('service');
     else if (fn.includes('abastec') || fn.includes('combustiv')) setCategory('fuel');
@@ -287,6 +288,10 @@ export const TabLaboratorioEstelar = () => {
       const hdrs = allRows[0].map(c => String(c));
       setHeaders(hdrs);
       setRows(allRows);
+      // Detecção pelo conteúdo da planilha (sobrescreve nome do arquivo)
+      const normHdrs = hdrs.map(h => norm(String(h)));
+      if (normHdrs.some(h => h.includes('abastecimento'))) setCategory('fuel');
+      else if (normHdrs.some(h => h.includes('manutenc') || h.includes('pecas'))) setCategory('service');
       const ci = detectClienteCol(hdrs);
       const oi = detectOSCol(hdrs);
       setColIdx(ci); setOsColIdx(oi);

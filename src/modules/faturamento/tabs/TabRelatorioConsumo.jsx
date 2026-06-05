@@ -261,6 +261,10 @@ export const TabRelatorioConsumo = () => {
       const headerRow = allRows[0].map(c => String(c));
       setHeaders(headerRow);
       setRows(allRows);
+      // Detecção pelo conteúdo da planilha (sobrescreve nome do arquivo)
+      const normHdrs = headerRow.map(h => norm(String(h)));
+      if (normHdrs.some(h => h.includes('abastecimento'))) setCategory('fuel');
+      else if (normHdrs.some(h => h.includes('manutenc') || h.includes('pecas'))) setCategory('service');
       const auto = detectClienteCol(headerRow);
       if (auto >= 0) {
         setColIdx(auto);
