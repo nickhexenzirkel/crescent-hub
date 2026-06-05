@@ -323,7 +323,13 @@ export const TabLaboratorioEstelar = () => {
   });
 
   const selectedCount = temSetor ? selSetores.size : selected.size;
-  const totalCount    = temSetor ? [...setorMap.values()].reduce((s, v) => s + v.length, 0) : secretarias.length;
+  // totalCount: conta setores reais (não vazios) + secretarias sem setor (contam como 1 cada)
+  const totalCount    = temSetor
+    ? [...setorMap.values()].reduce((s, v) => {
+        const real = v.filter(x => x !== '').length;
+        return s + (real > 0 ? real : 1);
+      }, 0)
+    : secretarias.length;
 
   /* ── Derived folder list (what the extension will use as subfolder names) ── */
   const getFolders = () => {
@@ -667,7 +673,10 @@ export const TabLaboratorioEstelar = () => {
               </div>
               <div style={{maxHeight:220,overflowY:'auto',border:`1px solid ${T.border}`,borderRadius:10,background:T.surface}}>
                 {temSetor && setorMap.size > 0 ? (
-                  [...setorMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([sec, setores]) => (
+                  [...setorMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([sec, setores]) => {
+                    const realSetores = setores.filter(s => s !== '');
+                    const hasSetores  = realSetores.length > 0;
+                    return (
                     <div key={sec} style={{borderBottom:`1px solid ${T.divider}`}}>
                       <label style={{display:'flex',alignItems:'center',gap:9,padding:'9px 14px',cursor:'pointer',background:T.goldGl+'88'}}
                         onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
@@ -677,9 +686,9 @@ export const TabLaboratorioEstelar = () => {
                           onChange={() => toggleSecAll(sec)}
                           style={{accentColor:T.gold,width:15,height:15,cursor:'pointer'}}/>
                         <span style={{fontSize:13,fontWeight:600,color:T.text}}>{sec}</span>
-                        <span style={{marginLeft:'auto',fontSize:11,color:T.textT}}>{setores.length} setor{setores.length!==1?'es':''}</span>
+                        {hasSetores && <span style={{marginLeft:'auto',fontSize:11,color:T.textT}}>{realSetores.length} setor{realSetores.length!==1?'es':''}</span>}
                       </label>
-                      {setores.map(setor => (
+                      {hasSetores && realSetores.map(setor => (
                         <label key={setor} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 14px 7px 36px',cursor:'pointer',transition:'background .1s'}}
                           onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
@@ -689,7 +698,8 @@ export const TabLaboratorioEstelar = () => {
                         </label>
                       ))}
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   secretarias.map(s => (
                     <label key={s} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',cursor:'pointer',borderBottom:`1px solid ${T.divider}`,transition:'background .1s'}}
