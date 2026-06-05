@@ -264,7 +264,11 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     return null;
   }
 
-  const pdfUrl = absUrl(linkM[1]);
+  // Garante status=authorized na URL do PDF (o link pode não incluir esse param)
+  const pdfUrlObj = new URL(absUrl(linkM[1]));
+  if (!pdfUrlObj.searchParams.has('status')) pdfUrlObj.searchParams.set('status', 'authorized');
+  const pdfUrl = pdfUrlObj.href;
+  if (log) await log(`RC: baixando PDF: ${pdfUrl.slice(0, 100)}...`, 'info');
   const pdfRes = await fetchPdf(pdfUrl);
   if (!pdfRes.ok) {
     if (log) await log(`RC: PDF URL retornou HTTP ${pdfRes.status}: ${pdfUrl}`, 'error');
@@ -298,6 +302,7 @@ const isPdfBuf = (buf) => {
 };
 
 async function fetchOsPdf(orgUUID, osId, log) {
+  // Busca na página de lista filtrada pelo order_id — o PDF está nessa página
   const params = new URLSearchParams({
     order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
     inserted_at_range: '', updated_at_range: '', service_type: '',
@@ -305,61 +310,31 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Extrai o UUID completo que corresponde ao osId buscado
-  // (o osId pode ser apenas os primeiros 8 chars do UUID)
-  const uuidRe = /\/orders\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi;
-  const allUUIDs = [...listHtml.matchAll(uuidRe)].map(m => m[1]);
-  const orderUUID = allUUIDs.find(u => u === osId || u.startsWith(osId))
-                 || allUUIDs.find(u => u.replace(/-/g,'').startsWith(osId.replace(/-/g,'')))
-                 || allUUIDs[0]
-                 || osId;
-  if (log) await log(`OS: UUID da ordem = ${orderUUID}`, 'info');
-
-  // Passo 1: página de detalhes — pode redirecionar diretamente para S3
-  // (antes bloqueava por CORS; agora *.s3.amazonaws.com está em host_permissions)
-  const detailUrl = `${BASE}/organizations/${orgUUID}/orders/${orderUUID}`;
-  let detailRes;
-  try {
-    detailRes = await bf(detailUrl); // credentials:'include' para 7Benefícios; Chrome strips para redirect S3
-  } catch (e) {
-    if (log) await log(`OS: erro ao acessar detalhes: ${e.message}`, 'error');
-    return null;
-  }
-  if (!detailRes.ok) {
-    if (log) await log(`OS: HTTP ${detailRes.status} ao acessar detalhes da OS`, 'error');
-    return null;
-  }
-
-  const ct = detailRes.headers.get('content-type') || '';
-
-  // Redirect levou direto ao PDF (S3)
-  if (!ct.includes('html')) {
-    const buf = await detailRes.arrayBuffer();
-    if (isPdfBuf(buf)) return bufToBase64(buf);
-  }
-
-  // É HTML — procura URL de PDF/S3 na página de detalhes
-  const detailHtml = await detailRes.text();
-  const pdfM = detailHtml.match(/href="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
-            || detailHtml.match(/src="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
-            || detailHtml.match(/(https?:\/\/[a-z0-9.-]*s3[a-z0-9.-]*amazonaws\.com\/[^"'\s<>]+)/i);
+  // Procura URL de PDF na página da lista (S3 presigned, href com .pdf, data-*, etc.)
+  const pdfM = listHtml.match(/class="buttons"[\s\S]{0,400}?href="([^"]+\.pdf[^"]*)"/i)
+            || listHtml.match(/href="([^"]+\.pdf[^"]*)"/i)
+            || listHtml.match(/data-[a-z-]*="([^"]+\.pdf[^"]*)"/i)
+            || listHtml.match(/"(https?:\/\/[^"]+\.pdf[^"]*)"/i);
 
   if (!pdfM?.[1]) {
-    const links = [...detailHtml.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
-      .filter(h => h.includes('pdf') || h.includes('print') || h.includes('download') || h.includes('order'))
-      .slice(0, 6);
-    if (log) await log(`OS: PDF não encontrado na página de detalhes. Links: ${links.join(' | ') || 'nenhum'}`, 'error');
+    // Log de todos os hrefs da página para diagnóstico
+    const allHrefs = [...listHtml.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
+      .filter(h => h.includes('order') || h.includes('pdf') || h.includes('download') || h.includes('attachment'))
+      .slice(0, 8);
+    if (log) await log(`OS: PDF não encontrado na lista para ${osId}. Links: ${allHrefs.join(' | ') || 'nenhum'}`, 'error');
     return null;
   }
 
-  const pdfUrl = unescHtml(pdfM[1]);
-  if (log) await log(`OS: URL de PDF encontrada: ${pdfUrl.slice(0, 80)}...`, 'info');
+  const pdfUrl = unescHtml(pdfM[1].startsWith('http') ? pdfM[1] : absUrl(pdfM[1]));
+  if (log) await log(`OS: URL encontrada: ${pdfUrl.slice(0, 80)}...`, 'info');
+
   try {
     const pdfRes = await fetchPdf(pdfUrl);
     if (!pdfRes.ok) { if (log) await log(`OS: HTTP ${pdfRes.status} ao baixar PDF`, 'error'); return null; }
     const buf = await pdfRes.arrayBuffer();
     if (isPdfBuf(buf)) return bufToBase64(buf);
-    if (log) await log(`OS: arquivo baixado não é PDF válido`, 'error');
+    const ct = pdfRes.headers.get('content-type') || '';
+    if (log) await log(`OS: arquivo baixado não é PDF (content-type: ${ct})`, 'error');
     return null;
   } catch (e) {
     if (log) await log(`OS: erro ao baixar PDF: ${e.message}`, 'error');
