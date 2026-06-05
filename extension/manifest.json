@@ -6,7 +6,8 @@
   "permissions": [
     "tabs",
     "scripting",
-    "storage"
+    "storage",
+    "windows"
   ],
   "host_permissions": [
     "https://app.7beneficiosgestao.com.br/*",

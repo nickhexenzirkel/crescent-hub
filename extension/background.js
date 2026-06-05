@@ -209,20 +209,29 @@ async function findOrg(tabId, orgName, sampleCliente, log) {
 async function runConsumoDownload(data, callerTabId) {
   const { username, password, startDate, endDate, category, downloadItems, orgName, useFolder } = data;
   const log = mkLog(callerTabId);
-  let tabId = null;
+  let tabId = null, winId = null;
 
   try {
-    // ── Abre tab do 7Benefícios e faz login ──
-    await log('Abrindo 7Benefícios...');
-    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: false });
-    tabId = tab.id;
+    // ── Abre janela invisível fora da área visível ──
+    await log('Iniciando automação em background...');
+    const win = await chrome.windows.create({
+      url: `${BASE}/sessions/new`,
+      type: 'popup',
+      focused: false,
+      width: 1024,
+      height: 768,
+      left: -10000,
+      top: -10000,
+    });
+    tabId = win.tabs[0].id;
+    winId = win.id;
     await waitForLoad(tabId);
 
     await log('Fazendo login...');
     if (!await doLogin(tabId, username, password)) {
       await log('Login falhou. Verifique usuário e senha.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: 'Login falhou' }).catch(() => {});
-      chrome.tabs.remove(tabId).catch(() => {});
+      chrome.windows.remove(winId).catch(() => {});
       return;
     }
     await log('Login realizado.', 'ok');
@@ -232,7 +241,7 @@ async function runConsumoDownload(data, callerTabId) {
     const org = await findOrg(tabId, orgName, downloadItems[0]?.clienteStr, log);
     if (!org) {
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
-      chrome.tabs.remove(tabId).catch(() => {});
+      chrome.windows.remove(winId).catch(() => {});
       return;
     }
     const { orgUUID, foundOrgName } = org;
@@ -379,16 +388,15 @@ async function runConsumoDownload(data, callerTabId) {
     }
 
     // ── Concluído ──
-    const destino = useFolder ? 'pasta "Uniko - Relatórios de Consumo"' : 'pasta Downloads';
-    await log(`Concluído! ${downloaded}/${downloadItems.length} PDF(s) salvo(s) na ${destino}.`, 'ok');
+    await log(`Concluído! ${downloaded}/${downloadItems.length} PDF(s) processado(s).`, 'ok');
     chrome.tabs.sendMessage(callerTabId, { type: 'FAT_DONE', total: downloaded }).catch(() => {});
 
-    setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 3000);
+    setTimeout(() => chrome.windows.remove(winId).catch(() => {}), 1000);
 
   } catch (err) {
     try { await chrome.tabs.sendMessage(callerTabId, { type: 'FAT_LOG', log: { text: `Erro inesperado: ${err.message}`, type: 'error' } }); } catch {}
     chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: err.message }).catch(() => {});
-    if (tabId) setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 2000);
+    if (winId) setTimeout(() => chrome.windows.remove(winId).catch(() => {}), 1000);
   }
 }
 
@@ -398,19 +406,28 @@ async function runConsumoDownload(data, callerTabId) {
 async function runOrdensDownload(data, callerTabId) {
   const { username, password, orgName, useFolder, items } = data;
   const log = mkLog(callerTabId);
-  let tabId = null;
+  let tabId = null, winId = null;
 
   try {
-    await log('Abrindo 7Benefícios...');
-    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: false });
-    tabId = tab.id;
+    await log('Iniciando automação em background (OS)...');
+    const win = await chrome.windows.create({
+      url: `${BASE}/sessions/new`,
+      type: 'popup',
+      focused: false,
+      width: 1024,
+      height: 768,
+      left: -10000,
+      top: -10000,
+    });
+    tabId = win.tabs[0].id;
+    winId = win.id;
     await waitForLoad(tabId);
 
     await log('Fazendo login...');
     if (!await doLogin(tabId, username, password)) {
       await log('Login falhou. Verifique usuário e senha.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: 'Login falhou' }).catch(() => {});
-      chrome.tabs.remove(tabId).catch(() => {});
+      chrome.windows.remove(winId).catch(() => {});
       return;
     }
     await log('Login realizado.', 'ok');
@@ -419,7 +436,7 @@ async function runOrdensDownload(data, callerTabId) {
     const org = await findOrg(tabId, orgName, items[0]?.cliente, log);
     if (!org) {
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
-      chrome.tabs.remove(tabId).catch(() => {});
+      chrome.windows.remove(winId).catch(() => {});
       return;
     }
     const { orgUUID, foundOrgName } = org;
@@ -501,15 +518,14 @@ async function runOrdensDownload(data, callerTabId) {
       }
     }
 
-    const destino = useFolder ? 'pasta "Uniko - Ordens de Serviço"' : 'pasta Downloads';
-    await log(`Concluído! ${downloaded}/${items.length} OS salva(s) na ${destino}.`, 'ok');
+    await log(`Concluído! ${downloaded}/${items.length} OS processada(s).`, 'ok');
     chrome.tabs.sendMessage(callerTabId, { type: 'FAT_DONE', total: downloaded }).catch(() => {});
-    setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 3000);
+    setTimeout(() => chrome.windows.remove(winId).catch(() => {}), 1000);
 
   } catch (err) {
     try { await chrome.tabs.sendMessage(callerTabId, { type: 'FAT_LOG', log: { text: `Erro inesperado: ${err.message}`, type: 'error' } }); } catch {}
     chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR', message: err.message }).catch(() => {});
-    if (tabId) setTimeout(() => chrome.tabs.remove(tabId).catch(() => {}), 2000);
+    if (winId) setTimeout(() => chrome.windows.remove(winId).catch(() => {}), 1000);
   }
 }
 
