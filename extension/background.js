@@ -21,7 +21,10 @@ const stripNoise = (s) =>
 
 const stripSecPrefix = (s) =>
   s.replace(/^SECRETARIA\s+(MUNICIPAL\s+)?(DE|DA|DO|DOS|DAS)\s+/, '')
-   .replace(/^SECRETARIA\s+(MUNICIPAL\s+)?/, '').trim();
+   .replace(/^SECRETARIA\s+(MUNICIPAL\s+)?/, '')
+   .replace(/^FUNDO\s+MUNICIPAL\s+(DE|DA|DO|DOS|DAS)\s+/, '')
+   .replace(/^FUNDO\s+MUNICIPAL\s+/, '')
+   .trim();
 
 const fsClean = (s) =>
   s.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
