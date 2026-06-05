@@ -267,8 +267,9 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   // Loga o link original extraído do HTML para diagnóstico
   if (log) await log(`RC: link extraído = ${linkM[1].slice(0, 200)}`, 'info');
 
-  // Força todos os filtros na URL do PDF (o link extraído pode não incluir datas/status/categoria)
-  const pdfUrlObj = new URL(absUrl(linkM[1]));
+  // Decodifica entidades HTML (&amp; → &) antes de criar a URL — garante que client_id e outros
+  // parâmetros embutidos no link sejam reconhecidos corretamente pelo parser de URL
+  const pdfUrlObj = new URL(absUrl(unescHtml(linkM[1])));
   pdfUrlObj.searchParams.set('status', 'authorized');
   pdfUrlObj.searchParams.set('category', category);
   pdfUrlObj.searchParams.set('starting_date', startDate);
