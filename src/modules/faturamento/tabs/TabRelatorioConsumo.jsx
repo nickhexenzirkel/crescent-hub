@@ -235,7 +235,7 @@ export const TabRelatorioConsumo = () => {
       allRows.slice(1).forEach(r => {
         const cli   = String(r[cliIdx] || '').trim();
         const setor = String(r[setorIdx] || '').trim();
-        if (!cli || !setor) return;
+        if (!cli) return;
         const sec = extractSecretaria(cli);
         if (!map.has(sec)) map.set(sec, new Set());
         map.get(sec).add(setor);

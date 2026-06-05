@@ -262,10 +262,10 @@ export const TabLaboratorioEstelar = () => {
       allRows.slice(1).forEach(r => {
         const cli   = String(r[cliIdx] || '').trim();
         const setor = String(r[stIdx]  || '').trim();
-        if (!cli || !setor) return;
+        if (!cli) return;
         const sec = extractSecretaria(cli);
         if (!map.has(sec)) map.set(sec, new Set());
-        map.get(sec).add(setor);
+        map.get(sec).add(setor); // setor vazio = secretaria sem subdivisão
       });
       const final = new Map([...map.entries()].map(([k, v]) => [k, [...v].sort()]));
       setSetorMap(final);
