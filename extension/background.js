@@ -255,9 +255,10 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     return null;
   }
 
-  // Extrai href do link "Extrair Relatório"
-  const linkM = finalHtml.match(/href="([^"]+)"[^>]*>\s*Extrair Relat[oó]rio/i)
-             || finalHtml.match(/Extrair Relat[oó]rio[\s\S]{0,200}?href="([^"]+)"/i);
+  // Extrai href do link PDF "Extrair Relatório" (ícone fa-file-pdf — ignora botão Excel)
+  const linkM = finalHtml.match(/<a\b[^>]*href="([^"]+)"[^>]*>[\s\S]{0,800}?fa-file-pdf[\s\S]{0,400}?Extrair Relat[oó]rio/i)
+             || finalHtml.match(/fa-file-pdf[\s\S]{0,400}?href="([^"]+)"[\s\S]{0,400}?Extrair Relat[oó]rio/i)
+             || finalHtml.match(/href="([^"]+)"[^>]*>[\s\S]{0,200}?Extrair Relat[oó]rio/i);
   if (!linkM?.[1]) {
     if (log) await log(`RC: link "Extrair Relatório" encontrado no HTML mas href não extraído.`, 'error');
     return null;
