@@ -236,7 +236,11 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   if (setor) {
     const p2   = new URLSearchParams({ ...Object.fromEntries(base), client_id: match.value });
     const html2 = await getHtml(`${BASE}/organizations/${orgUUID}/transactions_report?${p2}`);
-    const divOpts = [...html2.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
+    // Extrai APENAS as opções do select name="division_id" — a página tem outros selects com
+    // milhares de opções (ex: Credenciado) que confundiriam a busca
+    const divSelectM = html2.match(/<select[^>]+name="division_id"[^>]*>([\s\S]*?)<\/select>/i);
+    const divSelectHtml = divSelectM?.[1] || '';
+    const divOpts = [...divSelectHtml.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
       .map(m => ({ value: m[1], text: m[2].trim() }));
     const sn2 = normStr(setor);
     const dm = divOpts.find(o => o.value && (normStr(o.text).includes(sn2) || sn2.includes(normStr(o.text))));
@@ -246,7 +250,7 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     } else {
       // Loga TODOS os options para diagnóstico completo
       const allOpts = divOpts.map(o => `"${o.text}"`).join(' | ');
-      if (log) await log(`RC: setor "${setor}" não encontrado. Todas as opções (${divOpts.length}): ${allOpts || 'nenhuma'}`, 'error');
+      if (log) await log(`RC: setor "${setor}" não encontrado no dropdown de divisões — prosseguindo sem filtro de setor. Todas as opções (${divOpts.length}): ${allOpts || 'nenhuma'}`, 'normal');
     }
   }
 
