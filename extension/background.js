@@ -276,9 +276,8 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   }
   const buf = await pdfRes.arrayBuffer();
   const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
-  const hasPdf  = probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46);
   const hasXlsx = probe[0] === 0x50 && probe[1] === 0x4B; // PK = ZIP-based (xlsx, docx…)
-  if (hasPdf)  return { b64: bufToBase64(buf), ext: 'pdf' };
+  if (isPdfBuf(buf)) return { b64: bufToBase64(buf), ext: 'pdf' };
   if (hasXlsx) {
     if (log) await log(`RC: relatório recebido como planilha XLSX — será salvo como .xlsx.`, 'info');
     return { b64: bufToBase64(buf), ext: 'xlsx' };
@@ -292,6 +291,11 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
 
 const unescHtml = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 
+const isPdfBuf = (buf) => {
+  const p = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
+  return p.some((b, i) => b === 0x25 && p[i+1] === 0x50 && p[i+2] === 0x44 && p[i+3] === 0x46);
+};
+
 async function fetchOsPdf(orgUUID, osId, log) {
   const params = new URLSearchParams({
     order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
@@ -300,36 +304,61 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Extrai UUID completo da OS
+  // Extrai UUID completo da OS a partir dos links da lista
   const uuidM = listHtml.match(/\/orders\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
   const orderUUID = uuidM?.[1] || osId;
   if (log) await log(`OS: UUID da ordem = ${orderUUID}`, 'info');
 
-  // Procura URL de PDF diretamente na lista (normalmente um link S3 presigned)
-  const pdfLinkM = listHtml.match(/href="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
-                || listHtml.match(/src="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
-                || listHtml.match(/(https?:\/\/[a-z0-9.-]*s3[a-z0-9.-]*amazonaws\.com\/[^"'\s<>]+\.pdf[^"'\s<>]*)/i);
-
-  if (pdfLinkM?.[1]) {
-    const pdfUrl = unescHtml(pdfLinkM[1]);
-    if (log) await log(`OS: URL S3 encontrada: ${pdfUrl.slice(0, 80)}...`, 'info');
-    try {
-      const pdfRes = await fetchPdf(pdfUrl);
-      if (pdfRes.ok) {
-        const buf = await pdfRes.arrayBuffer();
-        const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
-        if (probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46))
-          return bufToBase64(buf);
-      }
-      if (log) await log(`OS: falha ao baixar PDF do S3: HTTP ${pdfRes.status}`, 'error');
-    } catch (e) {
-      if (log) await log(`OS: erro ao buscar PDF do S3: ${e.message}`, 'error');
-    }
-  } else {
-    if (log) await log(`OS: URL de PDF não encontrada na página da lista para ${orderUUID}.`, 'error');
+  // Passo 1: página de detalhes — pode redirecionar diretamente para S3
+  // (antes bloqueava por CORS; agora *.s3.amazonaws.com está em host_permissions)
+  const detailUrl = `${BASE}/organizations/${orgUUID}/orders/${orderUUID}`;
+  let detailRes;
+  try {
+    detailRes = await bf(detailUrl); // credentials:'include' para 7Benefícios; Chrome strips para redirect S3
+  } catch (e) {
+    if (log) await log(`OS: erro ao acessar detalhes: ${e.message}`, 'error');
+    return null;
+  }
+  if (!detailRes.ok) {
+    if (log) await log(`OS: HTTP ${detailRes.status} ao acessar detalhes da OS`, 'error');
+    return null;
   }
 
-  return null;
+  const ct = detailRes.headers.get('content-type') || '';
+
+  // Redirect levou direto ao PDF (S3)
+  if (!ct.includes('html')) {
+    const buf = await detailRes.arrayBuffer();
+    if (isPdfBuf(buf)) return bufToBase64(buf);
+  }
+
+  // É HTML — procura URL de PDF/S3 na página de detalhes
+  const detailHtml = await detailRes.text();
+  const pdfM = detailHtml.match(/href="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
+            || detailHtml.match(/src="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
+            || detailHtml.match(/(https?:\/\/[a-z0-9.-]*s3[a-z0-9.-]*amazonaws\.com\/[^"'\s<>]+)/i);
+
+  if (!pdfM?.[1]) {
+    const links = [...detailHtml.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
+      .filter(h => h.includes('pdf') || h.includes('print') || h.includes('download') || h.includes('order'))
+      .slice(0, 6);
+    if (log) await log(`OS: PDF não encontrado na página de detalhes. Links: ${links.join(' | ') || 'nenhum'}`, 'error');
+    return null;
+  }
+
+  const pdfUrl = unescHtml(pdfM[1]);
+  if (log) await log(`OS: URL de PDF encontrada: ${pdfUrl.slice(0, 80)}...`, 'info');
+  try {
+    const pdfRes = await fetchPdf(pdfUrl);
+    if (!pdfRes.ok) { if (log) await log(`OS: HTTP ${pdfRes.status} ao baixar PDF`, 'error'); return null; }
+    const buf = await pdfRes.arrayBuffer();
+    if (isPdfBuf(buf)) return bufToBase64(buf);
+    if (log) await log(`OS: arquivo baixado não é PDF válido`, 'error');
+    return null;
+  } catch (e) {
+    if (log) await log(`OS: erro ao baixar PDF: ${e.message}`, 'error');
+    return null;
+  }
 }
 
 /* ── Automação RC ─────────────────────────────────────────── */
