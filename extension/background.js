@@ -247,6 +247,13 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
       const ctx = html2.slice(Math.max(0, divIdx - 80), divIdx + 300).replace(/\s+/g, ' ');
       if (log) await log(`RC diagnóstico contexto: ...${ctx}...`, 'info');
     }
+    if (divSelectM) {
+      if (log) await log(`RC diagnóstico divSelect conteúdo: "${divSelectHtml.slice(0, 600).replace(/\s+/g, ' ')}"`, 'info');
+    }
+    // Verifica se UUIDs de divisão aparecem em outro ponto da página (ex: JSON embutido)
+    const knownDivUuid = '2ca6edaa-7ea8-4e32-b575-d7a8165cba6d'; // ATENÇÃO BÁSICA
+    const uuidPos = html2.indexOf(knownDivUuid);
+    if (log) await log(`RC diagnóstico: UUID "ATENÇÃO BÁSICA" pos no html2=${uuidPos}`, 'info');
     const divOpts = [...divSelectHtml.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
       .map(m => ({ value: m[1], text: m[2].trim() }));
     const sn2 = normStr(setor);
