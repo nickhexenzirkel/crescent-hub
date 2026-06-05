@@ -1,11 +1,13 @@
 /**
- * Verifica se a extensão Uniko Faturamento está instalada E com o
- * background service worker vivo.
+ * Verifica se a extensão Uniko Faturamento está instalada e responsiva.
+ *
+ * O PING agora passa pelo background service worker:
+ *   PING → content script → background → FAT_PONG de volta
  *
  * Retorna:
- *   true        — tudo ok
- *   'reload'    — extensão instalada mas contexto morto (recarregue a página)
- *   false       — extensão não encontrada
+ *   true      — extensão ok
+ *   'reload'  — contexto morto, precisa F5
+ *   false     — extensão não encontrada (timeout)
  */
 export const checkExtension = () => new Promise(resolve => {
   const timer = setTimeout(() => {
@@ -15,12 +17,13 @@ export const checkExtension = () => new Promise(resolve => {
 
   const h = (e) => {
     const t = e.data?.type;
-    if (t === 'FAT_BG_OK') {
+    if (t === 'FAT_PONG') {
       clearTimeout(timer);
       window.removeEventListener('message', h);
       resolve(true);
     }
-    if (t === 'FAT_BG_FAIL') {
+    // FAT_ERROR durante o ping = contexto invalidado
+    if (t === 'FAT_ERROR' && e.data?.message?.includes('desconectada')) {
       clearTimeout(timer);
       window.removeEventListener('message', h);
       resolve('reload');

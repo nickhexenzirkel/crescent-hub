@@ -373,9 +373,13 @@ async function runOrdensDownload(data, callerTabId) {
 
 /* ── Listener de mensagens ────────────────────────────────── */
 
-chrome.runtime.onMessage.addListener((message, sender) => {
-  // Ping de verificação de saúde — content script usa para confirmar que o SW está vivo
-  if (message.type === 'UNIKO_FAT_PING_BG') return true;
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Ping de verificação de saúde — responde com PONG para a aba
+  if (message.type === 'UNIKO_FAT_PING_BG') {
+    chrome.tabs.sendMessage(sender.tab.id, { type: 'FAT_PONG' }).catch(() => {});
+    sendResponse({ ok: true });
+    return;
+  }
 
   if (message.type === 'UNIKO_FAT_START') {
     const callerTabId = sender.tab?.id;

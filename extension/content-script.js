@@ -17,16 +17,20 @@ window.addEventListener('message', (event) => {
   const { type } = event.data || {};
   if (!type?.startsWith('UNIKO_FAT_')) return;
 
+  // PING vai para o background — se ele responder, manda PONG de volta
+  // Se falhar (contexto morto), manda FAT_ERROR
   if (type === 'UNIKO_FAT_PING') {
-    window.postMessage({ type: 'FAT_PONG' }, '*');
     sendMsg(
       { type: 'UNIKO_FAT_PING_BG' },
-      () => window.postMessage({ type: 'FAT_BG_FAIL' }, '*'),
+      () => window.postMessage({
+        type: 'FAT_ERROR',
+        message: 'Extensão desconectada — recarregue a página (F5) e tente novamente.',
+      }, '*'),
     );
     return;
   }
 
-  sendMsg(event.data, (err) => {
+  sendMsg(event.data, () => {
     window.postMessage({
       type: 'FAT_ERROR',
       message: 'Extensão desconectada — recarregue a página (F5) e tente novamente.',
