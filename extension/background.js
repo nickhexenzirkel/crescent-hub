@@ -248,12 +248,16 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
       if (log) await log(`RC diagnóstico contexto: ...${ctx}...`, 'info');
     }
     if (divSelectM) {
-      if (log) await log(`RC diagnóstico divSelect conteúdo: "${divSelectHtml.slice(0, 600).replace(/\s+/g, ' ')}"`, 'info');
+      // Mostra o atributo de abertura do select para ver data-url ou similares
+      const selectOpenTag = html2.slice(Math.max(0, divIdx - 5), divIdx + 400).replace(/\s+/g, ' ');
+      if (log) await log(`RC diagnóstico select tag: "${selectOpenTag.slice(0, 500)}"`, 'info');
     }
-    // Verifica se UUIDs de divisão aparecem em outro ponto da página (ex: JSON embutido)
-    const knownDivUuid = '2ca6edaa-7ea8-4e32-b575-d7a8165cba6d'; // ATENÇÃO BÁSICA
-    const uuidPos = html2.indexOf(knownDivUuid);
-    if (log) await log(`RC diagnóstico: UUID "ATENÇÃO BÁSICA" pos no html2=${uuidPos}`, 'info');
+    // Busca endpoint AJAX no JS da página: padrões /divisions, /setores, phx-change, data-url
+    const ajaxPatterns = [/\/divisions[^"'\s]*/g, /\/setores[^"'\s]*/g, /phx-change="[^"]+"/g, /data-url="[^"]+division[^"]*"/gi];
+    for (const pat of ajaxPatterns) {
+      const found = [...html2.matchAll(pat)].map(m => m[0]).slice(0, 3);
+      if (found.length) if (log) await log(`RC diagnóstico AJAX (${pat.source.slice(0,20)}): ${found.join(' | ')}`, 'info');
+    }
     const divOpts = [...divSelectHtml.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
       .map(m => ({ value: m[1], text: m[2].trim() }));
     const sn2 = normStr(setor);
