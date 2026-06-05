@@ -53,7 +53,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'mercado-estelar',label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',icon:IcoMercado, color:T.gold,    bg:T.goldGl,              tag:'Em Breve',  adminOnly:false, comingSoon:true},
     {id:'dashboard',      label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,    color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
     {id:'ponto',          label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto,       color:T.gold,    bg:T.goldGl,    tag:'Admin',     adminOnly:true},
-    {id:'faturamento',    label:'Faturamento',            sub:'Automação · XML · Relatórios',   icon:IcoFaturamento, color:T.gold,    bg:T.goldGl,    tag:'Automação', adminOnly:true},
+    {id:'faturamento',    label:'Faturamento',            sub:'Automação · XML · Relatórios',   icon:IcoFaturamento, color:T.gold,    bg:T.goldGl,    tag:'Automação'},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
   const cols  = mods.length <= 3 ? 3 : 3;
