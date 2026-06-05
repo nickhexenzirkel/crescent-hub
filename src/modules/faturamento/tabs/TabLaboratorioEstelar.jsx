@@ -217,9 +217,10 @@ export const TabLaboratorioEstelar = () => {
   const rrZipRef = useRef(null);
 
   /* ── Runtime ── */
-  const [log, setLog]         = useState([]);
-  const [phase, setPhase]     = useState('idle'); // idle | rc | os | building | done
+  const [log, setLog]             = useState([]);
+  const [phase, setPhase]         = useState('idle'); // idle | rc | os | building | done
   const [finalBlob, setFinalBlob] = useState(null);
+  const [assembled, setAssembled] = useState(0);
 
   const addLog = (text, type = 'normal') =>
     setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
@@ -444,7 +445,7 @@ export const TabLaboratorioEstelar = () => {
     const outZip = new JSZip();
     const secDir = outZip.folder('Uniko Secretarias');
     const nfDir  = outZip.folder('Uniko Notas Fiscais');
-    let assembled = 0;
+    let count = 0;
 
     for (const folder of folders) {
       const docSlots = [];
@@ -513,7 +514,7 @@ export const TabLaboratorioEstelar = () => {
           const nfNumber = nfMatch ? (nfMatch.match(/\d+/)?.[0] || '') : '';
           const nfFileName = nfNumber ? `NF ${nfNumber} - ${folder}.pdf` : `${folder}.pdf`;
           nfDir.file(nfFileName, await merged.save());
-          assembled++;
+          count++;
           setLog(prev => [...prev, { text: `  ✓ ${nfFileName}`, type: 'ok' }]);
         }
       } catch (err) {
@@ -524,8 +525,9 @@ export const TabLaboratorioEstelar = () => {
     addLog('Gerando ZIP final...', 'info');
     const blob = await outZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     setFinalBlob(blob);
+    setAssembled(count);
     setPhase('done');
-    addLog(`Concluído! ${assembled} secretaria${assembled!==1?'s':''} organizadas.`, 'ok');
+    addLog(`Concluído! ${count} secretaria${count!==1?'s':''} organizadas.`, 'ok');
   };
 
   /* ── Start automation ── */
@@ -544,6 +546,7 @@ export const TabLaboratorioEstelar = () => {
     collectedOSRef.current = new Map();
     setLog([]);
     setFinalBlob(null);
+    setAssembled(0);
     phaseRef.current  = 'rc';
     phaseRef._cat     = category;
     phaseRef._user    = credUser;
@@ -836,8 +839,8 @@ export const TabLaboratorioEstelar = () => {
 
           <CatbotStatus
             phase={phase === 'idle' ? 'idle' : phase}
-            doneText={log.filter(l => l.type === 'ok').length
-              ? `${log.filter(l => l.type === 'ok').length} secretaria${log.filter(l => l.type === 'ok').length !== 1 ? 's' : ''} organizadas! ZIP pronto.`
+            doneText={assembled > 0
+              ? `${assembled} secretaria${assembled !== 1 ? 's' : ''} organizadas! ZIP pronto.`
               : undefined}
           />
           <Log lines={log}/>
