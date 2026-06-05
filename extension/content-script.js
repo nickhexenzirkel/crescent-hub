@@ -8,12 +8,23 @@ window.addEventListener('message', (event) => {
   if (!type?.startsWith('UNIKO_FAT_')) return;
 
   if (type === 'UNIKO_FAT_PING') {
-    // Responde direto sem passar pelo background
+    // Responde direto e verifica se o background ainda está vivo
     window.postMessage({ type: 'FAT_PONG' }, '*');
+    chrome.runtime.sendMessage({ type: 'UNIKO_FAT_PING_BG' })
+      .then(() => window.postMessage({ type: 'FAT_BG_OK' }, '*'))
+      .catch(() => window.postMessage({ type: 'FAT_BG_FAIL' }, '*'));
     return;
   }
 
-  chrome.runtime.sendMessage(event.data).catch(() => {});
+  chrome.runtime.sendMessage(event.data).catch((err) => {
+    // Encaminha o erro para o app — impede loading eterno
+    window.postMessage({
+      type: 'FAT_ERROR',
+      message: err?.message?.includes('context invalidated')
+        ? 'Extensão desconectada — recarregue a página (F5) e tente novamente.'
+        : String(err?.message || err),
+    }, '*');
+  });
 });
 
 // Background → Página

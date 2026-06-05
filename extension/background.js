@@ -374,6 +374,9 @@ async function runOrdensDownload(data, callerTabId) {
 /* ── Listener de mensagens ────────────────────────────────── */
 
 chrome.runtime.onMessage.addListener((message, sender) => {
+  // Ping de verificação de saúde — content script usa para confirmar que o SW está vivo
+  if (message.type === 'UNIKO_FAT_PING_BG') return true;
+
   if (message.type === 'UNIKO_FAT_START') {
     const callerTabId = sender.tab?.id;
     if (callerTabId) runConsumoDownload(message.data, callerTabId);

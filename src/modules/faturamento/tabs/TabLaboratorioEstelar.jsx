@@ -6,12 +6,7 @@ import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
 
-const checkExtension = () => new Promise(resolve => {
-  const timer = setTimeout(() => { window.removeEventListener('message', h); resolve(false); }, 1500);
-  const h = (e) => { if (e.data?.type === 'FAT_PONG') { clearTimeout(timer); window.removeEventListener('message', h); resolve(true); } };
-  window.addEventListener('message', h);
-  window.postMessage({ type: 'UNIKO_FAT_PING' }, '*');
-});
+import { checkExtension } from '../../../utils/checkExtension';
 
 /* ── Helpers ── */
 const norm = (s) =>
@@ -489,8 +484,12 @@ export const TabLaboratorioEstelar = () => {
 
   /* ── Start automation ── */
   const startDownload = async () => {
-    const extFound = await checkExtension();
-    if (!extFound) {
+    const extStatus = await checkExtension();
+    if (extStatus === 'reload') {
+      setLog([{ text: 'Extensão desconectada após atualização — recarregue a página (F5) e tente novamente.', type: 'error' }]);
+      return;
+    }
+    if (!extStatus) {
       setLog([{ text: 'Extensão "Uniko Faturamento" não encontrada. Instale no Chrome/Opera e recarregue.', type: 'error' }]);
       return;
     }
