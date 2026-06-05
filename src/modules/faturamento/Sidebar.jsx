@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { T } from '../../contexts/theme';
-import { StarDivider, UnikoIcon } from '../../shared/components';
+import { StarDivider } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 const I = (p) => (
@@ -71,11 +71,11 @@ const Sidebar = ({ tab, setTab, onBack }) => {
               background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
               filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',zIndex:0,pointerEvents:'none'}}/>
             <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <UnikoIcon size={52} rounded={true}/>
+              <img src="/UnikoCatbotQuadrado.png" alt="CatBot" style={{width:52,height:52,objectFit:'cover',borderRadius:12,display:'block'}}/>
             </div>
           </div>
           <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>UNIKO</div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>CatBot</div>
             <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Faturamento</div>
           </div>
         </div>

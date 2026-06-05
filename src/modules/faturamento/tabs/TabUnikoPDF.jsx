@@ -451,7 +451,7 @@ export const TabUnikoPDF = () => {
     <div>
       <StellarHero compact
         eyebrow="Processamento de PDF"
-        title="Uniko PDF"
+        title="Compilador"
         subtitle="Compile e organize PDFs a partir de arquivos ZIP de forma automática."
         icon={(
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
