@@ -43,6 +43,10 @@ function buildFileName(secNome, setor) {
 const bf = (url, opts = {}) =>
   fetch(url, { credentials: 'include', ...opts });
 
+// Para PDFs: usa cookies em URLs do 7Benefícios, sem credentials em URLs externas (S3 presigned)
+const fetchPdf = (url, opts = {}) =>
+  fetch(url, { credentials: url.startsWith(BASE) ? 'include' : 'omit', ...opts });
+
 async function getHtml(url) {
   const r = await bf(url);
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
@@ -251,7 +255,7 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   }
 
   const pdfUrl = absUrl(linkM[1]);
-  const pdfRes = await bf(pdfUrl);
+  const pdfRes = await fetchPdf(pdfUrl);
   if (!pdfRes.ok) {
     if (log) await log(`RC: PDF URL retornou HTTP ${pdfRes.status}: ${pdfUrl}`, 'error');
     return null;
@@ -310,7 +314,7 @@ async function fetchOsPdf(orgUUID, osId, log) {
                   || html.match(/<iframe[^>]+src="([^"]+)"/i);
       if (!embedM?.[1]) continue;
       try {
-        const pdfRes2 = await bf(absUrl(embedM[1]));
+        const pdfRes2 = await fetchPdf(absUrl(embedM[1]));
         if (!pdfRes2.ok) continue;
         const buf2 = await pdfRes2.arrayBuffer();
         const probe2 = new Uint8Array(buf2, 0, Math.min(1024, buf2.byteLength));
