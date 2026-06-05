@@ -52,7 +52,7 @@ const FEATURES = [
     id: 'uniko-pdf',
     color: '#C4872A',
     bg: 'rgba(196,135,42,0.10)',
-    title: 'Uniko PDF',
+    title: 'Compilador',
     desc: 'Compilador: mescla os PDFs de cada pasta em um único arquivo por secretaria. Organizador: cria uma pasta para cada PDF do ZIP.',
     steps: ['Envie um arquivo ZIP', 'Confira a pré-visualização', 'Baixe o ZIP processado'],
     icon: (c) => (
@@ -116,24 +116,30 @@ export const TabInicio = ({ setTab }) => {
         ))}
       </div>
 
-      {/* Info box */}
-      <div style={{background:T.goldGl,border:`1px solid ${T.gold}22`,borderRadius:14,padding:'20px 24px',display:'flex',gap:16,alignItems:'flex-start'}}>
-        <div style={{flexShrink:0,marginTop:2}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        </div>
-        <div>
-          <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:4}}>Sobre a automação de downloads</div>
-          <div style={{fontSize:13,color:T.textS,lineHeight:1.6}}>
-            O <strong>Relatório de Consumo</strong> e as <strong>Ordens de Serviço</strong> usam a extensão
-            <strong> Uniko Faturamento</strong> no Chrome/Opera. Ela acessa o 7Benefícios em uma aba, baixa os PDFs
-            e os organiza na pasta que você escolher — sem servidor local.
-          </div>
-        </div>
+      {/* Em breve */}
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
+        <span style={{fontSize:12,fontWeight:700,color:T.textD,letterSpacing:'.1em',textTransform:'uppercase'}}>Em Breve</span>
+        <div style={{flex:1}}><StarDivider my={0} dim/></div>
       </div>
+
+      <Card style={{padding:'26px',opacity:0.82,cursor:'default',maxWidth:380}}>
+        <div style={{position:'absolute',top:0,left:'10%',right:'10%',height:2,
+          background:'linear-gradient(90deg,transparent,rgba(139,95,232,0.6),transparent)',borderRadius:999}}/>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
+          <div style={{width:52,height:52,borderRadius:14,background:'rgba(139,95,232,0.10)',
+            border:'1px solid rgba(139,95,232,0.22)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8B5FE8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </div>
+          <div style={{padding:'4px 11px',borderRadius:20,background:'rgba(139,95,232,0.10)',
+            fontSize:11,fontWeight:600,color:'#8B5FE8',letterSpacing:'.04em'}}>Em Breve</div>
+        </div>
+        <div style={{fontSize:17,fontWeight:600,color:T.text,marginBottom:8}}>Oficina Estelar</div>
+        <div style={{fontSize:13.5,color:T.textS,lineHeight:1.6}}>
+          Edição de PDFs, assinaturas digitais, cartas de correção e muito mais — diretamente no navegador.
+        </div>
+      </Card>
     </div>
   );
 };

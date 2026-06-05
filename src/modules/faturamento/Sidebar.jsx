@@ -40,6 +40,12 @@ const NAV = [
     label: 'Laboratório Estelar',
     icon: <I><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></I>,
   },
+  {
+    id: 'oficina',
+    label: 'Oficina Estelar',
+    comingSoon: true,
+    icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
+  },
 ];
 
 const Sidebar = ({ tab, setTab, onBack }) => {
@@ -87,21 +93,24 @@ const Sidebar = ({ tab, setTab, onBack }) => {
         <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',padding:'2px 8px 10px',fontWeight:600}}>NAVEGAÇÃO</div>
         {NAV.map(n => {
           const a = tab === n.id;
+          const cs = !!n.comingSoon;
           return (
             <div key={n.id}
-              onClick={() => setTab(n.id)}
+              onClick={() => !cs && setTab(n.id)}
               onMouseEnter={() => sh(n.id)}
               onMouseLeave={() => sh(null)}
               style={{
                 display:'flex',alignItems:'center',gap:11,padding:'11px 13px',
-                borderRadius:10,cursor:'pointer',
-                background:a?T.goldGl:hov===n.id?(T.surfaceSub||'rgba(0,0,0,0.03)'):'transparent',
+                borderRadius:10,cursor:cs?'default':'pointer',
+                background:a?T.goldGl:hov===n.id&&!cs?(T.surfaceSub||'rgba(0,0,0,0.03)'):'transparent',
                 border:a?`1px solid rgba(212,168,75,0.22)`:'1px solid transparent',
-                color:a?T.gold:hov===n.id?T.text:T.textS,
+                color:a?T.gold:cs?T.textD:hov===n.id?T.text:T.textS,
+                opacity:cs?0.65:1,
                 transition:'all .14s',
               }}>
-              <span style={{color:a?T.gold:hov===n.id?T.textS:T.textT,fontSize:18,minWidth:22,textAlign:'center'}}>{n.icon}</span>
-              <span style={{fontSize:15,fontWeight:a?600:400}}>{n.label}</span>
+              <span style={{color:a?T.gold:cs?T.textD:hov===n.id?T.textS:T.textT,fontSize:18,minWidth:22,textAlign:'center'}}>{n.icon}</span>
+              <span style={{fontSize:15,fontWeight:a?600:400,flex:1}}>{n.label}</span>
+              {cs && <span style={{fontSize:9.5,fontWeight:700,color:'#8B5FE8',background:'rgba(139,95,232,0.12)',padding:'2px 7px',borderRadius:8,letterSpacing:'.04em',flexShrink:0}}>EM BREVE</span>}
             </div>
           );
         })}
@@ -124,7 +133,7 @@ const Sidebar = ({ tab, setTab, onBack }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Leitor de XML', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar' };
+  const nm = { inicio:'Início', xml:'Leitor de XML', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Oficina Estelar' };
   if (tab === 'inicio') return null;
   return (
     <div style={{
