@@ -238,8 +238,10 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   if (!pdfRes.ok) return null;
   const ct = pdfRes.headers.get('content-type') || '';
   if (ct.includes('html')) return null;
-
-  return bufToBase64(await pdfRes.arrayBuffer());
+  const buf = await pdfRes.arrayBuffer();
+  const magic = new Uint8Array(buf, 0, 4);
+  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) return null;
+  return bufToBase64(buf);
 }
 
 /* ── Baixa PDF de Ordem de Serviço ──────────────────────── */
@@ -258,8 +260,12 @@ async function fetchOsPdf(orgUUID, osId) {
 
   const pdfRes = await bf(absUrl(hrefM[1]));
   if (!pdfRes.ok) return null;
-
-  return bufToBase64(await pdfRes.arrayBuffer());
+  const ct = pdfRes.headers.get('content-type') || '';
+  if (ct.includes('html')) return null;
+  const buf = await pdfRes.arrayBuffer();
+  const magic = new Uint8Array(buf, 0, 4);
+  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) return null;
+  return bufToBase64(buf);
 }
 
 /* ── Automação RC ─────────────────────────────────────────── */

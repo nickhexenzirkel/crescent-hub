@@ -483,12 +483,24 @@ export const TabLaboratorioEstelar = () => {
 
       try {
         const merged = await PDFDocument.create();
-        for (const { bytes } of docSlots) {
-          try { const doc = await PDFDocument.load(bytes, { ignoreEncryption: true }); (await merged.copyPages(doc, doc.getPageIndices())).forEach(p => merged.addPage(p)); } catch { /* skip */ }
+        let pageCount = 0;
+        for (const { label, bytes } of docSlots) {
+          try {
+            const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+            const pages = await merged.copyPages(doc, doc.getPageIndices());
+            pages.forEach(p => merged.addPage(p));
+            pageCount += pages.length;
+          } catch (loadErr) {
+            setLog(prev => [...prev, { text: `  ⚠ Falha ao ler "${label}" (${folder}): ${loadErr.message}`, type: 'error' }]);
+          }
         }
-        nfDir.file(`${folder}.pdf`, await merged.save());
-        assembled++;
-        setLog(prev => [...prev, { text: `  ✓ ${folder}`, type: 'ok' }]);
+        if (pageCount === 0) {
+          setLog(prev => [...prev, { text: `  ✗ "${folder}" — sem páginas válidas, PDF ignorado`, type: 'error' }]);
+        } else {
+          nfDir.file(`${folder}.pdf`, await merged.save());
+          assembled++;
+          setLog(prev => [...prev, { text: `  ✓ ${folder}`, type: 'ok' }]);
+        }
       } catch (err) {
         setLog(prev => [...prev, { text: `  Erro ao mesclar "${folder}": ${err.message}`, type: 'error' }]);
       }
