@@ -253,7 +253,7 @@ export const TabRelatorioConsumo = () => {
     saveFile(KEY_MAIN, f).catch(() => {});
     setRows([]); setHeaders([]); setColIdx(-1);
     setSecretarias([]); setSelected(new Set()); setClienteMap(new Map());
-    const fn = f.name.toLowerCase();
+    const fn = f.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (fn.includes('combustivel') || fn.includes('abastec')) setCategory('fuel');
     else if (fn.includes('manutenc')) setCategory('service');
     try {

@@ -310,10 +310,11 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Procura URL de PDF na página da lista (S3 presigned, href com .pdf, data-*, etc.)
-  const pdfM = listHtml.match(/class="buttons"[\s\S]{0,400}?href="([^"]+\.pdf[^"]*)"/i)
+  // Procura URL de PDF na página da lista — prioriza ?report=pdf, depois .pdf no path
+  const pdfM = listHtml.match(/href="([^"]+[?&]report=pdf[^"]*)"/i)
+            || listHtml.match(/class="buttons"[\s\S]{0,400}?href="([^"]+\.pdf[^"]*)"/i)
             || listHtml.match(/href="([^"]+\.pdf[^"]*)"/i)
-            || listHtml.match(/data-[a-z-]*="([^"]+\.pdf[^"]*)"/i)
+            || listHtml.match(/data-[a-z-]*="([^"]+[?&]report=pdf[^"]*)"/i)
             || listHtml.match(/"(https?:\/\/[^"]+\.pdf[^"]*)"/i);
 
   if (!pdfM?.[1]) {
