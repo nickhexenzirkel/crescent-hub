@@ -26,10 +26,10 @@ export const CatbotStatus = ({ phase, doneText }) => {
 
   const msg = (isDone && doneText) ? doneText : MSGS[phase] || '';
 
-  const catAnim = isDone  ? 'cbDone 0.85s cubic-bezier(.36,.07,.19,.97) both'
-               : isError  ? 'cbShake 0.55s ease-out'
-               : isWork   ? 'cbBounce 1s ease-in-out infinite'
-               : 'cbFloat 3s ease-in-out infinite';
+  const catAnim = isDone  ? 'cbDone 1.4s cubic-bezier(.36,.07,.19,.97) both'
+               : isError  ? 'cbShake 0.9s ease-out'
+               : isWork   ? 'cbBounce 2.8s ease-in-out infinite'
+               : 'cbFloat 4s ease-in-out infinite';
 
   const bg  = isDone  ? 'rgba(26,156,112,.08)'
             : isError ? 'rgba(192,64,80,.07)'
@@ -50,10 +50,9 @@ export const CatbotStatus = ({ phase, doneText }) => {
     }}>
       <style>{`
         @keyframes cbFloat  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-        @keyframes cbBounce { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-13px) rotate(4deg)} }
-        @keyframes cbDone   { 0%{transform:scale(1) rotate(0)} 25%{transform:scale(1.3) translateY(-22px) rotate(-10deg)} 55%{transform:scale(1.12) translateY(-9px) rotate(7deg)} 80%{transform:scale(1.04) translateY(-3px) rotate(-2deg)} 100%{transform:scale(1) translateY(0) rotate(0)} }
-        @keyframes cbShake  { 0%,100%{transform:translateX(0) rotate(0)} 15%{transform:translateX(-11px) rotate(-6deg)} 30%{transform:translateX(11px) rotate(6deg)} 50%{transform:translateX(-8px) rotate(-4deg)} 70%{transform:translateX(8px) rotate(4deg)} 85%{transform:translateX(-4px)} }
-        @keyframes cbRing   { 0%,100%{opacity:.35;transform:scale(1)} 50%{opacity:.85;transform:scale(1.16)} }
+        @keyframes cbBounce { 0%,100%{transform:translateY(0) rotate(-2deg)} 50%{transform:translateY(-8px) rotate(2deg)} }
+        @keyframes cbDone   { 0%{transform:scale(1) rotate(0)} 30%{transform:scale(1.18) translateY(-14px) rotate(-6deg)} 60%{transform:scale(1.07) translateY(-5px) rotate(4deg)} 85%{transform:scale(1.02) translateY(-1px) rotate(-1deg)} 100%{transform:scale(1) translateY(0) rotate(0)} }
+        @keyframes cbShake  { 0%,100%{transform:translateX(0) rotate(0)} 20%{transform:translateX(-8px) rotate(-4deg)} 40%{transform:translateX(8px) rotate(4deg)} 60%{transform:translateX(-5px) rotate(-2deg)} 80%{transform:translateX(5px) rotate(2deg)} }
         @keyframes cbGlow   { 0%,100%{opacity:.45} 50%{opacity:1} }
         @keyframes cbPop    { 0%{opacity:1;transform:translate(0,0) scale(1)} 100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(0.2)} }
         @keyframes cbDot    { 0%,70%,100%{opacity:.2;transform:scale(.75)} 35%{opacity:1;transform:scale(1)} }
@@ -61,16 +60,6 @@ export const CatbotStatus = ({ phase, doneText }) => {
 
       {/* ── Catbot ── */}
       <div style={{ position: 'relative', flexShrink: 0, width: 76, height: 76 }}>
-
-        {/* Pulsing ring — working */}
-        {isWork && (
-          <div style={{
-            position: 'absolute', inset: -7, borderRadius: '50%',
-            border: `2.5px solid ${T.gold}`,
-            animation: 'cbRing 1s ease-in-out infinite',
-            pointerEvents: 'none',
-          }}/>
-        )}
 
         {/* Done glow */}
         {isDone && (
