@@ -275,21 +275,24 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     return null;
   }
   const buf = await pdfRes.arrayBuffer();
-  // Procura "%PDF" nos primeiros 1024 bytes — tolera BOM (EF BB BF) e outros prefixos
   const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
-  const hasPdf = probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46);
-  if (!hasPdf) {
-    const preview = new TextDecoder('utf-8', { fatal: false }).decode(probe.slice(0, 120)).replace(/\s+/g, ' ').trim();
-    if (log) await log(`RC: não é PDF. content-type="${ct}" tamanho=${buf.byteLength}B início="${preview}"`, 'error');
-    return null;
+  const hasPdf  = probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46);
+  const hasXlsx = probe[0] === 0x50 && probe[1] === 0x4B; // PK = ZIP-based (xlsx, docx…)
+  if (hasPdf)  return { b64: bufToBase64(buf), ext: 'pdf' };
+  if (hasXlsx) {
+    if (log) await log(`RC: relatório recebido como planilha XLSX — será salvo como .xlsx.`, 'info');
+    return { b64: bufToBase64(buf), ext: 'xlsx' };
   }
-  return bufToBase64(buf);
+  const preview = new TextDecoder('utf-8', { fatal: false }).decode(probe.slice(0, 120)).replace(/\s+/g, ' ').trim();
+  if (log) await log(`RC: não é PDF nem XLSX. content-type="${ct}" tamanho=${buf.byteLength}B início="${preview}"`, 'error');
+  return null;
 }
 
 /* ── Baixa PDF de Ordem de Serviço ──────────────────────── */
 
+const unescHtml = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
 async function fetchOsPdf(orgUUID, osId, log) {
-  // Passo 1: busca a lista de OS com o ID para obter o UUID completo
   const params = new URLSearchParams({
     order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
     inserted_at_range: '', updated_at_range: '', service_type: '',
@@ -297,48 +300,35 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Extrai UUID completo da OS a partir dos links da lista
-  const uuidM = listHtml.match(new RegExp(`/orders/([a-f0-9-]{36})`, 'i'));
+  // Extrai UUID completo da OS
+  const uuidM = listHtml.match(/\/orders\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
   const orderUUID = uuidM?.[1] || osId;
-
   if (log) await log(`OS: UUID da ordem = ${orderUUID}`, 'info');
 
-  // Passo 2: tenta URLs diretas de PDF sem precisar abrir a página de detalhes
-  const candidates = [
-    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/print`,
-    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/relatorio`,
-    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/pdf`,
-    `${BASE}/organizations/${orgUUID}/orders/${orderUUID}/download`,
-  ];
+  // Procura URL de PDF diretamente na lista (normalmente um link S3 presigned)
+  const pdfLinkM = listHtml.match(/href="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
+                || listHtml.match(/src="(https?:\/\/[^"]*\.pdf[^"]*)"/i)
+                || listHtml.match(/(https?:\/\/[a-z0-9.-]*s3[a-z0-9.-]*amazonaws\.com\/[^"'\s<>]+\.pdf[^"'\s<>]*)/i);
 
-  for (const tryUrl of candidates) {
-    let res;
-    try { res = await bf(tryUrl); } catch { continue; }
-    if (!res.ok) continue;
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('html')) {
-      // Pode ser a página de print — tenta extrair iframe/embed com PDF ou o PDF embutido
-      const html = await res.text();
-      const embedM = html.match(/(?:src|href)="([^"]+\.pdf[^"]*)"/i)
-                  || html.match(/<iframe[^>]+src="([^"]+)"/i);
-      if (!embedM?.[1]) continue;
-      try {
-        const pdfRes2 = await fetchPdf(absUrl(embedM[1]));
-        if (!pdfRes2.ok) continue;
-        const buf2 = await pdfRes2.arrayBuffer();
-        const probe2 = new Uint8Array(buf2, 0, Math.min(1024, buf2.byteLength));
-        if (probe2.some((b, i) => b === 0x25 && probe2[i+1] === 0x50 && probe2[i+2] === 0x44 && probe2[i+3] === 0x46))
-          return bufToBase64(buf2);
-      } catch { continue; }
-      continue;
+  if (pdfLinkM?.[1]) {
+    const pdfUrl = unescHtml(pdfLinkM[1]);
+    if (log) await log(`OS: URL S3 encontrada: ${pdfUrl.slice(0, 80)}...`, 'info');
+    try {
+      const pdfRes = await fetchPdf(pdfUrl);
+      if (pdfRes.ok) {
+        const buf = await pdfRes.arrayBuffer();
+        const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
+        if (probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46))
+          return bufToBase64(buf);
+      }
+      if (log) await log(`OS: falha ao baixar PDF do S3: HTTP ${pdfRes.status}`, 'error');
+    } catch (e) {
+      if (log) await log(`OS: erro ao buscar PDF do S3: ${e.message}`, 'error');
     }
-    const buf = await res.arrayBuffer();
-    const probe = new Uint8Array(buf, 0, Math.min(1024, buf.byteLength));
-    if (probe.some((b, i) => b === 0x25 && probe[i+1] === 0x50 && probe[i+2] === 0x44 && probe[i+3] === 0x46))
-      return bufToBase64(buf);
+  } else {
+    if (log) await log(`OS: URL de PDF não encontrada na página da lista para ${orderUUID}.`, 'error');
   }
 
-  if (log) await log(`OS: nenhuma das URLs de PDF funcionou para ordem ${orderUUID}.`, 'error');
   return null;
 }
 
@@ -374,11 +364,13 @@ async function runConsumoDownload(data, callerTabId) {
 
       await log(`Processando: ${label}...`);
       try {
-        const b64 = await fetchReportPdf(orgUUID, { ...item, startDate, endDate, category }, log);
-        if (!b64) { await log(`Sem resultados para: ${label}`, 'normal'); continue; }
-        const res = await saveToFolder(callerTabId, fileName, b64, folder);
-        if (res?.ok) { downloaded++; await log(`✓ ${fileName}`, 'ok'); }
-        else await log(`Falha ao salvar "${fileName}": ${res?.error || 'erro'}`, 'error');
+        const result = await fetchReportPdf(orgUUID, { ...item, startDate, endDate, category }, log);
+        if (!result) { await log(`Sem resultados para: ${label}`, 'normal'); continue; }
+        const { b64, ext } = result;
+        const fileNameExt = fileName.replace(/\.pdf$/, `.${ext}`);
+        const res = await saveToFolder(callerTabId, fileNameExt, b64, folder);
+        if (res?.ok) { downloaded++; await log(`✓ ${fileNameExt}`, 'ok'); }
+        else await log(`Falha ao salvar "${fileNameExt}": ${res?.error || 'erro'}`, 'error');
       } catch (err) {
         await log(`Erro em "${label}": ${err.message}`, 'error');
       }

@@ -454,8 +454,15 @@ export const TabLaboratorioEstelar = () => {
       }
 
       /* 2 — Relatório de Consumo */
-      for (const { base64 } of (collectedRC.get(folder) || [])) {
-        docSlots.push({ label: '2 - Relatorio de Consumo', bytes: b64ToBytes(base64).buffer });
+      const extraRcFiles = [];
+      for (const { filename, base64 } of (collectedRC.get(folder) || [])) {
+        const bytes = b64ToBytes(base64).buffer;
+        if (/\.pdf$/i.test(filename)) {
+          docSlots.push({ label: '2 - Relatorio de Consumo', bytes });
+        } else {
+          const ext = filename.slice(filename.lastIndexOf('.')) || '';
+          extraRcFiles.push({ name: `2 - Relatorio de Consumo - ${folder}${ext}`, bytes });
+        }
       }
       if (!collectedRC.has(folder)) setLog(prev => [...prev, { text: `  ⚠ RC não encontrado: ${folder}`, type: 'error' }]);
 
@@ -480,6 +487,7 @@ export const TabLaboratorioEstelar = () => {
 
       const folderDir = secDir.folder(folder);
       for (const { label, bytes } of docSlots) folderDir.file(`${label} - ${folder}.pdf`, bytes);
+      for (const { name, bytes } of extraRcFiles) folderDir.file(name, bytes);
 
       try {
         const merged = await PDFDocument.create();
