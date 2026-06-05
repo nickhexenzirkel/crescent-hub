@@ -191,7 +191,7 @@ async function fetchFindOrg(orgName, sampleCliente, log) {
 
 /* ── Baixa PDF de Relatório de Consumo ──────────────────── */
 
-async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, category }) {
+async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, category }, log) {
   const base = new URLSearchParams({
     category, status: 'authorized',
     starting_date: startDate, ending_date: endDate,
@@ -204,8 +204,19 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
 
   const p       = String(clienteStr).split(' - ');
   const secNome = p[2]?.trim() || clienteStr;
-  const match   = opts.find(o => normStr(o.text).includes(normStr(secNome)));
-  if (!match?.value) return null;
+  const sn      = normStr(secNome);
+
+  // Bidirecional: opção contém secNome OU secNome contém opção (nomes às vezes abreviados)
+  const match = opts.find(o => {
+    const ot = normStr(o.text);
+    return ot.includes(sn) || sn.includes(ot);
+  });
+
+  if (!match?.value) {
+    const sample = opts.slice(0, 5).map(o => `"${o.text}"`).join(', ');
+    if (log) await log(`RC: cliente "${secNome}" não encontrado no select. Opções disponíveis: ${sample || 'nenhuma'}`, 'error');
+    return null;
+  }
 
   // Se tem setor, descobre division_id
   let divisionId = '';
@@ -226,27 +237,42 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
   });
   const finalHtml = await getHtml(`${BASE}/organizations/${orgUUID}/transactions_report?${all}`);
 
-  if (!finalHtml.includes('Extrair Relatório')) return null;
+  if (!finalHtml.includes('Extrair Relatório')) {
+    if (log) await log(`RC: "Extrair Relatório" não encontrado na página — sem transações no período ou cliente sem resultados.`, 'error');
+    return null;
+  }
 
   // Extrai href do link "Extrair Relatório"
   const linkM = finalHtml.match(/href="([^"]+)"[^>]*>\s*Extrair Relat[oó]rio/i)
              || finalHtml.match(/Extrair Relat[oó]rio[\s\S]{0,200}?href="([^"]+)"/i);
-  if (!linkM?.[1]) return null;
+  if (!linkM?.[1]) {
+    if (log) await log(`RC: link "Extrair Relatório" encontrado no HTML mas href não extraído.`, 'error');
+    return null;
+  }
 
   const pdfUrl = absUrl(linkM[1]);
   const pdfRes = await bf(pdfUrl);
-  if (!pdfRes.ok) return null;
+  if (!pdfRes.ok) {
+    if (log) await log(`RC: PDF URL retornou HTTP ${pdfRes.status}: ${pdfUrl}`, 'error');
+    return null;
+  }
   const ct = pdfRes.headers.get('content-type') || '';
-  if (ct.includes('html')) return null;
+  if (ct.includes('html')) {
+    if (log) await log(`RC: resposta é HTML, não PDF (content-type: ${ct}).`, 'error');
+    return null;
+  }
   const buf = await pdfRes.arrayBuffer();
   const magic = new Uint8Array(buf, 0, 4);
-  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) return null;
+  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) {
+    if (log) await log(`RC: arquivo baixado não é PDF válido (bytes iniciais inválidos).`, 'error');
+    return null;
+  }
   return bufToBase64(buf);
 }
 
 /* ── Baixa PDF de Ordem de Serviço ──────────────────────── */
 
-async function fetchOsPdf(orgUUID, osId) {
+async function fetchOsPdf(orgUUID, osId, log) {
   const params = new URLSearchParams({
     order_id: osId, vehicle_id: '', provider_id: '', client_id: '',
     inserted_at_range: '', updated_at_range: '', service_type: '',
@@ -254,17 +280,37 @@ async function fetchOsPdf(orgUUID, osId) {
   });
   const html = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
+  // Tenta achar o link da OS pelo ID na URL (formato /orders/{id} ou /orders/{id}/...)
+  const directM = html.match(new RegExp(`href="([^"]*orders[^"]*${osId}[^"]*)"`, 'i'));
   const hrefM = html.match(/class="buttons"[\s\S]{0,300}?href="([^"]+\.pdf[^"]*)"/i)
-             || html.match(/href="([^"]+(?:\.pdf|\/download|\/print|relatorio|report)[^"]*)"/i);
-  if (!hrefM?.[1]) return null;
+             || html.match(/href="([^"]+(?:\.pdf|\/download|\/print|relatorio|report)[^"]*)"/i)
+             || directM;
+
+  if (!hrefM?.[1]) {
+    // Log dos hrefs encontrados na página para diagnóstico
+    const allHrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(m => m[1])
+      .filter(h => h.includes('order') || h.includes('pdf') || h.includes('print') || h.includes('download'))
+      .slice(0, 8);
+    if (log) await log(`OS: nenhum link de PDF encontrado para ${osId}. Links relacionados: ${allHrefs.join(' | ') || 'nenhum'}`, 'error');
+    return null;
+  }
 
   const pdfRes = await bf(absUrl(hrefM[1]));
-  if (!pdfRes.ok) return null;
+  if (!pdfRes.ok) {
+    if (log) await log(`OS: PDF URL retornou HTTP ${pdfRes.status}: ${hrefM[1]}`, 'error');
+    return null;
+  }
   const ct = pdfRes.headers.get('content-type') || '';
-  if (ct.includes('html')) return null;
+  if (ct.includes('html')) {
+    if (log) await log(`OS: resposta é HTML, não PDF (content-type: ${ct}).`, 'error');
+    return null;
+  }
   const buf = await pdfRes.arrayBuffer();
   const magic = new Uint8Array(buf, 0, 4);
-  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) return null;
+  if (magic[0] !== 0x25 || magic[1] !== 0x50 || magic[2] !== 0x44 || magic[3] !== 0x46) {
+    if (log) await log(`OS: arquivo baixado não é PDF válido (bytes iniciais inválidos).`, 'error');
+    return null;
+  }
   return bufToBase64(buf);
 }
 
@@ -300,7 +346,7 @@ async function runConsumoDownload(data, callerTabId) {
 
       await log(`Processando: ${label}...`);
       try {
-        const b64 = await fetchReportPdf(orgUUID, { ...item, startDate, endDate, category });
+        const b64 = await fetchReportPdf(orgUUID, { ...item, startDate, endDate, category }, log);
         if (!b64) { await log(`Sem resultados para: ${label}`, 'normal'); continue; }
         const res = await saveToFolder(callerTabId, fileName, b64, folder);
         if (res?.ok) { downloaded++; await log(`✓ ${fileName}`, 'ok'); }
@@ -350,7 +396,7 @@ async function runOrdensDownload(data, callerTabId) {
 
       await log(`Processando: ${label}...`);
       try {
-        const b64 = await fetchOsPdf(orgUUID, osId);
+        const b64 = await fetchOsPdf(orgUUID, osId, log);
         if (!b64) { await log(`OS não encontrada ou sem PDF: ${osId}`, 'error'); continue; }
         const res = await saveToFolder(callerTabId, fileName, b64, folder);
         if (res?.ok) { downloaded++; await log(`✓ ${folder}/${fileName}`, 'ok'); }
