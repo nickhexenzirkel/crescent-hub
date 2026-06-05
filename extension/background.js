@@ -305,9 +305,14 @@ async function fetchOsPdf(orgUUID, osId, log) {
   });
   const listHtml = await getHtml(`${BASE}/organizations/${orgUUID}/orders?${params}`);
 
-  // Extrai UUID completo da OS a partir dos links da lista
-  const uuidM = listHtml.match(/\/orders\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-  const orderUUID = uuidM?.[1] || osId;
+  // Extrai o UUID completo que corresponde ao osId buscado
+  // (o osId pode ser apenas os primeiros 8 chars do UUID)
+  const uuidRe = /\/orders\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi;
+  const allUUIDs = [...listHtml.matchAll(uuidRe)].map(m => m[1]);
+  const orderUUID = allUUIDs.find(u => u === osId || u.startsWith(osId))
+                 || allUUIDs.find(u => u.replace(/-/g,'').startsWith(osId.replace(/-/g,'')))
+                 || allUUIDs[0]
+                 || osId;
   if (log) await log(`OS: UUID da ordem = ${orderUUID}`, 'info');
 
   // Passo 1: página de detalhes — pode redirecionar diretamente para S3
