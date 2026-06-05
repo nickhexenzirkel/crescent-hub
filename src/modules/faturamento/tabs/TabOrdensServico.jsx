@@ -7,6 +7,10 @@ import { StarDivider } from '../../../shared/components';
 import { checkExtension } from '../../../utils/checkExtension';
 import { useCredenciais } from '../../../hooks/useCredenciais';
 import { CredenciaisPanel } from '../CredenciaisPanel';
+import { saveFile, loadFile, deleteFile } from '../../../utils/fileStorage';
+
+const KEY_MAIN = 'os_main';
+const KEY_AUX  = 'os_aux';
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -167,6 +171,11 @@ export const TabOrdensServico = () => {
   const addLog = (text, type = 'normal') =>
     setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
 
+  React.useEffect(() => {
+    loadFile(KEY_MAIN).then(f => { if (f) loadMainFile(f); }).catch(() => {});
+    loadFile(KEY_AUX).then(f  => { if (f) buildSetorMap(f); }).catch(() => {});
+  }, []);
+
   /* ── Escuta eventos da extensão ── */
   React.useEffect(() => {
     const handler = async (e) => {
@@ -226,6 +235,7 @@ export const TabOrdensServico = () => {
 
   const buildSetorMap = async (f) => {
     setAuxFile(f);
+    saveFile(KEY_AUX, f).catch(() => {});
     try {
       const allRows = await readXLSX(f);
       if (!allRows.length) return;
@@ -246,6 +256,7 @@ export const TabOrdensServico = () => {
 
   const loadMainFile = async (f) => {
     setMainFile(f);
+    saveFile(KEY_MAIN, f).catch(() => {});
     setRows([]); setHeaders([]); setCliIdx(-1); setOsIdx(-1);
     setOsRows([]); setSelected(new Set()); setCliMap(new Map());
     try {
@@ -336,7 +347,7 @@ export const TabOrdensServico = () => {
             </div>
             {!mainFile
               ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
-              : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setOsRows([]);setSelected(new Set());setRows([]);setAuxFile(null);setSetorByOs(new Map());}}/>
+              : <FileChip file={mainFile} onRemove={()=>{setMainFile(null);setOsRows([]);setSelected(new Set());setRows([]);setAuxFile(null);setSetorByOs(new Map());deleteFile(KEY_MAIN).catch(()=>{});deleteFile(KEY_AUX).catch(()=>{});}}/>
             }
             {mainFile && osRows.length > 0 && (
               <div style={{display:'inline-flex',alignItems:'center',gap:7,marginTop:10,padding:'6px 10px',
@@ -355,7 +366,7 @@ export const TabOrdensServico = () => {
               ? <DropZoneXLSX onFile={buildSetorMap} label="Selecionar relatório por organização (opcional)..."/>
               : (
                 <div>
-                  <FileChip file={auxFile} onRemove={()=>{setAuxFile(null);setSetorByOs(new Map());if(cliIdx>=0&&osIdx>=0)buildOsRows(rows,cliIdx,osIdx,new Map());}}/>
+                  <FileChip file={auxFile} onRemove={()=>{setAuxFile(null);setSetorByOs(new Map());if(cliIdx>=0&&osIdx>=0)buildOsRows(rows,cliIdx,osIdx,new Map());deleteFile(KEY_AUX).catch(()=>{});}}/>
                   {setorByOs.size > 0 && (
                     <div style={{display:'inline-flex',alignItems:'center',gap:7,marginTop:10,padding:'6px 10px',
                       background:'rgba(26,156,112,.10)',border:'1px solid rgba(26,156,112,.28)',borderRadius:8}}>

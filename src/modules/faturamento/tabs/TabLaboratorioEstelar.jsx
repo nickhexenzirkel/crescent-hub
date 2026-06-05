@@ -9,6 +9,12 @@ import { StarDivider } from '../../../shared/components';
 import { checkExtension } from '../../../utils/checkExtension';
 import { useCredenciais } from '../../../hooks/useCredenciais';
 import { CredenciaisPanel } from '../CredenciaisPanel';
+import { saveFile, loadFile, deleteFile } from '../../../utils/fileStorage';
+
+const KEY_MAIN = 'lab_main';
+const KEY_AUX  = 'lab_aux';
+const KEY_NF   = 'lab_nf';
+const KEY_RR   = 'lab_rr';
 
 /* ── Helpers ── */
 const norm = (s) =>
@@ -217,6 +223,13 @@ export const TabLaboratorioEstelar = () => {
   const addLog = (text, type = 'normal') =>
     setLog(prev => [...prev, { text: `[${new Date().toLocaleTimeString('pt-BR')}] ${text}`, type }]);
 
+  useEffect(() => {
+    loadFile(KEY_MAIN).then(f => { if (f) loadMainFile(f); }).catch(() => {});
+    loadFile(KEY_AUX).then(f  => { if (f) buildSetorMap(f); }).catch(() => {});
+    loadFile(KEY_NF).then(f   => { if (f) loadNfZip(f); }).catch(() => {});
+    loadFile(KEY_RR).then(f   => { if (f) loadRrZip(f); }).catch(() => {});
+  }, []);
+
   /* ── XLSX helpers ── */
   const buildSecretarias = (allRows, ci, hdrs) => {
     const isCliente = norm(hdrs?.[ci] || '') === 'cliente';
@@ -235,6 +248,7 @@ export const TabLaboratorioEstelar = () => {
 
   const buildSetorMap = async (f) => {
     setAuxFile(f);
+    saveFile(KEY_AUX, f).catch(() => {});
     try {
       const allRows = await readXLSX(f);
       if (!allRows.length) return;
@@ -261,6 +275,7 @@ export const TabLaboratorioEstelar = () => {
 
   const loadMainFile = async (f) => {
     setMainFile(f);
+    saveFile(KEY_MAIN, f).catch(() => {});
     setRows([]); setHeaders([]); setColIdx(-1); setOsColIdx(-1);
     setSecretarias([]); setSelected(new Set()); setClienteMap(new Map());
     const fn = f.name.toLowerCase();
@@ -355,12 +370,14 @@ export const TabLaboratorioEstelar = () => {
   /* ── ZIP loading ── */
   const loadNfZip = async (f) => {
     setNfFile(f);
+    saveFile(KEY_NF, f).catch(() => {});
     try { nfZipRef.current = await JSZip.loadAsync(f); }
     catch { addLog('Erro ao ler ZIP de Notas Fiscais.', 'error'); }
   };
 
   const loadRrZip = async (f) => {
     setRrFile(f);
+    saveFile(KEY_RR, f).catch(() => {});
     try { rrZipRef.current = await JSZip.loadAsync(f); }
     catch { addLog('Erro ao ler ZIP de Retenção.', 'error'); }
   };
@@ -559,7 +576,7 @@ export const TabLaboratorioEstelar = () => {
             </div>
             {!mainFile
               ? <DropZoneXLSX onFile={loadMainFile} label="Relatório de retenção (.xlsx)"/>
-              : <FileChip name={mainFile.name} onRemove={() => { setMainFile(null); setSecretarias([]); setSelected(new Set()); setRows([]); setSetorMap(new Map()); setAuxFile(null); setSelSetores(new Set()); }}/>
+              : <FileChip name={mainFile.name} onRemove={() => { setMainFile(null); setSecretarias([]); setSelected(new Set()); setRows([]); setSetorMap(new Map()); setAuxFile(null); setSelSetores(new Set()); deleteFile(KEY_MAIN).catch(()=>{}); deleteFile(KEY_AUX).catch(()=>{}); }}/>
             }
             {mainFile && secretarias.length > 0 && (
               <div style={{display:'inline-flex',alignItems:'center',gap:7,marginTop:10,padding:'6px 10px',
@@ -579,7 +596,7 @@ export const TabLaboratorioEstelar = () => {
             </div>
             {!auxFile
               ? <DropZoneXLSX onFile={buildSetorMap} label="Relatório por organização (opcional)..."/>
-              : <FileChip name={auxFile.name} onRemove={() => { setAuxFile(null); setSetorMap(new Map()); setSelSetores(new Set()); }}/>
+              : <FileChip name={auxFile.name} onRemove={() => { setAuxFile(null); setSetorMap(new Map()); setSelSetores(new Set()); deleteFile(KEY_AUX).catch(()=>{}); }}/>
             }
             {mainFile && (
               <div style={{marginTop:14,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
@@ -693,7 +710,7 @@ export const TabLaboratorioEstelar = () => {
               </div>
               {!nfFile
                 ? <DropZoneZip onFile={loadNfZip} label="ZIP com PDFs de Nota Fiscal"/>
-                : <FileChip name={nfFile.name} onRemove={() => { setNfFile(null); nfZipRef.current = null; }}/>
+                : <FileChip name={nfFile.name} onRemove={() => { setNfFile(null); nfZipRef.current = null; deleteFile(KEY_NF).catch(()=>{}); }}/>
               }
             </div>
             <div>
@@ -702,7 +719,7 @@ export const TabLaboratorioEstelar = () => {
               </div>
               {!rrFile
                 ? <DropZoneZip onFile={loadRrZip} label="ZIP com PDFs de Retenção"/>
-                : <FileChip name={rrFile.name} onRemove={() => { setRrFile(null); rrZipRef.current = null; }}/>
+                : <FileChip name={rrFile.name} onRemove={() => { setRrFile(null); rrZipRef.current = null; deleteFile(KEY_RR).catch(()=>{}); }}/>
               }
             </div>
           </div>
