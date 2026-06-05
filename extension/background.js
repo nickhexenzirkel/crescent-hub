@@ -59,23 +59,63 @@ function extractCsrf(html) {
 
 /* ── Login ────────────────────────────────────────────────── */
 
-async function fetchLogin(username, password) {
+async function fetchLogin(username, password, log) {
   const loginHtml = await getHtml(`${BASE}/sessions/new`);
-  const csrf = extractCsrf(loginHtml);
 
-  const res = await bf(`${BASE}/sessions`, {
+  // Extrai CSRF — tenta todos os padrões conhecidos
+  const csrf = extractCsrf(loginHtml);
+  await log(`CSRF: ${csrf ? '✓' : '✗ não encontrado — tentando sem token'}`, csrf ? 'info' : 'normal');
+
+  // Detecta action do form e nomes dos campos no HTML
+  const actionM  = loginHtml.match(/<form[^>]+action="([^"]+)"/i);
+  const action   = actionM ? new URL(actionM[1], BASE).href : `${BASE}/sessions`;
+
+  const inputs   = [...loginHtml.matchAll(/<input[^>]+>/gi)].map(m => ({
+    name: m[0].match(/name="([^"]+)"/i)?.[1],
+    type: m[0].match(/type="([^"]+)"/i)?.[1] || 'text',
+  })).filter(i => i.name);
+
+  await log(`Endpoint: ${action}  |  Campos: ${inputs.map(i => i.name).join(', ')}`, 'info');
+
+  // Escolhe os campos de login e senha dinamicamente
+  const userField = inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'submit')?.name || 'user[login]';
+  const passField = inputs.find(i => i.type === 'password')?.name || 'user[password]';
+
+  const body = new URLSearchParams({ authenticity_token: csrf });
+  body.set(userField, username);
+  body.set(passField, password);
+
+  const res = await bf(action, {
     method:   'POST',
     redirect: 'follow',
-    headers:  { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      authenticity_token: csrf,
-      'user[login]':      username,
-      'user[password]':   password,
-    }),
+    headers:  {
+      'Content-Type':    'application/x-www-form-urlencoded',
+      'Referer':         `${BASE}/sessions/new`,
+      'Origin':          BASE,
+    },
+    body,
   });
 
-  // Se ainda está em /sessions após o POST, login falhou
-  return !res.url.includes('/sessions');
+  await log(`Resposta login: HTTP ${res.status} → ${res.url}`, 'info');
+
+  // Sucesso = saiu da página de login
+  if (!res.url.includes('/sessions')) return true;
+
+  // Fallback: tenta JSON (alguns Rails/Devise usam endpoint JSON)
+  await log('Form POST não redirecionou — tentando JSON...', 'normal');
+  const jRes = await bf(`${BASE}/sessions`, {
+    method:   'POST',
+    redirect: 'follow',
+    headers:  {
+      'Content-Type': 'application/json',
+      'Accept':       'application/json',
+      'X-CSRF-Token': csrf,
+    },
+    body: JSON.stringify({ user: { login: username, password } }),
+  });
+  await log(`JSON login: HTTP ${jRes.status} → ${jRes.url}`, 'info');
+
+  return !jRes.url.includes('/sessions') && jRes.status < 400;
 }
 
 /* ── ArrayBuffer → base64 ────────────────────────────────── */
@@ -238,7 +278,7 @@ async function runConsumoDownload(data, callerTabId) {
 
   try {
     await log('Fazendo login...');
-    if (!await fetchLogin(username, password)) {
+    if (!await fetchLogin(username, password, log)) {
       await log('Login falhou. Verifique usuário e senha.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
       return;
@@ -289,7 +329,7 @@ async function runOrdensDownload(data, callerTabId) {
 
   try {
     await log('Fazendo login...');
-    if (!await fetchLogin(username, password)) {
+    if (!await fetchLogin(username, password, log)) {
       await log('Login falhou. Verifique usuário e senha.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'FAT_ERROR' }).catch(() => {});
       return;
