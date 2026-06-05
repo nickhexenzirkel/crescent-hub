@@ -23,21 +23,25 @@ const NAV = [
   {
     id: 'consumo',
     label: 'Relatório de Consumo',
+    adminOnly: true,
     icon: <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>,
   },
   {
     id: 'ordens',
     label: 'Ordens de Serviço',
+    adminOnly: true,
     icon: <I><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></I>,
   },
   {
     id: 'uniko-pdf',
     label: 'Compilador',
+    adminOnly: true,
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></I>,
   },
   {
     id: 'laboratorio',
     label: 'Laboratório Estelar',
+    adminOnly: true,
     icon: <I><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></I>,
   },
   {
@@ -48,10 +52,11 @@ const NAV = [
   },
 ];
 
-const Sidebar = ({ tab, setTab, onBack }) => {
+const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
   const isMobile = useIsMobile();
   const [hov, sh] = useState(null);
   if (isMobile) return null;
+  const visibleNav = NAV.filter(n => !n.adminOnly || isAdmin);
 
   return (
     <div style={{
@@ -91,7 +96,7 @@ const Sidebar = ({ tab, setTab, onBack }) => {
       {/* Nav */}
       <nav style={{flex:1,padding:'8px 12px',display:'flex',flexDirection:'column',gap:2,overflowY:'auto'}}>
         <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',padding:'2px 8px 10px',fontWeight:600}}>NAVEGAÇÃO</div>
-        {NAV.map(n => {
+        {visibleNav.map(n => {
           const a = tab === n.id;
           const cs = !!n.comingSoon;
           return (

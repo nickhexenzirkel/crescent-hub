@@ -9,8 +9,11 @@ import { TabOrdensServico } from './tabs/TabOrdensServico';
 import { TabUnikoPDF } from './tabs/TabUnikoPDF';
 import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
 
-const FaturamentoPortal = ({ onBack }) => {
+const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio']);
+
+const FaturamentoPortal = ({ onBack, authUser }) => {
   const isMobile = useIsMobile();
+  const isAdmin = authUser?.role === 'admin';
   const [tab, setTab] = useState('inicio');
 
   useState(() => {
@@ -18,15 +21,21 @@ const FaturamentoPortal = ({ onBack }) => {
     applyTheme(saved);
   });
 
+  const safeSetTab = (id) => {
+    if (ADMIN_TABS.has(id) && !isAdmin) return;
+    setTab(id);
+  };
+
   const renderTab = () => {
+    if (ADMIN_TABS.has(tab) && !isAdmin) return <TabInicio setTab={safeSetTab}/>;
     switch (tab) {
-      case 'inicio':  return <TabInicio setTab={setTab}/>;
+      case 'inicio':  return <TabInicio setTab={safeSetTab}/>;
       case 'xml':     return <TabLeitorXML/>;
       case 'consumo': return <TabRelatorioConsumo/>;
       case 'ordens':    return <TabOrdensServico/>;
       case 'uniko-pdf':   return <TabUnikoPDF/>;
       case 'laboratorio': return <TabLaboratorioEstelar/>;
-      default:            return <TabInicio setTab={setTab}/>;
+      default:            return <TabInicio setTab={safeSetTab}/>;
     }
   };
 
@@ -35,14 +44,14 @@ const FaturamentoPortal = ({ onBack }) => {
 
   return (
     <div style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={setTab} onBack={onBack}/>
+      <Sidebar tab={tab} setTab={safeSetTab} onBack={onBack} isAdmin={isAdmin}/>
       <div style={{
         flex:1,
         marginLeft: isMobile ? 0 : 252,
         display:'flex',flexDirection:'column',
         minHeight:'100vh',
       }}>
-        <TopBar tab={tab} onBack={() => setTab('inicio')}/>
+        <TopBar tab={tab} onBack={() => safeSetTab('inicio')}/>
         <div style={{
           flex:1,
           overflowY:'auto',

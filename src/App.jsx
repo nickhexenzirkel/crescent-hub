@@ -240,7 +240,7 @@ export default function CrescentHub() {
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={()=>ss('modules')}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={()=>ss('modules')} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
