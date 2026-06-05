@@ -51,7 +51,7 @@ export default function CrescentHub() {
   };
 
   const handleModuleSelect = (id) => {
-    const adminOnly = ['dashboard','ponto','faturamento'];
+    const adminOnly = ['dashboard','ponto'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     const theme = localStorage.getItem('ch_theme') || 'vozBrasil';
     if (['vozBrasil','vozBrasilDark','orgulho','orgulhoDark'].includes(theme)) {
@@ -240,7 +240,7 @@ export default function CrescentHub() {
           {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
-          {screen==='faturamento' && authUser?.role==='admin' && <FaturamentoPortal onBack={()=>ss('modules')}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={()=>ss('modules')}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
