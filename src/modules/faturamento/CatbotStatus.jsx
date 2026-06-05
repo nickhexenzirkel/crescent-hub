@@ -97,7 +97,7 @@ export const CatbotStatus = ({ phase, doneText }) => {
         ))}
 
         <img
-          src="/Unikocatbot.png"
+          src="/UnikoCatbot.png"
           alt="Uniko Catbot"
           style={{
             width: 76, height: 76, objectFit: 'contain',
