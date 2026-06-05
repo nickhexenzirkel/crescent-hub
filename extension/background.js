@@ -264,13 +264,15 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     return null;
   }
 
-  // Garante category e status=authorized na URL do PDF
+  // Força todos os filtros na URL do PDF (o link extraído pode não incluir datas/status/categoria)
   const pdfUrlObj = new URL(absUrl(linkM[1]));
   pdfUrlObj.searchParams.set('status', 'authorized');
   pdfUrlObj.searchParams.set('category', category);
+  pdfUrlObj.searchParams.set('starting_date', startDate);
+  pdfUrlObj.searchParams.set('ending_date', endDate);
   const pdfUrl = pdfUrlObj.href;
   const catLabel = category === 'service' ? 'Manutenção' : 'Abastecimento';
-  if (log) await log(`RC: categoria = ${catLabel} | baixando PDF...`, 'info');
+  if (log) await log(`RC: categoria = ${catLabel} | período = ${startDate} → ${endDate} | baixando PDF...`, 'info');
   const pdfRes = await fetchPdf(pdfUrl);
   if (!pdfRes.ok) {
     if (log) await log(`RC: PDF URL retornou HTTP ${pdfRes.status}: ${pdfUrl}`, 'error');
