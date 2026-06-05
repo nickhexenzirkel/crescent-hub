@@ -50,72 +50,61 @@ async function getHtml(url) {
 const absUrl = (href, base = BASE) =>
   href ? new URL(href, base).href : '';
 
-// Extrai CSRF token do HTML (Rails meta tag ou input hidden)
-function extractCsrf(html) {
-  const m = html.match(/<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"/i)
-         || html.match(/name="authenticity_token"[^>]*value="([^"]+)"/i);
-  return m?.[1] || '';
-}
 
 /* ── Login ────────────────────────────────────────────────── */
 
 async function fetchLogin(username, password, log) {
   const loginHtml = await getHtml(`${BASE}/sessions/new`);
 
-  // Extrai CSRF — tenta todos os padrões conhecidos
-  const csrf = extractCsrf(loginHtml);
-  await log(`CSRF: ${csrf ? '✓' : '✗ não encontrado — tentando sem token'}`, csrf ? 'info' : 'normal');
+  // Extrai todos os <input> do formulário com name + type + value
+  const inputs = [...loginHtml.matchAll(/<input([^>]*)>/gi)].map(m => {
+    const attrs = m[1];
+    return {
+      name:  attrs.match(/name="([^"]+)"/i)?.[1],
+      type:  (attrs.match(/type="([^"]+)"/i)?.[1] || 'text').toLowerCase(),
+      value: attrs.match(/value="([^"]*)"/i)?.[1] ?? '',
+    };
+  }).filter(i => i.name);
 
-  // Detecta action do form e nomes dos campos no HTML
-  const actionM  = loginHtml.match(/<form[^>]+action="([^"]+)"/i);
-  const action   = actionM ? new URL(actionM[1], BASE).href : `${BASE}/sessions`;
+  // Detecta action do formulário
+  const actionM = loginHtml.match(/<form[^>]+action="([^"]+)"/i);
+  const action  = actionM ? new URL(actionM[1], BASE).href : `${BASE}/sessions`;
 
-  const inputs   = [...loginHtml.matchAll(/<input[^>]+>/gi)].map(m => ({
-    name: m[0].match(/name="([^"]+)"/i)?.[1],
-    type: m[0].match(/type="([^"]+)"/i)?.[1] || 'text',
-  })).filter(i => i.name);
+  // Campo de login = primeiro input visível que não é senha nem submit
+  const userField = inputs.find(i =>
+    i.type !== 'password' && i.type !== 'hidden' && i.type !== 'submit' && i.type !== 'checkbox'
+  )?.name || 'handle';
 
-  await log(`Endpoint: ${action}  |  Campos: ${inputs.map(i => i.name).join(', ')}`, 'info');
+  // Campo de senha
+  const passField = inputs.find(i => i.type === 'password')?.name || 'password';
 
-  // Escolhe os campos de login e senha dinamicamente
-  const userField = inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'submit')?.name || 'user[login]';
-  const passField = inputs.find(i => i.type === 'password')?.name || 'user[password]';
+  await log(`Endpoint: ${action} | ${userField} / ${passField}`, 'info');
 
-  const body = new URLSearchParams({ authenticity_token: csrf });
+  // Monta o body: inclui TODOS os campos hidden (CSRF, tokens extras, etc.)
+  // e sobrescreve os campos de login/senha
+  const body = new URLSearchParams();
+  for (const { name, type, value } of inputs) {
+    if (type === 'hidden') body.set(name, value); // captura _csrf_token e quaisquer outros
+  }
   body.set(userField, username);
   body.set(passField, password);
+
+  const hiddenNames = inputs.filter(i => i.type === 'hidden').map(i => i.name);
+  await log(`Campos hidden incluídos: ${hiddenNames.join(', ') || 'nenhum'}`, 'info');
 
   const res = await bf(action, {
     method:   'POST',
     redirect: 'follow',
     headers:  {
-      'Content-Type':    'application/x-www-form-urlencoded',
-      'Referer':         `${BASE}/sessions/new`,
-      'Origin':          BASE,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Referer':      `${BASE}/sessions/new`,
+      'Origin':       BASE,
     },
     body,
   });
 
   await log(`Resposta login: HTTP ${res.status} → ${res.url}`, 'info');
-
-  // Sucesso = saiu da página de login
-  if (!res.url.includes('/sessions')) return true;
-
-  // Fallback: tenta JSON (alguns Rails/Devise usam endpoint JSON)
-  await log('Form POST não redirecionou — tentando JSON...', 'normal');
-  const jRes = await bf(`${BASE}/sessions`, {
-    method:   'POST',
-    redirect: 'follow',
-    headers:  {
-      'Content-Type': 'application/json',
-      'Accept':       'application/json',
-      'X-CSRF-Token': csrf,
-    },
-    body: JSON.stringify({ user: { login: username, password } }),
-  });
-  await log(`JSON login: HTTP ${jRes.status} → ${jRes.url}`, 'info');
-
-  return !jRes.url.includes('/sessions') && jRes.status < 400;
+  return !res.url.includes('/sessions') && res.status < 400;
 }
 
 /* ── ArrayBuffer → base64 ────────────────────────────────── */
