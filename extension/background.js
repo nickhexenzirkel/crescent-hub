@@ -239,7 +239,13 @@ async function fetchReportPdf(orgUUID, { clienteStr, setor, startDate, endDate, 
     const divOpts = [...html2.matchAll(/<option[^>]+value="([^"]+)"[^>]*>([^<]+)<\/option>/gi)]
       .map(m => ({ value: m[1], text: m[2].trim() }));
     const dm = divOpts.find(o => o.value && normStr(o.text).includes(normStr(setor)));
-    if (dm?.value) divisionId = dm.value;
+    if (dm?.value) {
+      divisionId = dm.value;
+      if (log) await log(`RC: setor "${setor}" → division_id=${divisionId}`, 'info');
+    } else {
+      const opts2 = divOpts.slice(0, 8).map(o => `"${o.text}"`).join(', ');
+      if (log) await log(`RC: setor "${setor}" não encontrado. Opções de divisão: ${opts2 || 'nenhuma'}`, 'error');
+    }
   }
 
   // Página final com todos os filtros
