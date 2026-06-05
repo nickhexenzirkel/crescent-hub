@@ -214,7 +214,7 @@ async function runConsumoDownload(data, callerTabId) {
   try {
     // ── Abre tab do 7Benefícios e faz login ──
     await log('Abrindo 7Benefícios...');
-    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: true });
+    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: false });
     tabId = tab.id;
     await waitForLoad(tabId);
 
@@ -402,7 +402,7 @@ async function runOrdensDownload(data, callerTabId) {
 
   try {
     await log('Abrindo 7Benefícios...');
-    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: true });
+    const tab = await chrome.tabs.create({ url: `${BASE}/sessions/new`, active: false });
     tabId = tab.id;
     await waitForLoad(tabId);
 
