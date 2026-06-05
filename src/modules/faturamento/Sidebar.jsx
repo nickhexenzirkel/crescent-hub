@@ -75,8 +75,8 @@ const Sidebar = ({ tab, setTab, onBack }) => {
             </div>
           </div>
           <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>CatBot</div>
-            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Faturamento</div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Uniko Cat-Bot</div>
+            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Robô do Faturamento</div>
           </div>
         </div>
         <StarDivider my={0}/>
