@@ -4,8 +4,9 @@ import JSZip from 'jszip';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { StarDivider } from '../../../shared/components';
-
 import { checkExtension } from '../../../utils/checkExtension';
+import { useCredenciais } from '../../../hooks/useCredenciais';
+import { CredenciaisPanel } from '../CredenciaisPanel';
 
 /* ── Helpers ─────────────────────────────────────────── */
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -154,9 +155,8 @@ export const TabOrdensServico = () => {
   const [setorByOs,  setSetorByOs]  = useState(new Map());
 
   const [orgName,    setOrgName]    = useState('');
-  const [credUser,   setCredUser]   = useState('');
-  const [credPass,   setCredPass]   = useState('');
-  const [showPass,   setShowPass]   = useState(false);
+  const creds = useCredenciais();
+  const { credUser, credPass } = creds;
 
   const [log,     setLog]     = useState([]);
   const [running, setRunning] = useState(false);
@@ -432,28 +432,9 @@ export const TabOrdensServico = () => {
 
       {/* ── Step 3 ── */}
       {step2Done && (
-        <Section n={3} title="Credenciais e download" sub="Usadas apenas para esta automação — não ficam salvas." done={done}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
-            <div>
-              <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>Usuário</label>
-              <input value={credUser} onChange={e=>setCredUser(e.target.value)} placeholder="Nome de usuário"
-                style={{width:'100%',padding:'9px 10px',borderRadius:9,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
-            </div>
-            <div>
-              <label style={{fontSize:13,fontWeight:600,color:T.textS,display:'block',marginBottom:6}}>Senha</label>
-              <div style={{position:'relative'}}>
-                <input type={showPass?'text':'password'} value={credPass} onChange={e=>setCredPass(e.target.value)} placeholder="Senha"
-                  style={{width:'100%',padding:'9px 36px 9px 10px',borderRadius:9,border:`1px solid ${T.border}`,background:T.surface,color:T.text,fontSize:13,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
-                <button onClick={()=>setShowPass(p=>!p)}
-                  style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:T.textT}}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    {showPass
-                      ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
-                      : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}
-                  </svg>
-                </button>
-              </div>
-            </div>
+        <Section n={3} title="Credenciais e download" sub="As credenciais ficam salvas no navegador." done={done}>
+          <div style={{marginBottom:16}}>
+            <CredenciaisPanel {...creds}/>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:20,flexWrap:'wrap'}}>
             <button onClick={startDownload} disabled={running||!step3Done}
