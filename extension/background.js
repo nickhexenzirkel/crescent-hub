@@ -47,10 +47,19 @@ const bf = (url, opts = {}) =>
 const fetchPdf = (url, opts = {}) =>
   fetch(url, { credentials: url.startsWith(BASE) ? 'include' : 'omit', ...opts });
 
-async function getHtml(url) {
-  const r = await bf(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
-  return r.text();
+async function getHtml(url, timeoutMs = 30000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await bf(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
+    return r.text();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`Timeout ao carregar: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Resolve href relativo para URL absoluta
