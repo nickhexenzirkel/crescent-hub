@@ -11,12 +11,16 @@
   "permissions": [
     "tabs",
     "scripting",
-    "storage"
+    "storage",
+    "cookies"
   ],
   "host_permissions": [
     "https://app.7beneficiosgestao.com.br/*",
     "https://*.s3.amazonaws.com/*",
     "https://crescent-hub.vercel.app/*",
+    "https://*.youtube.com/*",
+    "https://*.google.com/*",
+    "https://crescent-hub-server.onrender.com/*",
     "http://localhost:5173/*",
     "http://localhost:4173/*",
     "http://localhost:*/*"
@@ -33,7 +37,8 @@
         "http://localhost:4173/*",
         "http://localhost:*/*"
       ],
-      "js": ["content-script.js"]
+      "js": ["content-script.js"],
+      "all_frames": true
     }
   ],
   "action": {

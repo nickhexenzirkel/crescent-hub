@@ -1432,7 +1432,8 @@ body{padding-top:36px}
   <div class="load-txt" id="loadTxt">CARREGANDO</div>
   <div class="prog-wrap"><div class="prog-fill" id="progFill"></div></div>
   <div class="load-sub" id="loadSub">Iniciando...</div>
-  <button id="loadSkipBtn" onclick="skipVideoLoad()" style="display:none;margin-top:18px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);font-family:var(--font-pixel);font-size:9px;letter-spacing:2px;padding:9px 20px;border-radius:8px;cursor:pointer;transition:opacity .2s">⏭ JOGAR SEM VÍDEO</button>
+  <button id="loadAuthBtn" onclick="requestYtAuth()" style="display:none;margin-top:18px;background:rgba(0,240,255,.1);border:1px solid rgba(0,240,255,.35);color:rgba(0,240,255,.9);font-family:var(--font-pixel);font-size:9px;letter-spacing:2px;padding:10px 22px;border-radius:8px;cursor:pointer;transition:opacity .2s">🍪 AUTORIZAR VIA CATBOT</button>
+  <div id="loadAuthSub" style="display:none;font-family:var(--font-pixel);font-size:8px;color:rgba(255,255,255,.4);letter-spacing:1px;margin-top:8px;text-align:center">Extensão Catbot necessária • youtube.com deve estar aberto no Chrome</div>
 </div>
 
 <div id="previewScr" class="scr off">
@@ -2718,6 +2719,49 @@ function fmtDur(s){const m=Math.floor(s/60);return `${m}:${String(Math.floor(s%6
 
 let pendingAudioBuffer=null,pendingTitle='',pendingDuration=0;
 
+/* ─── Autorização YouTube via Catbot ─── */
+let _ytAuthResolve=null, _ytAuthReject=null;
+
+window.addEventListener('message',(e)=>{
+  const t=e.data?.type;
+  if(t==='YT_COOKIES_OK'){
+    setProgress(20,'Cookies recebidos! Retomando download...');
+    if(_ytAuthResolve){_ytAuthResolve('ok');_ytAuthResolve=null;_ytAuthReject=null;}
+  }
+  if(t==='YT_COOKIES_ERROR'){
+    const msg=e.data?.message||'Erro ao exportar cookies';
+    setProgress(0,'Catbot: '+msg);
+    if(_ytAuthReject){_ytAuthReject(new Error(msg));_ytAuthResolve=null;_ytAuthReject=null;}
+  }
+});
+
+function requestYtAuth(){
+  const btn=document.getElementById('loadAuthBtn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ EXPORTANDO...';}
+  window.postMessage({type:'UNIKO_YT_EXPORT_COOKIES'},'*');
+}
+
+async function _offerYtAuth(vid){
+  const authBtn=document.getElementById('loadAuthBtn');
+  const authSub=document.getElementById('loadAuthSub');
+  if(authBtn){authBtn.style.display='block';authBtn.disabled=false;authBtn.textContent='🍪 AUTORIZAR VIA CATBOT';}
+  if(authSub) authSub.style.display='block';
+  try{
+    await new Promise((res,rej)=>{
+      _ytAuthResolve=res; _ytAuthReject=rej;
+      setTimeout(()=>rej(new Error('timeout')),60000);
+    });
+    if(authBtn){authBtn.style.display='none';authBtn.disabled=false;}
+    if(authSub) authSub.style.display='none';
+    _localVideoStatus[vid]='downloading';
+    return await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
+  }catch{
+    if(authBtn){authBtn.style.display='none';authBtn.disabled=false;}
+    if(authSub) authSub.style.display='none';
+    return 'error';
+  }
+}
+
 async function _waitForVideo(vid, setMsg){
   const MAX_RETRIES=3, POLL_INTERVAL=3000, TIMEOUT=180000;
   let retries=0, tStart=Date.now();
@@ -2795,12 +2839,18 @@ async function startLoad(){
       await delay(350);
       showPreview(url,pendingTitle,pendingDuration||240);
     } else {
-      document.getElementById('loadTxt').textContent='ERRO';
-      const msg=result==='timeout'
-        ?'Tempo esgotado. Verifique sua conexão e tente novamente.'
-        :'Não foi possível baixar o vídeo. Tente outro link do YouTube.';
-      setProgress(0,msg);
-      await delay(5000); goMenu();
+      document.getElementById('loadTxt').textContent='BLOQUEADO';
+      setProgress(0,'YouTube bloqueou o download.');
+      const retryResult=await _offerYtAuth(vid);
+      if(retryResult==='ready'){
+        setProgress(100,'Vídeo pronto! ✓');
+        await delay(350);
+        showPreview(url,pendingTitle,pendingDuration||240);
+      } else {
+        document.getElementById('loadTxt').textContent='ERRO';
+        setProgress(0,'Não foi possível baixar o vídeo. Tente outro link.');
+        await delay(4000); goMenu();
+      }
     }
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';
@@ -5907,12 +5957,18 @@ async function libReplay(idx){
       await delay(350);
       showPreview(e.ytUrl, pendingTitle, pendingDuration);
     } else {
-      document.getElementById('loadTxt').textContent='ERRO';
-      const msg=result==='timeout'
-        ?'Tempo esgotado. Verifique sua conexão e tente novamente.'
-        :'Não foi possível baixar o vídeo. Tente outro link do YouTube.';
-      setProgress(0,msg);
-      await delay(5000); goMenu();
+      document.getElementById('loadTxt').textContent='BLOQUEADO';
+      setProgress(0,'YouTube bloqueou o download.');
+      const retryResult=await _offerYtAuth(vid);
+      if(retryResult==='ready'){
+        setProgress(100,'Vídeo pronto! ✓');
+        await delay(350);
+        showPreview(e.ytUrl, pendingTitle, pendingDuration);
+      } else {
+        document.getElementById('loadTxt').textContent='ERRO';
+        setProgress(0,'Não foi possível baixar o vídeo. Tente outro link.');
+        await delay(4000); goMenu();
+      }
     }
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';

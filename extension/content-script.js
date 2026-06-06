@@ -11,14 +11,13 @@ const sendMsg = (data, onError) => {
   }
 };
 
-// Página → Background
-window.addEventListener('message', (event) => {
-  if (event.source !== window) return;
-  const { type } = event.data || {};
-  if (!type?.startsWith('UNIKO_FAT_')) return;
+const ALLOWED_PREFIXES = ['UNIKO_FAT_', 'UNIKO_YT_'];
 
-  // PING vai para o background — se ele responder, manda PONG de volta
-  // Se falhar (contexto morto), manda FAT_ERROR
+// Página/iframe → Background
+window.addEventListener('message', (event) => {
+  const { type } = event.data || {};
+  if (!ALLOWED_PREFIXES.some(p => type?.startsWith(p))) return;
+
   if (type === 'UNIKO_FAT_PING') {
     sendMsg(
       { type: 'UNIKO_FAT_PING_BG' },
@@ -38,9 +37,9 @@ window.addEventListener('message', (event) => {
   });
 });
 
-// Background → Página
+// Background → Página/iframe
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type?.startsWith('FAT_')) {
+  if (message?.type?.startsWith('FAT_') || message?.type?.startsWith('YT_')) {
     window.postMessage(message, '*');
   }
 });

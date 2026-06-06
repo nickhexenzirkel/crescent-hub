@@ -484,6 +484,54 @@ async function runOrdensDownload(data, callerTabId) {
   }
 }
 
+/* ── YouTube Cookies Export ───────────────────────────────── */
+
+const YT_SERVER = 'https://crescent-hub-server.onrender.com';
+const YT_COOKIE_TOKEN = 'uniko-ytcookies';
+
+function formatCookiesNetscape(cookies) {
+  const lines = ['# Netscape HTTP Cookie File'];
+  for (const c of cookies) {
+    const prefix = c.httpOnly ? '#HttpOnly_' : '';
+    const domain = c.domain.startsWith('.') ? c.domain : `.${c.domain}`;
+    const subdomains = c.domain.startsWith('.') ? 'TRUE' : 'FALSE';
+    const secure = c.secure ? 'TRUE' : 'FALSE';
+    const expiry = c.expirationDate ? Math.round(c.expirationDate) : 0;
+    lines.push(`${prefix}${domain}\t${subdomains}\t${c.path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`);
+  }
+  return lines.join('\n');
+}
+
+async function runYtCookiesExport(callerTabId) {
+  const log = mkLog(callerTabId);
+  try {
+    await log('Buscando cookies do YouTube...', 'info');
+    const [ytCookies, googCookies] = await Promise.all([
+      chrome.cookies.getAll({ domain: '.youtube.com' }),
+      chrome.cookies.getAll({ domain: '.google.com' }),
+    ]);
+    const all = [...ytCookies, ...googCookies];
+    if (!all.length) {
+      await log('Nenhum cookie encontrado. Acesse youtube.com enquanto logado no Chrome.', 'error');
+      chrome.tabs.sendMessage(callerTabId, { type: 'YT_COOKIES_ERROR', message: 'Nenhum cookie encontrado — acesse youtube.com primeiro.' }).catch(() => {});
+      return;
+    }
+    await log(`${all.length} cookies encontrados. Enviando ao servidor...`, 'info');
+    const cookieStr = formatCookiesNetscape(all);
+    const res = await fetch(`${YT_SERVER}/api/ytdl/set-cookies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${YT_COOKIE_TOKEN}` },
+      body: JSON.stringify({ cookies: cookieStr }),
+    });
+    if (!res.ok) throw new Error(`Servidor retornou HTTP ${res.status}`);
+    await log(`✓ ${all.length} cookies enviados ao servidor com sucesso.`, 'ok');
+    chrome.tabs.sendMessage(callerTabId, { type: 'YT_COOKIES_OK', count: all.length }).catch(() => {});
+  } catch (e) {
+    await log(`Erro ao exportar cookies: ${e.message}`, 'error');
+    chrome.tabs.sendMessage(callerTabId, { type: 'YT_COOKIES_ERROR', message: e.message }).catch(() => {});
+  }
+}
+
 /* ── Listener de mensagens ────────────────────────────────── */
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -505,5 +553,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'UNIKO_FAT_SAVE_RESULT') {
     const resolve = pendingSaves[message.id];
     if (resolve) { delete pendingSaves[message.id]; resolve(message); }
+  }
+
+  if (message.type === 'UNIKO_YT_EXPORT_COOKIES') {
+    const callerTabId = sender.tab?.id;
+    if (callerTabId) runYtCookiesExport(callerTabId);
   }
 });
