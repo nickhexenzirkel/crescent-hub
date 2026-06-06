@@ -1457,6 +1457,7 @@ body{padding-top:36px}
         <button class="diff-btn impossible" onclick="selectDiff('impossible')" style="min-width:calc(50% - 4px)">IMPOSSÍVEL</button>
       </div>
     </div>
+    <div id="localVidBadge" style="display:none;font-size:10px;letter-spacing:1px;color:rgba(0,240,255,.6);text-align:center;margin-top:-8px;padding:4px 0"></div>
     <button class="prev-play" onclick="beginFromPreview()">▶ PLAY</button>
   </div>
 </div>
@@ -1792,6 +1793,54 @@ function updateBgMenuBtn(){
     btn.textContent='🎨 BACKGROUND';
   }
 }
+/* ─── Servidor local para download de vídeo ─── */
+const SERVER_URL='https://crescent-hub-server.onrender.com';
+const _localVideoStatus={}; // videoId → 'downloading'|'ready'|'error'|'not_found'
+
+function _triggerLocalDownload(videoId){
+  _localVideoStatus[videoId]='downloading';
+  const badge=document.getElementById('localVidBadge');
+  if(badge){badge.style.display='block';badge.style.color='rgba(0,240,255,.6)';badge.textContent='⬇ Preparando vídeo local...';}
+  fetch(`${SERVER_URL}/api/ytdl/download`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})})
+    .catch(()=>{_localVideoStatus[videoId]='error';if(badge)badge.style.display='none';});
+  _pollLocalVideo(videoId);
+}
+function _pollLocalVideo(videoId){
+  fetch(`${SERVER_URL}/api/ytdl/status/${videoId}`)
+    .then(r=>r.json())
+    .then(({status})=>{
+      _localVideoStatus[videoId]=status;
+      const badge=document.getElementById('localVidBadge');
+      if(status==='ready'){
+        if(badge){badge.textContent='✓ Vídeo local pronto';badge.style.color='#00ff88';}
+      } else if(status==='downloading'){
+        if(badge)badge.textContent='⬇ Preparando vídeo local...';
+        setTimeout(()=>_pollLocalVideo(videoId),3000);
+      } else {
+        if(badge)badge.style.display='none';
+      }
+    })
+    .catch(()=>{_localVideoStatus[videoId]='error';const b=document.getElementById('localVidBadge');if(b)b.style.display='none';});
+}
+function _makeLocalBgPlayer(videoId){
+  const wrap=document.getElementById('videoBgWrap');
+  wrap.innerHTML=`<video id="uvLocalVid" muted playsinline style="position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;pointer-events:none"></video>`;
+  const v=document.getElementById('uvLocalVid');
+  v.src=`${SERVER_URL}/api/ytdl/serve/${videoId}`;
+  v.addEventListener('ended',()=>{if(gameState==='playing')fadeOutVideoBg(()=>setTimeout(showResult,300));});
+  return{
+    seekTo:(t)=>{try{if(isFinite(t))v.currentTime=Math.max(0,t);}catch(e){}},
+    playVideo:()=>v.play().catch(()=>{}),
+    pauseVideo:()=>v.pause(),
+    stopVideo:()=>{v.pause();v.src='';},
+    getCurrentTime:()=>v.currentTime||0,
+    getDuration:()=>isFinite(v.duration)?v.duration:songDuration,
+    getPlayerState:()=>v.ended?0:v.paused?2:1,
+    destroy:()=>{v.pause();v.src='';},
+    _isLocal:true,
+  };
+}
+
 /* ─── YouTube IFrame background player ─── */
 let _ytPlayer=null, _ytPlayerReady=false, _ytPlayerStarted=false, _vbgSyncTick=0;
 window.onYouTubeIframeAPIReady=function(){/* API pronta */};
@@ -1802,8 +1851,16 @@ function applyVideoBg(videoId){
   wrap.classList.add('active');
   _ytPlayerReady=false; _ytPlayerStarted=false;
   if(_ytPlayer){try{_ytPlayer.destroy();}catch(e){} _ytPlayer=null;}
-  // Re-cria o div alvo (destroy() remove o iframe)
   wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';
+
+  // Usa vídeo local se já baixou (zero overlay/recomendações do YouTube)
+  if(_localVideoStatus[videoId]==='ready'){
+    _ytPlayer=_makeLocalBgPlayer(videoId);
+    _ytPlayerReady=true;
+    return;
+  }
+
+  // Fallback: YouTube IFrame
   const create=()=>{
     _ytPlayer=new YT.Player('ytPlayerDiv',{
       videoId:videoId,
@@ -1811,12 +1868,10 @@ function applyVideoBg(videoId){
       events:{
         onReady:()=>{
           _ytPlayerReady=true;
-          // Ajusta songDuration e chart à duração real do vídeo
           try{
             const vd=_ytPlayer.getDuration();
             if(vd>10&&Math.abs(vd-songDuration)>5){
               songDuration=vd;
-              // Remove notas que ficaram além da duração real
               chart=chart.filter(n=>n.hitTime<vd-0.3);
               maxPossibleScore=chart.length*1000+chart.filter(n=>n.holdDur>0).length*1000;
             }
@@ -2670,6 +2725,8 @@ async function startLoad(){
     return;
   }
   lastYtUrl=url; lastVideoUrl=vid; bgMode='video';
+  // Dispara download local em segundo plano imediatamente
+  if(!_localVideoStatus[vid]||_localVideoStatus[vid]==='error') _triggerLocalDownload(vid);
   showScreen('loadScr'); setProgress(15,'Buscando informações do vídeo...');
   try{
     // Busca título via oEmbed (não precisa de API key)
