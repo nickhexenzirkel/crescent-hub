@@ -691,7 +691,7 @@ const AlienInvaders = ({ mode = 'normal' }) => {
         s.enemyBullets = s.enemyBullets.filter(b => b.y < H + 10 && b.x > -10 && b.x < W + 10);
 
         // ── BOSS ─────────────────────────────────────────────────────
-        if (s.boss) {
+        if (s.boss && s.bossWarning <= 0) {
           const bss = s.boss;
           // movimento horizontal com descida periódica
           bss.x += bss.dir * bss.speed * MC.speedMult;

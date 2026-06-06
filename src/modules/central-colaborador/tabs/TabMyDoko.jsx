@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
-import { USER, SERVER_URL, supabase as _supabase } from '../../../contexts/user';
+import { USER, SERVER_URL, supabase as _supabase, saveUserPhoto, getAuthUser } from '../../../contexts/user';
 import { Card, StarDivider, SHead } from '../../../shared/components';
 import dokoTecnico      from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro   from '../../../assets/DodocoCozinheiro.jpg';
@@ -2296,7 +2296,7 @@ const _dokoLoad = () => {
   } catch { return {}; }
 };
 
-const TabMyDoko = () => {
+const TabMyDoko = ({ onPhotoChange }) => {
   const [fome,       setFome]       = useState(() => _dokoLoad().fome    ?? 75);
   const [energia,    setEnergia]    = useState(() => _dokoLoad().energia ?? 70);
   const [fala,       setFala]       = useState('Olá! Que bom te ver por aqui!');
@@ -2310,6 +2310,8 @@ const TabMyDoko = () => {
     try { return JSON.parse(localStorage.getItem(CONV_CD_KEY) || '{}'); }
     catch { return {}; }
   });
+  const [photoHov,    setPhotoHov]    = useState(null);
+  const [photoOk,     setPhotoOk]     = useState(null); /* id do skin confirmado como foto */
   const [levelUpMsg, setLevelUpMsg] = useState(null);
   const [notif,      setNotif]      = useState(null); /* alerta de stat baixo */
   const alertasRef   = {fome:false, energia:false, sono:false}; /* controle de duplicata */
@@ -2395,6 +2397,33 @@ const TabMyDoko = () => {
       }
       return newXp;
     });
+  };
+
+  const setAsPhoto = (imgUrl, id) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 300;
+      const cx = c.getContext('2d');
+      cx.drawImage(img, 0, 0, 300, 300);
+      const b64 = c.toDataURL('image/png');
+      saveUserPhoto(b64);
+      if (onPhotoChange) onPhotoChange(b64);
+      const auth = getAuthUser();
+      const pk = auth?.cpf ? `uniko_photo_${auth.cpf}` : `uniko_photo_${USER.name}`;
+      localStorage.setItem(pk, b64);
+      setPhotoOk(id);
+      setTimeout(() => setPhotoOk(null), 2500);
+    };
+    img.onerror = () => {
+      /* fallback: salva a URL diretamente se canvas falhar */
+      saveUserPhoto(imgUrl);
+      if (onPhotoChange) onPhotoChange(imgUrl);
+      setPhotoOk(id);
+      setTimeout(() => setPhotoOk(null), 2500);
+    };
+    img.src = imgUrl;
   };
 
   const cdRemaining = (skinId) => {
@@ -2661,26 +2690,50 @@ const TabMyDoko = () => {
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10,marginBottom:16}}>
             {DOKO_SKINS.map(s=>{
               const ativo = skin===s.id;
+              const hov = photoHov === s.id;
+              const ok = photoOk === s.id;
               return(
                 <div key={s.id}
-                  onClick={()=>{
-                    setSkin(s.id);setShowComidas(false);setConversa(null);
-                    setSessaoAtiva(false);setSessaoFim(false);setFila([]);setFilaTotal(0);setPergAtual('');
-                    setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[s.id].saudacao)),100);
-                  }}
+                  onMouseEnter={()=>setPhotoHov(s.id)}
+                  onMouseLeave={()=>setPhotoHov(null)}
                   style={{cursor:'pointer',borderRadius:14,overflow:'hidden',
                     border:`2.5px solid ${ativo?s.color:T.border}`,
                     background:ativo?`${s.color}12`:(T.surfaceSub||'rgba(0,0,0,0.03)'),
                     transition:'all .18s',
                     boxShadow:ativo?`0 4px 16px ${s.color}44`:'none',
                     transform:ativo?'scale(1.04)':'scale(1)'}}>
-                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
+                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}
+                    onClick={()=>{
+                      setSkin(s.id);setShowComidas(false);setConversa(null);
+                      setSessaoAtiva(false);setSessaoFim(false);setFila([]);setFilaTotal(0);setPergAtual('');
+                      setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[s.id].saudacao)),100);
+                    }}>
                     <img src={s.img} alt={s.label}
                       style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
                     {ativo&&(
                       <div style={{position:'absolute',top:5,right:5,width:18,height:18,
                         borderRadius:'50%',background:s.color,display:'flex',
                         alignItems:'center',justifyContent:'center',fontSize:10,color:'white',fontWeight:700}}>✓</div>
+                    )}
+                    {/* Botão de foto no hover */}
+                    {(hov||ok)&&(
+                      <div onClick={e=>{e.stopPropagation();setAsPhoto(s.img,s.id);}}
+                        style={{position:'absolute',bottom:0,left:0,right:0,
+                          background:ok?'rgba(40,200,112,0.92)':'rgba(0,0,0,0.60)',
+                          backdropFilter:'blur(2px)',padding:'6px 4px',
+                          display:'flex',alignItems:'center',justifyContent:'center',gap:4,
+                          cursor:'pointer',transition:'all .15s'}}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="white" strokeWidth="2" strokeLinecap="round">
+                          {ok
+                            ?<><polyline points="20 6 9 17 4 12"/></>
+                            :<><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></>
+                          }
+                        </svg>
+                        <span style={{fontSize:9,fontWeight:700,color:'white',whiteSpace:'nowrap'}}>
+                          {ok?'Salvo!':'Usar como foto'}
+                        </span>
+                      </div>
                     )}
                   </div>
                   <div style={{padding:'7px 8px',textAlign:'center'}}>
@@ -2700,17 +2753,12 @@ const TabMyDoko = () => {
             {UNIKO_COMMON.map(u=>{
               const desbloqueado = nivel >= u.level;
               const ativo = skin === u.key;
+              const hov = photoHov === u.key;
+              const ok = photoOk === u.key;
               return(
                 <div key={u.key}
-                  onClick={()=>{
-                    if(!desbloqueado) return;
-                    setSkin(u.key);
-                    setShowComidas(false);
-                    setConversa(null);
-                    setSessaoAtiva(false); setSessaoFim(false);
-                    setFila([]); setFilaTotal(0); setPergAtual('');
-                    setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[u.key]?.saudacao || [`${u.name} entrando em cena! 🎵`])),100);
-                  }}
+                  onMouseEnter={()=>desbloqueado&&setPhotoHov(u.key)}
+                  onMouseLeave={()=>setPhotoHov(null)}
                   style={{
                     cursor:desbloqueado?'pointer':'not-allowed',
                     borderRadius:14,overflow:'hidden',
@@ -2720,7 +2768,16 @@ const TabMyDoko = () => {
                     boxShadow:ativo?`0 4px 16px ${T.gold}44`:'none',
                     transform:ativo?'scale(1.04)':'scale(1)',
                     opacity:desbloqueado?1:0.55}}>
-                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}>
+                  <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}
+                    onClick={()=>{
+                      if(!desbloqueado) return;
+                      setSkin(u.key);
+                      setShowComidas(false);
+                      setConversa(null);
+                      setSessaoAtiva(false); setSessaoFim(false);
+                      setFila([]); setFilaTotal(0); setPergAtual('');
+                      setTimeout(()=>dizer(rnd(DOKO_PERSONALIDADES[u.key]?.saudacao || [`${u.name} entrando em cena!`])),100);
+                    }}>
                     <img src={u.img} alt={u.name}
                       style={{width:'100%',height:'100%',objectFit:'cover',display:'block',
                         filter:desbloqueado?'none':'grayscale(1) brightness(.6)'}}/>
@@ -2740,6 +2797,26 @@ const TabMyDoko = () => {
                       <div style={{position:'absolute',top:5,right:5,width:18,height:18,
                         borderRadius:'50%',background:T.gold,display:'flex',
                         alignItems:'center',justifyContent:'center',fontSize:10,color:'white',fontWeight:700}}>✓</div>
+                    )}
+                    {/* Botão de foto no hover (apenas desbloqueados) */}
+                    {desbloqueado&&(hov||ok)&&(
+                      <div onClick={e=>{e.stopPropagation();setAsPhoto(u.img,u.key);}}
+                        style={{position:'absolute',bottom:0,left:0,right:0,
+                          background:ok?'rgba(40,200,112,0.92)':'rgba(0,0,0,0.60)',
+                          backdropFilter:'blur(2px)',padding:'6px 4px',
+                          display:'flex',alignItems:'center',justifyContent:'center',gap:4,
+                          cursor:'pointer',transition:'all .15s'}}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="white" strokeWidth="2" strokeLinecap="round">
+                          {ok
+                            ?<><polyline points="20 6 9 17 4 12"/></>
+                            :<><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></>
+                          }
+                        </svg>
+                        <span style={{fontSize:9,fontWeight:700,color:'white',whiteSpace:'nowrap'}}>
+                          {ok?'Salvo!':'Usar como foto'}
+                        </span>
+                      </div>
                     )}
                   </div>
                   <div style={{padding:'7px 8px',textAlign:'center'}}>

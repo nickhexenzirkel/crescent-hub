@@ -137,7 +137,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='conquistas') return <TabConquistas/>;
     if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
-    if(tab==='uniko')       return <TabMyDoko/>;
+    if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     return null;
   };
 
