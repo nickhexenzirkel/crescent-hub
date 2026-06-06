@@ -1,16 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
-import { SHead } from '../../../shared/components';
 
 const TabUnikoWave = () => {
   const iframeRef = useRef(null);
 
-  // Escuta mensagens do jogo (para futuras extensões)
   useEffect(() => {
     const handler = (e) => {
-      if (e.data?.type === 'uw_xp') {
-        // XP já é gravado no localStorage diretamente pelo jogo
-        // Este handler existe para extensões futuras
+      const type = e.data?.type;
+      if (!type) return;
+
+      // Jogo → content script: repassa UNIKO_YT_* do iframe para a janela principal
+      if (e.source === iframeRef.current?.contentWindow && type.startsWith('UNIKO_YT_')) {
+        window.postMessage(e.data, '*');
+        return;
+      }
+
+      // Content script → jogo: repassa YT_* da janela principal de volta ao iframe
+      if (e.source === window && type.startsWith('YT_')) {
+        iframeRef.current?.contentWindow?.postMessage(e.data, '*');
       }
     };
     window.addEventListener('message', handler);

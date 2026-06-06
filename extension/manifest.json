@@ -37,8 +37,7 @@
         "http://localhost:4173/*",
         "http://localhost:*/*"
       ],
-      "js": ["content-script.js"],
-      "all_frames": true
+      "js": ["content-script.js"]
     }
   ],
   "action": {

@@ -2738,7 +2738,8 @@ window.addEventListener('message',(e)=>{
 function requestYtAuth(){
   const btn=document.getElementById('loadAuthBtn');
   if(btn){btn.disabled=true;btn.textContent='⏳ EXPORTANDO...';}
-  window.postMessage({type:'UNIKO_YT_EXPORT_COOKIES'},'*');
+  // envia ao parent (React app) que repassa ao content script do Catbot
+  (window.parent !== window ? window.parent : window).postMessage({type:'UNIKO_YT_EXPORT_COOKIES'},'*');
 }
 
 async function _offerYtAuth(vid){
