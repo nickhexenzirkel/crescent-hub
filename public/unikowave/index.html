@@ -1809,7 +1809,25 @@ function applyVideoBg(videoId){
       videoId:videoId,
       playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,origin:location.origin},
       events:{
-        onReady:()=>{_ytPlayerReady=true;},
+        onReady:()=>{
+          _ytPlayerReady=true;
+          // Ajusta songDuration e chart à duração real do vídeo
+          try{
+            const vd=_ytPlayer.getDuration();
+            if(vd>10&&Math.abs(vd-songDuration)>5){
+              songDuration=vd;
+              // Remove notas que ficaram além da duração real
+              chart=chart.filter(n=>n.hitTime<vd-0.3);
+              maxPossibleScore=chart.length*1000+chart.filter(n=>n.holdDur>0).length*1000;
+            }
+          }catch(e){}
+        },
+        onStateChange:(e)=>{
+          // Vídeo terminou → encerra a partida imediatamente
+          if(e.data===YT.PlayerState.ENDED&&gameState==='playing'){
+            setTimeout(showResult,400);
+          }
+        },
         onError:()=>{wrap.classList.remove('active');}
       }
     });
@@ -1829,6 +1847,7 @@ function syncVideoBg(){
   const st=songTime();
   try{
     const state=_ytPlayer.getPlayerState();
+    if(state===YT.PlayerState.ENDED) return; // vídeo terminou — não interferir
     if(gameState==='playing'){
       if(!_ytPlayerStarted){
         _ytPlayer.seekTo(Math.max(0,st),true);
@@ -1837,12 +1856,12 @@ function syncVideoBg(){
       } else {
         _vbgSyncTick++;
         if(_vbgSyncTick%90===0){
-          const drift=_ytPlayer.getCurrentTime()-st;
-          if(Math.abs(drift)>0.6) _ytPlayer.seekTo(st,true);
+          const curT=_ytPlayer.getCurrentTime();
+          const drift=curT-st;
+          // Só corrige drift se o vídeo ainda está tocando (evita seek após fim do vídeo)
+          if(Math.abs(drift)>0.6&&state===YT.PlayerState.PLAYING) _ytPlayer.seekTo(st,true);
         }
       }
-    } else if(gameState==='countdown'){
-      if(state===YT.PlayerState.PLAYING) _ytPlayer.pauseVideo();
     }
   }catch(e){}
 }
