@@ -1792,6 +1792,25 @@ function updateBgMenuBtn(){
     btn.textContent='🎨 BACKGROUND';
   }
 }
+/* ─── Áudio: iframe invisível do YouTube (offscreen, sem recomendações visíveis) ─── */
+let _audioIframeTimer=null;
+function startAudioIframe(videoId){
+  stopAudioIframe();
+  if(!videoId) return;
+  const f=document.createElement('iframe');
+  f.id='ytAudioFrame';
+  // 1×1 px, fora da tela — áudio toca, vídeo nunca é visto → sem recomendações
+  f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
+  f.setAttribute('allow','autoplay');
+  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=0`;
+  document.body.appendChild(f);
+}
+function stopAudioIframe(){
+  const f=document.getElementById('ytAudioFrame');
+  if(f) f.remove();
+  if(_audioIframeTimer){clearTimeout(_audioIframeTimer);_audioIframeTimer=null;}
+}
+
 /* ─── Servidor local para download de vídeo ─── */
 const SERVER_URL='https://crescent-hub-server.onrender.com';
 const _localVideoStatus={}; // videoId → 'downloading'|'ready'|'error'|'not_found'
@@ -2936,6 +2955,8 @@ function beginGame(){
     srcNode.onended=()=>{if(gameState==='playing') setTimeout(showResult,1500);};
   } else {
     gameStartWallTime=performance.now()+startDelay*1000;
+    // Inicia áudio via iframe invisible — coincide com o fim do countdown
+    _audioIframeTimer=setTimeout(()=>startAudioIframe(lastVideoUrl), startDelay*1000);
   }
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
 }
@@ -5428,6 +5449,7 @@ function showResult(){
   if(gameState==='result') return;
   gameState='result';
   hideVideoBg();
+  stopAudioIframe();
   if(srcNode){try{srcNode.stop();}catch(e){}}
   
   const total=score.perfect+score.good+score.miss;
@@ -5562,7 +5584,7 @@ function goMenu(){
   gameState='menu'; document.getElementById('hud').classList.add('off'); document.getElementById('countdownOverlay').classList.add('off');
   document.getElementById('pauseOverlay').classList.add('off');
   const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='⏸ PAUSA';
-  document.getElementById('resLetters').innerHTML=''; fireP.length=0; hideVideoBg(); showScreen('menuScr'); initMenuBg();
+  document.getElementById('resLetters').innerHTML=''; fireP.length=0; hideVideoBg(); stopAudioIframe(); showScreen('menuScr'); initMenuBg();
   showMenuPanel('panelPlay', document.getElementById('mnBtn0'));
   gpMenuIdx=0; gpHighlightMenu();
   resetLaneColors();
