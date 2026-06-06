@@ -1079,6 +1079,7 @@ canvas{display:block}
 #tbMin{color:var(--Y)}.tb-btn#tbMin:hover{background:rgba(255,240,0,.18)}
 #tbMax{color:var(--G)}.tb-btn#tbMax:hover{background:rgba(0,255,136,.18)}
 #tbClose{color:var(--R)}.tb-btn#tbClose:hover{background:rgba(255,68,68,.28)}
+#tbFs{color:var(--C);width:34px;height:28px}#tbFs:hover{background:rgba(0,240,255,.18)}
 body{padding-top:36px}
 
 /* ─── GAMEPAD GUIDE ─── */
@@ -1175,7 +1176,13 @@ body{padding-top:36px}
     <img id="tbIcon" src="images/DodocoWave.png" alt="" onerror="this.style.display='none'">
     <span id="tbLogo">UNIKO WAVE</span>
   </div>
-  <div id="tbControls"></div>
+  <div id="tbControls">
+    <button class="tb-btn" id="tbFs" onclick="toggleFullscreen()" title="Tela cheia (F11)">
+      <svg id="fsIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+      </svg>
+    </button>
+  </div>
 </div>
 <!-- ══════════════════════════════════════
      PROFILE SETUP SCREEN (first time)
@@ -1839,6 +1846,27 @@ function syncVideoBg(){
     }
   }catch(e){}
 }
+// ─── FULLSCREEN ───
+function toggleFullscreen(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  const svg=document.querySelector('#fsIcon');
+  if(!svg) return;
+  if(document.fullscreenElement){
+    svg.innerHTML='<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>';
+  } else {
+    svg.innerHTML='<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+  }
+});
+document.addEventListener('keydown',(e)=>{
+  if(e.key==='F11'){e.preventDefault();toggleFullscreen();}
+});
+
 // Init bg picker state on load
 updateBgPickerUI();
 updateBgMenuBtn();
