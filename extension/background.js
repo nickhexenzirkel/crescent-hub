@@ -494,12 +494,20 @@ function formatCookiesNetscape(cookies) {
   for (const c of cookies) {
     const prefix = c.httpOnly ? '#HttpOnly_' : '';
     const domain = c.domain.startsWith('.') ? c.domain : `.${c.domain}`;
-    const subdomains = c.domain.startsWith('.') ? 'TRUE' : 'FALSE';
+    // domain sempre começa com '.' após normalização → include_subdomains DEVE ser TRUE
+    // (assert domain_specified == initial_dot no cookiejar do Python)
     const secure = c.secure ? 'TRUE' : 'FALSE';
     const expiry = c.expirationDate ? Math.round(c.expirationDate) : 0;
-    lines.push(`${prefix}${domain}\t${subdomains}\t${c.path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`);
+    lines.push(`${prefix}${domain}\tTRUE\t${c.path}\t${secure}\t${expiry}\t${c.name}\t${c.value}`);
   }
   return lines.join('\n');
+}
+
+function collectYtCookies(ytCookies, googCookies) {
+  // Cookies do google.com: só os de path='/' (autenticação — SAPISID, SID, etc.)
+  // Exclui cookies de subserviços (Gmail /mail/u/1, Maps, etc.) que quebram o formato
+  const googFiltered = googCookies.filter(c => c.path === '/');
+  return [...ytCookies, ...googFiltered];
 }
 
 async function runYtCookiesExport(callerTabId) {
@@ -507,10 +515,10 @@ async function runYtCookiesExport(callerTabId) {
   try {
     await log('Buscando cookies do YouTube...', 'info');
     const [ytCookies, googCookies] = await Promise.all([
-      chrome.cookies.getAll({ domain: '.youtube.com' }),
-      chrome.cookies.getAll({ domain: '.google.com' }),
+      chrome.cookies.getAll({ domain: 'youtube.com' }),
+      chrome.cookies.getAll({ domain: 'google.com' }),
     ]);
-    const all = [...ytCookies, ...googCookies];
+    const all = collectYtCookies(ytCookies, googCookies);
     if (!all.length) {
       await log('Nenhum cookie encontrado. Acesse youtube.com enquanto logado no Chrome.', 'error');
       chrome.tabs.sendMessage(callerTabId, { type: 'YT_COOKIES_ERROR', message: 'Nenhum cookie encontrado — acesse youtube.com primeiro.' }).catch(() => {});
@@ -565,10 +573,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const [ytCookies, googCookies] = await Promise.all([
-          chrome.cookies.getAll({ domain: '.youtube.com' }),
-          chrome.cookies.getAll({ domain: '.google.com' }),
+          chrome.cookies.getAll({ domain: 'youtube.com' }),
+          chrome.cookies.getAll({ domain: 'google.com' }),
         ]);
-        const all = [...ytCookies, ...googCookies];
+        const all = collectYtCookies(ytCookies, googCookies);
         if (!all.length) return;
         await fetch(`${YT_SERVER}/api/ytdl/set-cookies`, {
           method: 'POST',
