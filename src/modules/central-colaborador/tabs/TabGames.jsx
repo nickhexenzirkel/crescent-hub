@@ -94,6 +94,14 @@ function drawStars(ctx, W, H, tick = 0) {
   }
 }
 
+// ── Modos de dificuldade ──────────────────────────────────────────────
+const MODES = {
+  facil:      { label:'Fácil',      emoji:'🟢', speedMult:0.75, gapMult:1.6, airProb:0.20, xpMult:0.7,  color:'#28C870' },
+  normal:     { label:'Normal',     emoji:'🟡', speedMult:1.00, gapMult:1.0, airProb:0.38, xpMult:1.0,  color:'#D4A843' },
+  dificil:    { label:'Difícil',    emoji:'🟠', speedMult:1.30, gapMult:0.7, airProb:0.55, xpMult:1.5,  color:'#E07030' },
+  impossivel: { label:'Impossível', emoji:'🔴', speedMult:1.75, gapMult:0.5, airProb:0.70, xpMult:2.0,  color:'#D04060' },
+};
+
 // ── Score localStorage ────────────────────────────────────────────────
 const getBest = k => { try { return +localStorage.getItem('ug_' + k) || 0; } catch { return 0; } };
 const saveBest = (k, v) => { try { if (v > getBest(k)) localStorage.setItem('ug_' + k, v); } catch {} };
@@ -103,9 +111,10 @@ const saveBest = (k, v) => { try { if (v > getBest(k)) localStorage.setItem('ug_
 // Pulo: Espaço / Seta cima / tap metade superior da tela
 // Agachar: Seta baixo / S / tap metade inferior da tela
 // ═══════════════════════════════════════════════════════════════════════
-const UnikoRun = () => {
+const UnikoRun = ({ mode = 'normal' }) => {
   const cv = useRef(null);
   useEffect(() => {
+    const MC = MODES[mode] || MODES.normal;
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
@@ -117,15 +126,17 @@ const UnikoRun = () => {
     const LEG_H     = Math.round(US * .28);  // ≈12 — comprimento das pernas
     const STAND_H   = LEG_H + US;            // ≈56 — altura total em pé
     const DUCK_H    = Math.round(US * .48);  // ≈21 — altura agachado (sem pernas)
-    // Obstáculo aéreo: voa entre GY-STAND_H e GY-DUCK_H
-    // → bate em pé, passa se agachado
-    const AIR_BOT   = GY - Math.round(STAND_H * .70);  // fundo do obstáculo aéreo
-    const AIR_H     = 22;                               // altura do alien voador
+    // Obstáculo aéreo: posicionado baixo — exige agachar, pular não resolve
+    // AIR_BOT = GY - DUCK_H - 10  →  agachado passa com 10px de folga
+    // AIR_H   = STAND_H + 120     →  extensão sobe além do pulo máximo (~GY-178)
+    const AIR_BOT   = GY - DUCK_H - 10;   // fundo da barreira: GY-31
+    const AIR_H     = STAND_H + 120;      // altura total: ~176px — bloqueia pulo
 
+    const BASE_SPEED = 3.5 * MC.speedMult;
     const s = {
       started: false, dead: false, tick: 0,
       uy: GY, uvy: 0, onGround: true, ducking: false,
-      obs: [], score: 0, speed: 3.5, lastType: 'ground',
+      obs: [], score: 0, speed: BASE_SPEED, lastType: 'ground',
       xpAwarded: false, xpGained: 0,
     };
 
@@ -139,7 +150,7 @@ const UnikoRun = () => {
     const reset   = () => {
       Object.assign(s, {
         dead: false, started: true, uy: GY, uvy: 0, onGround: true,
-        ducking: false, obs: [], score: 0, speed: 3.5, tick: 0, lastType: 'ground',
+        ducking: false, obs: [], score: 0, speed: BASE_SPEED, tick: 0, lastType: 'ground',
         xpAwarded: false, xpGained: 0,
       });
     };
@@ -166,27 +177,39 @@ const UnikoRun = () => {
     canvas.addEventListener('touchend',   onTouchEnd);
     canvas.addEventListener('mousedown', jump);
 
-    // ── Desenha alien voador (pterodáctilo alienígena) ────────────────
-    const drawBird = (x, yBot, w) => {
-      const bh = AIR_H;
-      const yT = yBot - bh;
-      // asa esquerda (2 retângulos)
-      ctx.fillStyle = '#7040B8';
-      ctx.fillRect(x,            yT + bh*.3,  w*.28, bh*.35);
-      ctx.fillRect(x + w*.05,    yT + bh*.05, w*.18, bh*.28);
-      // asa direita
-      ctx.fillRect(x + w*.72,    yT + bh*.3,  w*.28, bh*.35);
-      ctx.fillRect(x + w*.77,    yT + bh*.05, w*.18, bh*.28);
-      // corpo
-      ctx.fillStyle = '#9060D8';
-      ctx.fillRect(x + w*.28,    yT + bh*.1,  w*.44, bh*.75);
-      // olhos
-      ctx.fillStyle = '#FF3050';
-      ctx.fillRect(x + w*.34, yT + bh*.18, w*.12, bh*.22);
-      ctx.fillRect(x + w*.54, yT + bh*.18, w*.12, bh*.22);
-      // bico
-      ctx.fillStyle = '#C8A030';
-      ctx.fillRect(x + w*.38, yT + bh*.42, w*.24, bh*.18);
+    // ── Barreira de energia alien (obstáculo baixo — só agachar passa) ─
+    // Visual: nave mãe no topo + feixe de energia descendo até AIR_BOT
+    // O gap abaixo de AIR_BOT (10px + DUCK_H) é onde o Uniko agachado passa
+    const drawAlienBarrier = (x, yBot, w) => {
+      const yTop = yBot - AIR_H;
+      const ew   = Math.max(4, Math.round(w * 0.22));
+      // Nave mãe
+      ctx.fillStyle = '#5020A0';
+      rrect(ctx, x - 5, yTop, w + 10, 30, 7); ctx.fill();
+      ctx.fillStyle = '#7040C0';
+      rrect(ctx, x, yTop + 4, w, 20, 4); ctx.fill();
+      ctx.fillStyle = '#FF1040';
+      ctx.fillRect(x + 3,         yTop + 8,  ew, 7);
+      ctx.fillRect(x + w - ew - 3, yTop + 8, ew, 7);
+      ctx.fillStyle = '#C060FF';
+      ctx.fillRect(x + w * 0.30, yTop + 24, w * 0.40, 8);
+      // Feixe de energia
+      const beamH = AIR_H - 32;
+      const beamX = x + Math.round(w * 0.25);
+      const beamW = Math.round(w * 0.50);
+      // brilho externo difuso
+      ctx.fillStyle = 'rgba(130,50,220,0.18)';
+      ctx.fillRect(x, yTop + 32, w, beamH);
+      // núcleo
+      ctx.fillStyle = 'rgba(180,90,255,0.50)';
+      ctx.fillRect(beamX, yTop + 32, beamW, beamH);
+      // bordas brilhantes
+      ctx.fillStyle = 'rgba(210,140,255,0.85)';
+      ctx.fillRect(beamX,           yTop + 32, 2, beamH);
+      ctx.fillRect(beamX + beamW - 2, yTop + 32, 2, beamH);
+      // flash na extremidade inferior
+      ctx.fillStyle = 'rgba(220,150,255,0.95)';
+      ctx.fillRect(beamX - 3, yBot - 5, beamW + 6, 5);
     };
 
     // ── Desenha Uniko agachado ────────────────────────────────────────
@@ -218,14 +241,18 @@ const UnikoRun = () => {
         drawUniko(ctx, UX, GY, US, s.tick);
         ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.font = '13px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('↑ ESPAÇO para pular  |  ↓ S para agachar', W/2, H/2 - 8);
-        ctx.fillText('No celular: toque em cima para pular, embaixo para agachar', W/2, H/2 + 10);
+        ctx.fillText('↑ ESPAÇO para pular  |  ↓ S para agachar', W/2, H/2 - 14);
+        ctx.fillText('Barreira roxa → AGACHE por baixo! Pular não adianta.', W/2, H/2 + 4);
+        ctx.fillText('No celular: toque em cima = pular  |  embaixo = agachar', W/2, H/2 + 22);
+        ctx.fillStyle = MODES[mode]?.color || PC.gold;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('MODO: ' + (MODES[mode]?.label || 'Normal').toUpperCase(), W/2, H - 14);
         raf = requestAnimationFrame(loop); return;
       }
 
       if (!s.dead) {
         s.score += .1;
-        s.speed = Math.min(11, 3.5 + s.score * .016);
+        s.speed = Math.min(11 * MC.speedMult, BASE_SPEED + s.score * .016 * MC.speedMult);
 
         // física
         if (!s.ducking) {
@@ -238,13 +265,13 @@ const UnikoRun = () => {
 
         // gera obstáculos (chão e aéreo misturados)
         const last = s.obs[s.obs.length - 1];
-        const gap  = 240 + Math.random() * 200;
+        const gap  = (500 + Math.random() * 400) * MC.gapMult;
         if (!last || last.x < W - gap) {
           // aéreo só após score 18 e nunca dois seguidos
           const canAir = s.score > 18 && s.lastType !== 'air';
-          const isAir  = canAir && Math.random() < .38;
+          const isAir  = canAir && Math.random() < MC.airProb;
           if (isAir) {
-            const bw = 28 + Math.random() * 16;
+            const bw = 38 + Math.random() * 18; // mais largo para o visual do feixe
             s.obs.push({ x: W + 20, w: bw, type: 'air' });
             s.lastType = 'air';
           } else {
@@ -262,14 +289,13 @@ const UnikoRun = () => {
           if (o.type === 'ground') {
             const hitX = o.x < UX + US*.30 && o.x + o.w > UX - US*.30;
             const hitY = s.uy > GY - o.h + 5;       // pés abaixo do topo da rocha
-            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(30 * MC.xpMult), 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           } else {
-            // obstáculo aéreo: acerta em pé, passa se agachado
+            // obstáculo aéreo: agachar passa, pular NÃO resolve
             const hitX = o.x < UX + US*.38 && o.x + o.w > UX - US*.38;
             const bodyTop = s.ducking ? (GY - DUCK_H) : (s.uy - STAND_H);
-            // colide se o corpo do Uniko sobrepõe o range [AIR_BOT-AIR_H , AIR_BOT]
             const hitY = bodyTop < AIR_BOT && s.uy > (AIR_BOT - AIR_H);
-            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
+            if (hitX && hitY) { s.dead = true; saveBest('run', Math.floor(s.score)); if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(30 * MC.xpMult), 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
       }
@@ -283,7 +309,7 @@ const UnikoRun = () => {
           ctx.fillRect(o.x + 3, GY - o.h + 4, o.w - 6, 3);
           if (o.eye) { ctx.fillStyle = PC.red; ctx.fillRect(o.x + o.w/2 - 4, GY - o.h + 9, 8, 5); }
         } else {
-          drawBird(o.x, AIR_BOT, o.w);
+          drawAlienBarrier(o.x, AIR_BOT, o.w);
         }
       }
 
@@ -321,21 +347,22 @@ const UnikoRun = () => {
       canvas.removeEventListener('touchend',   onTouchEnd);
       canvas.removeEventListener('mousedown',  jump);
     };
-  }, []);
+  }, [mode]);
   return <canvas ref={cv} width={860} height={320} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
 // JOGO 2 — Meteor Storm (desviar de meteoros)
 // ═══════════════════════════════════════════════════════════════════════
-const MeteorStorm = () => {
+const MeteorStorm = ({ mode = 'normal' }) => {
   const cv = useRef(null);
   useEffect(() => {
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
+    const MC = MODES[mode] || MODES.normal;
     const US = 34;
-    const SPEED = 4;
+    const SPEED = 4 * MC.speedMult;
 
     const s = {
       ux: W / 2, speed: 0,
@@ -401,7 +428,7 @@ const MeteorStorm = () => {
 
       if (!s.dead) {
         s.score += .06;
-        const spd = Math.min(10, SPEED + s.score * .04);
+        const spd = Math.min(10 * MC.speedMult, SPEED + s.score * .04 * MC.speedMult);
 
         // movimento por teclado ou touch
         if (s.keys['ArrowLeft'] || s.keys['KeyA']) s.ux -= 4;
@@ -412,7 +439,7 @@ const MeteorStorm = () => {
         s.ux = Math.max(US, Math.min(W - US, s.ux));
 
         // gera meteoros — mais espaçados e mais lentos
-        if (s.tick % Math.max(40, 90 - Math.floor(s.score * .3)) === 0) {
+        if (s.tick % Math.max(18, Math.round((90 - Math.floor(s.score * .3)) / MC.speedMult)) === 0) {
           const mx = 20 + Math.random() * (W - 40);
           const ms = 10 + Math.random() * 10;
           s.meteors.push({ x: mx, y: -20, r: ms,
@@ -434,7 +461,7 @@ const MeteorStorm = () => {
           if (Math.sqrt(dx * dx + dy * dy) < m.r + US * .25) {
             s.meteors = s.meteors.filter(x => x !== m);
             s.lives--;
-            if (s.lives <= 0) { s.dead = true; saveBest('meteor', Math.floor(s.score * 10)); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
+            if (s.lives <= 0) { s.dead = true; saveBest('meteor', Math.floor(s.score * 10)); if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(20 * MC.xpMult), 5 + Math.floor(s.score / 15)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
         // coleta estrelas
@@ -501,16 +528,17 @@ const MeteorStorm = () => {
       ['touchstart','touchmove','touchend','mousemove','mousedown','mouseup']
         .forEach((ev, i) => canvas.removeEventListener(ev, [onTouch,onTouch,onTouchEnd,onMouse,onMouse,onMouseUp][i]));
     };
-  }, []);
+  }, [mode]);
   return <canvas ref={cv} width={640} height={700} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none', cursor: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
 // JOGO 3 — Alien Invaders (space invaders mini com o Uniko como herói)
 // ═══════════════════════════════════════════════════════════════════════
-const AlienInvaders = () => {
+const AlienInvaders = ({ mode = 'normal' }) => {
   const cv = useRef(null);
   useEffect(() => {
+    const MC = MODES[mode] || MODES.normal;
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
@@ -523,6 +551,10 @@ const AlienInvaders = () => {
           a.push({ x: 60 + c * 46, y: 55 + r * 42, alive: true, r, c });
       return a;
     };
+    const buildBoss = (level) => {
+      const hp = 60 + Math.floor(level / 5) * 40;
+      return { x: W / 2, y: 75, hp, maxHp: hp, dir: 1, speed: 1.6 + level * 0.08, shootTimer: 0, descends: 0 };
+    };
 
     const s = {
       ux: W / 2, bullets: [], enemyBullets: [],
@@ -530,6 +562,7 @@ const AlienInvaders = () => {
       score: 0, lives: 5, dead: false, win: false, started: false, tick: 0,
       keys: {}, level: 1, canShoot: true, shotCooldown: 0,
       alienMoveTimer: 0, alienDir: 1,
+      boss: null, bossWarning: 0,
       xpAwarded: false, xpGained: 0,
     };
 
@@ -548,7 +581,7 @@ const AlienInvaders = () => {
       if ((s.dead || s.win) && e.type === 'keydown') {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
         s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
-        s.level = 1; s.alienDir = 1; s.tick = 0;
+        s.level = 1; s.alienDir = 1; s.tick = 0; s.boss = null; s.bossWarning = 0;
         s.xpAwarded = false; s.xpGained = 0;
       }
     };
@@ -558,7 +591,8 @@ const AlienInvaders = () => {
       if (s.dead || s.win) {
         s.aliens = buildAliens(); s.bullets = []; s.enemyBullets = [];
         s.ux = W / 2; s.score = 0; s.lives = 5; s.dead = false; s.win = false;
-        s.level = 1; s.tick = 0; s.xpAwarded = false; s.xpGained = 0; return;
+        s.level = 1; s.tick = 0; s.boss = null; s.bossWarning = 0;
+        s.xpAwarded = false; s.xpGained = 0; return;
       }
       const rect = canvas.getBoundingClientRect();
       const tx = (e.touches[0].clientX - rect.left) * (W / rect.width);
@@ -573,7 +607,36 @@ const AlienInvaders = () => {
     canvas.addEventListener('touchstart', onTouch, { passive: false });
     canvas.addEventListener('touchend', onTouchEnd);
 
-    // desenha alien inimigo (pixelado)
+    // ── Desenha boss dourado ──────────────────────────────────────────
+    const drawBoss = (bx, by, tick) => {
+      // casco principal
+      ctx.fillStyle = '#7A5A10';
+      rrect(ctx, bx - 52, by - 22, 104, 44, 10); ctx.fill();
+      ctx.fillStyle = '#C49030';
+      rrect(ctx, bx - 44, by - 16, 88, 32, 8); ctx.fill();
+      // cockpit pulsante
+      const pulse = 0.80 + Math.sin(tick * 0.12) * 0.20;
+      ctx.fillStyle = `rgba(255,220,50,${pulse})`;
+      ctx.beginPath(); ctx.ellipse(bx, by - 4, 16, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFE070';
+      ctx.beginPath(); ctx.ellipse(bx, by - 6, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+      // olhos vermelhos
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(bx - 36, by - 10, 18, 14);
+      ctx.fillRect(bx + 18,  by - 10, 18, 14);
+      ctx.fillStyle = '#FF7070';
+      ctx.fillRect(bx - 30, by - 6, 6, 6);
+      ctx.fillRect(bx + 24,  by - 6, 6, 6);
+      // canhões laterais
+      ctx.fillStyle = '#4A3A08';
+      ctx.fillRect(bx - 64, by,     14, 26);
+      ctx.fillRect(bx + 50, by,     14, 26);
+      ctx.fillStyle = '#888840';
+      ctx.fillRect(bx - 62, by + 20, 10, 8);
+      ctx.fillRect(bx + 52, by + 20, 10, 8);
+    };
+
+    // ── Desenha alien inimigo (pixelado) ─────────────────────────────
     const drawAlien = (ctx, x, y, size, row, tick) => {
       const colors = [PC.red, PC.purple, PC.teal];
       ctx.fillStyle = colors[row % 3];
@@ -619,17 +682,61 @@ const AlienInvaders = () => {
         if (s.shotCooldown > 0) s.shotCooldown--;
         else s.canShoot = true;
 
-
         // move balas do jogador
         for (const b of s.bullets) b.y += b.vy;
         s.bullets = s.bullets.filter(b => b.y > -10);
 
-        // move balas inimigas
-        for (const b of s.enemyBullets) b.y += b.vy;
-        s.enemyBullets = s.enemyBullets.filter(b => b.y < H + 10);
+        // move balas inimigas (incluindo vx para spread do boss)
+        for (const b of s.enemyBullets) { b.y += b.vy; if (b.vx) b.x += b.vx; }
+        s.enemyBullets = s.enemyBullets.filter(b => b.y < H + 10 && b.x > -10 && b.x < W + 10);
 
-        // move alienígenas em bloco — velocidade reduzida
-        const speed = .4 + s.level * .18;
+        // ── BOSS ─────────────────────────────────────────────────────
+        if (s.boss) {
+          const bss = s.boss;
+          // movimento horizontal com descida periódica
+          bss.x += bss.dir * bss.speed * MC.speedMult;
+          if (bss.x > W - 66 || bss.x < 66) {
+            bss.dir *= -1;
+            bss.descends++;
+            if (bss.descends % 4 === 0) bss.y = Math.min(bss.y + 18, H - 220);
+          }
+          // tiro em spread 3 vias
+          bss.shootTimer++;
+          const bFireRate = Math.max(20, Math.round(38 / MC.speedMult));
+          if (bss.shootTimer >= bFireRate) {
+            bss.shootTimer = 0;
+            const spd = 4.5 + s.level * 0.20;
+            s.enemyBullets.push(
+              { x: bss.x - 18, y: bss.y + 30, vy: spd * 0.85, vx: -1.8 },
+              { x: bss.x,      y: bss.y + 30, vy: spd,         vx: 0    },
+              { x: bss.x + 18, y: bss.y + 30, vy: spd * 0.85, vx:  1.8 }
+            );
+          }
+          // boss chegou na base → morreu
+          if (bss.y > H - 130) {
+            s.dead = true; saveBest('invaders', s.score);
+            if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(30 * MC.xpMult), 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; }
+          }
+          // bala do jogador × boss
+          for (const bl of [...s.bullets]) {
+            if (Math.abs(bl.x - bss.x) < 54 && Math.abs(bl.y - bss.y) < 26) {
+              bss.hp--;
+              s.bullets = s.bullets.filter(b2 => b2 !== bl);
+              if (bss.hp <= 0) {
+                s.score += 450 * Math.max(1, Math.floor(s.level / 5));
+                s.boss = null;
+                s.aliens = buildAliens();
+                s.bullets = []; s.enemyBullets = [];
+                s.level++;
+              }
+              break;
+            }
+          }
+        }
+        if (s.bossWarning > 0) s.bossWarning--;
+
+        // ── ALIENS normais ────────────────────────────────────────────
+        const speed = (.4 + s.level * .18) * MC.speedMult;
         s.alienMoveTimer += speed;
         if (s.alienMoveTimer >= 1) {
           s.alienMoveTimer = 0;
@@ -640,17 +747,18 @@ const AlienInvaders = () => {
             const minX = Math.min(...alive.map(a => a.x));
             if ((s.alienDir > 0 && maxX > W - 40) || (s.alienDir < 0 && minX < 40)) {
               s.alienDir *= -1;
-              for (const a of s.aliens) a.y += 8;  // desce menos a cada virada
+              for (const a of s.aliens) a.y += 8;
             }
             for (const a of s.aliens) a.x += s.alienDir;
           }
         }
 
-        // tiro inimigo — cadência bem mais lenta
+        // tiro inimigo
         const alive = s.aliens.filter(a => a.alive);
-        if (alive.length && s.tick % Math.max(70, 140 - s.level * 10) === 0) {
+        const fireInterval = Math.max(50, Math.round((140 - s.level * 10) / MC.speedMult));
+        if (alive.length && !s.boss && s.tick % fireInterval === 0) {
           const shooter = alive[Math.floor(Math.random() * alive.length)];
-          s.enemyBullets.push({ x: shooter.x, y: shooter.y + 16, vy: 3 + s.level * .3 });
+          s.enemyBullets.push({ x: shooter.x, y: shooter.y + 16, vy: (3 + s.level * .3) * MC.speedMult, vx: 0 });
         }
 
         // colisão bala jogador × alien
@@ -669,20 +777,27 @@ const AlienInvaders = () => {
           if (Math.abs(b.x - s.ux) < 20 && Math.abs(b.y - (H - 55)) < 20) {
             s.enemyBullets = s.enemyBullets.filter(x => x !== b);
             s.lives--;
-            if (s.lives <= 0) { s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
+            if (s.lives <= 0) { s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(30 * MC.xpMult), 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
           }
         }
         // aliens chegaram na base
         if (s.aliens.filter(a => a.alive).some(a => a.y > H - 90)) {
-          s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; }
+          s.dead = true; saveBest('invaders', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(Math.round(30 * MC.xpMult), 5 + Math.floor(s.score / 30)); addUnikoXP(s.xpGained); s.xpAwarded = true; }
         }
-        // vitória
-        if (!s.aliens.find(a => a.alive)) {
+        // wave limpa — próxima ou boss
+        if (!s.aliens.find(a => a.alive) && !s.boss) {
           s.level++;
-          s.aliens = buildAliens();
           s.bullets = []; s.enemyBullets = [];
-          s.win = false; // continua
-          s.score += 100 * s.level;
+          if (s.level % 5 === 0) {
+            // BOSS WAVE
+            s.boss = buildBoss(s.level);
+            s.bossWarning = 130;
+            s.aliens = [];
+            s.score += 50 * s.level;
+          } else {
+            s.aliens = buildAliens();
+            s.score += 100 * s.level;
+          }
         }
       }
 
@@ -690,6 +805,20 @@ const AlienInvaders = () => {
       for (const a of s.aliens) {
         if (!a.alive) continue;
         drawAlien(ctx, a.x, a.y, 20, a.r, s.tick);
+      }
+
+      // boss
+      if (s.boss) drawBoss(s.boss.x, s.boss.y, s.tick);
+
+      // aviso de boss
+      if (s.bossWarning > 0) {
+        const a2 = Math.min(1, s.bossWarning / 40);
+        ctx.fillStyle = `rgba(212,168,67,${a2 * 0.92})`;
+        ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('⚠ BOSS! ⚠', W / 2, H / 2 - 50);
+        ctx.fillStyle = `rgba(255,255,255,${a2 * 0.75})`;
+        ctx.font = '14px monospace';
+        ctx.fillText('Prepare-se para o chefe!', W / 2, H / 2 - 18);
       }
 
       // balas jogador
@@ -702,8 +831,8 @@ const AlienInvaders = () => {
       }
 
       // balas inimigas
-      ctx.fillStyle = PC.red;
       for (const b of s.enemyBullets) {
+        ctx.fillStyle = s.boss ? '#FFD700' : PC.red;
         ctx.fillRect(b.x - 2, b.y - 5, 4, 10);
       }
 
@@ -716,10 +845,23 @@ const AlienInvaders = () => {
       ctx.fillStyle = '#4A7090'; ctx.font = '10px monospace';
       ctx.fillText('BEST ' + getBest('invaders'), 14, 40);
       ctx.fillStyle = '#fff'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-      ctx.fillText('FASE ' + s.level, W / 2, 22);
+      ctx.fillText(s.boss ? '⚠ BOSS ' + s.level : 'FASE ' + s.level, W / 2, 22);
       for (let i = 0; i < s.lives; i++) {
         ctx.fillStyle = PC.red;
         ctx.beginPath(); ctx.arc(W - 16 - i * 22, 20, 7, 0, Math.PI * 2); ctx.fill();
+      }
+      // barra de HP do boss
+      if (s.boss) {
+        const pct = s.boss.hp / s.boss.maxHp;
+        const bw = 220, bx2 = W / 2 - bw / 2;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        rrect(ctx, bx2 - 1, 30, bw + 2, 16, 4); ctx.fill();
+        ctx.fillStyle = pct > 0.60 ? PC.gold : pct > 0.30 ? '#E07030' : PC.red;
+        rrect(ctx, bx2, 31, Math.max(0, bw * pct), 14, 3); ctx.fill();
+        ctx.strokeStyle = PC.gold; ctx.lineWidth = 1.5;
+        rrect(ctx, bx2 - 1, 30, bw + 2, 16, 4); ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(`BOSS  ${s.boss.hp} / ${s.boss.maxHp}`, W / 2, 41);
       }
 
       if (s.dead || s.win) {
@@ -745,20 +887,21 @@ const AlienInvaders = () => {
       canvas.removeEventListener('touchstart', onTouch);
       canvas.removeEventListener('touchend', onTouchEnd);
     };
-  }, []);
+  }, [mode]);
   return <canvas ref={cv} width={660} height={700} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
 // JOGO 4 — UnikoFlap (Flappy Bird com o Uniko UFO em campo de asteroides)
 // ═══════════════════════════════════════════════════════════════════════
-const UnikoFlap = () => {
+const UnikoFlap = ({ mode = 'normal' }) => {
   const cv = useRef(null);
   useEffect(() => {
     const canvas = cv.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const GAP = 270, PIPE_W = 38, PIPE_SPEED = 1.5;
+    const MC = MODES[mode] || MODES.normal;
+    const GAP = Math.round(270 * MC.gapMult), PIPE_W = 38, PIPE_SPEED = 1.5 * MC.speedMult;
 
     const s = {
       y: H / 2, vy: 0, started: false, dead: false,
@@ -766,15 +909,16 @@ const UnikoFlap = () => {
       xpAwarded: false, xpGained: 0,
     };
 
+    const FLAP_VY = -(5 + MC.speedMult);
     const flap = () => {
-      if (!s.started) { s.started = true; s.vy = -6; return; }
+      if (!s.started) { s.started = true; s.vy = FLAP_VY; return; }
       if (s.dead) {
         s.y = H / 2; s.vy = 0; s.pipes = [];
         s.score = 0; s.dead = false; s.started = false; s.tick = 0;
         s.xpAwarded = false; s.xpGained = 0;
         return;
       }
-      s.vy = -6;
+      s.vy = FLAP_VY;
     };
 
     const onKey = e => { if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); } };
@@ -822,7 +966,7 @@ const UnikoFlap = () => {
       }
 
       if (!s.dead) {
-        s.vy += .20; s.y += s.vy;
+        s.vy += 0.20 * MC.speedMult; s.y += s.vy;
 
         // gera pipes — distância bem maior entre eles
         if (s.pipes.length === 0 || s.pipes[s.pipes.length - 1].x < W - 310) {
@@ -842,11 +986,12 @@ const UnikoFlap = () => {
 
         // colisão — hitbox reduzida (mais perdoadora)
         const ux = 60, ur = 15;
-        if (s.y - ur < 0 || s.y + ur > H) { s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + s.score * 3); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
+        const calcXP = () => Math.min(Math.round(20 * MC.xpMult), 5 + s.score * 3);
+        if (s.y - ur < 0 || s.y + ur > H) { s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = calcXP(); addUnikoXP(s.xpGained); s.xpAwarded = true; } }
         for (const p of s.pipes) {
           const inX = ux + ur > p.x + 4 && ux - ur < p.x + PIPE_W - 4;
           if (inX && (s.y - ur < p.topH + 4 || s.y + ur > p.botY - 4)) {
-            s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = Math.min(20, 5 + s.score * 3); addUnikoXP(s.xpGained); s.xpAwarded = true; }
+            s.dead = true; saveBest('flap', s.score); if (!s.xpAwarded) { s.xpGained = calcXP(); addUnikoXP(s.xpGained); s.xpAwarded = true; }
           }
         }
       }
@@ -892,7 +1037,7 @@ const UnikoFlap = () => {
       canvas.removeEventListener('touchstart', onTouch);
       canvas.removeEventListener('mousedown', flap);
     };
-  }, []);
+  }, [mode]);
   return <canvas ref={cv} width={600} height={720} style={{ display: 'block', borderRadius: 10, maxWidth: '100%', touchAction: 'none' }} />;
 };
 
@@ -983,16 +1128,44 @@ const GAMES = [
 
 const TabGames = () => {
   const isMobile = useIsMobile();
-  const [active, setActive] = useState(null); // game id
-  const [, rerender] = useState(0);
+  const [active, setActive] = useState(null);
+  const [mode, setMode] = useState('normal');
 
   const game = GAMES.find(g => g.id === active);
+
+  const ModeSelector = ({ compact = false }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 8 }}>
+      {!compact && <span style={{ fontSize: 12, fontWeight: 700, color: T.textD, letterSpacing: '.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Dificuldade</span>}
+      <div style={{ display: 'flex', gap: compact ? 4 : 6 }}>
+        {Object.entries(MODES).map(([k, m]) => (
+          <button key={k} onClick={() => setMode(k)}
+            style={{ padding: compact ? '4px 10px' : '6px 14px', borderRadius: 20,
+              border: `1.5px solid ${mode === k ? m.color : 'rgba(255,255,255,.12)'}`,
+              background: mode === k ? `${m.color}22` : 'rgba(255,255,255,.04)',
+              color: mode === k ? m.color : compact ? 'rgba(255,255,255,.5)' : T.textS,
+              fontWeight: mode === k ? 700 : 400, fontSize: compact ? 11 : 12,
+              cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
+              transition: 'all .15s' }}>
+            {m.emoji} {m.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="fi" style={{ fontFamily: 'var(--font-body)' }}>
       <SHead sub="Entretenimento alienígena — temática Uniko">Games</SHead>
 
-      {/* Jogos novos */}
+      {/* Seletor de dificuldade */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <ModeSelector />
+        <span style={{ fontSize: 11, color: T.textD }}>
+          {MODES[mode].xpMult > 1 ? `+${Math.round((MODES[mode].xpMult - 1) * 100)}% XP` : MODES[mode].xpMult < 1 ? `${Math.round((1 - MODES[mode].xpMult) * 100)}% menos XP` : 'XP normal'}
+        </span>
+      </div>
+
+      {/* Grade de jogos */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 20 }}>
         {GAMES.map(g => (
           <Card key={g.id} style={{ padding: '22px 24px', cursor: 'pointer', transition: 'transform .12s' }} elevated
@@ -1010,7 +1183,7 @@ const TabGames = () => {
               <span style={{ fontSize: 11, color: T.textD }}>
                 Recorde: <strong style={{ color: g.tagColor }}>{getBest(g.bestKey) || '—'}</strong>
               </span>
-              <button onClick={e => { e.stopPropagation(); setActive(g.id); rerender(n => n + 1); }}
+              <button onClick={e => { e.stopPropagation(); setActive(g.id); }}
                 style={{ padding: '7px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
                   background: `linear-gradient(135deg,${g.tagColor},${g.tagColor}bb)`,
                   color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)' }}>
@@ -1021,7 +1194,6 @@ const TabGames = () => {
         ))}
       </div>
 
-
       {/* Overlay do jogo ativo */}
       {active && game && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999,
@@ -1029,7 +1201,7 @@ const TabGames = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 780, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 780, justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ borderRadius: 8, overflow: 'hidden' }}>{game.icon}</div>
               <div>
@@ -1037,21 +1209,24 @@ const TabGames = () => {
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>{game.tag}</div>
               </div>
             </div>
-            <button onClick={() => { setActive(null); rerender(n => n + 1); }}
-              style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid rgba(255,255,255,.2)',
-                background: 'rgba(255,255,255,.08)', cursor: 'pointer', color: '#fff', fontSize: 18,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)' }}>
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <ModeSelector compact />
+              <button onClick={() => setActive(null)}
+                style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid rgba(255,255,255,.2)',
+                  background: 'rgba(255,255,255,.08)', cursor: 'pointer', color: '#fff', fontSize: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Canvas do jogo */}
           <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,.6)',
-            maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <game.Component key={active} />
+            maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <game.Component key={`${active}_${mode}`} mode={mode} />
           </div>
 
-          <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center' }}>
+          <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,.3)', textAlign: 'center' }}>
             {active === 'run' && '↑ ESPAÇO para pular  •  ↓ S para agachar  |  celular: toque em cima = pular, embaixo = agachar'}
             {active === 'meteor' && '← → para mover • arraste no celular'}
             {active === 'invaders' && '← → para mover • ESPAÇO para atirar • toque: esq/dir/centro'}

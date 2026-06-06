@@ -24,7 +24,7 @@ import UnikoGospelImg    from '../../../assets/UnikoGospel.png';
 import UnikoColumbinaImg from '../../../assets/UnikoColumbina.png';
 
 // XP total acumulado necessário para atingir cada nível (índice = nível)
-const XP_LEVELS = [0, 0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200];
+const XP_LEVELS = [0, 0, 250, 600, 1100, 1800, 2800, 4200, 6200, 9000, 13000];
 
 // Unikos comuns desbloqueados por nível (raridade Comum)
 const UNIKO_COMMON = [
@@ -2256,6 +2256,14 @@ export const DOKO_KEY = (() => {
   } catch { return 'uniko_doko'; }
 })();
 
+const CONV_CD_MS = 3 * 60 * 60 * 1000; /* 3 horas de cooldown por personagem */
+const CONV_CD_KEY = (() => {
+  try {
+    const auth = getAuthUser();
+    return auth?.cpf ? `uniko_conv_cd_${auth.cpf}` : 'uniko_conv_cd';
+  } catch { return 'uniko_conv_cd'; }
+})();
+
 /* Taxas por tick de 8s — calibradas para ~7h de jornada */
 const TICK_MS       = 8000;
 const RATE_FOME_ON  = 0.025;  /* fome acordado:  100→~21 em 7h */
@@ -2298,6 +2306,10 @@ const TabMyDoko = () => {
   const [dormindo,   setDormindo]   = useState(() => _dokoLoad().dormindo ?? false);
   const [sono,       setSono]       = useState(() => _dokoLoad().sono    ?? 70);
   const [xp,         setXp]         = useState(() => _dokoLoad().xp ?? 0);
+  const [convCooldowns, setConvCooldowns] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(CONV_CD_KEY) || '{}'); }
+    catch { return {}; }
+  });
   const [levelUpMsg, setLevelUpMsg] = useState(null);
   const [notif,      setNotif]      = useState(null); /* alerta de stat baixo */
   const alertasRef   = {fome:false, energia:false, sono:false}; /* controle de duplicata */
@@ -2385,6 +2397,18 @@ const TabMyDoko = () => {
     });
   };
 
+  const cdRemaining = (skinId) => {
+    const t = convCooldowns[skinId];
+    if (!t) return 0;
+    return Math.max(0, CONV_CD_MS - (Date.now() - t));
+  };
+  const fmtCd = (ms) => {
+    if (ms <= 0) return '';
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
   const pers       = DOKO_PERSONALIDADES[skin] || DOKO_PERSONALIDADES['tecnico'];
   const activeSkin = DOKO_SKINS.find(s=>s.id===skin) || (() => {
     const u = UNIKO_COMMON.find(u=>u.key===skin);
@@ -2435,6 +2459,7 @@ const TabMyDoko = () => {
     dizer(rnd(pers.pet));
   };
   const iniciarConversa = () => {
+    if (cdRemaining(skin) > 0) return;
     const perguntas = [...pers.conversa];
     setSessaoAtiva(true); setSessaoFim(false);
     setFila(perguntas.slice(1));
@@ -2450,7 +2475,11 @@ const TabMyDoko = () => {
       setConversa(prox); setRespondeu(false);
       dizerPergunta(prox.pergunta);
     } else {
-      /* Sessão completa */
+      /* Sessão completa — registra cooldown de 3h para este personagem */
+      const cdNow = Date.now();
+      const cdUpd = { ...convCooldowns, [skin]: cdNow };
+      setConvCooldowns(cdUpd);
+      localStorage.setItem(CONV_CD_KEY, JSON.stringify(cdUpd));
       setConversa(null);
       setRespondeu(false);
       setSessaoAtiva(false);
@@ -3072,33 +3101,38 @@ const TabMyDoko = () => {
                   d:<path d="M3 11l19-9-9 19-2-8-8-2z"/>},
                 {fn:carinho,         label:'Fazer Carinho', sub:'Recupera energia +22 · +15 XP',
                   d:<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>},
-                {fn:iniciarConversa, label:'Conversar',     sub:`+10 XP/resposta · bônus +20 XP ao completar`,
+                {fn:iniciarConversa, label:'Conversar',
+                  disabled: cdRemaining(skin) > 0,
+                  sub: cdRemaining(skin) > 0
+                    ? `Disponível em ${fmtCd(cdRemaining(skin))} · aguarde o cooldown`
+                    : `+10 XP/resposta · bônus +20 XP ao completar`,
                   d:<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>},
                 {fn:toggleDormir,    label:dormindo?'Acordar':'Colocar pra Dormir',
                   sub:dormindo?`Dormindo... sono ${Math.round(sono)}%`:'Pausa o gasto de energia e fome',
                   d:dormindo
                     ?<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></>
                     :<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>},
-              ].map(({fn,label,sub,d})=>(
-                <button key={label} onClick={fn}
+              ].map(({fn,label,sub,d,disabled})=>(
+                <button key={label} onClick={disabled ? undefined : fn}
                   style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',
-                    background:`${activeSkin.color}12`,
-                    border:`1px solid ${activeSkin.color}33`,
-                    borderRadius:12,cursor:'pointer',outline:'none',
+                    background: disabled ? `${T.surface}` : `${activeSkin.color}12`,
+                    border:`1px solid ${disabled ? T.border : activeSkin.color+'33'}`,
+                    borderRadius:12,cursor:disabled?'not-allowed':'pointer',outline:'none',
+                    opacity: disabled ? 0.55 : 1,
                     fontFamily:'var(--font-body)',transition:'all .18s',textAlign:'left'}}
-                  onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';
-                    e.currentTarget.style.boxShadow=`0 6px 18px ${activeSkin.color}33`;}}
-                  onMouseLeave={e=>{e.currentTarget.style.transform='none';
-                    e.currentTarget.style.boxShadow='none';}}>
+                  onMouseEnter={e=>{ if(!disabled){ e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 6px 18px ${activeSkin.color}33`; }}}
+                  onMouseLeave={e=>{e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none';}}>
                   <div style={{width:38,height:38,borderRadius:10,flexShrink:0,
-                    background:`linear-gradient(135deg,${activeSkin.color},${activeSkin.color}aa)`,
+                    background: disabled
+                      ? `linear-gradient(135deg,${T.textD}55,${T.textD}33)`
+                      : `linear-gradient(135deg,${activeSkin.color},${activeSkin.color}aa)`,
                     display:'flex',alignItems:'center',justifyContent:'center'}}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                       stroke="white" strokeWidth="1.8" strokeLinecap="round">{d}</svg>
                   </div>
                   <div>
                     <div style={{fontSize:14,fontWeight:500,color:T.text}}>{label}</div>
-                    <div style={{fontSize:12,color:T.textT,marginTop:1}}>{sub}</div>
+                    <div style={{fontSize:12,color:disabled?T.gold:T.textT,marginTop:1}}>{sub}</div>
                   </div>
                 </button>
               ))}
