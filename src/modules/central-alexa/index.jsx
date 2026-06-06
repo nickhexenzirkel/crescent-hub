@@ -587,8 +587,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     ts: new Date(m.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}),
   });
   useEffect(() => {
-    _supabase.from('alexa_chat').select('*').order('created_at', {ascending:true}).limit(150)
-      .then(({data}) => { if (data) setAlexaConvo(data.map(toMsg)); });
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    _supabase.from('alexa_chat').delete().lt('created_at', cutoff).then(() => {
+      _supabase.from('alexa_chat').select('*').order('created_at', {ascending:true}).limit(150)
+        .then(({data}) => { if (data) setAlexaConvo(data.map(toMsg)); });
+    });
     const chatSub = _supabase.channel('alexa_chat_rt')
       .on('postgres_changes', {event:'INSERT', schema:'public', table:'alexa_chat'}, ({new:m}) => {
         setAlexaConvo(c => [...c, toMsg(m)]);

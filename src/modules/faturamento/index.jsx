@@ -8,6 +8,7 @@ import { TabRelatorioConsumo } from './tabs/TabRelatorioConsumo';
 import { TabOrdensServico } from './tabs/TabOrdensServico';
 import { TabUnikoPDF } from './tabs/TabUnikoPDF';
 import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
+import { TabOficinaEstelar } from './tabs/TabOficinaEstelar';
 
 const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio']);
 
@@ -35,6 +36,7 @@ const FaturamentoPortal = ({ onBack, authUser }) => {
       case 'ordens':    return <TabOrdensServico/>;
       case 'uniko-pdf':   return <TabUnikoPDF/>;
       case 'laboratorio': return <TabLaboratorioEstelar/>;
+      case 'oficina':     return <TabOficinaEstelar/>;
       default:            return <TabInicio setTab={safeSetTab}/>;
     }
   };

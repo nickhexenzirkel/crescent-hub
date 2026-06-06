@@ -63,6 +63,19 @@ const FEATURES = [
       </svg>
     ),
   },
+  {
+    id: 'oficina',
+    color: '#8B5FE8',
+    bg: 'rgba(139,95,232,0.10)',
+    title: 'Oficina Estelar',
+    desc: 'Edição de PDFs, assinaturas automáticas, cartas de correção e geração de ofícios — diretamente no navegador.',
+    steps: ['Escolha a ferramenta na aba interna', 'Preencha os dados ou carregue o PDF', 'Gere ou baixe o documento final'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+    ),
+  },
 ];
 
 export const TabInicio = ({ setTab }) => {
@@ -116,30 +129,6 @@ export const TabInicio = ({ setTab }) => {
         ))}
       </div>
 
-      {/* Em breve */}
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
-        <span style={{fontSize:12,fontWeight:700,color:T.textD,letterSpacing:'.1em',textTransform:'uppercase'}}>Em Breve</span>
-        <div style={{flex:1}}><StarDivider my={0} dim/></div>
-      </div>
-
-      <Card style={{padding:'26px',opacity:0.82,cursor:'default',maxWidth:380}}>
-        <div style={{position:'absolute',top:0,left:'10%',right:'10%',height:2,
-          background:'linear-gradient(90deg,transparent,rgba(139,95,232,0.6),transparent)',borderRadius:999}}/>
-        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
-          <div style={{width:52,height:52,borderRadius:14,background:'rgba(139,95,232,0.10)',
-            border:'1px solid rgba(139,95,232,0.22)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8B5FE8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
-          </div>
-          <div style={{padding:'4px 11px',borderRadius:20,background:'rgba(139,95,232,0.10)',
-            fontSize:11,fontWeight:600,color:'#8B5FE8',letterSpacing:'.04em'}}>Em Breve</div>
-        </div>
-        <div style={{fontSize:17,fontWeight:600,color:T.text,marginBottom:8}}>Oficina Estelar</div>
-        <div style={{fontSize:13.5,color:T.textS,lineHeight:1.6}}>
-          Edição de PDFs, assinaturas digitais, cartas de correção e muito mais — diretamente no navegador.
-        </div>
-      </Card>
     </div>
   );
 };
