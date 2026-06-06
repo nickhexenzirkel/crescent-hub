@@ -2722,6 +2722,21 @@ let pendingAudioBuffer=null,pendingTitle='',pendingDuration=0;
 /* ─── Autorização YouTube via Catbot ─── */
 let _ytAuthResolve=null, _ytAuthReject=null;
 
+// Envia cookies ao servidor e aguarda confirmação (ou timeout de 4s se Catbot não instalado)
+function _preSendCookies(){
+  return new Promise(resolve=>{
+    const t=setTimeout(resolve,4000);
+    const handler=(e)=>{
+      const tp=e.data?.type;
+      if(tp==='YT_COOKIES_OK'||tp==='YT_COOKIES_ERROR'){
+        clearTimeout(t); window.removeEventListener('message',handler); resolve();
+      }
+    };
+    window.addEventListener('message',handler);
+    (window.parent!==window?window.parent:window).postMessage({type:'UNIKO_YT_EXPORT_COOKIES'},'*');
+  });
+}
+
 window.addEventListener('message',(e)=>{
   const t=e.data?.type;
   if(t==='YT_COOKIES_OK'){
@@ -2826,6 +2841,8 @@ async function startLoad(){
   if(skipBtn) skipBtn.style.display='none';
 
   try{
+    setProgress(3,'Conectando ao Catbot...');
+    await _preSendCookies();
     setProgress(8,'Buscando informações do vídeo...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`)
       .then(r=>r.json()).catch(()=>({}));
@@ -5945,6 +5962,8 @@ async function libReplay(idx){
   const skipBtn=document.getElementById('loadSkipBtn');
   if(skipBtn) skipBtn.style.display='none';
   try{
+    setProgress(3,'Conectando ao Catbot...');
+    await _preSendCookies();
     setProgress(8,'Buscando informações...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`).then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||e.title||e.ytUrl;
