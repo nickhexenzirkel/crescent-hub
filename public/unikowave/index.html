@@ -1800,9 +1800,10 @@ function applyVideoBg(videoId){
   const create=()=>{
     _ytPlayer=new YT.Player('ytPlayerDiv',{
       videoId:videoId,
-      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,origin:location.origin},
+      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,loop:1,playlist:videoId,origin:location.origin},
       events:{
         onReady:()=>{_ytPlayerReady=true;},
+        onStateChange:(e)=>{if(e.data===0){_ytPlayer.seekTo(0,true);_ytPlayer.playVideo();}},
         onError:()=>{wrap.classList.remove('active');}
       }
     });
@@ -1859,6 +1860,7 @@ function buildKeyLegend(){
   else keys=['CLK1','CLK2','CLK3','CLK4'];
   const isGp = keyLayout.startsWith('gamepad');
   const leg=document.getElementById('keyLegend');
+  if(!leg) return;
   leg.innerHTML=`
     ${keys.map((k,i)=>`<div class="kl-item"><div class="kl-key ${CLASSES[i]}" style="${isGp?'font-size:10px;':''}">${k}</div><div class="kl-lbl" style="color:${COLORS[i]}">${LABELS[i]}</div></div>`).join('')}
   `;
