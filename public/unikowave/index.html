@@ -1824,8 +1824,7 @@ function applyVideoBg(videoId){
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED&&gameState==='playing'){
-            hideVideoBg(); // destrói o iframe antes das recomendações renderizarem
-            setTimeout(showResult,500);
+            fadeOutVideoBg(()=>setTimeout(showResult,300));
           }
         },
         onError:()=>{wrap.classList.remove('active');}
@@ -1839,7 +1838,14 @@ function hideVideoBg(){
   if(_ytPlayer){try{_ytPlayer.stopVideo();}catch(e){} _ytPlayer=null;}
   _ytPlayerReady=false; _ytPlayerStarted=false;
   const wrap=document.getElementById('videoBgWrap');
-  if(wrap){wrap.classList.remove('active'); wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';}
+  if(wrap){wrap.style.transition='';wrap.style.opacity='';wrap.classList.remove('active'); wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';}
+}
+function fadeOutVideoBg(cb){
+  const wrap=document.getElementById('videoBgWrap');
+  if(!wrap||!wrap.classList.contains('active')){hideVideoBg();if(cb)cb();return;}
+  wrap.style.transition='opacity 0.8s ease';
+  wrap.style.opacity='0';
+  setTimeout(()=>{hideVideoBg();if(cb)cb();},850);
 }
 // ─── SYNC: mantém YouTube player sincronizado com songTime() ───
 function syncVideoBg(){
@@ -1858,8 +1864,17 @@ function syncVideoBg(){
         if(_vbgSyncTick%90===0){
           const curT=_ytPlayer.getCurrentTime();
           const vDur=_ytPlayer.getDuration();
-          // Esconde o player 2s antes do fim para evitar end screens do criador
-          if(vDur>10&&curT>0&&(vDur-curT)<2){hideVideoBg();return;}
+          if(vDur>10&&curT>0){
+            const rem=vDur-curT;
+            const wrap=document.getElementById('videoBgWrap');
+            if(rem<4&&wrap&&wrap.classList.contains('active')){
+              // Fade gradual nos últimos 4s — recomendações ficam invisíveis
+              const opacity=Math.max(0,rem/4);
+              wrap.style.transition='opacity 1.5s linear';
+              wrap.style.opacity=opacity;
+              if(rem<0.3){hideVideoBg();return;}
+            }
+          }
           const drift=curT-st;
           if(Math.abs(drift)>0.6&&state===YT.PlayerState.PLAYING) _ytPlayer.seekTo(st,true);
         }
