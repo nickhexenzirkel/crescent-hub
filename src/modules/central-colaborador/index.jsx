@@ -17,6 +17,7 @@ import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
+import { TabUnikoWave } from './tabs/TabUnikoWave';
 import CentralLembretes from '../central-lembretes';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
@@ -138,6 +139,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
+    if(tab==='unikowave')   return <TabUnikoWave/>;
     return null;
   };
 
@@ -164,10 +166,12 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
       <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete}/>
       <div style={{marginLeft:isMobile?0:252,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
-        <TopBar tab={tab} onBack={()=>st('inicio')}/>
-        <div style={{flex:1,padding:isMobile?'16px':'28px 34px',overflowY:'auto',
-          paddingBottom:isMobile?'76px':'28px',
-          height:(!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined)}}>
+        {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
+        <div style={{flex:1,
+          padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
+          overflowY: tab==='unikowave' ? 'hidden' : 'auto',
+          paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
+          height: tab==='unikowave' ? '100vh' : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined))}}>
           {render()}
         </div>
       </div>
