@@ -1800,10 +1800,9 @@ function applyVideoBg(videoId){
   const create=()=>{
     _ytPlayer=new YT.Player('ytPlayerDiv',{
       videoId:videoId,
-      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,loop:1,playlist:videoId,origin:location.origin},
+      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,origin:location.origin},
       events:{
         onReady:()=>{_ytPlayerReady=true;},
-        onStateChange:(e)=>{if(e.data===0){_ytPlayer.seekTo(0,true);_ytPlayer.playVideo();}},
         onError:()=>{wrap.classList.remove('active');}
       }
     });
@@ -5336,6 +5335,7 @@ function resumeGame(){
 function showResult(){
   if(gameState==='result') return;
   gameState='result';
+  hideVideoBg();
   if(srcNode){try{srcNode.stop();}catch(e){}}
   
   const total=score.perfect+score.good+score.miss;
