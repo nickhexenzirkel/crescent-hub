@@ -1,6 +1,12 @@
 // Roda nas páginas do Crescent Hub
 // Faz a ponte entre o app React e o background service worker
 
+// Ao carregar, envia cookies do YouTube silenciosamente ao servidor
+// Garante que o Render tenha cookies mesmo após restart, sem o usuário precisar clicar
+setTimeout(() => {
+  try { chrome.runtime.sendMessage({ type: 'UNIKO_YT_AUTO_COOKIES' }).catch(() => {}); } catch {}
+}, 1500);
+
 const sendMsg = (data, onError) => {
   try {
     chrome.runtime.sendMessage(data)

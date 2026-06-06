@@ -2764,7 +2764,7 @@ async function _offerYtAuth(vid){
 }
 
 async function _waitForVideo(vid, setMsg){
-  const MAX_RETRIES=3, POLL_INTERVAL=3000, TIMEOUT=180000;
+  const MAX_RETRIES=0, POLL_INTERVAL=3000, TIMEOUT=180000;
   let retries=0, tStart=Date.now();
 
   const triggerDownload=async()=>{
