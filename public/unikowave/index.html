@@ -1847,17 +1847,30 @@ function _pollLocalVideo(videoId){
 }
 function _makeLocalBgPlayer(videoId){
   const wrap=document.getElementById('videoBgWrap');
-  wrap.innerHTML=`<video id="uvLocalVid" muted playsinline style="position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;pointer-events:none"></video>`;
+  wrap.innerHTML=`<video id="uvLocalVid" muted playsinline preload="auto" style="position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;pointer-events:none;background:#000"></video>`;
   const v=document.getElementById('uvLocalVid');
   v.src=`${SERVER_URL}/api/ytdl/serve/${videoId}`;
+  v.load(); // começa a baixar o buffer imediatamente
   v.addEventListener('ended',()=>{if(gameState==='playing')fadeOutVideoBg(()=>setTimeout(showResult,300));});
+  v.addEventListener('error',(e)=>console.warn('video bg error',e));
+  let _seekPending=null;
+  v.addEventListener('loadedmetadata',()=>{
+    if(_seekPending!=null){try{v.currentTime=_seekPending;}catch(e){} _seekPending=null;}
+  });
   return{
-    seekTo:(t)=>{try{if(isFinite(t))v.currentTime=Math.max(0,t);}catch(e){}},
+    seekTo:(t)=>{
+      try{
+        if(!isFinite(t)) return;
+        const tSafe=Math.max(0,t);
+        if(v.readyState>=1) v.currentTime=tSafe;
+        else _seekPending=tSafe;
+      }catch(e){}
+    },
     playVideo:()=>v.play().catch(()=>{}),
     pauseVideo:()=>v.pause(),
     stopVideo:()=>{v.pause();v.src='';},
     getCurrentTime:()=>v.currentTime||0,
-    getDuration:()=>isFinite(v.duration)?v.duration:songDuration,
+    getDuration:()=>isFinite(v.duration)&&v.duration>0?v.duration:songDuration,
     getPlayerState:()=>v.ended?0:v.paused?2:1,
     destroy:()=>{v.pause();v.src='';},
     _isLocal:true,
@@ -2704,9 +2717,52 @@ function getYTId(url){const m=url.match(/(?:v=|youtu\.be\/|\/embed\/)([a-zA-Z0-9
 function fmtDur(s){const m=Math.floor(s/60);return `${m}:${String(Math.floor(s%60)).padStart(2,'0')}`;}
 
 let pendingAudioBuffer=null,pendingTitle='',pendingDuration=0;
-let _loadAborted=false;
 
-function skipVideoLoad(){ _loadAborted=true; }
+async function _waitForVideo(vid, setMsg){
+  const MAX_RETRIES=3, POLL_INTERVAL=3000, TIMEOUT=180000;
+  let retries=0, tStart=Date.now();
+
+  const triggerDownload=async()=>{
+    // Aguarda o servidor estar pronto (retry se 503)
+    for(let i=0;i<8;i++){
+      setMsg(`Conectando ao servidor${i>0?` (tentativa ${i+1})`:''}...`, 12+i*2);
+      const res=await fetch(`${SERVER_URL}/api/ytdl/download`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({videoId:vid})
+      }).catch(()=>null);
+      if(res&&res.ok) return true;
+      if(res&&res.status===503){ await delay(4000); continue; }
+      return false; // outro erro HTTP
+    }
+    return false;
+  };
+
+  await triggerDownload();
+
+  while(Date.now()-tStart<TIMEOUT){
+    await delay(POLL_INTERVAL);
+    const elapsed=Date.now()-tStart;
+    const pct=Math.min(90, 18+(elapsed/TIMEOUT)*72);
+    setMsg(`Baixando vídeo... ${Math.round(elapsed/1000)}s`, pct);
+
+    const r=await fetch(`${SERVER_URL}/api/ytdl/status/${vid}`)
+      .then(res=>res.json()).catch(()=>({status:'network_error'}));
+    _localVideoStatus[vid]=r.status;
+
+    if(r.status==='ready') return 'ready';
+
+    if(r.status==='error'){
+      retries++;
+      if(retries>MAX_RETRIES) return 'error';
+      setMsg(`Falhou, tentando novamente (${retries}/${MAX_RETRIES})...`, 18);
+      await delay(2000);
+      await triggerDownload(); // re-POST limpa o job de erro no servidor
+      tStart=Date.now(); // reseta timeout por tentativa
+    }
+    // 'downloading' | 'not_found' | 'network_error' → continua aguardando
+  }
+  return 'timeout';
+}
 
 async function startLoad(){
   const url=(document.getElementById('urlIn').value||'').trim();
@@ -2719,55 +2775,36 @@ async function startLoad(){
     return;
   }
   lastYtUrl=url; lastVideoUrl=vid; bgMode='video';
-  _loadAborted=false;
   showScreen('loadScr');
   document.getElementById('loadTxt').textContent='CARREGANDO';
   const skipBtn=document.getElementById('loadSkipBtn');
   if(skipBtn) skipBtn.style.display='none';
 
   try{
-    // 1. Busca metadados
     setProgress(8,'Buscando informações do vídeo...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`)
       .then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||url;
     pendingDuration=0;
 
-    // 2. Dispara download no servidor
-    setProgress(18,'Iniciando download do vídeo...');
     _localVideoStatus[vid]='downloading';
-    await fetch(`${SERVER_URL}/api/ytdl/download`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({videoId:vid})
-    }).catch(()=>{_localVideoStatus[vid]='error';});
+    const result=await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
 
-    // 3. Aguarda o download — mostra botão de skip após 12s
-    if(_localVideoStatus[vid]!=='ready'&&_localVideoStatus[vid]!=='error'){
-      const skipTimer=setTimeout(()=>{if(skipBtn)skipBtn.style.display='block';},12000);
-      const tStart=Date.now(); const TIMEOUT=150000; // 2m30s
-      while(Date.now()-tStart<TIMEOUT&&!_loadAborted){
-        const elapsed=Date.now()-tStart;
-        const pct=18+Math.min(72,(elapsed/TIMEOUT)*72);
-        setProgress(pct,'Baixando vídeo'+(elapsed>8000?' (aguardando servidor...)':' local...'));
-        await delay(2500);
-        const {status}=await fetch(`${SERVER_URL}/api/ytdl/status/${vid}`)
-          .then(r=>r.json()).catch(()=>({status:'error'}));
-        _localVideoStatus[vid]=status;
-        if(status==='ready'||status==='error') break;
-      }
-      clearTimeout(skipTimer);
-      if(skipBtn) skipBtn.style.display='none';
+    if(result==='ready'){
+      setProgress(100,'Vídeo pronto! ✓');
+      await delay(350);
+      showPreview(url,pendingTitle,pendingDuration||240);
+    } else {
+      document.getElementById('loadTxt').textContent='ERRO';
+      const msg=result==='timeout'
+        ?'Tempo esgotado. Verifique sua conexão e tente novamente.'
+        :'Não foi possível baixar o vídeo. Tente outro link do YouTube.';
+      setProgress(0,msg);
+      await delay(5000); goMenu();
     }
-
-    // 4. Finaliza
-    const ok=_localVideoStatus[vid]==='ready';
-    setProgress(100, ok?'Vídeo pronto! ✓':'Pronto (sem vídeo local)');
-    await delay(350);
-    showPreview(url,pendingTitle,pendingDuration||240);
-
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';
-    setProgress(0,err.message,true);
+    setProgress(0,err.message);
     await delay(4000); goMenu();
   }
 }
@@ -5852,7 +5889,6 @@ async function libReplay(idx){
   const vid=getYTId(e.ytUrl);
   if(!vid){ goMenu(); return; }
   lastVideoUrl=vid; bgMode='video';
-  _loadAborted=false;
   showScreen('loadScr');
   document.getElementById('loadTxt').textContent='CARREGANDO';
   const skipBtn=document.getElementById('loadSkipBtn');
@@ -5863,38 +5899,24 @@ async function libReplay(idx){
     pendingTitle=oembed.title||e.title||e.ytUrl;
     pendingDuration=e.dur||240;
 
-    if(!_localVideoStatus[vid]||_localVideoStatus[vid]==='error'){
-      setProgress(18,'Iniciando download do vídeo...');
-      _localVideoStatus[vid]='downloading';
-      await fetch(`${SERVER_URL}/api/ytdl/download`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({videoId:vid})
-      }).catch(()=>{_localVideoStatus[vid]='error';});
-    }
+    _localVideoStatus[vid]='downloading';
+    const result=await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
 
-    if(_localVideoStatus[vid]!=='ready'&&_localVideoStatus[vid]!=='error'){
-      const skipTimer=setTimeout(()=>{if(skipBtn)skipBtn.style.display='block';},12000);
-      const tStart=Date.now(); const TIMEOUT=150000;
-      while(Date.now()-tStart<TIMEOUT&&!_loadAborted){
-        const elapsed=Date.now()-tStart;
-        setProgress(18+Math.min(72,(elapsed/TIMEOUT)*72),'Baixando vídeo local...');
-        await delay(2500);
-        const {status}=await fetch(`${SERVER_URL}/api/ytdl/status/${vid}`)
-          .then(r=>r.json()).catch(()=>({status:'error'}));
-        _localVideoStatus[vid]=status;
-        if(status==='ready'||status==='error') break;
-      }
-      clearTimeout(skipTimer);
-      if(skipBtn) skipBtn.style.display='none';
+    if(result==='ready'){
+      setProgress(100,'Vídeo pronto! ✓');
+      await delay(350);
+      showPreview(e.ytUrl, pendingTitle, pendingDuration);
+    } else {
+      document.getElementById('loadTxt').textContent='ERRO';
+      const msg=result==='timeout'
+        ?'Tempo esgotado. Verifique sua conexão e tente novamente.'
+        :'Não foi possível baixar o vídeo. Tente outro link do YouTube.';
+      setProgress(0,msg);
+      await delay(5000); goMenu();
     }
-
-    const ok=_localVideoStatus[vid]==='ready';
-    setProgress(100, ok?'Vídeo pronto! ✓':'Pronto (sem vídeo local)');
-    await delay(350);
-    showPreview(e.ytUrl, pendingTitle, pendingDuration);
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';
-    setProgress(0,err.message,true);
+    setProgress(0,err.message);
     await delay(4000); goMenu();
   }
 }
