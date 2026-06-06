@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>UNIKO WAVE</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
-<script src="https://www.youtube.com/iframe_api"></script>
 <style>
 /* ─── PIXEL FONT ALIASES ─── */
 :root{
@@ -1851,47 +1850,19 @@ window.onYouTubeIframeAPIReady=function(){/* API pronta */};
 
 function applyVideoBg(videoId){
   const wrap=document.getElementById('videoBgWrap');
-  if(bgMode!=='video'||!videoId){wrap.classList.remove('active');return;}
-  wrap.classList.add('active');
-  _ytPlayerReady=false; _ytPlayerStarted=false;
   if(_ytPlayer){try{_ytPlayer.destroy();}catch(e){} _ytPlayer=null;}
+  _ytPlayerReady=false; _ytPlayerStarted=false;
+  wrap.classList.remove('active');
   wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';
 
-  // Usa vídeo local se já baixou (zero overlay/recomendações do YouTube)
-  if(_localVideoStatus[videoId]==='ready'){
+  // Só usa background se o vídeo local já estiver baixado.
+  // YouTube IFrame foi removido: o IFrame API não funciona em iframe aninhado
+  // (postMessage falha) — sem controle sobre end-screens/recomendações.
+  if(bgMode==='video'&&videoId&&_localVideoStatus[videoId]==='ready'){
+    wrap.classList.add('active');
     _ytPlayer=_makeLocalBgPlayer(videoId);
     _ytPlayerReady=true;
-    return;
   }
-
-  // Fallback: YouTube IFrame
-  const create=()=>{
-    _ytPlayer=new YT.Player('ytPlayerDiv',{
-      videoId:videoId,
-      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,iv_load_policy:3,modestbranding:1,rel:0,origin:location.origin},
-      events:{
-        onReady:()=>{
-          _ytPlayerReady=true;
-          try{
-            const vd=_ytPlayer.getDuration();
-            if(vd>10&&Math.abs(vd-songDuration)>5){
-              songDuration=vd;
-              chart=chart.filter(n=>n.hitTime<vd-0.3);
-              maxPossibleScore=chart.length*1000+chart.filter(n=>n.holdDur>0).length*1000;
-            }
-          }catch(e){}
-        },
-        onStateChange:(e)=>{
-          if(e.data===YT.PlayerState.ENDED&&gameState==='playing'){
-            fadeOutVideoBg(()=>setTimeout(showResult,300));
-          }
-        },
-        onError:()=>{wrap.classList.remove('active');}
-      }
-    });
-  };
-  if(window.YT&&window.YT.Player) create();
-  else{ const t=setInterval(()=>{if(window.YT&&window.YT.Player){clearInterval(t);create();}},200); }
 }
 function hideVideoBg(){
   if(_ytPlayer){try{_ytPlayer.stopVideo();}catch(e){} _ytPlayer=null;}
@@ -1912,7 +1883,7 @@ function syncVideoBg(){
   const st=songTime();
   try{
     const state=_ytPlayer.getPlayerState();
-    if(state===YT.PlayerState.ENDED||state===0) return; // vídeo terminou — não interferir
+    if(state===0) return; // ENDED — não interferir
     if(gameState==='playing'){
       if(!_ytPlayerStarted){
         _ytPlayer.seekTo(Math.max(0,st),true);
@@ -1926,23 +1897,12 @@ function syncVideoBg(){
           if(vDur>10&&curT>0){
             const rem=vDur-curT;
             const wrap=document.getElementById('videoBgWrap');
-            if(wrap&&wrap.classList.contains('active')){
-              if(!_ytPlayer._isLocal&&rem<15){
-                // YouTube IFrame: fade nos últimos 15s — cobre end-screens de criadores (até 20s antes do fim)
-                const opacity=Math.min(1,Math.max(0,rem/13));
-                wrap.style.transition='opacity 2s linear';
-                wrap.style.opacity=opacity;
-                if(rem<0.3){hideVideoBg();return;}
-              } else if(_ytPlayer._isLocal&&rem<3){
-                // Vídeo local: fade curto apenas no fim real
-                const opacity=Math.max(0,rem/3);
-                wrap.style.transition='opacity 1s linear';
-                wrap.style.opacity=opacity;
-              }
+            if(wrap&&wrap.classList.contains('active')&&rem<3){
+              // Fade nos últimos 3s do vídeo local
+              wrap.style.transition='opacity 1s linear';
+              wrap.style.opacity=Math.max(0,rem/3);
             }
           }
-          const drift=curT-st;
-          if(Math.abs(drift)>0.6&&state===YT.PlayerState.PLAYING&&!_ytPlayer._isLocal) _ytPlayer.seekTo(st,true);
         }
       }
     }
