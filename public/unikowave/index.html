@@ -1823,9 +1823,9 @@ function applyVideoBg(videoId){
           }catch(e){}
         },
         onStateChange:(e)=>{
-          // Vídeo terminou → encerra a partida imediatamente
           if(e.data===YT.PlayerState.ENDED&&gameState==='playing'){
-            setTimeout(showResult,400);
+            hideVideoBg(); // destrói o iframe antes das recomendações renderizarem
+            setTimeout(showResult,500);
           }
         },
         onError:()=>{wrap.classList.remove('active');}
@@ -1857,8 +1857,10 @@ function syncVideoBg(){
         _vbgSyncTick++;
         if(_vbgSyncTick%90===0){
           const curT=_ytPlayer.getCurrentTime();
+          const vDur=_ytPlayer.getDuration();
+          // Esconde o player 2s antes do fim para evitar end screens do criador
+          if(vDur>10&&curT>0&&(vDur-curT)<2){hideVideoBg();return;}
           const drift=curT-st;
-          // Só corrige drift se o vídeo ainda está tocando (evita seek após fim do vídeo)
           if(Math.abs(drift)>0.6&&state===YT.PlayerState.PLAYING) _ytPlayer.seekTo(st,true);
         }
       }
