@@ -2383,20 +2383,12 @@ const _BSVG = {
 let _bsvgCounter = 0;
 
 const BORDERS = [
-  { id:'default',         name:'Padrão',    grad:'linear-gradient(135deg,#ff2d92,#a855f7)', img:null },
-  // ── Bordas SVG (transparência real, sem PNG) ──
+  { id:'default',     name:'Padrão',  grad:'linear-gradient(135deg,#ff2d92,#a855f7)', img:null },
   { id:'svg_nexus',   name:'Nexus',   grad:'linear-gradient(135deg,#00f0ff,#a855f7)', svgFn: _BSVG.nexus },
   { id:'svg_frost',   name:'Frost',   grad:'linear-gradient(135deg,#7dd3fc,#e0f7ff)', svgFn: _BSVG.frost },
   { id:'svg_ember',   name:'Ember',   grad:'linear-gradient(135deg,#ff4444,#ff6820)', svgFn: _BSVG.ember },
   { id:'svg_blossom', name:'Blossom', grad:'linear-gradient(135deg,#f9a8d4,#22d3ee)', svgFn: _BSVG.blossom },
   { id:'svg_solar',   name:'Solar',   grad:'linear-gradient(135deg,#fbbf24,#fde68a)', svgFn: _BSVG.solar },
-  // ── Bordas de personagem (imagem PNG) ──
-  { id:'borda_dodoco',    name:'Dodoco',    grad:'linear-gradient(135deg,#00f0ff,#a855f7)', img:'images/BordaDodoco.png' },
-  { id:'borda_icy',       name:'Icy',       grad:'linear-gradient(135deg,#00f0ff,#ff2d92)', img:'images/BordaIcy.png' },
-  { id:'borda_columbina', name:'Columbina', grad:'linear-gradient(135deg,#7b2fff,#c084fc)', img:'images/BordaColumbina.png' },
-  { id:'borda_linnea',    name:'Linnea',    grad:'linear-gradient(135deg,#f9a8d4,#a855f7)', img:'images/BordaLinnea.png' },
-  { id:'borda_madoka',    name:'Madoka',    grad:'linear-gradient(135deg,#fbbf24,#ff2d92)', img:'images/BordaMadoka.png' },
-  { id:'borda_homura',    name:'Homura',    grad:'linear-gradient(135deg,#dc2626,#7c3aed)', img:'images/BordaHomura.png' },
 ];
 
 let profile = JSON.parse(localStorage.getItem('dw_profile') || 'null');
@@ -2441,7 +2433,7 @@ function renderPsetupBorderGrid(gridId, selectedId, onSelect){
   if(!grid) return;
   grid.innerHTML = BORDERS.map(b=>{
     const sz = 52;
-    const pngSz = Math.round(sz * 1.9);
+    const pngSz = Math.round(sz * 1.28);
     const off  = -Math.round((pngSz - sz) / 2);
     let previewInner;
     if(b.svgFn){
@@ -2539,7 +2531,7 @@ function applyBorderRing(ringEl, border, avatarWrap, inset){
           || parseInt(avatarWrap.style.width)
           || avatarWrap.offsetWidth
           || 52;
-      const pngSz = Math.round(sz * 1.9);
+      const pngSz = Math.round(sz * 1.28);
       const offset = -Math.round((pngSz - sz) / 2);
       const uid = 'bsvg_' + (++_bsvgCounter);
       const ov = document.createElement('div');
