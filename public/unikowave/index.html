@@ -1715,11 +1715,11 @@ const WIN_PERFECT = 0.10;
 const WIN_GOOD    = 0.22; 
 
 const DIFF_CFG = {
-  easy:       {travel:2.4, density:0.45, holdChance:0.12, doubleChance:0.0,  bpm:1.0, minGap:0.26},
-  normal:     {travel:2.0, density:0.85, holdChance:0.30, doubleChance:0.18, bpm:1.0, minGap:0.20},
-  hard:       {travel:1.5, density:1.15, holdChance:0.42, doubleChance:0.30, bpm:1.0, minGap:0.15},
-  insane:     {travel:1.1, density:1.45, holdChance:0.52, doubleChance:0.48, bpm:1.0, minGap:0.10},
-  impossible: {travel:0.8, density:1.8,  holdChance:0.60, doubleChance:0.65, bpm:1.0, minGap:0.06}
+  easy:       {travel:2.4, density:0.40, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.28},
+  normal:     {travel:2.0, density:0.70, holdChance:0.26, doubleChance:0.12, bpm:1.0, minGap:0.20},
+  hard:       {travel:1.5, density:1.0,  holdChance:0.22, doubleChance:0.26, bpm:1.0, minGap:0.14},
+  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.44, bpm:1.0, minGap:0.09},
+  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.62, bpm:1.0, minGap:0.05}
 };
 
 function setKeyLayout(k){
@@ -3113,43 +3113,34 @@ async function detectBeats(ab){
 function generateChart(beats,dur,cfg){
   const notes=[];let lastL=-1;
   const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
-  const SUSTAIN_MIN = 0.42;
-  let skipUntil = -1;
-  // Minimum time between consecutive taps — prevents visual stacking
-  // At travel speed T seconds, two notes ≥ minGap apart fill >15% of the road
-  const minGap = cfg.minGap || 0.18;
-  let lastTapTime = -999;
+  const SUSTAIN_MIN=0.45;
+  let skipUntil=-1;
+  const minGap=cfg.minGap||0.18;
+  let lastNoteTime=-999;
 
   for(let i=0;i<beats.length;i++){
     const t=beats[i];
     if(t>dur-0.6) continue;
     if(t<skipUntil) continue;
+    if(cfg.density<1&&Math.random()>cfg.density) continue;
+    if(t-lastNoteTime<minGap) continue;
 
     const gapAfter=gaps[i];
-    const gapBefore=i>0?gaps[i-1]:SUSTAIN_MIN;
+    // Hold only when there's enough silence after AND random passes.
+    // If hold check fails, always fall through to tap — never skip a beat that cleared all filters.
+    const isHold = gapAfter>=SUSTAIN_MIN && Math.random()<cfg.holdChance;
 
-    if(cfg.density<1&&Math.random()>cfg.density) continue;
-
-    const isSustained = gapAfter >= SUSTAIN_MIN;
-
-    if(isSustained){
-      if(Math.random() < cfg.holdChance * (gapAfter>0.8?2.0:1.2)){
-        const holdDur=Math.min(gapAfter*0.80, 3.5);
-        let l,tries=0;
-        do{l=Math.floor(Math.random()*4);tries++;}while(l===lastL&&tries<6);
-        notes.push({id:notes.length,lane:l,hitTime:t,holdDur,
-          state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
-        lastL=l;
-        skipUntil=t+holdDur+0.15;
-        lastTapTime=t;
-      }
+    if(isHold){
+      const holdDur=Math.min(gapAfter*0.80,3.5);
+      let l,tries=0;
+      do{l=Math.floor(Math.random()*4);tries++;}while(l===lastL&&tries<6);
+      notes.push({id:notes.length,lane:l,hitTime:t,holdDur,
+        state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
+      lastL=l; skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
-      // Enforce minimum gap between tap clusters
-      if(t-lastTapTime < minGap) continue;
-
       let lanes=[];
-      const density=beats.filter(b=>b>t-2&&b<=t).length;
-      if(i%20===0&&density<5&&Math.random()<cfg.doubleChance){
+      const localDensity=beats.filter(b=>b>t-2&&b<=t).length;
+      if(i%20===0&&localDensity<5&&Math.random()<cfg.doubleChance){
         const l1=Math.floor(Math.random()*4);lanes=[l1,(l1+2)%4];
       } else if(i%9===0&&Math.random()<cfg.doubleChance*.6){
         const l1=Math.floor(Math.random()*4);lanes=[l1,(l1+1)%4];
@@ -3162,7 +3153,7 @@ function generateChart(beats,dur,cfg){
         notes.push({id:notes.length,lane:l,hitTime:t,holdDur:0,
           state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
       });
-      if(lanes.length){lastL=lanes[lanes.length-1];lastTapTime=t;}
+      if(lanes.length){lastL=lanes[lanes.length-1];lastNoteTime=t;}
     }
   }
   return notes.sort((a,b)=>a.hitTime-b.hitTime);
