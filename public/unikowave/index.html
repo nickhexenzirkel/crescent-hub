@@ -110,7 +110,7 @@ canvas{display:block}
   position:absolute;
   pointer-events:none;
   mix-blend-mode:screen;
-  object-fit:contain;
+  object-fit:cover;
   z-index:2;
 }
 .sp-avatar-wrap, .tpc-avatar-wrap, .profile-big-avatar-wrap{
@@ -2307,7 +2307,7 @@ function renderPsetupBorderGrid(gridId, selectedId, onSelect){
     const pngSz = Math.round(sz * 1.9);
     const off  = -Math.round((pngSz - sz) / 2);
     const previewInner = b.img
-      ? `<img src="${b.img}" style="position:absolute;width:${pngSz}px;height:auto;left:${off}px;top:50%;transform:translateY(-50%);z-index:2;pointer-events:none;mix-blend-mode:screen">`
+      ? `<img src="${b.img}" style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;object-fit:cover;pointer-events:none;mix-blend-mode:screen">`
       : `<div style="position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent;background:${b.grad} border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;z-index:2"></div>`;
     return `
     <div class="psetup-border-card ${selectedId===b.id?'selected':''}" data-borderid="${b.id}">
@@ -2404,7 +2404,7 @@ function applyBorderRing(ringEl, border, avatarWrap, inset){
       const ov = document.createElement('img');
       ov.src = border.img;
       ov.className = 'border-img-overlay';
-      ov.style.cssText = `position:absolute;width:${pngSz}px;height:auto;left:${offset}px;top:50%;transform:translateY(-50%);pointer-events:none;z-index:2;mix-blend-mode:screen`;
+      ov.style.cssText = `position:absolute;width:${pngSz}px;height:${pngSz}px;top:${offset}px;left:${offset}px;pointer-events:none;z-index:2;object-fit:cover;mix-blend-mode:screen`;
       avatarWrap.appendChild(ov);
     }
   } else if(border){
