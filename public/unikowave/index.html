@@ -2129,6 +2129,57 @@ function resetLaneColors(){
   buildKeyLegend();
 }
 
+// ─── COLOR MOMENTS: cores do vídeo que mudam durante o jogo ───
+let _cmTimes=[], _cmPalettes=[], _cmNextIdx=0;
+let _cmFrom=null, _cmTo=null, _cmT=1.0;
+let _cmFlash=0, _cmPrevAnimT=0;
+const _CM_DUR=1.8;
+
+function _genColorMomentPalettes(basePalette, count){
+  const baseHSL=basePalette.map(h=>{const[r,g,b]=_hexToRgb(h);return _rgbToHsl(r,g,b);});
+  return Array.from({length:count},(_,i)=>{
+    const shift=i/count;
+    return baseHSL.map(([h,s,l])=>{
+      const newH=(h+shift)%1;
+      const newL=Math.min(0.72,Math.max(0.38,l+(i%2===0?0.06:-0.06)));
+      const[r,g,b]=_hslToRgb(newH,Math.min(1,s*1.12),newL);
+      return _rgbToHex(r,g,b);
+    });
+  });
+}
+
+function initColorMoments(duration){
+  _cmNextIdx=0; _cmFrom=null; _cmTo=null; _cmT=1.0; _cmFlash=0; _cmPrevAnimT=0;
+  if(duration<30){_cmTimes=[];_cmPalettes=[];return;}
+  const count=Math.max(3,Math.min(7,Math.floor(duration/35)));
+  _cmTimes=Array.from({length:count},(_,i)=>
+    duration*(0.22+0.68*i/Math.max(1,count-1))
+  );
+  // Gera count+1 variações do palette atual (thumbnail) e pula o índice 0 (= palette atual)
+  _cmPalettes=_genColorMomentPalettes([...LANE_COLORS],count+1).slice(1);
+}
+
+function updateColorMoments(st, dt){
+  if(_cmNextIdx<_cmTimes.length && st>=_cmTimes[_cmNextIdx]){
+    _cmFrom=LANE_COLORS.map(h=>_hexToRgb(h));
+    _cmTo=_cmPalettes[_cmNextIdx%_cmPalettes.length].map(h=>_hexToRgb(h));
+    _cmT=0; _cmFlash=0.55; _cmNextIdx++;
+  }
+  if(_cmT<1.0&&_cmFrom&&_cmTo){
+    _cmT=Math.min(1.0,_cmT+dt/_CM_DUR);
+    const ease=_cmT<0.5?2*_cmT*_cmT:1-Math.pow(-2*_cmT+2,2)/2;
+    applyLaneColors(_cmFrom.map((from,i)=>{
+      const to=_cmTo[i];
+      return _rgbToHex(
+        Math.round(from[0]+(to[0]-from[0])*ease),
+        Math.round(from[1]+(to[1]-from[1])*ease),
+        Math.round(from[2]+(to[2]-from[2])*ease)
+      );
+    }));
+  }
+  if(_cmFlash>0) _cmFlash=Math.max(0,_cmFlash-dt*2.0);
+}
+
 const canvas=document.getElementById('gc');
 const ctx=canvas.getContext('2d');
 let CW=800,CH=600,DPR=1;
@@ -3216,6 +3267,7 @@ function beginGame(){
       else startAudioIframe(lastVideoUrl);
     }, startDelay*1000);
   }
+  initColorMoments(songDuration);
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
 }
 
@@ -3426,12 +3478,22 @@ let _lastProgressUpdate=0;
 function gameLoop(ts){
   if(gameState!=='playing'&&gameState!=='countdown'&&gameState!=='paused'){return;}
   if(gameState==='paused'){return;}
-  animT=ts*0.001;
+  const _nowSec=ts*0.001;
+  const _dt=Math.min(0.05,Math.max(0,_nowSec-_cmPrevAnimT));
+  _cmPrevAnimT=_nowSec;
+  animT=_nowSec;
   ctx.clearRect(0,0,CW,CH);
   syncVideoBg();
   updateBgIntensity(); drawBackground(animT);
   updateHoldNotes(); updateMisses();
   drawGame(animT);
+  if(gameState==='playing') updateColorMoments(songTime(),_dt);
+  if(_cmFlash>0){
+    ctx.globalAlpha=_cmFlash*0.28;
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,CW,CH);
+    ctx.globalAlpha=1;
+  }
   // Atualiza progress bar da música a cada 500ms
   if(ts-_lastProgressUpdate>500&&songDuration>0){
     _lastProgressUpdate=ts;
@@ -5708,6 +5770,7 @@ function showResult(){
   gameState='result';
   hideVideoBg();
   stopAudioIframe();
+  _cmFlash=0; _cmT=1.0; resetLaneColors();
   if(srcNode){try{srcNode.stop();}catch(e){}}
   
   const total=score.perfect+score.good+score.miss;
