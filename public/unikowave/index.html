@@ -2251,8 +2251,145 @@ let menuNotes=[],menuT=0;
 // ─── PROFILE SYSTEM ───
 // ══════════════════════════════════════════════
 
+// ── Funções geradoras de borda SVG (id único evita conflito de filter IDs no DOM) ──
+const _BSVG = {
+  nexus:(u)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" overflow="visible" style="width:100%;height:100%">
+<defs>
+  <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00f0ff"/><stop offset="100%" stop-color="#a855f7"/></linearGradient>
+  <filter id="${u}f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<circle cx="100" cy="100" r="91" fill="none" stroke="url(#${u}g)" stroke-width="3" opacity="0.25" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="85" fill="none" stroke="url(#${u}g)" stroke-width="12" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="74" fill="none" stroke="url(#${u}g)" stroke-width="1.5" opacity="0.45"/>
+<polygon points="100,3 106,14 100,11 94,14" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="100,197 106,186 100,189 94,186" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="3,100 14,106 11,100 14,94" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="197,100 186,106 189,100 186,94" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="36,36 40,28 44,36 40,44" fill="#00f0ff" filter="url(#${u}f)" opacity="0.9"/>
+<polygon points="164,36 168,28 172,36 168,44" fill="#a855f7" filter="url(#${u}f)" opacity="0.9"/>
+<polygon points="36,164 40,156 44,164 40,172" fill="#a855f7" filter="url(#${u}f)" opacity="0.9"/>
+<polygon points="164,164 168,156 172,164 168,172" fill="#00f0ff" filter="url(#${u}f)" opacity="0.9"/>
+<circle cx="100" cy="11" r="3" fill="#fff" opacity="0.85" filter="url(#${u}f)"/>
+<circle cx="100" cy="189" r="3" fill="#fff" opacity="0.85" filter="url(#${u}f)"/>
+<circle cx="11" cy="100" r="3" fill="#fff" opacity="0.85" filter="url(#${u}f)"/>
+<circle cx="189" cy="100" r="3" fill="#fff" opacity="0.85" filter="url(#${u}f)"/>
+</svg>`,
+
+  frost:(u)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" overflow="visible" style="width:100%;height:100%">
+<defs>
+  <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e0f7ff"/><stop offset="50%" stop-color="#7dd3fc"/><stop offset="100%" stop-color="#bae6fd"/></linearGradient>
+  <filter id="${u}f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<circle cx="100" cy="100" r="85" fill="none" stroke="url(#${u}g)" stroke-width="10" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="74" fill="none" stroke="#bae6fd" stroke-width="1.5" opacity="0.4"/>
+<circle cx="100" cy="100" r="91" fill="none" stroke="#e0f7ff" stroke-width="2" opacity="0.2" filter="url(#${u}f)"/>
+<polygon points="100,2 104,16 100,13 96,16" fill="#e0f7ff" filter="url(#${u}f)"/>
+<polygon points="100,198 104,184 100,187 96,184" fill="#e0f7ff" filter="url(#${u}f)"/>
+<polygon points="2,100 16,104 13,100 16,96" fill="#e0f7ff" filter="url(#${u}f)"/>
+<polygon points="198,100 184,104 187,100 184,96" fill="#e0f7ff" filter="url(#${u}f)"/>
+<polygon points="40,40 44,32 48,40 44,48" fill="#7dd3fc" filter="url(#${u}f)"/>
+<line x1="37" y1="40" x2="51" y2="40" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<line x1="44" y1="33" x2="44" y2="47" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<polygon points="160,40 164,32 168,40 164,48" fill="#7dd3fc" filter="url(#${u}f)"/>
+<line x1="157" y1="40" x2="171" y2="40" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<line x1="164" y1="33" x2="164" y2="47" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<polygon points="40,160 44,152 48,160 44,168" fill="#7dd3fc" filter="url(#${u}f)"/>
+<line x1="37" y1="160" x2="51" y2="160" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<line x1="44" y1="153" x2="44" y2="167" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<polygon points="160,160 164,152 168,160 164,168" fill="#7dd3fc" filter="url(#${u}f)"/>
+<line x1="157" y1="160" x2="171" y2="160" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<line x1="164" y1="153" x2="164" y2="167" stroke="#bae6fd" stroke-width="1.5" opacity="0.7"/>
+<circle cx="100" cy="11" r="3" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="100" cy="189" r="3" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="11" cy="100" r="3" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="189" cy="100" r="3" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+</svg>`,
+
+  ember:(u)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" overflow="visible" style="width:100%;height:100%">
+<defs>
+  <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff4444"/><stop offset="100%" stop-color="#ff6820"/></linearGradient>
+  <linearGradient id="${u}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffcc00"/><stop offset="100%" stop-color="#ff4400"/></linearGradient>
+  <filter id="${u}f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<circle cx="100" cy="100" r="91" fill="none" stroke="url(#${u}g)" stroke-width="3" opacity="0.3" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="85" fill="none" stroke="url(#${u}g)" stroke-width="12" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="73" fill="none" stroke="#ff4444" stroke-width="2" opacity="0.35"/>
+<polygon points="100,1 105,16 100,12 95,16" fill="url(#${u}h)" filter="url(#${u}f)"/>
+<polygon points="100,199 105,184 100,188 95,184" fill="url(#${u}h)" filter="url(#${u}f)"/>
+<polygon points="1,100 16,105 12,100 16,95" fill="url(#${u}h)" filter="url(#${u}f)"/>
+<polygon points="199,100 184,105 188,100 184,95" fill="url(#${u}h)" filter="url(#${u}f)"/>
+<polygon points="37,37 43,29 49,37 43,45" fill="#ff3322" filter="url(#${u}f)"/>
+<circle cx="43" cy="37" r="3" fill="#ffcc00" opacity="0.8" filter="url(#${u}f)"/>
+<polygon points="163,37 169,29 175,37 169,45" fill="#ff4422" filter="url(#${u}f)"/>
+<circle cx="169" cy="37" r="3" fill="#ffcc00" opacity="0.8" filter="url(#${u}f)"/>
+<polygon points="37,163 43,155 49,163 43,171" fill="#cc2200" filter="url(#${u}f)"/>
+<circle cx="43" cy="163" r="3" fill="#ff8800" opacity="0.8" filter="url(#${u}f)"/>
+<polygon points="163,163 169,155 175,163 169,171" fill="#ff3322" filter="url(#${u}f)"/>
+<circle cx="169" cy="163" r="3" fill="#ffcc00" opacity="0.8" filter="url(#${u}f)"/>
+</svg>`,
+
+  blossom:(u)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" overflow="visible" style="width:100%;height:100%">
+<defs>
+  <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f9a8d4"/><stop offset="50%" stop-color="#a855f7"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient>
+  <filter id="${u}f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<circle cx="100" cy="100" r="89" fill="none" stroke="url(#${u}g)" stroke-width="3" opacity="0.3" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="85" fill="none" stroke="url(#${u}g)" stroke-width="10" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="75" fill="none" stroke="url(#${u}g)" stroke-width="1.5" opacity="0.45"/>
+<ellipse cx="100" cy="7" rx="6" ry="9" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<circle cx="100" cy="7" r="2.5" fill="#fff" opacity="0.7"/>
+<ellipse cx="100" cy="193" rx="6" ry="9" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<circle cx="100" cy="193" r="2.5" fill="#fff" opacity="0.7"/>
+<ellipse cx="7" cy="100" rx="9" ry="6" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<circle cx="7" cy="100" r="2.5" fill="#fff" opacity="0.7"/>
+<ellipse cx="193" cy="100" rx="9" ry="6" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<circle cx="193" cy="100" r="2.5" fill="#fff" opacity="0.7"/>
+<polygon points="36,30 38,36 36,42 34,36" fill="#f9a8d4" filter="url(#${u}f)"/>
+<polygon points="30,36 36,38 42,36 36,34" fill="#22d3ee" filter="url(#${u}f)"/>
+<polygon points="164,30 166,36 164,42 162,36" fill="#a855f7" filter="url(#${u}f)"/>
+<polygon points="158,36 164,38 170,36 164,34" fill="#f9a8d4" filter="url(#${u}f)"/>
+<polygon points="36,158 38,164 36,170 34,164" fill="#22d3ee" filter="url(#${u}f)"/>
+<polygon points="30,164 36,166 42,164 36,162" fill="#a855f7" filter="url(#${u}f)"/>
+<polygon points="164,158 166,164 164,170 162,164" fill="#f9a8d4" filter="url(#${u}f)"/>
+<polygon points="158,164 164,166 170,164 164,162" fill="#22d3ee" filter="url(#${u}f)"/>
+</svg>`,
+
+  solar:(u)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" overflow="visible" style="width:100%;height:100%">
+<defs>
+  <linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fbbf24"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#fde68a"/></linearGradient>
+  <filter id="${u}f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<circle cx="100" cy="100" r="91" fill="none" stroke="url(#${u}g)" stroke-width="3" opacity="0.3" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="85" fill="none" stroke="url(#${u}g)" stroke-width="11" filter="url(#${u}f)"/>
+<circle cx="100" cy="100" r="74" fill="none" stroke="url(#${u}g)" stroke-width="2" opacity="0.35"/>
+<polygon points="100,1 106,15 100,12 94,15" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="100,199 106,185 100,188 94,185" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="1,100 15,106 12,100 15,94" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="199,100 185,106 188,100 185,94" fill="url(#${u}g)" filter="url(#${u}f)"/>
+<polygon points="37,37 40,30 43,37 40,44" fill="#fbbf24" filter="url(#${u}f)"/>
+<polygon points="157,37 160,30 163,37 160,44" fill="#fde68a" filter="url(#${u}f)"/>
+<polygon points="37,157 40,150 43,157 40,164" fill="#fbbf24" filter="url(#${u}f)"/>
+<polygon points="157,157 160,150 163,157 160,164" fill="#fde68a" filter="url(#${u}f)"/>
+<circle cx="100" cy="10" r="3.5" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="100" cy="190" r="3.5" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="10" cy="100" r="3.5" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="190" cy="100" r="3.5" fill="#fff" opacity="0.9" filter="url(#${u}f)"/>
+<circle cx="43" cy="37" r="2" fill="#fff" opacity="0.7"/>
+<circle cx="157" cy="37" r="2" fill="#fff" opacity="0.7"/>
+<circle cx="43" cy="163" r="2" fill="#fff" opacity="0.7"/>
+<circle cx="157" cy="163" r="2" fill="#fff" opacity="0.7"/>
+</svg>`,
+};
+let _bsvgCounter = 0;
+
 const BORDERS = [
   { id:'default',         name:'Padrão',    grad:'linear-gradient(135deg,#ff2d92,#a855f7)', img:null },
+  // ── Bordas SVG (transparência real, sem PNG) ──
+  { id:'svg_nexus',   name:'Nexus',   grad:'linear-gradient(135deg,#00f0ff,#a855f7)', svgFn: _BSVG.nexus },
+  { id:'svg_frost',   name:'Frost',   grad:'linear-gradient(135deg,#7dd3fc,#e0f7ff)', svgFn: _BSVG.frost },
+  { id:'svg_ember',   name:'Ember',   grad:'linear-gradient(135deg,#ff4444,#ff6820)', svgFn: _BSVG.ember },
+  { id:'svg_blossom', name:'Blossom', grad:'linear-gradient(135deg,#f9a8d4,#22d3ee)', svgFn: _BSVG.blossom },
+  { id:'svg_solar',   name:'Solar',   grad:'linear-gradient(135deg,#fbbf24,#fde68a)', svgFn: _BSVG.solar },
   // ── Bordas de personagem (imagem PNG) ──
   { id:'borda_dodoco',    name:'Dodoco',    grad:'linear-gradient(135deg,#00f0ff,#a855f7)', img:'images/BordaDodoco.png' },
   { id:'borda_icy',       name:'Icy',       grad:'linear-gradient(135deg,#00f0ff,#ff2d92)', img:'images/BordaIcy.png' },
@@ -2306,9 +2443,15 @@ function renderPsetupBorderGrid(gridId, selectedId, onSelect){
     const sz = 52;
     const pngSz = Math.round(sz * 1.9);
     const off  = -Math.round((pngSz - sz) / 2);
-    const previewInner = b.img
-      ? `<img src="${b.img}" style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;object-fit:cover;pointer-events:none;mix-blend-mode:screen">`
-      : `<div style="position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent;background:${b.grad} border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;z-index:2"></div>`;
+    let previewInner;
+    if(b.svgFn){
+      const uid = 'bprev_' + b.id;
+      previewInner = `<div style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;overflow:visible;pointer-events:none">${b.svgFn(uid)}</div>`;
+    } else if(b.img){
+      previewInner = `<img src="${b.img}" style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;object-fit:cover;pointer-events:none;mix-blend-mode:screen">`;
+    } else {
+      previewInner = `<div style="position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent;background:${b.grad} border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;z-index:2"></div>`;
+    }
     return `
     <div class="psetup-border-card ${selectedId===b.id?'selected':''}" data-borderid="${b.id}">
       <div class="psetup-border-preview" style="position:relative;width:${sz}px;height:${sz}px;overflow:visible">
@@ -2381,17 +2524,34 @@ function saveProfile(){
 function applyBorderRing(ringEl, border, avatarWrap, inset){
   if(!ringEl) return;
 
-  // Remove overlay anterior
   if(avatarWrap){
-    avatarWrap.querySelectorAll('.border-img-overlay').forEach(e=>e.remove());
+    avatarWrap.querySelectorAll('.border-img-overlay,.border-svg-overlay').forEach(e=>e.remove());
     avatarWrap.style.overflow = 'visible';
   }
 
-  if(border && border.img){
+  if(border && border.svgFn){
     ringEl.style.cssText = 'display:none';
     if(avatarWrap){
       const avatarEl = avatarWrap.querySelector('img:not(.border-img-overlay)');
-      // Tenta offsetWidth, depois style.width, depois atributo width, fallback 52
+      const sz = (avatarEl && avatarEl.offsetWidth > 0)
+        ? avatarEl.offsetWidth
+        : (avatarEl && parseInt(avatarEl.style.width || avatarEl.getAttribute('width')))
+          || parseInt(avatarWrap.style.width)
+          || avatarWrap.offsetWidth
+          || 52;
+      const pngSz = Math.round(sz * 1.9);
+      const offset = -Math.round((pngSz - sz) / 2);
+      const uid = 'bsvg_' + (++_bsvgCounter);
+      const ov = document.createElement('div');
+      ov.className = 'border-svg-overlay';
+      ov.style.cssText = `position:absolute;width:${pngSz}px;height:${pngSz}px;top:${offset}px;left:${offset}px;pointer-events:none;z-index:2;overflow:visible`;
+      ov.innerHTML = border.svgFn(uid);
+      avatarWrap.appendChild(ov);
+    }
+  } else if(border && border.img){
+    ringEl.style.cssText = 'display:none';
+    if(avatarWrap){
+      const avatarEl = avatarWrap.querySelector('img:not(.border-img-overlay)');
       const sz = (avatarEl && avatarEl.offsetWidth > 0)
         ? avatarEl.offsetWidth
         : (avatarEl && parseInt(avatarEl.style.width || avatarEl.getAttribute('width')))
@@ -2408,7 +2568,7 @@ function applyBorderRing(ringEl, border, avatarWrap, inset){
       avatarWrap.appendChild(ov);
     }
   } else if(border){
-    avatarWrap && avatarWrap.querySelectorAll('.border-img-overlay').forEach(e=>e.remove());
+    avatarWrap && avatarWrap.querySelectorAll('.border-img-overlay,.border-svg-overlay').forEach(e=>e.remove());
     ringEl.style.display = '';
     const ins = inset || '-4px';
     ringEl.style.cssText = `position:absolute;inset:${ins};border-radius:50%;border:3px solid transparent;background:${border.grad} border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;pointer-events:none;z-index:2`;
