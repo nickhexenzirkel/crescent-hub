@@ -557,6 +557,8 @@ canvas{display:block}
 .diff-btn.insane.sel{border-color:#ff00cc;color:#ff00cc;background:rgba(255,0,204,.10);text-shadow:0 0 8px #ff00cc}
 .diff-btn.impossible.sel{border-color:#ff8800;color:#ff8800;background:rgba(255,136,0,.10);text-shadow:0 0 10px #ff8800;animation:impBlink .8s ease-in-out infinite}
 @keyframes impBlink{0%,100%{box-shadow:0 0 8px #ff8800}50%{box-shadow:0 0 20px #ff8800,0 0 40px #ff000088}}
+.diff-btn.nightmare.sel{border-color:#cc0000;color:#ff1111;background:rgba(180,0,0,.15);text-shadow:0 0 12px #ff0000,0 0 24px #ff000088;animation:nmBlink .5s ease-in-out infinite}
+@keyframes nmBlink{0%,100%{box-shadow:0 0 10px #cc0000,inset 0 0 8px rgba(180,0,0,.2)}50%{box-shadow:0 0 28px #ff0000,0 0 55px #88000088,inset 0 0 16px rgba(200,0,0,.3)}}
 .prev-play{background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:12px;color:#000;font-family:var(--font-pixel);font-size:14px;font-weight:900;padding:16px;cursor:pointer;letter-spacing:2px;transition:transform .1s,box-shadow .15s}
 .prev-play:hover{box-shadow:0 0 30px rgba(0,240,255,.5);transform:scale(1.02)}
 .prev-play:active{transform:scale(.97)}
@@ -1456,6 +1458,7 @@ body{padding-top:36px}
         <button class="diff-btn hard" onclick="selectDiff('hard')">DIFÍCIL</button>
         <button class="diff-btn insane" onclick="selectDiff('insane')" style="min-width:calc(50% - 4px)">INSANO</button>
         <button class="diff-btn impossible" onclick="selectDiff('impossible')" style="min-width:calc(50% - 4px)">IMPOSSÍVEL</button>
+        <button class="diff-btn nightmare" onclick="selectDiff('nightmare')" style="width:100%">☠ PESADELO</button>
       </div>
     </div>
     <div id="localVidBadge" style="display:none;font-size:10px;letter-spacing:1px;color:rgba(0,240,255,.6);text-align:center;margin-top:-8px;padding:4px 0"></div>
@@ -1719,7 +1722,8 @@ const DIFF_CFG = {
   normal:     {travel:1.1, density:0.55, holdChance:0.24, doubleChance:0.08, bpm:1.0, minGap:0.26},
   hard:       {travel:1.1, density:0.82, holdChance:0.20, doubleChance:0.20, bpm:1.0, minGap:0.14},
   insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.44, bpm:1.0, minGap:0.09},
-  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.62, bpm:1.0, minGap:0.05}
+  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.62, bpm:1.0, minGap:0.05},
+  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.85, bpm:1.0, minGap:0.03}
 };
 
 function setKeyLayout(k){
@@ -2785,8 +2789,8 @@ function renderLibraryPanel(){
   _libCache=entries;
   libGrid.innerHTML='';
   entries.forEach((e,idx)=>{
-    const DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível'};
-    const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800'};
+    const DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
+    const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
     const gc=e.gradeCol||'#00f0ff';
     const safeTitle=(e.title||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const starsHtml=Array.from({length:5},(_,i)=>{const lit=i<e.stars;const sc=STAR_COLORS[i];return lit?`<span style="color:${sc};filter:drop-shadow(0 0 4px ${sc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
