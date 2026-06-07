@@ -1539,7 +1539,7 @@ body{padding-top:36px}
   <div class="gp-btn" id="gpB2" style="border-color:#b000ff;color:#b000ff;background:rgba(176,0,255,.08)">L2</div>
   <div class="gp-btn" id="gpB3" style="border-color:#fff000;color:#fff000;background:rgba(255,240,0,.08)">R2</div>
 </div>
-<div id="videoBgWrap"><div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div></div>
+<div id="videoBgWrap"></div>
 
 <!-- Controller Context Hint -->
 <div id="gpContextHint">
@@ -1804,7 +1804,7 @@ function startAudioIframe(videoId){
   // 1×1 px, fora da tela — áudio toca, vídeo nunca é visto → sem recomendações
   f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
   f.setAttribute('allow','autoplay');
-  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=0`;
+  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=0&loop=1&playlist=${videoId}`;
   document.body.appendChild(f);
 }
 function stopAudioIframe(){
@@ -1813,97 +1813,65 @@ function stopAudioIframe(){
   if(_audioIframeTimer){clearTimeout(_audioIframeTimer);_audioIframeTimer=null;}
 }
 
-/* ─── Servidor local para download de vídeo ─── */
-const SERVER_URL='https://crescent-hub-server.onrender.com';
-const _localVideoStatus={}; // videoId → 'downloading'|'ready'|'error'|'not_found'
+/* ═══════════════════════════════════════════════════════════════════
+   FUNDO DE VÍDEO via IFRAME do YouTube (sem download / sem servidor)
+   ───────────────────────────────────────────────────────────────────
+   Sistema anti-recomendação (sem depender da JS API, que falha quando o
+   jogo roda dentro de outro iframe):
+     1) loop=1&playlist=ID → o vídeo NUNCA "termina", então a grade de
+        "próximos vídeos" do final nunca aparece (ele reinicia sozinho).
+     2) Super-escala + corte central (overflow:hidden no wrap) → os cards
+        de end-screen, ancorados nas BORDAS do quadro, ficam fora da área
+        visível.
+     3) O jogo já escurece as laterais (estrada em perspectiva) + fade
+        total do fundo nos últimos segundos, cobrindo qualquer card que
+        surja no miolo antes do loop.
+   ═══════════════════════════════════════════════════════════════════ */
+let _videoBgActive=false, _videoBgFaded=false;
 
-function _triggerLocalDownload(videoId){
-  _localVideoStatus[videoId]='downloading';
-  const badge=document.getElementById('localVidBadge');
-  if(badge){badge.style.display='block';badge.style.color='rgba(0,240,255,.6)';badge.textContent='⬇ Preparando vídeo local...';}
-  fetch(`${SERVER_URL}/api/ytdl/download`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId})})
-    .catch(()=>{_localVideoStatus[videoId]='error';if(badge)badge.style.display='none';});
-  _pollLocalVideo(videoId);
-}
-function _pollLocalVideo(videoId){
-  fetch(`${SERVER_URL}/api/ytdl/status/${videoId}`)
-    .then(r=>r.json())
-    .then(({status})=>{
-      _localVideoStatus[videoId]=status;
-      const badge=document.getElementById('localVidBadge');
-      const btn=document.querySelector('.prev-play');
-      if(status==='ready'){
-        if(badge){badge.textContent='✓ Vídeo local pronto — sem anúncios';badge.style.color='#00ff88';}
-        if(btn){btn.textContent='▶ PLAY';btn.style.opacity='1';}
-      } else if(status==='downloading'){
-        if(badge)badge.textContent='⬇ Preparando vídeo local...';
-        if(btn){btn.textContent='▶ PLAY (YouTube)';btn.style.opacity='0.8';}
-        setTimeout(()=>_pollLocalVideo(videoId),3000);
-      } else {
-        if(badge)badge.style.display='none';
-        if(btn){btn.textContent='▶ PLAY';btn.style.opacity='1';}
-      }
-    })
-    .catch(()=>{_localVideoStatus[videoId]='error';const b=document.getElementById('localVidBadge');if(b)b.style.display='none';});
-}
-function _makeLocalBgPlayer(videoId){
-  const wrap=document.getElementById('videoBgWrap');
-  wrap.innerHTML=`<video id="uvLocalVid" muted playsinline preload="auto" style="position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;pointer-events:none;background:#000"></video>`;
-  const v=document.getElementById('uvLocalVid');
-  v.src=`${SERVER_URL}/api/ytdl/serve/${videoId}`;
-  v.load(); // começa a baixar o buffer imediatamente
-  v.addEventListener('ended',()=>{if(gameState==='playing')fadeOutVideoBg(()=>setTimeout(showResult,300));});
-  v.addEventListener('error',(e)=>console.warn('video bg error',e));
-  let _seekPending=null;
-  v.addEventListener('loadedmetadata',()=>{
-    if(_seekPending!=null){try{v.currentTime=_seekPending;}catch(e){} _seekPending=null;}
-  });
-  return{
-    seekTo:(t)=>{
-      try{
-        if(!isFinite(t)) return;
-        const tSafe=Math.max(0,t);
-        if(v.readyState>=1) v.currentTime=tSafe;
-        else _seekPending=tSafe;
-      }catch(e){}
-    },
-    playVideo:()=>v.play().catch(()=>{}),
-    pauseVideo:()=>v.pause(),
-    stopVideo:()=>{v.pause();v.src='';},
-    getCurrentTime:()=>v.currentTime||0,
-    getDuration:()=>isFinite(v.duration)&&v.duration>0?v.duration:songDuration,
-    getPlayerState:()=>v.ended?0:v.paused?2:1,
-    destroy:()=>{v.pause();v.src='';},
-    _isLocal:true,
-  };
-}
-
-/* ─── YouTube IFrame background player ─── */
-let _ytPlayer=null, _ytPlayerReady=false, _ytPlayerStarted=false, _vbgSyncTick=0;
-window.onYouTubeIframeAPIReady=function(){/* API pronta */};
-
+// Prepara o wrap (fundo preto durante a contagem). O iframe só é criado em
+// startVideoBg(), sincronizado com o fim do countdown.
 function applyVideoBg(videoId){
-  const wrap=document.getElementById('videoBgWrap');
-  if(_ytPlayer){try{_ytPlayer.destroy();}catch(e){} _ytPlayer=null;}
-  _ytPlayerReady=false; _ytPlayerStarted=false;
-  wrap.classList.remove('active');
-  wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';
-
-  // Só usa background se o vídeo local já estiver baixado.
-  // YouTube IFrame foi removido: o IFrame API não funciona em iframe aninhado
-  // (postMessage falha) — sem controle sobre end-screens/recomendações.
-  if(bgMode==='video'&&videoId&&_localVideoStatus[videoId]==='ready'){
+  if(_videoBgActive) hideVideoBg();
+  _videoBgFaded=false;
+  if(bgMode==='video'&&videoId){
+    const wrap=document.getElementById('videoBgWrap');
+    wrap.style.transition=''; wrap.style.opacity='1'; wrap.style.background='#000';
+    wrap.innerHTML='';
     wrap.classList.add('active');
-    _ytPlayer=_makeLocalBgPlayer(videoId);
-    _ytPlayerReady=true;
+    _videoBgActive=true;
   }
 }
-function hideVideoBg(){
-  if(_ytPlayer){try{_ytPlayer.stopVideo();}catch(e){} _ytPlayer=null;}
-  _ytPlayerReady=false; _ytPlayerStarted=false;
+
+// Cria o iframe visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
+function startVideoBg(videoId){
+  if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
-  if(wrap){wrap.style.transition='';wrap.style.opacity='';wrap.classList.remove('active'); wrap.innerHTML='<div id="ytPlayerDiv" style="position:absolute;inset:-10%;width:120%;height:120%;pointer-events:none"></div>';}
+  wrap.classList.add('active'); wrap.style.background='#000';
+  _videoBgActive=true; _videoBgFaded=false;
+  const f=document.createElement('iframe');
+  f.id='ytVideoFrame';
+  // Super-escala (~148%) centralizada → corta as bordas onde ficam os end-cards
+  f.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+    +'width:148%;height:148%;border:none;pointer-events:none;background:#000;';
+  f.setAttribute('allow','autoplay; encrypted-media');
+  f.setAttribute('frameborder','0');
+  f.src=`https://www.youtube.com/embed/${videoId}`
+    +`?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3`
+    +`&disablekb=1&fs=0&playsinline=1&enablejsapi=0&loop=1&playlist=${videoId}`;
+  wrap.appendChild(f);
 }
+
+function hideVideoBg(){
+  const wrap=document.getElementById('videoBgWrap');
+  if(wrap){
+    wrap.classList.remove('active');
+    wrap.style.transition=''; wrap.style.opacity='';
+    wrap.innerHTML='';
+  }
+  _videoBgActive=false; _videoBgFaded=false;
+}
+
 function fadeOutVideoBg(cb){
   const wrap=document.getElementById('videoBgWrap');
   if(!wrap||!wrap.classList.contains('active')){hideVideoBg();if(cb)cb();return;}
@@ -1911,36 +1879,20 @@ function fadeOutVideoBg(cb){
   wrap.style.opacity='0';
   setTimeout(()=>{hideVideoBg();if(cb)cb();},850);
 }
-// ─── SYNC: mantém YouTube player sincronizado com songTime() ───
+
+// ─── Esconde o fundo nos últimos segundos (antes do loop/end-screen) ───
 function syncVideoBg(){
-  if(bgMode!=='video'||!_ytPlayer||!_ytPlayerReady) return;
-  const st=songTime();
-  try{
-    const state=_ytPlayer.getPlayerState();
-    if(state===0) return; // ENDED — não interferir
-    if(gameState==='playing'){
-      if(!_ytPlayerStarted){
-        _ytPlayer.seekTo(Math.max(0,st),true);
-        _ytPlayer.playVideo();
-        _ytPlayerStarted=true;
-      } else {
-        _vbgSyncTick++;
-        if(_vbgSyncTick%90===0){
-          const curT=_ytPlayer.getCurrentTime();
-          const vDur=_ytPlayer.getDuration();
-          if(vDur>10&&curT>0){
-            const rem=vDur-curT;
-            const wrap=document.getElementById('videoBgWrap');
-            if(wrap&&wrap.classList.contains('active')&&rem<3){
-              // Fade nos últimos 3s do vídeo local
-              wrap.style.transition='opacity 1s linear';
-              wrap.style.opacity=Math.max(0,rem/3);
-            }
-          }
-        }
-      }
+  if(bgMode!=='video'||!_videoBgActive||_videoBgFaded) return;
+  if(gameState!=='playing'||!songDuration) return;
+  const rem=songDuration-songTime();
+  if(rem<=4){ // fade gradual nos últimos 4s — cobre end-cards e o ponto de loop
+    const wrap=document.getElementById('videoBgWrap');
+    if(wrap){
+      wrap.style.transition='opacity 0.5s linear';
+      wrap.style.opacity=String(Math.max(0,Math.min(1,rem/4)));
+      if(rem<=0.3) _videoBgFaded=true;
     }
-  }catch(e){}
+  }
 }
 // ─── FULLSCREEN ───
 function toggleFullscreen(){
@@ -2757,72 +2709,6 @@ function requestYtAuth(){
   (window.parent !== window ? window.parent : window).postMessage({type:'UNIKO_YT_EXPORT_COOKIES'},'*');
 }
 
-async function _offerYtAuth(vid){
-  const authBtn=document.getElementById('loadAuthBtn');
-  const authSub=document.getElementById('loadAuthSub');
-  if(authBtn){authBtn.style.display='block';authBtn.disabled=false;authBtn.textContent='🍪 AUTORIZAR VIA CATBOT';}
-  if(authSub) authSub.style.display='block';
-  try{
-    await new Promise((res,rej)=>{
-      _ytAuthResolve=res; _ytAuthReject=rej;
-      setTimeout(()=>rej(new Error('timeout')),60000);
-    });
-    if(authBtn){authBtn.style.display='none';authBtn.disabled=false;}
-    if(authSub) authSub.style.display='none';
-    _localVideoStatus[vid]='downloading';
-    return await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
-  }catch{
-    if(authBtn){authBtn.style.display='none';authBtn.disabled=false;}
-    if(authSub) authSub.style.display='none';
-    return 'error';
-  }
-}
-
-async function _waitForVideo(vid, setMsg){
-  const MAX_RETRIES=0, POLL_INTERVAL=3000, TIMEOUT=180000;
-  let retries=0, tStart=Date.now();
-
-  const triggerDownload=async()=>{
-    // Aguarda o servidor estar pronto (retry se 503)
-    for(let i=0;i<8;i++){
-      setMsg(`Conectando ao servidor${i>0?` (tentativa ${i+1})`:''}...`, 12+i*2);
-      const res=await fetch(`${SERVER_URL}/api/ytdl/download`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({videoId:vid})
-      }).catch(()=>null);
-      if(res&&res.ok) return true;
-      if(res&&res.status===503){ await delay(4000); continue; }
-      return false; // outro erro HTTP
-    }
-    return false;
-  };
-
-  await triggerDownload();
-
-  while(Date.now()-tStart<TIMEOUT){
-    await delay(POLL_INTERVAL);
-    const elapsed=Date.now()-tStart;
-    const pct=Math.min(90, 18+(elapsed/TIMEOUT)*72);
-    setMsg(`Baixando vídeo... ${Math.round(elapsed/1000)}s`, pct);
-
-    const r=await fetch(`${SERVER_URL}/api/ytdl/status/${vid}`)
-      .then(res=>res.json()).catch(()=>({status:'network_error'}));
-    _localVideoStatus[vid]=r.status;
-
-    if(r.status==='ready') return 'ready';
-
-    if(r.status==='error'){
-      retries++;
-      if(retries>MAX_RETRIES) return 'error';
-      setMsg(`Falhou, tentando novamente (${retries}/${MAX_RETRIES})...`, 18);
-      await delay(2000);
-      await triggerDownload(); // re-POST limpa o job de erro no servidor
-      tStart=Date.now(); // reseta timeout por tentativa
-    }
-    // 'downloading' | 'not_found' | 'network_error' → continua aguardando
-  }
-  return 'timeout';
-}
 
 async function startLoad(){
   const url=(document.getElementById('urlIn').value||'').trim();
@@ -2841,39 +2727,18 @@ async function startLoad(){
   if(skipBtn) skipBtn.style.display='none';
 
   try{
-    setProgress(3,'Conectando ao Catbot...');
-    await _preSendCookies();
-    setProgress(8,'Buscando informações do vídeo...');
+    setProgress(25,'Buscando informações do vídeo...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`)
       .then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||url;
     pendingDuration=0;
-
-    _localVideoStatus[vid]='downloading';
-    const result=await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
-
-    if(result==='ready'){
-      setProgress(100,'Vídeo pronto! ✓');
-      await delay(350);
-      showPreview(url,pendingTitle,pendingDuration||240);
-    } else {
-      document.getElementById('loadTxt').textContent='BLOQUEADO';
-      setProgress(0,'YouTube bloqueou o download.');
-      const retryResult=await _offerYtAuth(vid);
-      if(retryResult==='ready'){
-        setProgress(100,'Vídeo pronto! ✓');
-        await delay(350);
-        showPreview(url,pendingTitle,pendingDuration||240);
-      } else {
-        document.getElementById('loadTxt').textContent='ERRO';
-        setProgress(0,'Não foi possível baixar o vídeo. Tente outro link.');
-        await delay(4000); goMenu();
-      }
-    }
+    setProgress(100,'Pronto! ✓');
+    await delay(250);
+    showPreview(url,pendingTitle,pendingDuration||240);
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';
     setProgress(0,err.message);
-    await delay(4000); goMenu();
+    await delay(3000); goMenu();
   }
 }
 
@@ -2916,18 +2781,8 @@ function showPreview(url,title,dur){
   document.getElementById('prevTitle').textContent=songName;
   document.getElementById('prevArtist').textContent=artist;
   document.getElementById('prevDur').textContent=dur?fmtDur(dur):'';
-  // Badge de vídeo local
   const badge=document.getElementById('localVidBadge');
-  if(badge){
-    const vId=vid||lastVideoUrl;
-    const st=vId?_localVideoStatus[vId]:null;
-    if(st==='ready'){
-      badge.style.display='block'; badge.style.color='#00ff88';
-      badge.textContent='✓ Vídeo local pronto — sem anúncios';
-    } else {
-      badge.style.display='none'; badge.textContent='';
-    }
-  }
+  if(badge){ badge.style.display='none'; badge.textContent=''; }
   selectDiff('normal'); showScreen('previewScr');
 }
 
@@ -3111,8 +2966,12 @@ function beginGame(){
     srcNode.onended=()=>{if(gameState==='playing') setTimeout(showResult,1500);};
   } else {
     gameStartWallTime=performance.now()+startDelay*1000;
-    // Inicia áudio via iframe invisible — coincide com o fim do countdown
-    _audioIframeTimer=setTimeout(()=>startAudioIframe(lastVideoUrl), startDelay*1000);
+    // Coincide com o fim do countdown. No modo vídeo, o iframe visível é a
+    // própria fonte de áudio; no modo efeitos, usa o iframe offscreen só p/ som.
+    _audioIframeTimer=setTimeout(()=>{
+      if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl);
+      else startAudioIframe(lastVideoUrl);
+    }, startDelay*1000);
   }
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
 }
@@ -5962,38 +5821,17 @@ async function libReplay(idx){
   const skipBtn=document.getElementById('loadSkipBtn');
   if(skipBtn) skipBtn.style.display='none';
   try{
-    setProgress(3,'Conectando ao Catbot...');
-    await _preSendCookies();
-    setProgress(8,'Buscando informações...');
+    setProgress(25,'Buscando informações...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`).then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||e.title||e.ytUrl;
     pendingDuration=e.dur||240;
-
-    _localVideoStatus[vid]='downloading';
-    const result=await _waitForVideo(vid,(msg,pct)=>setProgress(pct,msg));
-
-    if(result==='ready'){
-      setProgress(100,'Vídeo pronto! ✓');
-      await delay(350);
-      showPreview(e.ytUrl, pendingTitle, pendingDuration);
-    } else {
-      document.getElementById('loadTxt').textContent='BLOQUEADO';
-      setProgress(0,'YouTube bloqueou o download.');
-      const retryResult=await _offerYtAuth(vid);
-      if(retryResult==='ready'){
-        setProgress(100,'Vídeo pronto! ✓');
-        await delay(350);
-        showPreview(e.ytUrl, pendingTitle, pendingDuration);
-      } else {
-        document.getElementById('loadTxt').textContent='ERRO';
-        setProgress(0,'Não foi possível baixar o vídeo. Tente outro link.');
-        await delay(4000); goMenu();
-      }
-    }
+    setProgress(100,'Pronto! ✓');
+    await delay(250);
+    showPreview(e.ytUrl, pendingTitle, pendingDuration);
   }catch(err){
     document.getElementById('loadTxt').textContent='ERRO';
     setProgress(0,err.message);
-    await delay(4000); goMenu();
+    await delay(3000); goMenu();
   }
 }
 
