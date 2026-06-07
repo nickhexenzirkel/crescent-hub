@@ -1723,7 +1723,7 @@ const DIFF_CFG = {
   hard:       {travel:1.1, density:0.82, holdChance:0.20, doubleChance:0.20, bpm:1.0, minGap:0.14},
   insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.44, bpm:1.0, minGap:0.09},
   impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.62, bpm:1.0, minGap:0.05},
-  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.85, bpm:1.0, minGap:0.03}
+  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.85, bpm:1.0, minGap:0.03, stairChance:0.22}
 };
 
 function setKeyLayout(k){
@@ -3179,6 +3179,22 @@ function generateChart(beats,dur,cfg){
     if(t<skipUntil) continue;
     if(cfg.density<1&&Math.random()>cfg.density) continue;
     if(t-lastNoteTime<minGap) continue;
+
+    // Staircase pattern: 4 rapid notes descending or ascending across lanes
+    if(cfg.stairChance && Math.random()<cfg.stairChance){
+      const dir=Math.random()<0.5?1:-1; // 1=right(0→3), -1=left(3→0)
+      const startL=dir===1?0:3;
+      const step=0.085;
+      for(let s=0;s<4;s++){
+        const sl=startL+dir*s;
+        const st=t+s*step;
+        if(st>dur-0.6) break;
+        notes.push({id:notes.length,lane:sl,hitTime:st,holdDur:0,
+          state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
+      }
+      lastL=startL+dir*3; skipUntil=t+4*step+0.12; lastNoteTime=t+3*step;
+      continue;
+    }
 
     const gapAfter=gaps[i];
     // Hold only when there's enough silence after AND random passes.
