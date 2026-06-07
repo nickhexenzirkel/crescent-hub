@@ -3166,12 +3166,40 @@ async function detectBeats(ab){
 }
 
 function generateChart(beats,dur,cfg){
-  const notes=[];let lastL=-1;
-  const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
+  const notes=[];
   const SUSTAIN_MIN=0.45;
   let skipUntil=-1;
   const minGap=cfg.minGap||0.18;
   let lastNoteTime=-999;
+  let lastL=-1;
+
+  const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
+
+  // Estimate tempo from first 16 beats so pattern steps sync to the actual song BPM
+  const refB=Math.min(beats.length-1,16);
+  const avgBeat=refB>0?(beats[refB]-beats[0])/refB:0.5;
+
+  // Curated 8-lane phrases — each is a repeating motif that feels intentional.
+  // Notes cycle through the phrase in order, so the player can start anticipating lanes.
+  const PHRASES=[
+    [1,2,1,2,1,2,1,2],  // center flutter
+    [0,1,2,3,0,1,2,3],  // walk right
+    [3,2,1,0,3,2,1,0],  // walk left
+    [0,3,0,3,1,2,1,2],  // outer→inner
+    [1,2,1,2,0,3,0,3],  // inner→outer
+    [0,2,1,3,0,2,1,3],  // zigzag
+    [3,1,2,0,3,1,2,0],  // reverse zigzag
+    [1,3,0,2,1,3,0,2],  // cross-skip
+  ];
+
+  function push(lane,time,holdDur=0){
+    notes.push({id:notes.length,lane,hitTime:time,holdDur,
+      state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
+  }
+
+  let phrase=PHRASES[0];
+  let phraseStep=0;
+  let phraseAnchor=0; // beat index where current phrase started
 
   for(let i=0;i<beats.length;i++){
     const t=beats[i];
@@ -3180,70 +3208,68 @@ function generateChart(beats,dur,cfg){
     if(cfg.density<1&&Math.random()>cfg.density) continue;
     if(t-lastNoteTime<minGap) continue;
 
-    // Inside-out pattern: S D S D | AF AF | S D S D  (inner lanes alternating, then outer double burst)
-    if(cfg.insideOutChance && Math.random()<cfg.insideOutChance){
-      const ioStep=0.10;
-      // lanes: 1,2,1,2 inner → [0,3],[0,3] outer double → 1,2,1,2 inner
-      const ioSeq=[[1],[2],[1],[2],[0,3],[0,3],[1],[2],[1],[2]];
-      let lastIoT=t;
-      ioSeq.forEach((laneSet,idx)=>{
-        const st=t+idx*ioStep;
+    // Rotate phrase every 8 beats for musical section feel
+    if(i-phraseAnchor>=8){
+      phrase=PHRASES[Math.floor(Math.random()*PHRASES.length)];
+      phraseStep=0; phraseAnchor=i;
+    }
+
+    // Special patterns fire only at phrase downbeats (every 4 beats) to avoid mid-phrase chaos
+    const beatInPhrase=i-phraseAnchor;
+    const isDownbeat=beatInPhrase%4===0;
+
+    // Inside-out: S D S D | A+F A+F | S D — step = half a real beat (tempo-synced)
+    if(isDownbeat&&cfg.insideOutChance&&Math.random()<cfg.insideOutChance){
+      const step=Math.max(avgBeat*0.5,0.15);
+      const seq=[[1],[2],[1],[2],[0,3],[0,3],[1],[2]];
+      let lastT=t;
+      seq.forEach((ls,idx)=>{
+        const st=t+idx*step;
         if(st>dur-0.6) return;
-        laneSet.forEach(sl=>{
-          notes.push({id:notes.length,lane:sl,hitTime:st,holdDur:0,
-            state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
-        });
-        lastIoT=st;
+        ls.forEach(sl=>push(sl,st));
+        lastT=st;
       });
-      lastL=2; skipUntil=t+ioSeq.length*ioStep+0.15; lastNoteTime=lastIoT;
+      lastL=2; skipUntil=t+seq.length*step+0.2; lastNoteTime=lastT;
+      phraseStep=0; phraseAnchor=i;
       continue;
     }
 
-    // Staircase pattern: 4 notes ascending or descending across lanes (A→S→D→F or F→D→S→A)
-    if(cfg.stairChance && Math.random()<cfg.stairChance){
-      const dir=Math.random()<0.5?1:-1; // 1=right(0→3), -1=left(3→0)
+    // Staircase: 4-note sweep A→F or F→A — step = half a real beat (tempo-synced)
+    if(isDownbeat&&cfg.stairChance&&Math.random()<cfg.stairChance){
+      const dir=Math.random()<0.5?1:-1;
       const startL=dir===1?0:3;
-      const step=0.14;
+      const step=Math.max(avgBeat*0.5,0.16);
       for(let s=0;s<4;s++){
-        const sl=startL+dir*s;
         const st=t+s*step;
         if(st>dur-0.6) break;
-        notes.push({id:notes.length,lane:sl,hitTime:st,holdDur:0,
-          state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
+        push(startL+dir*s,st);
       }
-      lastL=startL+dir*3; skipUntil=t+4*step+0.15; lastNoteTime=t+3*step;
+      lastL=startL+dir*3; skipUntil=t+4*step+0.2; lastNoteTime=t+3*step;
       continue;
     }
 
+    // Normal note — lane comes from the phrase pattern (predictable, not random)
+    const patLane=phrase[phraseStep%phrase.length];
+    phraseStep++;
+
     const gapAfter=gaps[i];
-    // Hold only when there's enough silence after AND random passes.
-    // If hold check fails, always fall through to tap — never skip a beat that cleared all filters.
-    const isHold = gapAfter>=SUSTAIN_MIN && Math.random()<cfg.holdChance;
+    const isHold=gapAfter>=SUSTAIN_MIN&&Math.random()<cfg.holdChance;
 
     if(isHold){
       const holdDur=Math.min(gapAfter*0.80,3.5);
-      let l,tries=0;
-      do{l=Math.floor(Math.random()*4);tries++;}while(l===lastL&&tries<6);
-      notes.push({id:notes.length,lane:l,hitTime:t,holdDur,
-        state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
-      lastL=l; skipUntil=t+holdDur+0.15; lastNoteTime=t;
+      push(patLane,t,holdDur);
+      lastL=patLane; skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
-      let lanes=[];
-      const localDensity=beats.filter(b=>b>t-2&&b<=t).length;
-      if(i%20===0&&localDensity<5&&Math.random()<cfg.doubleChance){
-        const l1=Math.floor(Math.random()*4);lanes=[l1,(l1+2)%4];
-      } else if(i%9===0&&Math.random()<cfg.doubleChance*.6){
-        const l1=Math.floor(Math.random()*4);lanes=[l1,(l1+1)%4];
+      if(Math.random()<cfg.doubleChance){
+        // Complementary pair: always crosses to the opposite side (0↔2, 1↔3)
+        const pair=patLane<2?patLane+2:patLane-2;
+        [patLane,pair].forEach(l=>push(l,t));
+        lastL=pair;
       } else {
-        let l,tries=0;
-        do{l=Math.floor(Math.random()*4);tries++;}while(l===lastL&&tries<5&&Math.random()>.12);
-        lanes=[l];
+        push(patLane,t);
+        lastL=patLane;
       }
-      lanes.forEach(l=>{
-        notes.push({id:notes.length,lane:l,hitTime:t,holdDur:0,
-          state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
-      });
-      if(lanes.length){lastL=lanes[lanes.length-1];lastNoteTime=t;}
+      lastNoteTime=t;
     }
   }
   return notes.sort((a,b)=>a.hitTime-b.hitTime);
