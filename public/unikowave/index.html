@@ -1814,27 +1814,39 @@ function stopAudioIframe(){
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   FUNDO DE VÍDEO via IFRAME do YouTube (sem download / sem servidor)
+   FUNDO DE VÍDEO via IFrame Player API do YouTube (sem download / servidor)
    ───────────────────────────────────────────────────────────────────
-   Sistema anti-recomendação (sem depender da JS API, que falha quando o
-   jogo roda dentro de outro iframe):
-     1) loop=1&playlist=ID → o vídeo NUNCA "termina", então a grade de
-        "próximos vídeos" do final nunca aparece (ele reinicia sozinho).
+   Sistema anti-recomendação + fim correto da partida:
+     1) A Player API avisa quando o vídeo termina (onStateChange ENDED) e
+        permite ler tempo/duração → cortamos o vídeo ~1s ANTES do fim e
+        abrimos a tela de pontuação. Assim a grade de "próximos vídeos"
+        (que só aparece no fim) nunca chega a ser renderizada.
      2) Super-escala + corte central (overflow:hidden no wrap) → os cards
-        de end-screen, ancorados nas BORDAS do quadro, ficam fora da área
-        visível.
-     3) O jogo já escurece as laterais (estrada em perspectiva) + fade
-        total do fundo nos últimos segundos, cobrindo qualquer card que
-        surja no miolo antes do loop.
+        de end-screen, ancorados nas BORDAS do quadro, ficam fora de vista.
+     3) O jogo já escurece as laterais (estrada) + fade do fundo no fim.
    ═══════════════════════════════════════════════════════════════════ */
-let _videoBgActive=false, _videoBgFaded=false;
+const VB_IFRAME_CSS='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+  +'width:148%;height:148%;border:none;pointer-events:none;background:#000;';
+let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
+let _vbPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 
-// Prepara o wrap (fundo preto durante a contagem). O iframe só é criado em
+// Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
+function _loadYTApi(){
+  if(_ytApiReady||_ytApiLoading||(window.YT&&window.YT.Player)){ if(window.YT&&window.YT.Player)_ytApiReady=true; return; }
+  _ytApiLoading=true;
+  const tag=document.createElement('script');
+  tag.src='https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+}
+window.onYouTubeIframeAPIReady=function(){ _ytApiReady=true; };
+
+// Prepara o wrap (fundo preto durante a contagem). O player só é criado em
 // startVideoBg(), sincronizado com o fim do countdown.
 function applyVideoBg(videoId){
   if(_videoBgActive) hideVideoBg();
-  _videoBgFaded=false;
+  _videoBgFaded=false; _videoBgEnding=false;
   if(bgMode==='video'&&videoId){
+    _loadYTApi();
     const wrap=document.getElementById('videoBgWrap');
     wrap.style.transition=''; wrap.style.opacity='1'; wrap.style.background='#000';
     wrap.innerHTML='';
@@ -1843,33 +1855,68 @@ function applyVideoBg(videoId){
   }
 }
 
-// Cria o iframe visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
+// Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
 function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
-  _videoBgActive=true; _videoBgFaded=false;
+  _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false;
+  wrap.innerHTML='<div id="ytVideoFrame"></div>';
+
+  const build=()=>{
+    if(!document.getElementById('ytVideoFrame')) return;
+    _vbPlayer=new YT.Player('ytVideoFrame',{
+      width:'100%',height:'100%',videoId,
+      playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
+        disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
+      events:{
+        onReady:(e)=>{
+          try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS; e.target.playVideo(); }catch(_){}
+        },
+        onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) _endByVideo(); },
+      },
+    });
+  };
+
+  if(_ytApiReady && window.YT && window.YT.Player){ build(); return; }
+  // Espera a API ficar pronta; se demorar demais, cai p/ iframe simples (com loop)
+  let waited=0;
+  const iv=setInterval(()=>{
+    if(_ytApiReady && window.YT && window.YT.Player){ clearInterval(iv); build(); }
+    else if((waited+=120)>=6000){ clearInterval(iv); _startVideoBgRaw(videoId); }
+  },120);
+}
+
+// Fallback raro (API não carregou): iframe simples com loop p/ evitar recomendações
+function _startVideoBgRaw(videoId){
+  const wrap=document.getElementById('videoBgWrap');
+  if(!wrap) return;
+  wrap.innerHTML='';
   const f=document.createElement('iframe');
-  f.id='ytVideoFrame';
-  // Super-escala (~148%) centralizada → corta as bordas onde ficam os end-cards
-  f.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
-    +'width:148%;height:148%;border:none;pointer-events:none;background:#000;';
-  f.setAttribute('allow','autoplay; encrypted-media');
-  f.setAttribute('frameborder','0');
+  f.id='ytVideoFrame'; f.style.cssText=VB_IFRAME_CSS;
+  f.setAttribute('allow','autoplay; encrypted-media'); f.setAttribute('frameborder','0');
   f.src=`https://www.youtube.com/embed/${videoId}`
     +`?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3`
     +`&disablekb=1&fs=0&playsinline=1&enablejsapi=0&loop=1&playlist=${videoId}`;
   wrap.appendChild(f);
 }
 
+// Vídeo chegou ao fim → encerra a partida (uma vez só)
+function _endByVideo(){
+  if(_videoBgEnding) return;
+  _videoBgEnding=true;
+  if(gameState==='playing') fadeOutVideoBg(()=>setTimeout(showResult,200));
+}
+
 function hideVideoBg(){
+  if(_vbPlayer){try{_vbPlayer.destroy();}catch(_){}_vbPlayer=null;}
   const wrap=document.getElementById('videoBgWrap');
   if(wrap){
     wrap.classList.remove('active');
     wrap.style.transition=''; wrap.style.opacity='';
     wrap.innerHTML='';
   }
-  _videoBgActive=false; _videoBgFaded=false;
+  _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false;
 }
 
 function fadeOutVideoBg(cb){
@@ -1880,18 +1927,19 @@ function fadeOutVideoBg(cb){
   setTimeout(()=>{hideVideoBg();if(cb)cb();},850);
 }
 
-// ─── Esconde o fundo nos últimos segundos (antes do loop/end-screen) ───
+// ─── Por frame: corta o vídeo ~1s antes do fim (sem end-screen) + fade ───
 function syncVideoBg(){
-  if(bgMode!=='video'||!_videoBgActive||_videoBgFaded) return;
-  if(gameState!=='playing'||!songDuration) return;
-  const rem=songDuration-songTime();
-  if(rem<=4){ // fade gradual nos últimos 4s — cobre end-cards e o ponto de loop
-    const wrap=document.getElementById('videoBgWrap');
-    if(wrap){
-      wrap.style.transition='opacity 0.5s linear';
-      wrap.style.opacity=String(Math.max(0,Math.min(1,rem/4)));
-      if(rem<=0.3) _videoBgFaded=true;
+  if(bgMode!=='video'||!_videoBgActive||_videoBgEnding) return;
+  if(gameState!=='playing') return;
+  let cur=0,dur=0;
+  if(_vbPlayer&&_vbPlayer.getDuration){ try{cur=_vbPlayer.getCurrentTime()||0;dur=_vbPlayer.getDuration()||0;}catch(_){} }
+  if(dur>1){
+    const rem=dur-cur;
+    if(rem<=2.2){ // fade nos últimos ~2s
+      const wrap=document.getElementById('videoBgWrap');
+      if(wrap){ wrap.style.transition='opacity 0.4s linear'; wrap.style.opacity=String(Math.max(0,Math.min(1,rem/2))); }
     }
+    if(rem<=1.0){ _endByVideo(); } // encerra antes do YouTube mostrar recomendações
   }
 }
 // ─── FULLSCREEN ───
@@ -1918,6 +1966,7 @@ document.addEventListener('keydown',(e)=>{
 // Init bg picker state on load
 updateBgPickerUI();
 updateBgMenuBtn();
+_loadYTApi(); // pré-carrega a IFrame Player API (detecção de fim do vídeo)
 
 function buildKeyLegend(){
   const LABELS = ['LANE 1','LANE 2','LANE 3','LANE 4'];
