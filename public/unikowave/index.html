@@ -3317,15 +3317,60 @@ function showPreview(url,title,dur){
   selectDiff('normal'); showScreen('previewScr');
 }
 
+// Base do servidor de análise (Render em produção, localhost em dev)
+function unikoServerBase(){
+  const h=location.hostname;
+  if(h==='localhost'||h==='127.0.0.1'||h==='') return 'http://localhost:3001';
+  return 'https://crescent-hub-server.onrender.com';
+}
+
+// Busca o mapa de ritmo REAL no servidor (com polling enquanto analisa).
+// Lança erro se falhar — o chamador cai no modo estimado.
+async function fetchBeatmap(videoId){
+  const base=unikoServerBase();
+  const t0=Date.now();
+  const MAXMS=120000;
+  while(Date.now()-t0<MAXMS){
+    let r;
+    try{
+      r=await fetch(`${base}/api/uniko/beatmap/${videoId}`,{cache:'no-store'}).then(x=>x.json());
+    }catch(e){ throw new Error('servidor inacessível'); }
+    if(!r) throw new Error('resposta vazia');
+    if(r.status==='ready') return r;
+    if(r.status==='error') throw new Error(r.error||'falha na análise');
+    // analyzing → mostra progresso do servidor (capado em 90 até ficar pronto)
+    const sp=typeof r.progress==='number'?r.progress:10;
+    setProgress(Math.min(90, 8+sp*0.82), 'Analisando o ritmo da música...');
+    await delay(1500);
+  }
+  throw new Error('análise demorou demais');
+}
+
 async function beginFromPreview(){
-  showScreen('loadScr'); document.getElementById('loadTxt').textContent='GERANDO MAPA';
-  setProgress(30,'Estimando ritmo...');
-  const bpm=estimateBPM(pendingTitle);
-  const dur=pendingDuration>10?pendingDuration:240;
-  const beats=generateBeatsFromBPM(bpm,dur);
-  setProgress(75,'Gerando mapa...');
-  songTitle=pendingTitle; songDuration=dur; audioBuffer=null;
-  chart=generateChart(beats,songDuration,DIFF_CFG[difficulty]);
+  showScreen('loadScr');
+  document.getElementById('loadTxt').textContent='ANALISANDO RITMO';
+  setProgress(8,'Analisando o ritmo da música...');
+  songTitle=pendingTitle; songDuration=pendingDuration>10?pendingDuration:240; audioBuffer=null;
+
+  const vid=(lastVideoUrl&&/^[a-zA-Z0-9_-]{11}$/.test(lastVideoUrl))?lastVideoUrl:getYTId(lastYtUrl||'');
+  let bm=null;
+  if(vid){ try{ bm=await fetchBeatmap(vid); }catch(e){ console.warn('[beatmap]',e.message); } }
+
+  let beats, meta;
+  if(bm&&Array.isArray(bm.beats)&&bm.beats.length){
+    beats=bm.beats;
+    if(bm.duration>10) songDuration=bm.duration;
+    meta={real:true, sustains:bm.sustains||[], strengths:bm.strengths||[]};
+    setProgress(94, bm.cached?'Ritmo carregado! ✓':'Ritmo analisado! ✓');
+  } else {
+    // Fallback: ritmo estimado pelo título (servidor indisponível ou música nova que falhou)
+    setProgress(55,'Ritmo estimado...');
+    const bpm=estimateBPM(pendingTitle);
+    beats=generateBeatsFromBPM(bpm,songDuration);
+    meta={real:false};
+  }
+  setProgress(97,'Gerando mapa...');
+  chart=generateChart(beats,songDuration,DIFF_CFG[difficulty],meta);
   maxPossibleScore=chart.length*1000+chart.filter(n=>n.holdDur>0).length*1000;
   setProgress(100,'Pronto!');
   await delay(200); beginGame();
@@ -3430,7 +3475,7 @@ async function detectBeats(ab){
   return beats;
 }
 
-function generateChart(beats,dur,cfg){
+function generateChart(beats,dur,cfg,meta){
   if(!beats.length) return [];
   const notes=[];
   const SUSTAIN_MIN=0.22; // lowered: allows holds at 8th-note subdivisions
@@ -3439,7 +3484,15 @@ function generateChart(beats,dur,cfg){
   let lastNoteTime=-999;
   const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
 
-  // ── Song-position hold multiplier ───────────────────────────────────
+  // ── Real-audio metadata (when available) ────────────────────────────
+  // real=true means beats came from actual onset detection on the song audio.
+  // sustains[i] = how long the note is held in the music (→ hold notes / vocals).
+  // strengths[i] = onset loudness 0..1 (→ stronger beats get emphasis/doubles).
+  const REAL=!!(meta&&meta.real);
+  const SUS=(meta&&meta.sustains)||[];
+  const STR=(meta&&meta.strengths)||[];
+
+  // ── Song-position hold multiplier (estimated mode only) ─────────────
   // Chorus sections simulate dense vocal phrases → more and longer holds.
   // Breakdown/outro → sparse holds.
   function holdMultAt(t){
@@ -3594,15 +3647,27 @@ function generateChart(beats,dur,cfg){
     const patLane=bs?bs.seq[bs.pos%bs.seq.length]:Math.floor(Math.random()*4);
 
     const gapAfter=gaps[i];
-    // Effective holdChance scales with song position (chorus = 2.2× base)
-    const effHold=Math.min(0.88, cfg.holdChance * holdMultAt(t));
-    const isHold=gapAfter>=SUSTAIN_MIN&&Math.random()<effHold;
+
+    // ── Decide hold vs tap ──
+    let isHold, holdDur=0, longSustain=false;
+    if(REAL){
+      // Use the REAL sustained duration measured from the song audio.
+      // A held vocal/synth note in the music → a hold note in the game.
+      const sus=Math.min(SUS[i]||0, gapAfter>0?gapAfter*1.1:99);
+      longSustain=(SUS[i]||0)>=0.85;
+      isHold=sus>=SUSTAIN_MIN && Math.random()<Math.min(0.95, cfg.holdChance*2.2);
+      if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.92, 4.0));
+    } else {
+      // Estimated mode: holdChance scales with simulated song position.
+      const effHold=Math.min(0.88, cfg.holdChance*holdMultAt(t));
+      isHold=gapAfter>=SUSTAIN_MIN && Math.random()<effHold;
+      if(isHold) holdDur=Math.max(0.30, Math.min(gapAfter*0.82,3.5));
+      longSustain=holdMultAt(t)>=2.0;
+    }
 
     if(isHold){
-      const holdDur=Math.max(0.30, Math.min(gapAfter*0.82,3.5));
-      const hMult=holdMultAt(t);
-      // Chorus sections: add adjacent simultaneous hold for the "singer sustaining a note" feel
-      if(hMult>=2.0&&Math.random()<0.40){
+      // Long sustained note (high vocal) → double hold on adjacent lanes
+      if(longSustain&&cfg.doubleChance>0&&Math.random()<0.45){
         const adjLane=(patLane+1)%4;
         push(patLane,t,holdDur);
         push(adjLane,t,holdDur);
@@ -3611,7 +3676,9 @@ function generateChart(beats,dur,cfg){
       }
       skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
-      if(Math.random()<cfg.doubleChance){
+      // Strong onsets (loud TAM) are more likely to become emphatic doubles.
+      const dblChance=REAL?Math.min(0.9, cfg.doubleChance*(0.6+(STR[i]||0))):cfg.doubleChance;
+      if(Math.random()<dblChance){
         const adjLane=(patLane+1)%4;
         [patLane,adjLane].forEach(l=>push(l,t));
       } else {
