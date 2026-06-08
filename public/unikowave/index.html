@@ -1060,32 +1060,68 @@ canvas{display:block}
 .lib-count{font-size:10px;color:#2a3860;letter-spacing:1px;font-family:var(--font-pixel)}
 
 /* ─── CUSTOM TITLEBAR ─── */
-/* ─── INTRO SCREEN ─── */
-#introScr{position:fixed;inset:0;z-index:300;background:rgba(4,4,15,0.97);
-  display:flex;align-items:center;justify-content:center;overflow:hidden}
-.intro-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none}
-.intro-content{position:relative;text-align:center;display:flex;flex-direction:column;
-  align-items:center;gap:20px;max-width:460px;padding:0 24px}
-.intro-logo{font-family:var(--font-pixel);font-size:40px;letter-spacing:4px;line-height:1.2;
-  background:linear-gradient(135deg,#ff2d92,#a855f7,#00f0ff);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  animation:ls 4s linear infinite;background-size:300%}
-.intro-tag{color:#c4b5e8;font-size:13px;letter-spacing:2px;opacity:.9;font-family:var(--font-pixel)}
-.intro-desc{color:#8b7aaa;font-size:12px;line-height:1.9;text-align:center}
-.intro-desc strong{color:#00f0ff}
-.intro-hint{display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;
-  background:rgba(255,213,0,.05);border:1px solid rgba(255,213,0,.2);
-  color:#ffe44d;font-size:11px;letter-spacing:.5px}
-.intro-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:4px}
-.intro-btn-enter{padding:13px 32px;border-radius:10px;border:1px solid rgba(168,85,247,.4);
+/* ─── INTRO SLIDESHOW ─── */
+#introScr{position:fixed;inset:0;z-index:300;background:rgba(4,4,15,.97);
+  display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.intro-orb{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none}
+/* slide container */
+.intro-slides-wrap{width:100%;max-width:600px;overflow:hidden;flex:1;display:flex;align-items:center}
+.intro-slides{display:flex;width:100%;transition:transform .55s cubic-bezier(.4,0,.2,1)}
+.intro-slide{min-width:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:22px;padding:0 40px 0;text-align:center;user-select:none}
+/* nav bar */
+.intro-nav{display:flex;align-items:center;gap:28px;padding:20px 0 32px;flex-shrink:0}
+.intro-arrow{width:46px;height:46px;border-radius:50%;
+  border:1px solid rgba(168,85,247,.35);background:rgba(168,85,247,.07);
+  color:rgba(255,255,255,.8);font-size:26px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;flex-shrink:0;padding:0}
+.intro-arrow:hover:not(:disabled){background:rgba(168,85,247,.3);color:#fff;
+  border-color:rgba(168,85,247,.75);transform:scale(1.1)}
+.intro-arrow:disabled{opacity:.22;cursor:default}
+.intro-dots{display:flex;gap:8px;align-items:center}
+.intro-dot{height:8px;border-radius:4px;background:rgba(255,255,255,.18);
+  cursor:pointer;transition:all .35s}
+.intro-dot.active{background:#a855f7;box-shadow:0 0 8px #a855f7aa}
+/* slide typography */
+.intro-logo{font-family:var(--font-pixel);font-size:44px;letter-spacing:4px;line-height:1.15;
+  background:linear-gradient(135deg,#ff2d92,#a855f7,#00f0ff);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;animation:ls 4s linear infinite;background-size:300%}
+.intro-tag{color:#c4b5e8;font-size:11px;letter-spacing:4px;font-family:var(--font-pixel)}
+.intro-slide-title{font-family:var(--font-pixel);font-size:15px;letter-spacing:2px;
+  color:#e2d9f3;margin-bottom:2px}
+.intro-body{color:#8b7aaa;font-size:12px;line-height:2;max-width:420px}
+.intro-body strong{color:#00f0ff}
+/* keyboard visual */
+.intro-keys{display:flex;gap:14px;margin:6px 0}
+.intro-key{width:60px;height:60px;border-radius:12px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-family:var(--font-pixel);
+  font-size:20px;font-weight:700;border:2px solid;background:rgba(0,0,0,.4);gap:4px;
+  transition:transform .15s}
+.intro-key:hover{transform:scale(1.08)}
+.intro-key-sub{font-size:7px;letter-spacing:1px;opacity:.65;font-family:var(--font-pixel)}
+/* feature list */
+.intro-features{display:flex;flex-direction:column;gap:10px;text-align:left;width:100%;max-width:400px}
+.intro-feat{display:flex;align-items:center;gap:14px;padding:11px 16px;border-radius:12px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.intro-feat-icon{font-size:22px;flex-shrink:0;width:28px;text-align:center}
+.intro-feat-text{color:#9d8abf;font-size:11px;line-height:1.55}
+.intro-feat-text strong{color:#e2d9f3;font-size:12px;display:block;margin-bottom:1px}
+/* hint box */
+.intro-hint{display:flex;align-items:center;gap:10px;padding:13px 20px;border-radius:12px;
+  background:rgba(255,213,0,.05);border:1px solid rgba(255,213,0,.22);
+  color:#ffe44d;font-size:11px;letter-spacing:.5px;max-width:380px;justify-content:center}
+/* action buttons */
+.intro-btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.intro-btn-enter{padding:14px 36px;border-radius:12px;border:1px solid rgba(168,85,247,.45);
   background:rgba(168,85,247,.1);color:#e2d9f3;font-family:var(--font-pixel);font-size:11px;
   cursor:pointer;letter-spacing:2px;transition:background .2s,transform .15s}
-.intro-btn-enter:hover{background:rgba(168,85,247,.25);transform:scale(1.03)}
-.intro-btn-fs{padding:13px 32px;border-radius:10px;border:none;
+.intro-btn-enter:hover{background:rgba(168,85,247,.28);transform:scale(1.04)}
+.intro-btn-fs{padding:14px 36px;border-radius:12px;border:none;
   background:linear-gradient(135deg,#ff2d92,#a855f7);color:#fff;
   font-family:var(--font-pixel);font-size:11px;cursor:pointer;letter-spacing:2px;
   box-shadow:0 0 24px rgba(168,85,247,.45);transition:transform .15s,box-shadow .15s}
-.intro-btn-fs:hover{transform:scale(1.05);box-shadow:0 0 36px rgba(168,85,247,.6)}
+.intro-btn-fs:hover{transform:scale(1.06);box-shadow:0 0 44px rgba(168,85,247,.65)}
 /* sidebar fullscreen button */
 .snav-btn-fs{margin-top:8px;color:rgba(0,240,255,0.65)!important;
   border:1px solid rgba(0,240,255,0.15)!important;background:rgba(0,240,255,0.05)!important}
@@ -1184,25 +1220,109 @@ canvas{display:block}
      INTRO SCREEN
      ══════════════════════════════════════ -->
 <div id="introScr">
-  <div class="intro-orb" style="width:500px;height:500px;background:rgba(168,85,247,.14);top:-150px;left:-120px;animation:orbFloat 10s ease-in-out infinite"></div>
-  <div class="intro-orb" style="width:380px;height:380px;background:rgba(255,45,146,.10);bottom:-100px;right:-80px;animation:orbFloat 8s ease-in-out infinite reverse"></div>
-  <div class="intro-orb" style="width:280px;height:280px;background:rgba(0,240,255,.07);top:30%;left:60%;animation:orbFloat 12s ease-in-out infinite"></div>
-  <div class="intro-content">
-    <div class="intro-logo">UNIKO<br>WAVE</div>
-    <div class="intro-tag">SINTA O RITMO</div>
-    <div class="intro-desc">
-      Um jogo de ritmo que usa qualquer música do YouTube.<br>
-      Cole o link, escolha a dificuldade e acerte as notas<br>
-      usando as teclas <strong>A · S · D · F</strong> no teclado.
+  <!-- animated background orbs -->
+  <div class="intro-orb" style="width:620px;height:620px;background:rgba(168,85,247,.11);top:-200px;left:-160px;animation:orbFloat 10s ease-in-out infinite"></div>
+  <div class="intro-orb" style="width:420px;height:420px;background:rgba(255,45,146,.09);bottom:-130px;right:-90px;animation:orbFloat 8s ease-in-out infinite reverse"></div>
+  <div class="intro-orb" style="width:320px;height:320px;background:rgba(0,240,255,.06);top:38%;left:62%;animation:orbFloat 13s ease-in-out infinite"></div>
+
+  <!-- slides viewport -->
+  <div class="intro-slides-wrap">
+    <div class="intro-slides" id="introSlides">
+
+      <!-- ① BOAS-VINDAS -->
+      <div class="intro-slide">
+        <div class="intro-logo">UNIKO<br>WAVE</div>
+        <div class="intro-tag">✦ &nbsp; SINTA O RITMO &nbsp; ✦</div>
+        <div class="intro-body">
+          O jogo de ritmo que transforma qualquer música<br>
+          do YouTube em uma experiência interativa.<br><br>
+          Siga o beat, acerte as notas e conquiste todas as dificuldades.
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,.22);letter-spacing:2px;font-family:var(--font-pixel)">USE AS SETAS PARA NAVEGAR →</div>
+      </div>
+
+      <!-- ② COMO JOGAR -->
+      <div class="intro-slide">
+        <div class="intro-slide-title">COMO JOGAR</div>
+        <div class="intro-keys">
+          <div class="intro-key" style="color:#00f0ff;border-color:#00f0ff;box-shadow:0 0 18px rgba(0,240,255,.35)">A<span class="intro-key-sub">LANE 1</span></div>
+          <div class="intro-key" style="color:#ff2d92;border-color:#ff2d92;box-shadow:0 0 18px rgba(255,45,146,.35)">S<span class="intro-key-sub">LANE 2</span></div>
+          <div class="intro-key" style="color:#a855f7;border-color:#a855f7;box-shadow:0 0 18px rgba(168,85,247,.35)">D<span class="intro-key-sub">LANE 3</span></div>
+          <div class="intro-key" style="color:#ffd700;border-color:#ffd700;box-shadow:0 0 18px rgba(255,215,0,.35)">F<span class="intro-key-sub">LANE 4</span></div>
+        </div>
+        <div class="intro-body">
+          Notas coloridas descem em 4 colunas.<br>
+          Pressione a tecla certa no momento em que<br>
+          a nota chegar à linha de acerto na base da tela.<br><br>
+          <strong>● Nota redonda</strong> — toque rápido &nbsp;·&nbsp; <strong>▬ Nota longa</strong> — segure
+        </div>
+      </div>
+
+      <!-- ③ RECURSOS -->
+      <div class="intro-slide">
+        <div class="intro-slide-title">RECURSOS</div>
+        <div class="intro-features">
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🎵</span>
+            <div class="intro-feat-text">
+              <strong>Qualquer música do YouTube</strong>
+              Cole o link e jogue em segundos com beat detection automático
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🎮</span>
+            <div class="intro-feat-text">
+              <strong>6 dificuldades</strong>
+              De Fácil até Pesadelo — velocidade e padrões únicos em cada nível
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🎨</span>
+            <div class="intro-feat-text">
+              <strong>Personagens e bordas animadas</strong>
+              Customize seu perfil com avatares e bordas exclusivas
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🌊</span>
+            <div class="intro-feat-text">
+              <strong>Cores dinâmicas</strong>
+              A paleta muda nos picos de energia da música
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ COMEÇAR -->
+      <div class="intro-slide">
+        <div class="intro-logo" style="font-size:30px;letter-spacing:3px">PRONTO PARA<br>COMEÇAR?</div>
+        <div class="intro-hint">
+          <span style="font-size:20px">⛶</span>
+          Para a melhor experiência, jogue em tela cheia
+        </div>
+        <div class="intro-body">
+          Cole o link de qualquer música do YouTube,<br>
+          escolha a dificuldade e sinta o ritmo.
+        </div>
+        <div class="intro-btns">
+          <button class="intro-btn-enter" onclick="dismissIntro(false)">ENTRAR</button>
+          <button class="intro-btn-fs" onclick="dismissIntro(true)">⛶ TELA CHEIA</button>
+        </div>
+      </div>
+
+    </div><!-- /intro-slides -->
+  </div><!-- /intro-slides-wrap -->
+
+  <!-- navigation -->
+  <div class="intro-nav">
+    <button class="intro-arrow" id="introPrev" onclick="introNav(-1)" disabled>&#8249;</button>
+    <div class="intro-dots" id="introDots">
+      <div class="intro-dot active" style="width:24px" onclick="introGoto(0)"></div>
+      <div class="intro-dot" style="width:8px" onclick="introGoto(1)"></div>
+      <div class="intro-dot" style="width:8px" onclick="introGoto(2)"></div>
+      <div class="intro-dot" style="width:8px" onclick="introGoto(3)"></div>
     </div>
-    <div class="intro-hint">
-      <span style="font-size:16px">⛶</span>
-      Para a melhor experiência, jogue em tela cheia
-    </div>
-    <div class="intro-btns">
-      <button class="intro-btn-enter" onclick="dismissIntro(false)">ENTRAR</button>
-      <button class="intro-btn-fs" onclick="dismissIntro(true)">⛶ TELA CHEIA</button>
-    </div>
+    <button class="intro-arrow" id="introNext" onclick="introNav(1)">&#8250;</button>
   </div>
 </div>
 <!-- ══════════════════════════════════════
@@ -1977,6 +2097,39 @@ function toggleFullscreen(){
     document.exitFullscreen();
   }
 }
+// ─── INTRO SLIDESHOW ───
+let _introPage=0;
+const _INTRO_TOTAL=4;
+
+function introGoto(idx){
+  _introPage=Math.max(0,Math.min(_INTRO_TOTAL-1,idx));
+  const slides=document.getElementById('introSlides');
+  if(slides) slides.style.transform=`translateX(-${_introPage*100}%)`;
+  document.querySelectorAll('.intro-dot').forEach((d,i)=>{
+    d.classList.toggle('active',i===_introPage);
+    d.style.width=i===_introPage?'24px':'8px';
+  });
+  const prev=document.getElementById('introPrev');
+  const next=document.getElementById('introNext');
+  if(prev) prev.disabled=_introPage===0;
+  if(next) next.disabled=_introPage===_INTRO_TOTAL-1;
+}
+function introNav(dir){ introGoto(_introPage+dir); }
+
+// Swipe support
+(function(){
+  let _tx=null;
+  const el=document.getElementById('introScr');
+  if(!el) return;
+  el.addEventListener('touchstart',e=>{_tx=e.touches[0].clientX;},{passive:true});
+  el.addEventListener('touchend',e=>{
+    if(_tx===null) return;
+    const dx=e.changedTouches[0].clientX-_tx;
+    if(Math.abs(dx)>48) introNav(dx<0?1:-1);
+    _tx=null;
+  },{passive:true});
+})();
+
 function dismissIntro(goFullscreen){
   const el=document.getElementById('introScr');
   if(el) el.style.display='none';
@@ -1993,6 +2146,13 @@ document.addEventListener('fullscreenchange',()=>{
 });
 document.addEventListener('keydown',(e)=>{
   if(e.key==='F11'){e.preventDefault();toggleFullscreen();}
+  // Intro slideshow keyboard navigation
+  const intro=document.getElementById('introScr');
+  if(intro&&intro.style.display!=='none'){
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();introNav(1);}
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();introNav(-1);}
+    else if(e.key==='Enter'){e.preventDefault();dismissIntro(false);}
+  }
 });
 
 // Init bg picker state on load
