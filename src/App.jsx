@@ -11,6 +11,7 @@ import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
+import { ExtensionPrompt } from './shared/ExtensionPrompt';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -252,6 +253,9 @@ export default function CrescentHub() {
             setTimeout(() => setConfettiTheme(null), 3200);
           }}
         />
+        {/* Banner "Ação necessária": baixar/instalar a extensão Cat-Bot quando ausente */}
+        {authUser && <ExtensionPrompt/>}
+
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
