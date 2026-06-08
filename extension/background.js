@@ -555,7 +555,7 @@ function showDesktopNotification(n) {
       title:   (isUrgent ? '🚨 ' : '🔔 ') + (n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete')),
       message: String(n.message || '').slice(0, 500),
       priority: isUrgent ? 2 : 1,
-      requireInteraction: !!isUrgent,  // urgente fica na tela até o usuário fechar
+      requireInteraction: true,  // fica na tela até o usuário fechar (não some sozinho)
     });
   } catch (e) {
     console.warn('⚠️ Notificação desktop falhou:', e.message);
