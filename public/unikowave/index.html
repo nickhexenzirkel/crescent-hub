@@ -1808,6 +1808,7 @@ canvas{display:block}
   <div class="pause-title">⏸ PAUSADO</div>
   <div class="pause-sub">pressione ESC para continuar</div>
   <button class="btn-pause-cont" onclick="resumeGame()">▶ CONTINUAR</button>
+  <button class="btn-pause-quit" id="pauseFsBtn" onclick="toggleFullscreen()">⛶ TELA CHEIA</button>
   <button class="btn-pause-quit" onclick="showResult()">■ ENCERRAR PARTIDA</button>
 </div>
 
@@ -2276,6 +2277,9 @@ function dismissIntro(goFullscreen){
   }catch(e){}
 })();
 document.addEventListener('fullscreenchange',()=>{
+  // Atualiza o rótulo do botão de tela cheia no menu de pausa
+  const pfs=document.getElementById('pauseFsBtn');
+  if(pfs) pfs.textContent=document.fullscreenElement?'⛶ SAIR DA TELA CHEIA':'⛶ TELA CHEIA';
   const svg=document.querySelector('#fsIcon');
   if(!svg) return;
   if(document.fullscreenElement){

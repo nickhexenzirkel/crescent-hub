@@ -552,7 +552,7 @@ function showDesktopNotification(n) {
     chrome.notifications.create(id, {
       type:    'basic',
       iconUrl: chrome.runtime.getURL('icon.png'),
-      title:   (isUrgent ? '🚨 ' : '🔔 ') + (n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete')),
+      title:   (isUrgent ? '🚨 ' : '.𖥔 . ᓚ₍ ^. .^₎ ') + (n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete')),
       message: String(n.message || '').slice(0, 500),
       priority: isUrgent ? 2 : 1,
       requireInteraction: true,  // fica na tela até o usuário fechar (não some sozinho)
