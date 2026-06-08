@@ -3194,48 +3194,100 @@ async function detectBeats(ab){
 }
 
 function generateChart(beats,dur,cfg){
+  if(!beats.length) return [];
   const notes=[];
   const SUSTAIN_MIN=0.45;
-  let skipUntil=-1;
   const minGap=cfg.minGap||0.18;
+  let skipUntil=-1;
   let lastNoteTime=-999;
-  let lastL=-1;
-
   const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
 
-  // Estimate tempo from first 16 beats
-  const refB=Math.min(beats.length-1,16);
+  // ── Tempo estimate ──────────────────────────────────────────────────
+  const refB=Math.min(beats.length-1,20);
   const avgBeat=refB>0?(beats[refB]-beats[0])/refB:0.5;
 
-  // Pre-compute local beat density per beat: beats within ±2s window / expected beats in that window
-  // Values > 1.0 = denser than average = high-energy section (chorus/drop)
-  const beatDensity=beats.map(t=>
-    beats.filter(b=>Math.abs(b-t)<=2.0).length / (4.0/avgBeat)
-  );
-  const avgDensity=beatDensity.reduce((a,b)=>a+b,0)/Math.max(beatDensity.length,1);
+  // ── Beat energy per position (local density normalized to average) ──
+  const rawDen=beats.map(t=>beats.filter(b=>Math.abs(b-t)<=2.0).length/(4.0/avgBeat));
+  const avgDen=rawDen.reduce((a,b)=>a+b,0)/Math.max(rawDen.length,1);
+  const energy=rawDen.map(d=>d/avgDen); // 1.0 = average; >1 = chorus/drop
 
-  const PHRASES=[
-    [1,2,1,2,1,2,1,2],
-    [0,1,2,3,0,1,2,3],
-    [3,2,1,0,3,2,1,0],
-    [0,3,0,3,1,2,1,2],
-    [1,2,1,2,0,3,0,3],
-    [0,2,1,3,0,2,1,3],
-    [3,1,2,0,3,1,2,0],
-    [1,3,0,2,1,3,0,2],
+  // ── Sequence library (0=A 1=S 2=D 3=F) ────────────────────────────
+  // RUNS: same lane repeated — builds anticipation and tension
+  const RUNS=[
+    [0,0,0,0],[1,1,1,1],[2,2,2,2],[3,3,3,3],
+    [0,0,0],  [3,3,3],  [1,1,1],  [2,2,2],
+    [0,0],    [3,3],    [1,1],    [2,2],
+    [0,0,0,0,3,3,3,3],[1,1,1,1,2,2,2,2],[0,0,3,3,0,0,3,3],[1,1,2,2,1,1,2,2],
   ];
+  // ALTS: two lanes alternating — steady rhythmic feel
+  const ALTS=[
+    [0,1,0,1,0,1,0,1],[2,3,2,3,2,3,2,3],[0,3,0,3,0,3,0,3],[1,2,1,2,1,2,1,2],
+    [1,3,1,3,1,3,1,3],[0,2,0,2,0,2,0,2],
+    [0,1,0,1],[2,3,2,3],[0,3,0,3],[1,2,1,2],[1,3,1,3],[0,2,0,2],
+  ];
+  // WALKS: sequential sweep — feels like a roll across the keys
+  const WALKS=[
+    [0,1,2,3],[3,2,1,0],
+    [0,1,2,3,2,1,0,1],[3,2,1,0,1,2,3,2],
+    [1,2,3,2,1,0],[0,1,2,1,0,1],[0,1,2,3,3,2,1,0],
+  ];
+  // COMBOS: complex patterns — high variety, good for chorus/drop
+  const COMBOS=[
+    [0,1,2,3,0,1,2,3],[3,2,1,0,3,2,1,0],
+    [0,1,2,0,1,2,0,1],[3,2,1,3,2,1,3,2],
+    [0,3,1,2,0,3,1,2],[3,0,2,1,3,0,2,1],
+    [0,2,1,3,0,2,1,3],[1,3,0,2,1,3,0,2],
+    [0,0,1,2,3,3,2,1],[1,1,2,3,0,0,3,2],
+    [0,1,0,2,0,3,0,2],[3,2,3,1,3,0,3,1],
+    [0,0,2,2,3,3,1,1],[3,3,1,1,0,0,2,2],
+  ];
+  // TRIOS: 3-note repeating groups — feel like triplet rhythms
+  const TRIOS=[
+    [0,1,2,0,1,2],[3,2,1,3,2,1],[0,2,3,0,2,3],[3,1,0,3,1,0],
+    [1,2,3,1,2,3],[0,1,3,0,1,3],[2,1,0,2,1,0],[1,3,2,1,3,2],
+    [0,3,2,0,3,2],[1,0,3,1,0,3],
+  ];
+
+  function pickFrom(arr){return arr[Math.floor(Math.random()*arr.length)];}
+
+  // Choose sequence category based on energy level of the section
+  function pickSeqForEnergy(e){
+    const r=Math.random();
+    if(e<0.65) return pickFrom(RUNS);
+    if(e<0.85) return r<0.55?pickFrom(RUNS):pickFrom(ALTS);
+    if(e<1.05) return r<0.15?pickFrom(WALKS):r<0.6?pickFrom(ALTS):pickFrom(RUNS);
+    if(e<1.25) return r<0.1?pickFrom(WALKS):r<0.55?pickFrom(COMBOS):pickFrom(ALTS);
+    if(e<1.45) return r<0.15?pickFrom(TRIOS):r<0.65?pickFrom(COMBOS):pickFrom(ALTS);
+    return r<0.2?pickFrom(TRIOS):pickFrom(COMBOS);
+  }
+
+  // ── PRE-MAP full beat array to sequences before chart generation ────
+  // This is the "mapping before the song plays" — every beat is assigned to
+  // a sequence phrase based on its musical context (energy, transitions).
+  // Variable phrase lengths (4-12) prevent the player from detecting a grid.
+  const beatSeq=new Array(beats.length);
+  let bi=0;
+  while(bi<beats.length){
+    const e=energy[bi]||1.0;
+    const prevE=bi>0?energy[bi-1]:e;
+    // Use walk sequences on energy transitions (rising or falling sections)
+    const isTransition=Math.abs(e-prevE)>0.25;
+    const seq=isTransition&&Math.random()<0.4?pickFrom(WALKS):pickSeqForEnergy(e);
+    const phraseLen=4+Math.floor(Math.random()*9); // 4-12 beats per phrase
+    for(let j=bi;j<Math.min(bi+phraseLen,beats.length);j++){
+      beatSeq[j]={seq,pos:j-bi};
+    }
+    bi+=phraseLen;
+  }
+
+  // ── Generate notes from the pre-mapped structure ────────────────────
+  let lastSpecialTime=-999;
+  const SPECIAL_COOLDOWN=10.0;
 
   function push(lane,time,holdDur=0){
     notes.push({id:notes.length,lane,hitTime:time,holdDur,
       state:'pending',y:0,scale:0,alpha:0,holdProgress:0,lastScoreTick:0});
   }
-
-  let phrase=PHRASES[0];
-  let phraseStep=0;
-  let phraseAnchor=0;
-  // Minimum gap between any two special sequences — prevents back-to-back chaos
-  let lastSpecialTime=-999;
-  const SPECIAL_COOLDOWN=10.0;
 
   for(let i=0;i<beats.length;i++){
     const t=beats[i];
@@ -3244,54 +3296,42 @@ function generateChart(beats,dur,cfg){
     if(cfg.density<1&&Math.random()>cfg.density) continue;
     if(t-lastNoteTime<minGap) continue;
 
-    if(i-phraseAnchor>=8){
-      phrase=PHRASES[Math.floor(Math.random()*PHRASES.length)];
-      phraseStep=0; phraseAnchor=i;
-    }
+    const e=energy[i]||1.0;
+    const bs=beatSeq[i];
+    const isDownbeat=bs?bs.pos%4===0:false;
+    const canSpecial=isDownbeat&&e>=1.1&&(t-lastSpecialTime)>=SPECIAL_COOLDOWN;
 
-    const beatInPhrase=i-phraseAnchor;
-    const isDownbeat=beatInPhrase%4===0;
-
-    // Gate for special sequences: phrase downbeat + high-energy section + cooldown met
-    const localEnergy=beatDensity[i]/avgDensity;
-    const canSpecial=isDownbeat&&localEnergy>=1.1&&(t-lastSpecialTime)>=SPECIAL_COOLDOWN;
-
-    // Inside-out: notes land on ACTUAL song beats starting from current position
+    // Inside-out: S D S D | A+F A+F | S D S D — on actual song beats
     if(canSpecial&&cfg.insideOutChance&&Math.random()<cfg.insideOutChance){
       const ioLanes=[[1],[2],[1],[2],[0,3],[0,3],[1],[2],[1],[2]];
-      let seqEnd=i; let lastSeqT=t;
+      let seqEnd=i,lastSeqT=t;
       for(let s=0;s<ioLanes.length&&i+s<beats.length;s++){
         const st=beats[i+s];
         if(st>dur-0.6) break;
         ioLanes[s].forEach(sl=>push(sl,st));
         seqEnd=i+s; lastSeqT=st;
       }
-      lastL=2; skipUntil=lastSeqT+0.15; lastNoteTime=lastSeqT;
-      lastSpecialTime=t; phraseStep=0; phraseAnchor=seqEnd+1;
-      i=seqEnd;
-      continue;
+      lastSpecialTime=t; lastNoteTime=lastSeqT; skipUntil=lastSeqT+0.15;
+      i=seqEnd; continue;
     }
 
-    // Staircase: 4 notes on ACTUAL song beats, lane sweeps A→F or F→A
+    // Staircase: 4-note sweep A→F or F→A — on actual song beats
     if(canSpecial&&cfg.stairChance&&Math.random()<cfg.stairChance){
       const dir=Math.random()<0.5?1:-1;
       const startL=dir===1?0:3;
-      let seqEnd=i; let lastSeqT=t;
+      let seqEnd=i,lastSeqT=t;
       for(let s=0;s<4&&i+s<beats.length;s++){
         const st=beats[i+s];
         if(st>dur-0.6) break;
         push(startL+dir*s,st);
         seqEnd=i+s; lastSeqT=st;
       }
-      lastL=startL+dir*3; skipUntil=lastSeqT+0.15; lastNoteTime=lastSeqT;
-      lastSpecialTime=t;
-      i=seqEnd;
-      continue;
+      lastSpecialTime=t; lastNoteTime=lastSeqT; skipUntil=lastSeqT+0.15;
+      i=seqEnd; continue;
     }
 
-    // Normal note — phrase pattern lane
-    const patLane=phrase[phraseStep%phrase.length];
-    phraseStep++;
+    // Normal note — lane from pre-mapped sequence
+    const patLane=bs?bs.seq[bs.pos%bs.seq.length]:Math.floor(Math.random()*4);
 
     const gapAfter=gaps[i];
     const isHold=gapAfter>=SUSTAIN_MIN&&Math.random()<cfg.holdChance;
@@ -3299,15 +3339,14 @@ function generateChart(beats,dur,cfg){
     if(isHold){
       const holdDur=Math.min(gapAfter*0.80,3.5);
       push(patLane,t,holdDur);
-      lastL=patLane; skipUntil=t+holdDur+0.15; lastNoteTime=t;
+      skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
       if(Math.random()<cfg.doubleChance){
-        const pair=patLane<2?patLane+2:patLane-2;
+        // Mix adjacent (natural feel) and opposite (dramatic feel)
+        const pair=Math.random()<0.5?(patLane+1)%4:(patLane<2?patLane+2:patLane-2);
         [patLane,pair].forEach(l=>push(l,t));
-        lastL=pair;
       } else {
         push(patLane,t);
-        lastL=patLane;
       }
       lastNoteTime=t;
     }
