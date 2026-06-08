@@ -1064,6 +1064,19 @@ canvas{display:block}
 .lib-play-btn:hover{opacity:.85;transform:scale(1.02)}
 .lib-play-btn:active{transform:scale(.96)}
 .lib-count{font-size:10px;color:#2a3860;letter-spacing:1px;font-family:var(--font-pixel)}
+/* ─── RANKING GLOBAL ─── */
+.rank-section{width:100%;max-width:820px;margin:32px auto 0;border-top:1px solid rgba(255,255,255,.1);padding-top:24px}
+.rank-title{font-family:var(--font-pixel);font-size:15px;font-weight:900;color:var(--Y);letter-spacing:3px;text-align:center}
+.rank-sub{font-size:10px;color:#3a4870;letter-spacing:1px;text-align:center;margin:7px 0 16px;font-family:var(--font-pixel)}
+.rank-list{display:flex;flex-direction:column;gap:8px;padding-bottom:10px}
+.rank-row{display:flex;align-items:center;gap:12px;background:rgba(10,10,34,.7);border:1.5px solid rgba(0,240,255,.12);border-radius:12px;padding:10px 14px}
+.rank-row.rank-me{border-color:rgba(255,240,0,.55);background:rgba(255,240,0,.06)}
+.rank-pos{font-family:var(--font-pixel);font-size:14px;font-weight:900;min-width:36px;text-align:center;color:#7a88b0}
+.rank-info{flex:1;min-width:0}
+.rank-name{font-family:var(--font-pixel);font-size:11px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-song{font-size:10px;color:#5a6a98;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-score{font-family:var(--font-pixel);font-size:13px;color:var(--Y);letter-spacing:1px;flex-shrink:0}
+.rank-empty{color:#2a3560;font-size:11px;line-height:1.7;letter-spacing:1px;text-align:center;padding:24px 0;font-family:var(--font-pixel)}
 
 /* ─── CUSTOM TITLEBAR ─── */
 /* ─── INTRO SLIDESHOW ─── */
@@ -1536,6 +1549,12 @@ canvas{display:block}
         <div class="lib-empty-sub">Suas músicas jogadas aparecerão aqui. Comece a jogar para criar seu histórico!</div>
       </div>
       <div class="lib-grid" id="libGrid"></div>
+      <!-- RANKING GLOBAL DE PONTUAÇÃO -->
+      <div id="rankSection" class="rank-section">
+        <div class="rank-title">🏆 RANKING GLOBAL</div>
+        <div class="rank-sub">Maiores pontuações de todos os jogadores</div>
+        <div id="rankList" class="rank-list"><div class="rank-empty">Carregando ranking…</div></div>
+      </div>
     </div>
 
     <!-- SETTINGS PANEL -->
@@ -3106,7 +3125,35 @@ function updatePlayCharBadge(){
   if(el) el.textContent=(CHARACTERS[selectedChar]?.name||'DODOCO').toUpperCase();
 }
 
+// ─── RANKING GLOBAL ───
+// O ranking é global (todos os jogadores): o jogo pede/recebe os dados do app
+// React (TabUnikoWave), que lê/grava no Supabase. Aqui só montamos a UI.
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function requestRank(){
+  try{ (window.parent!==window?window.parent:window).postMessage({type:'UNIKO_RANK_REQUEST'},'*'); }catch(e){}
+}
+function renderRank(rows, me){
+  const list=document.getElementById('rankList');
+  if(!list) return;
+  if(!rows||!rows.length){
+    list.innerHTML='<div class="rank-empty">Ainda sem pontuações.<br>Jogue uma música para entrar no ranking! 🎮</div>';
+    return;
+  }
+  const pos=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1);
+  list.innerHTML=rows.map((r,i)=>(
+    `<div class="rank-row${me&&r.player===me?' rank-me':''}">`+
+      `<div class="rank-pos">${pos(i)}</div>`+
+      `<div class="rank-info">`+
+        `<div class="rank-name">${escHtml(r.player)}</div>`+
+        `<div class="rank-song">${escHtml(r.song||'—')}</div>`+
+      `</div>`+
+      `<div class="rank-score">${(Number(r.score)||0).toLocaleString()}</div>`+
+    `</div>`
+  )).join('');
+}
+
 function renderLibraryPanel(){
+  requestRank(); // atualiza o ranking global sempre que a biblioteca abre
   const entries=libLoad();
   const libEmpty=document.getElementById('libEmpty');
   const libCount=document.getElementById('libCount');
@@ -3340,6 +3387,7 @@ window.addEventListener('message',(e)=>{
     setProgress(0,'Catbot: '+msg);
     if(_ytAuthReject){_ytAuthReject(new Error(msg));_ytAuthResolve=null;_ytAuthReject=null;}
   }
+  if(t==='UNIKO_RANK_DATA'){ renderRank(e.data.rows||[], e.data.me||''); }
 });
 
 function requestYtAuth(){
@@ -6518,6 +6566,13 @@ function showResult(){
     const vid=getYTId(lastYtUrl);
     const thumbUrl=vid?`https://img.youtube.com/vi/${vid}/mqdefault.jpg`:'';
     libSaveEntry(lastYtUrl, songTitle, thumbUrl, score.v, grade, col, Math.min(5,sl2), difficulty);
+    // Envia a pontuação ao app React para o RANKING GLOBAL (Supabase)
+    try{
+      (window.parent!==window?window.parent:window).postMessage({
+        type:'UNIKO_SCORE_SUBMIT', score:score.v, song:songTitle,
+        grade:grade, diff:difficulty, vid:getYTId(lastYtUrl),
+      },'*');
+    }catch(e){}
   }
 
   // ── Recompensa em Ghost Waves ──
