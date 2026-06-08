@@ -1293,7 +1293,42 @@ canvas{display:block}
         </div>
       </div>
 
-      <!-- ④ COMEÇAR -->
+      <!-- ④ MOEDAS & PERSONAGENS -->
+      <div class="intro-slide">
+        <div class="intro-slide-title">MOEDAS &amp; PERSONAGENS</div>
+        <div class="intro-features">
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🌊</span>
+            <div class="intro-feat-text">
+              <strong>GW — Ondas</strong>
+              Ganhe GW jogando qualquer música. Quanto mais difícil e maior o combo, mais você recebe
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">💎</span>
+            <div class="intro-feat-text">
+              <strong>GC — Gemas</strong>
+              Moeda premium para desbloquear personagens e bordas exclusivos
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">👤</span>
+            <div class="intro-feat-text">
+              <strong>Personagens desbloqueáveis</strong>
+              Acesse o painel Personagens na sidebar e use suas moedas para liberar novos avatares
+            </div>
+          </div>
+          <div class="intro-feat">
+            <span class="intro-feat-icon">🏆</span>
+            <div class="intro-feat-text">
+              <strong>Dica de ouro</strong>
+              Dificuldades maiores multiplicam as recompensas — tente o modo Insano ou Pesadelo!
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ COMEÇAR -->
       <div class="intro-slide">
         <div class="intro-logo" style="font-size:30px;letter-spacing:3px">PRONTO PARA<br>COMEÇAR?</div>
         <div class="intro-hint">
@@ -1321,6 +1356,7 @@ canvas{display:block}
       <div class="intro-dot" style="width:8px" onclick="introGoto(1)"></div>
       <div class="intro-dot" style="width:8px" onclick="introGoto(2)"></div>
       <div class="intro-dot" style="width:8px" onclick="introGoto(3)"></div>
+      <div class="intro-dot" style="width:8px" onclick="introGoto(4)"></div>
     </div>
     <button class="intro-arrow" id="introNext" onclick="introNav(1)">&#8250;</button>
   </div>
@@ -1862,11 +1898,11 @@ const WIN_GOOD    = 0.22;
 
 const DIFF_CFG = {
   easy:       {travel:1.1, density:0.28, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.40},
-  normal:     {travel:1.1, density:0.55, holdChance:0.24, doubleChance:0.08, bpm:1.0, minGap:0.26},
-  hard:       {travel:1.1, density:0.82, holdChance:0.20, doubleChance:0.20, bpm:1.0, minGap:0.14},
-  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.44, bpm:1.0, minGap:0.09},
-  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.62, bpm:1.0, minGap:0.05},
-  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.85, bpm:1.0, minGap:0.03, stairChance:0.18, insideOutChance:0.14}
+  normal:     {travel:1.1, density:0.55, holdChance:0.24, doubleChance:0.05, bpm:1.0, minGap:0.26},
+  hard:       {travel:1.1, density:0.82, holdChance:0.20, doubleChance:0.10, bpm:1.0, minGap:0.14},
+  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.18, bpm:1.0, minGap:0.09},
+  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.26, bpm:1.0, minGap:0.05},
+  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.38, bpm:1.0, minGap:0.03, stairChance:0.18, insideOutChance:0.14}
 };
 
 function setKeyLayout(k){
@@ -2099,7 +2135,7 @@ function toggleFullscreen(){
 }
 // ─── INTRO SLIDESHOW ───
 let _introPage=0;
-const _INTRO_TOTAL=4;
+const _INTRO_TOTAL=5;
 
 function introGoto(idx){
   _introPage=Math.max(0,Math.min(_INTRO_TOTAL-1,idx));
@@ -3509,13 +3545,21 @@ function generateChart(beats,dur,cfg){
 
     if(isHold){
       const holdDur=Math.min(gapAfter*0.80,3.5);
-      push(patLane,t,holdDur);
+      // Occasional simultaneous hold on the adjacent lane (dramatic effect)
+      if(cfg.doubleChance>0&&Math.random()<cfg.doubleChance*0.35){
+        const adjLane=(patLane+1)%4;
+        push(patLane,t,holdDur);
+        push(adjLane,t,holdDur);
+      } else {
+        push(patLane,t,holdDur);
+      }
       skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
+      // Doubles are the exception, not the rule.
+      // Always adjacent lanes only — no wide jumps that feel random.
       if(Math.random()<cfg.doubleChance){
-        // Mix adjacent (natural feel) and opposite (dramatic feel)
-        const pair=Math.random()<0.5?(patLane+1)%4:(patLane<2?patLane+2:patLane-2);
-        [patLane,pair].forEach(l=>push(l,t));
+        const adjLane=(patLane+1)%4;
+        [patLane,adjLane].forEach(l=>push(l,t));
       } else {
         push(patLane,t);
       }
