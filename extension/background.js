@@ -545,8 +545,12 @@ async function runYtCookiesExport(callerTabId) {
 // Mostra um pop-up do sistema operacional para lembretes/avisos do app.
 // Usa um id estável (uniko-<id>) → se várias abas dispararem o mesmo aviso,
 // o Chrome só atualiza a mesma notificação em vez de empilhar duplicadas.
+// Retorna true se conseguiu disparar a notificação; false se a API não está
+// disponível (ex.: permissão "notifications" ainda não ativada → precisa recarregar
+// a extensão). O false faz a página cair no fallback Web Notifications.
 function showDesktopNotification(n) {
   try {
+    if (!chrome.notifications || !chrome.notifications.create) return false;
     const isUrgent = n.type === 'aviso_urgente';
     const id = `uniko-${n.id || Date.now()}`;
     chrome.notifications.create(id, {
@@ -557,24 +561,28 @@ function showDesktopNotification(n) {
       priority: isUrgent ? 2 : 1,
       requireInteraction: true,  // fica na tela até o usuário fechar (não some sozinho)
     });
+    return true;
   } catch (e) {
     console.warn('⚠️ Notificação desktop falhou:', e.message);
+    return false;
   }
 }
 
 // Clicar na notificação foca uma aba do Crescent Hub (abre uma se não houver)
-chrome.notifications.onClicked.addListener((notifId) => {
-  if (!notifId.startsWith('uniko-')) return;
-  chrome.tabs.query({ url: ['https://crescent-hub.vercel.app/*', 'http://localhost/*'] }, (tabs) => {
-    if (tabs && tabs.length) {
-      chrome.tabs.update(tabs[0].id, { active: true });
-      if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true });
-    } else {
-      chrome.tabs.create({ url: 'https://crescent-hub.vercel.app/' });
-    }
-    chrome.notifications.clear(notifId);
+if (chrome.notifications && chrome.notifications.onClicked) {
+  chrome.notifications.onClicked.addListener((notifId) => {
+    if (!notifId.startsWith('uniko-')) return;
+    chrome.tabs.query({ url: ['https://crescent-hub.vercel.app/*', 'http://localhost/*'] }, (tabs) => {
+      if (tabs && tabs.length) {
+        chrome.tabs.update(tabs[0].id, { active: true });
+        if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true });
+      } else {
+        chrome.tabs.create({ url: 'https://crescent-hub.vercel.app/' });
+      }
+      chrome.notifications.clear(notifId);
+    });
   });
-});
+}
 
 /* ── Listener de mensagens ────────────────────────────────── */
 
@@ -604,9 +612,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (callerTabId) runYtCookiesExport(callerTabId);
   }
 
-  // Notificação desktop (lembretes do Portal + avisos do RH) → pop-up do sistema
+  // Notificação desktop (lembretes do Portal + avisos do RH) → pop-up do sistema.
+  // Se mostrou com sucesso, confirma para a página (UNIKO_NOTIFY_OK) para ela NÃO
+  // usar o fallback Web Notifications (evita duplicar).
   if (message.type === 'UNIKO_NOTIFY_SHOW') {
-    showDesktopNotification(message.notif || {});
+    const ok = showDesktopNotification(message.notif || {});
+    if (ok && sender.tab?.id != null) {
+      chrome.tabs.sendMessage(sender.tab.id, { type: 'UNIKO_NOTIFY_OK' }).catch(() => {});
+    }
   }
 
   // Auto-envio silencioso ao carregar a página (sem logs na aba)

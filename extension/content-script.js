@@ -51,7 +51,7 @@ window.addEventListener('message', (event) => {
 
 // Background → Página/iframe
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type?.startsWith('FAT_') || message?.type?.startsWith('YT_')) {
+  if (message?.type?.startsWith('FAT_') || message?.type?.startsWith('YT_') || message?.type?.startsWith('UNIKO_NOTIFY_')) {
     window.postMessage(message, '*');
   }
 });
