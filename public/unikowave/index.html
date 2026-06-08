@@ -1982,14 +1982,15 @@ const WIN_GOOD    = 0.22;
 // o suficiente pra dar pra ver/jogar. density alta mantém o fluxo rítmico; o minGap
 // é quem afina as batidas próximas, sempre guardando a primeira (o ataque da nota).
 const DIFF_CFG = {
-  // travel = tempo (s) que a nota leva caindo até a linha → MAIOR = mais lenta/legível.
+  // travel = tempo (s) que a nota leva caindo até a linha → MENOR = mais rápida.
+  // minGap = espaçamento mínimo entre notas → MAIOR = notas mais distantes/uniformes.
   // lifeDmg = vida perdida por erro (de 100); curar vem dos acertos em commitHit.
-  easy:       {travel:1.40, density:0.42, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.50, lifeDmg:5 }, // ≤2/s
-  normal:     {travel:1.35, density:0.78, holdChance:0.24, doubleChance:0.04, bpm:1.0, minGap:0.36, lifeDmg:7 }, // ≤2.8/s
-  hard:       {travel:1.30, density:1.0,  holdChance:0.20, doubleChance:0.08, bpm:1.0, minGap:0.27, lifeDmg:9 }, // ≤3.7/s
-  insane:     {travel:1.25, density:1.0,  holdChance:0.18, doubleChance:0.13, bpm:1.0, minGap:0.20, lifeDmg:11}, // ≤5/s
-  impossible: {travel:1.00, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.16, lifeDmg:13}, // ≤6.2/s
-  nightmare:  {travel:0.78, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.13, lifeDmg:15, stairChance:0.16, insideOutChance:0.12} // ≤7.7/s
+  easy:       {travel:1.22, density:0.42, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.62, lifeDmg:5 }, // ≤1.6/s
+  normal:     {travel:1.18, density:0.78, holdChance:0.24, doubleChance:0.04, bpm:1.0, minGap:0.48, lifeDmg:7 }, // ≤2.1/s
+  hard:       {travel:1.14, density:1.0,  holdChance:0.20, doubleChance:0.08, bpm:1.0, minGap:0.38, lifeDmg:9 }, // ≤2.6/s
+  insane:     {travel:1.08, density:1.0,  holdChance:0.18, doubleChance:0.13, bpm:1.0, minGap:0.28, lifeDmg:11}, // ≤3.6/s
+  impossible: {travel:0.90, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.23, lifeDmg:13}, // ≤4.3/s
+  nightmare:  {travel:0.70, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.18, lifeDmg:15, stairChance:0.16, insideOutChance:0.12} // ≤5.5/s
 };
 
 function setKeyLayout(k){
