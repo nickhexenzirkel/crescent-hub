@@ -117,6 +117,23 @@ export default function CrescentHub() {
     });
   });
 
+  // Envia o aviso para a extensão Cat-bot mostrar como pop-up no desktop.
+  // Funciona com qualquer aba do Crescent Hub aberta (mesmo minimizada/em 2º plano).
+  // Sem a extensão instalada, é um no-op silencioso.
+  const notifyDesktop = (n) => {
+    try {
+      window.postMessage({
+        type: 'UNIKO_NOTIFY_SHOW',
+        notif: {
+          id:      String(n?.id ?? ''),
+          type:    n?.type || 'lembrete',
+          title:   n?.title || '',
+          message: n?.message || '',
+        },
+      }, '*');
+    } catch {}
+  };
+
   useEffect(() => {
     if (!authUser) return;
     const channel = _supabase
@@ -126,6 +143,7 @@ export default function CrescentHub() {
         seenNotifIds.current.add(n.id);
         setNotifQueue(q => [...q, n]);
         if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
+        notifyDesktop(n); // pop-up no desktop via extensão (avisos do RH)
       })
       .subscribe();
     return () => _supabase.removeChannel(channel);
@@ -200,6 +218,7 @@ export default function CrescentHub() {
         // Dispara popup e som diretamente, sem esperar o realtime
         setNotifQueue(q => [...q, notifObj]);
         if (isUrgent) playAlarm(); else playReminder();
+        notifyDesktop(notifObj); // pop-up no desktop via extensão (lembretes pessoais)
       }
     };
 

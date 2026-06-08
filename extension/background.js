@@ -540,6 +540,42 @@ async function runYtCookiesExport(callerTabId) {
   }
 }
 
+/* ── Notificações desktop ─────────────────────────────────── */
+
+// Mostra um pop-up do sistema operacional para lembretes/avisos do app.
+// Usa um id estável (uniko-<id>) → se várias abas dispararem o mesmo aviso,
+// o Chrome só atualiza a mesma notificação em vez de empilhar duplicadas.
+function showDesktopNotification(n) {
+  try {
+    const isUrgent = n.type === 'aviso_urgente';
+    const id = `uniko-${n.id || Date.now()}`;
+    chrome.notifications.create(id, {
+      type:    'basic',
+      iconUrl: chrome.runtime.getURL('icon.png'),
+      title:   (isUrgent ? '🚨 ' : '🔔 ') + (n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete')),
+      message: String(n.message || '').slice(0, 500),
+      priority: isUrgent ? 2 : 1,
+      requireInteraction: !!isUrgent,  // urgente fica na tela até o usuário fechar
+    });
+  } catch (e) {
+    console.warn('⚠️ Notificação desktop falhou:', e.message);
+  }
+}
+
+// Clicar na notificação foca uma aba do Crescent Hub (abre uma se não houver)
+chrome.notifications.onClicked.addListener((notifId) => {
+  if (!notifId.startsWith('uniko-')) return;
+  chrome.tabs.query({ url: ['https://crescent-hub.vercel.app/*', 'http://localhost/*'] }, (tabs) => {
+    if (tabs && tabs.length) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+      if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true });
+    } else {
+      chrome.tabs.create({ url: 'https://crescent-hub.vercel.app/' });
+    }
+    chrome.notifications.clear(notifId);
+  });
+});
+
 /* ── Listener de mensagens ────────────────────────────────── */
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -566,6 +602,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'UNIKO_YT_EXPORT_COOKIES') {
     const callerTabId = sender.tab?.id;
     if (callerTabId) runYtCookiesExport(callerTabId);
+  }
+
+  // Notificação desktop (lembretes do Portal + avisos do RH) → pop-up do sistema
+  if (message.type === 'UNIKO_NOTIFY_SHOW') {
+    showDesktopNotification(message.notif || {});
   }
 
   // Auto-envio silencioso ao carregar a página (sem logs na aba)

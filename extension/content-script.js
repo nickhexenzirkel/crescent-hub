@@ -17,12 +17,18 @@ const sendMsg = (data, onError) => {
   }
 };
 
-const ALLOWED_PREFIXES = ['UNIKO_FAT_', 'UNIKO_YT_'];
+const ALLOWED_PREFIXES = ['UNIKO_FAT_', 'UNIKO_YT_', 'UNIKO_NOTIFY_'];
 
 // Página/iframe → Background
 window.addEventListener('message', (event) => {
   const { type } = event.data || {};
   if (!ALLOWED_PREFIXES.some(p => type?.startsWith(p))) return;
+
+  // Notificações desktop: encaminha sem alarde (não dispara FAT_ERROR se a extensão cair)
+  if (type.startsWith('UNIKO_NOTIFY_')) {
+    sendMsg(event.data, () => {});
+    return;
+  }
 
   if (type === 'UNIKO_FAT_PING') {
     sendMsg(
