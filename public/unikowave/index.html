@@ -1446,6 +1446,9 @@ canvas{display:block}
       <button class="snav-btn" id="mnBtn2" onclick="showMenuPanel('panelLib',this)">
         <span class="snav-icon">♪</span> BIBLIOTECA
       </button>
+      <button class="snav-btn" id="mnBtnRank" onclick="showMenuPanel('panelRank',this)">
+        <span class="snav-icon">🏆</span> RANKING
+      </button>
       <button class="snav-btn" id="mnBtn0s" onclick="showMenuPanel('panelSettings',this)">
         <span class="snav-icon">⚙</span> CONFIGURAÇÕES
       </button>
@@ -1549,11 +1552,14 @@ canvas{display:block}
         <div class="lib-empty-sub">Suas músicas jogadas aparecerão aqui. Comece a jogar para criar seu histórico!</div>
       </div>
       <div class="lib-grid" id="libGrid"></div>
-      <!-- RANKING GLOBAL DE PONTUAÇÃO -->
-      <div id="rankSection" class="rank-section">
-        <div class="rank-title">🏆 RANKING GLOBAL</div>
-        <div class="rank-sub">Maiores pontuações de todos os jogadores</div>
-        <div id="rankList" class="rank-list"><div class="rank-empty">Carregando ranking…</div></div>
+    </div>
+
+    <!-- RANKING PANEL -->
+    <div class="menu-panel off" id="panelRank" style="justify-content:flex-start;padding-top:28px">
+      <div class="panel-title"><span class="panel-title-icon">🏆</span>RANKING GLOBAL</div>
+      <div class="panel-subtitle">Maiores pontuações de todos os jogadores · você em destaque</div>
+      <div id="rankList" class="rank-list" style="width:100%;max-width:560px;margin:18px auto 0">
+        <div class="rank-empty">Carregando ranking…</div>
       </div>
     </div>
 
@@ -3114,6 +3120,7 @@ function showMenuPanel(panelId, btn){
   // Refresh panel contents
   if(panelId==='panelChar') renderCharGrid();
   if(panelId==='panelLib')  renderLibraryPanel();
+  if(panelId==='panelRank') requestRank();
   if(panelId==='panelSettings') renderSettingsPanel();
   if(panelId==='panelProfile')  renderProfilePanel();
   // Update play char name badge
@@ -3153,7 +3160,6 @@ function renderRank(rows, me){
 }
 
 function renderLibraryPanel(){
-  requestRank(); // atualiza o ranking global sempre que a biblioteca abre
   const entries=libLoad();
   const libEmpty=document.getElementById('libEmpty');
   const libCount=document.getElementById('libCount');
