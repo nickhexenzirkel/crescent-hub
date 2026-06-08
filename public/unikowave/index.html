@@ -27,7 +27,7 @@ canvas{display:block}
    ══════════════════════════════════════════ */
 
 /* ─── ANIMATED BACKGROUND ─── */
-#menuScr{background:#0d0118;overflow:hidden;flex-direction:row;align-items:stretch;padding:0;gap:0;top:36px!important}
+#menuScr{background:#0d0118;overflow:hidden;flex-direction:row;align-items:stretch;padding:0;gap:0}
 #menuBg{position:absolute;inset:0;z-index:0;pointer-events:none}
 .menu-star{position:absolute;border-radius:50%;background:#fff;animation:starTwinkle var(--dur,2s) ease-in-out infinite;opacity:0}
 @keyframes starTwinkle{0%,100%{opacity:0;transform:scale(0.5)}50%{opacity:var(--op,0.8);transform:scale(1)}}
@@ -1060,28 +1060,36 @@ canvas{display:block}
 .lib-count{font-size:10px;color:#2a3860;letter-spacing:1px;font-family:var(--font-pixel)}
 
 /* ─── CUSTOM TITLEBAR ─── */
-#titleBar{position:fixed;top:0;left:0;right:0;height:36px;z-index:1000;
-  background:rgba(4,4,15,0.96);backdrop-filter:blur(16px);
-  display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid rgba(0,240,255,0.12);
-  -webkit-app-region:drag;user-select:none}
-#tbLeft{display:flex;align-items:center;gap:10px;padding-left:12px}
-#tbLogo{font-family:var(--font-pixel);font-size:12px;font-weight:900;letter-spacing:3px;
-  background:linear-gradient(90deg,var(--C),var(--M),var(--P),var(--C));
-  background-size:300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  animation:ls 3s linear infinite}
-#tbIcon{width:20px;height:20px;border-radius:50%;filter:drop-shadow(0 0 6px var(--C))}
-#tbControls{display:flex;align-items:center;gap:2px;padding-right:8px;-webkit-app-region:no-drag}
-.tb-btn{width:30px;height:26px;border:none;border-radius:6px;cursor:pointer;
-  font-size:12px;display:flex;align-items:center;justify-content:center;
-  background:transparent;transition:background .15s,transform .1s;color:#fff}
-.tb-btn:hover{transform:scale(1.1)}
-.tb-btn:active{transform:scale(.92)}
-#tbMin{color:var(--Y)}.tb-btn#tbMin:hover{background:rgba(255,240,0,.18)}
-#tbMax{color:var(--G)}.tb-btn#tbMax:hover{background:rgba(0,255,136,.18)}
-#tbClose{color:var(--R)}.tb-btn#tbClose:hover{background:rgba(255,68,68,.28)}
-#tbFs{color:var(--C);width:34px;height:28px}#tbFs:hover{background:rgba(0,240,255,.18)}
-body{padding-top:36px}
+/* ─── INTRO SCREEN ─── */
+#introScr{position:fixed;inset:0;z-index:300;background:rgba(4,4,15,0.97);
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.intro-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none}
+.intro-content{position:relative;text-align:center;display:flex;flex-direction:column;
+  align-items:center;gap:20px;max-width:460px;padding:0 24px}
+.intro-logo{font-family:var(--font-pixel);font-size:40px;letter-spacing:4px;line-height:1.2;
+  background:linear-gradient(135deg,#ff2d92,#a855f7,#00f0ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:ls 4s linear infinite;background-size:300%}
+.intro-tag{color:#c4b5e8;font-size:13px;letter-spacing:2px;opacity:.9;font-family:var(--font-pixel)}
+.intro-desc{color:#8b7aaa;font-size:12px;line-height:1.9;text-align:center}
+.intro-desc strong{color:#00f0ff}
+.intro-hint{display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;
+  background:rgba(255,213,0,.05);border:1px solid rgba(255,213,0,.2);
+  color:#ffe44d;font-size:11px;letter-spacing:.5px}
+.intro-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.intro-btn-enter{padding:13px 32px;border-radius:10px;border:1px solid rgba(168,85,247,.4);
+  background:rgba(168,85,247,.1);color:#e2d9f3;font-family:var(--font-pixel);font-size:11px;
+  cursor:pointer;letter-spacing:2px;transition:background .2s,transform .15s}
+.intro-btn-enter:hover{background:rgba(168,85,247,.25);transform:scale(1.03)}
+.intro-btn-fs{padding:13px 32px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,#ff2d92,#a855f7);color:#fff;
+  font-family:var(--font-pixel);font-size:11px;cursor:pointer;letter-spacing:2px;
+  box-shadow:0 0 24px rgba(168,85,247,.45);transition:transform .15s,box-shadow .15s}
+.intro-btn-fs:hover{transform:scale(1.05);box-shadow:0 0 36px rgba(168,85,247,.6)}
+/* sidebar fullscreen button */
+.snav-btn-fs{margin-top:8px;color:rgba(0,240,255,0.65)!important;
+  border:1px solid rgba(0,240,255,0.15)!important;background:rgba(0,240,255,0.05)!important}
+.snav-btn-fs:hover{color:#00f0ff!important;background:rgba(0,240,255,0.12)!important}
 
 /* ─── GAMEPAD GUIDE ─── */
 #gpGuide{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:7;
@@ -1172,17 +1180,29 @@ body{padding-top:36px}
   </div>
 </div>
 
-<div id="titleBar">
-  <div id="tbLeft">
-    <img id="tbIcon" src="images/DodocoWave.png" alt="" onerror="this.style.display='none'">
-    <span id="tbLogo">UNIKO WAVE</span>
-  </div>
-  <div id="tbControls">
-    <button class="tb-btn" id="tbFs" onclick="toggleFullscreen()" title="Tela cheia (F11)">
-      <svg id="fsIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-      </svg>
-    </button>
+<!-- ══════════════════════════════════════
+     INTRO SCREEN
+     ══════════════════════════════════════ -->
+<div id="introScr">
+  <div class="intro-orb" style="width:500px;height:500px;background:rgba(168,85,247,.14);top:-150px;left:-120px;animation:orbFloat 10s ease-in-out infinite"></div>
+  <div class="intro-orb" style="width:380px;height:380px;background:rgba(255,45,146,.10);bottom:-100px;right:-80px;animation:orbFloat 8s ease-in-out infinite reverse"></div>
+  <div class="intro-orb" style="width:280px;height:280px;background:rgba(0,240,255,.07);top:30%;left:60%;animation:orbFloat 12s ease-in-out infinite"></div>
+  <div class="intro-content">
+    <div class="intro-logo">UNIKO<br>WAVE</div>
+    <div class="intro-tag">SINTA O RITMO</div>
+    <div class="intro-desc">
+      Um jogo de ritmo que usa qualquer música do YouTube.<br>
+      Cole o link, escolha a dificuldade e acerte as notas<br>
+      usando as teclas <strong>A · S · D · F</strong> no teclado.
+    </div>
+    <div class="intro-hint">
+      <span style="font-size:16px">⛶</span>
+      Para a melhor experiência, jogue em tela cheia
+    </div>
+    <div class="intro-btns">
+      <button class="intro-btn-enter" onclick="dismissIntro(false)">ENTRAR</button>
+      <button class="intro-btn-fs" onclick="dismissIntro(true)">⛶ TELA CHEIA</button>
+    </div>
   </div>
 </div>
 <!-- ══════════════════════════════════════
@@ -1190,7 +1210,7 @@ body{padding-top:36px}
      ══════════════════════════════════════ -->
 <div id="profileSetupScr" class="off" style="position:fixed;inset:0;z-index:200;background:rgba(4,4,15,.97)">
   <div class="psetup-inner">
-    <div class="psetup-title">✦ BEM-VINDO AO DODOCO WAVE ✦</div>
+    <div class="psetup-title">✦ BEM-VINDO AO UNIKO WAVE ✦</div>
     <div class="psetup-sub">Antes de começar, crie o seu perfil!</div>
     <div class="psetup-name-wrap">
       <div class="psetup-label">SEU NOME</div>
@@ -1227,7 +1247,7 @@ body{padding-top:36px}
 
   <!-- SIDEBAR -->
   <div id="menuSidebar">
-    <div class="sidebar-logo">DODOCO<br>WAVE<span class="sidebar-star-icon">✦</span></div>
+    <div class="sidebar-logo">UNIKO<br>WAVE<span class="sidebar-star-icon">✦</span></div>
     <div class="sidebar-sub">SINTA O RITMO</div>
 
     <!-- Profile badge -->
@@ -1258,7 +1278,10 @@ body{padding-top:36px}
         <span class="snav-icon">✏</span> EDITAR PERFIL
       </button>
     </nav>
-    <div class="sidebar-version">DODOCO WAVE<br>v2.0.0</div>
+    <button class="snav-btn snav-btn-fs" onclick="toggleFullscreen()">
+      <span class="snav-icon">⛶</span> TELA CHEIA
+    </button>
+    <div class="sidebar-version">UNIKO WAVE<br>v2.0.0</div>
   </div>
 
   <!-- MAIN AREA -->
@@ -1953,6 +1976,11 @@ function toggleFullscreen(){
   } else {
     document.exitFullscreen();
   }
+}
+function dismissIntro(goFullscreen){
+  const el=document.getElementById('introScr');
+  if(el) el.style.display='none';
+  if(goFullscreen) toggleFullscreen();
 }
 document.addEventListener('fullscreenchange',()=>{
   const svg=document.querySelector('#fsIcon');
