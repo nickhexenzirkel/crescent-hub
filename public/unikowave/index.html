@@ -1969,13 +1969,17 @@ document.addEventListener('keydown', e=>{
 const WIN_PERFECT = 0.10;
 const WIN_GOOD    = 0.22; 
 
+// minGap = espaçamento MÍNIMO entre notas (segundos) → é o teto de notas/segundo.
+// Valores legíveis: mesmo no ritmo REAL (onsets densos) as notas ficam espaçadas
+// o suficiente pra dar pra ver/jogar. density alta mantém o fluxo rítmico; o minGap
+// é quem afina as batidas próximas, sempre guardando a primeira (o ataque da nota).
 const DIFF_CFG = {
-  easy:       {travel:1.1, density:0.28, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.40},
-  normal:     {travel:1.1, density:0.55, holdChance:0.24, doubleChance:0.05, bpm:1.0, minGap:0.26},
-  hard:       {travel:1.1, density:0.82, holdChance:0.20, doubleChance:0.10, bpm:1.0, minGap:0.14},
-  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.18, bpm:1.0, minGap:0.09},
-  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.26, bpm:1.0, minGap:0.05},
-  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.38, bpm:1.0, minGap:0.03, stairChance:0.18, insideOutChance:0.14}
+  easy:       {travel:1.1, density:0.42, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.50}, // ≤2/s
+  normal:     {travel:1.1, density:0.78, holdChance:0.24, doubleChance:0.04, bpm:1.0, minGap:0.36}, // ≤2.8/s
+  hard:       {travel:1.1, density:1.0,  holdChance:0.20, doubleChance:0.08, bpm:1.0, minGap:0.27}, // ≤3.7/s
+  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.13, bpm:1.0, minGap:0.20}, // ≤5/s
+  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.16}, // ≤6.2/s
+  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.13, stairChance:0.16, insideOutChance:0.12} // ≤7.7/s
 };
 
 function setKeyLayout(k){
@@ -3724,30 +3728,40 @@ function generateChart(beats,dur,cfg,meta){
     const isDownbeat=bs?bs.pos%4===0:false;
     const canSpecial=isDownbeat&&e>=1.1&&(t-lastSpecialTime)>=SPECIAL_COOLDOWN;
 
-    // Inside-out: S D S D | A+F A+F | S D S D — on actual song beats
+    // Espaçamento das sequências especiais: nunca menor que seqGap, p/ não
+    // estourar uma rajada quando os onsets da música vêm muito juntos.
+    const seqGap=Math.max(minGap,0.16);
+
+    // Inside-out: S D S D | A+F A+F | S D S D — em batidas reais, mas espaçadas
     if(canSpecial&&cfg.insideOutChance&&mr()<cfg.insideOutChance){
       const ioLanes=[[1],[2],[1],[2],[0,3],[0,3],[1],[2],[1],[2]];
-      let seqEnd=i,lastSeqT=t;
-      for(let s=0;s<ioLanes.length&&i+s<beats.length;s++){
-        const st=beats[i+s];
+      let seqEnd=i,lastSeqT=-999,placed=0,k=i;
+      while(placed<ioLanes.length&&k<beats.length){
+        const st=beats[k];
         if(st>dur-0.6) break;
-        ioLanes[s].forEach(sl=>push(sl,st));
-        seqEnd=i+s; lastSeqT=st;
+        if(placed===0||st-lastSeqT>=seqGap){
+          ioLanes[placed].forEach(sl=>push(sl,st));
+          lastSeqT=st; seqEnd=k; placed++;
+        }
+        k++;
       }
       lastSpecialTime=t; lastNoteTime=lastSeqT; skipUntil=lastSeqT+0.15;
       i=seqEnd; continue;
     }
 
-    // Staircase: 4-note sweep A→F or F→A — on actual song beats
+    // Staircase: 4-note sweep A→F or F→A — em batidas reais, mas espaçadas
     if(canSpecial&&cfg.stairChance&&mr()<cfg.stairChance){
       const dir=mr()<0.5?1:-1;
       const startL=dir===1?0:3;
-      let seqEnd=i,lastSeqT=t;
-      for(let s=0;s<4&&i+s<beats.length;s++){
-        const st=beats[i+s];
+      let seqEnd=i,lastSeqT=-999,placed=0,k=i;
+      while(placed<4&&k<beats.length){
+        const st=beats[k];
         if(st>dur-0.6) break;
-        push(startL+dir*s,st);
-        seqEnd=i+s; lastSeqT=st;
+        if(placed===0||st-lastSeqT>=seqGap){
+          push(startL+dir*placed,st);
+          lastSeqT=st; seqEnd=k; placed++;
+        }
+        k++;
       }
       lastSpecialTime=t; lastNoteTime=lastSeqT; skipUntil=lastSeqT+0.15;
       i=seqEnd; continue;
