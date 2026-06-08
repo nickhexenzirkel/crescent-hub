@@ -877,6 +877,12 @@ canvas{display:block}
 }
 /* ─── SONG PROGRESS BAR (topo da tela) ─── */
 #songProgress{position:absolute;top:36px;left:0;right:0;height:3px;background:rgba(255,255,255,.08);pointer-events:none;z-index:7}
+/* ─── BARRA DE VIDA (errar muito = perde a partida) ─── */
+#lifeBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(340px,52vw);height:15px;background:rgba(8,8,22,.72);border:2px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden;z-index:8;box-shadow:0 0 12px rgba(0,0,0,.45)}
+#lifeBar::before{content:'❤';position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:9px;z-index:1;pointer-events:none;color:#fff;opacity:.85}
+#lifeFill{height:100%;width:100%;border-radius:7px;background:linear-gradient(90deg,#00ff88,#00f0ff);transition:width .2s ease,background .35s ease}
+#lifeBar.low #lifeFill{animation:lifePulse .5s ease-in-out infinite alternate}
+@keyframes lifePulse{from{opacity:.55}to{opacity:1}}
 #songProgressFill{height:100%;width:0%;background:linear-gradient(90deg,var(--C),var(--M),var(--P),var(--Y));background-size:300%;animation:grooveShift 3s linear infinite;box-shadow:0 0 6px rgba(0,240,255,.7);transition:width .3s linear}
 
 #screenFlash{position:fixed;inset:0;pointer-events:none;z-index:8;opacity:0;transition:opacity .08s}
@@ -1654,6 +1660,8 @@ canvas{display:block}
 <div id="hud" class="off">
   <!-- Barra de progresso da música (topo) -->
   <div id="songProgress"><div id="songProgressFill"></div></div>
+  <!-- Barra de vida: errar muito esgota e perde a partida -->
+  <div id="lifeBar"><div id="lifeFill"></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)">⏸ PAUSA</button>
   <div id="hudStars">
     <div class="star-row">
@@ -1974,12 +1982,14 @@ const WIN_GOOD    = 0.22;
 // o suficiente pra dar pra ver/jogar. density alta mantém o fluxo rítmico; o minGap
 // é quem afina as batidas próximas, sempre guardando a primeira (o ataque da nota).
 const DIFF_CFG = {
-  easy:       {travel:1.1, density:0.42, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.50}, // ≤2/s
-  normal:     {travel:1.1, density:0.78, holdChance:0.24, doubleChance:0.04, bpm:1.0, minGap:0.36}, // ≤2.8/s
-  hard:       {travel:1.1, density:1.0,  holdChance:0.20, doubleChance:0.08, bpm:1.0, minGap:0.27}, // ≤3.7/s
-  insane:     {travel:1.1, density:1.0,  holdChance:0.18, doubleChance:0.13, bpm:1.0, minGap:0.20}, // ≤5/s
-  impossible: {travel:0.8, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.16}, // ≤6.2/s
-  nightmare:  {travel:0.6, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.13, stairChance:0.16, insideOutChance:0.12} // ≤7.7/s
+  // travel = tempo (s) que a nota leva caindo até a linha → MAIOR = mais lenta/legível.
+  // lifeDmg = vida perdida por erro (de 100); curar vem dos acertos em commitHit.
+  easy:       {travel:1.40, density:0.42, holdChance:0.22, doubleChance:0.0,  bpm:1.0, minGap:0.50, lifeDmg:5 }, // ≤2/s
+  normal:     {travel:1.35, density:0.78, holdChance:0.24, doubleChance:0.04, bpm:1.0, minGap:0.36, lifeDmg:7 }, // ≤2.8/s
+  hard:       {travel:1.30, density:1.0,  holdChance:0.20, doubleChance:0.08, bpm:1.0, minGap:0.27, lifeDmg:9 }, // ≤3.7/s
+  insane:     {travel:1.25, density:1.0,  holdChance:0.18, doubleChance:0.13, bpm:1.0, minGap:0.20, lifeDmg:11}, // ≤5/s
+  impossible: {travel:1.00, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.16, lifeDmg:13}, // ≤6.2/s
+  nightmare:  {travel:0.78, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.13, lifeDmg:15, stairChance:0.16, insideOutChance:0.12} // ≤7.7/s
 };
 
 function setKeyLayout(k){
@@ -2064,13 +2074,19 @@ function startAudioIframe(videoId){
   // 1×1 px, fora da tela — áudio toca, vídeo nunca é visto → sem recomendações
   f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
   f.setAttribute('allow','autoplay');
-  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=0&loop=1&playlist=${videoId}`;
+  // enablejsapi=1 → permite pausar/retomar via postMessage (usado pela pausa do jogo)
+  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&playsinline=1&loop=1&playlist=${videoId}&origin=${encodeURIComponent(location.origin)}`;
   document.body.appendChild(f);
 }
 function stopAudioIframe(){
   const f=document.getElementById('ytAudioFrame');
   if(f) f.remove();
   if(_audioIframeTimer){clearTimeout(_audioIframeTimer);_audioIframeTimer=null;}
+}
+// Envia comando (pauseVideo/playVideo) ao iframe de áudio oculto do modo efeitos
+function audioIframeCmd(func){
+  const f=document.getElementById('ytAudioFrame');
+  if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}),'*'); }catch(_){} }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2590,7 +2606,8 @@ function updateHitSoundBase(ab){}
 
 let gameState='menu';
 let chart=[],lastYtUrl='',lastVideoUrl='';
-const score={v:0,combo:0,maxCombo:0,perfect:0,good:0,miss:0};
+const score={v:0,combo:0,maxCombo:0,perfect:0,good:0,miss:0,health:100};
+let gameOverByDeath=false; // true quando a partida acaba por vida zerada
 
 let maxPossibleScore=0,starLevel=0,prevStarLevel=0;
 const heldKeys=new Set(),heldNotes=new Map();
@@ -3817,7 +3834,8 @@ function generateChart(beats,dur,cfg,meta){
 }
 
 function beginGame(){
-  Object.assign(score,{v:0,combo:0,maxCombo:0,perfect:0,good:0,miss:0});
+  Object.assign(score,{v:0,combo:0,maxCombo:0,perfect:0,good:0,miss:0,health:100});
+  gameOverByDeath=false; updateLifeBar();
   
   heldKeys.clear();heldNotes.clear();
   particles.length=0;rings.length=0;judgments.length=0;fireP.length=0;
@@ -3959,6 +3977,9 @@ function commitHit(note,perf){
   score.combo++;
   if(score.combo>score.maxCombo)score.maxCombo=score.combo;
   if(perf)score.perfect++;else score.good++;
+  // Acertar recupera um pouco de vida (recuperável, mas o erro custa mais)
+  score.health=Math.min(100,(score.health??100)+(perf?1.6:0.9));
+  updateLifeBar();
   dodocoMissStreak=0;
   onPerfectHit(perf);
   playHitSound(perf);
@@ -3973,7 +3994,38 @@ function scoreMiss(){
   if(hadCombo>=10){
     addJudge(VP_X, VP_Y+(HIT_YP-VP_Y)*0.55, `COMBO ✕ (${hadCombo})`, '#ff4444');
   }
+  // ── Vida: cada erro tira vida; zerou → perde a partida ──
+  const dmg=(DIFF_CFG[difficulty]&&DIFF_CFG[difficulty].lifeDmg)||8;
+  score.health=Math.max(0,(score.health??100)-dmg);
+  updateLifeBar();
   updateHUD();
+  if(score.health<=0) gameOver();
+}
+
+// Atualiza a barra de vida (largura + cor verde→amarelo→vermelho).
+function updateLifeBar(){
+  const bar=document.getElementById('lifeBar');
+  const fill=document.getElementById('lifeFill');
+  if(!fill) return;
+  const h=Math.max(0,Math.min(100,score.health??100));
+  fill.style.width=h+'%';
+  const col = h>50 ? 'linear-gradient(90deg,#00ff88,#00f0ff)'
+            : h>25 ? 'linear-gradient(90deg,#ffcc00,#ff8800)'
+                   : 'linear-gradient(90deg,#ff4444,#ff0066)';
+  fill.style.background=col;
+  fill.style.boxShadow=`0 0 12px ${h>50?'rgba(0,255,136,.5)':h>25?'rgba(255,160,0,.5)':'rgba(255,40,80,.6)'}`;
+  if(bar) bar.classList.toggle('low', h<=25);
+}
+
+// Fim de jogo por vida zerada — para a música e abre o resultado como GAME OVER.
+function gameOver(){
+  if(gameOverByDeath||gameState==='result') return;
+  gameOverByDeath=true;
+  try{ triggerScreenFlash('miss'); }catch(_){}
+  if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
+  audioIframeCmd('pauseVideo');
+  if(audioCtx){ try{audioCtx.suspend();}catch(_){} }
+  setTimeout(showResult,800);
 }
 
 function getMultiplier(){
@@ -6356,6 +6408,9 @@ function pauseGame(){
   prePauseState=gameState;
   gameState='paused';
   if(audioCtx) audioCtx.suspend();
+  // Pausa também a música do YouTube — modo vídeo (_vbPlayer) e modo efeitos (iframe oculto)
+  if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
+  audioIframeCmd('pauseVideo');
   pauseStartWallMs=performance.now();
   document.getElementById('pauseOverlay').classList.remove('off');
   const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='▶ JOGO';
@@ -6364,6 +6419,9 @@ function resumeGame(){
   if(gameState!=='paused') return;
   gameState=prePauseState;
   if(audioCtx) audioCtx.resume();
+  // Retoma a música do YouTube de onde parou (vídeo e efeitos)
+  if(_vbPlayer&&_vbPlayer.playVideo){ try{_vbPlayer.playVideo();}catch(_){} }
+  audioIframeCmd('playVideo');
   const pausedMs=performance.now()-pauseStartWallMs;
   gameStartWallTime+=pausedMs;
   document.getElementById('pauseOverlay').classList.add('off');
@@ -6383,7 +6441,7 @@ function showResult(){
   const acc=total>0?(score.perfect*100+score.good*60)/total:0;
   const{grade,col}=getGrade(acc);
   
-  document.getElementById('resTag').textContent='STAGE CLEAR';
+  document.getElementById('resTag').textContent = gameOverByDeath ? '💀 GAME OVER' : 'STAGE CLEAR';
   
   // FORMATAÇÃO DO 0.00% GARANTIDA
   document.getElementById('resAcc').textContent = acc === 0 ? "0.00%" : acc.toFixed(2) + "%";
@@ -6418,6 +6476,7 @@ function showResult(){
   else if(sl2>=3) resultDodoState='surpreso';
   else if(missRate2>0.3) resultDodoState='raiva';
   else resultDodoState='tranquilo';
+  if(gameOverByDeath) resultDodoState='raiva'; // morreu → Dodoco desapontado
   setTimeout(()=>{
     setDodoco(resultDodoState);
     const ch=CHARACTERS[selectedChar]||CHARACTERS.dodoco;
