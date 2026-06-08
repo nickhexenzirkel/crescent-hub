@@ -20,17 +20,36 @@ export const ExtensionPrompt = () => {
   const [dismissed, setDismissed] = useState(false);
   const [open, setOpen]       = useState(false);
   const [rechecking, setRechecking] = useState(false);
+  const [okFlash, setOkFlash] = useState(false); // confirmação verde após verificar
 
-  const run = async () => {
+  const run = async (manual = false) => {
     setRechecking(true);
     const r = await checkExtension();
-    setStatus(r === true ? 'ok' : r === 'reload' ? 'reload' : 'missing');
+    const st = r === true ? 'ok' : r === 'reload' ? 'reload' : 'missing';
+    setStatus(st);
     setRechecking(false);
+    if (manual && st === 'ok') { setOkFlash(true); setTimeout(() => setDismissed(true), 3500); }
   };
 
-  useEffect(() => { run(); }, []);
+  useEffect(() => { run(false); }, []);
 
-  if (dismissed || status === 'checking' || status === 'ok') return null;
+  if (dismissed || status === 'checking') return null;
+
+  // Confirmação: extensão detectada após clicar em "Já instalei / Verificar"
+  if (status === 'ok') {
+    if (!okFlash) return null;
+    return (
+      <div style={{
+        position:'fixed', top:14, left:'50%', transform:'translateX(-50%)', zIndex:9000,
+        fontFamily:'var(--font-body)', display:'flex', alignItems:'center', gap:10,
+        background:'#ECFBF1', border:'1.5px solid rgba(26,144,96,0.35)', color:'#1A7A50',
+        borderRadius:14, padding:'12px 18px', fontWeight:700, fontSize:13.5,
+        boxShadow:'0 12px 40px rgba(0,0,0,0.16)',
+      }}>
+        ✅ Extensão Uniko Cat-Bot ativa e conectada!
+      </div>
+    );
+  }
 
   const isReload = status === 'reload';
   const C = { warn:'#B25A00', warnBg:'#FFF7EC', warnBd:'rgba(178,90,0,0.3)', gold:'#C8960A' };
@@ -79,7 +98,7 @@ export const ExtensionPrompt = () => {
             {open ? 'Ocultar passo a passo' : 'Como instalar (passo a passo)'}
           </button>
         )}
-        <button onClick={run} disabled={rechecking}
+        <button onClick={() => run(true)} disabled={rechecking}
           style={{ padding:'7px 12px', borderRadius:9, border:`1px solid ${C.warnBd}`, background:'#fff',
             cursor:rechecking?'wait':'pointer', color:C.warn, fontSize:12.5, fontWeight:700 }}>
           {rechecking ? 'Verificando…' : 'Já instalei / Verificar'}

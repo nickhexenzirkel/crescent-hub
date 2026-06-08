@@ -3,6 +3,7 @@ import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, StarDivider } from '../../shared/components';
 import { notifyDesktop, ensureNotifyPermission, notifyPermission } from '../../utils/desktopNotify';
+import { checkExtension } from '../../utils/checkExtension';
 
 /* ── cores de destaque para anotações ── */
 const NOTA_CORES = [
@@ -32,6 +33,14 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const userName = authUser?.name || 'Colaborador';
   const [activeTab, setActiveTab] = useState('lembretes');
   const [notifPerm, setNotifPerm] = useState(notifyPermission());
+  const [extStatus, setExtStatus] = useState('checking'); // checking | ok | missing | reload
+
+  /* ── Verifica se a extensão Uniko Cat-Bot está ativa no navegador ── */
+  const verificarExtensao = async () => {
+    setExtStatus('checking');
+    const r = await checkExtension();
+    setExtStatus(r === true ? 'ok' : r === 'reload' ? 'reload' : 'missing');
+  };
 
   /* ── Teste de notificação no desktop (pede permissão no clique) ── */
   const testarNotificacao = async () => {
@@ -88,7 +97,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
     setNLoading(false);
   };
 
-  useEffect(() => { loadLembretes(); loadNotas(); }, []);
+  useEffect(() => { loadLembretes(); loadNotas(); verificarExtensao(); }, []);
 
   /* ── lembretes CRUD ── */
   const openNewL = () => { setLForm({ title:'', message:'', time:'', date:'', repeat:'never', active:true }); setLEdit(null); setLMsg(''); setLModal(true); };
@@ -173,6 +182,17 @@ const CentralLembretes = ({ onBack, authUser }) => {
           </div>
         </div>
         <div style={{ flex:1 }}/>
+        <button onClick={verificarExtensao} disabled={extStatus==='checking'}
+          title={extStatus==='ok' ? 'Extensão Uniko Cat-Bot ativa e conectada' : 'Clique para verificar se a extensão está ativa'}
+          style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 14px', borderRadius:12,
+            cursor: extStatus==='checking'?'wait':'pointer', fontFamily:'var(--font-body)', fontSize:12.5, fontWeight:600,
+            border:`1px solid ${extStatus==='ok'?'rgba(26,144,96,0.4)':extStatus==='missing'||extStatus==='reload'?'rgba(192,64,80,0.35)':T.border}`,
+            background: extStatus==='ok'?'rgba(26,144,96,0.08)':'transparent',
+            color: extStatus==='ok'?'#1A9060':extStatus==='missing'||extStatus==='reload'?'#C04050':T.textS }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, display:'inline-block',
+            background: extStatus==='ok'?'#1A9060':extStatus==='checking'?'#C8960A':'#C04050' }}/>
+          {extStatus==='checking' ? 'Verificando…' : extStatus==='ok' ? 'Extensão ativa' : extStatus==='reload' ? 'Recarregue (F5)' : 'Extensão inativa'}
+        </button>
         <button onClick={testarNotificacao}
           title={notifPerm === 'denied' ? 'Notificações bloqueadas — libere no cadeado do navegador e nas configurações do Windows' : 'Enviar uma notificação de teste para o desktop'}
           style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 16px', borderRadius:12, border:`1px solid ${notifPerm==='denied'?'rgba(192,64,80,0.4)':T.border}`, cursor:'pointer', background:'transparent', color:notifPerm==='denied'?'#C04050':T.textS, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
