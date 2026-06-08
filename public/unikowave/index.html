@@ -1641,7 +1641,9 @@ canvas{display:block}
       </div>
     </div>
     <div id="localVidBadge" style="display:none;font-size:10px;letter-spacing:1px;color:rgba(0,240,255,.6);text-align:center;margin-top:-8px;padding:4px 0"></div>
-    <button class="prev-play" onclick="beginFromPreview()">▶ PLAY</button>
+    <button class="prev-play" onclick="beginFromPreview(false)">▶ PLAY (ritmo real)</button>
+    <button class="prev-play" onclick="beginFromPreview(true)" style="margin-top:10px;background:linear-gradient(135deg,#3a4870,#566089);color:#fff;font-size:11px">⚡ PLAY RÁPIDO (ritmo estimado)</button>
+    <div style="font-size:9px;color:rgba(255,255,255,.4);text-align:center;margin-top:6px;letter-spacing:.5px">Rápido = começa na hora, sem esperar baixar o áudio</div>
   </div>
 </div>
 
@@ -3356,15 +3358,16 @@ async function fetchBeatmap(videoId){
   throw new Error('análise demorou demais');
 }
 
-async function beginFromPreview(){
+async function beginFromPreview(skipReal){
   showScreen('loadScr');
-  document.getElementById('loadTxt').textContent='ANALISANDO RITMO';
-  setProgress(8,'Analisando o ritmo da música...');
+  document.getElementById('loadTxt').textContent=skipReal?'PREPARANDO':'ANALISANDO RITMO';
+  setProgress(8,skipReal?'Gerando mapa...':'Analisando o ritmo da música...');
   songTitle=pendingTitle; songDuration=pendingDuration>10?pendingDuration:240; audioBuffer=null;
 
   const vid=(lastVideoUrl&&/^[a-zA-Z0-9_-]{11}$/.test(lastVideoUrl))?lastVideoUrl:getYTId(lastYtUrl||'');
   let bm=null;
-  if(vid){ try{ bm=await fetchBeatmap(vid); }catch(e){ console.warn('[beatmap]',e.message); } }
+  // Modo rápido: pula a análise do servidor e usa o ritmo estimado na hora.
+  if(!skipReal && vid){ try{ bm=await fetchBeatmap(vid); }catch(e){ console.warn('[beatmap]',e.message); } }
 
   let beats, meta;
   if(bm&&Array.isArray(bm.beats)&&bm.beats.length){
