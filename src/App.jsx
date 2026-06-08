@@ -10,6 +10,7 @@ import PontoEletronico from './modules/ponto-eletronico';
 import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
+import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -117,40 +118,22 @@ export default function CrescentHub() {
     });
   });
 
-  // Fallback: mostra a notificação direto pela Web Notifications API do navegador.
-  // Usado quando a extensão Cat-bot não confirma que mostrou (ex.: não recarregada
-  // após ganhar a permissão, ou não instalada). Pede permissão ao usuário 1x.
-  const webNotify = (n) => {
-    try {
-      if (!('Notification' in window)) return;
-      const isUrgent = n?.type === 'aviso_urgente';
-      const title = (isUrgent ? '🚨 ' : '.𖥔 . ᓚ₍ ^. .^₎ ') + (n?.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete'));
-      const show = () => { try { new Notification(title, { body: n?.message || '', requireInteraction: true, icon: '/UnikoQuadrado.png' }); } catch {} };
-      if (Notification.permission === 'granted') show();
-      else if (Notification.permission !== 'denied') Notification.requestPermission().then(p => { if (p === 'granted') show(); }).catch(() => {});
-    } catch {}
-  };
+  // notifyDesktop/ensureNotifyPermission vêm de utils/desktopNotify (extensão + fallback web).
 
-  // Mostra o aviso como pop-up no desktop. Tenta primeiro a extensão Cat-bot;
-  // se ela não confirmar (UNIKO_NOTIFY_OK) em ~800ms, cai no fallback do navegador.
-  const notifyDesktop = (n) => {
-    const notif = {
-      id:      String(n?.id ?? ''),
-      type:    n?.type || 'lembrete',
-      title:   n?.title || '',
-      message: n?.message || '',
+  // Pede a permissão de notificação no PRIMEIRO gesto do usuário (o Chrome exige um
+  // clique/tecla para exibir o prompt). Garante que o fallback do navegador funcione.
+  useEffect(() => {
+    if (!authUser) return;
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    const ask = () => { ensureNotifyPermission().finally(cleanup); };
+    const cleanup = () => {
+      window.removeEventListener('pointerdown', ask);
+      window.removeEventListener('keydown', ask);
     };
-    let acked = false;
-    const onAck = (e) => {
-      if (e.data?.type === 'UNIKO_NOTIFY_OK') { acked = true; window.removeEventListener('message', onAck); }
-    };
-    window.addEventListener('message', onAck);
-    try { window.postMessage({ type: 'UNIKO_NOTIFY_SHOW', notif }, '*'); } catch {}
-    setTimeout(() => {
-      window.removeEventListener('message', onAck);
-      if (!acked) webNotify(notif); // extensão não respondeu → usa o navegador
-    }, 800);
-  };
+    window.addEventListener('pointerdown', ask, { once: true });
+    window.addEventListener('keydown', ask, { once: true });
+    return cleanup;
+  }, [authUser]);
 
   useEffect(() => {
     if (!authUser) return;

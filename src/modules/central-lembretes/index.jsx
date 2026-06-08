@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, StarDivider } from '../../shared/components';
+import { notifyDesktop, ensureNotifyPermission, notifyPermission } from '../../utils/desktopNotify';
 
 /* ── cores de destaque para anotações ── */
 const NOTA_CORES = [
@@ -30,6 +31,23 @@ const Ico = ({ d, size=14, stroke='currentColor' }) => (
 const CentralLembretes = ({ onBack, authUser }) => {
   const userName = authUser?.name || 'Colaborador';
   const [activeTab, setActiveTab] = useState('lembretes');
+  const [notifPerm, setNotifPerm] = useState(notifyPermission());
+
+  /* ── Teste de notificação no desktop (pede permissão no clique) ── */
+  const testarNotificacao = async () => {
+    if (notifyPermission() === 'default') {
+      const p = await ensureNotifyPermission();
+      setNotifPerm(p);
+    } else {
+      setNotifPerm(notifyPermission());
+    }
+    notifyDesktop({
+      id: 'test-' + Date.now(),
+      type: 'lembrete',
+      title: 'Teste de notificação',
+      message: 'Funcionou! As notificações no desktop estão ativas. 🐱',
+    });
+  };
 
   /* ── estado lembretes ── */
   const [lembretes,  setLembretes]  = useState([]);
@@ -155,6 +173,12 @@ const CentralLembretes = ({ onBack, authUser }) => {
           </div>
         </div>
         <div style={{ flex:1 }}/>
+        <button onClick={testarNotificacao}
+          title={notifPerm === 'denied' ? 'Notificações bloqueadas — libere no cadeado do navegador e nas configurações do Windows' : 'Enviar uma notificação de teste para o desktop'}
+          style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 16px', borderRadius:12, border:`1px solid ${notifPerm==='denied'?'rgba(192,64,80,0.4)':T.border}`, cursor:'pointer', background:'transparent', color:notifPerm==='denied'?'#C04050':T.textS, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
+          <Ico d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>} size={13} stroke={notifPerm==='denied'?'#C04050':T.textS}/>
+          {notifPerm === 'denied' ? 'Notif. bloqueada' : notifPerm === 'granted' ? 'Testar no desktop' : 'Ativar notificações'}
+        </button>
         <button onClick={activeTab === 'lembretes' ? openNewL : openNewN} style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:12, border:'none', cursor:'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', boxShadow:`0 3px 12px ${T.gold}44` }}>
           <Ico d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} size={12} stroke="white"/>
           {activeTab === 'lembretes' ? 'Novo Lembrete' : 'Nova Anotação'}
