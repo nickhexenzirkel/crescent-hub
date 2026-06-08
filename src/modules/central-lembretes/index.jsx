@@ -168,7 +168,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* ── HEADER ── */}
-      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20, flexWrap:'wrap' }}>
         <button onClick={onBack} style={{ width:36, height:36, borderRadius:10, border:`1px solid ${T.border}`, background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:T.textS, outline:'none' }}>
           <Ico d={<polyline points="15 18 9 12 15 6"/>}/>
         </button>
@@ -193,6 +193,14 @@ const CentralLembretes = ({ onBack, authUser }) => {
             background: extStatus==='ok'?'#1A9060':extStatus==='checking'?'#C8960A':'#C04050' }}/>
           {extStatus==='checking' ? 'Verificando…' : extStatus==='ok' ? 'Extensão ativa' : extStatus==='reload' ? 'Recarregue (F5)' : 'Extensão inativa'}
         </button>
+        <a href="/uniko-catbot.zip" download="uniko-catbot.zip"
+          title="Baixar a extensão Uniko Cat-Bot (.zip)"
+          style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 14px', borderRadius:12, textDecoration:'none',
+            border:`1px solid ${extStatus==='ok'?T.border:'rgba(200,150,10,0.5)'}`, background: extStatus==='ok'?'transparent':'rgba(200,150,10,0.08)',
+            color: extStatus==='ok'?T.textS:T.gold, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Baixar extensão
+        </a>
         <button onClick={testarNotificacao}
           title={notifPerm === 'denied' ? 'Notificações bloqueadas — libere no cadeado do navegador e nas configurações do Windows' : 'Enviar uma notificação de teste para o desktop'}
           style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 16px', borderRadius:12, border:`1px solid ${notifPerm==='denied'?'rgba(192,64,80,0.4)':T.border}`, cursor:'pointer', background:'transparent', color:notifPerm==='denied'?'#C04050':T.textS, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
