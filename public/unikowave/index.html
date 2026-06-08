@@ -5855,11 +5855,15 @@ const CHARACTERS = {
   }
 };
 
+// ⚠️ TEMPORÁRIO: libera TODOS os personagens para todos os usuários.
+// Para voltar ao normal (bloqueio por desbloqueio), basta mudar para false.
+const TEMP_UNLOCK_ALL = true;
+
 // selectedChar precisa vir DEPOIS de CHARACTERS para evitar TDZ
 let selectedChar = (function(){
   const saved = localStorage.getItem('dw_char') || 'dodoco';
   const unlocked = (function(){ try{ return JSON.parse(localStorage.getItem('dw_unlocked'))||['dodoco']; }catch(e){ return ['dodoco']; }})();
-  return (CHARACTERS[saved] && (CHARACTERS[saved].alwaysUnlocked || unlocked.includes(saved))) ? saved : 'dodoco';
+  return (CHARACTERS[saved] && (TEMP_UNLOCK_ALL || CHARACTERS[saved].alwaysUnlocked || unlocked.includes(saved))) ? saved : 'dodoco';
 })();
 
 // Backwards-compat: DODOCO_IMGS agora aponta para o personagem selecionado
@@ -5923,6 +5927,7 @@ function loadUnlocked(){
 function saveUnlocked(arr){ localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); }
 
 function isUnlocked(id){
+  if(TEMP_UNLOCK_ALL) return true; // ⚠️ TEMPORÁRIO: todos liberados (ver TEMP_UNLOCK_ALL)
   if(CHARACTERS[id]?.alwaysUnlocked) return true;
   return loadUnlocked().includes(id);
 }
