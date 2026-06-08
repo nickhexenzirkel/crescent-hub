@@ -12,8 +12,6 @@
  * chamada a partir de um evento de interação.
  */
 
-const CAT = '.𖥔 . ᓚ₍ ^. .^₎ ';
-
 export function notifySupported() {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
@@ -37,7 +35,8 @@ export function webNotify(n) {
   try {
     if (!notifySupported() || Notification.permission !== 'granted') return false;
     const isUrgent = n?.type === 'aviso_urgente';
-    const title = (isUrgent ? '🚨 ' : CAT) + (n?.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete'));
+    const base = n?.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete');
+    const title = isUrgent ? `🚨 ${base}` : `.𖥔 . ${base} .𖥔 .`;
     new Notification(title, { body: n?.message || '', requireInteraction: true, icon: '/UnikoQuadrado.png' });
     return true;
   } catch { return false; }

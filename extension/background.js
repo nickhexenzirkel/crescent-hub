@@ -553,10 +553,12 @@ function showDesktopNotification(n) {
     if (!chrome.notifications || !chrome.notifications.create) return false;
     const isUrgent = n.type === 'aviso_urgente';
     const id = `uniko-${n.id || Date.now()}`;
+    const base = n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete');
+    const title = isUrgent ? `🚨 ${base}` : `.𖥔 . ${base} .𖥔 .`;
     chrome.notifications.create(id, {
       type:    'basic',
       iconUrl: chrome.runtime.getURL('icon.png'),
-      title:   (isUrgent ? '🚨 ' : '.𖥔 . ᓚ₍ ^. .^₎ ') + (n.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete')),
+      title,
       message: String(n.message || '').slice(0, 500),
       priority: isUrgent ? 2 : 1,
       requireInteraction: true,  // fica na tela até o usuário fechar (não some sozinho)
