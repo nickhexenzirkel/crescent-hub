@@ -18,7 +18,7 @@ const TabUnikoWave = () => {
       try {
         const { data } = await supabase
           .from('uniko_scores')
-          .select('player,score,song,difficulty')
+          .select('player,score,song,difficulty,nick,avatar,border')
           .order('score', { ascending: false });
         rows = data || [];
       } catch {}
@@ -27,20 +27,24 @@ const TabUnikoWave = () => {
       const byDiff = {};
       for (const r of rows) {
         const d = r.difficulty || 'normal';
-        (byDiff[d] = byDiff[d] || []).push({ player: r.player, score: r.score, song: r.song });
+        (byDiff[d] = byDiff[d] || []).push({
+          player: r.player, score: r.score, song: r.song,
+          nick: r.nick, avatar: r.avatar, border: r.border,
+        });
       }
       Object.keys(byDiff).forEach(k => { byDiff[k] = byDiff[k].slice(0, 20); });
 
-      // Global: soma dos melhores de cada dificuldade por jogador; música = o recorde
+      // Global: soma dos melhores de cada dificuldade por jogador; nick/avatar/borda
+      // e música vêm do MELHOR registro (maior pontuação única) do jogador.
       const tot = {};
       for (const r of rows) {
         const sc = Number(r.score) || 0;
-        const p = (tot[r.player] = tot[r.player] || { player: r.player, score: 0, song: '', best: -1 });
+        const p = (tot[r.player] = tot[r.player] || { player: r.player, score: 0, song: '', nick: '', avatar: '', border: '', best: -1 });
         p.score += sc;
-        if (sc > p.best) { p.best = sc; p.song = r.song || ''; }
+        if (sc > p.best) { p.best = sc; p.song = r.song || ''; p.nick = r.nick || ''; p.avatar = r.avatar || ''; p.border = r.border || ''; }
       }
       const global = Object.values(tot)
-        .map(({ player, score, song }) => ({ player, score, song }))
+        .map(({ player, score, song, nick, avatar, border }) => ({ player, score, song, nick, avatar, border }))
         .sort((a, b) => b.score - a.score)
         .slice(0, 20);
 
@@ -62,10 +66,21 @@ const TabUnikoWave = () => {
             await supabase.from('uniko_scores').upsert({
               player, difficulty, score,
               song: d.song || '', grade: d.grade || '', video_id: d.vid || '',
+              nick: d.nick || '', avatar: d.avatar || '', border: d.border || '',
               updated_at: new Date().toISOString(),
             }, { onConflict: 'player,difficulty' });
           }
         } catch {}
+
+        // Mantém nick/avatar/borda atualizados em TODAS as entradas do jogador
+        // (mesmo sem bater recorde) → quem já tinha pontuação aparece com o nick.
+        const patch = {};
+        if (d.nick) patch.nick = d.nick;
+        if (d.avatar) patch.avatar = d.avatar;
+        if (d.border) patch.border = d.border;
+        if (Object.keys(patch).length) {
+          try { await supabase.from('uniko_scores').update(patch).eq('player', player); } catch {}
+        }
       }
       sendRank();
     };

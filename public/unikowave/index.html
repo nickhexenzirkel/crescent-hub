@@ -3166,6 +3166,26 @@ const RANK_SUB={
 let _rankData={global:[],byDiff:{},me:''};
 let _rankTab='global';
 
+// Monta o ícone (avatar do personagem) com a borda escolhida, para o ranking.
+function avatarBadgeHtml(avatarId, borderId, sz){
+  const av=getAvatarOptions().find(a=>a.id===avatarId);
+  const imgSrc=av?av.img:(CHAR_ICONS.dodoco||'images/DodocoWave.png');
+  const b=BORDERS.find(x=>x.id===borderId)||BORDERS[0];
+  const pngSz=Math.round(sz*1.3), off=-Math.round((pngSz-sz)/2);
+  let ring;
+  if(b.svgFn){
+    ring=`<div style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;pointer-events:none">${b.svgFn('br_'+Math.random().toString(36).slice(2,8))}</div>`;
+  } else if(b.img){
+    ring=`<img src="${b.img}" style="position:absolute;width:${pngSz}px;height:${pngSz}px;top:${off}px;left:${off}px;z-index:2;object-fit:cover;pointer-events:none;mix-blend-mode:screen">`;
+  } else {
+    ring=`<div style="position:absolute;inset:-3px;border-radius:50%;border:3px solid transparent;background:${b.grad} border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;z-index:2"></div>`;
+  }
+  return `<div class="rank-ava" style="position:relative;width:${sz}px;height:${sz}px;flex-shrink:0">`+
+    `<img src="${escHtml(imgSrc)}" style="width:${sz}px;height:${sz}px;border-radius:50%;object-fit:cover;display:block" onerror="this.src='images/DodocoWave.png'">`+
+    ring+
+  `</div>`;
+}
+
 function renderRankTabs(){
   const el=document.getElementById('rankTabs');
   if(!el) return;
@@ -3187,8 +3207,9 @@ function renderRankList(){
   list.innerHTML=rows.map((r,i)=>(
     `<div class="rank-row${me&&r.player===me?' rank-me':''}">`+
       `<div class="rank-pos">${pos(i)}</div>`+
+      avatarBadgeHtml(r.avatar, r.border, 34)+
       `<div class="rank-info">`+
-        `<div class="rank-name">${escHtml(r.player)}</div>`+
+        `<div class="rank-name">${escHtml(r.nick||r.player)}</div>`+
         `<div class="rank-song">${escHtml(r.song||'—')}</div>`+
       `</div>`+
       `<div class="rank-score">${(Number(r.score)||0).toLocaleString()}</div>`+
@@ -6615,6 +6636,7 @@ function showResult(){
       (window.parent!==window?window.parent:window).postMessage({
         type:'UNIKO_SCORE_SUBMIT', score:score.v, song:songTitle,
         grade:grade, diff:difficulty, vid:getYTId(lastYtUrl),
+        nick:(profile&&profile.name)||'', avatar:(profile&&profile.avatarId)||'', border:(profile&&profile.borderId)||'',
       },'*');
     }catch(e){}
   }
