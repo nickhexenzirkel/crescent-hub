@@ -3331,9 +3331,50 @@ async function beginFromPreview(){
   await delay(200); beginGame();
 }
 function generateBeatsFromBPM(bpm,duration){
-  const beats=[]; const interval=60/bpm;
-  for(let t=1.5;t<duration-0.5;t+=interval) beats.push(t);
-  return beats;
+  const beat=60/bpm;        // quarter note
+  const sub=beat*0.5;       // eighth note (subdivision)
+  const beats=[];
+
+  // Song structure model: [startFrac, endFrac, mainDensity, useSubBeats]
+  // Simulates typical pop/electronic structure with intro, verse, chorus, outro
+  const SECTIONS=[
+    [0.00,0.06, 0.28,false],  // intro: very sparse, few beats
+    [0.06,0.20, 0.65,false],  // verse 1: moderate
+    [0.20,0.30, 0.85,true ],  // pre-chorus: building, add 8th notes
+    [0.30,0.52, 1.00,true ],  // chorus / drop: full density + 8th notes
+    [0.52,0.60, 0.30,false],  // breakdown: near silence
+    [0.60,0.72, 0.68,false],  // verse 2
+    [0.72,0.80, 0.88,true ],  // pre-chorus 2
+    [0.80,0.93, 1.00,true ],  // chorus 2: full density
+    [0.93,1.00, 0.25,false],  // outro: fading out
+  ];
+  function secFor(frac){
+    for(const [s,e,d,sb] of SECTIONS) if(frac>=s&&frac<e) return {d,sb};
+    return {d:0.5,sb:false};
+  }
+
+  // Phrase silence: every 4 bars (16 beats) add a short gap (~0.3s) to simulate breath/silence
+  const phraseDur=beat*16;
+
+  let t=1.5;
+  while(t<duration-0.8){
+    const frac=t/duration;
+    const {d,sb}=secFor(frac);
+
+    // Phrase-boundary silence: skip occasionally at start of each phrase
+    const phrasePos=(t-1.5)%phraseDur;
+    if(phrasePos<beat*0.6&&Math.random()<0.45){ t+=beat; continue; }
+
+    // Main beat (quarter note)
+    if(Math.random()<d) beats.push(t);
+
+    // Eighth-note sub-beat (between this and next main beat)
+    if(sb&&t+sub<duration-0.8&&Math.random()<d*0.65) beats.push(t+sub);
+
+    t+=beat;
+  }
+
+  return beats.sort((a,b)=>a-b);
 }
 function estimateBPM(title){
   if(!title) return 128;
@@ -3392,11 +3433,23 @@ async function detectBeats(ab){
 function generateChart(beats,dur,cfg){
   if(!beats.length) return [];
   const notes=[];
-  const SUSTAIN_MIN=0.45;
+  const SUSTAIN_MIN=0.22; // lowered: allows holds at 8th-note subdivisions
   const minGap=cfg.minGap||0.18;
   let skipUntil=-1;
   let lastNoteTime=-999;
   const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
+
+  // ── Song-position hold multiplier ───────────────────────────────────
+  // Chorus sections simulate dense vocal phrases → more and longer holds.
+  // Breakdown/outro → sparse holds.
+  function holdMultAt(t){
+    const f=dur>0?t/dur:0.5;
+    if(f<0.06||f>0.93) return 0.35;                           // intro/outro
+    if((f>=0.30&&f<0.52)||(f>=0.80&&f<0.93)) return 2.2;     // chorus → lots of holds
+    if((f>=0.20&&f<0.30)||(f>=0.72&&f<0.80)) return 1.4;     // pre-chorus
+    if(f>=0.52&&f<0.60) return 0.20;                          // breakdown: almost no holds
+    return 1.0;                                                // verse
+  }
 
   // ── Tempo estimate ──────────────────────────────────────────────────
   const refB=Math.min(beats.length-1,20);
@@ -3541,12 +3594,15 @@ function generateChart(beats,dur,cfg){
     const patLane=bs?bs.seq[bs.pos%bs.seq.length]:Math.floor(Math.random()*4);
 
     const gapAfter=gaps[i];
-    const isHold=gapAfter>=SUSTAIN_MIN&&Math.random()<cfg.holdChance;
+    // Effective holdChance scales with song position (chorus = 2.2× base)
+    const effHold=Math.min(0.88, cfg.holdChance * holdMultAt(t));
+    const isHold=gapAfter>=SUSTAIN_MIN&&Math.random()<effHold;
 
     if(isHold){
-      const holdDur=Math.min(gapAfter*0.80,3.5);
-      // Occasional simultaneous hold on the adjacent lane (dramatic effect)
-      if(cfg.doubleChance>0&&Math.random()<cfg.doubleChance*0.35){
+      const holdDur=Math.max(0.30, Math.min(gapAfter*0.82,3.5));
+      const hMult=holdMultAt(t);
+      // Chorus sections: add adjacent simultaneous hold for the "singer sustaining a note" feel
+      if(hMult>=2.0&&Math.random()<0.40){
         const adjLane=(patLane+1)%4;
         push(patLane,t,holdDur);
         push(adjLane,t,holdDur);
@@ -3555,8 +3611,6 @@ function generateChart(beats,dur,cfg){
       }
       skipUntil=t+holdDur+0.15; lastNoteTime=t;
     } else {
-      // Doubles are the exception, not the rule.
-      // Always adjacent lanes only — no wide jumps that feel random.
       if(Math.random()<cfg.doubleChance){
         const adjLane=(patLane+1)%4;
         [patLane,adjLane].forEach(l=>push(l,t));
