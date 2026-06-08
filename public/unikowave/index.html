@@ -1806,6 +1806,77 @@ canvas{display:block}
 <script>
 'use strict';
 
+/* ═══ DIAGNÓSTICO NA TELA ═══
+   O jogo roda dentro de um <iframe>, então erros do console ficam escondidos.
+   Este painel captura erros/avisos e mostra na própria tela do jogo.
+   Abre/fecha com a tecla ` (crase) ou tocando no canto inferior-direito. */
+const DIAG=(function(){
+  const log=[]; let box=null, list=null, badge=null, open=false;
+  function ensure(){
+    if(box) return;
+    box=document.createElement('div');
+    box.id='diagLog';
+    box.style.cssText='position:fixed;left:0;right:0;bottom:0;max-height:42vh;z-index:99999;'
+      +'background:rgba(6,6,18,.94);border-top:2px solid #ff4444;font:11px/1.45 monospace;'
+      +'color:#cfe;display:none;flex-direction:column;backdrop-filter:blur(3px)';
+    const hd=document.createElement('div');
+    hd.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:5px 10px;'
+      +'background:#1a1030;color:#ff7b7b;letter-spacing:1px;flex:0 0 auto';
+    hd.innerHTML='<span>⚠ DIAGNÓSTICO (tecla ` para fechar)</span>';
+    const clr=document.createElement('button');
+    clr.textContent='LIMPAR'; clr.style.cssText='background:#3a1530;color:#fbb;border:1px solid #ff4444;'
+      +'font:10px monospace;padding:3px 8px;cursor:pointer;border-radius:4px';
+    clr.onclick=()=>{ log.length=0; render(); };
+    hd.appendChild(clr);
+    list=document.createElement('div');
+    list.style.cssText='overflow-y:auto;padding:6px 10px;flex:1 1 auto;white-space:pre-wrap;word-break:break-word';
+    box.appendChild(hd); box.appendChild(list);
+    document.body.appendChild(box);
+    // Selo flutuante que aparece quando há erro novo (mesmo com painel fechado)
+    badge=document.createElement('div');
+    badge.style.cssText='position:fixed;right:10px;bottom:10px;z-index:99998;background:#ff4444;color:#fff;'
+      +'font:bold 11px monospace;padding:6px 11px;border-radius:20px;cursor:pointer;display:none;'
+      +'box-shadow:0 2px 12px rgba(255,68,68,.6)';
+    badge.onclick=toggle;
+    document.body.appendChild(badge);
+  }
+  function render(){
+    if(!list) return;
+    list.innerHTML=log.map(e=>{
+      const c=e.t==='error'?'#ff8a8a':e.t==='warn'?'#ffd27b':'#9fd';
+      return `<div style="color:${c};margin:2px 0">${e.time} ${e.msg}</div>`;
+    }).join('')||'<div style="color:#6a7">Sem erros. 🎉</div>';
+    list.scrollTop=list.scrollHeight;
+  }
+  function push(type,msg){
+    ensure();
+    const time=new Date().toLocaleTimeString('pt-BR');
+    log.push({t:type,time,msg:String(msg).slice(0,600)});
+    if(log.length>120) log.shift();
+    render();
+    if(!open && (type==='error'||type==='warn')){
+      const errs=log.filter(e=>e.t==='error'||e.t==='warn').length;
+      badge.textContent='⚠ '+errs+' erro(s) — toque p/ ver';
+      badge.style.display='block';
+    }
+  }
+  function toggle(){
+    ensure(); open=!open; box.style.display=open?'flex':'none';
+    if(open) badge.style.display='none';
+    render();
+  }
+  // Captura erros globais (inclui crashes tipo ReferenceError) e rejeições de promessa
+  window.addEventListener('error',e=>push('error',(e.message||'erro')+(e.filename?` @${(e.lineno||'?')}`:'')));
+  window.addEventListener('unhandledrejection',e=>push('error','Promise: '+((e.reason&&e.reason.message)||e.reason||'rejeitada')));
+  // Espelha console.warn/error no painel
+  ['warn','error'].forEach(k=>{
+    const orig=console[k].bind(console);
+    console[k]=(...a)=>{ try{push(k,a.map(x=>x&&x.message?x.message:x).join(' '));}catch(_){ } orig(...a); };
+  });
+  return { push, toggle, info:m=>push('info',m) };
+})();
+window.addEventListener('keydown',e=>{ if(e.key==='`'||e.key==='~'){ e.preventDefault(); DIAG.toggle(); } });
+
 const MASCOT_SRC='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0iIzEyMDkzYSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjM4IiBmaWxsPSIjMjAwODYwIi8+PGNpcmNsZSBjeD0iMzgiIGN5PSI0MiIgcj0iOCIgZmlsbD0iIzAwZjBmZiIvPjxjaXJjbGUgY3g9IjYyIiBjeT0iNDIiIHI9IjgiIGZpbGw9IiMwMGYwZmYiLz48Y2lyY2xlIGN4PSIzNyIgY3k9IjQxIiByPSIzIiBmaWxsPSIjMDAwIi8+PGNpcmNsZSBjeD0iNjEiIGN5PSI0MSIgcj0iMyIgZmlsbD0iIzAwMCIvPjxwYXRoIGQ9Ik00MCA2MCBRNTAgNzAgNjAgNjAiIHN0cm9rZT0iI2ZmMDBjYyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=';
 // Logo DodocoWave.png — carregada diretamente no HTML
 
@@ -3365,9 +3436,11 @@ async function beginFromPreview(skipReal){
   songTitle=pendingTitle; songDuration=pendingDuration>10?pendingDuration:240; audioBuffer=null;
 
   const vid=(lastVideoUrl&&/^[a-zA-Z0-9_-]{11}$/.test(lastVideoUrl))?lastVideoUrl:getYTId(lastYtUrl||'');
-  let bm=null;
+  // Semeia o RNG do mapa por vídeo+dificuldade → mapa único e reproduzível por música.
+  seedMapFor(vid?vid+'|'+difficulty:null);
+  let bm=null, realErr='';
   // Modo rápido: pula a análise do servidor e usa o ritmo estimado na hora.
-  if(!skipReal && vid){ try{ bm=await fetchBeatmap(vid); }catch(e){ console.warn('[beatmap]',e.message); } }
+  if(!skipReal && vid){ try{ bm=await fetchBeatmap(vid); }catch(e){ realErr=e.message; console.warn('[beatmap]',e.message); } }
 
   let beats, meta;
   if(bm&&Array.isArray(bm.beats)&&bm.beats.length){
@@ -3376,7 +3449,13 @@ async function beginFromPreview(skipReal){
     meta={real:true, sustains:bm.sustains||[], strengths:bm.strengths||[]};
     setProgress(94, bm.cached?'Ritmo carregado! ✓':'Ritmo analisado! ✓');
   } else {
-    // Fallback: ritmo estimado pelo título (servidor indisponível ou música nova que falhou)
+    // Fallback: ritmo estimado pelo título. Se o ritmo REAL falhou, mostra o motivo
+    // na tela (em vez de cair calado) — também fica registrado no painel ` (crase).
+    if(realErr){
+      DIAG.push('error','Ritmo real falhou'+(vid?` [${vid}]`:'')+': '+realErr);
+      setProgress(45,'Ritmo real indisponível: '+realErr+' — usando estimado',true);
+      await delay(1800);
+    }
     setProgress(55,'Ritmo estimado...');
     const bpm=estimateBPM(pendingTitle);
     beats=generateBeatsFromBPM(bpm,songDuration);
@@ -3385,53 +3464,79 @@ async function beginFromPreview(skipReal){
   setProgress(97,'Gerando mapa...');
   chart=generateChart(beats,songDuration,DIFF_CFG[difficulty],meta);
   maxPossibleScore=chart.length*1000+chart.filter(n=>n.holdDur>0).length*1000;
+  resetMapRng(); // fora da geração, o resto do jogo volta ao aleatório puro
   setProgress(100,'Pronto!');
   await delay(200); beginGame();
 }
+/* ═══ RNG SEMEADO POR MÚSICA ═══
+   Cada vídeo gera um mapa ÚNICO e reproduzível: a mesma música+dificuldade
+   sempre produz o mesmo mapa (dá pra treinar/melhorar), mas músicas diferentes
+   geram mapas bem diferentes. Sem semente (demo), cai no Math.random normal. */
+function _hashSeed(str){
+  let h=1779033703^str.length;
+  for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; }
+  return h>>>0;
+}
+function _mulberry32(a){
+  return function(){
+    a|=0; a=a+0x6D2B79F5|0;
+    let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+let _mapRng=Math.random;
+function mr(){ return _mapRng(); }              // RNG do mapa (semeado durante a geração)
+function seedMapFor(key){ _mapRng = key ? _mulberry32(_hashSeed(String(key))) : Math.random; }
+function resetMapRng(){ _mapRng=Math.random; }  // volta ao aleatório puro fora da geração
+
 function generateBeatsFromBPM(bpm,duration){
-  const beat=60/bpm;        // quarter note
-  const sub=beat*0.5;       // eighth note (subdivision)
+  const beat=60/bpm;        // semínima
+  const sub=beat*0.5;       // colcheia
+  const sub16=beat*0.25;    // semicolcheia
   const beats=[];
 
-  // RANDOMIZED energy structure — different every time / every video.
-  // Instead of a fixed intro→chorus→outro arc, build blocks of varied length
-  // and energy. A couple of blocks become high-energy "drops" at random spots.
+  // Estrutura de energia ALEATÓRIA — única por música (semeada pelo vídeo).
+  // Blocos de tamanho/energia variados; alguns viram "drops" intensos em
+  // pontos aleatórios. Pisos de energia mais altos = bem mais notas.
   const sections=[];
   let pos=0;
   let firstBlock=true;
   while(pos<duration){
-    const blkBeats=8+Math.floor(Math.random()*22);   // 8–30 batidas por bloco
+    const blkBeats=8+Math.floor(mr()*22);   // 8–30 batidas por bloco
     const len=blkBeats*beat;
     let energy;
-    const r=Math.random();
-    if(firstBlock){ energy=0.30+Math.random()*0.25; firstBlock=false; } // começo mais suave
-    else if(r<0.32) energy=0.28+Math.random()*0.24;  // calmo
-    else if(r<0.68) energy=0.55+Math.random()*0.22;  // médio
-    else            energy=0.82+Math.random()*0.18;  // intenso (drop/refrão)
-    const sub8=energy>0.78&&Math.random()<0.7;        // colcheias nos blocos intensos
-    sections.push({start:pos,end:pos+len,energy,sub8});
+    const r=mr();
+    if(firstBlock){ energy=0.45+mr()*0.22; firstBlock=false; } // começo já com presença
+    else if(r<0.26) energy=0.42+mr()*0.22;  // calmo (piso alto p/ mais notas)
+    else if(r<0.62) energy=0.66+mr()*0.20;  // médio
+    else            energy=0.88+mr()*0.12;  // intenso (drop/refrão)
+    const sub8=energy>0.70&&mr()<0.85;        // colcheias frequentes
+    const sub4=energy>0.90&&mr()<0.42;        // rajadas de semicolcheia nos picos
+    sections.push({start:pos,end:pos+len,energy,sub8,sub4});
     pos+=len;
   }
   function secAt(t){
     for(const s of sections) if(t>=s.start&&t<s.end) return s;
-    return sections[sections.length-1]||{energy:0.6,sub8:false};
+    return sections[sections.length-1]||{energy:0.7,sub8:false,sub4:false};
   }
 
-  // Silêncio de frase ocasional (respiração) — posição aleatória
-  const phraseDur=beat*(12+Math.floor(Math.random()*8)); // 12–20 batidas por frase
+  // Respiração ocasional (silêncio de frase) — bem mais rara agora: menos vazio, mais notas
+  const phraseDur=beat*(14+Math.floor(mr()*8)); // 14–22 batidas por frase
 
   let t=1.5;
   while(t<duration-0.8){
     const s=secAt(t);
     const phrasePos=(t-1.5)%phraseDur;
-    if(phrasePos<beat*0.6&&Math.random()<0.35){ t+=beat; continue; }
+    if(phrasePos<beat*0.6&&mr()<0.16){ t+=beat; continue; }
 
-    if(Math.random()<s.energy) beats.push(t);
-    if(s.sub8&&t+sub<duration-0.8&&Math.random()<s.energy*0.6) beats.push(t+sub);
+    if(mr()<s.energy) beats.push(t);
+    if(s.sub8&&t+sub<duration-0.8&&mr()<s.energy*0.8) beats.push(t+sub);
+    if(s.sub4&&t+sub16<duration-0.8&&mr()<s.energy*0.5){ beats.push(t+sub16); beats.push(t+sub16*3); }
 
     t+=beat;
   }
-  return beats.sort((a,b)=>a-b);
+  return [...new Set(beats)].sort((a,b)=>a-b);
 }
 function estimateBPM(title){
   if(!title) return 128;
@@ -3526,6 +3631,7 @@ function generateChart(beats,dur,cfg,meta){
     [3,3,3,3,0,0,0,0],[2,2,2,2,1,1,1,1],                     // F→A run pair
     [0,0,1,1,2,2,3,3],[3,3,2,2,1,1,0,0],                     // sliding pairs →/←
     [0,0,3,3],[1,1,2,2],[3,3,0,0],                           // short run pairs
+    [0,0,0,3,3,3],[2,2,2,1,1,1],[3,3,3,0,0,0],               // run-pairs longos
   ];
 
   // STEPS: sequential walks — feels like rolling your hand across keys
@@ -3537,6 +3643,8 @@ function generateChart(beats,dur,cfg,meta){
     [1,2,3,1,2,3],[2,1,0,2,1,0],                // SDF trio / DSA trio
     [0,1,2,3,3,2,1,0],[1,2,3,2,1,0,1,2],        // bounce walks
     [0,1,2,1,2,3],[3,2,1,2,1,0],                // staggered up/down
+    [0,2,1,3,2,0],[3,1,2,0,1,3],                // passos com salto
+    [0,1,2,3,1,2,3,0],[3,2,1,0,2,1,0,3],        // caminhada deslocada
   ];
 
   // ADJ_ALTS: only ADJACENT key alternations (A-S, S-D, D-F) — feels natural
@@ -3558,15 +3666,17 @@ function generateChart(beats,dur,cfg,meta){
     [0,1,2,0,3,2,1,3],[1,2,3,1,0,3,2,0], // cross patterns
     [0,1,2,3,2,1,0,3],[3,2,1,0,1,2,3,0], // walk + jump back
     [1,2,1,2,3,2,1,0],[2,1,2,1,0,1,2,3], // step-slide
+    [0,3,1,2,3,0,2,1],[2,0,3,1,2,0,3,1], // cruzado largo
+    [0,1,3,0,2,3,1,2],[3,2,0,3,1,0,2,1], // saltos alternados
   ];
 
-  function pickFrom(arr){return arr[Math.floor(Math.random()*arr.length)];}
+  function pickFrom(arr){return arr[Math.floor(mr()*arr.length)];}
 
   // Energy → category mapping.
   // RUNS dominate low/medium energy; STEPS and COMBOS take over at high energy.
   // ADJ_ALTS appear only as a small spice. Wide 2-lane ping-pong: gone.
   function pickSeqForEnergy(e){
-    const r=Math.random();
+    const r=mr();
     if(e<0.70) return pickFrom(RUNS);                                           // low: pure runs
     if(e<0.90) return r<0.65?pickFrom(RUNS):pickFrom(STEPS);                   // med-low: runs + walks
     if(e<1.10) return r<0.40?pickFrom(RUNS):r<0.70?pickFrom(STEPS):pickFrom(ADJ_ALTS); // medium
@@ -3583,10 +3693,10 @@ function generateChart(beats,dur,cfg,meta){
   while(bi<beats.length){
     const e=energy[bi]||1.0;
     const prevE=bi>0?energy[bi-1]:e;
-    // Use walk sequences on energy transitions (rising or falling sections)
+    // Transição de energia → caminhadas (STEPS) p/ dar sensação de "passada" entre seções
     const isTransition=Math.abs(e-prevE)>0.25;
-    const seq=isTransition&&Math.random()<0.4?pickFrom(WALKS):pickSeqForEnergy(e);
-    const phraseLen=4+Math.floor(Math.random()*9); // 4-12 beats per phrase
+    const seq=isTransition&&mr()<0.45?pickFrom(STEPS):pickSeqForEnergy(e);
+    const phraseLen=4+Math.floor(mr()*9); // 4-12 batidas por frase
     for(let j=bi;j<Math.min(bi+phraseLen,beats.length);j++){
       beatSeq[j]={seq,pos:j-bi};
     }
@@ -3606,7 +3716,7 @@ function generateChart(beats,dur,cfg,meta){
     const t=beats[i];
     if(t>dur-0.6) continue;
     if(t<skipUntil) continue;
-    if(cfg.density<1&&Math.random()>cfg.density) continue;
+    if(cfg.density<1&&mr()>cfg.density) continue;
     if(t-lastNoteTime<minGap) continue;
 
     const e=energy[i]||1.0;
@@ -3615,7 +3725,7 @@ function generateChart(beats,dur,cfg,meta){
     const canSpecial=isDownbeat&&e>=1.1&&(t-lastSpecialTime)>=SPECIAL_COOLDOWN;
 
     // Inside-out: S D S D | A+F A+F | S D S D — on actual song beats
-    if(canSpecial&&cfg.insideOutChance&&Math.random()<cfg.insideOutChance){
+    if(canSpecial&&cfg.insideOutChance&&mr()<cfg.insideOutChance){
       const ioLanes=[[1],[2],[1],[2],[0,3],[0,3],[1],[2],[1],[2]];
       let seqEnd=i,lastSeqT=t;
       for(let s=0;s<ioLanes.length&&i+s<beats.length;s++){
@@ -3629,8 +3739,8 @@ function generateChart(beats,dur,cfg,meta){
     }
 
     // Staircase: 4-note sweep A→F or F→A — on actual song beats
-    if(canSpecial&&cfg.stairChance&&Math.random()<cfg.stairChance){
-      const dir=Math.random()<0.5?1:-1;
+    if(canSpecial&&cfg.stairChance&&mr()<cfg.stairChance){
+      const dir=mr()<0.5?1:-1;
       const startL=dir===1?0:3;
       let seqEnd=i,lastSeqT=t;
       for(let s=0;s<4&&i+s<beats.length;s++){
@@ -3644,7 +3754,7 @@ function generateChart(beats,dur,cfg,meta){
     }
 
     // Normal note — lane from pre-mapped sequence
-    const patLane=bs?bs.seq[bs.pos%bs.seq.length]:Math.floor(Math.random()*4);
+    const patLane=bs?bs.seq[bs.pos%bs.seq.length]:Math.floor(mr()*4);
 
     const gapAfter=gaps[i];
 
@@ -3655,21 +3765,21 @@ function generateChart(beats,dur,cfg,meta){
       // A held vocal/synth note in the music → a hold note in the game.
       const sus=Math.min(SUS[i]||0, gapAfter>0?gapAfter*1.1:99);
       longSustain=(SUS[i]||0)>=0.85;
-      isHold=sus>=SUSTAIN_MIN && Math.random()<Math.min(0.95, cfg.holdChance*2.2);
+      isHold=sus>=SUSTAIN_MIN && mr()<Math.min(0.95, cfg.holdChance*2.2);
       if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.92, 4.0));
     } else {
       // Estimated mode: holds follow the LOCAL density (randomized per song),
       // not a fixed position template → varia de vídeo para vídeo.
       const localE=energy[i]||1.0;
       const effHold=Math.min(0.85, cfg.holdChance*(0.5+localE));
-      isHold=gapAfter>=SUSTAIN_MIN && Math.random()<effHold;
+      isHold=gapAfter>=SUSTAIN_MIN && mr()<effHold;
       if(isHold) holdDur=Math.max(0.30, Math.min(gapAfter*0.82,3.5));
       longSustain=localE>=1.4;
     }
 
     if(isHold){
       // Long sustained note (high vocal) → double hold on adjacent lanes
-      if(longSustain&&cfg.doubleChance>0&&Math.random()<0.45){
+      if(longSustain&&cfg.doubleChance>0&&mr()<0.45){
         const adjLane=(patLane+1)%4;
         push(patLane,t,holdDur);
         push(adjLane,t,holdDur);
@@ -3680,7 +3790,7 @@ function generateChart(beats,dur,cfg,meta){
     } else {
       // Strong onsets (loud TAM) are more likely to become emphatic doubles.
       const dblChance=REAL?Math.min(0.9, cfg.doubleChance*(0.6+(STR[i]||0))):cfg.doubleChance;
-      if(Math.random()<dblChance){
+      if(mr()<dblChance){
         const adjLane=(patLane+1)%4;
         [patLane,adjLane].forEach(l=>push(l,t));
       } else {
