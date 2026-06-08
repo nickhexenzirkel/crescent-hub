@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
+import { WhatsNew } from './WhatsNew';
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov,sh]=useState(null);
@@ -61,6 +62,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
       alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'40px 32px'}}>
+
+      {/* ── Novidades / notas de atualização — canto superior esquerdo ── */}
+      <WhatsNew/>
 
       {/* ── Perfil — canto superior direito ── */}
       {authUser&&(
