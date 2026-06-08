@@ -2169,8 +2169,18 @@ function introNav(dir){ introGoto(_introPage+dir); }
 function dismissIntro(goFullscreen){
   const el=document.getElementById('introScr');
   if(el) el.style.display='none';
+  try{ localStorage.setItem('uniko_intro_seen','1'); }catch(e){}
   if(goFullscreen) toggleFullscreen();
 }
+// Pula a tela de início para quem já viu (não reaparece a cada reload)
+(function(){
+  try{
+    if(localStorage.getItem('uniko_intro_seen')){
+      const el=document.getElementById('introScr');
+      if(el) el.style.display='none';
+    }
+  }catch(e){}
+})();
 document.addEventListener('fullscreenchange',()=>{
   const svg=document.querySelector('#fsIcon');
   if(!svg) return;
@@ -3380,45 +3390,44 @@ function generateBeatsFromBPM(bpm,duration){
   const sub=beat*0.5;       // eighth note (subdivision)
   const beats=[];
 
-  // Song structure model: [startFrac, endFrac, mainDensity, useSubBeats]
-  // Simulates typical pop/electronic structure with intro, verse, chorus, outro
-  const SECTIONS=[
-    [0.00,0.06, 0.28,false],  // intro: very sparse, few beats
-    [0.06,0.20, 0.65,false],  // verse 1: moderate
-    [0.20,0.30, 0.85,true ],  // pre-chorus: building, add 8th notes
-    [0.30,0.52, 1.00,true ],  // chorus / drop: full density + 8th notes
-    [0.52,0.60, 0.30,false],  // breakdown: near silence
-    [0.60,0.72, 0.68,false],  // verse 2
-    [0.72,0.80, 0.88,true ],  // pre-chorus 2
-    [0.80,0.93, 1.00,true ],  // chorus 2: full density
-    [0.93,1.00, 0.25,false],  // outro: fading out
-  ];
-  function secFor(frac){
-    for(const [s,e,d,sb] of SECTIONS) if(frac>=s&&frac<e) return {d,sb};
-    return {d:0.5,sb:false};
+  // RANDOMIZED energy structure — different every time / every video.
+  // Instead of a fixed intro→chorus→outro arc, build blocks of varied length
+  // and energy. A couple of blocks become high-energy "drops" at random spots.
+  const sections=[];
+  let pos=0;
+  let firstBlock=true;
+  while(pos<duration){
+    const blkBeats=8+Math.floor(Math.random()*22);   // 8–30 batidas por bloco
+    const len=blkBeats*beat;
+    let energy;
+    const r=Math.random();
+    if(firstBlock){ energy=0.30+Math.random()*0.25; firstBlock=false; } // começo mais suave
+    else if(r<0.32) energy=0.28+Math.random()*0.24;  // calmo
+    else if(r<0.68) energy=0.55+Math.random()*0.22;  // médio
+    else            energy=0.82+Math.random()*0.18;  // intenso (drop/refrão)
+    const sub8=energy>0.78&&Math.random()<0.7;        // colcheias nos blocos intensos
+    sections.push({start:pos,end:pos+len,energy,sub8});
+    pos+=len;
+  }
+  function secAt(t){
+    for(const s of sections) if(t>=s.start&&t<s.end) return s;
+    return sections[sections.length-1]||{energy:0.6,sub8:false};
   }
 
-  // Phrase silence: every 4 bars (16 beats) add a short gap (~0.3s) to simulate breath/silence
-  const phraseDur=beat*16;
+  // Silêncio de frase ocasional (respiração) — posição aleatória
+  const phraseDur=beat*(12+Math.floor(Math.random()*8)); // 12–20 batidas por frase
 
   let t=1.5;
   while(t<duration-0.8){
-    const frac=t/duration;
-    const {d,sb}=secFor(frac);
-
-    // Phrase-boundary silence: skip occasionally at start of each phrase
+    const s=secAt(t);
     const phrasePos=(t-1.5)%phraseDur;
-    if(phrasePos<beat*0.6&&Math.random()<0.45){ t+=beat; continue; }
+    if(phrasePos<beat*0.6&&Math.random()<0.35){ t+=beat; continue; }
 
-    // Main beat (quarter note)
-    if(Math.random()<d) beats.push(t);
-
-    // Eighth-note sub-beat (between this and next main beat)
-    if(sb&&t+sub<duration-0.8&&Math.random()<d*0.65) beats.push(t+sub);
+    if(Math.random()<s.energy) beats.push(t);
+    if(s.sub8&&t+sub<duration-0.8&&Math.random()<s.energy*0.6) beats.push(t+sub);
 
     t+=beat;
   }
-
   return beats.sort((a,b)=>a-b);
 }
 function estimateBPM(title){
@@ -3491,18 +3500,6 @@ function generateChart(beats,dur,cfg,meta){
   const REAL=!!(meta&&meta.real);
   const SUS=(meta&&meta.sustains)||[];
   const STR=(meta&&meta.strengths)||[];
-
-  // ── Song-position hold multiplier (estimated mode only) ─────────────
-  // Chorus sections simulate dense vocal phrases → more and longer holds.
-  // Breakdown/outro → sparse holds.
-  function holdMultAt(t){
-    const f=dur>0?t/dur:0.5;
-    if(f<0.06||f>0.93) return 0.35;                           // intro/outro
-    if((f>=0.30&&f<0.52)||(f>=0.80&&f<0.93)) return 2.2;     // chorus → lots of holds
-    if((f>=0.20&&f<0.30)||(f>=0.72&&f<0.80)) return 1.4;     // pre-chorus
-    if(f>=0.52&&f<0.60) return 0.20;                          // breakdown: almost no holds
-    return 1.0;                                                // verse
-  }
 
   // ── Tempo estimate ──────────────────────────────────────────────────
   const refB=Math.min(beats.length-1,20);
@@ -3658,11 +3655,13 @@ function generateChart(beats,dur,cfg,meta){
       isHold=sus>=SUSTAIN_MIN && Math.random()<Math.min(0.95, cfg.holdChance*2.2);
       if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.92, 4.0));
     } else {
-      // Estimated mode: holdChance scales with simulated song position.
-      const effHold=Math.min(0.88, cfg.holdChance*holdMultAt(t));
+      // Estimated mode: holds follow the LOCAL density (randomized per song),
+      // not a fixed position template → varia de vídeo para vídeo.
+      const localE=energy[i]||1.0;
+      const effHold=Math.min(0.85, cfg.holdChance*(0.5+localE));
       isHold=gapAfter>=SUSTAIN_MIN && Math.random()<effHold;
       if(isHold) holdDur=Math.max(0.30, Math.min(gapAfter*0.82,3.5));
-      longSustain=holdMultAt(t)>=2.0;
+      longSustain=localE>=1.4;
     }
 
     if(isHold){
