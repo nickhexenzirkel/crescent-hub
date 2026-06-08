@@ -138,17 +138,43 @@ export default function CrescentHub() {
 
   useEffect(() => {
     if (!authUser) return;
+
+    // Processa um aviso recebido (in-site + som + notificação no desktop).
+    const handleNotif = (n) => {
+      if (!n?.active || seenNotifIds.current.has(n.id)) return;
+      seenNotifIds.current.add(n.id);
+      setNotifQueue(q => [...q, n]);
+      if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
+      notifyDesktop(n); // pop-up no desktop (avisos do RH: urgente e lembrete geral)
+    };
+
     const channel = _supabase
       .channel('uniko-notifs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, ({ new: n }) => {
-        if (!n?.active || seenNotifIds.current.has(n.id)) return;
-        seenNotifIds.current.add(n.id);
-        setNotifQueue(q => [...q, n]);
-        if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
-        notifyDesktop(n); // pop-up no desktop via extensão (avisos do RH)
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, ({ new: n }) => handleNotif(n))
       .subscribe();
-    return () => _supabase.removeChannel(channel);
+
+    // Fallback por polling: garante a entrega dos avisos do RH mesmo se o realtime
+    // perder um evento (reconexão / aba suspensa em 2º plano). Dedup via seenNotifIds.
+    let baseline = true; // 1ª passada só marca o que já existe (não reexibe avisos antigos)
+    const pollNotifs = async () => {
+      const since = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+      const { data } = await _supabase
+        .from('notifications')
+        .select('*')
+        .eq('active', true)
+        .gte('created_at', since)
+        .order('created_at', { ascending: true });
+      for (const n of (data || [])) {
+        if (seenNotifIds.current.has(n.id)) continue;
+        if (baseline) { seenNotifIds.current.add(n.id); continue; }
+        handleNotif(n);
+      }
+      baseline = false;
+    };
+    pollNotifs();
+    const pollId = setInterval(pollNotifs, 25000);
+
+    return () => { _supabase.removeChannel(channel); clearInterval(pollId); };
   }, [authUser]);
 
   // ── Verificador de horário: dispara lembretes agendados ──
