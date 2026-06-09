@@ -3880,8 +3880,17 @@ function generateChart(beats,dur,cfg,meta){
     if(t<LEAD_IN) continue;   // respiro inicial de 4s (sem notas)
     if(t>dur-0.6) continue;
     if(t<skipUntil) continue;
-    if(cfg.density<1&&mr()>cfg.density) continue;
-    if(t-lastNoteTime<minGap) continue;
+    // Density gate — mas batidas FORTES (bass/kick, strength alto) quase sempre
+    // entram. Em música eletrônica isso dá nota por beat (imersão), não só no vocal.
+    if(cfg.density<1){
+      const keep=cfg.density+(REAL?(STR[i]||0)*0.55:0);
+      if(mr()>Math.min(1,keep)) continue;
+    }
+    // Espaçamento: em seções intensas (drop/eletrônico de muito bass) aperta menos
+    // → mais beats viram nota; em trechos calmos mantém legível. Nunca abaixo do piso.
+    const eGap=energy[i]||1.0;
+    const effGap=eGap>=1.15?Math.max(0.13,minGap*0.62):minGap;
+    if(t-lastNoteTime<effGap) continue;
 
     const e=energy[i]||1.0;
     const bs=beatSeq[i];
@@ -3935,12 +3944,19 @@ function generateChart(beats,dur,cfg,meta){
     // ── Decide hold vs tap ──
     let isHold, holdDur=0, longSustain=false;
     if(REAL){
-      // Use the REAL sustained duration measured from the song audio.
-      // A held vocal/synth note in the music → a hold note in the game.
-      const sus=Math.min(SUS[i]||0, gapAfter>0?gapAfter*1.1:99);
-      longSustain=(SUS[i]||0)>=0.85;
-      isHold=sus>=SUSTAIN_MIN && mr()<Math.min(0.95, cfg.holdChance*2.2);
-      if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.92, 4.0));
+      // Usa a duração REAL do sustain medida no áudio. Vocal segurado ("OOOOHH")
+      // ou guitarra prolongada ("UEEEEN") = sustain longo → vira nota de SEGURAR.
+      const susRaw=SUS[i]||0;
+      const sus=Math.min(susRaw, gapAfter>0?gapAfter*1.1:99);
+      longSustain=susRaw>=0.85;
+      // Quanto maior o sustain, mais garantido o hold: sustain curto segue holdChance;
+      // a partir de ~0.4s já é provável; vocal/guitarra bem segurados → quase sempre.
+      let holdProb;
+      if(susRaw>=0.60)      holdProb=0.97;
+      else if(susRaw>=0.40) holdProb=Math.min(0.95, cfg.holdChance*3.4);
+      else                  holdProb=Math.min(0.85, cfg.holdChance*2.2);
+      isHold=sus>=SUSTAIN_MIN && mr()<holdProb;
+      if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.95, 5.0)); // teto 5s p/ segurado bem longo
     } else {
       // Estimated mode: holds follow the LOCAL density (randomized per song),
       // not a fixed position template → varia de vídeo para vídeo.
