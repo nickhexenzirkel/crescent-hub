@@ -2866,10 +2866,11 @@ let profile = JSON.parse(localStorage.getItem('dw_profile') || 'null');
 const CHAR_ICONS = {
   dodoco:    'images/IconeDodoco.png',
   icy:       'images/IconeIcy.png',
-  columbina: 'images/IconeColumbina.png',
-  linnea:    'images/IconeLinnea.png',
-  madoka:    'images/IconeMadoka.png',
-  homura:    'images/IconeHomura.png',
+  linnea:    'images/IconeLinnea.png',   // Mizuki (reusa ícone/imagens da Linnea)
+  // ⚠️ TEMP REMOVIDO — restaurar com as personagens:
+  // columbina: 'images/IconeColumbina.png',
+  // madoka:    'images/IconeMadoka.png',
+  // homura:    'images/IconeHomura.png',
 };
 
 function getAvatarOptions(){
@@ -5847,6 +5848,7 @@ const CHARACTERS = {
     }
   },
 
+  /* ⚠️ TEMP REMOVIDO — restaurar quando pedirem (Columbina)
   columbina: {
     name: 'Columbina',
     desc: 'A serena Deusa da Lua. Calma e misteriosa como a noite.',
@@ -5877,9 +5879,10 @@ const CHARACTERS = {
       miss:      ['🌘 Oh...','...falhou','☽ Cuidado'],
     }
   },
+  */
 
   linnea: {
-    name: 'Linnea',
+    name: 'Mizuki',
     desc: 'Fada alegre da Guilda de Aventureiros. Sempre animada!',
     tag: 'ÉPICO',
     tagClass: 'epico',
@@ -5909,6 +5912,7 @@ const CHARACTERS = {
     }
   },
 
+  /* ⚠️ TEMP REMOVIDO — restaurar quando pedirem (Madoka + Homura)
   madoka: {
     name: 'Madoka Kaname',
     desc: 'Garota mágica cheia de esperança. Seu arco brilha com amor!',
@@ -5968,6 +5972,69 @@ const CHARACTERS = {
       combo50:   ['50. Eficiente.','...bom trabalho.'],
       combo100:  ['100. Impressionante.','...não esperava isso.'],
       miss:      ['Atenção.','...não deixe passar.','Foco total.'],
+    }
+  }
+  */
+
+  stella: {
+    name: 'Stella',
+    desc: 'DJ cósmica que anima todo lugar. Amplifica sua música com cristais e alegra todas as almas!',
+    tag: 'ÉPICO',
+    tagClass: 'epico',
+    rarity: 'epico',
+    gwPrice: 2500,
+    alwaysUnlocked: false,
+    previewImg: 'images/PersonagemStella.png',
+    imgs: {
+      wave:      'images/PersonagemStella.png',
+      animado:   'images/PersonagemStella_Alegre.png',
+      dormindo:  'images/PersonagemStella.png',
+      raiva:     'images/PersonagemStella_Triste.png',
+      surpreso:  'images/PersonagemStella_Alegre.png',
+      tranquilo: 'images/PersonagemStella.png'
+    },
+    filter: 'drop-shadow(0 0 16px rgba(150,120,255,.6)) drop-shadow(0 0 32px rgba(80,200,255,.3))',
+    dialogues: {
+      wave:      ['💎 Sinta o brilho','✦ Música cósmica','🔮 Vamos lá!'],
+      animado:   ['BRILHA!! 💎','CÓSMICO!! ✨','As almas dançam! 🌌'],
+      dormindo:  ['...zZ 💤','Os cristais descansam','hmm... 🔮'],
+      raiva:     ['Ai... 💔','Os cristais apagaram','Que pena... 🌑'],
+      surpreso:  ['UAU!! 💎','ESTELAR!! 🌟','Não acredito!! ✨'],
+      tranquilo: ['Mantém o ritmo 💎','Sente a vibração ✦','Vai conseguir 🔮'],
+      combo50:   ['50!! Cristais alinhados! 💎','O cosmos aprova! ✨'],
+      combo100:  ['100!! BRILHO TOTAL!! 🌌','PERFEIÇÃO CÓSMICA!! 💎'],
+      miss:      ['Ops... 💔','Um cristal caiu 🌑','Foca no brilho! 💎'],
+    }
+  },
+
+  natsumi: {
+    name: 'Natsumi',
+    desc: 'Rapper estelar com um flow de outro mundo. Cada rima carrega o poder das estrelas!',
+    tag: 'ÉPICO',
+    tagClass: 'epico',
+    rarity: 'epico',
+    gwPrice: 2500,
+    alwaysUnlocked: false,
+    previewImg: 'images/PersonagemNatsumi.png',
+    imgs: {
+      wave:      'images/PersonagemNatsumi.png',
+      animado:   'images/PersonagemNatsumi_Alegre.png',
+      dormindo:  'images/PersonagemNatsumi.png',
+      raiva:     'images/PersonagemNatsumi_Raiva.png',
+      surpreso:  'images/PersonagemNatsumi_Alegre.png',
+      tranquilo: 'images/PersonagemNatsumi.png'
+    },
+    filter: 'drop-shadow(0 0 16px rgba(255,80,160,.6)) drop-shadow(0 0 32px rgba(255,180,60,.3))',
+    dialogues: {
+      wave:      ['🎤 Liga o beat!','⭐ No flow','🔥 Vem na rima!'],
+      animado:   ['ESSE FLOW!! 🎤','RIMA ESTELAR!! ⭐','FOGO!! 🔥'],
+      dormindo:  ['...zZ 🎤','Pausa no verso','hmm... 💤'],
+      raiva:     ['Ô! Errou a batida! 😤','Sai do ritmo não! 💢','Foco no beat! 🔴'],
+      surpreso:  ['CARAMBA!! 🎤','QUE PUNCH!! ⭐','ISSO É RIMA?! 🔥'],
+      tranquilo: ['No tempo, no tempo 🎤','Sente o beat ⭐','Manda ver 🔥'],
+      combo50:   ['50!! Flow imparável! 🎤','Tá rimando demais! ⭐'],
+      combo100:  ['100!! FREESTYLE LENDÁRIO!! 🔥','MIC DROP!! 🎤⭐'],
+      miss:      ['Ô! Perdeu a batida 💔','Volta pro flow! 🎤','Concentra na rima! 😤'],
     }
   }
 };
