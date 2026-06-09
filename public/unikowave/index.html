@@ -2163,6 +2163,21 @@ function applyVideoBg(videoId){
   }
 }
 
+// Ancora o relógio das notas (songTime) à posição REAL do vídeo do YouTube.
+// O player demora a carregar/bufferizar depois do comando de play, então o
+// songTime (que conta desde o comando) ficaria ADIANTADO em relação ao áudio
+// que toca de fato → notas apareceriam no silêncio/fora do ritmo. getCurrentTime()
+// dá a posição real do áudio; reancoramos gameStartWallTime nela.
+let _vbSynced=false;
+function _syncClockToVideo(p){
+  if(gameState!=='playing'&&gameState!=='countdown') return;
+  let ct=0; try{ ct=p.getCurrentTime()||0; }catch(_){ return; }
+  const anchor=performance.now()-ct*1000;
+  if(!_vbSynced){ _vbSynced=true; gameStartWallTime=anchor; return; }
+  // 1ª vez = ancora; depois só recorrige em drift grande (ex.: rebuffer no meio)
+  if(Math.abs(anchor-gameStartWallTime)>120) gameStartWallTime=anchor;
+}
+
 // Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
 function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
@@ -2181,7 +2196,10 @@ function startVideoBg(videoId){
         onReady:(e)=>{
           try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS; e.target.playVideo(); }catch(_){}
         },
-        onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) _endByVideo(); },
+        onStateChange:(e)=>{
+          if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
+          if(e.data===YT.PlayerState.PLAYING) _syncClockToVideo(e.target);
+        },
       },
     });
   };
@@ -3648,8 +3666,9 @@ function generateBeatsFromBPM(bpm,duration){
     let energy;
     const r=mr();
     if(firstBlock){ energy=0.45+mr()*0.22; firstBlock=false; } // começo já com presença
-    else if(r<0.26) energy=0.42+mr()*0.22;  // calmo (piso alto p/ mais notas)
-    else if(r<0.62) energy=0.66+mr()*0.20;  // médio
+    else if(r<0.12) energy=0.04+mr()*0.10;  // breakdown/quase-silêncio → respiro real (poucas/nenhuma nota)
+    else if(r<0.34) energy=0.42+mr()*0.22;  // calmo
+    else if(r<0.66) energy=0.66+mr()*0.20;  // médio
     else            energy=0.88+mr()*0.12;  // intenso (drop/refrão)
     const sub8=energy>0.70&&mr()<0.85;        // colcheias frequentes
     const sub4=energy>0.90&&mr()<0.42;        // rajadas de semicolcheia nos picos
@@ -3737,6 +3756,10 @@ function generateChart(beats,dur,cfg,meta){
   const notes=[];
   const SUSTAIN_MIN=0.22; // lowered: allows holds at 8th-note subdivisions
   const minGap=cfg.minGap||0.18;
+  // Respiro inicial: as primeiras notas só começam depois de LEAD_IN segundos de
+  // música, dando ao jogador tempo de aproximação (a nota cai por `travel`s antes
+  // de chegar na linha) em vez de surgir já em cima da zona de acerto.
+  const LEAD_IN=4.0;
   let skipUntil=-1;
   let lastNoteTime=-999;
   const gaps=beats.map((t,i)=>i<beats.length-1?beats[i+1]-t:0);
@@ -3854,6 +3877,7 @@ function generateChart(beats,dur,cfg,meta){
 
   for(let i=0;i<beats.length;i++){
     const t=beats[i];
+    if(t<LEAD_IN) continue;   // respiro inicial de 4s (sem notas)
     if(t>dur-0.6) continue;
     if(t<skipUntil) continue;
     if(cfg.density<1&&mr()>cfg.density) continue;
@@ -3949,7 +3973,19 @@ function generateChart(beats,dur,cfg,meta){
       lastNoteTime=t;
     }
   }
-  return notes.sort((a,b)=>a.hitTime-b.hitTime);
+  // ── Fluxo de nota única: nunca duas notas ao mesmo tempo (sem acordes/duplas) ──
+  // Mesmo que duplas/sequências tenham empilhado notas no mesmo instante (ou bem
+  // coladas), aqui garantimos que toda nota chegue sozinha — descartamos qualquer
+  // nota que caia a menos de NO_STACK segundos da anterior.
+  const NO_STACK=0.09;
+  notes.sort((a,b)=>a.hitTime-b.hitTime || a.lane-b.lane);
+  const single=[];
+  for(const n of notes){
+    const prev=single[single.length-1];
+    if(prev && n.hitTime-prev.hitTime < NO_STACK) continue;
+    single.push(n);
+  }
+  return single;
 }
 
 function beginGame(){
@@ -3988,6 +4024,7 @@ function beginGame(){
   
   showScreen('gameWrap'); document.getElementById('hud').classList.remove('off'); resize();
   gameState='countdown';
+  _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
   applyVideoBg(lastVideoUrl);
   const startDelay=4.2;
   
