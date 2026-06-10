@@ -82,10 +82,15 @@ const extractDisc = (disc) => {
   const irPeca   = pickBRL(disc, /1[,.]20%\s*=\s*R\$\s*([\d.,]+)/);  // 1,20% — peças
   const irServico= pickBRL(disc, /4[,.]80%\s*=\s*R\$\s*([\d.,]+)/);  // 4,80% — serviços manutenção
 
-  // Desconto do cliente: "DESCONTO DO CLIENTE: 0% ( R$ 0,00 )"
-  const descMatch  = disc.match(/DESCONTO DO CLIENTE:\s*([\d,]+%)\s*\(\s*R\$\s*([\d.,]+)/);
+  // Desconto do cliente / taxa administrativa.
+  // Aceita sinal negativo: "DESCONTO DO CLIENTE: 0,0% ( R$ 0,00 )" e
+  // "DESCONTO DO CLIENTE: -23,5% ( R$ 5.464,69 )"
+  const descMatch  = disc.match(/DESCONTO DO CLIENTE:\s*(-?[\d.,]+%)\s*\(\s*R\$\s*(-?[\d.,]+)/);
   const taxaAdm    = descMatch?.[1] || '0%';
-  const valorDesc  = descMatch?.[2] || '0,00';
+  let   valorDesc  = descMatch?.[2] || '0,00';
+  // Se a taxa é negativa mas o valor entre parênteses veio sem sinal, propaga o sinal
+  if (taxaAdm.trim().startsWith('-') && !valorDesc.trim().startsWith('-') && parseBRLorXML(valorDesc) > 0)
+    valorDesc = '-' + valorDesc.trim();
 
   // Valor líquido a receber pelo cliente (após IR retido)
   const vlrComRetencao = pickBRL(disc, /VALOR LIQUIDO A RECEBER DO CLIENTE:\s*R\$\s*([\d.,]+)/);
@@ -168,9 +173,9 @@ const DropZone = ({ onFiles }) => {
       <div style={{fontSize:15,fontWeight:500,color:T.text,marginBottom:6}}>
         Solte os arquivos aqui ou clique para selecionar
       </div>
-      <div style={{fontSize:13,color:T.textT}}>Formato aceito: <strong style={{color:T.textS}}>.xml</strong> (NFS-e GINFES)</div>
+      <div style={{fontSize:13,color:T.textT}}>Formato aceito: <strong style={{color:T.textS}}>.xml</strong> (NFS-e GINFES) · pode soltar vários de uma vez ou ir adicionando aos poucos — tudo acumula</div>
       <input ref={inputRef} type="file" accept=".xml" multiple style={{display:'none'}}
-        onChange={e => { if (e.target.files.length) handle([...e.target.files]); }}/>
+        onChange={e => { if (e.target.files.length) handle([...e.target.files]); e.target.value=''; }}/>
     </div>
   );
 };
@@ -251,8 +256,9 @@ export const TabLeitorXML = () => {
     XLSX.writeFile(wb, `nfse_faturamento_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.xlsx`);
   };
 
-  const valid   = rows.filter(r => !r.error);
-  const errors  = rows.filter(r => r.error);
+  const valid     = rows.filter(r => !r.error);
+  const errors    = rows.filter(r => r.error);
+  const fileCount = new Set(rows.map(r => r.filename)).size;
   const filtered = valid.filter(r => {
     if (filterTipo !== 'todos' && r.tipo !== filterTipo) return false;
     if (!search) return true;
@@ -311,6 +317,7 @@ export const TabLeitorXML = () => {
 
             <div style={{padding:'6px 14px',background:T.goldGl,border:`1px solid ${T.gold}22`,borderRadius:10,fontSize:13,color:T.textS}}>
               <strong style={{color:T.text}}>{valid.length}</strong> NFS-e carregada{valid.length!==1?'s':''}
+              <span style={{color:T.textT,marginLeft:6}}>· {fileCount} arquivo{fileCount!==1?'s':''}</span>
               {errors.length > 0 && <span style={{color:T.danger,marginLeft:6}}>· {errors.length} erro{errors.length!==1?'s':''}</span>}
             </div>
 
