@@ -245,7 +245,7 @@ export const TabLeitorXML = () => {
 
   // Nome do município: prioriza IBGE pelo código; senão deriva da razão social
   const muniName = (r) =>
-    (r.codMunicipio && municipios[r.codMunicipio]) || fmtMunicipio(r.tomadorNome);
+    ((r.codMunicipio && municipios[r.codMunicipio]) || fmtMunicipio(r.tomadorNome)).toUpperCase();
 
   const processFiles = async (files) => {
     setLoading(true);
