@@ -1,0 +1,122 @@
+import { supabase, getAuthUser } from '../../contexts/user';
+
+/* ══════════════════════════════════════════════════════════════════
+   PONTO ELETRÔNICO — acesso ao Supabase
+   Tabelas: ponto_marcacoes, ponto_funcionarios, ponto_justificativas,
+            ponto_empresa  (ver supabase_ponto_eletronico.sql)
+══════════════════════════════════════════════════════════════════ */
+
+const nowISO = () => new Date().toISOString();
+const justKey = (cpf, data) => `${cpf}_${data}`;
+
+/* Busca paginada — Supabase devolve no máx. 1000 linhas por request */
+async function fetchAll(table, columns) {
+  const PAGE = 1000;
+  let from = 0, out = [];
+  for (;;) {
+    const { data, error } = await supabase
+      .from(table).select(columns).range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    out = out.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
+/* Carrega tudo do banco e devolve no formato que o dashboard consome */
+export async function loadPonto() {
+  const [marcacoes, funcionarios, justificativas, empresaRes] = await Promise.all([
+    fetchAll('ponto_marcacoes', 'cpf,data,hora,nsr'),
+    fetchAll('ponto_funcionarios', 'cpf,nome,excluido'),
+    fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,updated_at'),
+    supabase.from('ponto_empresa').select('cnpj,razao,modelo,fmt').eq('id', 1).maybeSingle(),
+  ]);
+
+  const marks = marcacoes.map(m => ({ cpf: m.cpf, date: m.data, time: m.hora, nsr: m.nsr || '' }));
+
+  const nameMap = {};
+  const excluded = new Set();
+  for (const f of funcionarios) {
+    if (f.nome) nameMap[f.cpf] = f.nome;
+    if (f.excluido) excluded.add(f.cpf);
+  }
+
+  const justifs = {};
+  for (const j of justificativas) {
+    justifs[justKey(j.cpf, j.data)] = {
+      text: j.texto || '', abonado: !!j.abonado, autor: j.autor || '', updatedAt: j.updated_at,
+    };
+  }
+
+  const empresa = empresaRes?.data || null;
+  const header = empresa
+    ? { cnpj: empresa.cnpj || '', razao: empresa.razao || '', modelo: empresa.modelo || '—',
+        fmt: empresa.fmt || '671', inicio: '', fim: '', gerado: '' }
+    : null;
+
+  return { marks, nameMap, excluded, justifs, header, hasData: marks.length > 0 };
+}
+
+/* Upsert em lotes (Supabase recomenda ≤ ~1000 por request) */
+async function upsertChunks(table, rows, options) {
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { error } = await supabase.from(table).upsert(rows.slice(i, i + CHUNK), options);
+    if (error) throw error;
+  }
+}
+
+/* Grava o conteúdo de um AFD: funcionários, marcações (dedup) e empresa.
+   Devolve { total } = nº de marcações enviadas do arquivo. */
+export async function savePontoSnapshot({ marks, nameMap, excluded, header }) {
+  const ts = nowISO();
+
+  // Funcionários — grava o nome SÓ de quem tem nome neste arquivo (tipo 5),
+  // pra nunca sobrescrever um nome já salvo com null. Quem só foi excluído
+  // (op. E, sem nome) é gravado sem a coluna `nome`, preservando o existente.
+  const nomeRows = Object.entries(nameMap).map(([cpf, nome]) => ({
+    cpf, nome, excluido: excluded.has(cpf), updated_at: ts,
+  }));
+  if (nomeRows.length) await upsertChunks('ponto_funcionarios', nomeRows, { onConflict: 'cpf' });
+
+  const exclRows = [...excluded]
+    .filter(cpf => !nameMap[cpf])
+    .map(cpf => ({ cpf, excluido: true, updated_at: ts }));
+  if (exclRows.length) await upsertChunks('ponto_funcionarios', exclRows, { onConflict: 'cpf' });
+
+  // Marcações — dedup por (cpf, data, hora); ignora as que já existem
+  const markRows = marks.map(m => ({ cpf: m.cpf, data: m.date, hora: m.time, nsr: m.nsr || null }));
+  if (markRows.length) {
+    await upsertChunks('ponto_marcacoes', markRows, { onConflict: 'cpf,data,hora', ignoreDuplicates: true });
+  }
+
+  // Empresa (linha única)
+  if (header) {
+    const { error } = await supabase.from('ponto_empresa').upsert({
+      id: 1, cnpj: header.cnpj || null, razao: header.razao || null,
+      modelo: header.modelo || null, fmt: header.fmt || null, updated_at: ts,
+    }, { onConflict: 'id' });
+    if (error) throw error;
+  }
+
+  return { total: markRows.length };
+}
+
+/* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga. */
+export async function saveJustificativa({ cpf, date, text }) {
+  const clean = (text || '').trim();
+  if (!clean) {
+    const { error } = await supabase.from('ponto_justificativas').delete().eq('cpf', cpf).eq('data', date);
+    if (error) throw error;
+    return null;
+  }
+  const autor = getAuthUser()?.name || 'Admin';
+  const updatedAt = nowISO();
+  const { error } = await supabase.from('ponto_justificativas').upsert({
+    cpf, data: date, texto: clean, abonado: true, autor, updated_at: updatedAt,
+  }, { onConflict: 'cpf,data' });
+  if (error) throw error;
+  return { text: clean, abonado: true, autor, updatedAt };
+}

@@ -1,16 +1,233 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
+import { loadPonto, savePontoSnapshot, saveJustificativa } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
 ══════════════════════════════════════════════════════════════════ */
 const isWknd_p = d => { const w = new Date(d+'T12:00:00').getDay(); return w===0||w===6; };
 
+// Cores fixas (não dependem do tema, sempre legíveis)
+const ECOLS = ['#1E70B5','#5560C8','#0A9BB5','#C06090','#1A9C70','#B87010','#C04050','#2E8DD4'];
+
+/* ════════════════════════════════════════
+   EXTRAÇÃO — lê o texto bruto do AFD (Portaria 671 e 1510)
+   Devolve só os dados crus: header, nomes, exclusões, marcações e
+   a lista linha-a-linha. O cálculo do banco de horas fica em
+   buildDashboard, que roda sobre as marcações ACUMULADAS do banco.
+════════════════════════════════════════ */
+const extractAFD = (raw) => {
+  const lines = raw.split(/\r?\n/).map(l => l.trimEnd()).filter(l => l.length >= 10);
+
+  // Detecta formato pelo primeiro tipo 3 encontrado
+  let fmt = '671';
+  for (const line of lines) {
+    if (line[9] === '3' && line.length >= 20) {
+      fmt = line[14] === '-' ? '671' : '1510';
+      break;
+    }
+  }
+
+  let header = null;
+  const nameMap  = {};           // cpf11 → name (do tipo 5)
+  const excluded = new Set();    // CPFs excluídos (tipo 5 operação E)
+  const marks    = [];           // todas as marcações tipo 3
+  const rawRecs  = [];           // todos os registros para Linha a Linha
+
+  for (const line of lines) {
+    const tipo = line[9];
+    const nsr  = line.substring(0, 9);
+
+    /* ── Tipo 1: Cabeçalho ── */
+    if (tipo === '1' && line.length > 50) {
+      const cnpj  = line.substring(10, 24);
+      const bloco = line.substring(36, 200);
+      const nm    = bloco.match(/[A-Za-záéíóúãõâêôçÁÉÍÓÚÃÕÂÊÔÇ][A-Za-záéíóúãõâêôçÁÉÍÓÚÃÕÂÊÔÇ\s\.]{3,}/);
+      const razao = nm ? nm[0].trim() : cnpj;
+      const dts   = [...line.matchAll(/(\d{4}-\d{2}-\d{2})/g)].map(m => m[1]);
+      const mdl   = line.match(/iD[\w\s\-]+|[A-Z]{2}[A-Za-z][\w\s]{4,18}(?=\s{3,})/);
+      header = { cnpj, razao, inicio:dts[0]||'', fim:dts[1]||'', gerado:dts[2]||'', modelo:mdl?mdl[0].trim():'—', fmt };
+    }
+
+    /* ── Tipo 3: Marcação de Ponto ── */
+    else if (tipo === '3') {
+      let date='', time='', cpf='';
+      if (fmt === '671' && line.length >= 46) {
+        date = line.substring(10, 20);   // YYYY-MM-DD (pos 10-19)
+        time = line.substring(21, 26);   // HH:MM (T em pos 20, hora em 21-25)
+        const cpfRaw = line.substring(34, 46); // 12 chars: indicador + 11 CPF/PIS
+        cpf  = cpfRaw.substring(1);            // 11 dígitos sem o indicador
+      } else if (fmt === '1510' && line.length >= 34) {
+        const rd = line.substring(10, 18);
+        const rt = line.substring(18, 22);
+        date = `${rd.slice(0,4)}-${rd.slice(4,6)}-${rd.slice(6,8)}`;
+        time = `${rt.slice(0,2)}:${rt.slice(2,4)}`;
+        const cpfRaw = line.substring(22, 34);
+        cpf  = cpfRaw.substring(1);
+      }
+      if (date && time && cpf.length >= 10) {
+        marks.push({ nsr, date, time, cpf });
+        rawRecs.push({ nsr, date, time, cpf, label:'Marcação de Ponto', tipo:'3' });
+      }
+    }
+
+    /* ── Tipo 4: Ajuste de relógio ── */
+    else if (tipo === '4') {
+      const date = fmt==='671' ? line.substring(10,20) : '';
+      const time = fmt==='671' ? line.substring(21,26) : '';
+      rawRecs.push({ nsr, date, time, cpf:'—', label:'Ajuste de Data/Hora', tipo:'4' });
+    }
+
+    /* ── Tipo 5: Empregado ── */
+    else if (tipo === '5') {
+      let op='', cpf='', nome='', date='', time='';
+      if (fmt === '671' && line.length >= 47) {
+        date = line.substring(10, 20);
+        time = line.substring(21, 26);
+        op   = line[34];                               // I, A ou E em pos 34
+        const cpfRaw = line.substring(35, 47);        // 12 chars com indicador
+        cpf  = cpfRaw.substring(1);                   // 11 dígitos
+        nome = line.length > 47 ? line.substring(47, Math.min(line.length-4, 99)).trim() : '';
+      } else if (fmt === '1510' && line.length >= 37) {
+        const rd = line.substring(10, 18), rt = line.substring(18, 22);
+        date = `${rd.slice(0,4)}-${rd.slice(4,6)}-${rd.slice(6,8)}`;
+        time = `${rt.slice(0,2)}:${rt.slice(2,4)}`;
+        op   = line[24];
+        const cpfRaw = line.substring(25, 37);
+        cpf  = cpfRaw.substring(1);
+        nome = line.length > 37 ? line.substring(37, Math.min(line.length-4, 89)).trim() : '';
+      }
+      if (cpf && nome && op !== 'E') nameMap[cpf] = nome;
+      if (cpf && op === 'E')         excluded.add(cpf);
+      const opLabel = op==='I' ? 'Inclusão' : op==='A' ? 'Alteração' : op==='E' ? 'Exclusão' : op;
+      rawRecs.push({ nsr, date, time, cpf, label:`${opLabel} de Cadastro${nome?' — '+nome:''}`, tipo:'5' });
+    }
+
+    /* ── Tipo 2/6/outros ── */
+    else if (tipo === '2' || tipo === '6') {
+      const date = line.length >= 35 ? line.substring(10,20) : '';
+      const time = line.length >= 35 ? line.substring(21,26) : '';
+      rawRecs.push({ nsr, date, time, cpf:'—', label: tipo==='2'?'Edição do Empregador':'Evento do Sistema', tipo });
+    }
+  }
+
+  // Validação de NSR — detecta gaps na sequência (indício de adulteração).
+  // Só faz sentido por arquivo: combinar NSR de vários AFDs geraria gaps falsos.
+  const nsrList = rawRecs.map(r => parseInt(r.nsr, 10)).filter(n => !isNaN(n)).sort((a,b)=>a-b);
+  const nsrGaps = [];
+  for (let i=1;i<nsrList.length;i++) {
+    if (nsrList[i] - nsrList[i-1] > 1) nsrGaps.push({from:nsrList[i-1], to:nsrList[i], gap:nsrList[i]-nsrList[i-1]-1});
+  }
+
+  return { header, nameMap, excluded, marks, rawRecs, nsrGaps };
+};
+
+/* ════════════════════════════════════════
+   CÁLCULO — monta o dashboard a partir das marcações acumuladas.
+   Recebe { marks, nameMap, excluded, header } + config de jornada.
+════════════════════════════════════════ */
+const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = null }, cfg = {}) => {
+  const tolerance        = cfg.tolerance ?? 1;
+  const jornada          = cfg.jornada ?? 480;
+  const toleranciaAtraso = cfg.toleranciaAtraso ?? 10;
+
+  /* ── Construir mapa de funcionários ── */
+  const empMap = {};
+  for (const m of marks) {
+    if (!empMap[m.cpf]) empMap[m.cpf] = { cpf:m.cpf, marks:[] };
+    empMap[m.cpf].marks.push(m);
+  }
+  for (const [cpf, name] of Object.entries(nameMap)) {
+    if (!empMap[cpf]) empMap[cpf] = { cpf, marks:[] };
+    empMap[cpf].name = name;
+  }
+
+  const employees = Object.values(empMap)
+    .filter(e => e.marks.length > 0)
+    .sort((a,b) => (a.name||a.cpf).localeCompare(b.name||b.cpf))
+    .map((emp, ei) => {
+      const name  = emp.name || nameMap[emp.cpf] || '';
+      const color = ECOLS[ei % ECOLS.length];
+      const byDay = {};
+      for (const m of emp.marks) {
+        if (!byDay[m.date]) byDay[m.date] = [];
+        byDay[m.date].push(m.time);
+      }
+      const days = Object.entries(byDay).sort(([a],[b])=>a<b?-1:1).map(([date, rawTimes])=>{
+        const times = [...rawTimes].sort();
+        const pairs=[], issues=[];
+        let totalMin=0;
+        for (let i=0; i<times.length; i+=2) {
+          if (i+1 < times.length) {
+            const [eh,em]=times[i].split(':').map(Number);
+            const [xh,xm]=times[i+1].split(':').map(Number);
+            const diff=(xh*60+xm)-(eh*60+em);
+            if (diff<=0)    issues.push(`Marcação duplicada: ${times[i]}`);
+            else if(diff<tolerance) issues.push(`Marcação gêmea (${diff}min): ${times[i]} ↔ ${times[i+1]} — auto-ignorada`);
+            totalMin += (diff > 0 && diff < tolerance) ? 0 : Math.max(0,diff);
+            pairs.push({entry:times[i],exit:times[i+1],min:diff,twin:diff>0&&diff<tolerance});
+          } else {
+            pairs.push({entry:times[i],exit:null,min:0});
+            issues.push(`Marcação sem par às ${times[i]}`);
+          }
+        }
+        if (times.length%2!==0 && !issues.some(x=>x.includes('sem par'))) issues.push('Número ímpar de marcações');
+        const wknd      = isWknd_p(date);
+        const expected  = wknd ? 0 : jornada;
+        const rawBalance = totalMin - expected;
+        const balance   = (!wknd && rawBalance < 0 && Math.abs(rawBalance) <= toleranciaAtraso)
+          ? 0 : rawBalance;
+        return { date, times, pairs, totalMin, expected, balance, issues, wknd };
+      });
+      let cumBal=0;
+      const daysWithCum = days.map(d=>{ cumBal+=d.balance; return {...d,cumBal}; });
+      const totMin    = days.reduce((s,d)=>s+d.totalMin,0);
+      const totBal    = days.reduce((s,d)=>s+d.balance,0);
+      const totIssues = days.reduce((s,d)=>s+d.issues.length,0);
+      const sortedDates = emp.marks.map(m=>m.date).sort();
+      return { cpf:emp.cpf, name, color, marks:emp.marks, days:daysWithCum, totMin, totBal, totIssues, firstMark:sortedDates[0], lastMark:sortedDates[sortedDates.length-1], excluded:excluded.has(emp.cpf) };
+    });
+
+  const excludedEmployees = [...excluded]
+    .filter(cpf => !employees.find(e=>e.cpf===cpf))
+    .map(cpf => ({ cpf, name:nameMap[cpf]||'', excluded:true }));
+
+  const totalMarks  = employees.reduce((s,e)=>s+e.marks.length,0);
+  const totalIssues = employees.reduce((s,e)=>s+e.totIssues,0);
+  const allDates    = [...new Set(employees.flatMap(e=>e.days.map(d=>d.date)))].sort();
+  const calDates    = [...new Set(marks.map(m=>m.date.substring(0,7)))].sort(); // YYYY-MM
+
+  // Dados do calendário — enriquecidos com status por dia
+  const calData = {};
+  for (const emp of employees) {
+    for (const day of emp.days) {
+      if (!calData[day.date]) calData[day.date] = { count:0, hasOdd:false, hasTwins:false };
+      calData[day.date].count += day.times.length;
+      if (day.issues.some(x => x.includes('ímpar') || x.includes('sem par'))) calData[day.date].hasOdd = true;
+      if (day.issues.some(x => x.includes('gêmeas') || x.includes('duplicada'))) calData[day.date].hasTwins = true;
+    }
+  }
+
+  // Linha a Linha reconstruída das marcações acumuladas (tipo 3)
+  const rawRecs = marks.slice()
+    .sort((a,b)=> a.date===b.date ? (a.time<b.time?-1:1) : (a.date<b.date?-1:1))
+    .map(m=>({ nsr:m.nsr||'', date:m.date, time:m.time, cpf:m.cpf, label:'Marcação de Ponto', tipo:'3' }));
+
+  // Período acumulado (preenche header se não veio do arquivo)
+  let hdr = header;
+  if (hdr && allDates.length) hdr = { ...hdr, inicio: hdr.inicio || allDates[0], fim: hdr.fim || allDates[allDates.length-1] };
+
+  return { header: hdr, employees, excludedEmployees, totalMarks, totalIssues, allDates, rawRecs, calDates, calData, nameMap };
+};
+
 const PontoEletronico = ({onBack, isAdmin=false}) => {
-  const [afd,    setAfd]    = useState(null);
+  const [rawData, setRawData] = useState(null);    // {marks, nameMap, excluded, header} acumulado do banco
   const [drag,   setDrag]   = useState(false);
-  const [load,   setLoad]   = useState(false);
+  const [load,   setLoad]   = useState(false);     // processando arquivo
+  const [dbLoading, setDbLoading] = useState(true);// carregando do banco ao abrir
+  const [syncing,   setSyncing]   = useState(false);// gravando AFD no banco
+  const [uploadReport, setUploadReport] = useState(null); // {nsrGaps, total, fileName} do último upload
   const [tab,    setTab]    = useState('usuarios');
   const [selEmp, setSelEmp] = useState(null);   // banco de horas
   const [calIdx, setCalIdx] = useState(0);       // calendar month index
@@ -43,228 +260,54 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [calSearch,     setCalSearch]     = useState('');       // F3: calendar employee search
   const [calFilterEmps, setCalFilterEmps] = useState([]);       // F3: selected CPFs in calendar
 
-  // Fixed colors (not theme-dependent, always readable)
-  const ECOLS = ['#1E70B5','#5560C8','#0A9BB5','#C06090','#1A9C70','#B87010','#C04050','#2E8DD4'];
+  /* ── afd: dashboard recalculado das marcações ACUMULADAS do banco ── */
+  const afd = React.useMemo(
+    () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso }) : null,
+    [rawData, tolerance, jornada, toleranciaAtraso]
+  );
 
-  /* ════════════════════════════════════════
-     PARSER — suporta Portaria 671 e 1510
-  ════════════════════════════════════════ */
-  const parseAFD = (raw) => {
-    const lines = raw.split(/\r?\n/).map(l => l.trimEnd()).filter(l => l.length >= 10);
-
-    // Detecta formato pelo primeiro tipo 3 encontrado
-    // 671: ISO datetime → char[14] = '-'   ex: 2026-05-16T16:03:00-0300
-    // 1510: AAAAMMDD+HHMM → char[14] is digit  ex: 202605161603
-    let fmt = '671';
-    for (const line of lines) {
-      if (line[9] === '3' && line.length >= 20) {
-        fmt = line[14] === '-' ? '671' : '1510';
-        break;
+  /* ── Carrega tudo do banco ao abrir o módulo ── */
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const d = await loadPonto();
+        if (!alive) return;
+        setJustifs(d.justifs);
+        if (d.hasData) setRawData({ marks:d.marks, nameMap:d.nameMap, excluded:d.excluded, header:d.header });
+      } catch (ex) {
+        console.error('Ponto load error:', ex);
+        if (alive) setErr('Erro ao carregar dados do banco: ' + ex.message);
+      } finally {
+        if (alive) setDbLoading(false);
       }
-    }
+    })();
+    return () => { alive = false; };
+  }, []);
 
-    let header = null;
-    const nameMap  = {};           // cpf11 → name (do tipo 5)
-    const excluded = new Set();    // CPFs excluídos (tipo 5 operação E)
-    const marks    = [];           // todas as marcações tipo 3
-    const rawRecs  = [];           // todos os registros para Linha a Linha
-
-    for (const line of lines) {
-      const tipo = line[9];
-      const nsr  = line.substring(0, 9);
-
-      /* ── Tipo 1: Cabeçalho ── */
-      if (tipo === '1' && line.length > 50) {
-        const cnpj  = line.substring(10, 24);
-        const bloco = line.substring(36, 200);
-        const nm    = bloco.match(/[A-Za-záéíóúãõâêôçÁÉÍÓÚÃÕÂÊÔÇ][A-Za-záéíóúãõâêôçÁÉÍÓÚÃÕÂÊÔÇ\s\.]{3,}/);
-        const razao = nm ? nm[0].trim() : cnpj;
-        const dts   = [...line.matchAll(/(\d{4}-\d{2}-\d{2})/g)].map(m => m[1]);
-        const mdl   = line.match(/iD[\w\s\-]+|[A-Z]{2}[A-Za-z][\w\s]{4,18}(?=\s{3,})/);
-        header = { cnpj, razao, inicio:dts[0]||'', fim:dts[1]||'', gerado:dts[2]||'', modelo:mdl?mdl[0].trim():'—', fmt };
-      }
-
-      /* ── Tipo 3: Marcação de Ponto ── */
-      // Datetime: 24 chars (YYYY-MM-DDTHH:MM:SS-0300) em pos 10-33
-      // CPF: 12 chars em pos 34-45, com dígito indicador; sem indicador = pos 35-45
-      else if (tipo === '3') {
-        let date='', time='', cpf='';
-        if (fmt === '671' && line.length >= 46) {
-          date = line.substring(10, 20);   // YYYY-MM-DD (pos 10-19)
-          time = line.substring(21, 26);   // HH:MM (T em pos 20, hora em 21-25)
-          const cpfRaw = line.substring(34, 46); // 12 chars: indicador + 11 CPF/PIS
-          cpf  = cpfRaw.substring(1);            // 11 dígitos sem o indicador
-        } else if (fmt === '1510' && line.length >= 34) {
-          const rd = line.substring(10, 18);
-          const rt = line.substring(18, 22);
-          date = `${rd.slice(0,4)}-${rd.slice(4,6)}-${rd.slice(6,8)}`;
-          time = `${rt.slice(0,2)}:${rt.slice(2,4)}`;
-          const cpfRaw = line.substring(22, 34);
-          cpf  = cpfRaw.substring(1);
-        }
-        if (date && time && cpf.length >= 10) {
-          marks.push({ nsr, date, time, cpf });
-          rawRecs.push({ nsr, date, time, cpf, label:'Marcação de Ponto', tipo:'3' });
-        }
-      }
-
-      /* ── Tipo 4: Ajuste de relógio ── */
-      else if (tipo === '4') {
-        const date = fmt==='671' ? line.substring(10,20) : '';
-        const time = fmt==='671' ? line.substring(21,26) : '';
-        rawRecs.push({ nsr, date, time, cpf:'—', label:'Ajuste de Data/Hora', tipo:'4' });
-      }
-
-      /* ── Tipo 5: Empregado ── */
-      // Datetime: pos 10-33 (24 chars)
-      // Op: pos 34 (I=Inclusão, A=Alteração, E=Exclusão)
-      // CPF: pos 35-46 (12 chars com indicador), sem indicador = pos 36-46
-      // Nome: pos 47+ (52 chars)
-      else if (tipo === '5') {
-        let op='', cpf='', nome='', date='', time='';
-        if (fmt === '671' && line.length >= 47) {
-          date = line.substring(10, 20);
-          time = line.substring(21, 26);
-          op   = line[34];                               // I, A ou E em pos 34
-          const cpfRaw = line.substring(35, 47);        // 12 chars com indicador
-          cpf  = cpfRaw.substring(1);                   // 11 dígitos
-          nome = line.length > 47 ? line.substring(47, Math.min(line.length-4, 99)).trim() : '';
-        } else if (fmt === '1510' && line.length >= 37) {
-          const rd = line.substring(10, 18), rt = line.substring(18, 22);
-          date = `${rd.slice(0,4)}-${rd.slice(4,6)}-${rd.slice(6,8)}`;
-          time = `${rt.slice(0,2)}:${rt.slice(2,4)}`;
-          op   = line[24];
-          const cpfRaw = line.substring(25, 37);
-          cpf  = cpfRaw.substring(1);
-          nome = line.length > 37 ? line.substring(37, Math.min(line.length-4, 89)).trim() : '';
-        }
-        if (cpf && nome && op !== 'E') nameMap[cpf] = nome;
-        if (cpf && op === 'E')         excluded.add(cpf);
-        const opLabel = op==='I' ? 'Inclusão' : op==='A' ? 'Alteração' : op==='E' ? 'Exclusão' : op;
-        rawRecs.push({ nsr, date, time, cpf, label:`${opLabel} de Cadastro${nome?' — '+nome:''}`, tipo:'5' });
-      }
-
-      /* ── Tipo 2/6/outros ── */
-      else if (tipo === '2' || tipo === '6') {
-        const date = line.length >= 35 ? line.substring(10,20) : '';
-        const time = line.length >= 35 ? line.substring(21,26) : '';
-        rawRecs.push({ nsr, date, time, cpf:'—', label: tipo==='2'?'Edição do Empregador':'Evento do Sistema', tipo });
-      }
-    }
-
-    /* ── Construir mapa de funcionários ── */
-    const empMap = {};
-    for (const m of marks) {
-      if (!empMap[m.cpf]) empMap[m.cpf] = { cpf:m.cpf, marks:[] };
-      empMap[m.cpf].marks.push(m);
-    }
-    // Garantir que TODOS os nomes do nameMap sejam aplicados
-    for (const [cpf, name] of Object.entries(nameMap)) {
-      if (!empMap[cpf]) empMap[cpf] = { cpf, marks:[] };
-      empMap[cpf].name = name;
-    }
-
-    /* ── Processar dias / banco de horas ── */
-    // jornada vem do estado do componente (configurável)
-
-    const employees = Object.values(empMap)
-      .filter(e => e.marks.length > 0)
-      .sort((a,b) => (a.name||a.cpf).localeCompare(b.name||b.cpf))
-      .map((emp, ei) => {
-        const name  = emp.name || nameMap[emp.cpf] || '';
-        const color = ECOLS[ei % ECOLS.length];
-        const byDay = {};
-        for (const m of emp.marks) {
-          if (!byDay[m.date]) byDay[m.date] = [];
-          byDay[m.date].push(m.time);
-        }
-        const days = Object.entries(byDay).sort(([a],[b])=>a<b?-1:1).map(([date, rawTimes])=>{
-          const times = [...rawTimes].sort();
-          const pairs=[], issues=[];
-          let totalMin=0;
-          for (let i=0; i<times.length; i+=2) {
-            if (i+1 < times.length) {
-              const [eh,em]=times[i].split(':').map(Number);
-              const [xh,xm]=times[i+1].split(':').map(Number);
-              const diff=(xh*60+xm)-(eh*60+em);
-              if (diff<=0)    issues.push(`Marcação duplicada: ${times[i]}`);
-              else if(diff<tolerance) issues.push(`Marcação gêmea (${diff}min): ${times[i]} ↔ ${times[i+1]} — auto-ignorada`);
-              // Tolerância automática: se dentro do limite, não conta o tempo
-              totalMin += (diff > 0 && diff < tolerance) ? 0 : Math.max(0,diff);
-              pairs.push({entry:times[i],exit:times[i+1],min:diff,twin:diff>0&&diff<tolerance});
-            } else {
-              pairs.push({entry:times[i],exit:null,min:0});
-              issues.push(`Marcação sem par às ${times[i]}`);
-            }
-          }
-          if (times.length%2!==0 && !issues.some(x=>x.includes('sem par'))) issues.push('Número ímpar de marcações');
-          const wknd      = isWknd_p(date);
-          const expected  = wknd ? 0 : jornada;
-          const rawBalance = totalMin - expected;
-          // Tolerância de atraso: déficit dentro do limite não gera horas negativas
-          const balance   = (!wknd && rawBalance < 0 && Math.abs(rawBalance) <= toleranciaAtraso)
-            ? 0 : rawBalance;
-          return { date, times, pairs, totalMin, expected, balance, issues, wknd };
-        });
-        let cumBal=0;
-        const daysWithCum = days.map(d=>{ cumBal+=d.balance; return {...d,cumBal}; });
-        const totMin    = days.reduce((s,d)=>s+d.totalMin,0);
-        const totBal    = days.reduce((s,d)=>s+d.balance,0);
-        const totIssues = days.reduce((s,d)=>s+d.issues.length,0);
-        const sortedDates = emp.marks.map(m=>m.date).sort();
-        return { cpf:emp.cpf, name, color, marks:emp.marks, days:daysWithCum, totMin, totBal, totIssues, firstMark:sortedDates[0], lastMark:sortedDates[sortedDates.length-1], excluded:excluded.has(emp.cpf) };
-      });
-
-    // Funcionários excluídos sem marcações
-    const excludedEmployees = [...excluded]
-      .filter(cpf => !employees.find(e=>e.cpf===cpf))
-      .map(cpf => ({ cpf, name:nameMap[cpf]||'', excluded:true }));
-
-    const totalMarks  = employees.reduce((s,e)=>s+e.marks.length,0);
-    const totalIssues = employees.reduce((s,e)=>s+e.totIssues,0);
-    const allDates    = [...new Set(employees.flatMap(e=>e.days.map(d=>d.date)))].sort();
-    const calDates    = [...new Set(marks.map(m=>m.date.substring(0,7)))].sort(); // YYYY-MM
-
-    // Dados do calendário — enriquecidos com status por dia
-    const calData = {};
-    for (const emp of employees) {
-      for (const day of emp.days) {
-        if (!calData[day.date]) calData[day.date] = { count:0, hasOdd:false, hasTwins:false };
-        calData[day.date].count += day.times.length;
-        if (day.issues.some(x => x.includes('ímpar') || x.includes('sem par'))) calData[day.date].hasOdd = true;
-        if (day.issues.some(x => x.includes('gêmeas') || x.includes('duplicada'))) calData[day.date].hasTwins = true;
-      }
-    }
-
-    // Validação de NSR — detecta gaps na sequência (indício de adulteração)
-    const nsrList = rawRecs.map(r => parseInt(r.nsr, 10)).filter(n => !isNaN(n)).sort((a,b)=>a-b);
-    const nsrGaps = [];
-    for (let i=1;i<nsrList.length;i++) {
-      if (nsrList[i] - nsrList[i-1] > 1) nsrGaps.push({from:nsrList[i-1], to:nsrList[i], gap:nsrList[i]-nsrList[i-1]-1});
-    }
-
-    return { header, employees, excludedEmployees, totalMarks, totalIssues, allDates, rawRecs, calDates, calData, nameMap, nsrGaps };
-  };
-
-  /* ── Processar arquivo ── */
+  /* ── Processar arquivo AFD: extrai, grava no banco (acumula+dedup) e recarrega ── */
   const processFile = (file) => {
     if (!file) return;
     const n = file.name.toLowerCase();
     if (!n.endsWith('.txt') && !n.endsWith('.afd')) { setErr('Formato inválido. Use .txt ou .afd do relógio de ponto.'); return; }
-    setErr(''); setLoad(true);
+    setErr(''); setLoad(true); setSyncing(true);
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
-        const parsed = parseAFD(e.target.result);
-        if (!parsed.employees.length) { setErr('Nenhuma marcação encontrada. Verifique se é um AFD válido (Portaria 671 ou 1510).'); setLoad(false); return; }
-        setAfd(parsed);
+        const ext = extractAFD(e.target.result);
+        if (!ext.marks.length) { setErr('Nenhuma marcação encontrada. Verifique se é um AFD válido (Portaria 671 ou 1510).'); setLoad(false); setSyncing(false); return; }
+        await savePontoSnapshot(ext);
+        const d = await loadPonto();
+        setJustifs(d.justifs);
+        setRawData({ marks:d.marks, nameMap:d.nameMap, excluded:d.excluded, header: ext.header || d.header });
+        setUploadReport({ nsrGaps: ext.nsrGaps, total: ext.marks.length, fileName: file.name });
         setTab('usuarios');
         setSelEmp(null);
         setCalIdx(0);
-      } catch(ex) { console.error('AFD error:', ex); setErr('Erro ao processar o arquivo: '+ex.message); }
-      setLoad(false);
+      } catch(ex) { console.error('AFD error:', ex); setErr('Erro ao processar/salvar o arquivo: '+ex.message); }
+      setLoad(false); setSyncing(false);
     };
-    reader.onerror = () => { setErr('Erro ao ler o arquivo.'); setLoad(false); };
+    reader.onerror = () => { setErr('Erro ao ler o arquivo.'); setLoad(false); setSyncing(false); };
     reader.readAsText(file, 'ISO-8859-1');
   };
 
@@ -379,12 +422,31 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     return {from:'0000-00-00',to:'9999-99-99'};
   };
 
-  /* ── Salvar justificativa ── */
-  const saveJustif = () => {
+  /* ── Salvar justificativa (persiste no banco) ── */
+  const saveJustif = async () => {
     if (!editJust) return;
-    const key = `${editJust.cpf}_${editJust.date}`;
-    setJustifs(prev => ({...prev, [key]: {text:editText, abonado:editText.trim().length>0}}));
+    const { cpf, date } = editJust;
+    const key  = `${cpf}_${date}`;
+    const text = editText.trim();
     setEditJust(null); setEditText('');
+    // Otimista: atualiza a tela já
+    setJustifs(prev => {
+      const next = { ...prev };
+      if (text) next[key] = { ...(next[key]||{}), text, abonado:true };
+      else delete next[key];
+      return next;
+    });
+    try {
+      const saved = await saveJustificativa({ cpf, date, text });
+      setJustifs(prev => {
+        const next = { ...prev };
+        if (saved) next[key] = saved; else delete next[key];
+        return next;
+      });
+    } catch (ex) {
+      console.error('Justificativa save error:', ex);
+      setErr('Erro ao salvar justificativa: ' + ex.message);
+    }
   };
 
   /* ── Estilo de cabeçalho de aba (opaco, legível) ── */
@@ -468,7 +530,18 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   };
 
   /* ════════════════════════════════════════
-     TELA DE UPLOAD
+     CARREGANDO DO BANCO
+  ════════════════════════════════════════ */
+  if (dbLoading) return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,fontFamily:'var(--font-body)',position:'relative',zIndex:1}}>
+      <div style={{width:52,height:52,border:`3px solid ${T.goldLine}33`,borderTop:`3px solid ${T.goldLine}`,borderRadius:'50%',animation:'spin .7s linear infinite'}}/>
+      <div style={{fontSize:15,color:T.textS,fontWeight:500}}>Carregando banco de horas...</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  /* ════════════════════════════════════════
+     TELA DE UPLOAD (primeiro acesso / banco vazio)
   ════════════════════════════════════════ */
   if (!afd) return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:40,position:'relative',zIndex:1,fontFamily:'var(--font-body)'}}>
@@ -500,7 +573,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
           Ponto Eletrônico
         </div>
         <div style={{fontSize:14,color:T.textT,letterSpacing:'.04em',marginBottom:22}}>
-          Leitor de AFD · Portaria 671 / 1510
+          Leitor de AFD · Portaria 671 / 1510 · Banco de horas salvo no banco de dados
         </div>
         <div style={{width:420,margin:'0 auto'}}><StarDivider my={0}/></div>
       </div>
@@ -522,7 +595,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
               </svg>
             </div>
             <div style={{fontSize:19,fontWeight:600,color:drag?T.gold:T.text,marginBottom:10}}>{drag?'Solte para processar':'Arraste o arquivo AFD aqui'}</div>
-            <div style={{fontSize:14,color:T.textT,lineHeight:1.9}}>ou <span style={{color:T.gold,fontWeight:600}}>clique para selecionar</span><br/><span style={{fontSize:13}}>Arquivo .txt do relógio de ponto (REP-C, REP-A, REP-P)</span></div>
+            <div style={{fontSize:14,color:T.textT,lineHeight:1.9}}>ou <span style={{color:T.gold,fontWeight:600}}>clique para selecionar</span><br/><span style={{fontSize:13}}>Arquivo .txt do relógio de ponto (REP-C, REP-A, REP-P) — será salvo no banco e atualizado a cada novo AFD</span></div>
           </>
         )}
       </div>
@@ -532,7 +605,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
       </div>}
       {/* Info pills */}
       <div className="fsu3" style={{display:'flex',gap:10,marginTop:24,flexWrap:'wrap',justifyContent:'center'}}>
-        {[{d:<polyline points="20 6 9 17 4 12"/>,t:'Portaria 671 e 1510'},{d:<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>,t:'Processado localmente'},{d:<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>,t:'Qualquer marca de REP'}].map((it,i)=>(
+        {[{d:<polyline points="20 6 9 17 4 12"/>,t:'Portaria 671 e 1510'},{d:<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>,t:'Salvo no banco de dados'},{d:<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>,t:'Qualquer marca de REP'}].map((it,i)=>(
           <div key={i} style={{display:'inline-flex',alignItems:'center',gap:8,padding:'8px 16px',borderRadius:99,background:T.surface||'rgba(255,255,255,0.9)',border:`1px solid ${T.border}`,boxShadow:T.sh}}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.9" strokeLinecap="round">{it.d}</svg>
             <span style={{fontSize:13,color:T.textS}}>{it.t}</span>
@@ -619,10 +692,12 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           Config
         </button>
-        <button onClick={()=>{setAfd(null);setErr('');}} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 16px',background:T.goldGl,border:`1px solid ${T.goldLine}44`,borderRadius:9,cursor:'pointer',color:T.gold,outline:'none',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500}}
-          onMouseEnter={e=>e.currentTarget.style.background=`${T.goldLine}20`} onMouseLeave={e=>e.currentTarget.style.background=T.goldGl}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Novo arquivo
+        <input id="_afd_input_dash_" type="file" accept=".txt,.afd" style={{display:'none'}} onChange={e=>{processFile(e.target.files[0]); e.target.value='';}}/>
+        <button disabled={syncing} onClick={()=>document.getElementById('_afd_input_dash_').click()} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 16px',background:T.goldGl,border:`1px solid ${T.goldLine}44`,borderRadius:9,cursor:syncing?'wait':'pointer',color:T.gold,outline:'none',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500,opacity:syncing?0.6:1}}
+          onMouseEnter={e=>{if(!syncing)e.currentTarget.style.background=`${T.goldLine}20`;}} onMouseLeave={e=>e.currentTarget.style.background=T.goldGl}>
+          {syncing
+            ? <><div style={{width:13,height:13,border:`2px solid ${T.gold}55`,borderTop:`2px solid ${T.gold}`,borderRadius:'50%',animation:'spin .7s linear infinite'}}/>Salvando...</>
+            : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Atualizar com AFD</>}
         </button>
       </div>
 
@@ -751,16 +826,27 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
           </Card>
         )}
 
-        {/* Alerta de gaps no NSR */}
-        {afd.nsrGaps?.length>0&&(
+        {/* Confirmação do último AFD processado */}
+        {uploadReport&&(
+          <div style={{padding:'11px 18px',borderRadius:12,background:'rgba(26,156,112,0.08)',border:'1.5px solid rgba(26,156,112,0.30)',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <div style={{flex:1,fontSize:13,color:T.textS}}>
+              <strong style={{color:T.text}}>{uploadReport.fileName}</strong> processado — {uploadReport.total} marcação{uploadReport.total!==1?'ões':''} enviada{uploadReport.total!==1?'s':''} ao banco (duplicadas ignoradas). Banco de horas atualizado.
+            </div>
+            <button onClick={()=>setUploadReport(null)} style={{flexShrink:0,background:'transparent',border:'none',cursor:'pointer',color:T.textD,fontSize:16,lineHeight:1,outline:'none'}}>✕</button>
+          </div>
+        )}
+
+        {/* Alerta de gaps no NSR (apenas do arquivo recém-enviado) */}
+        {uploadReport?.nsrGaps?.length>0&&(
           <div style={{padding:'12px 18px',borderRadius:12,background:'rgba(192,64,80,0.08)',border:'1.5px solid rgba(192,64,80,0.30)',marginBottom:16,display:'flex',alignItems:'flex-start',gap:12}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C04050" strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,marginTop:1}}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
               <div style={{fontSize:14,fontWeight:700,color:'#C04050',marginBottom:3}}>
-                ⚠ Gaps detectados na sequência NSR — possível adulteração
+                ⚠ Gaps detectados na sequência NSR do arquivo — possível adulteração
               </div>
               <div style={{fontSize:12,color:T.textS}}>
-                {afd.nsrGaps.map((g,i)=>`NSR ${g.from}→${g.to} (${g.gap} registro${g.gap>1?'s':''}  ausente${g.gap>1?'s':''})`).join(' · ')}
+                {uploadReport.nsrGaps.map((g,i)=>`NSR ${g.from}→${g.to} (${g.gap} registro${g.gap>1?'s':''}  ausente${g.gap>1?'s':''})`).join(' · ')}
               </div>
             </div>
           </div>
@@ -1179,7 +1265,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                                     const jk=`${curEmp.cpf}_${day.date}`;
                                     const jv=justifs[jk];
                                     return(<div style={{display:'flex',alignItems:'flex-start',gap:5}}>
-                                      {jv?.text?<div style={{flex:1,fontSize:11,color:T.textS,padding:'3px 7px',background:`${T.gold}10`,borderRadius:5,border:`1px solid ${T.gold}33`,lineHeight:1.4}}>✓ {jv.text}</div>:<span style={{fontSize:11,color:T.textD}}>—</span>}
+                                      {jv?.text?<div style={{flex:1,fontSize:11,color:T.textS,padding:'3px 7px',background:`${T.gold}10`,borderRadius:5,border:`1px solid ${T.gold}33`,lineHeight:1.4}}>✓ {jv.text}{jv.autor?<div style={{fontSize:9,color:T.textD,marginTop:2}}>— {jv.autor}</div>:null}</div>:<span style={{fontSize:11,color:T.textD}}>—</span>}
                                       {isAdmin&&<button onClick={()=>{setEditJust({cpf:curEmp.cpf,date:day.date});setEditText(jv?.text||'');}}
                                         style={{flexShrink:0,padding:'3px 8px',borderRadius:5,background:T.goldGl,color:T.gold,border:`1px solid ${T.goldLine}44`,cursor:'pointer',fontSize:10,fontWeight:600,outline:'none'}}>
                                         {jv?.text?'Editar':'Justificar'}
