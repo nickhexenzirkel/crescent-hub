@@ -3754,7 +3754,7 @@ async function detectBeats(ab){
 function generateChart(beats,dur,cfg,meta){
   if(!beats.length) return [];
   const notes=[];
-  const SUSTAIN_MIN=0.22; // lowered: allows holds at 8th-note subdivisions
+  const SUSTAIN_MIN=0.18; // baixo: vocais sustentados curtos também viram hold
   const minGap=cfg.minGap||0.18;
   // Respiro inicial: as primeiras notas só começam depois de LEAD_IN segundos de
   // música, dando ao jogador tempo de aproximação (a nota cai por `travel`s antes
@@ -3947,14 +3947,18 @@ function generateChart(beats,dur,cfg,meta){
       // Usa a duração REAL do sustain medida no áudio. Vocal segurado ("OOOOHH")
       // ou guitarra prolongada ("UEEEEN") = sustain longo → vira nota de SEGURAR.
       const susRaw=SUS[i]||0;
-      const sus=Math.min(susRaw, gapAfter>0?gapAfter*1.1:99);
+      // Sustains LONGOS confiam mais na medição real e deixam o hold esticar um
+      // pouco além do próximo onset (engolido pelo skipUntil) → holds bem longos
+      // nos vocais sustentados. Cadeias de holds curtos ("aaah aaah aaah") mantêm
+      // o corte justo (capMul 1.1), então não se fundem num hold só.
+      const capMul=susRaw>=1.0?1.5:1.1;
+      const sus=Math.min(susRaw, gapAfter>0?gapAfter*capMul:99);
       longSustain=susRaw>=0.85;
-      // Quanto maior o sustain, mais garantido o hold: sustain curto segue holdChance;
-      // a partir de ~0.4s já é provável; vocal/guitarra bem segurados → quase sempre.
+      // Quanto maior o sustain, mais garantido o hold.
       let holdProb;
-      if(susRaw>=0.60)      holdProb=0.97;
-      else if(susRaw>=0.40) holdProb=Math.min(0.95, cfg.holdChance*3.4);
-      else                  holdProb=Math.min(0.85, cfg.holdChance*2.2);
+      if(susRaw>=0.55)      holdProb=0.98;                          // segurado longo → quase certo
+      else if(susRaw>=0.35) holdProb=Math.min(0.96, cfg.holdChance*3.6);
+      else                  holdProb=Math.min(0.90, cfg.holdChance*2.8);
       isHold=sus>=SUSTAIN_MIN && mr()<holdProb;
       if(isHold) holdDur=Math.max(0.30, Math.min(sus*0.95, 5.0)); // teto 5s p/ segurado bem longo
     } else {
