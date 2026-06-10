@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
@@ -31,6 +31,25 @@ const fmtMunicipio = (s) =>
     .replace(/^MUNICIPIO\s+DE\s+/i, '')
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase());
+
+/* ── Município por código IBGE ──────────────────────────
+   <CodigoMunicipio>2302404</CodigoMunicipio> → "Boa Viagem"
+   Consulta a API pública do IBGE e guarda em cache no localStorage. */
+const MUNI_CACHE_KEY = 'crescent_ibge_municipios';
+
+const loadMuniCache = () => {
+  try { return JSON.parse(localStorage.getItem(MUNI_CACHE_KEY) || '{}'); }
+  catch { return {}; }
+};
+const saveMuniCache = (m) => {
+  try { localStorage.setItem(MUNI_CACHE_KEY, JSON.stringify(m)); } catch { /* ignora */ }
+};
+const fetchMunicipioIBGE = async (cod) => {
+  const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/municipios/${cod}`);
+  if (!res.ok) throw new Error(`IBGE ${res.status}`);
+  const j = await res.json();
+  return j?.nome || '';
+};
 
 // XML usa ponto decimal ("23047.98"); textos BR usam vírgula ("22.685,53")
 const parseBRLorXML = (s) => {
@@ -134,6 +153,7 @@ const parseGinfes = (xmlStr, filename) => {
       // tomador
       tomadorNome:    getText(tomador, 'RazaoSocial'),
       tomadorCNPJ:    getText(cpfCnpj, 'Cnpj') || getText(cpfCnpj, 'Cpf'),
+      codMunicipio:   getText(tomador, 'CodigoMunicipio'),
       // prestador
       prestadorNome:  getText(prestador, 'RazaoSocial') || getText(prestador, 'NomeFantasia'),
       prestadorCNPJ:  getText(prestadorIdentif, 'Cnpj'),
@@ -198,6 +218,34 @@ export const TabLeitorXML = () => {
   const [loading,    setLoading]    = useState(false);
   const [search,     setSearch]     = useState('');
   const [filterTipo, setFilterTipo] = useState('todos');
+  const [municipios, setMunicipios] = useState(loadMuniCache);
+
+  // Resolve nomes de município (IBGE) para os códigos ainda não conhecidos
+  useEffect(() => {
+    const codes = [...new Set(rows.map(r => r.codMunicipio).filter(Boolean))]
+      .filter(c => !(c in municipios));
+    if (!codes.length) return;
+    let cancelled = false;
+    (async () => {
+      const updates = {};
+      for (const c of codes) {
+        try { updates[c] = await fetchMunicipioIBGE(c); }
+        catch { /* deixa sem resolver; usa fallback da razão social */ }
+      }
+      if (!cancelled && Object.keys(updates).length) {
+        setMunicipios(prev => {
+          const next = { ...prev, ...updates };
+          saveMuniCache(next);
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [rows, municipios]);
+
+  // Nome do município: prioriza IBGE pelo código; senão deriva da razão social
+  const muniName = (r) =>
+    (r.codMunicipio && municipios[r.codMunicipio]) || fmtMunicipio(r.tomadorNome);
 
   const processFiles = async (files) => {
     setLoading(true);
@@ -222,7 +270,7 @@ export const TabLeitorXML = () => {
       'INICIO':            r.inicio,
       'FINAL':             r.fim,
       'CNPJ':              fmtCNPJ(r.tomadorCNPJ),
-      'MUNICIPIO':         fmtMunicipio(r.tomadorNome),
+      'MUNICIPIO':         muniName(r),
       'SECRETARIA / SETOR': r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria,
       'VALOR BRUTO':       fmtValorNum(r.valorServicos),
       'CATEGORIA':         r.tipo,
@@ -266,6 +314,7 @@ export const TabLeitorXML = () => {
     return (r.secretaria||'').toLowerCase().includes(q)
         || (r.setor||'').toLowerCase().includes(q)
         || (r.tomadorNome||'').toLowerCase().includes(q)
+        || (muniName(r)||'').toLowerCase().includes(q)
         || (r.numero||'').includes(q)
         || (r.inicio||'').includes(q);
   });
@@ -372,7 +421,7 @@ export const TabLeitorXML = () => {
                       <td style={{padding:'10px 14px',color:T.text,fontWeight:600}}>{r.numero}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.inicio}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.fim}</td>
-                      <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{fmtMunicipio(r.tomadorNome)}</td>
+                      <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{muniName(r)}</td>
                       <td style={{padding:'10px 14px',color:T.text,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
                         title={r.setor ? `${r.secretaria} - ${r.setor}` : r.secretaria}>
                         {r.setor ? <>{r.secretaria} <span style={{color:T.textT}}>/ {r.setor}</span></> : r.secretaria}
