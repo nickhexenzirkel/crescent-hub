@@ -56,6 +56,86 @@ async function extractAlbumColors(imageUrl) {
   });
 }
 
+// Carrega a IFrame API do YouTube uma única vez (compartilhada na página)
+function loadYouTubeApi() {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) return resolve();
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+    if (!document.getElementById('yt-iframe-api')) {
+      const s = document.createElement('script');
+      s.id = 'yt-iframe-api';
+      s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════
+   Mini janela flutuante com o videoclipe (visual).
+   O vídeo toca SEMPRE mudo — o áudio vem do Spotify/Echo.
+   Se o vídeo bloquear embed (erro 101/150) ou falhar, chama
+   onUnavailable() para o pai esconder a janela.
+══════════════════════════════════════════════════ */
+function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUnavailable }) {
+  const holderRef = useRef(null);
+  const playerRef = useRef(null);
+
+  // Cria o player uma vez (no mount); troca de vídeo sem recriar o iframe
+  useEffect(() => {
+    let cancelled = false;
+    loadYouTubeApi().then(() => {
+      if (cancelled || !holderRef.current || playerRef.current) return;
+      playerRef.current = new window.YT.Player(holderRef.current, {
+        width: '100%', height: '100%', videoId,
+        playerVars: {
+          autoplay: 1, mute: 1, controls: 1, rel: 0, playsinline: 1, modestbranding: 1,
+          start: Math.max(0, Math.floor(getSeekSec ? getSeekSec() : 0)),
+        },
+        events: {
+          onReady: (e) => { try { e.target.mute(); e.target.playVideo(); } catch {} },
+          onError: () => { if (onUnavailable) onUnavailable(); },
+        },
+      });
+    });
+    return () => {
+      cancelled = true;
+      try { playerRef.current && playerRef.current.destroy(); } catch {}
+      playerRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Troca o clipe quando a música muda (mantém a janela)
+  useEffect(() => {
+    const p = playerRef.current;
+    if (p && p.loadVideoById) {
+      try {
+        p.loadVideoById({ videoId, startSeconds: Math.max(0, Math.floor(getSeekSec ? getSeekSec() : 0)) });
+        p.mute();
+      } catch {}
+    }
+  }, [videoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div style={{ position:'fixed', right:18, bottom:18, width:300, zIndex:1200,
+      borderRadius:14, overflow:'hidden', background:'#000',
+      boxShadow:'0 14px 44px rgba(0,0,0,0.5)', border:`1px solid ${theme.border}` }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px',
+        background: theme.cardBg, backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)' }}>
+        <span style={{ fontSize:11, fontWeight:700, color:theme.text, flex:1,
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎬 {title}</span>
+        <button onClick={onClose} title="Fechar clipe"
+          style={{ border:'none', background:'transparent', cursor:'pointer', color:theme.textS, display:'flex', padding:2 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div style={{ position:'relative', width:'100%', aspectRatio:'16 / 9', background:'#000' }}>
+        <div ref={holderRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
+      </div>
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════
    CENTRAL ALEXA — Festival · Mural · Recados
 ══════════════════════════════════════════════════ */
@@ -170,6 +250,17 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const progressTimer = useRef(null);
   const lastSongId  = useRef(null);
   const genreCache  = useRef({});  // spotify_id → genre string (evita re-fetch da mesma faixa)
+  // ── Mini janela de videoclipe (visual; áudio segue no Spotify/Echo) ──
+  const [videoEnabled, setVideoEnabled] = useState(() => {
+    try { return localStorage.getItem('ch_fest_video') === '1'; } catch { return false; }
+  });
+  const [clipVideoId, setClipVideoId]   = useState(null);  // videoId do clipe da música atual
+  const clipCache   = useRef({});  // spotify_id → videoId | '' (''=sem clipe)
+  const toggleVideo = () => setVideoEnabled(v => {
+    const next = !v;
+    try { localStorage.setItem('ch_fest_video', next ? '1' : '0'); } catch {}
+    return next;
+  });
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
@@ -643,6 +734,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .catch(() => setCurrentGenre(''));
   }, [currentSong?.spotify_id]);
 
+  // Busca o videoclipe da música atual quando ela muda (e a janela está ligada)
+  useEffect(() => {
+    if (!videoEnabled) { setClipVideoId(null); return; }
+    const id = currentSong?.spotify_id;
+    if (!id || !currentSong?.title) { setClipVideoId(null); return; }
+    if (clipCache.current[id] !== undefined) {
+      setClipVideoId(clipCache.current[id] || null);
+      return;
+    }
+    const q = `${currentSong.title} ${currentSong.artist || ''}`.trim();
+    fetch(`${SERVER_URL}/api/youtube/clip?track_id=${encodeURIComponent(id)}&q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(d => {
+        clipCache.current[id] = d.videoId || '';
+        setClipVideoId(d.videoId || null);
+      })
+      .catch(() => { clipCache.current[id] = ''; setClipVideoId(null); });
+  }, [currentSong?.spotify_id, videoEnabled]);
+
   // Extrai cores da capa quando a música muda
   useEffect(() => {
     if (!currentSong?.album_art) return;
@@ -1000,6 +1110,20 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
           <div style={{position:"relative",zIndex:1}}>
+          {/* Mini janela do videoclipe — só aparece se houver clipe pra música atual */}
+          {videoEnabled && clipVideoId && currentSong && (
+            <FestivalVideoWindow
+              videoId={clipVideoId}
+              title={currentSong.title}
+              getSeekSec={() => progressMs / 1000}
+              theme={{ border:T.border, text:T.text, textS:T.textS, cardBg }}
+              onClose={toggleVideo}
+              onUnavailable={() => {
+                if (currentSong?.spotify_id) clipCache.current[currentSong.spotify_id] = '';
+                setClipVideoId(null);
+              }}
+            />
+          )}
           <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: UnikoWave + Player */}
@@ -1082,6 +1206,20 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                           : <svg width="16" height="16" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
                       </div>
                   }
+                  {/* Toggle do videoclipe — visível a todos (preferência local) */}
+                  <button onClick={toggleVideo}
+                    title={videoEnabled
+                      ? (currentSong && clipVideoId ? "Ocultar videoclipe"
+                          : (currentSong ? "Sem clipe pra esta música" : "Mostrar videoclipe"))
+                      : "Mostrar videoclipe"}
+                    style={{width:36,height:36,borderRadius:9,
+                      border:`1px solid ${videoEnabled ? T.gold+'66' : T.border}`,
+                      background:videoEnabled ? T.goldGl : "transparent",
+                      cursor:"pointer",color:videoEnabled ? T.gold : T.textS,
+                      display:"flex",alignItems:"center",justifyContent:"center",outline:"none",
+                      transition:"all .15s"}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                  </button>
                   {isAdmin && (
                   <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
                     title="Pular música (Admin)"
