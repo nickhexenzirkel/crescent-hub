@@ -85,6 +85,59 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
   seekRef.current = getSeekSec;
   const liveSec = () => { try { return Math.max(0, seekRef.current ? seekRef.current() : 0); } catch { return 0; } };
 
+  // ── Arrastar (pela barra) + redimensionar (alça) — posição/tamanho salvos ──
+  const HEADER_H = 34, MIN_W = 240;
+  const [box, setBox] = useState(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('ch_fest_video_box') || 'null');
+      if (s && typeof s.w === 'number' && typeof s.x === 'number') return s;
+    } catch {}
+    const w = 440;
+    return {
+      w,
+      x: Math.max(8, window.innerWidth  - w - 18),
+      y: Math.max(8, window.innerHeight - (w * 9 / 16 + HEADER_H) - 18),
+    };
+  });
+  const [dragging, setDragging] = useState(null); // 'move' | 'resize' | null
+  const gestureRef = useRef(null);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      const g = gestureRef.current; if (!g) return;
+      if (g.mode === 'move') {
+        const h = g.w * 9 / 16 + HEADER_H;
+        const x = Math.min(Math.max(4, g.ox + (e.clientX - g.sx)), window.innerWidth  - g.w - 4);
+        const y = Math.min(Math.max(4, g.oy + (e.clientY - g.sy)), window.innerHeight - h  - 4);
+        setBox(b => ({ ...b, x, y }));
+      } else {
+        const maxW = Math.min(window.innerWidth * 0.96, 1000);
+        const w = Math.min(Math.max(MIN_W, g.ow + (e.clientX - g.sx)), maxW);
+        setBox(b => ({ ...b, w }));
+      }
+    };
+    const onUp = () => {
+      gestureRef.current = null;
+      setDragging(null);
+      setBox(b => { try { localStorage.setItem('ch_fest_video_box', JSON.stringify(b)); } catch {} return b; });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  }, []);
+
+  const startMove = (e) => {
+    if (e.target.closest('button')) return;       // não arrasta ao clicar no X
+    e.preventDefault();
+    gestureRef.current = { mode:'move', sx:e.clientX, sy:e.clientY, ox:box.x, oy:box.y, w:box.w };
+    setDragging('move');
+  };
+  const startResize = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    gestureRef.current = { mode:'resize', sx:e.clientX, sy:e.clientY, ow:box.w };
+    setDragging('resize');
+  };
+
   // Cria o player uma vez (no mount); troca de vídeo sem recriar o iframe
   useEffect(() => {
     let cancelled = false;
@@ -131,22 +184,38 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{ position:'fixed', right:18, bottom:18, width:'min(440px, 92vw)', zIndex:1200,
-      borderRadius:14, overflow:'hidden', background:'#000',
-      boxShadow:'0 14px 44px rgba(0,0,0,0.5)', border:`1px solid ${theme.border}` }}>
-      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px',
-        background: theme.cardBg, backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)' }}>
-        <span style={{ fontSize:11, fontWeight:700, color:theme.text, flex:1,
-          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎬 {title}</span>
-        <button onClick={onClose} title="Fechar clipe"
-          style={{ border:'none', background:'transparent', cursor:'pointer', color:theme.textS, display:'flex', padding:2 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+    <>
+      {/* Overlay durante o gesto: impede o iframe de "engolir" o pointermove */}
+      {dragging && (
+        <div style={{ position:'fixed', inset:0, zIndex:1300,
+          cursor: dragging === 'resize' ? 'nwse-resize' : 'grabbing' }}/>
+      )}
+      <div style={{ position:'fixed', left:box.x, top:box.y, width:box.w, zIndex:1200,
+        borderRadius:14, overflow:'hidden', background:'#000',
+        boxShadow:'0 14px 44px rgba(0,0,0,0.5)', border:`1px solid ${theme.border}` }}>
+        <div onPointerDown={startMove}
+          style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', height:HEADER_H,
+            boxSizing:'border-box', background: theme.cardBg, cursor:'grab',
+            backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', touchAction:'none' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={theme.textS} strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,opacity:.6}}><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>
+          <span style={{ fontSize:11, fontWeight:700, color:theme.text, flex:1,
+            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎬 {title}</span>
+          <button onClick={onClose} title="Fechar clipe"
+            style={{ border:'none', background:'transparent', cursor:'pointer', color:theme.textS, display:'flex', padding:2 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style={{ position:'relative', width:'100%', aspectRatio:'16 / 9', background:'#000' }}>
+          <div ref={holderRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
+          {/* Alça de redimensionamento (canto inferior direito) */}
+          <div onPointerDown={startResize} title="Redimensionar"
+            style={{ position:'absolute', right:0, bottom:0, width:22, height:22, zIndex:2,
+              cursor:'nwse-resize', touchAction:'none', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:3 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" style={{opacity:.85,filter:'drop-shadow(0 1px 2px rgba(0,0,0,.8))'}}><path d="M22 22L22 14M22 22L14 22M22 22L11 11"/></svg>
+          </div>
+        </div>
       </div>
-      <div style={{ position:'relative', width:'100%', aspectRatio:'16 / 9', background:'#000' }}>
-        <div ref={holderRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
-      </div>
-    </div>
+    </>
   );
 }
 
