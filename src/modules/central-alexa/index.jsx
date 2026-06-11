@@ -80,6 +80,10 @@ function loadYouTubeApi() {
 function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUnavailable }) {
   const holderRef = useRef(null);
   const playerRef = useRef(null);
+  // Ref sempre com a posição AO VIVO da música (progressMs/1000), pra sincronizar
+  const seekRef = useRef(getSeekSec);
+  seekRef.current = getSeekSec;
+  const liveSec = () => { try { return Math.max(0, seekRef.current ? seekRef.current() : 0); } catch { return 0; } };
 
   // Cria o player uma vez (no mount); troca de vídeo sem recriar o iframe
   useEffect(() => {
@@ -90,10 +94,10 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
         width: '100%', height: '100%', videoId,
         playerVars: {
           autoplay: 1, mute: 1, controls: 1, rel: 0, playsinline: 1, modestbranding: 1,
-          start: Math.max(0, Math.floor(getSeekSec ? getSeekSec() : 0)),
+          start: Math.floor(liveSec()),
         },
         events: {
-          onReady: (e) => { try { e.target.mute(); e.target.playVideo(); } catch {} },
+          onReady: (e) => { try { e.target.mute(); e.target.seekTo(liveSec(), true); e.target.playVideo(); } catch {} },
           onError: () => { if (onUnavailable) onUnavailable(); },
         },
       });
@@ -105,19 +109,29 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Troca o clipe quando a música muda (mantém a janela)
+  // Troca o clipe quando a música muda (mantém a janela) — já alinhado ao tempo atual
   useEffect(() => {
     const p = playerRef.current;
     if (p && p.loadVideoById) {
-      try {
-        p.loadVideoById({ videoId, startSeconds: Math.max(0, Math.floor(getSeekSec ? getSeekSec() : 0)) });
-        p.mute();
-      } catch {}
+      try { p.loadVideoById({ videoId, startSeconds: Math.floor(liveSec()) }); p.mute(); } catch {}
     }
   }, [videoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-sincroniza o vídeo com o relógio da música: corrige quando desvia >2s
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const p = playerRef.current;
+      if (!p || !p.getCurrentTime) return;
+      try {
+        const target = liveSec();
+        if (target > 0 && Math.abs(p.getCurrentTime() - target) > 2) p.seekTo(target, true);
+      } catch {}
+    }, 3000);
+    return () => clearInterval(iv);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div style={{ position:'fixed', right:18, bottom:18, width:300, zIndex:1200,
+    <div style={{ position:'fixed', right:18, bottom:18, width:'min(440px, 92vw)', zIndex:1200,
       borderRadius:14, overflow:'hidden', background:'#000',
       boxShadow:'0 14px 44px rgba(0,0,0,0.5)', border:`1px solid ${theme.border}` }}>
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px',
