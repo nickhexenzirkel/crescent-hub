@@ -308,6 +308,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // ── Festival: estado real (Spotify + Supabase) ───────────
   const [queue, setQueue]               = useState([]);
   const [isPlaying, setIsPlaying]       = useState(false);
+  const [movingId, setMovingId]         = useState(null);
 
   // Carrega fotos de outros usuários que aparecem na fila e no chat
   useEffect(() => {
@@ -956,6 +957,34 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setIsAdding(null);
   };
 
+  // Reordena a fila (admin): troca a posição de duas músicas pending adjacentes.
+  // direction: -1 = sobe, +1 = desce
+  const moveSong = async (song, direction) => {
+    if (movingId) return;
+    const pending = queue
+      .filter(s => s.status === 'pending')
+      .sort((a,b) => (a.position||0) - (b.position||0));
+    const idx = pending.findIndex(s => s.id === song.id);
+    if (idx === -1) return;
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= pending.length) return;
+    const other = pending[targetIdx];
+
+    setMovingId(song.id);
+    // Otimista: troca local imediatamente
+    setQueue(prev => prev.map(s =>
+      s.id === song.id  ? { ...s, position: other.position } :
+      s.id === other.id ? { ...s, position: song.position }  : s
+    ));
+    // Troca as posições no Supabase (a realtime sub atualiza os outros clientes)
+    await Promise.all([
+      _supabase.from('queue').update({ position: other.position }).eq('id', song.id),
+      _supabase.from('queue').update({ position: song.position }).eq('id', other.id),
+    ]);
+    await loadQueue();
+    setMovingId(null);
+  };
+
   const handleVote = async (song) => {
     if (myVotedSongs.has(song.id)) {
       setServerMsg('Você já votou para pular essa música');
@@ -1545,7 +1574,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         const iAmPlaying = isNowPlaying;
                         const voted     = myVotedSongs.has(s.id);
                         const isMyOwn   = s.requested_by === myName;
-                        const canDelete = isMyOwn && !iAmPlaying;
+                        const canDelete = (isMyOwn || isAdmin) && !iAmPlaying;
+                        // Admin pode reordenar músicas pending (não a que está tocando)
+                        const canReorder = isAdmin && !iAmPlaying && pending.length > 1;
+                        const isFirst    = idx === 0;
+                        const isLast     = idx === pending.length - 1;
                         return (
                           <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
                             {/* EQ / número */}
@@ -1595,10 +1628,29 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                 Pular
                               </button>
                             )}
-                            {/* Deletar própria música */}
+                            {/* Reordenar fila (Admin) */}
+                            {canReorder && (
+                              <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                                <button onClick={()=>moveSong(s,-1)} disabled={isFirst||!!movingId}
+                                  title="Subir na fila (Admin)"
+                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isFirst||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isFirst||movingId)?0.25:0.7,transition:"opacity .15s"}}
+                                  onMouseEnter={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
+                                  onMouseLeave={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                                </button>
+                                <button onClick={()=>moveSong(s,1)} disabled={isLast||!!movingId}
+                                  title="Descer na fila (Admin)"
+                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isLast||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isLast||movingId)?0.25:0.7,transition:"opacity .15s"}}
+                                  onMouseEnter={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
+                                  onMouseLeave={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                                </button>
+                              </div>
+                            )}
+                            {/* Deletar música — própria, ou de qualquer um se Admin */}
                             {canDelete && (
                               <button onClick={async()=>{ await api('delete',`/api/queue/${s.id}`); loadQueue(); }}
-                                title="Remover minha música"
+                                title={isMyOwn ? "Remover minha música" : "Remover música (Admin)"}
                                 style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
                                 onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor="rgba(192,64,80,0.4)";e.currentTarget.style.color="#C04050";}}
                                 onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
