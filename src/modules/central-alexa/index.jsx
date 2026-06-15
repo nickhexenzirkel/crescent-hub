@@ -101,6 +101,15 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
   });
   const [dragging, setDragging] = useState(null); // 'move' | 'resize' | null
   const gestureRef = useRef(null);
+  // Janela fixada: trava o arrastar/redimensionar pra dar scroll sem mover sem querer
+  const [locked, setLocked] = useState(() => {
+    try { return localStorage.getItem('ch_fest_video_locked') === '1'; } catch { return false; }
+  });
+  const toggleLock = () => setLocked(v => {
+    const nv = !v;
+    try { localStorage.setItem('ch_fest_video_locked', nv ? '1' : '0'); } catch {}
+    return nv;
+  });
 
   useEffect(() => {
     const onMove = (e) => {
@@ -127,12 +136,14 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
   }, []);
 
   const startMove = (e) => {
-    if (e.target.closest('button')) return;       // não arrasta ao clicar no X
+    if (locked) return;                            // janela fixada: não move
+    if (e.target.closest('button')) return;       // não arrasta ao clicar no X / fixar
     e.preventDefault();
     gestureRef.current = { mode:'move', sx:e.clientX, sy:e.clientY, ox:box.x, oy:box.y, w:box.w };
     setDragging('move');
   };
   const startResize = (e) => {
+    if (locked) return;                            // janela fixada: não redimensiona
     e.preventDefault(); e.stopPropagation();
     gestureRef.current = { mode:'resize', sx:e.clientX, sy:e.clientY, ow:box.w };
     setDragging('resize');
@@ -146,7 +157,8 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
       playerRef.current = new window.YT.Player(holderRef.current, {
         width: '100%', height: '100%', videoId,
         playerVars: {
-          autoplay: 1, mute: 1, controls: 1, rel: 0, playsinline: 1, modestbranding: 1,
+          autoplay: 1, mute: 1, controls: 0, rel: 0, playsinline: 1, modestbranding: 1,
+          disablekb: 1, fs: 0, iv_load_policy: 3,
           start: Math.floor(liveSec()),
         },
         events: {
@@ -195,11 +207,17 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
         boxShadow:'0 14px 44px rgba(0,0,0,0.5)', border:`1px solid ${theme.border}` }}>
         <div onPointerDown={startMove}
           style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', height:HEADER_H,
-            boxSizing:'border-box', background: theme.cardBg, cursor:'grab',
+            boxSizing:'border-box', background: theme.cardBg, cursor: locked ? 'default' : 'grab',
             backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', touchAction:'none' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={theme.textS} strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,opacity:.6}}><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={theme.textS} strokeWidth="2" strokeLinecap="round" style={{flexShrink:0,opacity: locked ? .25 : .6}}><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>
           <span style={{ fontSize:11, fontWeight:700, color:theme.text, flex:1,
             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🎬 {title}</span>
+          <button onClick={toggleLock} title={locked ? "Soltar janela (permitir mover)" : "Fixar janela (travar posição)"}
+            style={{ border:'none', background:'transparent', cursor:'pointer', color: locked ? theme.gold : theme.textS, display:'flex', padding:2 }}>
+            {locked
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>}
+          </button>
           <button onClick={onClose} title="Fechar clipe"
             style={{ border:'none', background:'transparent', cursor:'pointer', color:theme.textS, display:'flex', padding:2 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -207,12 +225,16 @@ function FestivalVideoWindow({ videoId, title, getSeekSec, theme, onClose, onUna
         </div>
         <div style={{ position:'relative', width:'100%', aspectRatio:'16 / 9', background:'#000' }}>
           <div ref={holderRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}/>
-          {/* Alça de redimensionamento (canto inferior direito) */}
-          <div onPointerDown={startResize} title="Redimensionar"
-            style={{ position:'absolute', right:0, bottom:0, width:22, height:22, zIndex:2,
-              cursor:'nwse-resize', touchAction:'none', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:3 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" style={{opacity:.85,filter:'drop-shadow(0 1px 2px rgba(0,0,0,.8))'}}><path d="M22 22L22 14M22 22L14 22M22 22L11 11"/></svg>
-          </div>
+          {/* Camada transparente: bloqueia clique/pause/maximizar dentro do vídeo */}
+          <div style={{ position:'absolute', inset:0, zIndex:1, cursor:'default' }}/>
+          {/* Alça de redimensionamento (canto inferior direito) — some quando fixada */}
+          {!locked && (
+            <div onPointerDown={startResize} title="Redimensionar"
+              style={{ position:'absolute', right:0, bottom:0, width:22, height:22, zIndex:2,
+                cursor:'nwse-resize', touchAction:'none', display:'flex', alignItems:'flex-end', justifyContent:'flex-end', padding:3 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" style={{opacity:.85,filter:'drop-shadow(0 1px 2px rgba(0,0,0,.8))'}}><path d="M22 22L22 14M22 22L14 22M22 22L11 11"/></svg>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -1228,7 +1250,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               videoId={clipVideoId}
               title={currentSong.title}
               getSeekSec={() => progressMs / 1000}
-              theme={{ border:T.border, text:T.text, textS:T.textS, cardBg }}
+              theme={{ border:T.border, text:T.text, textS:T.textS, gold:T.gold, cardBg }}
               onClose={toggleVideo}
               onUnavailable={() => {
                 if (currentSong?.spotify_id) clipCache.current[currentSong.spotify_id] = '';
@@ -1605,16 +1627,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                               const rb = (s.requested_by||'').trim().toLowerCase();
                               const isSystem = !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
                               return (
-                                <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                                <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
                                   {isSystem
-                                    ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:18,height:18,borderRadius:5,objectFit:"cover",flexShrink:0}}/>
+                                    ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
                                     : <AvatarCircle
                                         name={s.requested_by}
                                         photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
-                                        size={18} fontSize={7} rounded="5px"
+                                        size={30} fontSize={12} rounded="8px"
                                       />
                                   }
-                                  <span style={{fontSize:10,color:T.textT,maxWidth:48,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  <span style={{fontSize:11,color:T.textT,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                     {isSystem ? 'Uniko' : s.requested_by}
                                   </span>
                                 </div>
