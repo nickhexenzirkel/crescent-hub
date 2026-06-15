@@ -13,24 +13,19 @@ const I = (p) => (
 /* ─── Sub-abas ─── */
 const SUBTABS = [
   {
+    id: 'editor-pdf',
+    label: 'Editor de PDF',
+    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="14" r="2"/><path d="M20 20l-3-3"/></I>,
+  },
+  {
     id: 'carta',
     label: 'Carta de Correção',
     icon: <I><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></I>,
   },
   {
-    id: 'assinatura',
-    label: 'Assinatura Automática',
-    icon: <I><path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/><polyline points="13 8 16 5 21 10 18 13"/><line x1="8" y1="17" x2="12" y2="17"/><line x1="8" y1="13" x2="10" y2="13"/></I>,
-  },
-  {
     id: 'oficio',
-    label: 'Ofício',
+    label: 'Ofício de Emissão',
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></I>,
-  },
-  {
-    id: 'editor-pdf',
-    label: 'Editor de PDF',
-    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="14" r="2"/><path d="M20 20l-3-3"/></I>,
   },
 ];
 
@@ -173,74 +168,7 @@ const TabCarta = () => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   2. ASSINATURA AUTOMÁTICA
-════════════════════════════════════════════════════════════════ */
-const TabAssinatura = () => {
-  const [pdf, setPdf] = useState(null);
-  const [form, setForm] = useState({ nome:'', cargo:'', matricula:'', pagina:'1', posX:'', posY:'' });
-  const set = (k, v) => setForm(p => ({...p, [k]:v}));
-
-  return (
-    <div style={{maxWidth:680}}>
-      <p style={{fontSize:14,color:T.textS,lineHeight:1.65,marginTop:0,marginBottom:28}}>
-        Carregue um PDF e configure os dados do assinante. A assinatura será inserida automaticamente na posição indicada.
-      </p>
-
-      <Field label="Arquivo PDF">
-        <DropZone label="Arraste ou selecione o PDF para assinar" accept=".pdf" file={pdf} onFile={setPdf}/>
-      </Field>
-
-      <StarDivider my={22}/>
-      <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Dados do Assinante</div>
-
-      <Field label="Nome Completo">
-        <input style={inputStyle} placeholder="Nome do assinante" value={form.nome}
-          onChange={e => set('nome', e.target.value)}/>
-      </Field>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-        <Field label="Cargo / Função">
-          <input style={inputStyle} placeholder="Ex: Diretor de Faturamento" value={form.cargo}
-            onChange={e => set('cargo', e.target.value)}/>
-        </Field>
-        <Field label="Matrícula">
-          <input style={inputStyle} placeholder="Ex: 123456" value={form.matricula}
-            onChange={e => set('matricula', e.target.value)}/>
-        </Field>
-      </div>
-
-      <StarDivider my={22}/>
-      <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Posição no Documento</div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
-        <Field label="Página">
-          <input style={inputStyle} type="number" min="1" placeholder="1" value={form.pagina}
-            onChange={e => set('pagina', e.target.value)}/>
-        </Field>
-        <Field label="Posição X (mm)" hint="Da borda esquerda">
-          <input style={inputStyle} type="number" placeholder="20" value={form.posX}
-            onChange={e => set('posX', e.target.value)}/>
-        </Field>
-        <Field label="Posição Y (mm)" hint="Da borda inferior">
-          <input style={inputStyle} type="number" placeholder="25" value={form.posY}
-            onChange={e => set('posY', e.target.value)}/>
-        </Field>
-      </div>
-
-      <StarDivider my={24}/>
-
-      <div style={{display:'flex',gap:12,alignItems:'center'}}>
-        <button style={btnPrimary} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-          <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>
-          Aplicar Assinatura e Baixar
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* ════════════════════════════════════════════════════════════════
-   3. OFÍCIO
+   2. OFÍCIO DE EMISSÃO
 ════════════════════════════════════════════════════════════════ */
 const MONTH_NAMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
@@ -476,7 +404,7 @@ const TabEditorPDF = () => {
    COMPONENTE PRINCIPAL
 ════════════════════════════════════════════════════════════════ */
 export const TabOficinaEstelar = () => {
-  const [sub, setSub] = useState('carta');
+  const [sub, setSub] = useState('editor-pdf');
   const current = SUBTABS.find(s => s.id === sub);
 
   return (
@@ -485,7 +413,7 @@ export const TabOficinaEstelar = () => {
         compact
         eyebrow="Ferramentas Estelares"
         title={current.label}
-        subtitle="Ferramentas de edição documental — correções, assinaturas, ofícios e PDFs."
+        subtitle="Ferramentas de edição documental — edição de PDF, cartas de correção e ofícios."
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
       />
 
@@ -526,10 +454,9 @@ export const TabOficinaEstelar = () => {
 
       {/* Conteúdo da sub-aba */}
       <div style={{marginTop:24}}>
-        {sub === 'carta'      && <TabCarta/>}
-        {sub === 'assinatura' && <TabAssinatura/>}
-        {sub === 'oficio'     && <TabOficio/>}
         {sub === 'editor-pdf' && <TabEditorPDF/>}
+        {sub === 'carta'      && <TabCarta/>}
+        {sub === 'oficio'     && <TabOficio/>}
       </div>
     </div>
   );
