@@ -323,7 +323,7 @@ export const TabLeitorXML = () => {
     <div>
       <StellarHero compact
         eyebrow="Nota Fiscal · Excel"
-        title="Leitor de XML"
+        title="Controle de Notas"
         subtitle="Importa arquivos NFS-e (formato GINFES) e exporta para Excel no formato da planilha de faturamento."
         icon={(
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">

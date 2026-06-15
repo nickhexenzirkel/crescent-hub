@@ -71,7 +71,7 @@ export const ExtensionPrompt = () => {
           <div style={{ fontSize:12.5, color:'#7a5a2a', marginTop:2 }}>
             {isReload
               ? 'A extensão precisa ser reativada. Aperte F5 ou clique em “Já instalei”.'
-              : 'Necessária para notificações no desktop e para o módulo Faturamento.'}
+              : 'Necessária para notificações no desktop e para o módulo Oficina Estelar.'}
           </div>
         </div>
         {!isReload && (

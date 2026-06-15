@@ -7,7 +7,7 @@ const FEATURES = [
     id: 'xml',
     color: '#1A6FB5',
     bg: 'rgba(26,111,181,0.10)',
-    title: 'Leitor de XML',
+    title: 'Controle de Notas',
     desc: 'Importa arquivos XML (NF-e / NFS-e) e exporta para Excel no formato padrão da planilha de faturamento. Suporta múltiplos arquivos de uma vez.',
     steps: ['Selecione os arquivos .xml', 'Visualize os dados na tabela', 'Exporte para Excel (.xlsx)'],
     icon: (c) => (
@@ -86,8 +86,8 @@ const FEATURES = [
     color: '#8B5FE8',
     bg: 'rgba(139,95,232,0.10)',
     adminOnly: true,
-    title: 'Oficina Estelar',
-    desc: 'Edição de PDFs, assinaturas automáticas, cartas de correção e geração de ofícios — diretamente no navegador.',
+    title: 'Ferramentas Estelares',
+    desc: 'Edição de PDFs, cartas de correção e geração de ofícios — diretamente no navegador.',
     steps: ['Escolha a ferramenta na aba interna', 'Preencha os dados ou carregue o PDF', 'Gere ou baixe o documento final'],
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -102,9 +102,9 @@ export const TabInicio = ({ setTab, isAdmin }) => {
   return (
     <div style={{padding:'32px 40px 48px',fontFamily:'var(--font-body)'}}>
       <StellarHero
-        eyebrow="Módulo de Automação"
-        title="Faturamento"
-        subtitle="Baixe relatórios do 7Benefícios, processe XMLs de nota fiscal e organize seus arquivos — tudo de forma automatizada."
+        eyebrow="Módulo de Documentos"
+        title="Oficina Estelar"
+        subtitle="Controle suas notas fiscais e assine documentos automaticamente — tudo direto no navegador."
         icon={(
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2"/>

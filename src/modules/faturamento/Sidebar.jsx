@@ -17,7 +17,7 @@ const NAV = [
   },
   {
     id: 'xml',
-    label: 'Leitor de XML',
+    label: 'Controle de Notas',
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="19" x2="13" y2="19"/></I>,
   },
   {
@@ -51,7 +51,7 @@ const NAV = [
   },
   {
     id: 'oficina',
-    label: 'Oficina Estelar',
+    label: 'Ferramentas Estelares',
     adminOnly: true,
     icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
   },
@@ -92,7 +92,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
           </div>
           <div>
             <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Uniko Cat-Bot</div>
-            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Robô do Faturamento</div>
+            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Oficina Estelar</div>
           </div>
         </div>
         <StarDivider my={0}/>
@@ -143,7 +143,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Leitor de XML', assinatura:'Assinatura Automática', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Oficina Estelar' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramentas Estelares' };
   if (tab === 'inicio') return null;
   return (
     <div style={{
@@ -161,7 +161,7 @@ const TopBar = ({ tab, onBack }) => {
       </button>
       <div style={{width:1,height:16,background:T.divider}}/>
       <div style={{fontSize:14,color:T.textT,flex:1}}>
-        Faturamento
+        Oficina Estelar
         <span style={{color:T.textD,margin:'0 5px'}}>›</span>
         <strong style={{color:T.text,fontWeight:500}}>{nm[tab]||tab}</strong>
       </div>
