@@ -20,9 +20,25 @@ const FEATURES = [
     ),
   },
   {
+    id: 'assinatura',
+    color: '#C04050',
+    bg: 'rgba(192,64,80,0.10)',
+    title: 'Assinatura Automática',
+    desc: 'Carregue um PDF e o sistema aplica a sua rúbrica salva automaticamente, devolvendo o documento já assinado para download.',
+    steps: ['Configure a sua rúbrica (uma vez)', 'Solte o PDF a ser assinado', 'Baixe o PDF assinado'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/>
+        <polyline points="13 8 16 5 21 10 18 13"/>
+        <line x1="8" y1="17" x2="12" y2="17"/><line x1="8" y1="13" x2="10" y2="13"/>
+      </svg>
+    ),
+  },
+  {
     id: 'consumo',
     color: '#1A9C70',
     bg: 'rgba(26,156,112,0.10)',
+    adminOnly: true,
     title: 'Relatório de Consumo',
     desc: 'Acessa o 7Benefícios pela extensão e baixa os PDFs de Relatório de Consumo de cada secretaria, organizados na pasta que você escolher.',
     steps: ['Envie o relatório de retenção XLSX', 'Selecione secretarias e período', 'Baixe os PDFs automaticamente'],
@@ -38,6 +54,7 @@ const FEATURES = [
     id: 'ordens',
     color: '#8B5FE8',
     bg: 'rgba(139,95,232,0.10)',
+    adminOnly: true,
     title: 'Ordens de Serviço',
     desc: 'Baixa os PDFs de cada Ordem de Serviço do 7Benefícios, organizados em uma subpasta por secretaria. Sem precisar informar período.',
     steps: ['Envie o relatório de retenção XLSX', 'Confira a pré-visualização das pastas', 'Baixe as OS automaticamente'],
@@ -52,6 +69,7 @@ const FEATURES = [
     id: 'uniko-pdf',
     color: '#C4872A',
     bg: 'rgba(196,135,42,0.10)',
+    adminOnly: true,
     title: 'Compilador',
     desc: 'Compilador: mescla os PDFs de cada pasta em um único arquivo por secretaria. Organizador: cria uma pasta para cada PDF do ZIP.',
     steps: ['Envie um arquivo ZIP', 'Confira a pré-visualização', 'Baixe o ZIP processado'],
@@ -67,6 +85,7 @@ const FEATURES = [
     id: 'oficina',
     color: '#8B5FE8',
     bg: 'rgba(139,95,232,0.10)',
+    adminOnly: true,
     title: 'Oficina Estelar',
     desc: 'Edição de PDFs, assinaturas automáticas, cartas de correção e geração de ofícios — diretamente no navegador.',
     steps: ['Escolha a ferramenta na aba interna', 'Preencha os dados ou carregue o PDF', 'Gere ou baixe o documento final'],
@@ -78,7 +97,8 @@ const FEATURES = [
   },
 ];
 
-export const TabInicio = ({ setTab }) => {
+export const TabInicio = ({ setTab, isAdmin }) => {
+  const features = FEATURES.filter(f => !f.adminOnly || isAdmin);
   return (
     <div style={{padding:'32px 40px 48px',fontFamily:'var(--font-body)'}}>
       <StellarHero
@@ -100,7 +120,7 @@ export const TabInicio = ({ setTab }) => {
       </div>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))',gap:20,marginBottom:36}}>
-        {FEATURES.map(f => (
+        {features.map(f => (
           <Card key={f.id} onClick={() => setTab(f.id)} style={{padding:'26px'}}>
             <div style={{position:'absolute',top:0,left:'10%',right:'10%',height:2,
               background:`linear-gradient(90deg,transparent,${f.color}99,transparent)`,borderRadius:999}}/>

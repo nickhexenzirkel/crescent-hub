@@ -9,8 +9,9 @@ import { TabOrdensServico } from './tabs/TabOrdensServico';
 import { TabUnikoPDF } from './tabs/TabUnikoPDF';
 import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
 import { TabOficinaEstelar } from './tabs/TabOficinaEstelar';
+import { TabAssinatura } from './tabs/TabAssinatura';
 
-const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio']);
+const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficina']);
 
 const FaturamentoPortal = ({ onBack, authUser }) => {
   const isMobile = useIsMobile();
@@ -28,16 +29,17 @@ const FaturamentoPortal = ({ onBack, authUser }) => {
   };
 
   const renderTab = () => {
-    if (ADMIN_TABS.has(tab) && !isAdmin) return <TabInicio setTab={safeSetTab}/>;
+    if (ADMIN_TABS.has(tab) && !isAdmin) return <TabInicio setTab={safeSetTab} isAdmin={isAdmin}/>;
     switch (tab) {
-      case 'inicio':  return <TabInicio setTab={safeSetTab}/>;
+      case 'inicio':  return <TabInicio setTab={safeSetTab} isAdmin={isAdmin}/>;
       case 'xml':     return <TabLeitorXML/>;
+      case 'assinatura': return <TabAssinatura/>;
       case 'consumo': return <TabRelatorioConsumo/>;
       case 'ordens':    return <TabOrdensServico/>;
       case 'uniko-pdf':   return <TabUnikoPDF/>;
       case 'laboratorio': return <TabLaboratorioEstelar/>;
       case 'oficina':     return <TabOficinaEstelar/>;
-      default:            return <TabInicio setTab={safeSetTab}/>;
+      default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin}/>;
     }
   };
 
