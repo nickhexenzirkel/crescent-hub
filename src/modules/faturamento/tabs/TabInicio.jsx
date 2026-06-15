@@ -35,6 +35,20 @@ const FEATURES = [
     ),
   },
   {
+    id: 'historico-assinatura',
+    color: '#5B7FD4',
+    bg: 'rgba(91,127,212,0.10)',
+    adminOnly: true,
+    title: 'Histórico de Assinatura',
+    desc: 'Auditoria de todas as assinaturas automáticas: o usuário que assinou, o login usado e a data/hora de cada assinatura.',
+    steps: ['Acompanhe cada assinatura feita', 'Veja usuário, login e horário', 'Busque por usuário ou arquivo'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+      </svg>
+    ),
+  },
+  {
     id: 'consumo',
     color: '#1A9C70',
     bg: 'rgba(26,156,112,0.10)',

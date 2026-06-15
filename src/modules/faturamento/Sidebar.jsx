@@ -26,6 +26,12 @@ const NAV = [
     icon: <I><path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/><polyline points="13 8 16 5 21 10 18 13"/><line x1="8" y1="17" x2="12" y2="17"/><line x1="8" y1="13" x2="10" y2="13"/></I>,
   },
   {
+    id: 'historico-assinatura',
+    label: 'Histórico de Assinatura',
+    adminOnly: true,
+    icon: <I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></I>,
+  },
+  {
     id: 'consumo',
     label: 'Relatório de Consumo',
     adminOnly: true,
@@ -143,7 +149,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramentas Estelares' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramentas Estelares' };
   if (tab === 'inicio') return null;
   return (
     <div style={{

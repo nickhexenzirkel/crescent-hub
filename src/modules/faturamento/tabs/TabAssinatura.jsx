@@ -5,6 +5,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
+import { logAssinatura } from '../assinaturaDb';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -170,6 +171,10 @@ export const TabAssinatura = () => {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      // registra no histórico de assinatura (não bloqueia o download se falhar)
+      try { await logAssinatura({ arquivo: pdf.name }); } catch { /* histórico indisponível */ }
+
       setDone('PDF assinado e baixado com sucesso.');
     } catch (e) {
       setError('Não foi possível assinar o PDF: ' + (e?.message || 'erro desconhecido'));

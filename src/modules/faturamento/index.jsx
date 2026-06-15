@@ -10,8 +10,9 @@ import { TabUnikoPDF } from './tabs/TabUnikoPDF';
 import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
 import { TabOficinaEstelar } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
+import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 
-const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficina']);
+const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficina', 'historico-assinatura']);
 
 const FaturamentoPortal = ({ onBack, authUser }) => {
   const isMobile = useIsMobile();
@@ -34,6 +35,7 @@ const FaturamentoPortal = ({ onBack, authUser }) => {
       case 'inicio':  return <TabInicio setTab={safeSetTab} isAdmin={isAdmin}/>;
       case 'xml':     return <TabLeitorXML/>;
       case 'assinatura': return <TabAssinatura/>;
+      case 'historico-assinatura': return <TabHistoricoAssinatura/>;
       case 'consumo': return <TabRelatorioConsumo/>;
       case 'ordens':    return <TabOrdensServico/>;
       case 'uniko-pdf':   return <TabUnikoPDF/>;
