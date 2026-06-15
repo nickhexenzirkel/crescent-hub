@@ -1,8 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
+import rubricaUrl from '../../../assets/assinatura-evando.png';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /* ─── Ícone inline ─── */
 const I = (p) => (
@@ -11,30 +16,55 @@ const I = (p) => (
     style={{flexShrink:0}}>{p.children}</svg>
 );
 
-/* Rúbrica salva (base64 da imagem) no localStorage */
-const RUBRICA_KEY = 'faturamento_rubrica';
-
-const loadRubrica = () => {
-  try { return localStorage.getItem(RUBRICA_KEY) || ''; }
-  catch { return ''; }
-};
-const saveRubrica = (dataUrl) => {
-  try { localStorage.setItem(RUBRICA_KEY, dataUrl); } catch { /* ignora */ }
-};
-
-const fileToDataURL = (file) => new Promise((resolve, reject) => {
-  const r = new FileReader();
-  r.onload = () => resolve(r.result);
-  r.onerror = reject;
-  r.readAsDataURL(file);
-});
-
 const btnPrimary = {
   display:'inline-flex',alignItems:'center',gap:8,
   background:T.gold,color:'#fff',border:'none',
   borderRadius:10,padding:'12px 26px',fontSize:14.5,fontWeight:600,
   cursor:'pointer',fontFamily:'var(--font-body)',
   boxShadow:`0 2px 10px ${T.gold}44`,transition:'opacity .14s',
+};
+
+/* ════════════════════════════════════════════════════════════════
+   ÂNCORA E POSIÇÃO DA RÚBRICA
+   A assinatura entra sempre na linha logo ACIMA do nome da empresa
+   "7SERV GESTÃO DE BENEFICIOS LTDA / 13858769000197" (bloco do
+   "Responsável pela Ordem de Compra/Serviço"). Como esse bloco muda
+   de altura conforme o documento, a posição é detectada pelo texto
+   via pdf.js — não é coordenada fixa.
+════════════════════════════════════════════════════════════════ */
+const ANCHOR = {
+  nameRegex: /7SERV\s+GEST/i,   // nome da empresa (linha abaixo da assinatura)
+  cnpjDigits: '13858769000197', // fallback caso o nome não seja encontrado
+};
+const SIG = {
+  width: 150,        // largura da rúbrica em pontos PDF
+  gapAboveName: 2,   // folga entre o topo do nome e a base da rúbrica
+};
+
+/* Localiza a âncora (ocorrência mais baixa) percorrendo as páginas.
+   Retorna { pageIndex, x, y, w, h } em coordenadas PDF (origem inferior-esquerda). */
+const findAnchor = async (bytes) => {
+  const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+  let best = null;
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    for (const it of tc.items) {
+      const isName = ANCHOR.nameRegex.test(it.str);
+      const isCnpj = it.str.replace(/\D/g, '').includes(ANCHOR.cnpjDigits);
+      if (!isName && !isCnpj) continue;
+      const [,,,, e, f] = it.transform;
+      const cand = { pageIndex: p - 1, x: e, y: f, w: it.width, h: it.height, isName };
+      // prioriza o NOME; entre iguais, a ocorrência mais baixa na página (menor y)
+      if (!best
+        || (cand.isName && !best.isName)
+        || (cand.isName === best.isName && f < best.y)) {
+        best = cand;
+      }
+    }
+  }
+  await doc.destroy();
+  return best;
 };
 
 /* ─── DropZone para o PDF ─── */
@@ -90,81 +120,47 @@ const PdfDropZone = ({ onFile, file }) => {
 
 /* ════════════════════════════════════════════════════════════════
    ASSINATURA AUTOMÁTICA
-   Fluxo do usuário: solta o PDF → o sistema aplica a rúbrica já salva
-   → devolve o PDF assinado para download. Só isso.
-
-   ⚠️ A POSIÇÃO da assinatura no documento ainda é provisória (canto
-   inferior direito da última página). O Nicolas vai indicar depois
-   exatamente onde a rúbrica deve entrar — ajustar em SIG_POS / drawImage.
+   O usuário solta o PDF → o sistema localiza a linha acima do nome
+   da empresa e aplica a rúbrica → devolve o PDF assinado.
 ════════════════════════════════════════════════════════════════ */
-
-// Posição provisória da assinatura (ajustar depois)
-const SIG_POS = {
-  width: 150,           // largura da rúbrica em pontos PDF
-  marginRight: 60,      // distância da borda direita
-  marginBottom: 70,     // distância da borda inferior
-  lastPageOnly: true,   // assina só a última página
-};
-
 export const TabAssinatura = () => {
-  const [pdf, setPdf]           = useState(null);
-  const [rubrica, setRubrica]   = useState(loadRubrica);
-  const [busy, setBusy]         = useState(false);
-  const [error, setError]       = useState('');
-  const [done, setDone]         = useState('');
-  const [showConfig, setShowConfig] = useState(() => !loadRubrica());
-  const rubricaInputRef = useRef();
-
-  const handleRubricaFile = async (file) => {
-    if (!file) return;
-    if (!/^image\/(png|jpe?g)$/.test(file.type)) {
-      setError('A rúbrica precisa ser uma imagem PNG ou JPG (de preferência PNG com fundo transparente).');
-      return;
-    }
-    setError('');
-    const dataUrl = await fileToDataURL(file);
-    setRubrica(dataUrl);
-    saveRubrica(dataUrl);
-    setShowConfig(false);
-  };
-
-  const clearRubrica = () => {
-    setRubrica('');
-    saveRubrica('');
-    setShowConfig(true);
-  };
+  const [pdf, setPdf]   = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone]   = useState('');
 
   const assinar = async () => {
     setError(''); setDone('');
-    if (!rubrica) { setError('Nenhuma rúbrica salva. Configure a assinatura primeiro.'); return; }
-    if (!pdf)     { setError('Selecione um arquivo PDF para assinar.'); return; }
+    if (!pdf) { setError('Selecione um arquivo PDF para assinar.'); return; }
 
     setBusy(true);
     try {
-      const pdfBytes = await pdf.arrayBuffer();
-      const pdfDoc   = await PDFDocument.load(pdfBytes);
-
-      // embute a imagem da rúbrica (PNG ou JPG)
-      const isPng = rubrica.startsWith('data:image/png');
-      const imgBytes = Uint8Array.from(atob(rubrica.split(',')[1]), c => c.charCodeAt(0));
-      const sigImg = isPng ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
-
-      const sigW = SIG_POS.width;
-      const sigH = sigW * (sigImg.height / sigImg.width);
-
-      const pages  = pdfDoc.getPages();
-      const targets = SIG_POS.lastPageOnly ? [pages[pages.length - 1]] : pages;
-      for (const page of targets) {
-        const { width } = page.getSize();
-        page.drawImage(sigImg, {
-          x: width - sigW - SIG_POS.marginRight,
-          y: SIG_POS.marginBottom,
-          width: sigW,
-          height: sigH,
-        });
+      const buf = await pdf.arrayBuffer();
+      // pdf.js consome o buffer no worker — usa uma cópia para cada lib
+      const anchor = await findAnchor(new Uint8Array(buf.slice(0)));
+      if (!anchor) {
+        setError('Não encontrei o local da assinatura neste PDF (linha do nome "7SERV GESTÃO DE BENEFICIOS LTDA"). Confira se é o documento correto.');
+        setBusy(false);
+        return;
       }
 
-      const out = await pdfDoc.save();
+      const pdfDoc  = await PDFDocument.load(buf);
+      const sigBytes = await fetch(rubricaUrl).then(r => r.arrayBuffer());
+      const sigImg  = await pdfDoc.embedPng(sigBytes);
+
+      const sigW = SIG.width;
+      const sigH = sigW * (sigImg.height / sigImg.width);
+
+      const page = pdfDoc.getPages()[anchor.pageIndex];
+      const centerX = anchor.x + anchor.w / 2;
+      page.drawImage(sigImg, {
+        x: centerX - sigW / 2,
+        y: anchor.y + anchor.h + SIG.gapAboveName, // logo acima do nome
+        width: sigW,
+        height: sigH,
+      });
+
+      const out  = await pdfDoc.save();
       const blob = new Blob([out], { type: 'application/pdf' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
@@ -188,7 +184,7 @@ export const TabAssinatura = () => {
         compact
         eyebrow="Documentos · PDF"
         title="Assinatura Automática"
-        subtitle="Carregue um PDF e o sistema aplica a sua rúbrica salva automaticamente, devolvendo o documento assinado para download."
+        subtitle="Carregue um PDF e o sistema aplica a rúbrica automaticamente na linha da assinatura, devolvendo o documento assinado para download."
         icon={(
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/>
@@ -198,76 +194,26 @@ export const TabAssinatura = () => {
       />
 
       <div style={{maxWidth:700}}>
-        {/* Rúbrica salva */}
+        {/* Rúbrica usada */}
         <div style={{
           display:'flex',alignItems:'center',gap:16,
           background:T.surface,border:`1px solid ${T.border}`,
           borderRadius:13,padding:'16px 18px',marginBottom:24,
         }}>
           <div style={{
-            width:120,height:60,borderRadius:9,flexShrink:0,
+            width:150,height:46,borderRadius:9,flexShrink:0,
             border:`1px solid ${T.border}`,background:'#fff',
             display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',
           }}>
-            {rubrica
-              ? <img src={rubrica} alt="Rúbrica" style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/>
-              : <span style={{fontSize:11.5,color:T.textD}}>sem rúbrica</span>}
+            <img src={rubricaUrl} alt="Rúbrica" style={{maxWidth:'92%',maxHeight:'82%',objectFit:'contain'}}/>
           </div>
           <div style={{flex:1}}>
-            <div style={{fontSize:14,fontWeight:600,color:T.text}}>
-              {rubrica ? 'Rúbrica salva' : 'Nenhuma rúbrica salva'}
-            </div>
+            <div style={{fontSize:14,fontWeight:600,color:T.text}}>Rúbrica da assinatura</div>
             <div style={{fontSize:12.5,color:T.textT,marginTop:3}}>
-              {rubrica
-                ? 'Esta assinatura será aplicada automaticamente nos PDFs.'
-                : 'Configure uma imagem de assinatura para começar.'}
+              Esta assinatura é aplicada automaticamente na linha acima de <strong style={{color:T.textS}}>7SERV GESTÃO DE BENEFICIOS LTDA</strong>.
             </div>
           </div>
-          <button
-            onClick={() => setShowConfig(s => !s)}
-            style={{
-              background:'none',border:`1px solid ${T.border}`,borderRadius:8,
-              padding:'8px 14px',fontSize:13,color:T.textS,cursor:'pointer',
-              fontFamily:'var(--font-body)',transition:'background .14s',whiteSpace:'nowrap',
-            }}
-            onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}
-          >
-            {rubrica ? 'Alterar' : 'Configurar'}
-          </button>
         </div>
-
-        {/* Painel de configuração da rúbrica */}
-        {showConfig && (
-          <div style={{
-            background:T.surfaceSub||'rgba(0,0,0,0.02)',border:`1px solid ${T.border}`,
-            borderRadius:13,padding:'18px 20px',marginBottom:24,
-          }}>
-            <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:12}}>
-              Configurar rúbrica
-            </div>
-            <input ref={rubricaInputRef} type="file" accept="image/png,image/jpeg" style={{display:'none'}}
-              onChange={e => handleRubricaFile(e.target.files[0])}/>
-            <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-              <button
-                onClick={() => rubricaInputRef.current?.click()}
-                style={{...btnPrimary,padding:'9px 18px',fontSize:13.5}}
-                onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></I>
-                Enviar imagem da rúbrica
-              </button>
-              {rubrica && (
-                <button onClick={clearRubrica}
-                  style={{background:'none',border:`1px solid ${T.border}`,borderRadius:8,padding:'9px 14px',fontSize:13,color:T.danger,cursor:'pointer',fontFamily:'var(--font-body)'}}>
-                  Remover rúbrica
-                </button>
-              )}
-            </div>
-            <div style={{fontSize:11.5,color:T.textD,marginTop:10}}>
-              Use uma imagem <strong style={{color:T.textS}}>PNG com fundo transparente</strong> para um resultado limpo. A rúbrica fica salva neste navegador.
-            </div>
-          </div>
-        )}
 
         <StarDivider my={24}/>
 
@@ -292,16 +238,16 @@ export const TabAssinatura = () => {
 
         <button
           onClick={assinar}
-          disabled={busy || !pdf || !rubrica}
+          disabled={busy || !pdf}
           style={{
             ...btnPrimary,
-            background: (busy || !pdf || !rubrica) ? 'transparent' : T.gold,
-            color:      (busy || !pdf || !rubrica) ? T.textD : '#fff',
-            boxShadow:  (busy || !pdf || !rubrica) ? 'none' : btnPrimary.boxShadow,
-            border:     (busy || !pdf || !rubrica) ? `1px solid ${T.border}` : 'none',
-            cursor:     (busy || !pdf || !rubrica) ? 'not-allowed' : 'pointer',
+            background: (busy || !pdf) ? 'transparent' : T.gold,
+            color:      (busy || !pdf) ? T.textD : '#fff',
+            boxShadow:  (busy || !pdf) ? 'none' : btnPrimary.boxShadow,
+            border:     (busy || !pdf) ? `1px solid ${T.border}` : 'none',
+            cursor:     (busy || !pdf) ? 'not-allowed' : 'pointer',
           }}
-          onMouseEnter={e=>{ if(!(busy||!pdf||!rubrica)) e.currentTarget.style.opacity='.85'; }}
+          onMouseEnter={e=>{ if(!(busy||!pdf)) e.currentTarget.style.opacity='.85'; }}
           onMouseLeave={e=>{ e.currentTarget.style.opacity='1'; }}>
           {busy ? (
             <>

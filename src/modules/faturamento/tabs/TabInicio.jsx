@@ -24,8 +24,8 @@ const FEATURES = [
     color: '#C04050',
     bg: 'rgba(192,64,80,0.10)',
     title: 'Assinatura Automática',
-    desc: 'Carregue um PDF e o sistema aplica a sua rúbrica salva automaticamente, devolvendo o documento já assinado para download.',
-    steps: ['Configure a sua rúbrica (uma vez)', 'Solte o PDF a ser assinado', 'Baixe o PDF assinado'],
+    desc: 'Carregue um PDF e o sistema aplica a rúbrica automaticamente na linha da assinatura, devolvendo o documento já assinado para download.',
+    steps: ['Solte o PDF a ser assinado', 'O sistema localiza a linha da assinatura', 'Baixe o PDF assinado'],
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/>
