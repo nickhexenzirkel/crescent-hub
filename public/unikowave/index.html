@@ -1483,7 +1483,9 @@ canvas{display:block}
     <!-- HOME PANEL — tela inicial (em breve: vídeo em looping) -->
     <div class="menu-panel" id="panelHome" style="padding:0;overflow:hidden">
       <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#0a0118">
-        <!-- Vídeo em looping, MUDO (áudio cortado). Poster = capa enquanto carrega. -->
+        <!-- Vídeo em looping, MUDO (áudio cortado). No Ultra Leve mostra só a foto. -->
+        <img id="homeHeroPhoto" src="/telaunikowave.png" alt="Uniko Wave"
+          style="width:100%;height:100%;object-fit:contain;object-position:center;display:none">
         <video id="homeHeroMedia" src="/TelaInicialUnikoWave.mp4" poster="/telaunikowave.png"
           autoplay loop muted playsinline preload="auto"
           style="width:100%;height:100%;object-fit:contain;object-position:center;display:block"></video>
@@ -1668,6 +1670,7 @@ canvas{display:block}
       <div class="settings-section" style="margin-top:14px;max-width:680px;width:100%">
         <div class="settings-lbl">🎮 GRÁFICOS (otimização)</div>
         <div class="settings-options">
+          <button class="opt-btn" id="gfxOpt-ultra" onclick="setGfx('ultra')">⚡ Ultra Leve</button>
           <button class="opt-btn" id="gfxOpt-baixo" onclick="setGfx('baixo')">🟢 Baixo</button>
           <button class="opt-btn" id="gfxOpt-medio" onclick="setGfx('medio')">🟡 Médio</button>
           <button class="opt-btn" id="gfxOpt-normal" onclick="setGfx('normal')">🔵 Normal</button>
@@ -1804,8 +1807,12 @@ canvas{display:block}
 
 /* ─── Otimização gráfica ─── */
 html.gfx-low *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-html.gfx-low #menuBg,html.gfx-low .menu-orb{display:none!important}
+html.gfx-low #menuBg,html.gfx-low .menu-orb,html.gfx-low .menu-star,html.gfx-low .shooting-star{display:none!important}
 html.gfx-med .menu-orb{filter:blur(46px)!important}
+/* Ultra Leve: sem animações, transições, sombras nem brilhos; tela inicial = foto */
+html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{animation:none!important;transition:none!important;box-shadow:none!important;text-shadow:none!important}
+html.gfx-ultra #homeHeroMedia{display:none!important}
+html.gfx-ultra #homeHeroPhoto{display:block!important}
 </style>
 
 <div id="wishOverlay" class="off">
@@ -2402,6 +2409,7 @@ function syncMusicUI(){
    quantidade de partículas e desliga blurs/fundos pesados (classes gfx-*).
    Persistido em localStorage 'dw_gfx'. */
 const GFX_PRESETS = {
+  ultra:  { dprCap:1,   particleMul:0    },  // máximo de otimização
   baixo:  { dprCap:1,   particleMul:0.25 },
   medio:  { dprCap:1.5, particleMul:0.55 },
   normal: { dprCap:3,   particleMul:1    },
@@ -2411,8 +2419,16 @@ if(!GFX_PRESETS[gfxQuality]) gfxQuality='normal';
 let GFX = GFX_PRESETS[gfxQuality];
 function _applyGfxClass(){
   const r=document.documentElement;
-  r.classList.toggle('gfx-low', gfxQuality==='baixo');
+  r.classList.toggle('gfx-ultra', gfxQuality==='ultra');
+  r.classList.toggle('gfx-low', gfxQuality==='baixo' || gfxQuality==='ultra'); // ultra herda as regras do baixo
   r.classList.toggle('gfx-med', gfxQuality==='medio');
+}
+// Tela inicial: vídeo no normal/médio/baixo; no ultra mostra só a foto (vídeo pausado).
+function _applyHomeMedia(){
+  const v=document.getElementById('homeHeroMedia');
+  if(!v) return;
+  if(gfxQuality==='ultra'){ try{ v.pause(); }catch(_){} }
+  else { try{ const ph=v.play(); if(ph&&ph.catch) ph.catch(()=>{}); }catch(_){} }
 }
 _applyGfxClass();
 function setGfx(q){
@@ -2420,11 +2436,13 @@ function setGfx(q){
   gfxQuality=q; GFX=GFX_PRESETS[q];
   try{ localStorage.setItem('dw_gfx', q); }catch(_){}
   _applyGfxClass();
-  if(typeof resize==='function') resize();   // re-aplica o DPR no canvas
+  _applyHomeMedia();
+  if(typeof initMenuBg==='function') initMenuBg();   // recria/limpa o starfield conforme a qualidade
+  if(typeof resize==='function') resize();           // re-aplica o DPR no canvas
   syncGfxUI();
 }
 function syncGfxUI(){
-  ['baixo','medio','normal'].forEach(q=>{
+  ['ultra','baixo','medio','normal'].forEach(q=>{
     const el=document.getElementById('gfxOpt-'+q);
     if(el) el.classList.toggle('active', gfxQuality===q);
   });
@@ -3760,6 +3778,9 @@ function initMenuBg(){
   if(!menuScr) return;
   // Remove old stars
   menuScr.querySelectorAll('.menu-star').forEach(s=>s.remove());
+  if(window._shootingStarTimer){ clearInterval(window._shootingStarTimer); window._shootingStarTimer=null; }
+  // Ultra/Baixo: sem starfield animado nem estrelas cadentes (otimização)
+  if(typeof gfxQuality!=='undefined' && (gfxQuality==='ultra' || gfxQuality==='baixo')) return;
   const W=window.innerWidth, H=window.innerHeight;
   for(let i=0;i<70;i++){
     const star=document.createElement('div');
@@ -4841,7 +4862,8 @@ function updateElSmooth(){
 // ── SPAWN DE PARTÍCULAS ──
 function spawnElP(l,r,t){
   if(elAlpha<.04) return;
-  if(GFX.particleMul<1 && Math.random()>GFX.particleMul) return; // otimização: reduz partículas
+  if(GFX.particleMul<=0) return;                                  // ultra: sem partículas
+  if(GFX.particleMul<1 && Math.random()>GFX.particleMul) return;  // otimização: reduz partículas
   const a=elAlpha;
   const sides=[[0,l-15],[r+15,CW]];
   const sd=()=>{ const s=sides[Math.random()<.5?0:1]; return s[0]+Math.random()*(s[1]-s[0]); };
@@ -6836,6 +6858,7 @@ function playWishAnimation(pending){
   const win = pending.multi ? pending.wins>0 : pending.win;
   const ov=document.getElementById('wishOverlay');
   if(!ov){ showWishReveal(); return; }
+  if(gfxQuality==='ultra'){ ov.classList.remove('off'); showWishReveal(); return; } // ultra: sem cinemática
   const sky=document.getElementById('wishSky');
   const wrap=document.getElementById('wishThrowerWrap');
   const dodo=document.getElementById('wishThrower');
@@ -8097,7 +8120,7 @@ function pollGamepad(){
 pollGamepad();
 
 buildKeyLegend(); resize(); initMenuBg(); showScreen('menuScr'); updatePlayCharBadge();
-gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI();
+gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI(); _applyHomeMedia();
 
 // ─── PROFILE INIT ───
 (function initProfile(){
