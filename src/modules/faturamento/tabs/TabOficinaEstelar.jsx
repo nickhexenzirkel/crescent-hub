@@ -1,7 +1,28 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
+import { PdfEditor } from '../PdfEditor';
+
+/* Censura temporária — embaça o conteúdo de uma aba ainda em desenvolvimento */
+const Censored = ({ children }) => (
+  <div style={{position:'relative'}}>
+    <div style={{filter:'blur(7px)',pointerEvents:'none',userSelect:'none',opacity:.85}} aria-hidden="true">
+      {children}
+    </div>
+    <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 22px',background:T.surface,
+        border:`1px solid ${T.border}`,borderRadius:999,boxShadow:T.sh,fontSize:14,fontWeight:600,color:T.textS}}>
+        <span style={{color:T.gold}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+        </span>
+        Em desenvolvimento
+      </div>
+    </div>
+  </div>
+);
 
 /* ─── Ícone inline ─── */
 const I = (p) => (
@@ -67,37 +88,6 @@ const btnPrimary = {
   borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:600,
   cursor:'pointer',fontFamily:'var(--font-body)',
   boxShadow:`0 2px 10px ${T.gold}44`,transition:'opacity .14s',
-};
-
-const DropZone = ({ label, accept, onFile, file }) => {
-  const ref = useRef();
-  return (
-    <div
-      onClick={() => ref.current?.click()}
-      style={{
-        border:`2px dashed ${file ? T.gold : T.border}`,
-        borderRadius:13,padding:'28px 20px',textAlign:'center',
-        cursor:'pointer',background:file?`${T.gold}08`:T.surfaceSub||'transparent',
-        transition:'all .15s',
-      }}
-    >
-      <input ref={ref} type="file" accept={accept} style={{display:'none'}}
-        onChange={e => e.target.files[0] && onFile(e.target.files[0])}/>
-      {file ? (
-        <>
-          <div style={{fontSize:22,marginBottom:6}}>📄</div>
-          <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{file.name}</div>
-          <div style={{fontSize:12,color:T.textD,marginTop:3}}>{(file.size/1024).toFixed(1)} KB · clique para trocar</div>
-        </>
-      ) : (
-        <>
-          <div style={{fontSize:22,marginBottom:6}}>⬆️</div>
-          <div style={{fontSize:13.5,fontWeight:500,color:T.textS}}>{label}</div>
-          <div style={{fontSize:12,color:T.textD,marginTop:4}}>Clique para selecionar</div>
-        </>
-      )}
-    </div>
-  );
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -339,68 +329,6 @@ const TabOficio = () => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   4. EDITOR DE PDF
-════════════════════════════════════════════════════════════════ */
-const TabEditorPDF = () => {
-  const [pdf, setPdf] = useState(null);
-  const [pdfUrl, setPdfUrl] = useState(null);
-
-  const handleFile = (f) => {
-    setPdf(f);
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    setPdfUrl(URL.createObjectURL(f));
-  };
-
-  return (
-    <div>
-      {!pdf ? (
-        <div style={{maxWidth:560}}>
-          <p style={{fontSize:14,color:T.textS,lineHeight:1.65,marginTop:0,marginBottom:28}}>
-            Carregue um PDF para visualizar e editar diretamente no navegador. Você poderá adicionar texto, anotações e reorganizar páginas.
-          </p>
-          <DropZone label="Selecione um PDF para editar" accept=".pdf" file={null} onFile={handleFile}/>
-        </div>
-      ) : (
-        <div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <div style={{fontSize:14,fontWeight:600,color:T.text}}>{pdf.name}</div>
-              <div style={{fontSize:12,color:T.textD}}>{(pdf.size/1024).toFixed(1)} KB</div>
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button
-                onClick={() => { setPdf(null); if(pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(null); }}
-                style={{
-                  background:'none',border:`1px solid ${T.border}`,borderRadius:8,
-                  padding:'7px 14px',fontSize:13,color:T.textS,cursor:'pointer',
-                  fontFamily:'var(--font-body)',transition:'background .14s',
-                }}
-                onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
-                onMouseLeave={e=>e.currentTarget.style.background='none'}
-              >
-                Trocar arquivo
-              </button>
-              <button style={{...btnPrimary,padding:'7px 16px',fontSize:13}}
-                onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>
-                Baixar
-              </button>
-            </div>
-          </div>
-          <div style={{borderRadius:12,overflow:'hidden',border:`1px solid ${T.border}`,boxShadow:'0 4px 18px rgba(0,0,0,.08)'}}>
-            <iframe
-              src={pdfUrl}
-              title="Editor de PDF"
-              style={{width:'100%',height:'72vh',border:'none',display:'block'}}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ════════════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
 ════════════════════════════════════════════════════════════════ */
 export const TabOficinaEstelar = () => {
@@ -454,9 +382,9 @@ export const TabOficinaEstelar = () => {
 
       {/* Conteúdo da sub-aba */}
       <div style={{marginTop:24}}>
-        {sub === 'editor-pdf' && <TabEditorPDF/>}
-        {sub === 'carta'      && <TabCarta/>}
-        {sub === 'oficio'     && <TabOficio/>}
+        {sub === 'editor-pdf' && <PdfEditor/>}
+        {sub === 'carta'      && <Censored><TabCarta/></Censored>}
+        {sub === 'oficio'     && <Censored><TabOficio/></Censored>}
       </div>
     </div>
   );
