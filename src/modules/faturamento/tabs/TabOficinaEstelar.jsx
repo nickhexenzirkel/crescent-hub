@@ -4,6 +4,8 @@ import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
 
+const HERO_ICON = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
+
 /* Censura temporária — embaça o conteúdo de uma aba ainda em desenvolvimento */
 const Censored = ({ children }) => (
   <div style={{position:'relative'}}>
@@ -30,25 +32,6 @@ const I = (p) => (
     stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
     style={{flexShrink:0}}>{p.children}</svg>
 );
-
-/* ─── Sub-abas ─── */
-const SUBTABS = [
-  {
-    id: 'editor-pdf',
-    label: 'Editor de PDF',
-    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="14" r="2"/><path d="M20 20l-3-3"/></I>,
-  },
-  {
-    id: 'carta',
-    label: 'Carta de Correção',
-    icon: <I><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></I>,
-  },
-  {
-    id: 'oficio',
-    label: 'Ofício de Emissão',
-    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></I>,
-  },
-];
 
 /* ─── Modelos de Ofício ─── */
 const OFICIO_MODELS = [
@@ -329,63 +312,45 @@ const TabOficio = () => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   COMPONENTE PRINCIPAL
+   FERRAMENTAS ESTELARES — Editor de PDF
+   (o banner some quando um PDF é carregado, para ver melhor a página)
 ════════════════════════════════════════════════════════════════ */
 export const TabOficinaEstelar = () => {
-  const [sub, setSub] = useState('editor-pdf');
-  const current = SUBTABS.find(s => s.id === sub);
-
+  const [hasDoc, setHasDoc] = useState(false);
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
-      <StellarHero
-        compact
-        eyebrow="Ferramentas Estelares"
-        title={current.label}
-        subtitle="Ferramentas de edição documental — edição de PDF, cartas de correção e ofícios."
-        icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
-      />
-
-      {/* Barra de sub-abas */}
-      <div style={{
-        display:'flex',gap:4,
-        background:T.surface,border:`1px solid ${T.border}`,
-        borderRadius:13,padding:5,marginBottom:32,
-        width:'fit-content',
-      }}>
-        {SUBTABS.map(s => {
-          const a = sub === s.id;
-          return (
-            <button
-              key={s.id}
-              onClick={() => setSub(s.id)}
-              style={{
-                display:'flex',alignItems:'center',gap:7,
-                padding:'8px 16px',borderRadius:9,border:'none',
-                background: a ? T.goldGl : 'transparent',
-                color: a ? T.gold : T.textS,
-                fontSize:13.5,fontWeight: a ? 600 : 400,
-                cursor:'pointer',fontFamily:'var(--font-body)',
-                transition:'all .14s',
-                outline: a ? `1px solid rgba(212,168,75,0.22)` : '1px solid transparent',
-              }}
-              onMouseEnter={e => { if(!a) e.currentTarget.style.background = T.surfaceSub||'rgba(0,0,0,0.04)'; }}
-              onMouseLeave={e => { if(!a) e.currentTarget.style.background = 'transparent'; }}
-            >
-              <span style={{color: a ? T.gold : T.textT}}>{s.icon}</span>
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <StarDivider my={0} style={{marginBottom:28}}/>
-
-      {/* Conteúdo da sub-aba */}
-      <div style={{marginTop:24}}>
-        {sub === 'editor-pdf' && <PdfEditor/>}
-        {sub === 'carta'      && <Censored><TabCarta/></Censored>}
-        {sub === 'oficio'     && <Censored><TabOficio/></Censored>}
-      </div>
+      {!hasDoc && (
+        <StellarHero
+          compact
+          eyebrow="Ferramentas Estelares"
+          title="Editor de PDF"
+          subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas."
+          icon={HERO_ICON}
+        />
+      )}
+      <PdfEditor onDoc={setHasDoc}/>
     </div>
   );
 };
+
+/* ════════════════════════════════════════════════════════════════
+   CARTA DE CORREÇÃO (aba própria)
+════════════════════════════════════════════════════════════════ */
+export const TabCartaCorrecao = () => (
+  <div style={{fontFamily:'var(--font-body)'}}>
+    <StellarHero compact eyebrow="Ferramentas Estelares" title="Carta de Correção"
+      subtitle="Gere a Carta de Correção Eletrônica (CC-e) de uma NF-e." icon={HERO_ICON}/>
+    <Censored><TabCarta/></Censored>
+  </div>
+);
+
+/* ════════════════════════════════════════════════════════════════
+   OFÍCIO DE EMISSÃO (aba própria)
+════════════════════════════════════════════════════════════════ */
+export const TabOficioEmissao = () => (
+  <div style={{fontFamily:'var(--font-body)'}}>
+    <StellarHero compact eyebrow="Ferramentas Estelares" title="Ofício de Emissão"
+      subtitle="Gere ofícios a partir de modelos prontos." icon={HERO_ICON}/>
+    <Censored><TabOficio/></Censored>
+  </div>
+);

@@ -274,7 +274,7 @@ const SignatureModal = ({ onClose, onUse }) => {
 /* ════════════════════════════════════════════════════════════════
    EDITOR DE PDF
 ════════════════════════════════════════════════════════════════ */
-export const PdfEditor = () => {
+export const PdfEditor = ({ onDoc }) => {
   const [fileName, setFileName] = useState('');
   const [pdf, setPdf]       = useState(null);
   const [pages, setPages]   = useState([]);
@@ -301,6 +301,7 @@ export const PdfEditor = () => {
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
   useEffect(() => { annosRef.current = annos; }, [annos]);
+  useEffect(() => { if (onDoc) onDoc(!!pdf); }, [pdf, onDoc]);
 
   const pushHistory = useCallback(() => {
     histRef.current.push(JSON.stringify(annosRef.current));
