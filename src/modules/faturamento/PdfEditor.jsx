@@ -15,6 +15,7 @@ const I = (p) => (
 );
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const NBSP = String.fromCharCode(160);
 
 /* hex "#1A2B3C" → {r,g,b} em 0..1 para pdf-lib */
 const hexToRgb01 = (hex) => {
@@ -29,7 +30,7 @@ const sanitizeWinAnsi = (s) => (s || '')
   .replace(/[“”]/g, '"')
   .replace(/[–—]/g, '-')
   .replace(/…/g, '...')
-  .replace(new RegExp(String.fromCharCode(160),'g'), ' ');
+  .split(NBSP).join(' ');
 
 const SIG_STORE = 'oficina_assinaturas_salvas';
 const loadSavedSigs = () => {
@@ -43,6 +44,10 @@ const persistSavedSigs = (list) => {
 };
 
 const COLORS = ['#111111', '#1A6FB5', '#C04050', '#1A9C70', '#C4872A', '#8B5FE8', '#ffffff'];
+
+const cssFamily = (serif) => serif
+  ? 'Georgia, "Times New Roman", serif'
+  : 'Arial, Helvetica, sans-serif';
 
 /* ════════════════════════════════════════════════════════════════
    Canvas de uma página (render via pdf.js)
@@ -77,7 +82,6 @@ const PdfCanvas = ({ pdf, index, scale }) => {
 const SignatureModal = ({ onClose, onUse }) => {
   const [mode, setMode]   = useState('desenhar');
   const [drawn, setDrawn] = useState(null);
-  // a rúbrica padrão (ASSINATURA EV. JR) sempre encabeça a lista
   const [saved, setSaved] = useState(() => {
     const list = loadSavedSigs().filter(s => s.id !== 'default-ev');
     return [{ id:'default-ev', name:'ASSINATURA EV. JR', dataUrl: rubricaUrl }, ...list];
@@ -110,21 +114,20 @@ const SignatureModal = ({ onClose, onUse }) => {
 
   const saveToList = (dataUrl) => {
     const item = { id: uid(), name: 'Assinatura ' + new Date().toLocaleDateString('pt-BR'), dataUrl };
-    const next = [item, ...saved.filter(s => s.id !== 'default-ev')];
-    setSaved([saved.find(s=>s.id==='default-ev'), ...next].filter(Boolean));
+    const rest = saved.filter(s => s.id !== 'default-ev');
+    const def  = saved.find(s => s.id === 'default-ev');
+    const next = [item, ...rest];
+    setSaved([def, ...next].filter(Boolean));
     persistSavedSigs(next);
   };
   const removeSaved = (id) => {
+    const def  = saved.find(s => s.id === 'default-ev');
     const next = saved.filter(s => s.id !== id && s.id !== 'default-ev');
-    setSaved([saved.find(s=>s.id==='default-ev'), ...next].filter(Boolean));
+    setSaved([def, ...next].filter(Boolean));
     persistSavedSigs(next);
   };
 
-  const useDrawn = () => {
-    if (!drawn) return;
-    saveToList(drawn);
-    onUse(drawn, repeat);
-  };
+  const useDrawn = () => { if (!drawn) return; saveToList(drawn); onUse(drawn, repeat); };
 
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(10,16,30,.55)',backdropFilter:'blur(3px)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
@@ -139,7 +142,6 @@ const SignatureModal = ({ onClose, onUse }) => {
         </div>
 
         <div style={{padding:'18px 22px'}}>
-          {/* tabs */}
           <div style={{display:'flex',gap:18,borderBottom:`1px solid ${T.border}`,marginBottom:16}}>
             {[['desenhar','✏️ Desenhar'],['upload','🖼️ Upload de Imagem']].map(([id,label]) => (
               <button key={id} onClick={()=>setMode(id)}
@@ -173,7 +175,6 @@ const SignatureModal = ({ onClose, onUse }) => {
             </div>
           )}
 
-          {/* salvas */}
           <div style={{marginTop:18}}>
             <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:8}}>Assinaturas Salvas</div>
             {saved.length === 0 && <div style={{fontSize:12.5,color:T.textD}}>Nenhuma assinatura salva ainda.</div>}
@@ -209,7 +210,7 @@ const SignatureModal = ({ onClose, onUse }) => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   EDITOR DE PDF
+   EDITOR DE PDF — edita o texto já existente no documento
 ════════════════════════════════════════════════════════════════ */
 export const PdfEditor = () => {
   const [fileName, setFileName] = useState('');
@@ -218,6 +219,7 @@ export const PdfEditor = () => {
   const [scale, setScale]   = useState(1.3);
   const [annos, setAnnos]   = useState([]);
   const [selId, setSelId]   = useState(null);
+  const [focusId, setFocusId] = useState(null);
   const [tool, setTool]     = useState('select');     // select | text
   const [activePage, setActivePage] = useState(0);
   const [sigOpen, setSigOpen] = useState(false);
@@ -225,11 +227,12 @@ export const PdfEditor = () => {
   const [error, setError]   = useState('');
   const [canUndo, setCanUndo] = useState(false);
 
-  const srcRef    = useRef(null);   // Uint8Array original
+  const srcRef    = useRef(null);
   const scaleRef  = useRef(scale);
   const annosRef  = useRef(annos);
-  const histRef   = useRef([]);     // snapshots p/ desfazer
+  const histRef   = useRef([]);
   const dragRef   = useRef(null);
+  const editedFocus = useRef(false);
   const fileInput = useRef();
   const imgInput  = useRef();
 
@@ -238,23 +241,27 @@ export const PdfEditor = () => {
 
   const pushHistory = useCallback(() => {
     histRef.current.push(JSON.stringify(annosRef.current));
-    if (histRef.current.length > 50) histRef.current.shift();
+    if (histRef.current.length > 60) histRef.current.shift();
     setCanUndo(true);
   }, []);
   const undo = () => {
     const prev = histRef.current.pop();
-    if (prev != null) { setAnnos(JSON.parse(prev)); setSelId(null); }
+    if (prev != null) { setAnnos(JSON.parse(prev)); setSelId(null); setFocusId(null); }
     setCanUndo(histRef.current.length > 0);
   };
   const deleteAnno = useCallback((id) => {
     pushHistory();
-    setAnnos(p => p.filter(a => a.id !== id));
+    setAnnos(p => p.flatMap(a => {
+      if (a.id !== id) return [a];
+      // texto original: esvazia (some no PDF salvo); demais: remove
+      return (a.type === 'text' && a.isOriginal) ? [{ ...a, str:'' }] : [];
+    }));
     setSelId(null);
   }, [pushHistory]);
 
   const sel = annos.find(a => a.id === selId) || null;
 
-  /* ── abrir PDF ── */
+  /* ── abrir PDF + extrair texto existente ── */
   const openFile = async (file) => {
     if (!file) return;
     setError(''); setBusy(true);
@@ -264,23 +271,46 @@ export const PdfEditor = () => {
       srcRef.current = src;
       const doc = await pdfjsLib.getDocument({ data: src.slice() }).promise;
       const pgs = [];
+      const items = [];
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
-        const vp = page.getViewport({ scale: 1 });
+        const vp   = page.getViewport({ scale: 1 });
         pgs.push({ w: vp.width, h: vp.height });
+        const tc = await page.getTextContent();
+        for (const it of tc.items) {
+          const str = it.str;
+          if (!str || !str.trim()) continue;
+          const tr = it.transform;
+          const fs = Math.hypot(tr[2], tr[3]) || it.height || 12;
+          const style = (tc.styles && tc.styles[it.fontName]) || {};
+          const asc = (style.ascent != null ? style.ascent : 0.8) * fs;
+          const desc = (style.descent != null ? Math.abs(style.descent) : 0.2) * fs;
+          const fam = style.fontFamily || it.fontName || '';
+          const serif = /serif|times|roman|georgia|garamond/i.test(fam);
+          const bold = /bold|black|heavy|semibold/i.test(it.fontName || '');
+          const italic = /italic|oblique/i.test(it.fontName || '');
+          items.push({
+            id: uid(), page: i-1, type:'text', isOriginal:true,
+            x: tr[4], top: vp.height - tr[5] - asc, fs, asc, desc, w: it.width,
+            serif, bold, italic, str, orig: str, color:'#111111',
+          });
+        }
       }
       setPdf(doc); setPages(pgs); setFileName(file.name);
-      setAnnos([]); setSelId(null); histRef.current = []; setCanUndo(false); setActivePage(0);
+      setAnnos(items); setSelId(null); setFocusId(null);
+      histRef.current = []; setCanUndo(false); setActivePage(0);
     } catch (e) {
       setError('Não foi possível abrir o PDF: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
   };
 
-  /* ── adicionar anotações ── */
-  const addText = (pageIdx, xPt, yPt) => {
+  /* ── adicionar elementos ── */
+  const addText = (pageIdx, xPt, topPt) => {
     pushHistory();
-    const id = uid();
-    setAnnos(p => [...p, { id, page: pageIdx, type:'text', x:xPt, y:yPt, w:200, text:'Texto', fontSize:14, color:'#111111' }]);
+    const id = uid(), fs = 14;
+    setAnnos(p => [...p, { id, page:pageIdx, type:'text', isOriginal:false,
+      x:xPt, top:topPt, fs, asc:fs*0.8, desc:fs*0.2, w:120, serif:false, bold:false, italic:false,
+      str:'Novo texto', orig:undefined, color:'#111111' }]);
     setSelId(id); setTool('select');
   };
   const addImageAnno = (dataUrl, type, repeat=false) => {
@@ -293,7 +323,7 @@ export const PdfEditor = () => {
         const pg = pages[pi];
         const w = Math.min(180, pg.w * 0.4);
         const h = w / aspect;
-        return { id: uid(), page: pi, type, x:(pg.w-w)/2, y:(pg.h-h)/2, w, h, src:dataUrl };
+        return { id: uid(), page: pi, type, x:(pg.w-w)/2, top:(pg.h-h)/2, w, h, src:dataUrl };
       });
       setAnnos(p => [...p, ...newOnes]);
       if (!repeat) setSelId(newOnes[0].id);
@@ -321,9 +351,8 @@ export const PdfEditor = () => {
       const dx = (e.clientX - d.sx)/s, dy = (e.clientY - d.sy)/s;
       setAnnos(prev => prev.map(a => {
         if (a.id !== d.id) return a;
-        if (d.mode === 'move')   return { ...a, x: d.ox+dx, y: d.oy+dy };
-        if (d.mode === 'resizeW')return { ...a, w: Math.max(40, d.ow+dx) };
-        if (d.mode === 'resizeI'){ const w=Math.max(24,d.ow+dx); return { ...a, w, h: w/d.aspect }; }
+        if (d.mode === 'move')    return { ...a, x: d.ox+dx, top: d.oy+dy };
+        if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h: w/d.aspect }; }
         return a;
       }));
     };
@@ -336,19 +365,25 @@ export const PdfEditor = () => {
   const startDrag = (e, a, mode) => {
     e.stopPropagation();
     setSelId(a.id); pushHistory();
-    dragRef.current = { id:a.id, mode, sx:e.clientX, sy:e.clientY, ox:a.x, oy:a.y, ow:a.w, oh:a.h, aspect:(a.w/(a.h||1)) };
+    dragRef.current = { id:a.id, mode, sx:e.clientX, sy:e.clientY, ox:a.x, oy:a.top, ow:a.w, oh:a.h, aspect:(a.w/(a.h||1)) };
   };
 
-  /* ── salvar (achata via pdf-lib) ── */
+  /* ── salvar (cobre o texto original alterado e redesenha) ── */
   const salvar = async () => {
     if (!srcRef.current) return;
     setBusy(true); setError('');
     try {
-      const doc  = await PDFDocument.load(srcRef.current.slice());
-      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const doc = await PDFDocument.load(srcRef.current.slice());
       const docPages = doc.getPages();
-
-      // cache de imagens embutidas por dataUrl
+      const fontCache = {};
+      const pickFont = async (serif, bold, italic) => {
+        const key = (serif?'t':'h') + (bold?'b':'') + (italic?'i':'');
+        if (fontCache[key]) return fontCache[key];
+        let std;
+        if (serif) std = bold&&italic ? StandardFonts.TimesRomanBoldItalic : bold ? StandardFonts.TimesRomanBold : italic ? StandardFonts.TimesRomanItalic : StandardFonts.TimesRoman;
+        else       std = bold&&italic ? StandardFonts.HelveticaBoldOblique : bold ? StandardFonts.HelveticaBold : italic ? StandardFonts.HelveticaOblique : StandardFonts.Helvetica;
+        const f = await doc.embedFont(std); fontCache[key] = f; return f;
+      };
       const imgCache = {};
       const embed = async (dataUrl) => {
         if (imgCache[dataUrl]) return imgCache[dataUrl];
@@ -361,21 +396,33 @@ export const PdfEditor = () => {
       for (const a of annos) {
         const pg = docPages[a.page]; if (!pg) continue;
         const H = pg.getHeight();
-        if (a.type === 'text') {
-          const { r, g, b } = hexToRgb01(a.color);
-          const fs = a.fontSize;
-          const lh = fs * 1.18;
-          const lines = sanitizeWinAnsi(a.text).split('\n');
-          lines.forEach((line, k) => {
-            const yTop = a.y + fs + k*lh;          // baseline a partir do topo
-            try {
-              pg.drawText(line, { x:a.x, y:H - yTop, size:fs, font, color:rgb(r,g,b) });
-            } catch { /* caractere não suportado — ignora a linha */ }
-          });
-        } else {
+
+        if (a.type !== 'text') {
           const img = await embed(a.src);
-          pg.drawImage(img, { x:a.x, y:H - a.y - a.h, width:a.w, height:a.h });
+          pg.drawImage(img, { x:a.x, y:H - a.top - a.h, width:a.w, height:a.h });
+          continue;
         }
+
+        const changed = !a.isOriginal || a.str !== a.orig;
+        if (!changed) continue;                       // texto intacto: mantém o original
+
+        const font = await pickFont(a.serif, a.bold, a.italic);
+        const { r, g, b } = hexToRgb01(a.color);
+        const fs = a.fs;
+        const lh = fs * 1.18;
+        const lines = sanitizeWinAnsi(a.str).split('\n');
+
+        if (a.isOriginal) {
+          // cobre o texto original com um retângulo branco
+          const wid = Math.max(a.w, ...lines.map(l => { try { return font.widthOfTextAtSize(l, fs); } catch { return a.w; } }));
+          pg.drawRectangle({ x:a.x-1, y:H - a.top - fs*1.28, width:wid+2, height:fs*1.45, color:rgb(1,1,1) });
+        }
+
+        lines.forEach((line, k) => {
+          const yTop = a.top + a.asc + k*lh;
+          try { pg.drawText(line, { x:a.x, y:H - yTop, size:fs, font, color:rgb(r,g,b) }); }
+          catch { /* caractere não suportado — ignora a linha */ }
+        });
       }
 
       const out  = await doc.save();
@@ -389,26 +436,23 @@ export const PdfEditor = () => {
     } finally { setBusy(false); }
   };
 
-  /* delete por teclado */
+  /* delete por teclado (quando não está editando texto) */
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selId) {
-        const a = annosRef.current.find(x => x.id === selId);
-        if (a && !(a.type === 'text' && document.activeElement?.tagName === 'TEXTAREA')) {
-          e.preventDefault(); deleteAnno(selId);
-        }
+      if ((e.key === 'Delete') && selId && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault(); deleteAnno(selId);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selId, deleteAnno]);
 
-  /* ── sem arquivo: tela de abertura ── */
+  /* ── sem arquivo ── */
   if (!pdf) {
     return (
       <div style={{maxWidth:560}}>
         <p style={{fontSize:14,color:T.textS,lineHeight:1.65,marginTop:0,marginBottom:24}}>
-          Carregue um PDF para editar em tempo real: adicione texto, imagens e assinaturas, mova e redimensione, e baixe o resultado.
+          Carregue um PDF para editar o texto existente diretamente no documento — clique sobre qualquer texto e altere. Também é possível adicionar texto, imagens e assinaturas.
         </p>
         <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>openFile(e.target.files[0])}/>
         <div onClick={()=>fileInput.current?.click()}
@@ -452,7 +496,7 @@ export const PdfEditor = () => {
         <div style={{width:1,height:22,background:T.divider,margin:'0 2px'}}/>
 
         <button style={tbBtn(tool==='text')} onClick={()=>setTool(tool==='text'?'select':'text')}>
-          <I><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></I> Texto
+          <I><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></I> Adicionar texto
         </button>
         <button style={tbBtn(false)} onClick={()=>imgInput.current?.click()}>
           <I><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></I> Imagem
@@ -468,13 +512,9 @@ export const PdfEditor = () => {
         <button style={tbBtn(false)} onClick={undo} disabled={!canUndo}>
           <I><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></I> Desfazer
         </button>
-        <button style={{...tbBtn(false),color:T.danger,borderColor:`${T.danger}55`}} onClick={()=>{ pushHistory(); setAnnos([]); setSelId(null); }}>
-          <I><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></I> Excluir tudo
-        </button>
 
         <div style={{flex:1}}/>
 
-        {/* zoom */}
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.max(0.5,+(s-0.1).toFixed(2)))}>−</button>
           <span style={{fontSize:13,color:T.textS,minWidth:46,textAlign:'center'}}>{Math.round(scale*100)}%</span>
@@ -502,40 +542,45 @@ export const PdfEditor = () => {
             <div key={i} id={'pdfpg-'+i} style={{margin:'0 auto 18px',width:p.w*scale,boxShadow:'0 4px 18px rgba(0,0,0,.14)'}}>
               <div style={{position:'relative',width:p.w*scale,height:p.h*scale}}>
                 <PdfCanvas pdf={pdf} index={i} scale={scale}/>
-                {/* camada de edição */}
                 <div onClick={(e)=>onPageClick(i,e)}
                   style={{position:'absolute',inset:0,cursor: tool==='text'?'text':'default'}}>
                   {annos.filter(a=>a.page===i).map(a => {
                     const selected = a.id===selId;
                     if (a.type === 'text') {
+                      const visible = focusId===a.id || a.str !== a.orig;  // intacto = transparente (mostra o original)
                       return (
-                        <div key={a.id} style={{position:'absolute',left:a.x*scale,top:a.y*scale,width:a.w*scale}}
+                        <div key={a.id} style={{position:'absolute',left:a.x*scale,top:a.top*scale}}
                           onClick={e=>{e.stopPropagation(); setSelId(a.id);}}>
                           {selected && (
                             <div onPointerDown={e=>startDrag(e,a,'move')}
-                              style={{position:'absolute',top:-16,left:0,height:14,padding:'0 6px',background:T.gold,color:'#fff',fontSize:10,borderRadius:'4px 4px 0 0',cursor:'move',display:'flex',alignItems:'center',gap:4,userSelect:'none'}}>
+                              style={{position:'absolute',top:-15,left:0,height:14,padding:'0 6px',background:T.gold,color:'#fff',fontSize:9.5,borderRadius:'4px 4px 0 0',cursor:'move',display:'flex',alignItems:'center',gap:4,userSelect:'none',whiteSpace:'nowrap'}}>
                               ✛ mover
                             </div>
                           )}
-                          <textarea value={a.text}
-                            onFocus={()=>{ setSelId(a.id); pushHistory(); }}
-                            onChange={e=>{ updateAnno(a.id,{text:e.target.value}); e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px'; }}
-                            spellCheck={false}
-                            style={{width:'100%',resize:'none',overflow:'hidden',border: selected?`1px solid ${T.gold}`:'1px solid transparent',
-                              outline:'none',background:'transparent',padding:0,margin:0,lineHeight:1.18,
-                              fontFamily:'Helvetica, Arial, sans-serif',fontSize:a.fontSize*scale,color:a.color,
-                              boxShadow: selected?`0 0 0 2px ${T.gold}22`:'none'}}/>
-                          {selected && (
-                            <div onPointerDown={e=>startDrag(e,a,'resizeW')}
-                              style={{position:'absolute',right:-5,top:'50%',width:10,height:10,marginTop:-5,background:'#fff',border:`2px solid ${T.gold}`,borderRadius:'50%',cursor:'ew-resize'}}/>
-                          )}
+                          <textarea value={a.str}
+                            onFocus={()=>{ setFocusId(a.id); setSelId(a.id); editedFocus.current=false; }}
+                            onBlur={()=>setFocusId(f=>f===a.id?null:f)}
+                            onChange={e=>{ if(!editedFocus.current){ pushHistory(); editedFocus.current=true; } updateAnno(a.id,{str:e.target.value}); const t=e.target; t.style.height='auto'; t.style.height=t.scrollHeight+'px'; }}
+                            rows={1} spellCheck={false} wrap="off"
+                            style={{
+                              minWidth: Math.max(a.w*scale, 24), width: Math.max(a.w*scale, a.str.length*a.fs*scale*0.6, 24),
+                              resize:'none',overflow:'hidden',whiteSpace:'pre',
+                              border: selected?`1px solid ${T.gold}`:'1px solid transparent',
+                              outline:'none',padding:0,margin:0,
+                              lineHeight:1.08, fontFamily: cssFamily(a.serif),
+                              fontSize:a.fs*scale, fontWeight:a.bold?700:400, fontStyle:a.italic?'italic':'normal',
+                              color: visible?a.color:'transparent',
+                              background: visible && a.isOriginal ? '#fff' : 'transparent',
+                              caretColor: a.color,
+                              boxShadow: selected?`0 0 0 2px ${T.gold}22`:'none',
+                            }}/>
                         </div>
                       );
                     }
                     return (
                       <div key={a.id} onClick={e=>{e.stopPropagation(); setSelId(a.id);}}
                         onPointerDown={e=>startDrag(e,a,'move')}
-                        style={{position:'absolute',left:a.x*scale,top:a.y*scale,width:a.w*scale,height:a.h*scale,
+                        style={{position:'absolute',left:a.x*scale,top:a.top*scale,width:a.w*scale,height:a.h*scale,
                           cursor:'move',outline:selected?`1.5px solid ${T.gold}`:'1px dashed rgba(0,0,0,.15)'}}>
                         <img src={a.src} alt="" draggable={false} style={{width:'100%',height:'100%',objectFit:'contain',pointerEvents:'none'}}/>
                         {selected && (
@@ -552,16 +597,24 @@ export const PdfEditor = () => {
         </div>
 
         {/* Propriedades */}
-        <div style={{width:190,flexShrink:0}}>
+        <div style={{width:194,flexShrink:0}}>
           <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'14px'}}>
             <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:12}}>Propriedades</div>
-            {!sel && <div style={{fontSize:12.5,color:T.textD,lineHeight:1.6}}>Selecione um elemento para editar, ou use a barra para adicionar texto, imagem e assinatura.</div>}
+            {!sel && <div style={{fontSize:12.5,color:T.textD,lineHeight:1.6}}>Clique sobre um texto do PDF para editá-lo. Use a barra para adicionar texto, imagem ou assinatura.</div>}
             {sel && sel.type==='text' && (
-              <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{display:'flex',flexDirection:'column',gap:13}}>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>{pushHistory(); updateAnno(sel.id,{bold:!sel.bold});}}
+                    style={{flex:1,padding:'7px',borderRadius:7,border:`1px solid ${sel.bold?T.gold:T.border}`,background:sel.bold?T.goldGl:'transparent',color:sel.bold?T.gold:T.textS,fontWeight:800,cursor:'pointer'}}>B</button>
+                  <button onClick={()=>{pushHistory(); updateAnno(sel.id,{italic:!sel.italic});}}
+                    style={{flex:1,padding:'7px',borderRadius:7,border:`1px solid ${sel.italic?T.gold:T.border}`,background:sel.italic?T.goldGl:'transparent',color:sel.italic?T.gold:T.textS,fontStyle:'italic',cursor:'pointer'}}>I</button>
+                  <button onClick={()=>{pushHistory(); updateAnno(sel.id,{serif:!sel.serif});}} title="Serifada / sem serifa"
+                    style={{flex:1.6,padding:'7px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontSize:12}}>{sel.serif?'Serif':'Sans'}</button>
+                </div>
                 <div>
-                  <div style={{fontSize:11.5,color:T.textT,marginBottom:6}}>Tamanho da fonte: {sel.fontSize}px</div>
-                  <input type="range" min="8" max="48" value={sel.fontSize}
-                    onChange={e=>updateAnno(sel.id,{fontSize:+e.target.value})} style={{width:'100%'}}/>
+                  <div style={{fontSize:11.5,color:T.textT,marginBottom:6}}>Tamanho: {sel.fs.toFixed(0)}px</div>
+                  <input type="range" min="6" max="48" step="1" value={Math.round(sel.fs)}
+                    onChange={e=>updateAnno(sel.id,{fs:+e.target.value})} style={{width:'100%'}}/>
                 </div>
                 <div>
                   <div style={{fontSize:11.5,color:T.textT,marginBottom:6}}>Cor</div>
@@ -573,7 +626,9 @@ export const PdfEditor = () => {
                     ))}
                   </div>
                 </div>
-                <button onClick={()=>deleteAnno(sel.id)} style={{background:'none',border:`1px solid ${T.danger}55`,color:T.danger,borderRadius:8,padding:'8px',fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>Excluir elemento</button>
+                <button onClick={()=>deleteAnno(sel.id)} style={{background:'none',border:`1px solid ${T.danger}55`,color:T.danger,borderRadius:8,padding:'8px',fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>
+                  {sel.isOriginal ? 'Apagar este texto' : 'Excluir elemento'}
+                </button>
               </div>
             )}
             {sel && sel.type!=='text' && (
