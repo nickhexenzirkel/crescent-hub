@@ -63,6 +63,11 @@ const COLORS = ['#111111', '#1A6FB5', '#C04050', '#1A9C70', '#C4872A', '#8B5FE8'
 
 const WHITE_BG = { hex:'#ffffff', r:255, g:255, b:255 };
 const SAMPLE_SCALE = 1.5;
+const RENDER_QUALITY = 2;   // superamostragem do canvas → letras mais nítidas
+
+/* Cache em memória (persiste o trabalho ao trocar de aba / sair e voltar,
+   enquanto o app não for recarregado) */
+const editorCache = { src:null, pages:null, annos:null, fileName:'', scale:1.3 };
 
 /* Cor dominante (= fundo) dentro de um retângulo de uma ImageData.
    Os pixels de fundo superam os do texto, então a moda é a cor do fundo. */
@@ -84,6 +89,40 @@ const dominantColor = (img, x0, y0, x1, y1) => {
   return { hex: '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''), r, g, b };
 };
 
+/* Carrega um PDF (bytes) e extrai páginas + trechos de texto com posição,
+   tamanho, estilo e cor de fundo local. Usado ao abrir e ao adicionar PDF. */
+const extractFrom = async (src) => {
+  const doc = await pdfjsLib.getDocument({ data: src.slice() }).promise;
+  const pgs = [], items = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const vp = page.getViewport({ scale: 1 });
+    pgs.push({ w: vp.width, h: vp.height });
+    const sample = await renderSample(page);
+    const tc = await page.getTextContent();
+    for (const it of tc.items) {
+      const str = it.str;
+      if (!str || !str.trim()) continue;
+      const tr = it.transform;
+      const fs = Math.hypot(tr[2], tr[3]) || it.height || 12;
+      const style = (tc.styles && tc.styles[it.fontName]) || {};
+      const asc = (style.ascent != null ? style.ascent : 0.8) * fs;
+      const desc = (style.descent != null ? Math.abs(style.descent) : 0.2) * fs;
+      const top = vp.height - tr[5] - asc;
+      const bold = /bold|black|heavy|semibold/i.test(it.fontName || '');
+      const italic = /italic|oblique/i.test(it.fontName || '');
+      const bg = sample
+        ? dominantColor(sample, tr[4]*SAMPLE_SCALE, top*SAMPLE_SCALE, (tr[4]+it.width)*SAMPLE_SCALE, (top+fs*1.3)*SAMPLE_SCALE)
+        : WHITE_BG;
+      items.push({
+        id: uid(), page: i-1, type:'text', isOriginal:true,
+        x: tr[4], top, fs, asc, desc, w: it.width, serif:false, bold, italic, str, orig: str, color:'#111111', bg,
+      });
+    }
+  }
+  return { doc, pgs, items };
+};
+
 /* Renderiza a página numa ImageData (para amostrar o fundo atrás de cada texto) */
 const renderSample = async (page) => {
   try {
@@ -100,14 +139,14 @@ const renderSample = async (page) => {
 /* ════════════════════════════════════════════════════════════════
    Canvas de uma página (render via pdf.js)
 ════════════════════════════════════════════════════════════════ */
-const PdfCanvas = ({ pdf, index, scale }) => {
+const PdfCanvas = ({ pdf, index, scale, quality = 1 }) => {
   const ref = useRef();
   useEffect(() => {
     let task;
     (async () => {
       try {
         const page = await pdf.getPage(index + 1);
-        const dpr  = window.devicePixelRatio || 1;
+        const dpr  = (window.devicePixelRatio || 1) * (quality || 1);
         const vp   = page.getViewport({ scale: scale * dpr });
         const cv   = ref.current;
         if (!cv) return;
@@ -118,7 +157,7 @@ const PdfCanvas = ({ pdf, index, scale }) => {
       } catch { /* cancelado */ }
     })();
     return () => { try { task && task.cancel(); } catch { /* ok */ } };
-  }, [pdf, index, scale]);
+  }, [pdf, index, scale, quality]);
   return <canvas ref={ref} style={{ display:'block' }}/>;
 };
 
@@ -257,6 +296,7 @@ export const PdfEditor = () => {
   const dragRef   = useRef(null);
   const editedFocus = useRef(false);
   const fileInput = useRef();
+  const addInput  = useRef();
   const imgInput  = useRef();
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
@@ -288,6 +328,28 @@ export const PdfEditor = () => {
 
   const sel = annos.find(a => a.id === selId) || null;
 
+  /* restaura o trabalho do cache ao montar (trocar de aba / sair e voltar) */
+  useEffect(() => {
+    if (!editorCache.src) return;
+    (async () => {
+      try {
+        const doc = await pdfjsLib.getDocument({ data: editorCache.src.slice() }).promise;
+        srcRef.current = editorCache.src;
+        setPdf(doc); setPages(editorCache.pages || []); setAnnos(editorCache.annos || []);
+        setFileName(editorCache.fileName || ''); setScale(editorCache.scale || 1.3);
+      } catch { /* cache inválido */ }
+    })();
+  }, []);
+
+  /* salva o trabalho no cache sempre que mudar */
+  useEffect(() => {
+    if (srcRef.current) {
+      editorCache.src = srcRef.current;
+      editorCache.pages = pages; editorCache.annos = annos;
+      editorCache.fileName = fileName; editorCache.scale = scale;
+    }
+  }, [pages, annos, fileName, scale]);
+
   /* ── abrir PDF + extrair texto existente ── */
   const openFile = async (file) => {
     if (!file) return;
@@ -295,42 +357,36 @@ export const PdfEditor = () => {
     try {
       const ab  = await file.arrayBuffer();
       const src = new Uint8Array(ab);
+      const { doc, pgs, items } = await extractFrom(src, 0);
       srcRef.current = src;
-      const doc = await pdfjsLib.getDocument({ data: src.slice() }).promise;
-      const pgs = [], items = [];
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i);
-        const vp = page.getViewport({ scale: 1 });
-        pgs.push({ w: vp.width, h: vp.height });
-        const sample = await renderSample(page);
-        const tc = await page.getTextContent();
-        for (const it of tc.items) {
-          const str = it.str;
-          if (!str || !str.trim()) continue;
-          const tr = it.transform;
-          const fs = Math.hypot(tr[2], tr[3]) || it.height || 12;
-          const style = (tc.styles && tc.styles[it.fontName]) || {};
-          const asc = (style.ascent != null ? style.ascent : 0.8) * fs;
-          const desc = (style.descent != null ? Math.abs(style.descent) : 0.2) * fs;
-          const top = vp.height - tr[5] - asc;
-          // Sans por padrão (fonte mais próxima das que usamos)
-          const bold = /bold|black|heavy|semibold/i.test(it.fontName || '');
-          const italic = /italic|oblique/i.test(it.fontName || '');
-          // cor do fundo LOCAL (atrás deste texto) — combina com linhas/células coloridas
-          const bg = sample
-            ? dominantColor(sample, tr[4]*SAMPLE_SCALE, top*SAMPLE_SCALE, (tr[4]+it.width)*SAMPLE_SCALE, (top+fs*1.3)*SAMPLE_SCALE)
-            : WHITE_BG;
-          items.push({
-            id: uid(), page: i-1, type:'text', isOriginal:true,
-            x: tr[4], top, fs, asc, desc, w: it.width, serif:false, bold, italic, str, orig: str, color:'#111111', bg,
-          });
-        }
-      }
       setPdf(doc); setPages(pgs); setFileName(file.name);
       setAnnos(items); setSelId(null); setFocusId(null);
       histRef.current = []; setCanUndo(false); setActivePage(0);
     } catch (e) {
       setError('Não foi possível abrir o PDF: ' + (e?.message || 'erro'));
+    } finally { setBusy(false); }
+  };
+
+  /* ── adicionar outro PDF (anexa as páginas ao documento atual) ── */
+  const addPdf = async (file) => {
+    if (!file) return;
+    if (!srcRef.current) { openFile(file); return; }
+    setError(''); setBusy(true);
+    try {
+      const ab = await file.arrayBuffer();
+      const A = await PDFDocument.load(srcRef.current.slice());
+      const B = await PDFDocument.load(new Uint8Array(ab));
+      const copied = await A.copyPages(B, B.getPageIndices());
+      copied.forEach(pg => A.addPage(pg));
+      const merged = new Uint8Array(await A.save());
+      const oldCount = pages.length;
+      const { doc, pgs, items } = await extractFrom(merged, 0);
+      srcRef.current = merged;
+      pushHistory();
+      setPdf(doc); setPages(pgs);
+      setAnnos(prev => [...prev, ...items.filter(it => it.page >= oldCount)]);
+    } catch (e) {
+      setError('Não foi possível adicionar o PDF: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
   };
 
@@ -538,7 +594,11 @@ export const PdfEditor = () => {
         <button style={tbBtn(false)} onClick={()=>fileInput.current?.click()}>
           <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></I> Abrir PDF
         </button>
-        <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>openFile(e.target.files[0])}/>
+        <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ openFile(e.target.files[0]); e.target.value=''; }}/>
+        <button style={tbBtn(false)} onClick={()=>addInput.current?.click()} disabled={busy}>
+          <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></I> Adicionar PDF
+        </button>
+        <input ref={addInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ addPdf(e.target.files[0]); e.target.value=''; }}/>
         <button style={{...tbBtn(false),background:T.gold,color:'#fff',border:'none'}} onClick={salvar} disabled={busy}>
           <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>
           {busy ? 'Salvando...' : 'Salvar como...'}
@@ -588,7 +648,7 @@ export const PdfEditor = () => {
           {pages.map((p,i)=>(
             <div key={i} id={'pdfpg-'+i} style={{margin:'0 auto 18px',width:p.w*scale,boxShadow:'0 4px 18px rgba(0,0,0,.14)'}}>
               <div style={{position:'relative',width:p.w*scale,height:p.h*scale}}>
-                <PdfCanvas pdf={pdf} index={i} scale={scale}/>
+                <PdfCanvas pdf={pdf} index={i} scale={scale} quality={RENDER_QUALITY}/>
                 <div onClick={(e)=>onPageClick(i,e)} style={{position:'absolute',inset:0,cursor:tool==='text'?'text':'default'}}>
                   {annos.filter(a=>a.page===i).map(a => {
                     const selected = a.id===selId;
@@ -598,8 +658,12 @@ export const PdfEditor = () => {
                       return (
                         <div key={a.id}>
                           {selected && (
-                            <div onPointerDown={e=>startDrag(e,a,'move')}
-                              style={{position:'absolute',left:a.x*scale,top:a.top*scale-15,height:14,padding:'0 6px',background:T.gold,color:'#fff',fontSize:9.5,borderRadius:'4px 4px 0 0',cursor:'move',display:'flex',alignItems:'center',userSelect:'none',whiteSpace:'nowrap',zIndex:5}}>✛ mover</div>
+                            <div style={{position:'absolute',left:a.x*scale,top:a.top*scale-17,display:'flex',gap:2,zIndex:6}}>
+                              <div onPointerDown={e=>startDrag(e,a,'move')} title="Mover"
+                                style={{height:16,padding:'0 6px',background:T.gold,color:'#fff',fontSize:9.5,borderRadius:'4px 0 0 0',cursor:'move',display:'flex',alignItems:'center',userSelect:'none',whiteSpace:'nowrap'}}>✛ mover</div>
+                              <div onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation(); deleteAnno(a.id);}} title="Excluir"
+                                style={{height:16,width:20,background:T.danger,color:'#fff',fontSize:10,borderRadius:'0 4px 0 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>🗑</div>
+                            </div>
                           )}
                           <EditableText
                             value={a.str}
@@ -624,6 +688,14 @@ export const PdfEditor = () => {
                       <div key={a.id} onClick={e=>{e.stopPropagation(); setSelId(a.id);}} onPointerDown={e=>startDrag(e,a,'move')}
                         style={{position:'absolute',left:a.x*scale,top:a.top*scale,width:a.w*scale,height:a.h*scale,cursor:'move',outline:selected?`1.5px solid ${T.gold}`:'1px dashed rgba(0,0,0,.15)'}}>
                         <img src={a.src} alt="" draggable={false} style={{width:'100%',height:'100%',objectFit:'contain',pointerEvents:'none'}}/>
+                        {selected && (
+                          <div style={{position:'absolute',left:0,top:-17,display:'flex',gap:2,zIndex:6}}>
+                            <div onPointerDown={e=>startDrag(e,a,'move')} title="Mover"
+                              style={{height:16,padding:'0 6px',background:T.gold,color:'#fff',fontSize:9.5,borderRadius:'4px 0 0 0',cursor:'move',display:'flex',alignItems:'center',userSelect:'none',whiteSpace:'nowrap'}}>✛ mover</div>
+                            <div onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation(); deleteAnno(a.id);}} title="Excluir"
+                              style={{height:16,width:20,background:T.danger,color:'#fff',fontSize:10,borderRadius:'0 4px 0 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>🗑</div>
+                          </div>
+                        )}
                         {selected && <div onPointerDown={e=>startDrag(e,a,'resizeI')} style={{position:'absolute',right:-6,bottom:-6,width:12,height:12,background:'#fff',border:`2px solid ${T.gold}`,borderRadius:'50%',cursor:'nwse-resize'}}/>}
                       </div>
                     );
