@@ -2168,14 +2168,34 @@ function applyVideoBg(videoId){
 // songTime (que conta desde o comando) ficaria ADIANTADO em relação ao áudio
 // que toca de fato → notas apareceriam no silêncio/fora do ritmo. getCurrentTime()
 // dá a posição real do áudio; reancoramos gameStartWallTime nela.
+//
+// Esta função é chamada a CADA FRAME (no gameLoop), não só em mudança de estado:
+// performance.now() e o relógio do áudio do YouTube têm fontes diferentes e
+// derivam ao longo da música. Sem correção contínua o erro passa da janela
+// PERFECT (100ms) e tudo sai do ritmo. Usamos snap + slew:
+//   • 1ª sincronia / salto grande (seek, rebuffer) → trava na hora (snap)
+//   • caso normal → puxa o relógio suavemente em direção à posição real (slew),
+//     absorvendo a granularidade do getCurrentTime() sem fazer as notas tremerem.
 let _vbSynced=false;
+const _VB_SLEW=0.06;     // fração corrigida por frame (~0.25s de constante de tempo)
+const _VB_SNAP_MS=150;   // gap acima do qual travamos de imediato em vez de seguir
 function _syncClockToVideo(p){
+  p=p||_vbPlayer;
+  if(!p||!p.getCurrentTime) return;
   if(gameState!=='playing'&&gameState!=='countdown') return;
+  // Só ancora com o vídeo REALMENTE tocando (evita ancorar em buffering/0s).
+  if(window.YT&&YT.PlayerState&&p.getPlayerState){
+    let s=-1; try{ s=p.getPlayerState(); }catch(_){}
+    if(s!==YT.PlayerState.PLAYING) return;
+  }
   let ct=0; try{ ct=p.getCurrentTime()||0; }catch(_){ return; }
-  const anchor=performance.now()-ct*1000;
-  if(!_vbSynced){ _vbSynced=true; gameStartWallTime=anchor; return; }
-  // 1ª vez = ancora; depois só recorrige em drift grande (ex.: rebuffer no meio)
-  if(Math.abs(anchor-gameStartWallTime)>120) gameStartWallTime=anchor;
+  if(ct<=0) return;
+  const target=performance.now()-ct*1000;
+  if(!_vbSynced||Math.abs(target-gameStartWallTime)>_VB_SNAP_MS){
+    _vbSynced=true; gameStartWallTime=target;                 // snap
+  }else{
+    gameStartWallTime+=(target-gameStartWallTime)*_VB_SLEW;   // slew suave
+  }
 }
 
 // Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
@@ -4312,6 +4332,8 @@ let _lastProgressUpdate=0;
 function gameLoop(ts){
   if(gameState!=='playing'&&gameState!=='countdown'&&gameState!=='paused'){return;}
   if(gameState==='paused'){return;}
+  // Mantém songTime() colado no áudio REAL do YouTube (corrige drift continuamente).
+  if(bgMode==='video') _syncClockToVideo();
   const _nowSec=ts*0.001;
   const _dt=Math.min(0.05,Math.max(0,_nowSec-_cmPrevAnimT));
   _cmPrevAnimT=_nowSec;
@@ -6670,7 +6692,8 @@ function resumeGame(){
   if(_vbPlayer&&_vbPlayer.playVideo){ try{_vbPlayer.playVideo();}catch(_){} }
   audioIframeCmd('playVideo');
   const pausedMs=performance.now()-pauseStartWallMs;
-  gameStartWallTime+=pausedMs;
+  gameStartWallTime+=pausedMs;       // âncora provisória até o vídeo voltar a tocar
+  _vbSynced=false;                   // força re-snap no relógio real do YouTube ao retomar
   document.getElementById('pauseOverlay').classList.add('off');
   const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='⏸ PAUSA';
   requestAnimationFrame(gameLoop);
