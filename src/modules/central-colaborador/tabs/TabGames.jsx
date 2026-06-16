@@ -3,6 +3,7 @@ import { T } from '../../../contexts/theme';
 import { Card, Tag, StarDivider, SHead } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { DOKO_KEY } from './TabMyDoko';
+import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
 // Concede XP ao My Uniko via localStorage (funciona mesmo com o tab fechado)
 const addUnikoXP = (amount) => {
@@ -105,6 +106,21 @@ const MODES = {
 // ── Score localStorage ────────────────────────────────────────────────
 const getBest = k => { try { return +localStorage.getItem('ug_' + k) || 0; } catch { return 0; } };
 const saveBest = (k, v) => { try { if (v > getBest(k)) localStorage.setItem('ug_' + k, v); } catch {} };
+
+// ── Ranking geral: pontos NORMALIZADOS ────────────────────────────────
+// Os 4 jogos têm escalas bem diferentes (flap conta dezenas, invaders milhares).
+// Convertemos o recorde de cada jogo para uma escala comum (~1000 pts = recorde
+// "de referência" daquele jogo) antes de somar, para nenhum jogo dominar o total.
+// Ajuste os valores de referência aqui se quiser recalibrar o peso de cada jogo.
+const POINTS_REF = { run: 300, meteor: 1500, invaders: 3000, flap: 30 };
+const gamePoints = (gameId, rawScore) =>
+  Math.round((Number(rawScore) || 0) / (POINTS_REF[gameId] || 1) * 1000);
+
+// Nome do jogador logado (mesma identidade usada no ranking do Uniko Wave).
+const playerName = () => {
+  try { return String(getAuthUser()?.name || USER?.name || 'Colaborador').trim(); }
+  catch { return 'Colaborador'; }
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 // JOGO 1 — UnikoRun  (corredor infinito com pulo e agachamento)
@@ -1130,8 +1146,68 @@ const TabGames = () => {
   const isMobile = useIsMobile();
   const [active, setActive] = useState(null);
   const [mode, setMode] = useState('normal');
+  const [ranking, setRanking] = useState([]);
+  const [rankLoading, setRankLoading] = useState(false);
+  const me = playerName();
 
   const game = GAMES.find(g => g.id === active);
+
+  // Espelha os recordes locais (ug_*) para o Supabase, mantendo só o MAIOR de cada
+  // jogo. Sem login (nome = 'Colaborador') não grava, para não poluir o ranking.
+  const syncBestsToSupabase = async () => {
+    const player = playerName();
+    if (!player || player === 'Colaborador') return;
+    let existing = {};
+    try {
+      const { data } = await supabase.from('games_scores').select('game,score').eq('player', player);
+      (data || []).forEach(r => { existing[r.game] = r.score; });
+    } catch {}
+    const rows = [];
+    for (const g of GAMES) {
+      const local = getBest(g.bestKey);
+      if (local > 0 && local > (existing[g.bestKey] || 0))
+        rows.push({ player, game: g.bestKey, score: local, updated_at: new Date().toISOString() });
+    }
+    if (rows.length) { try { await supabase.from('games_scores').upsert(rows, { onConflict: 'player,game' }); } catch {} }
+  };
+
+  // Lê todos os recordes, soma os pontos normalizados por jogador e ordena desc.
+  const fetchRanking = async () => {
+    let data = [];
+    try { data = (await supabase.from('games_scores').select('player,game,score')).data || []; } catch {}
+    const byPlayer = {};
+    for (const r of data) {
+      const p = (byPlayer[r.player] = byPlayer[r.player] || { player: r.player, games: {} });
+      p.games[r.game] = Math.max(p.games[r.game] || 0, Number(r.score) || 0);
+    }
+    const list = Object.values(byPlayer).map(p => {
+      let points = 0;
+      for (const g of GAMES) points += gamePoints(g.bestKey, p.games[g.bestKey] || 0);
+      return { player: p.player, points, games: p.games };
+    }).filter(p => p.points > 0).sort((a, b) => b.points - a.points);
+    setRanking(list);
+  };
+
+  const refreshRanking = async () => {
+    setRankLoading(true);
+    await syncBestsToSupabase();
+    await fetchRanking();
+    setRankLoading(false);
+  };
+
+  // Sincroniza/atualiza ao abrir a aba (sem setState síncrono dentro do efeito).
+  useEffect(() => {
+    let alive = true;
+    (async () => { await syncBestsToSupabase(); if (alive) await fetchRanking(); })();
+    return () => { alive = false; };
+  }, []);
+
+  // Ao fechar um jogo, manda o recorde recém-feito para o ranking.
+  const closeGame = () => { setActive(null); refreshRanking(); };
+
+  // Minha pontuação total (lida do localStorage, sempre a mais fresca).
+  const myPoints = GAMES.reduce((s, g) => s + gamePoints(g.bestKey, getBest(g.bestKey)), 0);
+  const initials = (n) => String(n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
   const ModeSelector = ({ compact = false }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 8 }}>
@@ -1194,6 +1270,76 @@ const TabGames = () => {
         ))}
       </div>
 
+      {/* Ranking geral — soma de pontos normalizados de todos os jogos */}
+      <Card style={{ padding: '20px 22px', marginBottom: 20 }} elevated>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>🏆 Ranking Geral</div>
+            <div style={{ fontSize: 12, color: T.textD }}>Soma dos pontos de todos os jogos (escala normalizada)</div>
+          </div>
+          <button onClick={refreshRanking} disabled={rankLoading}
+            style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)',
+              background: 'rgba(255,255,255,.05)', color: T.textS, fontWeight: 700, fontSize: 12,
+              cursor: rankLoading ? 'default' : 'pointer', fontFamily: 'var(--font-body)', opacity: rankLoading ? .6 : 1 }}>
+            {rankLoading ? 'Atualizando…' : '↻ Atualizar'}
+          </button>
+        </div>
+
+        {/* Minha pontuação + quebra por jogo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 12, color: T.textD, textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>Sua pontuação</span>
+            <strong style={{ fontSize: 22, color: '#D4A843' }}>{myPoints.toLocaleString('pt-BR')}</strong>
+            <span style={{ fontSize: 12, color: T.textD }}>pts</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {GAMES.map(g => (
+              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                borderRadius: 8, background: 'rgba(255,255,255,.04)', border: `1px solid ${g.tagColor}44` }}>
+                <span style={{ fontSize: 11, color: T.textS }}>{g.label}</span>
+                <strong style={{ fontSize: 12, color: g.tagColor }}>{gamePoints(g.bestKey, getBest(g.bestKey)).toLocaleString('pt-BR')}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <StarDivider my={12} dim />
+
+        {/* Tabela do ranking */}
+        {ranking.length === 0 ? (
+          <div style={{ fontSize: 13, color: T.textD, textAlign: 'center', padding: '14px 0' }}>
+            Ainda não há pontuações. Jogue para entrar no ranking! 🚀
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {ranking.slice(0, 10).map((r, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+              const isMe = r.player === me;
+              return (
+                <div key={r.player} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px',
+                  borderRadius: 10, background: isMe ? 'rgba(212,168,67,.10)' : 'rgba(255,255,255,.02)',
+                  border: `1px solid ${isMe ? 'rgba(212,168,67,.4)' : 'rgba(255,255,255,.06)'}` }}>
+                  <div style={{ width: 26, textAlign: 'center', fontSize: medal ? 16 : 14, fontWeight: 800,
+                    color: medal ? '#D4A843' : T.textD }}>{medal || (i + 1)}</div>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg,#2A82D2,#1A5280)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>{initials(r.player)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: isMe ? 800 : 600, color: isMe ? '#D4A843' : T.text,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.player}{isMe && <span style={{ fontSize: 11, color: T.textD, fontWeight: 600 }}> (você)</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{r.points.toLocaleString('pt-BR')}
+                    <span style={{ fontSize: 11, color: T.textD, fontWeight: 600 }}> pts</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
       {/* Overlay do jogo ativo */}
       {active && game && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999,
@@ -1211,7 +1357,7 @@ const TabGames = () => {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <ModeSelector compact />
-              <button onClick={() => setActive(null)}
+              <button onClick={closeGame}
                 style={{ width: 36, height: 36, borderRadius: 9, border: '1px solid rgba(255,255,255,.2)',
                   background: 'rgba(255,255,255,.08)', cursor: 'pointer', color: '#fff', fontSize: 18,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
