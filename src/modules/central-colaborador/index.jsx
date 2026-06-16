@@ -164,8 +164,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
 
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete}/>
-      <div style={{marginLeft:isMobile?0:252,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
+      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'}/>
+      <div style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         <div style={{flex:1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),

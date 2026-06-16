@@ -41,9 +41,9 @@ canvas{display:block}
 /* ─── SIDEBAR ─── */
 #menuSidebar{
   position:relative;z-index:3;
-  width:340px;min-width:320px;
+  width:268px;min-width:248px;
   display:flex;flex-direction:column;
-  padding:28px 24px 28px;
+  padding:20px 18px 20px;
   margin-top:0;
   background:rgba(4,4,15,0.82);
   border-right:1px solid rgba(255,255,255,0.07);
@@ -51,18 +51,18 @@ canvas{display:block}
   flex-shrink:0;
 }
 .sidebar-logo{font-family:var(--font-pixel);font-size:18px;font-weight:400;line-height:1.4;letter-spacing:2px;background:linear-gradient(135deg,#ff2d92,#ff6ecb);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:2px}
-.sidebar-sub{font-size:8px;color:rgba(255,255,255,0.35);letter-spacing:4px;text-transform:uppercase;margin-bottom:28px;font-family:var(--font-pixel)}
+.sidebar-sub{font-size:8px;color:rgba(255,255,255,0.35);letter-spacing:4px;text-transform:uppercase;margin-bottom:16px;font-family:var(--font-pixel)}
 .sidebar-star-icon{display:inline-block;font-size:16px;color:#ffd700;margin-left:4px;animation:starSpin 4s linear infinite}
 @keyframes starSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 .sidebar-nav{display:flex;flex-direction:column;gap:10px;flex:1}
 .snav-btn{
-  display:flex;align-items:center;gap:14px;
-  padding:16px 20px;
-  border:none;border-radius:12px;
+  display:flex;align-items:center;gap:11px;
+  padding:11px 16px;
+  border:none;border-radius:10px;
   background:rgba(255,255,255,0.05);
   color:rgba(255,255,255,0.55);
-  font-family:var(--font-pixel);font-size:11px;font-weight:400;
+  font-family:var(--font-pixel);font-size:9.5px;font-weight:400;
   letter-spacing:1px;cursor:pointer;
   transition:all .22s cubic-bezier(.34,1.56,.64,1);
   text-align:left;width:100%;
@@ -260,8 +260,10 @@ canvas{display:block}
   position:relative;z-index:2;
   flex:1;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
-  padding:16px 20px;
+  padding:12px 14px;
 }
+/* Tela inicial ocupa toda a área do menuMain (sem o teto de 900px dos painéis) */
+#panelHome{max-width:none!important;padding:0!important}
 .menu-panel{
   background:rgba(255,255,255,0.04);
   border:1px solid rgba(255,255,255,0.1);
@@ -1481,7 +1483,7 @@ canvas{display:block}
         <!-- Vídeo em looping, MUDO (áudio cortado). Poster = capa enquanto carrega. -->
         <video id="homeHeroMedia" src="/TelaInicialUnikoWave.mp4" poster="/telaunikowave.png"
           autoplay loop muted playsinline preload="auto"
-          style="width:100%;height:100%;object-fit:cover;object-position:center;display:block"></video>
+          style="width:100%;height:100%;object-fit:contain;object-position:center;display:block"></video>
         <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(5,1,24,.9),rgba(5,1,24,.15) 42%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 24px 38px;gap:14px">
           <div style="font-family:var(--font-pixel);font-size:clamp(9px,1.4vw,13px);color:rgba(255,255,255,.82);letter-spacing:2px;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.9)">SINTA O RITMO</div>
           <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlay',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>

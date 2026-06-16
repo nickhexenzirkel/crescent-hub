@@ -48,16 +48,17 @@ const LockIcon = () => (
   </svg>
 );
 
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete}) => {
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed}) => {
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
   if (isMobile) return null;
   return(
-    <div style={{width:252,minHeight:'100vh',
+    <div style={{width:collapsed?76:252,minHeight:'100vh',
       background:T.sidebarBg,
       borderRight:`1px solid ${T.border}`,
       display:'flex',flexDirection:'column',
       position:'fixed',top:0,left:0,bottom:0,zIndex:200,
+      transition:'width .22s ease',overflowX:'hidden',
       fontFamily:'var(--font-body)'}}>
 
       {/* Brand — mini lava lamp azul animado */}
@@ -78,24 +79,27 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
             bottom:'-20px',left:'30%',filter:'blur(16px)',
             animation:'brandBlob3 7s ease-in-out infinite'}}/>
         </div>
-        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:13,marginBottom:12}}>
+        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:13,marginBottom:12,
+          justifyContent:collapsed?'center':'flex-start'}}>
           {/* Logo com blob #1F6FA9 atrás */}
-          <div style={{position:'relative',flexShrink:0,width:58,height:58}}>
+          <div style={{position:'relative',flexShrink:0,width:collapsed?42:58,height:collapsed?42:58}}>
             <div style={{position:'absolute',inset:'-8px',borderRadius:'50%',
               background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
               filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',
               zIndex:0,pointerEvents:'none'}}/>
             <div style={{position:'absolute',inset:0,zIndex:1,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <UnikoIcon size={52} rounded={true}/>
+              <UnikoIcon size={collapsed?36:52} rounded={true}/>
             </div>
           </div>
+          {!collapsed && (
           <div>
             <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,
               color:T.text,letterSpacing:'.05em'}}>UNIKO</div>
             <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',
               textTransform:'uppercase',marginTop:3}}>Portal do Colaborador</div>
           </div>
+          )}
         </div>
         {/* star divider under brand */}
         <StarDivider my={0}/>
@@ -104,8 +108,8 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
       {/* Nav */}
       <nav style={{flex:1,padding:'8px 12px',display:'flex',flexDirection:'column',
         gap:2,overflowY:'auto'}}>
-        <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',
-          textTransform:'uppercase',padding:'2px 8px 10px',fontWeight:600}}>NAVEGAÇÃO</div>
+        {!collapsed && <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',
+          textTransform:'uppercase',padding:'2px 8px 10px',fontWeight:600}}>NAVEGAÇÃO</div>}
 
         {NAV.map((n,idx)=>{
           const a=tab===n.id;
@@ -117,8 +121,9 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
               <div
                 onClick={()=> locked ? setTab('dados') : setTab(n.id)}
                 onMouseEnter={()=>sh(n.id)} onMouseLeave={()=>sh(null)}
-                title={locked ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined}
-                style={{display:'flex',alignItems:'center',gap:11,padding:'11px 13px',
+                title={collapsed ? n.label : (locked ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined)}
+                style={{display:'flex',alignItems:'center',gap:11,padding:collapsed?'11px 0':'11px 13px',
+                  justifyContent:collapsed?'center':'flex-start',
                   borderRadius:10,cursor:'pointer',
                   background:a?T.goldGl:hov===n.id?(T.surfaceSub||'rgba(0,0,0,0.03)'):'transparent',
                   border:a?`1px solid rgba(212,168,75,0.22)`:'1px solid transparent',
@@ -127,9 +132,9 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
                   transition:'all .14s'}}>
                 <span style={{color:a?T.gold:hov===n.id?T.textS:T.textT,fontSize:18,
                   minWidth:22,textAlign:'center'}}>{n.icon}</span>
-                <span style={{fontSize:15,fontWeight:a?600:400}}>{n.label}</span>
-                {locked && <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>}
-                {a&&!locked&&<span style={{marginLeft:'auto',flexShrink:0}}>
+                {!collapsed && <span style={{fontSize:15,fontWeight:a?600:400}}>{n.label}</span>}
+                {locked && !collapsed && <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>}
+                {a&&!locked&&!collapsed&&<span style={{marginLeft:'auto',flexShrink:0}}>
                 </span>}
               </div>
             </div>
@@ -143,8 +148,9 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
         <div onClick={profileComplete ? onOpenSettings : () => setTab('dados')}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-          title={!profileComplete ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined}
+          title={collapsed ? 'Configurações' : (!profileComplete ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined)}
           style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',
+            justifyContent:collapsed?'center':'flex-start',
             borderRadius:9,cursor:'pointer',marginBottom:6,transition:'background .14s',
             opacity:profileComplete?1:0.45}}>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none"
@@ -152,8 +158,8 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
           </svg>
-          <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textS}}>Configurações</span>
-          {profileComplete
+          {!collapsed && <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textS}}>Configurações</span>}
+          {!collapsed && (profileComplete
             ? <span style={{marginLeft:'auto',fontFamily:'var(--font-body)',fontSize:10,
                 fontWeight:500,
                 color:THEMES[activeTheme]?.dark ? '#fff' : T.gold,
@@ -162,26 +168,28 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
                 padding:'2px 8px',borderRadius:6}}>
                 {THEMES[activeTheme]?.name?.split(' ')[0]||'Azul'}
               </span>
-            : <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>
+            : <span style={{marginLeft:'auto',color:T.textD}}><LockIcon/></span>)
           }
         </div>
-        <div style={{marginTop:4,display:'flex',alignItems:'center',gap:11,padding:'12px 13px',
-          background:T.goldGl,borderRadius:12,
+        <div style={{marginTop:4,display:'flex',alignItems:'center',gap:11,padding:collapsed?'8px':'12px 13px',
+          background:T.goldGl,borderRadius:12,justifyContent:collapsed?'center':'flex-start',
           border:`1px solid rgba(212,168,75,0.15)`,marginBottom:7}}>
-          <AvatarCircle name={USER.name} photo={userPhoto} size={38} fontSize={13}/>
-          <div style={{overflow:'hidden',flex:1}}>
+          <AvatarCircle name={USER.name} photo={userPhoto} size={collapsed?34:38} fontSize={13}/>
+          {!collapsed && <div style={{overflow:'hidden',flex:1}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,
               whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{USER.name}</div>
             <div style={{fontSize:12,color:T.textT,marginTop:1}}>Colaborador</div>
-          </div>
+          </div>}
         </div>
         <div onClick={onBack}
           onMouseEnter={e=>e.currentTarget.style.background='rgba(192,64,80,0.05)'}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+          title={collapsed?'Sair':undefined}
           style={{display:'flex',alignItems:'center',gap:8,padding:'9px 13px',
+            justifyContent:collapsed?'center':'flex-start',
             borderRadius:9,cursor:'pointer',color:T.danger,fontSize:14,fontWeight:500,
             transition:'background .14s'}}>
-          ← Sair
+          {collapsed ? '←' : '← Sair'}
         </div>
       </div>
     </div>
