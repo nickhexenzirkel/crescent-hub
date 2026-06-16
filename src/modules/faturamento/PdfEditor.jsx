@@ -61,29 +61,40 @@ const persistSavedSigs = (l) => { try { localStorage.setItem(SIG_STORE, JSON.str
 
 const COLORS = ['#111111', '#1A6FB5', '#C04050', '#1A9C70', '#C4872A', '#8B5FE8', '#ffffff'];
 
-/* Amostra a cor de fundo dominante da página (combina a cobertura do texto
-   com fundos brancos OU coloridos — ex.: recibos com fundo verde #E6FFC5) */
-const samplePageBg = async (page) => {
+const WHITE_BG = { hex:'#ffffff', r:255, g:255, b:255 };
+const SAMPLE_SCALE = 1.5;
+
+/* Cor dominante (= fundo) dentro de um retângulo de uma ImageData.
+   Os pixels de fundo superam os do texto, então a moda é a cor do fundo. */
+const dominantColor = (img, x0, y0, x1, y1) => {
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+  x1 = Math.min(img.width, Math.ceil(x1)); y1 = Math.min(img.height, Math.ceil(y1));
+  if (x1 <= x0 || y1 <= y0) return WHITE_BG;
+  const counts = new Map();
+  for (let y = y0; y < y1; y++) {
+    let base = (y*img.width + x0) * 4;
+    for (let x = x0; x < x1; x++, base += 4) {
+      const key = (img.data[base] << 16) | (img.data[base+1] << 8) | img.data[base+2];
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  let best = -1, bk = 0xFFFFFF;
+  for (const [k, v] of counts) if (v > best) { best = v; bk = k; }
+  const r = (bk>>16)&255, g = (bk>>8)&255, b = bk&255;
+  return { hex: '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''), r, g, b };
+};
+
+/* Renderiza a página numa ImageData (para amostrar o fundo atrás de cada texto) */
+const renderSample = async (page) => {
   try {
-    const vp = page.getViewport({ scale: 0.3 });
+    const vp = page.getViewport({ scale: SAMPLE_SCALE });
     const cv = document.createElement('canvas');
     cv.width = Math.max(1, Math.floor(vp.width));
     cv.height = Math.max(1, Math.floor(vp.height));
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    const { data } = ctx.getImageData(0, 0, cv.width, cv.height);
-    const counts = new Map();
-    for (let i = 0; i < data.length; i += 4) {
-      const key = (data[i] << 16) | (data[i+1] << 8) | data[i+2];
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-    let best = -1, bestKey = 0xFFFFFF;
-    for (const [k, v] of counts) if (v > best) { best = v; bestKey = k; }
-    const r = (bestKey>>16)&255, g = (bestKey>>8)&255, b = bestKey&255;
-    return { hex: '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''), r, g, b };
-  } catch {
-    return { hex: '#ffffff', r:255, g:255, b:255 };
-  }
+    return ctx.getImageData(0, 0, cv.width, cv.height);
+  } catch { return null; }
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -290,8 +301,8 @@ export const PdfEditor = () => {
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const vp = page.getViewport({ scale: 1 });
-        const bg = await samplePageBg(page);
-        pgs.push({ w: vp.width, h: vp.height, bg });
+        pgs.push({ w: vp.width, h: vp.height });
+        const sample = await renderSample(page);
         const tc = await page.getTextContent();
         for (const it of tc.items) {
           const str = it.str;
@@ -301,13 +312,17 @@ export const PdfEditor = () => {
           const style = (tc.styles && tc.styles[it.fontName]) || {};
           const asc = (style.ascent != null ? style.ascent : 0.8) * fs;
           const desc = (style.descent != null ? Math.abs(style.descent) : 0.2) * fs;
+          const top = vp.height - tr[5] - asc;
           // Sans por padrão (fonte mais próxima das que usamos)
           const bold = /bold|black|heavy|semibold/i.test(it.fontName || '');
           const italic = /italic|oblique/i.test(it.fontName || '');
+          // cor do fundo LOCAL (atrás deste texto) — combina com linhas/células coloridas
+          const bg = sample
+            ? dominantColor(sample, tr[4]*SAMPLE_SCALE, top*SAMPLE_SCALE, (tr[4]+it.width)*SAMPLE_SCALE, (top+fs*1.3)*SAMPLE_SCALE)
+            : WHITE_BG;
           items.push({
             id: uid(), page: i-1, type:'text', isOriginal:true,
-            x: tr[4], top: vp.height - tr[5] - asc,
-            fs, asc, desc, w: it.width, serif:false, bold, italic, str, orig: str, color:'#111111',
+            x: tr[4], top, fs, asc, desc, w: it.width, serif:false, bold, italic, str, orig: str, color:'#111111', bg,
           });
         }
       }
@@ -427,9 +442,9 @@ export const PdfEditor = () => {
         const changed = !a.isOriginal || a.str !== a.orig;
         if (!changed) continue;
 
-        // cobre o texto original com a cor de fundo da página
+        // cobre o texto original com a cor de fundo LOCAL (atrás do texto)
         if (a.isOriginal) {
-          const bg = pages[a.page]?.bg || { r:255, g:255, b:255 };
+          const bg = a.bg || WHITE_BG;
           page.drawRectangle({ x:a.x-1, y:H-a.top-a.fs*1.28, width:a.w+2, height:a.fs*1.45, color:rgb(bg.r/255, bg.g/255, bg.b/255) });
         }
         const text = sanitizeWinAnsi(a.str);
@@ -598,7 +613,7 @@ export const PdfEditor = () => {
                               fontSize:a.fs*scale, lineHeight:1, fontFamily:cssFamily(a.serif),
                               fontWeight:a.bold?700:400, fontStyle:a.italic?'italic':'normal',
                               color: visible?a.color:'transparent',
-                              background: visible && a.isOriginal ? (p.bg?.hex || '#fff') : 'transparent',
+                              background: visible && a.isOriginal ? (a.bg?.hex || '#fff') : 'transparent',
                               caretColor:a.color, outline:'none',
                               boxShadow: selected?`0 0 0 1px ${T.gold}`:'none',
                             }}/>
