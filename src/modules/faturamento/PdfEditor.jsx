@@ -61,6 +61,31 @@ const persistSavedSigs = (l) => { try { localStorage.setItem(SIG_STORE, JSON.str
 
 const COLORS = ['#111111', '#1A6FB5', '#C04050', '#1A9C70', '#C4872A', '#8B5FE8', '#ffffff'];
 
+/* Amostra a cor de fundo dominante da página (combina a cobertura do texto
+   com fundos brancos OU coloridos — ex.: recibos com fundo verde #E6FFC5) */
+const samplePageBg = async (page) => {
+  try {
+    const vp = page.getViewport({ scale: 0.3 });
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.floor(vp.width));
+    cv.height = Math.max(1, Math.floor(vp.height));
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    const { data } = ctx.getImageData(0, 0, cv.width, cv.height);
+    const counts = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const key = (data[i] << 16) | (data[i+1] << 8) | data[i+2];
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    let best = -1, bestKey = 0xFFFFFF;
+    for (const [k, v] of counts) if (v > best) { best = v; bestKey = k; }
+    const r = (bestKey>>16)&255, g = (bestKey>>8)&255, b = bestKey&255;
+    return { hex: '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''), r, g, b };
+  } catch {
+    return { hex: '#ffffff', r:255, g:255, b:255 };
+  }
+};
+
 /* ════════════════════════════════════════════════════════════════
    Canvas de uma página (render via pdf.js)
 ════════════════════════════════════════════════════════════════ */
@@ -238,7 +263,15 @@ export const PdfEditor = () => {
   };
   const deleteAnno = useCallback((id) => {
     pushHistory();
-    setAnnos(p => p.flatMap(a => a.id!==id ? [a] : (a.type==='text' && a.isOriginal ? [{...a, str:''}] : [])));
+    setAnnos(p => {
+      const target = p.find(a => a.id === id);
+      const grp = target?.group || null;
+      return p.flatMap(a => {
+        const match = grp ? a.group === grp : a.id === id;
+        if (!match) return [a];
+        return (a.type==='text' && a.isOriginal) ? [{...a, str:''}] : [];
+      });
+    });
     setSelId(null);
   }, [pushHistory]);
 
@@ -257,7 +290,8 @@ export const PdfEditor = () => {
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const vp = page.getViewport({ scale: 1 });
-        pgs.push({ w: vp.width, h: vp.height });
+        const bg = await samplePageBg(page);
+        pgs.push({ w: vp.width, h: vp.height, bg });
         const tc = await page.getTextContent();
         for (const it of tc.items) {
           const str = it.str;
@@ -267,14 +301,13 @@ export const PdfEditor = () => {
           const style = (tc.styles && tc.styles[it.fontName]) || {};
           const asc = (style.ascent != null ? style.ascent : 0.8) * fs;
           const desc = (style.descent != null ? Math.abs(style.descent) : 0.2) * fs;
-          const fam = style.fontFamily || it.fontName || '';
-          const serif = /serif|times|roman|georgia|garamond/i.test(fam);
+          // Sans por padrão (fonte mais próxima das que usamos)
           const bold = /bold|black|heavy|semibold/i.test(it.fontName || '');
           const italic = /italic|oblique/i.test(it.fontName || '');
           items.push({
             id: uid(), page: i-1, type:'text', isOriginal:true,
-            x: tr[4], top: vp.height - tr[5] - asc, baseFromBottom: tr[5],
-            fs, asc, desc, w: it.width, serif, bold, italic, str, orig: str, color:'#111111',
+            x: tr[4], top: vp.height - tr[5] - asc,
+            fs, asc, desc, w: it.width, serif:false, bold, italic, str, orig: str, color:'#111111',
           });
         }
       }
@@ -301,12 +334,14 @@ export const PdfEditor = () => {
       pushHistory();
       const aspect = img.width / img.height;
       const targets = repeat ? pages.map((_,i)=>i) : [activePage];
-      const created = targets.map(pi => {
-        const pg = pages[pi]; const w = Math.min(180, pg.w*0.4); const h = w/aspect;
-        return { id: uid(), page: pi, type, x:(pg.w-w)/2, top:(pg.h-h)/2, w, h, src:dataUrl };
-      });
+      // mesma posição/tamanho em todas (assinatura sincronizada entre páginas)
+      const base = pages[activePage];
+      const w = Math.min(180, base.w*0.4); const h = w/aspect;
+      const x = (base.w - w)/2, top = (base.h - h)/2;
+      const group = repeat ? uid() : null;
+      const created = targets.map(pi => ({ id: uid(), page: pi, type, x, top, w, h, src:dataUrl, group }));
       setAnnos(p => [...p, ...created]);
-      if (!repeat) setSelId(created[0].id);
+      setSelId(created[0].id);
     };
     img.src = dataUrl;
   };
@@ -328,7 +363,8 @@ export const PdfEditor = () => {
       const s = scaleRef.current;
       const dx = (e.clientX-d.sx)/s, dy = (e.clientY-d.sy)/s;
       setAnnos(prev => prev.map(a => {
-        if (a.id !== d.id) return a;
+        const match = d.group ? a.group === d.group : a.id === d.id;
+        if (!match) return a;
         if (d.mode === 'move')    return { ...a, x:d.ox+dx, top:d.oy+dy };
         if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h:w/d.aspect }; }
         return a;
@@ -343,7 +379,7 @@ export const PdfEditor = () => {
   const startDrag = (e, a, mode) => {
     e.stopPropagation(); e.preventDefault();
     setSelId(a.id); pushHistory();
-    dragRef.current = { id:a.id, mode, sx:e.clientX, sy:e.clientY, ox:a.x, oy:a.top, ow:a.w, oh:a.h, aspect:(a.w/(a.h||1)) };
+    dragRef.current = { id:a.id, group:a.group||null, mode, sx:e.clientX, sy:e.clientY, ox:a.x, oy:a.top, ow:a.w, oh:a.h, aspect:(a.w/(a.h||1)) };
   };
 
   /* ── salvar ── */
@@ -391,9 +427,10 @@ export const PdfEditor = () => {
         const changed = !a.isOriginal || a.str !== a.orig;
         if (!changed) continue;
 
-        // cobre o texto original
+        // cobre o texto original com a cor de fundo da página
         if (a.isOriginal) {
-          page.drawRectangle({ x:a.x-1, y:H-a.top-a.fs*1.28, width:a.w+2, height:a.fs*1.45, color:rgb(1,1,1) });
+          const bg = pages[a.page]?.bg || { r:255, g:255, b:255 };
+          page.drawRectangle({ x:a.x-1, y:H-a.top-a.fs*1.28, width:a.w+2, height:a.fs*1.45, color:rgb(bg.r/255, bg.g/255, bg.b/255) });
         }
         const text = sanitizeWinAnsi(a.str);
         if (!text) continue;
@@ -561,7 +598,7 @@ export const PdfEditor = () => {
                               fontSize:a.fs*scale, lineHeight:1, fontFamily:cssFamily(a.serif),
                               fontWeight:a.bold?700:400, fontStyle:a.italic?'italic':'normal',
                               color: visible?a.color:'transparent',
-                              background: visible && a.isOriginal ? '#fff' : 'transparent',
+                              background: visible && a.isOriginal ? (p.bg?.hex || '#fff') : 'transparent',
                               caretColor:a.color, outline:'none',
                               boxShadow: selected?`0 0 0 1px ${T.gold}`:'none',
                             }}/>
