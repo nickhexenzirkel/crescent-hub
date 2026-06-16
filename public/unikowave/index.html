@@ -1456,6 +1456,9 @@ canvas{display:block}
       <button class="snav-btn" id="mnBtn4" onclick="showMenuPanel('panelChar',this)">
         <span class="snav-icon">👤</span> PERSONAGENS
       </button>
+      <button class="snav-btn" id="mnBtnWish" onclick="showMenuPanel('panelWish',this)">
+        <span class="snav-icon">🌠</span> AUDIÇÃO
+      </button>
       <button class="snav-btn" id="mnBtn2" onclick="showMenuPanel('panelLib',this)">
         <span class="snav-icon">♪</span> BIBLIOTECA
       </button>
@@ -1524,6 +1527,23 @@ canvas{display:block}
       </div>
       <div class="char-grid" id="charGrid"></div>
       <button class="char-confirm" onclick="confirmCharSelect()">✓ CONFIRMAR</button>
+    </div>
+
+    <!-- WISH / AUDIÇÃO PANEL (gacha) -->
+    <div class="menu-panel off" id="panelWish" style="justify-content:flex-start;padding-top:24px">
+      <div class="panel-title"><span class="panel-title-icon">🌠</span>AUDIÇÃO</div>
+      <div class="panel-subtitle">Jogue uma moeda no poço estelar e conquiste novos personagens</div>
+
+      <div class="wish-topbar">
+        <div class="wish-balance"><span>🌊</span> <strong id="wishGwAmount">0 GW</strong></div>
+        <div class="wish-pity" id="wishPityInfo">—</div>
+      </div>
+
+      <div class="wish-banner-label">ESCOLHA O BANNER</div>
+      <div class="wish-banner-grid" id="wishBannerGrid"></div>
+
+      <button class="wish-do-btn" id="wishDoBtn" onclick="doWish()">✨ FAZER DESEJO — 100 GW</button>
+      <div class="wish-hint" id="wishHint">Cada desejo custa 100 GW · a chance sobe a cada desejo (≈99% no 32º)</div>
     </div>
 
     <!-- PROFILE PANEL -->
@@ -1650,8 +1670,86 @@ canvas{display:block}
   </div>
 </div>
 
-<!-- Música de fundo do menu — toca fora da partida -->
-<audio id="menuMusic" src="/UnikoWave-LookAtMe.mp3" loop preload="auto"></audio>
+<!-- Música de fundo do menu — toca fora da partida (playlist em _setupPlaylist) -->
+<audio id="menuMusic" src="/UnikoWave-LookAtMe.mp3" preload="auto"></audio>
+
+<!-- ═══ AUDIÇÃO (gacha): estilos + overlay da animação do poço dos desejos ═══ -->
+<style>
+.wish-topbar{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+.wish-balance{display:flex;align-items:center;gap:6px;font-family:var(--font-pixel);font-size:11px;color:#fff;background:rgba(0,180,255,.12);border:1px solid rgba(0,180,255,.3);padding:8px 14px;border-radius:10px}
+.wish-pity{font-size:11px;color:rgba(255,255,255,.6);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:8px 14px;border-radius:10px}
+.wish-pity strong{color:#ffd700}
+.wish-banner-label{font-family:var(--font-pixel);font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.4);margin-bottom:10px}
+.wish-banner-grid{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;max-width:680px}
+.wish-banner-card{width:120px;background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.1);border-radius:14px;padding:10px;cursor:pointer;transition:all .18s;position:relative;text-align:center}
+.wish-banner-card:hover{border-color:rgba(255,45,146,.5);transform:translateY(-3px)}
+.wish-banner-card.sel{border-color:#ffd700;box-shadow:0 0 22px rgba(255,215,0,.35);background:rgba(255,215,0,.08)}
+.wish-banner-card img{width:100%;height:96px;object-fit:contain;object-position:center}
+.wbc-name{font-family:var(--font-pixel);font-size:9px;color:#fff;margin-top:6px;letter-spacing:.5px}
+.wbc-tag{font-size:7px;font-family:var(--font-pixel);letter-spacing:1px;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:5px}
+.wbc-tag.comum{background:rgba(0,240,255,.15);color:#00f0ff}
+.wbc-tag.epico{background:rgba(176,0,255,.18);color:#c060ff}
+.wbc-owned{position:absolute;top:6px;right:6px;font-family:var(--font-pixel);font-size:6px;background:rgba(0,255,136,.18);color:#3fffa0;border:1px solid rgba(0,255,136,.4);padding:2px 5px;border-radius:4px}
+.wish-do-btn{font-family:var(--font-pixel);font-size:11px;letter-spacing:1px;color:#fff;background:linear-gradient(135deg,#ff2d92,#a855f7,#00c8ff);border:none;border-radius:14px;padding:16px 34px;cursor:pointer;box-shadow:0 4px 26px rgba(255,45,146,.4);transition:transform .15s,filter .15s}
+.wish-do-btn:hover:not(:disabled){transform:scale(1.04);filter:brightness(1.1)}
+.wish-hint{font-size:10px;color:rgba(255,255,255,.4);margin-top:12px;text-align:center;max-width:440px;line-height:1.5}
+
+#wishOverlay{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 120%,#1a0b3a 0%,#0a0518 60%,#04020c 100%)}
+#wishOverlay.off{display:none}
+.wish-sky{position:absolute;inset:0;opacity:.55;background:
+  radial-gradient(2px 2px at 20% 30%,#fff,transparent),radial-gradient(2px 2px at 70% 20%,#fff,transparent),
+  radial-gradient(1px 1px at 40% 50%,#fff,transparent),radial-gradient(1px 1px at 85% 60%,#fff,transparent),
+  radial-gradient(2px 2px at 60% 38%,#fff,transparent),radial-gradient(1px 1px at 30% 70%,#fff,transparent)}
+.wish-well{position:absolute;bottom:8%;left:50%;transform:translateX(-50%);width:200px;height:70px;z-index:3}
+.wish-well-rim{position:absolute;bottom:0;left:0;width:200px;height:58px;border-radius:50%;background:linear-gradient(#5a3a1a,#3a240f);border:6px solid #6b4a26;box-sizing:border-box}
+.wish-well-water{position:absolute;bottom:8px;left:18px;width:164px;height:40px;border-radius:50%;background:radial-gradient(circle,#2a6bd4,#13357a);box-shadow:inset 0 0 18px rgba(0,0,0,.5)}
+.wish-thrower{position:absolute;bottom:12%;left:calc(50% - 160px);width:120px;z-index:4;filter:drop-shadow(0 0 14px rgba(0,240,255,.4))}
+#wishOverlay.run .wish-thrower{animation:wishToss 1s ease-in-out}
+.wish-coin{position:absolute;bottom:22%;left:calc(50% - 100px);font-size:30px;z-index:5;opacity:0}
+#wishOverlay.run .wish-coin{animation:wishCoinToss 1.1s .25s ease-in forwards}
+.wish-beam{position:absolute;bottom:11%;left:50%;transform:translateX(-50%) scaleY(0);transform-origin:bottom;width:64px;height:72vh;
+  background:linear-gradient(to top,rgba(120,200,255,.9),rgba(180,120,255,.5),transparent);border-radius:50% 50% 0 0;filter:blur(3px);opacity:0;z-index:2}
+#wishOverlay.run .wish-beam{animation:wishBeam 1.2s 1.2s ease-out}
+.wish-shooting-star{position:absolute;top:16%;left:0;width:130px;height:3px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#fff,#ffe98a);box-shadow:0 0 12px #fff;opacity:0;transform:rotate(18deg);z-index:3}
+#wishOverlay.run .wish-shooting-star{animation:wishStar 1.1s 2.1s ease-in}
+@keyframes wishToss{0%,100%{transform:none}30%{transform:translateY(-9px) rotate(-6deg)}55%{transform:translateY(2px) rotate(5deg)}}
+@keyframes wishCoinToss{0%{opacity:1;transform:translate(0,0) scale(1) rotate(0)}50%{opacity:1;transform:translate(80px,-95px) scale(.9) rotate(360deg)}100%{opacity:0;transform:translate(160px,30px) scale(.3) rotate(720deg)}}
+@keyframes wishBeam{0%{transform:translateX(-50%) scaleY(0);opacity:0}25%{opacity:.95}100%{transform:translateX(-50%) scaleY(1);opacity:0}}
+@keyframes wishStar{0%{opacity:0;transform:translate(-12vw,0) rotate(18deg)}20%{opacity:1}100%{opacity:0;transform:translate(108vw,30vh) rotate(18deg)}}
+.wish-skip{position:absolute;bottom:18px;right:22px;font-family:var(--font-pixel);font-size:9px;color:rgba(255,255,255,.5);cursor:pointer;z-index:30;letter-spacing:1px}
+.wish-skip:hover{color:#fff}
+.wish-reveal{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:radial-gradient(ellipse at center,rgba(20,8,50,.55),rgba(4,2,12,.93))}
+.wish-reveal.off{display:none}
+.wish-reveal-glow{position:absolute;width:380px;height:380px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,215,0,.35),transparent 70%);animation:wishGlow 2.5s ease-in-out infinite}
+@keyframes wishGlow{0%,100%{transform:scale(.85);opacity:.6}50%{transform:scale(1.1);opacity:1}}
+.wish-reveal-img{width:240px;max-height:44vh;object-fit:contain;z-index:1;animation:wishRevealPop .5s cubic-bezier(.34,1.56,.64,1);filter:drop-shadow(0 0 30px rgba(255,215,0,.5))}
+@keyframes wishRevealPop{0%{transform:scale(0) rotate(-12deg);opacity:0}100%{transform:scale(1);opacity:1}}
+.wish-reveal-title{font-family:var(--font-pixel);font-size:18px;letter-spacing:2px;z-index:1;text-shadow:0 0 18px currentColor;text-align:center;padding:0 16px}
+.wish-reveal-sub{font-size:12px;color:rgba(255,255,255,.7);z-index:1;text-align:center}
+.wish-reveal-btn{margin-top:12px;font-family:var(--font-pixel);font-size:10px;letter-spacing:2px;color:#fff;background:linear-gradient(135deg,#ff2d92,#a855f7);border:none;border-radius:12px;padding:14px 30px;cursor:pointer;z-index:1}
+.wish-reveal-btn:hover{filter:brightness(1.1)}
+</style>
+
+<div id="wishOverlay" class="off">
+  <div class="wish-sky"></div>
+  <div class="wish-shooting-star" id="wishStar"></div>
+  <div class="wish-beam" id="wishBeam"></div>
+  <div class="wish-well"><div class="wish-well-water"></div><div class="wish-well-rim"></div></div>
+  <img class="wish-thrower" id="wishThrower" src="images/DodocoWave.png" alt="">
+  <div class="wish-coin" id="wishCoin">🪙</div>
+  <div class="wish-skip" onclick="skipWish()">pular ▸</div>
+  <div class="wish-reveal off" id="wishReveal">
+    <div class="wish-reveal-glow"></div>
+    <img class="wish-reveal-img" id="wishRevealImg" src="" alt="">
+    <div class="wish-reveal-title" id="wishRevealTitle"></div>
+    <div class="wish-reveal-sub" id="wishRevealSub"></div>
+    <button class="wish-reveal-btn" onclick="closeWishReveal()">CONTINUAR</button>
+  </div>
+</div>
 
 <!-- Hidden settings scr (legacy compat — gamepad navigation) -->
 <div id="settingsScr" class="scr off">
@@ -2162,9 +2260,21 @@ function audioIframeCmd(func){
    Estado persistido em localStorage 'dw_music' ('0' = desligada). */
 let musicEnabled = (()=>{ try{ return localStorage.getItem('dw_music')!=='0'; }catch(_){ return true; } })();
 let _musicGestureHooked=false;
+// Playlist do menu: ao acabar uma faixa, toca a próxima e cicla no fim.
+const MENU_TRACKS = ['/UnikoWave-LookAtMe.mp3','/UnikoWave%20-%20Hi%20to%20Ballad.mp3'];
+let _trackIdx=0, _playlistHooked=false;
+function _setupPlaylist(m){
+  if(_playlistHooked) return; _playlistHooked=true;
+  m.addEventListener('ended', ()=>{
+    _trackIdx=(_trackIdx+1)%MENU_TRACKS.length;
+    m.src=MENU_TRACKS[_trackIdx];
+    if(musicEnabled) m.play().catch(()=>{});
+  });
+}
 function playMenuMusic(){
   if(!musicEnabled) return;
   const m=document.getElementById('menuMusic'); if(!m) return;
+  _setupPlaylist(m);
   m.volume=0.45;
   const p=m.play();
   // Autoplay pode ser bloqueado até o 1º gesto do usuário → tenta de novo no gesto.
@@ -3235,6 +3345,7 @@ function showMenuPanel(panelId, btn){
   if(btn) btn.classList.add('active');
   // Refresh panel contents
   if(panelId==='panelChar') renderCharGrid();
+  if(panelId==='panelWish') renderWishPanel();
   if(panelId==='panelLib')  renderLibraryPanel();
   if(panelId==='panelRank'){ renderRankTabs(); requestRank(); }
   if(panelId==='panelSettings'){ renderSettingsPanel(); syncMusicUI(); }
@@ -6190,9 +6301,9 @@ const CHARACTERS = {
   }
 };
 
-// ⚠️ TEMPORÁRIO: libera TODOS os personagens para todos os usuários.
-// Para voltar ao normal (bloqueio por desbloqueio), basta mudar para false.
-const TEMP_UNLOCK_ALL = true;
+// Personagens agora são conquistados via AUDIÇÃO (gacha). false = bloqueio normal
+// (só Dodoco + os obtidos em dw_unlocked). Mudar para true libera todos (debug).
+const TEMP_UNLOCK_ALL = false;
 
 // selectedChar precisa vir DEPOIS de CHARACTERS para evitar TDZ
 let selectedChar = (function(){
@@ -6300,6 +6411,9 @@ function updateWalletUI(){
   // Char panel
   const cpEl = document.getElementById('charPanelGwAmount');
   if(cpEl) cpEl.textContent = gwFmt;
+  // Wish panel
+  const wishEl = document.getElementById('wishGwAmount');
+  if(wishEl) wishEl.textContent = gwFmt;
   // Top-right card
   const tpcGw = document.getElementById('tpcGw');
   const tpcGc = document.getElementById('tpcGc');
@@ -6357,11 +6471,9 @@ function renderCharGrid(){
     const lockOverlay = (!unlocked) ? `
       <div class="char-lock-overlay">
         <div class="char-lock-icon">🔒</div>
-        <div class="char-lock-price">${ch.gwPrice.toLocaleString()} GW</div>
-        <button class="char-unlock-btn${canAfford?'':' disabled'}"
-          ${canAfford?`onclick="handleUnlockChar('${id}',event)"`:'disabled'}
-          title="${canAfford?'Clique para desbloquear':'GW insuficiente'}">
-          ${canAfford?'🌊 DESBLOQUEAR':'GW insuficiente'}
+        <button class="char-unlock-btn" onclick="goToWish(event)"
+          title="Conquiste este personagem fazendo desejos na Audição">
+          🌠 AUDIÇÃO
         </button>
       </div>` : '';
     return `
@@ -6405,6 +6517,143 @@ function selectChar(id){
   selectedChar = id;
   localStorage.setItem('dw_char', id);
   renderCharGrid();
+}
+
+/* ─── AUDIÇÃO (GACHA estilo Genshin) ──────────────────────────────────
+   100 GW por desejo. A chance de ganhar sobe a cada desejo sem vitória
+   (pity) chegando a ~99% no 32º desejo; ao ganhar, o pity zera. O jogador
+   escolhe o banner (personagem) e o desejo concede esse personagem. */
+const WISH_COST = 100;
+const WISH_PITY_KEY = 'dw_wish_pity';
+let wishBanner = null;
+let _wishAnimating = false;
+let _wishPending = null;
+
+function wishBanners(){
+  return Object.entries(CHARACTERS)
+    .filter(([,ch])=>!ch.alwaysUnlocked)
+    .map(([id,ch])=>({id, name:ch.name, tag:ch.tag, tagClass:ch.tagClass, previewImg:ch.previewImg}));
+}
+function loadPity(){ try{ return parseInt(localStorage.getItem(WISH_PITY_KEY),10)||0; }catch(_){ return 0; } }
+function savePity(n){ try{ localStorage.setItem(WISH_PITY_KEY, String(n)); }catch(_){} }
+// n = número do desejo atual (1-based) desde a última vitória
+function wishProb(n){
+  const base=0.06, soft=20, hard=32;
+  if(n<soft) return base;
+  if(n>=hard) return 0.99;
+  return base + (0.99-base)*(n-soft)/(hard-soft);
+}
+function grantChar(id){
+  const unlocked = loadUnlocked();
+  if(unlocked.includes(id)) return false;   // já tinha → duplicata
+  unlocked.push(id); saveUnlocked(unlocked);
+  return true;
+}
+
+function renderWishPanel(){
+  const grid = document.getElementById('wishBannerGrid');
+  const banners = wishBanners();
+  if(!wishBanner || !banners.some(b=>b.id===wishBanner)) wishBanner = banners[0] ? banners[0].id : null;
+  if(grid){
+    grid.innerHTML = banners.map(b=>{
+      const owned = isUnlocked(b.id);
+      const sel = b.id===wishBanner;
+      return `<div class="wish-banner-card ${sel?'sel':''}" onclick="selectBanner('${b.id}')">
+        <img src="${b.previewImg}" onerror="this.style.opacity='.3'">
+        <div class="wbc-name">${b.name}</div>
+        <div class="wbc-tag ${b.tagClass}">${b.tag}</div>
+        ${owned?'<div class="wbc-owned">✓ OBTIDO</div>':''}
+      </div>`;
+    }).join('');
+  }
+  const gwEl = document.getElementById('wishGwAmount');
+  if(gwEl) gwEl.textContent = getGW().toLocaleString() + ' GW';
+  const pity = loadPity();
+  const nextProb = Math.round(wishProb(pity+1)*100);
+  const pInfo = document.getElementById('wishPityInfo');
+  if(pInfo) pInfo.innerHTML = `🌠 Desejos sem ganhar: <strong>${pity}</strong> · chance agora: <strong>${nextProb}%</strong>`;
+  const btn = document.getElementById('wishDoBtn');
+  if(btn){
+    const can = getGW()>=WISH_COST;
+    btn.disabled = !can;
+    btn.style.opacity = can?1:.5;
+    btn.style.cursor = can?'pointer':'not-allowed';
+  }
+}
+function selectBanner(id){ wishBanner=id; renderWishPanel(); }
+
+function doWish(){
+  if(_wishAnimating) return;
+  const banners = wishBanners();
+  if(!wishBanner) wishBanner = banners[0] && banners[0].id;
+  if(!wishBanner) return;
+  if(getGW() < WISH_COST){
+    const btn=document.getElementById('wishDoBtn');
+    if(btn){ btn.style.animation='dodoShake .4s'; setTimeout(()=>btn.style.animation='',450); }
+    const h=document.getElementById('wishHint');
+    if(h){ h.textContent='🌊 GW insuficiente — jogue músicas para ganhar mais GW!'; h.style.color='#ff6b6b'; }
+    return;
+  }
+  earnGW(-WISH_COST);                 // cobra 100 GW
+  const n = loadPity()+1;             // nº deste desejo desde a última vitória
+  const win = Math.random() < wishProb(n);
+  if(win) savePity(0); else savePity(n);
+  let dup=false;
+  if(win){
+    const granted = grantChar(wishBanner);
+    if(granted){ selectChar(wishBanner); }
+    else { dup=true; earnGW(50); }    // duplicata → devolve 50 GW
+  }
+  renderWishPanel();
+  playWishAnimation(win, CHARACTERS[wishBanner], dup);
+}
+
+function playWishAnimation(win, ch, dup){
+  _wishAnimating = true;
+  _wishPending = {win, ch, dup};
+  const ov = document.getElementById('wishOverlay');
+  if(!ov){ showWishReveal(); return; }
+  document.getElementById('wishReveal').classList.add('off');
+  ov.classList.remove('off');
+  ov.classList.remove('run'); void ov.offsetWidth; ov.classList.add('run');  // re-dispara as animações
+  clearTimeout(ov._t);
+  ov._t = setTimeout(showWishReveal, 3200);
+}
+function skipWish(){
+  const ov=document.getElementById('wishOverlay');
+  if(!ov || !_wishPending) return;
+  clearTimeout(ov._t);
+  showWishReveal();
+}
+function showWishReveal(){
+  if(!_wishPending) return;
+  const {win, ch, dup} = _wishPending;
+  const img=document.getElementById('wishRevealImg');
+  const title=document.getElementById('wishRevealTitle');
+  const sub=document.getElementById('wishRevealSub');
+  if(win){
+    img.src = ch.previewImg; img.style.display='';
+    title.textContent = '✦ '+ch.name.toUpperCase()+' ✦';
+    title.style.color = '#ffd700';
+    sub.textContent = dup ? 'Você já tinha — duplicata! +50 GW devolvidos 🌊' : 'Novo personagem conquistado! 🎉';
+  } else {
+    img.src = 'images/DodocoDormindo.png'; img.style.display='';
+    title.textContent = 'Não dessa vez...';
+    title.style.color = '#9aa6c0';
+    sub.textContent = 'A estrela passou. Faça outro desejo! 🌠';
+  }
+  document.getElementById('wishReveal').classList.remove('off');
+}
+function closeWishReveal(){
+  const ov=document.getElementById('wishOverlay');
+  if(ov){ ov.classList.add('off'); ov.classList.remove('run'); }
+  _wishAnimating=false; _wishPending=null;
+  renderWishPanel();
+  updatePlayCharBadge();
+}
+function goToWish(evt){
+  if(evt) evt.stopPropagation();
+  showMenuPanel('panelWish', document.getElementById('mnBtnWish'));
 }
 
 function applyCharacter(){
