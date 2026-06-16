@@ -1705,8 +1705,9 @@ canvas{display:block}
   radial-gradient(1px 1px at 42% 40%,#fff,transparent),radial-gradient(1px 1px at 86% 52%,#fff,transparent),
   radial-gradient(2px 2px at 58% 30%,#fff,transparent),radial-gradient(1px 1px at 28% 62%,#fff,transparent)}
 .wish-featured-splash{position:relative;z-index:1;height:94%;max-width:96%;object-fit:contain;object-position:bottom center;
-  filter:drop-shadow(0 12px 40px rgba(0,0,0,.55));animation:wishSplashIn .45s ease}
-@keyframes wishSplashIn{0%{opacity:0;transform:translateY(14px) scale(.98)}100%{opacity:1;transform:none}}
+  filter:drop-shadow(0 12px 40px rgba(0,0,0,.55));animation:wishSplashIn .5s ease, wishFeatBob 4.5s ease-in-out .5s infinite}
+@keyframes wishSplashIn{0%{opacity:0}100%{opacity:1}}
+@keyframes wishFeatBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
 .wish-featured-info{position:absolute;left:24px;bottom:20px;z-index:2}
 .wish-featured-name{font-family:var(--font-pixel);font-size:clamp(18px,3vw,34px);color:#fff;letter-spacing:1px;text-shadow:0 3px 16px rgba(0,0,0,.7)}
 .wish-featured-tag{display:inline-block;font-family:var(--font-pixel);font-size:8px;letter-spacing:1px;padding:3px 9px;border-radius:5px;margin-bottom:8px}
@@ -1785,9 +1786,15 @@ canvas{display:block}
   background:radial-gradient(circle,rgba(255,215,0,.4),transparent 70%);animation:wishGlow 2.6s ease-in-out infinite}
 .wish-reveal.win .wish-reveal-glow{opacity:1}
 @keyframes wishGlow{0%,100%{transform:scale(.85);opacity:.55}50%{transform:scale(1.12);opacity:1}}
-.wish-reveal-img{position:relative;width:260px;max-height:50vh;object-fit:contain;z-index:2;animation:wishRevealPop .6s cubic-bezier(.34,1.56,.64,1)}
-.wish-reveal.win .wish-reveal-img{filter:drop-shadow(0 0 34px rgba(255,215,0,.6))}
+.wish-reveal-img{position:relative;width:300px;max-height:56vh;object-fit:contain;z-index:2;
+  animation:wishRevealPop .55s cubic-bezier(.34,1.56,.64,1), wishRevealBob 4s ease-in-out .55s infinite}
+.wish-reveal.win .wish-reveal-img{filter:drop-shadow(0 0 40px rgba(255,215,0,.7)) drop-shadow(0 0 80px rgba(255,180,40,.4))}
 @keyframes wishRevealPop{0%{transform:scale(0) rotate(-12deg);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes wishRevealBob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-14px) scale(1.012)}}
+.wish-reveal-rarity{position:relative;z-index:2;font-family:var(--font-pixel);font-size:9px;letter-spacing:2px;padding:4px 12px;border-radius:6px;margin-top:2px}
+.wish-reveal-rarity.comum{background:rgba(0,240,255,.18);color:#00f0ff}
+.wish-reveal-rarity.epico{background:rgba(176,0,255,.22);color:#c87bff}
+.wish-reveal-rarity.default{background:rgba(255,255,255,.15);color:#fff}
 .wish-reveal-dodo{position:absolute;left:6%;bottom:12%;width:120px;z-index:3;display:none;animation:wishFloat 2.4s ease-in-out infinite;filter:drop-shadow(0 0 12px rgba(0,240,255,.5))}
 .wish-reveal.win .wish-reveal-dodo{display:block}
 .wish-reveal-title{position:relative;font-family:var(--font-pixel);font-size:18px;letter-spacing:2px;z-index:2;text-shadow:0 0 18px currentColor;text-align:center;padding:0 16px}
@@ -1832,6 +1839,7 @@ html.gfx-med .menu-orb{filter:blur(46px)!important}
     <img class="wish-reveal-img" id="wishRevealImg" src="" alt="">
     <div class="wish-reveal-grid" id="wishRevealGrid"></div>
     <div class="wish-reveal-title" id="wishRevealTitle"></div>
+    <div class="wish-reveal-rarity" id="wishRevealRarity" style="display:none"></div>
     <div class="wish-reveal-sub" id="wishRevealSub"></div>
     <button class="wish-reveal-btn" onclick="closeWishReveal()">CONTINUAR</button>
   </div>
@@ -2420,6 +2428,38 @@ function syncGfxUI(){
     const el=document.getElementById('gfxOpt-'+q);
     if(el) el.classList.toggle('active', gfxQuality===q);
   });
+}
+
+/* ─── EFEITOS SONOROS (sintetizados via WebAudio — sem arquivos) ──────── */
+let _sfxCtx=null;
+function _sfxCtxGet(){
+  try{ if(!_sfxCtx) _sfxCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){ return null; }
+  if(_sfxCtx.state==='suspended'){ try{ _sfxCtx.resume(); }catch(_){} }
+  return _sfxCtx;
+}
+function _sfxTone(freq,t0,dur,type,vol){
+  const c=_sfxCtx; if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type||'sine'; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
+  const t=c.currentTime+t0;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.linearRampToValueAtTime(vol||0.16,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t); o.stop(t+dur+0.03);
+}
+function playSfx(kind){
+  const c=_sfxCtxGet(); if(!c) return;
+  if(kind==='wish'){ _sfxTone(880,0,0.12,'triangle',0.14); _sfxTone(1320,0.07,0.14,'triangle',0.10); }
+  else if(kind==='coin'){ _sfxTone(1300,0,0.07,'square',0.09); _sfxTone(1950,0.05,0.09,'square',0.07); }
+  else if(kind==='rise'){
+    const o=c.createOscillator(), g=c.createGain(); o.type='sine';
+    const t=c.currentTime;
+    o.frequency.setValueAtTime(280,t); o.frequency.exponentialRampToValueAtTime(1500,t+1.8);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.10,t+0.3); g.gain.exponentialRampToValueAtTime(0.0001,t+2.0);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+2.1);
+  }
+  else if(kind==='win'){ [523,659,784,1047].forEach((f,i)=>_sfxTone(f,i*0.12,0.55,'triangle',0.16)); _sfxTone(1568,0.5,0.8,'sine',0.12); }
+  else if(kind==='lose'){ _sfxTone(440,0,0.4,'sine',0.12); _sfxTone(311,0.2,0.55,'sine',0.10); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -6752,6 +6792,7 @@ function doWish(){
   if(!wishBanner) wishBanner = banners[0] && banners[0].id;
   if(!wishBanner) return;
   if(getGW() < WISH_COST){ _wishInsufficient(); return; }
+  playSfx('wish');
   earnGW(-WISH_COST);                 // cobra 100 GW
   const r = rollOnce();
   renderWishPanel();
@@ -6763,6 +6804,7 @@ function doWish10(){
   if(!wishBanner) wishBanner = banners[0] && banners[0].id;
   if(!wishBanner) return;
   if(getGW() < WISH_COST10){ _wishInsufficient(); return; }
+  playSfx('wish');
   earnGW(-WISH_COST10);               // cobra 1.000 GW (10 desejos)
   const results=[]; let wins=0;
   for(let i=0;i<10;i++){ const r=rollOnce(); results.push(r); if(r.win) wins++; }
@@ -6824,9 +6866,9 @@ function playWishAnimation(pending){
   at(3000, ()=>{ if(wrap) wrap.style.transform='translateX(35vw)'; });         // anda reto até o poço
   at(4300, ()=>{ if(dodo){ dodo.src='images/DodocoSurpreso.png'; dodo.style.transform='scaleX(1) scale(1.14)'; } }); // surpreso
   at(5000, ()=>{ if(coin){ coin.style.opacity='1'; coin.style.animation='wishCoinToss 1.1s ease-in forwards'; }
-                 if(dodo) dodo.style.transform='scaleX(1) scale(1)'; });        // joga a moeda no poço
+                 if(dodo) dodo.style.transform='scaleX(1) scale(1)'; playSfx('coin'); });   // joga a moeda no poço
   at(6100, ()=>{ ov.classList.add('magic'); if(glow) glow.style.opacity='1';
-                 if(beam){ beam.style.opacity='1'; beam.style.animation='wishBeamSlow 2.4s ease-out forwards'; } }); // luz sobe LENTAMENTE até as nuvens
+                 if(beam){ beam.style.opacity='1'; beam.style.animation='wishBeamSlow 2.4s ease-out forwards'; } playSfx('rise'); }); // luz sobe LENTAMENTE até as nuvens
   at(8700, ()=>{
     if(win){
       if(dodo){ dodo.src='images/DodocoAnimado.png'; dodo.style.transform='scaleX(1) scale(1.2)'; } // Uniko animado/surpreso
@@ -6853,8 +6895,10 @@ function showWishReveal(){
   const img=document.getElementById('wishRevealImg');
   const grid=document.getElementById('wishRevealGrid');
   const title=document.getElementById('wishRevealTitle');
+  const rarity=document.getElementById('wishRevealRarity');
   const sub=document.getElementById('wishRevealSub');
   const sparkC=document.getElementById('wishRevealSparkles');
+  if(rarity) rarity.style.display='none';
   if(p.multi){
     const anyWin = p.wins>0;
     reveal.classList.toggle('win', anyWin);
@@ -6869,6 +6913,7 @@ function showWishReveal(){
     title.style.color = anyWin ? '#ffd700' : '#9aa6c0';
     sub.textContent = anyWin ? `${p.ch.name} conquistado!` : 'Nenhum personagem dessa vez... 🌠';
     if(anyWin) spawnWishSparkles(sparkC); else if(sparkC) sparkC.innerHTML='';
+    playSfx(anyWin?'win':'lose');
   } else {
     if(grid) grid.style.display='none';
     if(img) img.style.display='';
@@ -6877,14 +6922,17 @@ function showWishReveal(){
       img.src = p.ch.previewImg;
       title.textContent = '✦ '+p.ch.name.toUpperCase()+' ✦';
       title.style.color = '#ffd700';
+      if(rarity){ rarity.textContent = p.ch.tag||''; rarity.className = 'wish-reveal-rarity '+(p.ch.tagClass||'default'); rarity.style.display='inline-block'; }
       sub.textContent = p.dup ? 'Você já tinha — duplicata! +50 GW devolvidos 🌊' : 'Novo personagem conquistado! 🎉';
       spawnWishSparkles(sparkC);
+      playSfx('win');
     } else {
       img.src = 'images/DodocoDormindo.png';
       title.textContent = 'Não veio nada dessa vez...';
       title.style.color = '#9aa6c0';
       sub.textContent = 'O poço ficou em silêncio. Faça outro desejo! 🌠';
       if(sparkC) sparkC.innerHTML='';
+      playSfx('lose');
     }
   }
   reveal.classList.remove('off');
