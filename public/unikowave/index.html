@@ -15,7 +15,7 @@
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font-ui);color:#fff;letter-spacing:0.5px}
 canvas{display:block}
 
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 
 /* ─── SCREENS ─── */
 .scr{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px}
@@ -1038,7 +1038,8 @@ canvas{display:block}
 
 /* ─── TOUCH ZONES AUMENTADOS ─── */
 #tzones{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:6;display:none;height:18vh;pointer-events:all}
-.tz{height:100%;background:transparent;border:none;outline:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tz{height:100%;background:transparent;border:none;outline:none;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;-webkit-touch-callout:none}
+#gameWrap,#gc,#hud{touch-action:none}
 .tz:active{background:linear-gradient(to top, rgba(255,255,255,.15), transparent)}
 
 
@@ -2283,6 +2284,10 @@ const IS_MOBILE = (function(){
   }catch(_){ return false; }
 })();
 if(IS_MOBILE) document.documentElement.classList.add('is-mobile');
+// Bloqueia o pinch-zoom e o duplo-toque-zoom do iOS (segurar notas dava zoom/seleção).
+['gesturestart','gesturechange','gestureend'].forEach(ev=>
+  document.addEventListener(ev, e=>e.preventDefault(), {passive:false}));
+document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
 
 // Janela de acerto MAIOR no celular (mais perdão no toque)
 const WIN_PERFECT = IS_MOBILE ? 0.15 : 0.10;
@@ -3688,6 +3693,12 @@ const STARTER_SONGS = [
   { vid:'pzPElFdxMCM', title:'Shinigami Eyes' },
   { vid:'5sT20edl02I', title:'Woke Up' },
 ];
+// Músicas para DESCOBRIR — também fixas pra todos ("Descubra novas músicas").
+const DISCOVER_SONGS = [
+  { vid:'Dst9gZkq1a8', title:'Travis Scott' },
+  { vid:'7CF5qbw8zec', title:'Jetski' },
+  { vid:'_CW6HPGN7Vo', title:'Sequência Cunt' },
+];
 
 function renderLibraryPanel(){
   const saved=libLoad();
@@ -3696,16 +3707,18 @@ function renderLibraryPanel(){
   const libGrid=document.getElementById('libGrid');
   if(!libGrid) return;
 
-  const starters=STARTER_SONGS.map(s=>({
+  const mkFixed=(s)=>({
     ytUrl:`https://www.youtube.com/watch?v=${s.vid}`,
     title:s.title, diff:'normal', dur:0,
     thumbUrl:`https://img.youtube.com/vi/${s.vid}/hqdefault.jpg`,
     starter:true,
-  }));
-  _libCache=[...starters, ...saved];
+  });
+  const starters=STARTER_SONGS.map(mkFixed);
+  const discover=DISCOVER_SONGS.map(mkFixed);
+  _libCache=[...starters, ...discover, ...saved];
 
   if(libCount) libCount.textContent=saved.length===1?'1 música salva':`${saved.length} músicas salvas`;
-  if(libEmpty) libEmpty.style.display='none'; // sempre há as músicas iniciais
+  if(libEmpty) libEmpty.style.display='none'; // sempre há as músicas fixas
   libGrid.innerHTML='';
 
   const STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
@@ -3713,22 +3726,27 @@ function renderLibraryPanel(){
   const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
   const esc=(t)=>(t||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='lib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
+  const fixedCard=(e,idx,label)=>{
+    const thumb=`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`;
+    const card=document.createElement('div'); card.className='lib-card';
+    card.innerHTML=`${thumb}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-diff" style="color:#00f0ff">${label}</div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR</button></div>`;
+    card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
+    libGrid.appendChild(card);
+  };
 
   // ── Seção: Jogue pela primeira vez! ──
   addTitle('🎮 Jogue pela primeira vez!');
-  starters.forEach((e,idx)=>{
-    const thumb=`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`;
-    const card=document.createElement('div'); card.className='lib-card';
-    card.innerHTML=`${thumb}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-diff" style="color:#00f0ff">Música inicial</div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR</button></div>`;
-    card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
-    libGrid.appendChild(card);
-  });
+  starters.forEach((e,idx)=>fixedCard(e, idx, 'Música inicial'));
+
+  // ── Seção: Descubra novas músicas ──
+  addTitle('🔭 Descubra novas músicas');
+  discover.forEach((e,i)=>fixedCard(e, starters.length+i, 'Nova música'));
 
   // ── Seção: Suas músicas ──
   if(saved.length){
     addTitle('★ Suas músicas');
     saved.forEach((e,i)=>{
-      const idx=starters.length+i;
+      const idx=starters.length+discover.length+i;
       const gc=e.gradeCol||'#00f0ff';
       const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<e.stars;const sc=STAR_COLORS[k];return lit?`<span style="color:${sc};filter:drop-shadow(0 0 4px ${sc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
       const thumbBlock=e.thumbUrl?`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`:`<div class="lib-thumb-fb">🎵</div>`;
