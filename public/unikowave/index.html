@@ -2607,7 +2607,7 @@ function _syncClockToVideo(p){
 }
 
 // Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
-function startVideoBg(videoId){
+function startVideoBg(videoId, muted){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
@@ -2616,13 +2616,17 @@ function startVideoBg(videoId){
 
   const build=()=>{
     if(!document.getElementById('ytVideoFrame')) return;
+    // muted=true → autoplay MUDO (permitido no iOS); o som é liberado depois com
+    // unMute() dentro de um gesto do usuário (ver _mobileTapStart).
     _vbPlayer=new YT.Player('ytVideoFrame',{
       width:'100%',height:'100%',videoId,
-      playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
+      playerVars:{autoplay:1,mute:muted?1:0,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
         disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
       events:{
         onReady:(e)=>{
-          try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS; e.target.playVideo(); }catch(_){}
+          try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS;
+            if(muted && e.target.mute) e.target.mute();
+            e.target.playVideo(); }catch(_){}
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
@@ -4512,8 +4516,14 @@ function _beginPlaybackNow(startDelay){
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
 }
 
-// Celular: overlay de toque. O play do vídeo acontece no gesto (libera o som no iOS).
+// Celular: o iOS só deixa o vídeo tocar com som se o unMute acontecer DENTRO de um
+// gesto. Estratégia: criar o player já MUDO (autoplay mudo é permitido no iOS) e,
+// no toque, dar unMute()+playVideo() sincronamente — o som é liberado.
 function _mobileTapStart(){
+  // Cria o vídeo já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
+  if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl, true);
+  else startAudioIframe(lastVideoUrl);
+
   let ov=document.getElementById('tapStartOverlay');
   if(!ov){
     ov=document.createElement('div'); ov.id='tapStartOverlay';
@@ -4526,9 +4536,18 @@ function _mobileTapStart(){
   ov.style.display='flex';
   const go=()=>{
     ov.style.display='none';
-    // Inicia o vídeo DENTRO do gesto → libera o autoplay com som no celular.
-    if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl);
-    else startAudioIframe(lastVideoUrl);
+    // seekTo(0)+unMute+playVideo SINCRONAMENTE no gesto → reinicia do começo
+    // (o vídeo tocou mudo durante o overlay) e libera o som no iOS.
+    try{
+      if(_vbPlayer){
+        if(_vbPlayer.seekTo)    _vbPlayer.seekTo(0, true);
+        if(_vbPlayer.unMute)    _vbPlayer.unMute();
+        if(_vbPlayer.setVolume) _vbPlayer.setVolume(100);
+        if(_vbPlayer.playVideo) _vbPlayer.playVideo();
+      }
+      audioIframeCmd('playVideo'); // modo efeitos (fallback)
+    }catch(_){}
+    _vbSynced=false; // re-ancora o relógio na nova posição (0) do vídeo
     gameStartWallTime=performance.now()+800; // respiro inicial; _syncClockToVideo re-ancora no vídeo
     initColorMoments(songDuration);
     setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
