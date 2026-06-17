@@ -4478,8 +4478,17 @@ function beginGame(){
   gameState='countdown';
   _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
   applyVideoBg(lastVideoUrl);
-  const startDelay=4.2;
-  
+  // No CELULAR o navegador bloqueia o autoplay do vídeo com som → exige um toque.
+  // Mostramos um overlay "TOQUE PARA COMEÇAR" e iniciamos o vídeo DENTRO do gesto.
+  if(IS_MOBILE && bgMode==='video' && lastVideoUrl){
+    _mobileTapStart();
+  } else {
+    _beginPlaybackNow(4.2);
+  }
+}
+
+// Desktop / fallback: inicia áudio+vídeo e a contagem (vídeo entra após startDelay).
+function _beginPlaybackNow(startDelay){
   if(audioCtx&&audioBuffer){
     if(audioCtx.state==='suspended') audioCtx.resume();
     if(srcNode){try{srcNode.stop();}catch(e){}}
@@ -4501,6 +4510,30 @@ function beginGame(){
   }
   initColorMoments(songDuration);
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
+}
+
+// Celular: overlay de toque. O play do vídeo acontece no gesto (libera o som no iOS).
+function _mobileTapStart(){
+  let ov=document.getElementById('tapStartOverlay');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='tapStartOverlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,4,15,.94);color:#fff;text-align:center;padding:24px;cursor:pointer';
+    ov.innerHTML='<div style="font-family:var(--font-pixel);font-size:15px;letter-spacing:2px">TOQUE PARA COMEÇAR</div>'
+      +'<div style="font-size:46px">▶</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6">No celular o som do vídeo só toca depois de um toque na tela.</div>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display='flex';
+  const go=()=>{
+    ov.style.display='none';
+    // Inicia o vídeo DENTRO do gesto → libera o autoplay com som no celular.
+    if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl);
+    else startAudioIframe(lastVideoUrl);
+    gameStartWallTime=performance.now()+800; // respiro inicial; _syncClockToVideo re-ancora no vídeo
+    initColorMoments(songDuration);
+    setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
+  };
+  ov.addEventListener('pointerdown', go, {once:true});
 }
 
 function runCountdown(){
