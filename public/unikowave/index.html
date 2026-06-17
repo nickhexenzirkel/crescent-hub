@@ -1815,8 +1815,8 @@ html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:non
 html.gfx-ultra #homeHeroMedia{display:none!important}
 html.gfx-ultra #homeHeroPhoto{display:block!important}
 
-/* ─── Celular: zonas de toque grandes + layout do menu responsivo ─── */
-html.is-mobile #tzones{height:42vh}
+/* ─── Celular: zonas de toque nas lanes (perto dos botões) + menu responsivo ─── */
+html.is-mobile #tzones{height:26vh}
 /* Personagem menor no celular (não cobrir as lanes/notas) */
 html.is-mobile #dodocoPanel{width:clamp(70px,22vw,128px)!important;height:clamp(96px,17vh,170px)!important;bottom:4px!important;opacity:.92}
 html.is-mobile .tz{border-left:1px solid rgba(255,255,255,.08)}
@@ -4524,17 +4524,12 @@ function songTime(){
 }
 
 function setupTZ(){
+  // Zonas alinhadas às lanes (mesma largura da estrada) no desktop E no celular —
+  // o jogador toca diretamente na coluna do botão/círculo daquela lane.
   const tz=document.getElementById('tzones');
   const lw=laneW();
-  if(IS_MOBILE){
-    // No celular: zonas em LARGURA TOTAL (alvos grandes), 1/4 da tela cada
-    tz.style.left='0'; tz.style.transform='none'; tz.style.width='100%';
-    const w=Math.floor(window.innerWidth/4);
-    for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=w+'px';}
-  } else {
-    tz.style.left=''; tz.style.transform=''; tz.style.width=(lw*4)+'px';
-    for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=lw+'px';}
-  }
+  tz.style.left=''; tz.style.transform=''; tz.style.width=(lw*4)+'px';
+  for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=lw+'px';}
 }
 
 function pressLane(lane){
