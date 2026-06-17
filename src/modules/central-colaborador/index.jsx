@@ -29,7 +29,24 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [profileComplete, setProfileComplete] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const tabRef = useRef(tab);
-  useEffect(() => { tabRef.current = tab; }, [tab]);
+  useEffect(() => {
+    tabRef.current = tab;
+    // Marca o body quando está no Uniko Wave (esconde a nav inferior e o botão de confetti)
+    document.body.classList.toggle('uw-active', tab === 'unikowave');
+    return () => document.body.classList.remove('uw-active');
+  }, [tab]);
+
+  // Tela cheia (celular) — aplica no app inteiro; iOS Safari pode não suportar.
+  const toggleFullscreenApp = () => {
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      } else {
+        const el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+      }
+    } catch {}
+  };
 
   // Onboarding — exibido enquanto o usuário não tiver foto de perfil
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -176,8 +193,22 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
         </div>
       </div>
 
+      {/* ── Uniko Wave (celular): botões flutuantes de sair + tela cheia ── */}
+      {isMobile && tab==='unikowave' && (
+        <div style={{position:'fixed',top:6,left:6,zIndex:100000,display:'flex',gap:6}}>
+          <button onClick={()=>st('inicio')} title="Sair do jogo"
+            style={{width:34,height:34,borderRadius:9,border:'1px solid rgba(255,255,255,.25)',
+              background:'rgba(0,0,0,.5)',color:'#fff',fontSize:16,cursor:'pointer',
+              display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)'}}>←</button>
+          <button onClick={toggleFullscreenApp} title="Tela cheia"
+            style={{width:34,height:34,borderRadius:9,border:'1px solid rgba(255,255,255,.25)',
+              background:'rgba(0,0,0,.5)',color:'#fff',fontSize:15,cursor:'pointer',
+              display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)'}}>⛶</button>
+        </div>
+      )}
+
       {/* ── Mobile bottom nav ── */}
-      {isMobile && (
+      {isMobile && tab!=='unikowave' && (
         <div style={{position:'fixed',bottom:0,left:0,right:0,zIndex:300,
           background:T.surface,borderTop:`1px solid ${T.border}`,
           display:'flex',height:60,fontFamily:'var(--font-body)'}}>

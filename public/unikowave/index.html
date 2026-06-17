@@ -1817,6 +1817,8 @@ html.gfx-ultra #homeHeroPhoto{display:block!important}
 
 /* ─── Celular: zonas de toque grandes + layout do menu responsivo ─── */
 html.is-mobile #tzones{height:42vh}
+/* Personagem menor no celular (não cobrir as lanes/notas) */
+html.is-mobile #dodocoPanel{width:clamp(70px,22vw,128px)!important;height:clamp(96px,17vh,170px)!important;bottom:4px!important;opacity:.92}
 html.is-mobile .tz{border-left:1px solid rgba(255,255,255,.08)}
 html.is-mobile .tz:first-child{border-left:none}
 html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22),transparent)}

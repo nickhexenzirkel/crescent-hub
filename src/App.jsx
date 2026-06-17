@@ -269,6 +269,7 @@ export default function CrescentHub() {
   return(
     <>
       <style>{FONTS}</style>
+      <style>{`body.uw-active .floating-theme-btn{display:none!important}`}</style>
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
         {confettiTheme && <Confetti themeKey={confettiTheme}/>}

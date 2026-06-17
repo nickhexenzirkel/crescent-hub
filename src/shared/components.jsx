@@ -254,6 +254,7 @@ const FloatingThemeBtn = ({ themeKey, onConfetti }) => {
 
   return (
     <button
+      className="floating-theme-btn"
       onClick={onConfetti}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
