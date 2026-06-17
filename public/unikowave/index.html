@@ -2410,10 +2410,10 @@ function syncMusicUI(){
    quantidade de partículas e desliga blurs/fundos pesados (classes gfx-*).
    Persistido em localStorage 'dw_gfx'. */
 const GFX_PRESETS = {
-  ultra:  { dprCap:1,   particleMul:0    },  // máximo de otimização
-  baixo:  { dprCap:1,   particleMul:0.25 },
-  medio:  { dprCap:1.5, particleMul:0.55 },
-  normal: { dprCap:3,   particleMul:1    },
+  ultra:  { dprCap:1,   particleMul:0,    glow:false },  // máximo de otimização
+  baixo:  { dprCap:1,   particleMul:0.25, glow:false },
+  medio:  { dprCap:1.5, particleMul:0.55, glow:true  },
+  normal: { dprCap:3,   particleMul:1,    glow:true  },
 };
 let gfxQuality = (()=>{ try{ return localStorage.getItem('dw_gfx')||'normal'; }catch(_){ return 'normal'; } })();
 if(!GFX_PRESETS[gfxQuality]) gfxQuality='normal';
@@ -7093,9 +7093,9 @@ function drawLanesPerspective(t){
     ctx.beginPath(); ctx.moveTo(vx,vy); ctx.lineTo(xBot,hy); ctx.stroke();
   }
 
-  // Brilhos de lane pressionada (no chão)
+  // Brilhos de lane pressionada (no chão) — só com glow ligado
   for(let i=0;i<4;i++){
-    if(heldKeys.has(i)){
+    if(heldKeys.has(i) && GFX.glow){
       const x=laneX(i); const c=LANE_RGB[i];
       const glow=ctx.createRadialGradient(x,hy,0,x,hy,laneW()*1.8);
       glow.addColorStop(0,`rgba(${c.join(',')},0.35)`);
@@ -7155,7 +7155,7 @@ function drawNotesPerspective(t){
         ctx.moveTo(x0-tw0,y0); ctx.lineTo(x0+tw0,y0);
         ctx.lineTo(x1+tw1,y1); ctx.lineTo(x1-tw1,y1);
         ctx.closePath(); ctx.fill();
-        ctx.shadowColor=col; ctx.shadowBlur=10;
+        ctx.shadowColor=col; ctx.shadowBlur=GFX.glow?10:0;
         ctx.strokeStyle=`rgba(${c.join(',')},0.7)`; ctx.lineWidth=1.5;
         ctx.stroke(); ctx.shadowBlur=0; ctx.restore();
       }
@@ -7163,7 +7163,7 @@ function drawNotesPerspective(t){
       const hx=perspX(n.lane,headP), hy2=perspY(headP);
       const sz=maxSz*headP;
       ctx.save(); ctx.translate(hx,hy2);
-      ctx.shadowColor=col; ctx.shadowBlur=n.state==='holding'?32:20;
+      ctx.shadowColor=col; ctx.shadowBlur=GFX.glow?(n.state==='holding'?32:20):0;
       ctx.fillStyle=n.state==='holding'?'#fff':col;
       ctx.beginPath(); ctx.roundRect(-sz,-sz*.55,sz*2,sz*1.1,sz); ctx.fill();
       ctx.shadowBlur=0; ctx.fillStyle=`rgba(255,255,255,${n.state==='holding'?0.55:0.3})`;
@@ -7179,7 +7179,7 @@ function drawNotesPerspective(t){
       const nx=perspX(n.lane,progress), ny=perspY(progress);
       const sz=maxSz*(0.08+progress*0.92);
       ctx.save(); ctx.translate(nx,ny);
-      ctx.shadowColor=col; ctx.shadowBlur=sz*0.8;
+      ctx.shadowColor=col; ctx.shadowBlur=GFX.glow?sz*0.8:0;
       ctx.fillStyle=col;
       ctx.beginPath(); ctx.arc(0,0,sz,0,Math.PI*2); ctx.fill();
       // Brilho interno
@@ -7204,19 +7204,21 @@ function drawHitLinePerspective(t){
     const pressed=heldKeys.has(i);
     const pulse=pressed?1.5:(0.7+Math.sin(t*3.5+i)*0.12);
 
-    // Plataforma da lane no chão (perspectiva)
-    ctx.save();
-    const platGrad=ctx.createRadialGradient(x,hy,0,x,hy,lw*1.3);
-    platGrad.addColorStop(0,`rgba(${c.join(',')},${pressed?0.35:0.12})`);
-    platGrad.addColorStop(1,'transparent');
-    ctx.fillStyle=platGrad;
-    ctx.fillRect(x-lw,hy-lw*0.5,lw*2,lw);
-    ctx.restore();
+    // Plataforma da lane no chão (perspectiva) — gradiente só com glow ligado
+    if(GFX.glow){
+      ctx.save();
+      const platGrad=ctx.createRadialGradient(x,hy,0,x,hy,lw*1.3);
+      platGrad.addColorStop(0,`rgba(${c.join(',')},${pressed?0.35:0.12})`);
+      platGrad.addColorStop(1,'transparent');
+      ctx.fillStyle=platGrad;
+      ctx.fillRect(x-lw,hy-lw*0.5,lw*2,lw);
+      ctx.restore();
+    }
 
     // Círculo externo
     ctx.beginPath(); ctx.arc(x,hy,lw*.44,0,Math.PI*2);
     ctx.strokeStyle=`rgba(${c.join(',')},${pulse*.55})`; ctx.lineWidth=pressed?3:2;
-    ctx.shadowColor=col; ctx.shadowBlur=pressed?20:8; ctx.stroke();
+    ctx.shadowColor=col; ctx.shadowBlur=GFX.glow?(pressed?20:8):0; ctx.stroke();
     // Círculo médio
     ctx.beginPath(); ctx.arc(x,hy,lw*.28,0,Math.PI*2);
     ctx.strokeStyle=`rgba(${c.join(',')},${pulse*.9})`; ctx.lineWidth=1.5; ctx.stroke();
@@ -7277,7 +7279,7 @@ function drawRings(){
     const r=rings[i]; r.r+=((r.maxR-r.r)*.15);r.life-=r.decay;
     if(r.life<=0){rings.splice(i,1);continue;}
     ctx.globalAlpha=r.life*(r.flash?.9:.6); ctx.strokeStyle=r.color;ctx.lineWidth=r.w||2;
-    ctx.shadowColor=r.color;ctx.shadowBlur=8; ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,Math.PI*2);ctx.stroke();
+    ctx.shadowColor=r.color;ctx.shadowBlur=GFX.glow?8:0; ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,Math.PI*2);ctx.stroke();
     ctx.shadowBlur=0;ctx.globalAlpha=1;
   }
 }
@@ -7285,7 +7287,7 @@ function drawJudgments(t){
   for(let i=judgments.length-1;i>=0;i--){
     const j=judgments[i]; j.y+=j.vy;j.life-=j.decay;j.sc*=0.97;
     if(j.life<=0){judgments.splice(i,1);continue;}
-    ctx.globalAlpha=Math.min(1,j.life*2); ctx.fillStyle=j.color; ctx.shadowColor=j.color;ctx.shadowBlur=12;
+    ctx.globalAlpha=Math.min(1,j.life*2); ctx.fillStyle=j.color; ctx.shadowColor=j.color;ctx.shadowBlur=GFX.glow?12:0;
     ctx.font=`900 ${Math.floor(16*j.sc)}px Orbitron,monospace`; ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(j.text,j.x,j.y); ctx.shadowBlur=0;ctx.globalAlpha=1;
   }
