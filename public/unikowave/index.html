@@ -372,8 +372,9 @@ canvas{display:block}
 
 /* ─── TOP-RIGHT PROFILE CARD ─── */
 #topProfileCard{
+  display:none!important; /* card flutuante de perfil/GW/GC removido a pedido */
   position:fixed;top:52px;right:20px;z-index:100;
-  display:flex;align-items:center;gap:14px;
+  align-items:center;gap:14px;
   background:rgba(6,6,22,.92);
   border:1px solid rgba(255,255,255,.14);
   border-radius:18px;
@@ -1814,6 +1815,9 @@ html.gfx-med .menu-orb{filter:blur(46px)!important}
 html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:none!important;text-shadow:none!important}
 html.gfx-ultra #homeHeroMedia{display:none!important}
 html.gfx-ultra #homeHeroPhoto{display:block!important}
+
+/* Título de seção da biblioteca (ocupa a linha toda do grid) */
+.lib-section-title{grid-column:1/-1;width:100%;font-family:var(--font-pixel);font-size:11px;letter-spacing:1px;color:#ffd700;margin:8px 0 2px}
 
 /* ─── Celular: zonas de toque nas lanes (perto dos botões) + menu responsivo ─── */
 html.is-mobile #tzones{height:26vh}
@@ -3678,34 +3682,62 @@ function renderRankList(){
 }
 function renderRankUI(){ renderRankTabs(); renderRankList(); }
 
+// Músicas INICIAIS — sempre na biblioteca de todos os jogadores ("Jogue pela primeira vez!").
+const STARTER_SONGS = [
+  { vid:'83C3TZ4Zm_o', title:'Lemonade' },
+  { vid:'pzPElFdxMCM', title:'Shinigami Eyes' },
+  { vid:'5sT20edl02I', title:'Woke Up' },
+];
+
 function renderLibraryPanel(){
-  const entries=libLoad();
+  const saved=libLoad();
   const libEmpty=document.getElementById('libEmpty');
   const libCount=document.getElementById('libCount');
   const libGrid=document.getElementById('libGrid');
   if(!libGrid) return;
-  if(libCount) libCount.textContent=entries.length===1?'1 música salva':`${entries.length} músicas salvas`;
-  if(entries.length===0){
-    if(libEmpty) libEmpty.style.display='flex';
-    libGrid.innerHTML='';return;
-  }
-  if(libEmpty) libEmpty.style.display='none';
-  const STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
-  _libCache=entries;
+
+  const starters=STARTER_SONGS.map(s=>({
+    ytUrl:`https://www.youtube.com/watch?v=${s.vid}`,
+    title:s.title, diff:'normal', dur:0,
+    thumbUrl:`https://img.youtube.com/vi/${s.vid}/hqdefault.jpg`,
+    starter:true,
+  }));
+  _libCache=[...starters, ...saved];
+
+  if(libCount) libCount.textContent=saved.length===1?'1 música salva':`${saved.length} músicas salvas`;
+  if(libEmpty) libEmpty.style.display='none'; // sempre há as músicas iniciais
   libGrid.innerHTML='';
-  entries.forEach((e,idx)=>{
-    const DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
-    const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
-    const gc=e.gradeCol||'#00f0ff';
-    const safeTitle=(e.title||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const starsHtml=Array.from({length:5},(_,i)=>{const lit=i<e.stars;const sc=STAR_COLORS[i];return lit?`<span style="color:${sc};filter:drop-shadow(0 0 4px ${sc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
-    const thumbBlock=e.thumbUrl?`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`:`<div class="lib-thumb-fb">🎵</div>`;
-    const card=document.createElement('div');
-    card.className='lib-card';
-    card.innerHTML=`${thumbBlock}<div class="lib-body"><div class="lib-song">${safeTitle}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${e.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(e.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between"><div class="lib-diff" style="color:${DIFF_COLORS[e.diff]||'#00f0ff'}">${DIFF_LABELS[e.diff]||e.diff||''}</div></div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR NOVAMENTE</button></div>`;
+
+  const STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
+  const DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
+  const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
+  const esc=(t)=>(t||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='lib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
+
+  // ── Seção: Jogue pela primeira vez! ──
+  addTitle('🎮 Jogue pela primeira vez!');
+  starters.forEach((e,idx)=>{
+    const thumb=`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`;
+    const card=document.createElement('div'); card.className='lib-card';
+    card.innerHTML=`${thumb}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-diff" style="color:#00f0ff">Música inicial</div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR</button></div>`;
     card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
     libGrid.appendChild(card);
   });
+
+  // ── Seção: Suas músicas ──
+  if(saved.length){
+    addTitle('★ Suas músicas');
+    saved.forEach((e,i)=>{
+      const idx=starters.length+i;
+      const gc=e.gradeCol||'#00f0ff';
+      const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<e.stars;const sc=STAR_COLORS[k];return lit?`<span style="color:${sc};filter:drop-shadow(0 0 4px ${sc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
+      const thumbBlock=e.thumbUrl?`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`:`<div class="lib-thumb-fb">🎵</div>`;
+      const card=document.createElement('div'); card.className='lib-card';
+      card.innerHTML=`${thumbBlock}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${e.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(e.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between"><div class="lib-diff" style="color:${DIFF_COLORS[e.diff]||'#00f0ff'}">${DIFF_LABELS[e.diff]||e.diff||''}</div></div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR NOVAMENTE</button></div>`;
+      card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
+      libGrid.appendChild(card);
+    });
+  }
 }
 
 function filterLibrary(query){
