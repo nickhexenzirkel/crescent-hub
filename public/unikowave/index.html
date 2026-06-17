@@ -1814,6 +1814,27 @@ html.gfx-med .menu-orb{filter:blur(46px)!important}
 html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:none!important;text-shadow:none!important}
 html.gfx-ultra #homeHeroMedia{display:none!important}
 html.gfx-ultra #homeHeroPhoto{display:block!important}
+
+/* ─── Celular: zonas de toque grandes + layout do menu responsivo ─── */
+html.is-mobile #tzones{height:42vh}
+html.is-mobile .tz{border-left:1px solid rgba(255,255,255,.08)}
+html.is-mobile .tz:first-child{border-left:none}
+html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22),transparent)}
+@media (max-width:760px){
+  #menuScr{flex-direction:column!important}
+  #menuSidebar{width:100%!important;min-width:0!important;flex-direction:row!important;align-items:center;
+    overflow-x:auto;overflow-y:hidden;padding:8px 10px!important;gap:6px;
+    border-right:none;border-bottom:1px solid rgba(255,255,255,.08)}
+  #menuSidebar .sidebar-logo,#menuSidebar .sidebar-sub,#menuSidebar .sidebar-version,#sidebarProfile{display:none!important}
+  .sidebar-nav{flex-direction:row!important;gap:6px!important;flex:0 0 auto}
+  .snav-btn{padding:9px 12px!important;width:auto!important;white-space:nowrap;font-size:8px!important}
+  .snav-btn-fs{display:none!important}
+  #menuMain{padding:8px!important}
+  .menu-panel{padding:16px 14px!important}
+  #panelWish{flex-direction:column!important}
+  .wish-featured{min-height:40vh}
+  .wish-controls{width:100%!important;min-width:0!important;border-left:none;border-top:1px solid rgba(255,255,255,.08)}
+}
 </style>
 
 <div id="wishOverlay" class="off">
@@ -2240,8 +2261,19 @@ document.addEventListener('keydown', e=>{
 }, true); // capture phase para pegar antes do jogo
 
 // JANELAS DE ACERTO AUMENTADAS PARA REDUZIR DELAY
-const WIN_PERFECT = 0.10;
-const WIN_GOOD    = 0.22; 
+// Detecção de celular/tablet (toque). Em mobile o jogo fica mais fácil.
+const IS_MOBILE = (function(){
+  try{
+    return (window.matchMedia && window.matchMedia('(pointer:coarse)').matches)
+      || /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)
+      || (navigator.maxTouchPoints||0) > 1;
+  }catch(_){ return false; }
+})();
+if(IS_MOBILE) document.documentElement.classList.add('is-mobile');
+
+// Janela de acerto MAIOR no celular (mais perdão no toque)
+const WIN_PERFECT = IS_MOBILE ? 0.15 : 0.10;
+const WIN_GOOD    = IS_MOBILE ? 0.34 : 0.22;
 
 // minGap = espaçamento MÍNIMO entre notas (segundos) → é o teto de notas/segundo.
 // Valores legíveis: mesmo no ritmo REAL (onsets densos) as notas ficam espaçadas
@@ -2258,6 +2290,20 @@ const DIFF_CFG = {
   impossible: {travel:0.90, density:1.0,  holdChance:0.12, doubleChance:0.18, bpm:1.0, minGap:0.23, lifeDmg:13}, // ≤4.3/s
   nightmare:  {travel:0.70, density:1.0,  holdChance:0.06, doubleChance:0.28, bpm:1.0, minGap:0.18, lifeDmg:15, stairChance:0.16, insideOutChance:0.12} // ≤5.5/s
 };
+
+// No celular, deixa TODAS as dificuldades mais fáceis: notas mais lentas (mais
+// tempo de reação), menos densas, mais espaçadas, menos holds/duplas e menos dano.
+if(IS_MOBILE){
+  for(const k in DIFF_CFG){
+    const c=DIFF_CFG[k];
+    c.travel       = +(c.travel*1.40).toFixed(3);
+    c.density      = +(c.density*0.60).toFixed(3);
+    c.minGap       = +(c.minGap*1.50).toFixed(3);
+    c.holdChance   = +(c.holdChance*0.60).toFixed(3);
+    c.doubleChance = +(c.doubleChance*0.50).toFixed(3);
+    c.lifeDmg      = Math.max(3, Math.round((c.lifeDmg||8)*0.6));
+  }
+}
 
 function setKeyLayout(k){
   keyLayout=k;
@@ -4478,8 +4524,15 @@ function songTime(){
 function setupTZ(){
   const tz=document.getElementById('tzones');
   const lw=laneW();
-  tz.style.width=(lw*4)+'px';
-  for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=lw+'px';}
+  if(IS_MOBILE){
+    // No celular: zonas em LARGURA TOTAL (alvos grandes), 1/4 da tela cada
+    tz.style.left='0'; tz.style.transform='none'; tz.style.width='100%';
+    const w=Math.floor(window.innerWidth/4);
+    for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=w+'px';}
+  } else {
+    tz.style.left=''; tz.style.transform=''; tz.style.width=(lw*4)+'px';
+    for(let i=0;i<4;i++){const e=document.getElementById('tz'+i);if(e) e.style.width=lw+'px';}
+  }
 }
 
 function pressLane(lane){
