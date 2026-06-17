@@ -12,6 +12,7 @@ import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { ExtensionPrompt } from './shared/ExtensionPrompt';
+import { useIsMobile } from './hooks/useIsMobile';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -19,6 +20,7 @@ export default function CrescentHub() {
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   const [confettiTheme, setConfettiTheme] = useState(null);
+  const isMobile = useIsMobile();
   const [activeTheme, setActiveTheme]     = useState(() => localStorage.getItem('ch_theme') || 'vozBrasil');
   useEffect(() => {
     const h = (e) => setActiveTheme(e.detail);
@@ -281,7 +283,7 @@ export default function CrescentHub() {
           }}
         />
         {/* Banner "Ação necessária": baixar/instalar a extensão Cat-Bot quando ausente */}
-        {authUser && <ExtensionPrompt/>}
+        {authUser && !isMobile && <ExtensionPrompt/>}
 
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}

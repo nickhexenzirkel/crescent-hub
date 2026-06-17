@@ -1836,6 +1836,13 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   #panelWish{flex-direction:column!important}
   .wish-featured{min-height:40vh}
   .wish-controls{width:100%!important;min-width:0!important;border-left:none;border-top:1px solid rgba(255,255,255,.08)}
+  /* Tela de RESULTADO: empilha e encolhe o personagem p/ caber estrelas e botões */
+  #resScr{flex-direction:column!important;justify-content:center!important;gap:8px!important;padding:12px!important;overflow-y:auto!important}
+  .res-left{height:auto!important;flex-shrink:1}
+  #mascot2{height:auto!important;max-height:20vh!important;max-width:50vw!important}
+  .res-bubble{position:static!important;margin:0 0 6px!important;padding:8px 12px!important;font-size:11px!important}
+  .res-right{align-items:center!important;max-width:100%!important;width:100%}
+  .res-letters{display:none!important}
 }
 </style>
 
@@ -2545,6 +2552,7 @@ const VB_IFRAME_CSS='position:absolute;top:50%;left:50%;transform:translate(-50%
   +'width:148%;height:148%;border:none;pointer-events:none;background:#000;';
 let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
 let _vbPlayer=null, _ytApiReady=false, _ytApiLoading=false;
+let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
 
 // Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
 function _loadYTApi(){
@@ -4536,19 +4544,19 @@ function _mobileTapStart(){
   ov.style.display='flex';
   const go=()=>{
     ov.style.display='none';
-    // seekTo(0)+unMute+playVideo SINCRONAMENTE no gesto → reinicia do começo
-    // (o vídeo tocou mudo durante o overlay) e libera o som no iOS.
+    // No gesto: unMute (libera o som no iOS) + reinicia em 0 e PAUSA. O play de
+    // fato acontece no "GO" da contagem → o vídeo/som só começa DEPOIS do 3 2 1.
     try{
       if(_vbPlayer){
-        if(_vbPlayer.seekTo)    _vbPlayer.seekTo(0, true);
-        if(_vbPlayer.unMute)    _vbPlayer.unMute();
-        if(_vbPlayer.setVolume) _vbPlayer.setVolume(100);
-        if(_vbPlayer.playVideo) _vbPlayer.playVideo();
+        if(_vbPlayer.unMute)     _vbPlayer.unMute();
+        if(_vbPlayer.setVolume)  _vbPlayer.setVolume(100);
+        if(_vbPlayer.seekTo)     _vbPlayer.seekTo(0, true);
+        if(_vbPlayer.pauseVideo) _vbPlayer.pauseVideo();
       }
-      audioIframeCmd('playVideo'); // modo efeitos (fallback)
     }catch(_){}
-    _vbSynced=false; // re-ancora o relógio na nova posição (0) do vídeo
-    gameStartWallTime=performance.now()+800; // respiro inicial; _syncClockToVideo re-ancora no vídeo
+    _videoStartPending=true;  // runCountdown dá o play no GO
+    _vbSynced=false;          // re-ancora o relógio quando o vídeo tocar
+    gameStartWallTime=performance.now()+3800; // sem notas durante a contagem
     initColorMoments(songDuration);
     setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
   };
@@ -4564,6 +4572,11 @@ function runCountdown(){
       n--; setTimeout(showNum,1000);
     } else {
       overlay.innerHTML=`<div class="countdown-go">GO!</div>`;
+      // No "GO" o vídeo/som finalmente toca (celular: liberado pelo gesto do toque).
+      if(_videoStartPending){
+        _videoStartPending=false;
+        try{ if(_vbPlayer&&_vbPlayer.playVideo) _vbPlayer.playVideo(); audioIframeCmd('playVideo'); }catch(_){}
+      }
       setTimeout(()=>{overlay.classList.add('off');overlay.innerHTML='';gameState='playing';},700);
     }
   }
