@@ -1432,6 +1432,51 @@ canvas{display:block}
   <button id="musicToggleBtn" onclick="toggleMenuMusic()" title="Música do menu"
     style="position:absolute;top:14px;right:14px;z-index:6;width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);backdrop-filter:blur(8px);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">🔊</button>
 
+  <!-- ── Disco de vinil: música tocando agora + pular/voltar ── -->
+  <style>
+    #vinylPlayer{position:absolute;right:16px;bottom:16px;z-index:6;display:flex;align-items:center;gap:13px;
+      background:rgba(8,4,26,.82);border:1px solid rgba(255,255,255,.12);border-radius:46px;padding:9px 18px 9px 9px;
+      backdrop-filter:blur(14px);box-shadow:0 10px 38px rgba(0,0,0,.5),0 0 26px rgba(168,85,247,.16);max-width:78vw}
+    #vinylDisc{width:58px;height:58px;border-radius:50%;flex-shrink:0;position:relative;
+      display:flex;align-items:center;justify-content:center;
+      background:repeating-radial-gradient(circle at 50% 50%,#0a0a0a 0 2px,#1a1a1a 2px 4px);
+      box-shadow:0 4px 13px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.06);
+      animation:vinylSpin 3.2s linear infinite;animation-play-state:paused}
+    #vinylPlayer.playing #vinylDisc{animation-play-state:running}
+    #vinylDiscArt{width:22px;height:22px;border-radius:50%;position:relative;
+      background:radial-gradient(circle at 35% 30%,#ff8fd0,#ff2d92 45%,#a855f7);
+      box-shadow:0 0 0 3px #0d0118,0 0 9px rgba(255,45,146,.55)}
+    #vinylDiscArt::after{content:'';position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#0d0118;transform:translate(-50%,-50%)}
+    @keyframes vinylSpin{to{transform:rotate(360deg)}}
+    #vinylInfo{display:flex;flex-direction:column;gap:2px;min-width:0}
+    #vinylNow{font-family:var(--font-pixel);font-size:6px;letter-spacing:1.5px;color:rgba(255,255,255,.42)}
+    #vinylTitle{font-family:Orbitron,monospace;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+    #vinylControls{display:flex;gap:6px;margin-top:4px}
+    #vinylControls button{width:25px;height:25px;border-radius:50%;border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0;
+      display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
+    #vinylControls button:hover{background:rgba(168,85,247,.35);border-color:rgba(168,85,247,.6)}
+    #vinylPlayPause{background:linear-gradient(135deg,#ff2d92,#a855f7)!important;border:none!important}
+    #vinylPlayPause:hover{filter:brightness(1.12)}
+    @media (max-width:560px){
+      #vinylPlayer{right:10px;bottom:10px;gap:9px;padding:7px 13px 7px 7px}
+      #vinylDisc{width:46px;height:46px}
+      #vinylTitle{max-width:100px;font-size:10px}
+    }
+  </style>
+  <div id="vinylPlayer" aria-label="Música tocando agora">
+    <div id="vinylDisc"><div id="vinylDiscArt"></div></div>
+    <div id="vinylInfo">
+      <div id="vinylNow">TOCANDO AGORA</div>
+      <div id="vinylTitle">—</div>
+      <div id="vinylControls">
+        <button id="vinylPrev" onclick="menuMusicPrev()" title="Música anterior">⏮</button>
+        <button id="vinylPlayPause" onclick="toggleMenuMusic()" title="Pausar / tocar">⏸</button>
+        <button id="vinylNext" onclick="menuMusicNext()" title="Próxima música">⏭</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SIDEBAR -->
   <div id="menuSidebar">
     <div class="sidebar-logo">UNIKO<br>WAVE<span class="sidebar-star-icon">✦</span></div>
@@ -2426,21 +2471,60 @@ function audioIframeCmd(func){
    Estado persistido em localStorage 'dw_music' ('0' = desligada). */
 let musicEnabled = (()=>{ try{ return localStorage.getItem('dw_music')!=='0'; }catch(_){ return true; } })();
 let _musicGestureHooked=false;
-// Playlist do menu: ao acabar uma faixa, toca a próxima e cicla no fim.
-const MENU_TRACKS = ['/UnikoWave-LookAtMe.mp3','/UnikoWave%20-%20Hi%20to%20Ballad.mp3'];
-let _trackIdx=0, _playlistHooked=false;
+// Playlist do menu (aleatória): embaralha as faixas, toca em sequência e
+// re-embaralha ao fim. Cada item tem {src, name} para exibir no disco de vinil.
+const MENU_TRACKS = [
+  { src:'/UnikoWave-LookAtMe.mp3',                    name:'Look At Me' },
+  { src:'/UnikoWave%20-%20Hi%20to%20Ballad.mp3',      name:'Hi to Ballad' },
+  { src:'/unikowave/music/All%20Me%20All%20Mine.mp3', name:'All Me All Mine' },
+  { src:'/unikowave/music/Arigato!!!.mp3',            name:'Arigato!!!' },
+  { src:'/unikowave/music/La%20La%20La.mp3',          name:'La La La' },
+  { src:'/unikowave/music/Shining%20Bright!.mp3',     name:'Shining Bright!' },
+  { src:'/unikowave/music/Spring%20Fever.mp3',        name:'Spring Fever' },
+  { src:'/unikowave/music/Stellar%20Ringtone.mp3',    name:'Stellar Ringtone' },
+  { src:'/unikowave/music/UP!.mp3',                   name:'UP!' },
+];
+let _trackOrder=[], _orderPos=0, _playlistHooked=false, _trackLoaded=false;
+function _shuffleTracks(){
+  _trackOrder = MENU_TRACKS.map((_,i)=>i);
+  for(let i=_trackOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [_trackOrder[i],_trackOrder[j]]=[_trackOrder[j],_trackOrder[i]]; }
+  _orderPos=0;
+}
+function _curTrack(){ if(!_trackOrder.length) _shuffleTracks(); return MENU_TRACKS[_trackOrder[_orderPos]]||null; }
+function _loadTrack(autoplay){
+  const m=document.getElementById('menuMusic'); if(!m) return;
+  const t=_curTrack(); if(!t) return;
+  m.src=t.src; _trackLoaded=true; m.volume=0.45;
+  if(autoplay && musicEnabled){ const p=m.play(); if(p&&p.catch) p.catch(()=>{}); }
+  syncMusicUI();
+}
 function _setupPlaylist(m){
   if(_playlistHooked) return; _playlistHooked=true;
-  m.addEventListener('ended', ()=>{
-    _trackIdx=(_trackIdx+1)%MENU_TRACKS.length;
-    m.src=MENU_TRACKS[_trackIdx];
-    if(musicEnabled) m.play().catch(()=>{});
-  });
+  m.addEventListener('ended', ()=>menuMusicNext());
+  m.addEventListener('play', syncMusicUI);
+  m.addEventListener('pause', syncMusicUI);
+}
+function _ensureMusicOn(){ if(!musicEnabled){ musicEnabled=true; try{ localStorage.setItem('dw_music','1'); }catch(_){} } }
+function menuMusicNext(){
+  _ensureMusicOn();
+  if(!_trackOrder.length) _shuffleTracks();
+  _orderPos++; if(_orderPos>=_trackOrder.length) _shuffleTracks();
+  _loadTrack(true);
+}
+function menuMusicPrev(){
+  _ensureMusicOn();
+  const m=document.getElementById('menuMusic');
+  // Passou de 3s? reinicia a faixa atual; senão vai para a anterior
+  if(m && _trackLoaded && m.currentTime>3){ m.currentTime=0; const p=m.play(); if(p&&p.catch) p.catch(()=>{}); syncMusicUI(); return; }
+  if(!_trackOrder.length) _shuffleTracks();
+  _orderPos=(_orderPos-1+_trackOrder.length)%_trackOrder.length;
+  _loadTrack(true);
 }
 function playMenuMusic(){
   if(!musicEnabled) return;
   const m=document.getElementById('menuMusic'); if(!m) return;
   _setupPlaylist(m);
+  if(!_trackLoaded){ const t=_curTrack(); if(t){ m.src=t.src; _trackLoaded=true; } }
   m.volume=0.45;
   const p=m.play();
   // Autoplay pode ser bloqueado até o 1º gesto do usuário → tenta de novo no gesto.
@@ -2452,6 +2536,7 @@ function playMenuMusic(){
     document.addEventListener('pointerdown',g,{once:true});
     document.addEventListener('keydown',g,{once:true});
   });
+  syncMusicUI();
 }
 function pauseMenuMusic(){ const m=document.getElementById('menuMusic'); if(m){ try{ m.pause(); }catch(_){} } }
 function setMenuMusic(on){
@@ -2467,6 +2552,16 @@ function syncMusicUI(){
   const on=document.getElementById('musicOptOn'), off=document.getElementById('musicOptOff');
   if(on) on.classList.toggle('active',musicEnabled);
   if(off) off.classList.toggle('active',!musicEnabled);
+  // Disco de vinil (player no canto do menu)
+  const m=document.getElementById('menuMusic');
+  const t=(typeof _curTrack==='function')?_curTrack():null;
+  const titleEl=document.getElementById('vinylTitle');
+  if(titleEl) titleEl.textContent = t ? t.name : '—';
+  const playing = musicEnabled && m && !m.paused && !m.ended;
+  const wrap=document.getElementById('vinylPlayer');
+  if(wrap) wrap.classList.toggle('playing', !!playing);
+  const pp=document.getElementById('vinylPlayPause');
+  if(pp) pp.textContent = playing ? '⏸' : '▶';
 }
 
 /* ─── QUALIDADE GRÁFICA (otimização p/ máquinas fracas) ────────────────
@@ -3697,7 +3792,7 @@ const STARTER_SONGS = [
 const DISCOVER_SONGS = [
   { vid:'Dst9gZkq1a8', title:'Travis Scott' },
   { vid:'7CF5qbw8zec', title:'Jetski' },
-  { vid:'_CW6HPGN7Vo', title:'Sequência Cunt' },
+  { vid:'WSDSWdIt3jY', title:'Side Quest King' },
 ];
 
 function renderLibraryPanel(){
