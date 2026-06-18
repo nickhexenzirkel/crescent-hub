@@ -480,8 +480,10 @@ export const PdfEditor = ({ onDoc }) => {
       const imgCache = {};
       const embed = async (dataUrl) => {
         if (imgCache[dataUrl]) return imgCache[dataUrl];
-        const isPng = dataUrl.startsWith('data:image/png');
-        const bytes = Uint8Array.from(atob(dataUrl.split(',')[1]), c=>c.charCodeAt(0));
+        // funciona tanto com data URL base64 quanto com URL de arquivo (asset importado)
+        const buf = await fetch(dataUrl).then(r => r.arrayBuffer());
+        const bytes = new Uint8Array(buf);
+        const isPng = dataUrl.startsWith('data:') ? dataUrl.startsWith('data:image/png') : /\.png(\?|$)/i.test(dataUrl);
         const im = isPng ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
         imgCache[dataUrl] = im; return im;
       };
