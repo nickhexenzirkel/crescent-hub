@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
-  const [hov,sh]=useState(null);
-  const isAdmin = authUser?.role === 'admin';
+  const [hov, sh]     = useState(null);
+  const [pressed, setPressed] = useState(null);
+  const isMobile = useIsMobile();
+  const isAdmin  = authUser?.role === 'admin';
 
   const IcoColab = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -50,26 +53,170 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
     </svg>
   );
-  const allMods=[
-    {id:'colaborador',       label:'Portal do Colaborador', sub:'Portal RH completo',                  icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
-    {id:'alexa',             label:'Central Alexa',          sub:'Festival · Música · Biblioteca',      icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
-    {id:'mercado-estelar',   label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',    icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Em Breve',   adminOnly:false, comingSoon:true},
-    {id:'dashboard',         label:'Dashboard RH',           sub:'Gestão · Funcionários',               icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
-    {id:'ponto',             label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',               icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
-    {id:'faturamento',       label:'Oficina Estelar',        sub:'Controle de Notas · Assinatura',      icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
-    {id:'conexao-setorial',  label:'Conexão Setorial',       sub:'Mensagens internas · Comunicados',    icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+
+  const allMods = [
+    {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
+    {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
+    {id:'mercado-estelar',  label:'Mercado Estelar',       sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Em Breve',   adminOnly:false, comingSoon:true},
+    {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
+    {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Mensagens internas · Comunicados', icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
-  const cols  = mods.length <= 3 ? 3 : 3;
+
+  // ─── MOBILE ────────────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{minHeight:'100vh', display:'flex', flexDirection:'column',
+        background:T.page, fontFamily:'var(--font-body)'}}>
+
+        <style>{`
+          @keyframes starPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.18)}}
+          .mob-card { -webkit-tap-highlight-color: transparent; }
+        `}</style>
+
+        {/* Top bar */}
+        <div style={{position:'sticky', top:0, zIndex:20, background:T.surface,
+          borderBottom:`1px solid ${T.border}`,
+          padding:'10px 16px', display:'flex', alignItems:'center', gap:10}}>
+          <div style={{display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0}}>
+            <BrandLogo size={32}/>
+            <span style={{fontFamily:'var(--font-brand)', fontSize:16, fontWeight:700,
+              color:T.text, letterSpacing:'.06em'}}>UNIKO</span>
+          </div>
+          {authUser && (
+            <div style={{display:'flex', alignItems:'center', gap:8, flexShrink:0}}>
+              <AvatarCircle name={authUser.name} photo={userPhoto} size={28} fontSize={10} rounded="8px"/>
+              <span style={{fontSize:12, fontWeight:600, color:T.text, maxWidth:90,
+                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{authUser.name.split(' ')[0]}</span>
+              <button onClick={onLogout}
+                style={{padding:'5px 11px', borderRadius:16, border:`1px solid ${T.border}`,
+                  background:'transparent', cursor:'pointer', fontSize:12, color:T.textS,
+                  fontFamily:'var(--font-body)', WebkitTapHighlightColor:'transparent'}}>
+                Sair
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Logo + tagline */}
+        <div style={{textAlign:'center', padding:'28px 20px 20px'}}>
+          <div style={{display:'flex', justifyContent:'center', marginBottom:12}}>
+            <BrandLogo size={72}/>
+          </div>
+          <div style={{fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700,
+            color:T.text, letterSpacing:'.07em'}}>UNIKO</div>
+          <div style={{fontSize:11, color:T.textT, letterSpacing:'.10em',
+            textTransform:'uppercase', marginTop:3, marginBottom:12}}>Sistema Corporativo</div>
+          <div style={{maxWidth:240, margin:'0 auto'}}>
+            <StarDivider/>
+          </div>
+          <div style={{fontSize:14, color:T.textS, marginTop:10}}>Selecione um módulo</div>
+        </div>
+
+        {/* Grid 2 colunas */}
+        <div style={{padding:'4px 14px 32px', display:'grid',
+          gridTemplateColumns:'1fr 1fr', gap:12}}>
+          {mods.map(m => {
+            const isPressed = pressed === m.id;
+            return (
+              <div key={m.id}
+                className="mob-card"
+                onClick={m.comingSoon ? undefined : () => onSelect(m.id)}
+                onTouchStart={() => !m.comingSoon && setPressed(m.id)}
+                onTouchEnd={() => setPressed(null)}
+                onTouchCancel={() => setPressed(null)}
+                style={{
+                  background: isPressed ? T.page : T.surface,
+                  border:`1px solid ${isPressed && !m.comingSoon ? m.color+'66' : m.comingSoon ? m.color+'33' : T.border}`,
+                  borderRadius:16,
+                  padding:'16px 14px 14px',
+                  cursor: m.comingSoon ? 'default' : 'pointer',
+                  opacity: m.comingSoon ? 0.78 : 1,
+                  transform: isPressed ? 'scale(0.96)' : 'scale(1)',
+                  transition:'transform .12s, background .12s, border-color .12s',
+                  position:'relative', overflow:'hidden',
+                  WebkitTapHighlightColor:'transparent',
+                  userSelect:'none',
+                }}>
+                {/* Linha dourada topo */}
+                <div style={{position:'absolute', top:0, left:'10%', right:'10%', height:2,
+                  background:`linear-gradient(90deg,transparent,${m.comingSoon?m.color+'55':T.goldV},transparent)`,
+                  borderRadius:999}}/>
+
+                {/* Ícone + tag */}
+                <div style={{display:'flex', justifyContent:'space-between',
+                  alignItems:'flex-start', marginBottom:10}}>
+                  <div style={{width:44, height:44, borderRadius:12, background:m.bg,
+                    border:`1px solid ${m.color}22`, display:'flex', alignItems:'center',
+                    justifyContent:'center', color:m.color}}>
+                    {/* Ícones menores no mobile */}
+                    {React.cloneElement(m.icon, {width:20, height:20})}
+                  </div>
+                  <Tag color={m.color} style={{fontSize:8, padding:'2px 5px'}}>{m.tag}</Tag>
+                </div>
+
+                {/* Textos */}
+                <div style={{fontSize:13, fontWeight:700, color:T.text,
+                  lineHeight:1.25, marginBottom:4}}>{m.label}</div>
+                <div style={{fontSize:11, color:T.textS, lineHeight:1.45,
+                  marginBottom:12, minHeight:32}}>{m.sub}</div>
+
+                {/* Rodapé */}
+                {m.comingSoon
+                  ? <div style={{fontSize:11, fontWeight:600, color:m.color,
+                      display:'flex', alignItems:'center', gap:5}}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke={m.color} strokeWidth="1.8" strokeLinecap="round">
+                        <circle cx="12" cy="12" r="9"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      Em breve
+                    </div>
+                  : <div style={{display:'flex', alignItems:'center', gap:5,
+                      color:m.color, fontSize:12, fontWeight:600}}>
+                      <svg width="10" height="10" viewBox="0 0 14 14"
+                        style={{flexShrink:0, animation:'starPulse 2s ease-in-out infinite',
+                          animationDelay:`${mods.indexOf(m)*0.3}s`}}>
+                        <path d="M7 1 L7.8 5.4 L12 7 L7.8 8.6 L7 13 L6.2 8.6 L2 7 L6.2 5.4 Z"
+                          fill={m.color}/>
+                      </svg>
+                      Acessar
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{marginLeft:'auto'}}>
+                        <path d="M2.5 7H11.5M11.5 7L8 3.5M11.5 7L8 10.5"
+                          stroke={m.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                }
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Rodapé */}
+        <div style={{marginTop:'auto', padding:'0 16px 24px',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:.3}}>
+          <Logo size={18}/>
+          <span style={{fontSize:11, color:T.textT}}>
+            Criado por <span style={{fontFamily:'var(--font-brand)', fontWeight:600,
+              color:T.gold}}>Nicolas Andrade</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── DESKTOP ───────────────────────────────────────────────────────────────
+  const cols = mods.length <= 3 ? 3 : 3;
 
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
       alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'40px 32px'}}>
 
-      {/* ── Novidades / notas de atualização — canto superior esquerdo ── */}
       <WhatsNew/>
 
-      {/* ── Perfil — canto superior direito ── */}
       {authUser&&(
         <div style={{position:'fixed',top:16,right:20,display:'flex',alignItems:'center',gap:8,zIndex:10}}>
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px',borderRadius:20,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
