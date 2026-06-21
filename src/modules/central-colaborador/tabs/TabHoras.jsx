@@ -29,12 +29,11 @@ const fmtData = iso => {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
 };
 
-const nowTime = () => {
-  const d = new Date();
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
-};
+const nowTime = () =>
+  new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo', hour12: false });
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () =>
+  new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
 const STATUS_STYLE = {
   pendente:  { bg: 'rgba(216,144,48,0.15)',  color: '#D89030' },
@@ -87,7 +86,7 @@ const TabHoras = () => {
   const previewValor = valorHora > 0 ? previewTotal * valorHora * previewMult : null;
 
   const openModal = () => {
-    setForm({ data: new Date().toISOString().slice(0, 10), descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false });
+    setForm({ data: todayIso(), descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false });
     setMsg('');
     setModal(true);
   };
@@ -260,7 +259,11 @@ const TabHoras = () => {
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Hora fim *</div>
                 <input type="time" value={form.hora_fim}
                   max={form.data === todayIso() ? nowTime() : undefined}
-                  onChange={e => setForm(p => ({ ...p, hora_fim: e.target.value }))}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (form.data === todayIso() && val > nowTime()) return;
+                    setForm(p => ({ ...p, hora_fim: val }));
+                  }}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.surface || 'white', fontSize: 13, color: T.text, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }} />
               </div>
             </div>
