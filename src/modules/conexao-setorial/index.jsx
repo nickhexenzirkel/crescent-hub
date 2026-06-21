@@ -154,10 +154,6 @@ function BubbleRow({ msg, showHeader, mobile, children }) {
           </div>
         )}
         {children}
-        <div style={{ fontSize:10, color:T.textT, marginTop:3,
-          paddingLeft: isMe?0:2, paddingRight: isMe?2:0, fontFamily:'var(--font-body)' }}>
-          {msg.time}{isMe ? ' ✓✓' : ''}
-        </div>
       </div>
     </div>
   );
@@ -177,7 +173,15 @@ function TextBubble({ msg, showHeader, mobile }) {
         fontSize: mobile ? 15 : 14, lineHeight:1.5,
         fontFamily:'var(--font-body)', wordBreak:'break-word',
         boxShadow: isMe ? `0 2px 8px ${T.gold}33` : `0 1px 3px rgba(0,0,0,0.06)`,
-      }}>{msg.text}</div>
+      }}>
+        {msg.text}
+        <span style={{ float:'right', marginLeft:6, marginBottom:-3, marginTop:5,
+          fontSize:10, lineHeight:1, whiteSpace:'nowrap', fontFamily:'var(--font-body)',
+          color: isMe ? 'rgba(255,255,255,0.65)' : T.textT }}>
+          {msg.time}{isMe ? ' ✓✓' : ''}
+        </span>
+        <span style={{ display:'block', clear:'both', height:0 }}/>
+      </div>
     </BubbleRow>
   );
 }
@@ -187,7 +191,8 @@ function ImageBubble({ msg, showHeader, mobile }) {
   return (
     <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
       <div style={{ borderRadius: isMe?'18px 18px 5px 18px':'5px 18px 18px 18px',
-        overflow:'hidden', border:`1px solid ${T.border}`, maxWidth:maxW, boxShadow:`0 1px 4px rgba(0,0,0,0.10)` }}>
+        overflow:'hidden', border:`1px solid ${T.border}`, maxWidth:maxW, boxShadow:`0 1px 4px rgba(0,0,0,0.10)`,
+        position:'relative' }}>
         {msg.src
           ? <img src={msg.src} alt={msg.name||'imagem'} style={{ width:'100%',display:'block',maxHeight:200,objectFit:'cover' }}/>
           : <div style={{ width:maxW,height:140,background: isMe?T.gold:recvBg(),
@@ -200,6 +205,13 @@ function ImageBubble({ msg, showHeader, mobile }) {
           <div style={{ padding:'6px 12px',background: isMe?`${T.gold}cc`:T.surface,
             fontSize:11,color: isMe?'rgba(255,255,255,0.85)':T.textS,fontFamily:'var(--font-body)' }}>{msg.caption}</div>
         )}
+        {/* Horário sobreposto no canto inferior direito */}
+        <div style={{ position:'absolute', bottom:6, right:8,
+          fontSize:10, color:'rgba(255,255,255,0.88)', whiteSpace:'nowrap',
+          background:'rgba(0,0,0,0.32)', padding:'2px 6px', borderRadius:6,
+          fontFamily:'var(--font-body)', lineHeight:1.4 }}>
+          {msg.time}{isMe ? ' ✓✓' : ''}
+        </div>
       </div>
     </BubbleRow>
   );
@@ -212,23 +224,33 @@ function FileBubble({ msg, showHeader, mobile }) {
     <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
       <div style={{ background: isMe?T.gold:T.surface, border: isMe?'none':`1px solid ${T.border}`,
         borderRadius: isMe?'18px 18px 5px 18px':'5px 18px 18px 18px',
-        padding:'11px 14px',display:'flex',alignItems:'center',gap:11,
+        padding:'11px 14px 9px',display:'flex',flexDirection:'column',gap:8,
         minWidth:190,maxWidth: mobile?250:230,
         boxShadow: isMe?`0 2px 8px ${T.gold}33`:`0 1px 3px rgba(0,0,0,0.06)`,cursor:'pointer' }}>
-        <div style={{ width:42,height:42,borderRadius:11,background:info.bg,flexShrink:0,
-          display:'flex',alignItems:'center',justifyContent:'center',
-          fontSize:9,fontWeight:800,color:'#fff',letterSpacing:'.05em',fontFamily:'monospace' }}>{info.icon}</div>
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ fontSize:12,fontWeight:600,color: isMe?'#fff':T.text,
-            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontFamily:'var(--font-body)' }}>{msg.name}</div>
-          <div style={{ fontSize:10,color: isMe?'rgba(255,255,255,0.6)':T.textS,marginTop:2,fontFamily:'var(--font-body)' }}>
-            {fmt(msg.size||0)} · {(msg.ext||'arquivo').toUpperCase()}</div>
+        {/* Linha principal: ícone + info + download */}
+        <div style={{ display:'flex',alignItems:'center',gap:11 }}>
+          <div style={{ width:42,height:42,borderRadius:11,background:info.bg,flexShrink:0,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:9,fontWeight:800,color:'#fff',letterSpacing:'.05em',fontFamily:'monospace' }}>{info.icon}</div>
+          <div style={{ flex:1,minWidth:0 }}>
+            <div style={{ fontSize:12,fontWeight:600,color: isMe?'#fff':T.text,
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontFamily:'var(--font-body)' }}>{msg.name}</div>
+            <div style={{ fontSize:10,color: isMe?'rgba(255,255,255,0.6)':T.textS,marginTop:2,fontFamily:'var(--font-body)' }}>
+              {fmt(msg.size||0)} · {(msg.ext||'arquivo').toUpperCase()}</div>
+          </div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke={isMe?'rgba(255,255,255,0.7)':T.textS} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
         </div>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-          stroke={isMe?'rgba(255,255,255,0.7)':T.textS} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
+        {/* Horário dentro do balão */}
+        <div style={{ display:'flex',justifyContent:'flex-end' }}>
+          <span style={{ fontSize:10,color: isMe?'rgba(255,255,255,0.6)':T.textT,
+            fontFamily:'var(--font-body)',lineHeight:1,whiteSpace:'nowrap' }}>
+            {msg.time}{isMe ? ' ✓✓' : ''}
+          </span>
+        </div>
       </div>
     </BubbleRow>
   );
@@ -274,9 +296,11 @@ function AudioBubble({ msg, showHeader, mobile }) {
             <div style={{ position:'absolute',left:0,top:0,height:'100%',background:accent,
               borderRadius:2,width:`${progress*100}%`,transition:'width .1s' }}/>
           </div>
-          <div style={{ marginTop:4,fontSize:9,color: isMe?'rgba(255,255,255,0.6)':T.textS,
-            fontFamily:'var(--font-body)',display:'flex',justifyContent:'space-between' }}>
-            <span>{fmtDur(cur)}</span><span>{msg.duration?fmtDur(msg.duration):'🎙️'}</span>
+          <div style={{ marginTop:4,fontSize:9,fontFamily:'var(--font-body)',display:'flex',justifyContent:'space-between',alignItems:'center' }}>
+            <span style={{ color: isMe?'rgba(255,255,255,0.6)':T.textS }}>{fmtDur(cur)}</span>
+            <span style={{ color: isMe?'rgba(255,255,255,0.65)':T.textT, fontSize:10, whiteSpace:'nowrap' }}>
+              {msg.time}{isMe ? ' ✓✓' : ''}
+            </span>
           </div>
         </div>
       </div>
@@ -523,23 +547,58 @@ function InputBar({ onSend, mobile }) {
 
 // ─── Modal: Colegas Online ─────────────────────────────────────────────────────
 function OnlineModal({ onClose }) {
-  const all=Object.entries(USERS);
+  const [search, setSearch] = useState('');
+  const all = Object.entries(USERS);
+  const filtered = search.trim()===''
+    ? all
+    : all.filter(([,u]) => {
+        const q=search.toLowerCase();
+        return u.name.toLowerCase().includes(q) || u.sector.toLowerCase().includes(q);
+      });
   return (
     <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:2000,
       display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}
       onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.surface,borderRadius:18,width:400,maxWidth:'92vw',
-        boxShadow:`0 24px 64px rgba(0,0,0,${T.dark?'0.5':'0.2'})`,border:`1px solid ${T.border}`,overflow:'hidden' }}>
-        <div style={{ padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:10 }}>
+        boxShadow:`0 24px 64px rgba(0,0,0,${T.dark?'0.5':'0.2'})`,border:`1px solid ${T.border}`,overflow:'hidden',
+        display:'flex',flexDirection:'column',maxHeight:'80vh' }}>
+        {/* Header */}
+        <div style={{ padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
           <div style={{ width:32,height:32,borderRadius:9,background:`${T.gold}18`,border:`1px solid ${T.gold}44`,
             display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>👥</div>
-          <span style={{ fontSize:15,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Colegas Online</span>
+          <span style={{ fontSize:15,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Colegas</span>
           <button onClick={onClose} style={{ background:'none',border:'none',color:T.textS,
             cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',WebkitTapHighlightColor:'transparent' }}>×</button>
         </div>
-        <div style={{ padding:'8px 0 16px' }}>
-          {all.map(([id,u])=>(
-            <div key={id} style={{ display:'flex',alignItems:'center',gap:13,padding:'10px 20px',
+        {/* Barra de pesquisa */}
+        <div style={{ padding:'10px 16px',borderBottom:`1px solid ${T.border}`,flexShrink:0 }}>
+          <div style={{ display:'flex',alignItems:'center',gap:9,background:T.page,
+            borderRadius:12,padding:'9px 13px',border:`1px solid ${T.border}` }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              value={search}
+              onChange={e=>setSearch(e.target.value)}
+              placeholder="Pesquisar por nome ou setor..."
+              autoFocus
+              style={{ flex:1,background:'transparent',border:'none',outline:'none',
+                fontSize:14,color:T.text,fontFamily:'var(--font-body)' }}
+            />
+            {search && (
+              <button onClick={()=>setSearch('')} style={{ background:'none',border:'none',color:T.textT,cursor:'pointer',fontSize:16,lineHeight:1,padding:0 }}>×</button>
+            )}
+          </div>
+        </div>
+        {/* Lista */}
+        <div style={{ overflowY:'auto',WebkitOverflowScrolling:'touch' }}>
+          {filtered.length===0 && (
+            <div style={{ padding:'32px 20px',textAlign:'center',color:T.textT,fontSize:13,fontFamily:'var(--font-body)' }}>
+              Nenhum colega encontrado
+            </div>
+          )}
+          {filtered.map(([id,u])=>(
+            <div key={id} style={{ display:'flex',alignItems:'center',gap:13,padding:'11px 20px',
               borderBottom:`1px solid ${T.border}` }}>
               <div style={{ position:'relative',flexShrink:0 }}>
                 <Avatar userId={id} size={44}/>
