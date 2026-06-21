@@ -306,6 +306,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   // ── UI state ─────────────────────────────────────────────
   const [tab, setTab]             = useState("festival");
+  const changeTab = (id) => {
+    window.history.pushState({ screen: 'alexa', tab: id }, '', '#alexa/' + id);
+    setTab(id);
+  };
+  useEffect(() => {
+    const onPop = (e) => { if (e.state?.screen === 'alexa' && e.state.tab) setTab(e.state.tab); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [dokoMsg, setDokoMsg]     = useState(DOKO_MSGS_IDLE[0]);
   const [voiceVal, setVoiceVal]   = useState("");
   const [voiceFocus, setVoiceFocus] = useState(false);
@@ -1231,7 +1240,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
             {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
-            <button key={id} onClick={()=>setTab(id)} style={{
+            <button key={id} onClick={()=>changeTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,flexShrink:0,
               padding:isMobile?"8px 14px":"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
               fontFamily:"var(--font-body)",fontSize:isMobile?12:13,fontWeight:tab===id?700:400,

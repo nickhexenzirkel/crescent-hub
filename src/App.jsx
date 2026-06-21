@@ -43,16 +43,28 @@ export default function CrescentHub() {
       .finally(() => setAuthChecked(true));
   }, []);
 
+  // ── Navegação com histórico do navegador ─────────────────
+  // push: nova entrada (permite voltar). replace: troca sem acumular.
+  const navPush    = (s) => { window.history.pushState({ screen: s }, '', '#' + s); ss(s); };
+  const navReplace = (s) => { window.history.replaceState({ screen: s }, '', '#' + s); ss(s); };
+  const handleGoBack = () => { window.history.back(); };
+
+  useEffect(() => {
+    const onPop = (e) => { const s = e.state?.screen; if (s) ss(s); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   const handleLogin = (user) => {
     setAuthUser(user);
-    ss('modules');
+    navReplace('modules');
     loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
   };
 
   const handleLogout = () => {
     localStorage.removeItem('ch_token');
     setAuthUser(null);
-    ss('login');
+    navReplace('login');
   };
 
   const handleModuleSelect = (id) => {
@@ -63,7 +75,7 @@ export default function CrescentHub() {
       setConfettiTheme(theme);
       setTimeout(() => setConfettiTheme(null), 3200);
     }
-    ss(id);
+    navPush(id);
   };
 
   // ── Sistema de notificações em tempo real ────────────────
@@ -287,15 +299,15 @@ export default function CrescentHub() {
         {authUser && !isMobile && <ExtensionPrompt/>}
 
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
-          {screen==='landing'     && <LandingPage    onStart={()=>ss('login')}/>}
+          {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto}/>}
-          {screen==='colaborador' && <Portal         onBack={()=>ss('modules')} onGoAlexa={()=>ss('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
-          {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={()=>ss('modules')} isAdmin={true}/>}
-          {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
-          {screen==='alexa'       && <CentralAlexa        onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={()=>ss('modules')} authUser={authUser}/>}
-          {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={()=>ss('modules')} authUser={authUser}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
+          {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
+          {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={handleGoBack} adminName={authUser.name}/>}
+          {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
