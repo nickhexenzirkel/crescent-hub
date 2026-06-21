@@ -64,9 +64,15 @@ const INIT_ACTIVITIES = [
 ];
 
 const COMMANDS = [
-  { cmd:'/solicitar_bloqueio', desc:'Notifica setor e cria atividade', hint:'[município] @[usuário] [desbloqueio]' },
-  { cmd:'/aviso',              desc:'Envia aviso urgente ao grupo',     hint:'[mensagem]' },
-  { cmd:'/atribuir',           desc:'Atribui tarefa a um usuário',      hint:'@[usuário] [tarefa]' },
+  { cmd:'/solicitar_bloqueio',
+    desc:'Notifica o setor responsável e cria uma atividade pendente',
+    params:['Cliente / Município', 'Categoria: Abastecimento, Manutenção ou Patrimônio', '@Responsável', 'Quando desbloquear'] },
+  { cmd:'/aviso',
+    desc:'Envia um aviso urgente para todos no grupo',
+    params:['Mensagem do aviso'] },
+  { cmd:'/atribuir',
+    desc:'Atribui uma tarefa a um usuário específico',
+    params:['@Usuário', 'Descrição da tarefa'] },
 ];
 
 const EXT_ICONS = {
@@ -96,7 +102,12 @@ function parseBloqueio(raw) {
   let desbloqueio='A definir';
   if(tm){desbloqueio=tm[0].trim();desbloqueio=desbloqueio[0].toUpperCase()+desbloqueio.slice(1);}
   else if(hm) desbloqueio=`Às ${hm[1]}h${hm[2]||'00'}`;
-  return {municipio,mentions,desbloqueio};
+  const rawLow=raw.toLowerCase();
+  let categoria=null;
+  if(rawLow.includes('abastecimento'))  categoria='Abastecimento';
+  else if(rawLow.includes('manut'))     categoria='Manutenção';
+  else if(rawLow.includes('patrim'))    categoria='Patrimônio';
+  return {municipio,mentions,desbloqueio,categoria};
 }
 
 // ─── Cores semânticas ─────────────────────────────────────────────────────────
@@ -395,7 +406,14 @@ function InputBar({ onSend, mobile }) {
   const mrRef=useRef(null); const timerRef=useRef(null);
 
   const onChange=(e)=>{const v=e.target.value;setInput(v);setCmdMenu(v==='/'||(v.startsWith('/')&&!v.includes(' ')));};
-  const onKey=(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}if(e.key==='Escape'){setCmdMenu(false);setAttachOpen(false);}};
+  const onKey=(e)=>{
+    if(e.key==='Tab'){
+      if(cmdMenu&&filtCmds.length>0){e.preventDefault();pickCmd(filtCmds[0].cmd);}
+      return;
+    }
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}
+    if(e.key==='Escape'){setCmdMenu(false);setAttachOpen(false);}
+  };
   const doSend=()=>{const t=input.trim();if(!t)return;onSend({type:'text',text:t});setInput('');setCmdMenu(false);setAttachOpen(false);inputRef.current?.focus();};
   const pickCmd=(cmd)=>{setInput(cmd+' ');setCmdMenu(false);inputRef.current?.focus();};
   const onImg=(e)=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=(ev)=>onSend({type:'image',src:ev.target.result,name:f.name,size:f.size});r.readAsDataURL(f);e.target.value='';setAttachOpen(false);};
@@ -416,7 +434,9 @@ function InputBar({ onSend, mobile }) {
   const cancelRec=()=>{if(mrRef.current){mrRef.current.ondataavailable=null;mrRef.current.onstop=null;mrRef.current.stop();}clearInterval(timerRef.current);setRecording(false);setRecTime(0);};
 
   const hasText=input.trim().length>0;
-  const filtCmds=COMMANDS.filter(c=>c.cmd.includes(input.replace('/','').split(' ')[0]||''));
+  const typedCmd=input.startsWith('/')?input.split(' ')[0].toLowerCase():'';
+  const filtCmds=COMMANDS.filter(c=>c.cmd.startsWith(typedCmd));
+  const activeCmd=COMMANDS.find(c=>input.startsWith(c.cmd+' '));
   const safeBot=mobile?'max(12px, env(safe-area-inset-bottom))':'12px';
   const circBtn=(active)=>({
     width: mobile?44:38,height: mobile?44:38,borderRadius:'50%',flexShrink:0,
@@ -493,21 +513,63 @@ function InputBar({ onSend, mobile }) {
               ))}
             </div>
           )}
-          {/* Cmd menu */}
+          {/* Dropdown: seleção de comando (enquanto digita) */}
           {cmdMenu&&filtCmds.length>0&&(
             <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left: mobile?0:44,right: mobile?0:48,
-              background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,
+              background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,
               overflow:'hidden',boxShadow:`0 -8px 28px rgba(0,0,0,${T.dark?'0.35':'0.1'})`,zIndex:10 }}>
-              <div style={{ padding:'6px 14px 4px',fontSize:9,fontWeight:700,color:T.textT,
-                textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-body)' }}>Comandos</div>
+              <div style={{ padding:'8px 14px 5px',fontSize:9,fontWeight:700,color:T.textT,
+                textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-body)',
+                display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+                <span>Comandos disponíveis</span>
+                <span style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
+                  padding:'1px 6px',fontSize:9,fontFamily:'monospace',color:T.textS }}>Tab ⇥ para completar</span>
+              </div>
               {filtCmds.map(c=>(
                 <div key={c.cmd} onClick={()=>pickCmd(c.cmd)}
-                  style={{ padding:'10px 14px',cursor:'pointer',display:'flex',gap:10,alignItems:'center',
+                  style={{ padding:'10px 14px',cursor:'pointer',
                     borderTop:`1px solid ${T.border}`,WebkitTapHighlightColor:'transparent' }}>
-                  <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:700,flexShrink:0 }}>{c.cmd}</code>
-                  <span style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>{c.desc}</span>
+                  <div style={{ display:'flex',flexWrap:'wrap',gap:5,alignItems:'center',marginBottom:4 }}>
+                    <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:700,flexShrink:0 }}>{c.cmd}</code>
+                    {c.params.map((p,i)=>(
+                      <span key={i} style={{ fontSize:10,color:'#E67E22',background:'#E67E2214',
+                        border:'1px solid #E67E2228',padding:'1px 6px',borderRadius:4,fontFamily:'monospace' }}>
+                        [{p}]
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>{c.desc}</div>
                 </div>
               ))}
+            </div>
+          )}
+          {/* Card de uso: aparece após digitar o comando completo + espaço */}
+          {activeCmd&&!cmdMenu&&(
+            <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left: mobile?0:44,right: mobile?0:48,
+              background: T.dark?'#0C1628':'#EFF6FF',
+              border:`1.5px solid ${T.gold}55`,borderRadius:14,padding:'13px 16px',
+              boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
+              zIndex:10,fontFamily:'var(--font-body)' }}>
+              <div style={{ fontSize:9,fontWeight:700,color:T.gold,textTransform:'uppercase',
+                letterSpacing:'.1em',marginBottom:9,display:'flex',alignItems:'center',gap:6 }}>
+                <span>⚡</span><span>Como usar</span>
+              </div>
+              <div style={{ display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:9 }}>
+                <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:800 }}>{activeCmd.cmd}</code>
+                {activeCmd.params.map((p,i)=>(
+                  <span key={i} style={{ fontSize:mobile?11:10,color:'#C0500A',background:'#E67E2215',
+                    border:'1px solid #E67E2230',padding:'2px 8px',borderRadius:5,fontFamily:'monospace',lineHeight:1.6 }}>
+                    [{p}]
+                  </span>
+                ))}
+              </div>
+              <div style={{ fontSize:11,color:T.textS,lineHeight:1.5 }}>{activeCmd.desc}</div>
+              <div style={{ marginTop:9,paddingTop:8,borderTop:`1px solid ${T.border}`,
+                fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5 }}>
+                <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
+                  padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
+                <span>para enviar a solicitação</span>
+              </div>
             </div>
           )}
           <div style={{ display:'flex',gap:8,alignItems:'center' }}>
@@ -1140,6 +1202,13 @@ export default function ConexaoSetorial({ onBack }) {
         when:cmdData.desbloqueio,color:'#E67E22',
         sector:cmdData.mentions.map(u=>USERS[u]?.sector).filter(Boolean).join(', ')||'Geral',urgent:false},...p]);
       setNotifToast(cmdData);
+      // Mensagem automática formatada após o comando
+      const autoId=nextId.current++;
+      const catLine=cmdData.categoria?`\n📋 Categoria: ${cmdData.categoria}`:'';
+      const autoText=`Olá, prezados! 👋 Estou solicitando o bloqueio de transações com as seguintes informações:\n\n📍 Cliente: ${cmdData.municipio}${catLine}\n👤 Responsável: ${mentioned}\n⏰ Desbloqueio previsto: ${cmdData.desbloqueio}\n\nAguardo a confirmação do recebimento. Obrigado! 🙏`;
+      setTimeout(()=>{
+        setGroupMsgs(p=>[...p,{id:autoId,from:ME,type:'text',text:autoText,time:nowTime()}]);
+      },900);
     } else {
       const msg={id:id1,from:ME,time,...data};
       if(selected==='group') setGroupMsgs(p=>[...p,msg]);
