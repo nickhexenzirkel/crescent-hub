@@ -51,6 +51,7 @@ const TabHoras = () => {
   const [modal,     setModal]     = useState(false);
   const [saving,    setSaving]    = useState(false);
   const [msg,       setMsg]       = useState('');
+  const [horaFimErr, setHoraFimErr] = useState('');
   const [search,    setSearch]    = useState('');
   const [form,      setForm]      = useState({
     data: new Date().toISOString().slice(0, 10),
@@ -87,7 +88,7 @@ const TabHoras = () => {
 
   const openModal = () => {
     setForm({ data: todayIso(), descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false });
-    setMsg('');
+    setMsg(''); setHoraFimErr('');
     setModal(true);
   };
 
@@ -238,7 +239,7 @@ const TabHoras = () => {
 
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Data</div>
-              <input type="date" value={form.data} onChange={e => setForm(p => ({ ...p, data: e.target.value }))}
+              <input type="date" value={form.data} onChange={e => { setHoraFimErr(''); setForm(p => ({ ...p, data: e.target.value })); }}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.surface || 'white', fontSize: 13, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
             </div>
 
@@ -261,12 +262,25 @@ const TabHoras = () => {
                   max={form.data === todayIso() ? nowTime() : undefined}
                   onChange={e => {
                     const val = e.target.value;
-                    if (form.data === todayIso() && val > nowTime()) return;
+                    if (form.data === todayIso() && val > nowTime()) {
+                      setHoraFimErr(`Não é possível registrar um horário futuro. Aguarde até ${val} para lançar.`);
+                      return;
+                    }
+                    setHoraFimErr('');
                     setForm(p => ({ ...p, hora_fim: val }));
                   }}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.surface || 'white', fontSize: 13, color: T.text, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }} />
               </div>
             </div>
+
+            {horaFimErr && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 13px', borderRadius: 9, background: 'rgba(192,64,80,0.07)', border: '1px solid rgba(192,64,80,0.25)', marginBottom: 4 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C04050" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span style={{ fontSize: 12.5, color: '#C04050', lineHeight: 1.5 }}>{horaFimErr}</span>
+              </div>
+            )}
 
             {/* Toggle Feriado/Domingo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, background: 'rgba(216,144,48,0.08)', border: '1px solid rgba(216,144,48,0.22)', marginBottom: 16, cursor: 'pointer' }}
