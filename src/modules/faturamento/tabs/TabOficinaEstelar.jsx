@@ -73,10 +73,12 @@ const COL3 = [
 
 const MONTHS_SEL = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
+const FILL_COLOR = '#1A6FB5'; /* azul para campos preenchidos */
+
 /* ── Documento (preview fiel ao modelo) ── */
 const CartaDoc = ({ form }) => {
   const { cidade, dia, mes, ano, empresa, endereco, cnpj, ie,
-          nfTipo, nfNumero, nfDataEmissao, retificacoes, sigSrc } = form;
+          nfTipo, nfNumero, nfDataEmissao, retificacoes, sigSrc, logoSrc } = form;
 
   /* data de emissão da NF: ISO → partes */
   const [eAno='', eMes='', eDia=''] = nfDataEmissao ? nfDataEmissao.split('-') : [];
@@ -92,7 +94,12 @@ const CartaDoc = ({ form }) => {
   return (
     <div style={{background:'#fff',padding:'18px 22px',fontSize:8.5,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5,minWidth:520}}>
 
-      {/* ── Título ── */}
+      {/* ── Logo + Título ── */}
+      {logoSrc && (
+        <div style={{textAlign:'center',marginBottom:8}}>
+          <img src={logoSrc} alt="Logo" style={{maxHeight:56,maxWidth:200,objectFit:'contain'}}/>
+        </div>
+      )}
       <div style={{textAlign:'center',fontWeight:'bold',fontSize:12,marginBottom:13,letterSpacing:'.08em',textDecoration:'underline'}}>
         CARTA DE CORREÇÃO
       </div>
@@ -157,11 +164,11 @@ const CartaDoc = ({ form }) => {
               </span>
             </td>
             {/* NF Número */}
-            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:13,color:'#cc0000',letterSpacing:'.02em'}}>
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:13,color:FILL_COLOR,letterSpacing:'.02em'}}>
               {nfNumero}
             </td>
             {/* Emissão */}
-            <td style={{...TD,textAlign:'center',fontWeight:'bold',color:'#cc0000'}}>
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',color:FILL_COLOR}}>
               {eMes&&<><span style={{fontSize:9}}>{eMes}</span> <span style={{fontSize:8}}>▾</span> / </>}
               {eDia&&<><span style={{fontSize:9}}>{eDia}</span> <span style={{fontSize:8}}>▾</span> / </>}
               <span style={{fontSize:12}}>{eAno}</span>
@@ -212,11 +219,11 @@ const CartaDoc = ({ form }) => {
             const filled = r.codigo||r.texto;
             return (
               <tr key={i}>
-                <td style={{...TDc,fontWeight:filled?700:400,color:filled?'#cc0000':'transparent',
+                <td style={{...TDc,fontWeight:filled?700:400,color:filled?FILL_COLOR:'transparent',
                   fontSize:filled?9:8,padding:'1px 4px',minHeight:16,height:16}}>
                   {r.codigo||' '}
                 </td>
-                <td style={{...TD,fontWeight:filled?700:400,color:filled?'#cc0000':'#111',
+                <td style={{...TD,fontWeight:filled?700:400,color:filled?FILL_COLOR:'#111',
                   fontSize:filled?8.5:8,minHeight:16,height:16,padding:'1px 5px'}}>
                   {r.texto||' '}
                 </td>
@@ -255,7 +262,7 @@ const CartaDoc = ({ form }) => {
             {empresa||<span style={{color:'#aaa',fontStyle:'italic'}}>Razão Social</span>}
           </div>
           <div style={{fontSize:7.5,color:'#555',marginBottom:1}}>Ender.</div>
-          <div style={{fontWeight:'bold',color:'#cc0000',fontSize:8.5,marginBottom:6}}>
+          <div style={{fontWeight:'bold',color:FILL_COLOR,fontSize:8.5,marginBottom:6}}>
             {endereco||' '}
           </div>
           <div style={{fontSize:8.5}}>
@@ -276,7 +283,7 @@ const TabCarta = () => {
     empresa:'', endereco:'', cnpj:'', ie:'',
     nfTipo:'nossa', nfNumero:'', nfDataEmissao:'',
     retificacoes:[{codigo:'',texto:''}],
-    sigSrc:null,
+    sigSrc:null, logoSrc:null,
   });
 
   const [form, setForm] = useState(emptyForm);
@@ -314,6 +321,24 @@ const TabCarta = () => {
         <div style={{paddingBottom:40}}>
 
           {sec('Dados da Empresa')}
+          {/* Logo */}
+          <Fld label="Logo da empresa (opcional)">
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <label style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 13px',borderRadius:8,
+                border:`1px dashed ${T.border}`,cursor:'pointer',fontSize:12.5,color:T.textS,background:'transparent'}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                {form.logoSrc ? 'Trocar logo' : 'Carregar logo'}
+                <input type="file" accept="image/png,image/jpeg,image/svg+xml" style={{display:'none'}}
+                  onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>set('logoSrc',r.result);r.readAsDataURL(f);}e.target.value='';}}/>
+              </label>
+              {form.logoSrc && (
+                <>
+                  <img src={form.logoSrc} alt="Logo" style={{height:32,maxWidth:100,objectFit:'contain',borderRadius:4,border:`1px solid ${T.border}`,padding:2}}/>
+                  <button onClick={()=>set('logoSrc',null)} style={{background:'none',border:'none',cursor:'pointer',color:T.textD,fontSize:18,lineHeight:1}}>×</button>
+                </>
+              )}
+            </div>
+          </Fld>
           <Fld label="Empresa (Razão Social)">
             <input style={inp} placeholder="Ex: 7 SERV GESTAO DE BENEFICIOS" value={form.empresa} onChange={e=>set('empresa',e.target.value)}/>
           </Fld>
