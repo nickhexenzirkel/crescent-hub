@@ -350,6 +350,26 @@ function CommandBubble({ msg, mobile }) {
             <div style={{ width:6,height:6,borderRadius:'50%',background:'#27AE60',flexShrink:0 }}/>
             <span style={{ fontSize:10,color:'#5DCC80',fontWeight:600 }}>Notificação enviada · Atividade registrada</span>
           </div>
+          {/* Mensagem automática dentro do card */}
+          {(()=>{
+            const mentioned=msg.cmdData.mentions.map(u=>'@'+USERS[u]?.name).join(', ')||'@Setor';
+            const catLine=msg.cmdData.categoria?`\n📋 Categoria: ${msg.cmdData.categoria}`:'';
+            const autoText=`Olá, prezados! 👋 Estou solicitando o bloqueio de transações com as seguintes informações:\n\n📍 Cliente: ${msg.cmdData.municipio}${catLine}\n👤 Responsável: ${mentioned}\n⏰ Desbloqueio previsto: ${msg.cmdData.desbloqueio}\n\nAguardo a confirmação do recebimento. Obrigado! 🙏`;
+            return (
+              <div style={{ marginTop:10,borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:10 }}>
+                <div style={{ fontSize:8,color:'rgba(255,255,255,0.28)',fontWeight:700,textTransform:'uppercase',
+                  letterSpacing:'.08em',marginBottom:7,display:'flex',alignItems:'center',gap:5 }}>
+                  <span>💬</span><span>MENSAGEM ENVIADA AO GRUPO</span>
+                </div>
+                <div style={{ fontSize: mobile?12:11, color:'rgba(255,255,255,0.85)', lineHeight:1.65,
+                  whiteSpace:'pre-line', background:'rgba(255,255,255,0.05)',
+                  borderRadius:9, padding:'9px 11px', borderLeft:'2px solid #27AE60',
+                  fontFamily:'var(--font-body)' }}>
+                  {autoText}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <div style={{ fontSize:10,color:T.textT,marginTop:3,textAlign:'right',paddingRight:2,fontFamily:'var(--font-body)' }}>
           {msg.time} ✓✓
@@ -1202,13 +1222,6 @@ export default function ConexaoSetorial({ onBack }) {
         when:cmdData.desbloqueio,color:'#E67E22',
         sector:cmdData.mentions.map(u=>USERS[u]?.sector).filter(Boolean).join(', ')||'Geral',urgent:false},...p]);
       setNotifToast(cmdData);
-      // Mensagem automática formatada após o comando
-      const autoId=nextId.current++;
-      const catLine=cmdData.categoria?`\n📋 Categoria: ${cmdData.categoria}`:'';
-      const autoText=`Olá, prezados! 👋 Estou solicitando o bloqueio de transações com as seguintes informações:\n\n📍 Cliente: ${cmdData.municipio}${catLine}\n👤 Responsável: ${mentioned}\n⏰ Desbloqueio previsto: ${cmdData.desbloqueio}\n\nAguardo a confirmação do recebimento. Obrigado! 🙏`;
-      setTimeout(()=>{
-        setGroupMsgs(p=>[...p,{id:autoId,from:ME,type:'text',text:autoText,time:nowTime()}]);
-      },900);
     } else {
       const msg={id:id1,from:ME,time,...data};
       if(selected==='group') setGroupMsgs(p=>[...p,msg]);
