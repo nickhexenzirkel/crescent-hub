@@ -333,20 +333,26 @@ function CommandBubble({ msg, mobile }) {
               fontSize:9,fontWeight:800,color:'#fff',letterSpacing:'.06em' }}>⚡ COMANDO</div>
             <code style={{ fontSize:10,color:'rgba(255,255,255,0.4)' }}>/solicitar_bloqueio</code>
           </div>
-          {[
-            {icon:'📍',label:'Cliente',    val:msg.cmdData.municipio,                                          color:'#fff'    },
-            {icon:'📋',label:'Categoria',  val:msg.cmdData.categoria||'Não especificada',                      color:'#A78BFA' },
-            {icon:'👥',label:'Responsável',val:msg.cmdData.mentions.map(u=>'@'+USERS[u]?.name).join(', ')||'—',color:'#5DCC80' },
-            {icon:'⏰',label:'Desbloqueio',val:msg.cmdData.desbloqueio,                                        color:'#E67E22' },
-          ].map(r=>(
-            <div key={r.label} style={{ display:'flex',gap:10,alignItems:'flex-start',marginBottom:8 }}>
-              <span style={{ fontSize:14,flexShrink:0 }}>{r.icon}</span>
-              <div>
-                <div style={{ fontSize:8,color:'rgba(255,255,255,0.28)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:1 }}>{r.label}</div>
-                <div style={{ fontSize:12,fontWeight:700,color:r.color }}>{r.val}</div>
+          {/* Texto de abertura */}
+          <div style={{ fontSize:13,color:'rgba(255,255,255,0.88)',lineHeight:1.55,marginBottom:11,
+            fontFamily:'var(--font-body)',fontWeight:500 }}>
+            Olá! Por gentileza, bloquear as transações do cliente:
+          </div>
+          {/* Campos em lista */}
+          <div style={{ display:'flex',flexDirection:'column',gap:7 }}>
+            {[
+              { val:msg.cmdData.municipio,                         color:'#fff'    },
+              { val:msg.cmdData.categoria||'Não especificada',     color:'#A78BFA' },
+              { val:msg.cmdData.desbloqueio,                       color:'#E67E22' },
+              { val:'Responsável: Suporte Contratual & Operacional',color:'#5DCC80' },
+            ].map((item,i)=>(
+              <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:8 }}>
+                <span style={{ color:'rgba(255,255,255,0.35)',fontSize:15,lineHeight:1.3,flexShrink:0,marginTop:1 }}>•</span>
+                <span style={{ fontSize:13,color:item.color,fontFamily:'var(--font-body)',
+                  fontWeight: i===3?600:500,lineHeight:1.45 }}>{item.val}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           <div style={{ marginTop:9,borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,display:'flex',alignItems:'center',gap:6 }}>
             <div style={{ width:6,height:6,borderRadius:'50%',background:'#27AE60',flexShrink:0 }}/>
             <span style={{ fontSize:10,color:'#5DCC80',fontWeight:600 }}>Notificação enviada · Atividade registrada</span>
