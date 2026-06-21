@@ -10,6 +10,7 @@ import PontoEletronico from './modules/ponto-eletronico';
 import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
+import ConexaoSetorial from './modules/conexao-setorial';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { ExtensionPrompt } from './shared/ExtensionPrompt';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -55,7 +56,7 @@ export default function CrescentHub() {
   };
 
   const handleModuleSelect = (id) => {
-    const adminOnly = ['dashboard','ponto'];
+    const adminOnly = ['dashboard','ponto','conexao-setorial'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     const theme = localStorage.getItem('ch_theme') || 'vozBrasil';
     if (['vozBrasil','vozBrasilDark','orgulho','orgulhoDark'].includes(theme)) {
@@ -294,6 +295,7 @@ export default function CrescentHub() {
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={()=>ss('modules')} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={()=>ss('modules')} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={()=>ss('modules')} authUser={authUser}/>}
+          {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={()=>ss('modules')} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}

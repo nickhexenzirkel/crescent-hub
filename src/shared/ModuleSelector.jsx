@@ -45,13 +45,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
     </svg>
   );
+  const IcoChat = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+    </svg>
+  );
   const allMods=[
-    {id:'colaborador',    label:'Portal do Colaborador', sub:'Portal RH completo',             icon:IcoColab,   color:T.gold,    bg:T.goldGl,              tag:'Principal', adminOnly:false},
-    {id:'alexa',          label:'Central Alexa',          sub:'Festival · Música · Biblioteca', icon:IcoAlexa,   color:T.gold,    bg:T.goldGl,              tag:'Música',    adminOnly:false},
-    {id:'mercado-estelar',label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',icon:IcoMercado, color:T.gold,    bg:T.goldGl,              tag:'Em Breve',  adminOnly:false, comingSoon:true},
-    {id:'dashboard',      label:'Dashboard RH',           sub:'Gestão · Funcionários',          icon:IcoDash,    color:T.gold,    bg:T.goldGl,              tag:'Admin',     adminOnly:true},
-    {id:'ponto',          label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',          icon:IcoPonto,       color:T.gold,    bg:T.goldGl,    tag:'Admin',     adminOnly:true},
-    {id:'faturamento',    label:'Oficina Estelar',        sub:'Controle de Notas · Assinatura', icon:IcoFaturamento, color:T.gold,    bg:T.goldGl,    tag:'Documentos',adminOnly:false},
+    {id:'colaborador',       label:'Portal do Colaborador', sub:'Portal RH completo',                  icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
+    {id:'alexa',             label:'Central Alexa',          sub:'Festival · Música · Biblioteca',      icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
+    {id:'mercado-estelar',   label:'Mercado Estelar',        sub:'Loja de benefícios e recompensas',    icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Em Breve',   adminOnly:false, comingSoon:true},
+    {id:'dashboard',         label:'Dashboard RH',           sub:'Gestão · Funcionários',               icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'ponto',             label:'Ponto Eletrônico',       sub:'Leitor de arquivo AFD',               icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'faturamento',       label:'Oficina Estelar',        sub:'Controle de Notas · Assinatura',      icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
+    {id:'conexao-setorial',  label:'Conexão Setorial',       sub:'Mensagens internas · Comunicados',    icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
   const cols  = mods.length <= 3 ? 3 : 3;
