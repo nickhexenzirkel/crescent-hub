@@ -424,12 +424,13 @@ function InputBar({ onSend, mobile }) {
   const inputRef=useRef(null); const imgRef=useRef(null);
   const fileRef=useRef(null); const audioFRef=useRef(null);
   const mrRef=useRef(null); const timerRef=useRef(null);
+  const [cmdCliente,    setCmdCliente]    = useState('');
   const [cmdCategoria,  setCmdCategoria]  = useState(null);
   const [cmdDesbloqueio,setCmdDesbloqueio]= useState(null);
   const [showCustomDate,setShowCustomDate]= useState(false);
   const [customDateVal, setCustomDateVal] = useState('');
 
-  const resetQuick=()=>{setCmdCategoria(null);setCmdDesbloqueio(null);setShowCustomDate(false);setCustomDateVal('');};
+  const resetQuick=()=>{setCmdCliente('');setCmdCategoria(null);setCmdDesbloqueio(null);setShowCustomDate(false);setCustomDateVal('');};
 
   const onChange=(e)=>{
     const v=e.target.value;
@@ -449,7 +450,7 @@ function InputBar({ onSend, mobile }) {
     const t=input.trim();if(!t)return;
     if(t.toLowerCase().startsWith('/solicitar_bloqueio')){
       const desblFinal=cmdDesbloqueio==='custom'?customDateVal:cmdDesbloqueio;
-      onSend({type:'text',text:t,_quickCategoria:cmdCategoria||undefined,_quickDesbloqueio:desblFinal||undefined});
+      onSend({type:'text',text:t,_quickCliente:cmdCliente.trim()||undefined,_quickCategoria:cmdCategoria||undefined,_quickDesbloqueio:desblFinal||undefined});
       resetQuick();
     } else {
       onSend({type:'text',text:t});
@@ -594,7 +595,19 @@ function InputBar({ onSend, mobile }) {
                 zIndex:10,fontFamily:'var(--font-body)' }}>
                 <div style={{ fontSize:10,fontWeight:700,color:T.gold,textTransform:'uppercase',
                   letterSpacing:'.1em',marginBottom:13,display:'flex',alignItems:'center',gap:7 }}>
-                  🔒 <span>Solicitação de Bloqueio — escolha as opções</span>
+                  🔒 <span>Solicitação de Bloqueio</span>
+                </div>
+                {/* Cliente */}
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
+                    letterSpacing:'.08em',marginBottom:7 }}>👤 Cliente / Município</div>
+                  <input value={cmdCliente} onChange={e=>setCmdCliente(e.target.value)}
+                    placeholder="Nome do município ou empresa..."
+                    autoFocus
+                    style={{ width:'100%',boxSizing:'border-box',background:T.page,
+                      border:`1px solid ${cmdCliente?T.gold+'99':T.border}`,borderRadius:10,
+                      padding:'8px 12px',fontSize:mobile?16:13,color:T.text,
+                      fontFamily:'var(--font-body)',outline:'none',transition:'border-color .15s' }}/>
                 </div>
                 {/* Categoria */}
                 <div style={{ marginBottom:12 }}>
@@ -619,7 +632,7 @@ function InputBar({ onSend, mobile }) {
                   <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
                     letterSpacing:'.08em',marginBottom:8 }}>⏰ Desbloqueio</div>
                   <div style={{ display:'flex',flexWrap:'wrap',gap:7,marginBottom:7 }}>
-                    {[{label:'⏰ Hoje às 17h',val:'Hoje às 17h'},{label:'🌅 Amanhã às 8h',val:'Amanhã às 8h'},{label:'🌆 Amanhã às 17h',val:'Amanhã às 17h'},{label:'📅 Outra hora',val:'custom'}].map(opt=>(
+                    {[{label:'🌅 Amanhã às 8h',val:'Amanhã às 8h'},{label:'📅 Outra hora',val:'custom'}].map(opt=>(
                       <button key={opt.val} onClick={()=>{const s=cmdDesbloqueio===opt.val?null:opt.val;setCmdDesbloqueio(s);setShowCustomDate(s==='custom');if(s!=='custom')setCustomDateVal('');}}
                         style={{ padding:'7px 14px',borderRadius:22,cursor:'pointer',
                           fontFamily:'var(--font-body)',fontSize:mobile?13:12,fontWeight:cmdDesbloqueio===opt.val?700:500,
@@ -634,7 +647,6 @@ function InputBar({ onSend, mobile }) {
                   {showCustomDate&&(
                     <input value={customDateVal} onChange={e=>setCustomDateVal(e.target.value)}
                       placeholder="Ex: 22/04 às 08:00, próxima segunda..."
-                      autoFocus
                       style={{ width:'100%',boxSizing:'border-box',background:T.page,
                         border:`1px solid ${T.gold}55`,borderRadius:10,
                         padding:'8px 12px',fontSize:mobile?16:13,color:T.text,
@@ -646,6 +658,7 @@ function InputBar({ onSend, mobile }) {
                   <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
                     padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
                   <span>para enviar</span>
+                  {cmdCliente.trim()&&<span style={{ color:'#fff',fontWeight:600 }}>· {cmdCliente.trim()}</span>}
                   {cmdCategoria&&<span style={{ color:T.gold,fontWeight:600 }}>· {cmdCategoria}</span>}
                   {cmdDesbloqueio&&cmdDesbloqueio!=='custom'&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {cmdDesbloqueio}</span>}
                   {cmdDesbloqueio==='custom'&&customDateVal&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {customDateVal}</span>}
@@ -1299,6 +1312,7 @@ export default function ConexaoSetorial({ onBack }) {
     if(data.type==='text'&&data.text.toLowerCase().startsWith('/solicitar_bloqueio')){
       const raw=data.text.slice('/solicitar_bloqueio'.length).trim();
       const cmdData=parseBloqueio(raw);
+      if(data._quickCliente)    cmdData.municipio   =data._quickCliente;
       if(data._quickCategoria)  cmdData.categoria   =data._quickCategoria;
       if(data._quickDesbloqueio)cmdData.desbloqueio =data._quickDesbloqueio;
       setGroupMsgs(p=>[...p,
