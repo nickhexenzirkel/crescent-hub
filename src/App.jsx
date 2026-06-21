@@ -32,14 +32,26 @@ export default function CrescentHub() {
   // Verifica token salvo ao carregar o app
   useEffect(() => {
     const token = localStorage.getItem('ch_token');
-    if (!token) { setAuthChecked(true); return; }
+    if (!token) {
+      // Semeia o estado inicial — garante que voltar ao início funcione
+      window.history.replaceState({ screen: 'landing' }, '');
+      setAuthChecked(true);
+      return;
+    }
     fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d?.user) { setAuthUser(d.user); ss('modules'); loadUserPhoto().then(p => { if (p) setUserPhoto(p); }); }
-        else localStorage.removeItem('ch_token');
+        if (d?.user) {
+          setAuthUser(d.user);
+          ss('modules');
+          window.history.replaceState({ screen: 'modules' }, '');
+          loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
+        } else {
+          localStorage.removeItem('ch_token');
+          window.history.replaceState({ screen: 'landing' }, '');
+        }
       })
-      .catch(() => {})
+      .catch(() => { window.history.replaceState({ screen: 'landing' }, ''); })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -50,7 +62,12 @@ export default function CrescentHub() {
   const handleGoBack = () => { window.history.back(); };
 
   useEffect(() => {
-    const onPop = (e) => { const s = e.state?.screen; if (s) ss(s); };
+    const onPop = (e) => {
+      const s = e.state?.screen;
+      if (s) ss(s);
+      // state nulo = entrada anterior ao site (sem estado) → vai para o início
+      else ss('landing');
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);

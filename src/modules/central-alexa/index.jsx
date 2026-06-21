@@ -310,6 +310,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     window.history.pushState({ screen: 'alexa', tab: id }, '', '#alexa/' + id);
     setTab(id);
   };
+  // Semeia a aba inicial no entry de histórico criado por navPush('alexa')
+  useEffect(() => {
+    window.history.replaceState({ screen: 'alexa', tab: 'festival' }, '', '#alexa/festival');
+  }, []);
   useEffect(() => {
     const onPop = (e) => { if (e.state?.screen === 'alexa' && e.state.tab) setTab(e.state.tab); };
     window.addEventListener('popstate', onPop);
