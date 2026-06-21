@@ -29,6 +29,13 @@ const fmtData = iso => {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
 };
 
+const nowTime = () => {
+  const d = new Date();
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
 const STATUS_STYLE = {
   pendente:  { bg: 'rgba(216,144,48,0.15)',  color: '#D89030' },
   aprovado:  { bg: 'rgba(26,156,112,0.12)',  color: '#1A9C70' },
@@ -38,7 +45,7 @@ const STATUS_STYLE = {
 const TabHoras = () => {
   const authData  = getAuthUser();
   const salario   = USER.salary || authData?.salary || 0;
-  const valorHora = salario > 0 ? salario / 160 : 0;
+  const valorHora = salario > 0 ? salario / 240 : 0;
 
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(false);
@@ -76,7 +83,8 @@ const TabHoras = () => {
 
   const previewTotal = calcHoras(form.hora_inicio, form.hora_fim);
   const previewCalc  = previewTotal * (form.feriado_domingo ? 2 : 1);
-  const previewValor = valorHora > 0 ? previewCalc * valorHora : null;
+  const previewMult  = form.feriado_domingo ? 2.0 : 1.5;
+  const previewValor = valorHora > 0 ? previewTotal * valorHora * previewMult : null;
 
   const openModal = () => {
     setForm({ data: new Date().toISOString().slice(0, 10), descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false });
@@ -87,12 +95,14 @@ const TabHoras = () => {
   const saveRegistro = async () => {
     if (!form.descricao.trim())    { setMsg('Informe a descrição do serviço'); return; }
     if (!form.hora_inicio || !form.hora_fim) { setMsg('Informe hora início e hora fim'); return; }
+    if (form.data === todayIso() && form.hora_fim > nowTime()) { setMsg('Hora fim não pode ser no futuro'); return; }
     const total = calcHoras(form.hora_inicio, form.hora_fim);
     if (total <= 0) { setMsg('Hora fim deve ser maior que hora início'); return; }
     setSaving(true); setMsg('');
-    const calc = total * (form.feriado_domingo ? 2 : 1);
+    const calc         = total * (form.feriado_domingo ? 2 : 1);
+    const multiplicador = form.feriado_domingo ? 2.0 : 1.5;
     const vH   = valorHora > 0 ? valorHora : null;
-    const vT   = vH ? calc * vH : null;
+    const vT   = vH ? total * vH * multiplicador : null;
     const { error } = await _supabase.from('banco_horas').insert({
       created_by:       USER.name,
       data:             form.data,
@@ -248,7 +258,9 @@ const TabHoras = () => {
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Hora fim *</div>
-                <input type="time" value={form.hora_fim} onChange={e => setForm(p => ({ ...p, hora_fim: e.target.value }))}
+                <input type="time" value={form.hora_fim}
+                  max={form.data === todayIso() ? nowTime() : undefined}
+                  onChange={e => setForm(p => ({ ...p, hora_fim: e.target.value }))}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.surface || 'white', fontSize: 13, color: T.text, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }} />
               </div>
             </div>
@@ -269,6 +281,14 @@ const TabHoras = () => {
             {previewTotal > 0 && (
               <div style={{ padding: '14px 16px', borderRadius: 10, background: `rgba(78,143,168,0.08)`, border: `1px solid rgba(78,143,168,0.22)`, marginBottom: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: T.blue || '#2A6FB5', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.06em' }}>Estimativa do cálculo</div>
+
+                {/* Fórmula detalhada */}
+                {valorHora > 0 && (
+                  <div style={{ fontSize: 12.5, color: T.text, marginBottom: 12, padding: '8px 10px', background: 'rgba(26,156,112,0.07)', borderRadius: 7, border: '1px solid rgba(26,156,112,0.18)', fontFamily: 'monospace', lineHeight: 1.7 }}>
+                    {form.hora_inicio} — {form.hora_fim} = <strong>{previewTotal.toFixed(2)}h</strong> × <strong>{BRL(valorHora)}</strong> × <strong style={{ color: form.feriado_domingo ? '#D89030' : T.blue }}>{form.feriado_domingo ? '200% (base + 100%)' : '150% (base + 50%)'}</strong> = <strong style={{ color: '#1A9C70', fontSize: 14 }}>{BRL(previewValor)}</strong>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ fontSize: 11, color: T.textD, marginBottom: 2 }}>Horas trabalhadas</div>
@@ -280,7 +300,7 @@ const TabHoras = () => {
                   </div>
                   {previewValor !== null && (
                     <div>
-                      <div style={{ fontSize: 11, color: T.textD, marginBottom: 2 }}>Valor estimado</div>
+                      <div style={{ fontSize: 11, color: T.textD, marginBottom: 2 }}>Valor a receber</div>
                       <div style={{ fontSize: 18, fontWeight: 700, color: '#1A9C70' }}>{BRL(previewValor)}</div>
                     </div>
                   )}

@@ -400,6 +400,12 @@ export const PdfEditor = ({ onDoc }) => {
       str:'Novo texto', orig:undefined, color:'#111111' }]);
     setSelId(id); setTool('select');
   };
+  const addWhiteout = (pageIdx, xPt, topPt) => {
+    pushHistory();
+    const id = uid();
+    setAnnos(p => [...p, { id, page:pageIdx, type:'whiteout', x:xPt-60, top:topPt-20, w:120, h:40 }]);
+    setSelId(id); setTool('select');
+  };
   const addImageAnno = (dataUrl, type, repeat=false) => {
     const img = new Image();
     img.onload = () => {
@@ -423,6 +429,9 @@ export const PdfEditor = ({ onDoc }) => {
     if (tool === 'text') {
       const r = e.currentTarget.getBoundingClientRect();
       addText(pageIdx, (e.clientX-r.left)/scale, (e.clientY-r.top)/scale);
+    } else if (tool === 'whiteout') {
+      const r = e.currentTarget.getBoundingClientRect();
+      addWhiteout(pageIdx, (e.clientX-r.left)/scale, (e.clientY-r.top)/scale);
     } else { setSelId(null); }
   };
 
@@ -439,6 +448,7 @@ export const PdfEditor = ({ onDoc }) => {
         if (!match) return a;
         if (d.mode === 'move')    return { ...a, x:d.ox+dx, top:d.oy+dy };
         if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h:w/d.aspect }; }
+        if (d.mode === 'resizeWH') { return { ...a, w:Math.max(24,d.ow+dx), h:Math.max(16,d.oh+dy) }; }
         return a;
       }));
     };
@@ -492,6 +502,10 @@ export const PdfEditor = ({ onDoc }) => {
         const page = docPages[a.page]; if (!page) continue;
         const H = page.getHeight();
 
+        if (a.type === 'whiteout') {
+          page.drawRectangle({ x:a.x, y:H-a.top-a.h, width:a.w, height:a.h, color:rgb(1,1,1) });
+          continue;
+        }
         if (a.type !== 'text') {
           const im = await embed(a.src);
           page.drawImage(im, { x:a.x, y:H-a.top-a.h, width:a.w, height:a.h });
@@ -608,7 +622,10 @@ export const PdfEditor = ({ onDoc }) => {
         </button>
         <div style={{width:1,height:22,background:T.divider,margin:'0 2px'}}/>
         <button style={tbBtn(tool==='text')} onClick={()=>setTool(tool==='text'?'select':'text')}>
-          <I><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></I> Adicionar texto
+          <I><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></I> Editar Texto
+        </button>
+        <button style={tbBtn(tool==='whiteout')} onClick={()=>setTool(tool==='whiteout'?'select':'whiteout')}>
+          <I><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="7" y1="12" x2="17" y2="12"/></I> Whiteout
         </button>
         <button style={tbBtn(false)} onClick={()=>imgInput.current?.click()}>
           <I><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></I> Imagem
@@ -633,6 +650,7 @@ export const PdfEditor = ({ onDoc }) => {
       {error && <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,fontSize:13.5,color:T.danger}}>{error}</div>}
 
       {tool==='text' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique sobre um texto do PDF para editá-lo, ou clique numa área vazia para adicionar texto novo.</div>}
+      {tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique no PDF para inserir uma caixa branca. Arraste para mover e use a alça para redimensionar.</div>}
 
       <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
         {/* Miniaturas */}
@@ -652,7 +670,7 @@ export const PdfEditor = ({ onDoc }) => {
             <div key={i} id={'pdfpg-'+i} style={{margin:'0 auto 18px',width:p.w*scale,boxShadow:'0 4px 18px rgba(0,0,0,.14)'}}>
               <div style={{position:'relative',width:p.w*scale,height:p.h*scale}}>
                 <PdfCanvas pdf={pdf} index={i} scale={scale} quality={RENDER_QUALITY}/>
-                <div onClick={(e)=>onPageClick(i,e)} style={{position:'absolute',inset:0,cursor:tool==='text'?'text':'default'}}>
+                <div onClick={(e)=>onPageClick(i,e)} style={{position:'absolute',inset:0,cursor:tool==='text'?'text':tool==='whiteout'?'crosshair':'default'}}>
                   {annos.filter(a=>a.page===i).map(a => {
                     const selected = a.id===selId;
                     if (a.type === 'text') {
@@ -684,6 +702,22 @@ export const PdfEditor = ({ onDoc }) => {
                               caretColor:a.color, outline:'none',
                               boxShadow: selected?`0 0 0 1px ${T.gold}`:'none',
                             }}/>
+                        </div>
+                      );
+                    }
+                    if (a.type === 'whiteout') {
+                      return (
+                        <div key={a.id} onClick={e=>{e.stopPropagation(); setSelId(a.id);}} onPointerDown={e=>startDrag(e,a,'move')}
+                          style={{position:'absolute',left:a.x*scale,top:a.top*scale,width:a.w*scale,height:a.h*scale,cursor:'move',background:'#ffffff',outline:selected?`1.5px solid ${T.gold}`:'1px dashed rgba(0,0,0,.18)',zIndex:selected?5:4}}>
+                          {selected && (
+                            <div style={{position:'absolute',left:0,top:-17,display:'flex',gap:2,zIndex:6}}>
+                              <div onPointerDown={e=>startDrag(e,a,'move')} title="Mover"
+                                style={{height:16,padding:'0 6px',background:T.gold,color:'#fff',fontSize:9.5,borderRadius:'4px 0 0 0',cursor:'move',display:'flex',alignItems:'center',userSelect:'none',whiteSpace:'nowrap'}}>✛ mover</div>
+                              <div onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation(); deleteAnno(a.id);}} title="Excluir"
+                                style={{height:16,width:20,background:T.danger,color:'#fff',fontSize:10,borderRadius:'0 4px 0 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>🗑</div>
+                            </div>
+                          )}
+                          {selected && <div onPointerDown={e=>{e.stopPropagation(); e.preventDefault(); startDrag(e,a,'resizeWH');}} style={{position:'absolute',right:-6,bottom:-6,width:12,height:12,background:'#fff',border:`2px solid ${T.gold}`,borderRadius:'50%',cursor:'nwse-resize'}}/>}
                         </div>
                       );
                     }
@@ -738,7 +772,7 @@ export const PdfEditor = ({ onDoc }) => {
             )}
             {sel && sel.type!=='text' && (
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                <div style={{fontSize:12.5,color:T.textS}}>{sel.type==='signature'?'Assinatura':'Imagem'} selecionada. Arraste para mover e use a alça para redimensionar.</div>
+                <div style={{fontSize:12.5,color:T.textS}}>{sel.type==='signature'?'Assinatura':sel.type==='whiteout'?'Caixa branca (Whiteout)':'Imagem'} selecionada. Arraste para mover e use a alça para redimensionar.</div>
                 <button onClick={()=>deleteAnno(sel.id)} style={{background:'none',border:`1px solid ${T.danger}55`,color:T.danger,borderRadius:8,padding:'8px',fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>Excluir elemento</button>
               </div>
             )}
