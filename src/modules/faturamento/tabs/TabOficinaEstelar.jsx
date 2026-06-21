@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
@@ -12,186 +12,253 @@ const HERO_ICON = (
   </svg>
 );
 
-const I = (p) => (
+const Ico = (p) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
     style={{flexShrink:0}}>{p.children}</svg>
 );
 
-const Label = ({ children }) => (
-  <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6}}>
-    {children}
-  </div>
-);
-
-const Field = ({ label, children, hint, grid }) => (
-  <div style={{marginBottom:14, ...(grid && {display:'grid',gridTemplateColumns:grid,gap:10})}}>
-    {label && !grid && <Label>{label}</Label>}
-    {children}
-    {hint && <div style={{fontSize:11,color:T.textD,marginTop:4}}>{hint}</div>}
-  </div>
-);
-
 const inp = {
-  width:'100%',background:T.surface,border:`1px solid ${T.border}`,
-  borderRadius:8,padding:'8px 11px',fontSize:13,color:T.text,
-  fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box',
+  background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8,
+  padding: '8px 11px', fontSize: 13, color: T.text,
+  fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box', width: '100%',
 };
-const txa = { ...inp, minHeight:88, resize:'vertical', lineHeight:1.6 };
 const btnGold = {
-  display:'inline-flex',alignItems:'center',gap:8,
-  background:T.gold,color:'#fff',border:'none',borderRadius:10,
-  padding:'10px 22px',fontSize:14,fontWeight:600,cursor:'pointer',
-  fontFamily:'var(--font-body)',boxShadow:`0 2px 10px ${T.gold}44`,
+  display:'inline-flex', alignItems:'center', gap:8, background:T.gold, color:'#fff',
+  border:'none', borderRadius:10, padding:'10px 22px', fontSize:14, fontWeight:600,
+  cursor:'pointer', fontFamily:'var(--font-body)', boxShadow:`0 2px 10px ${T.gold}44`,
 };
+const Lbl = ({children}) => (
+  <div style={{fontSize:11.5,fontWeight:600,color:T.textT,marginBottom:5,letterSpacing:'.04em',textTransform:'uppercase'}}>{children}</div>
+);
+const Fld = ({label,children,hint,style}) => (
+  <div style={{marginBottom:13,...style}}>
+    {label&&<Lbl>{label}</Lbl>}
+    {children}
+    {hint&&<div style={{fontSize:11,color:T.textD,marginTop:4}}>{hint}</div>}
+  </div>
+);
 
 /* ════════════════════════════════════════════════════════════════
-   CARTA DE CORREÇÃO
+   CARTA DE CORREÇÃO — dados e helpers
 ════════════════════════════════════════════════════════════════ */
-const SIG_STORE   = 'oficina_assinaturas_salvas';
-const MONTHS_PT   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const chunk       = (arr,n) => Array.from({length:Math.ceil(arr.length/n)},(_,i)=>arr.slice(i*n,i*n+n));
-const fmtBr       = iso => iso ? iso.split('-').reverse().join('/') : '__/__/____';
-const loadSigs    = () => { try { const r=JSON.parse(localStorage.getItem(SIG_STORE)||'[]'); return Array.isArray(r)?r:[]; } catch { return []; } };
+const SIG_STORE = 'oficina_assinaturas_salvas';
+const loadSigs  = () => { try { const r=JSON.parse(localStorage.getItem(SIG_STORE)||'[]'); return Array.isArray(r)?r:[]; } catch { return []; } };
 
-const CODIGOS = [
-  {code:'01',label:'Razão Social'},     {code:'02',label:'Endereço'},
-  {code:'03',label:'Bairro'},           {code:'04',label:'Município'},
-  {code:'05',label:'Estado'},           {code:'06',label:'CEP'},
-  {code:'07',label:'CNPJ'},             {code:'08',label:'I. Estadual'},
-  {code:'09',label:'I. Municipal'},     {code:'10',label:'Telefone'},
-  {code:'11',label:'Fax'},              {code:'12',label:'Data de Emissão'},
-  {code:'13',label:'Quantidade'},       {code:'14',label:'Descrição'},
-  {code:'15',label:'Unidade'},          {code:'16',label:'Preço Unitário'},
-  {code:'17',label:'Preço Total'},      {code:'18',label:'Desconto / Abatimento'},
-  {code:'19',label:'Acréscimos Financeiros'},{code:'20',label:'Total da Nota'},
-  {code:'21',label:'Base de Cálculo ICMS'},{code:'22',label:'Alíquota do ICMS'},
-  {code:'23',label:'Valor do ICMS'},    {code:'24',label:'Valor do IPI'},
-  {code:'25',label:'Transportador'},    {code:'26',label:'End. do Transportador'},
-  {code:'27',label:'Município do Transp.'},{code:'28',label:'Estado do Transp.'},
-  {code:'29',label:'Placa do Veículo'}, {code:'30',label:'UF do Veículo'},
-  {code:'31',label:'CNPJ do Transp.'},  {code:'32',label:'Frete por Conta'},
-  {code:'33',label:'Qtd. de Volumes'},  {code:'34',label:'Espécie dos Volumes'},
-  {code:'35',label:'Número dos Volumes'},{code:'36',label:'Peso dos Volumes'},
-  {code:'999',label:'Outras Irregularidades'},
+/* Códigos exatos do modelo boletimcontabil.com.br */
+const COL1 = [
+  {c:'1',l:'Razão Social'},   {c:'2',l:'Endereço'},
+  {c:'3',l:'Município'},      {c:'4',l:'Estado'},
+  {c:'5',l:'CNPJ'},           {c:'6',l:'Inscri. Estadual'},
+  {c:'7',l:'Nat. Operação'},  {c:'8',l:'C.F.O.P.'},
+  {c:'9',l:'Via Transporte'}, {c:'10',l:'Data Emissão'},
+  {c:'11',l:'Data Saída'},    {c:'12',l:'Unid.(produto)'},
+];
+const COL2 = [
+  {c:'13',l:'Qtdade. Produto'},       {c:'14',l:'Descrição'},
+  {c:'15',l:'Preço Unitário'},        {c:'16',l:'Valor Total Produto'},
+  {c:'17',l:'Classif. Fiscal'},       {c:'18',l:'Alíquota IPI'},
+  {c:'19',l:'Valor IPI'},             {c:'20',l:'Base Cálc. IPI'},
+  {c:'21',l:'Valor Total da Nota'},   {c:'22',l:'Alíquota ICMS'},
+  {c:'23',l:'Valor ICMS'},            {c:'24',l:'Base Cálc. ICMS'},
+];
+const COL3 = [
+  {c:'25',l:'Nome Transp.'},       {c:'26',l:'Ender. Transp.'},
+  {c:'27',l:'Isenção IPI'},        {c:'28',l:'Isenção ICMS'},
+  {c:'29',l:'Peso Líq./Bruto'},    {c:'30',l:'Espécie'},
+  {c:'31',l:'Nota Fiscal Entrada'},{c:'32',l:'Nota Fiscal Saída'},
+  {c:'33',l:'End. Corresp.'},      {c:'34',l:'Nº Peças'},
+  {c:'35',l:'Nº Nota Fiscal'},     {c:'36',l:'Frete por Conta'},
 ];
 
-/* ── Documento em branco (preview) ── */
-const thS = {border:'1px solid #666',padding:'3px 5px',background:'#d4d4d4',fontWeight:'bold',fontSize:8.5,textAlign:'center'};
-const tdS = {border:'1px solid #bbb',padding:'2px 5px',fontSize:8.5,verticalAlign:'top'};
+const MONTHS_SEL = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
+/* ── Documento (preview fiel ao modelo) ── */
 const CartaDoc = ({ form }) => {
-  const dataFmt = `${form.cidade?form.cidade+', ':''}${String(form.dia).padStart(2,'0')} de ${MONTHS_PT[Number(form.mes)]} de ${form.ano}`;
-  const sel     = [...form.codigos].sort((a,b)=>(Number(a)||999)-(Number(b)||999));
-  const rows    = chunk(CODIGOS, 2);
+  const { cidade, dia, mes, ano, empresa, endereco, cnpj, ie,
+          nfTipo, nfNumero, nfDataEmissao, retificacoes, sigSrc } = form;
 
-  const pair = (c, highlight) => {
-    if (!c) return [<td key="ec" style={tdS}/>, <td key="el" style={tdS}/>];
-    const on = highlight.includes(c.code);
-    return [
-      <td key={c.code+'n'} style={{...tdS,textAlign:'center',background:on?'#1a1a1a':'transparent',color:on?'#fff':'#111',fontWeight:on?700:400}}>{c.code}</td>,
-      <td key={c.code+'l'} style={{...tdS,background:on?'#e8e8e8':'transparent',fontWeight:on?600:400}}>{c.label}</td>,
-    ];
-  };
+  /* data de emissão da NF: ISO → partes */
+  const [eAno='', eMes='', eDia=''] = nfDataEmissao ? nfDataEmissao.split('-') : [];
+
+  /* garantir sempre 10 linhas na tabela de retificações */
+  const rows = [...retificacoes];
+  while (rows.length < 10) rows.push({codigo:'', texto:''});
+
+  const TH = {border:'1px solid #666',padding:'2px 4px',background:'#e8e8e8',fontWeight:'bold',fontSize:7.5,textAlign:'center',whiteSpace:'nowrap'};
+  const TD = {border:'1px solid #ccc',padding:'1px 3px',fontSize:7.5,verticalAlign:'top'};
+  const TDc = {...TD,textAlign:'center',width:22};
 
   return (
-    <div style={{background:'#fff',padding:'26px 30px',fontSize:9.5,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.6,minWidth:520}}>
+    <div style={{background:'#fff',padding:'18px 22px',fontSize:8.5,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5,minWidth:520}}>
 
-      {/* Cabeçalho da empresa */}
-      <div style={{textAlign:'center',borderBottom:'2px solid #222',paddingBottom:8,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:'bold',textTransform:'uppercase',letterSpacing:'.05em'}}>
-          {form.emitNome || 'RAZÃO SOCIAL DA EMPRESA'}
-        </div>
-        {form.emitEndereco && <div style={{fontSize:9}}>{form.emitEndereco}</div>}
-        <div style={{fontSize:9,marginTop:2}}>
-          {form.emitCNPJ && <span>CNPJ: <strong>{form.emitCNPJ}</strong></span>}
-          {form.emitCNPJ && form.emitIE && <span> &nbsp;|&nbsp; </span>}
-          {form.emitIE   && <span>I.E.: <strong>{form.emitIE}</strong></span>}
-        </div>
+      {/* ── Título ── */}
+      <div style={{textAlign:'center',fontWeight:'bold',fontSize:12,marginBottom:13,letterSpacing:'.08em',textDecoration:'underline'}}>
+        CARTA DE CORREÇÃO
       </div>
 
-      {/* Título */}
-      <div style={{textAlign:'center',fontSize:12,fontWeight:'bold',letterSpacing:'.12em',textTransform:'uppercase',marginBottom:12}}>
-        Carta de Correção
+      {/* ── Cidade / Data ── */}
+      <div style={{display:'flex',flexWrap:'wrap',alignItems:'baseline',gap:3,marginBottom:7,fontSize:8.5}}>
+        <strong>CIDADE</strong>
+        <span style={{borderBottom:'1px solid #444',minWidth:130,display:'inline-block',paddingLeft:4,fontWeight:'bold',fontSize:9}}>
+          {cidade||'                    '}
+        </span>
+        <span style={{marginLeft:4}}>,</span>
+        <strong style={{marginLeft:8}}>DIA:</strong>
+        <span style={{border:'1px solid #999',padding:'0 3px',minWidth:22,textAlign:'center',display:'inline-block'}}>{String(dia).padStart(2,'0')}</span>
+        <strong style={{marginLeft:2}}>/ MÊS:</strong>
+        <span style={{border:'1px solid #999',padding:'0 3px',minWidth:22,textAlign:'center',display:'inline-block'}}>{String(Number(mes)+1).padStart(2,'0')}</span>
+        <strong style={{marginLeft:2}}>/ ANO:</strong>
+        <span style={{border:'1px solid #999',padding:'0 3px',minWidth:36,display:'inline-block'}}>{ano}</span>
       </div>
 
-      {/* Data */}
-      <div style={{textAlign:'right',marginBottom:10}}>{dataFmt}</div>
-
-      {/* Destinatário */}
-      <div style={{marginBottom:10}}>
-        <strong>Ao Ilmo. Sr.:</strong><br/>
-        {form.destNome || '__________________________________________________'}<br/>
-        {form.destCNPJ && <span>CNPJ: {form.destCNPJ}</span>}
+      {/* ── Empresa ── */}
+      <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:6}}>
+        <strong style={{whiteSpace:'nowrap'}}>EMPRESA</strong>
+        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',fontSize:10,minHeight:13}}>
+          {empresa}
+        </span>
       </div>
 
-      {/* Referência NF */}
-      <div style={{borderTop:'1px solid #888',borderBottom:'1px solid #888',padding:'5px 0',marginBottom:10}}>
-        <strong>Referente à Nota Fiscal:</strong>&nbsp;
-        Número: <strong>{form.nfNumero||'______'}</strong>&nbsp;&nbsp;
-        Série: <strong>{form.nfSerie||'__'}</strong>&nbsp;&nbsp;
-        Data de Emissão: <strong>{fmtBr(form.nfDataEmissao)}</strong>
+      {/* ── Endereço ── */}
+      <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:6}}>
+        <strong style={{whiteSpace:'nowrap'}}>ENDEREÇO</strong>
+        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',minHeight:13}}>
+          {endereco}
+        </span>
       </div>
 
-      {/* Corpo */}
-      <div style={{marginBottom:10,textAlign:'justify'}}>
-        Em face do que determina a legislação fiscal vigente, vimos pela presente comunicar-lhe que
-        a Nota Fiscal em referência contém a(s) irregularidade(s) que abaixo apontamos, e que
-        solicitamos as devidas providências.
+      {/* ── CNPJ / IE ── */}
+      <div style={{display:'flex',alignItems:'baseline',gap:24,marginBottom:10}}>
+        <span><strong>CNPJ: (99,999,999/9999-99)</strong> <strong style={{fontSize:9}}>{cnpj}</strong></span>
+        <span><strong>I.E</strong> <strong style={{fontSize:9}}>{ie}</strong></span>
       </div>
 
-      {/* Tabela de 36 + 999 */}
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:10}}>
+      {/* ── Tabela NF ── */}
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:8,border:'1px solid #666'}}>
         <thead>
           <tr>
-            <th style={{...thS,width:'7%'}}>Cód.</th>
-            <th style={{...thS,width:'43%',textAlign:'left'}}>Especificação</th>
-            <th style={{...thS,width:'7%'}}>Cód.</th>
-            <th style={{...thS,width:'43%',textAlign:'left'}}>Especificação</th>
+            <th style={{...TH,width:'35%',borderRight:'1px solid #666'}}>DESCRIÇÃO</th>
+            <th style={{...TH,width:'25%',borderRight:'1px solid #666'}}>N.F.Nº</th>
+            <th style={{...TH,width:'40%'}}>EMISSÃO</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row,i) => (
+          <tr>
+            {/* NOSSA / SUA */}
+            <td style={{...TD,textAlign:'center',padding:'4px 6px'}}>
+              <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:8.5}}>
+                NOSSA&nbsp;
+                <span style={{width:9,height:9,borderRadius:'50%',border:'1.5px solid #333',display:'inline-block',
+                  background:nfTipo==='nossa'?'#222':'transparent',flexShrink:0}}/>
+                &nbsp;SUA&nbsp;
+                <span style={{width:9,height:9,borderRadius:'50%',border:'1.5px solid #333',display:'inline-block',
+                  background:nfTipo==='sua'?'#222':'transparent',flexShrink:0}}/>
+              </span>
+            </td>
+            {/* NF Número */}
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:13,color:'#cc0000',letterSpacing:'.02em'}}>
+              {nfNumero}
+            </td>
+            {/* Emissão */}
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',color:'#cc0000'}}>
+              {eMes&&<><span style={{fontSize:9}}>{eMes}</span> <span style={{fontSize:8}}>▾</span> / </>}
+              {eDia&&<><span style={{fontSize:9}}>{eDia}</span> <span style={{fontSize:8}}>▾</span> / </>}
+              <span style={{fontSize:12}}>{eAno}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ── Texto da carta ── */}
+      <div style={{marginBottom:8,fontSize:8,textAlign:'justify',lineHeight:1.4}}>
+        Em face do que determina a legislaçao fiscal vigente, vimos pela presente comunicar-lhe que a Nota Fiscal em referência contém a (s) irregularidade (s) que abaixo apontamos, e que solicitamos as devidas providências.
+      </div>
+
+      {/* ── Tabela de 4 colunas de códigos ── */}
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:8}}>
+        <thead>
+          <tr>
+            <th style={{...TH,width:'5%'}}>Cód.</th><th style={{...TH,width:'20%',textAlign:'left'}}>Especificações</th>
+            <th style={{...TH,width:'5%'}}>Cód.</th><th style={{...TH,width:'20%',textAlign:'left'}}>Especificações</th>
+            <th style={{...TH,width:'5%'}}>Cód.</th><th style={{...TH,width:'20%',textAlign:'left'}}>Especificações</th>
+            <th style={{...TH,width:'5%'}}>Cód.</th><th style={{...TH,width:'20%',textAlign:'left'}}>Especificações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({length:12},(_,i)=>(
             <tr key={i}>
-              {pair(row[0], form.codigos)}
-              {pair(row[1], form.codigos)}
+              <td style={TDc}>{COL1[i]?.c}</td><td style={TD}>{COL1[i]?.l}</td>
+              <td style={TDc}>{COL2[i]?.c}</td><td style={TD}>{COL2[i]?.l}</td>
+              <td style={TDc}>{COL3[i]?.c}</td><td style={TD}>{COL3[i]?.l}</td>
+              <td style={TDc}>{i===0?'999':''}</td><td style={TD}>{i===0?'Outras':''}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Códigos selecionados */}
-      <div style={{marginBottom:8}}>
-        <strong>CÓDIGO(S) COM IRREGULARIDADE(S):</strong>&nbsp;
-        {sel.length ? sel.join(', ') : '___'}
+      {/* ── Tabela de retificações ── */}
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:10}}>
+        <thead>
+          <tr>
+            <th style={{...TH,width:'14%',lineHeight:1.3,whiteSpace:'normal',padding:'3px 4px'}}>
+              Códigos com<br/>Irregularidades
+            </th>
+            <th style={{...TH,textAlign:'left'}}>Retificações a serem consideradas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r,i)=>{
+            const filled = r.codigo||r.texto;
+            return (
+              <tr key={i}>
+                <td style={{...TDc,fontWeight:filled?700:400,color:filled?'#cc0000':'transparent',
+                  fontSize:filled?9:8,padding:'1px 4px',minHeight:16,height:16}}>
+                  {r.codigo||' '}
+                </td>
+                <td style={{...TD,fontWeight:filled?700:400,color:filled?'#cc0000':'#111',
+                  fontSize:filled?8.5:8,minHeight:16,height:16,padding:'1px 5px'}}>
+                  {r.texto||' '}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* ── Parágrafo de encerramento ── */}
+      <div style={{marginBottom:12,fontSize:8,textAlign:'justify',lineHeight:1.4}}>
+        Para evitar qualquer sanção fiscal, solicitamos acusarem o recebimento desta, na cópia que a acompanha, devendo a via de V.Sª ficar arquivada com a nota fiscal em questão.
       </div>
 
-      {/* Retificação */}
-      <div style={{marginBottom:14}}>
-        <div style={{fontWeight:'bold',marginBottom:3}}>RETIFICAÇÕES A SEREM CONSIDERADAS:</div>
-        <div style={{border:'1px solid #bbb',padding:'5px 7px',minHeight:44,whiteSpace:'pre-wrap',fontSize:9.5}}>
-          {form.retificacao}
+      {/* ── Atenciosamente ── */}
+      <div style={{textAlign:'right',fontSize:8.5,marginBottom:3}}>Atenciosamente,</div>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
+        <div style={{borderBottom:'1px solid #666',width:210}}/>
+      </div>
+
+      {/* ── Rodapé ── */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,fontSize:8.5}}>
+        <div>
+          <div style={{marginBottom:3}}>Acusamos recebimento da 1ª via.</div>
+          <div style={{fontWeight:'bold',marginBottom:18}}>LOCAL E DATA</div>
+          <div style={{borderBottom:'1px solid #666',marginBottom:4,width:'90%'}}/>
+          <div style={{fontWeight:'bold',marginBottom:sigSrc?5:22}}>ASSINATURA</div>
+          {sigSrc&&<img src={sigSrc} alt="Assinatura" style={{height:30,maxWidth:120,objectFit:'contain',display:'block',marginBottom:4}}/>}
+          <div style={{borderBottom:'1px solid #666',width:'90%'}}/>
         </div>
-      </div>
-
-      {/* Encerramento */}
-      <div style={{marginBottom:26,textAlign:'justify'}}>
-        Para evitar qualquer sanção fiscal, solicitamos acusarem o recebimento desta.
-      </div>
-
-      {/* Assinatura */}
-      <div style={{display:'flex',justifyContent:'flex-end'}}>
-        <div style={{textAlign:'center',minWidth:230}}>
-          {form.sigSrc && (
-            <img src={form.sigSrc} alt="Assinatura"
-              style={{height:46,maxWidth:200,objectFit:'contain',display:'block',margin:'0 auto 3px'}}/>
-          )}
-          <div style={{borderTop:'1px solid #555',paddingTop:4,marginTop:form.sigSrc?0:26}}>
-            <div style={{fontWeight:'bold'}}>{form.emitNome||'Razão Social'}</div>
-            {form.emitEndereco && <div style={{fontSize:8.5}}>{form.emitEndereco}</div>}
-            {form.emitCNPJ    && <div style={{fontSize:8.5}}>CNPJ: {form.emitCNPJ}</div>}
-            {form.emitIE      && <div style={{fontSize:8.5}}>I.E.: {form.emitIE}</div>}
+        <div>
+          <div style={{fontSize:7.5,color:'#555',marginBottom:1}}>R. Social</div>
+          <div style={{fontWeight:'bold',fontSize:10,marginBottom:6}}>
+            {empresa||<span style={{color:'#aaa',fontStyle:'italic'}}>Razão Social</span>}
+          </div>
+          <div style={{fontSize:7.5,color:'#555',marginBottom:1}}>Ender.</div>
+          <div style={{fontWeight:'bold',color:'#cc0000',fontSize:8.5,marginBottom:6}}>
+            {endereco||' '}
+          </div>
+          <div style={{fontSize:8.5}}>
+            CNPJ <strong>{cnpj||'              '}</strong>
+            {ie&&<span style={{marginLeft:12}}>I.Estadual <strong>{ie}</strong></span>}
           </div>
         </div>
       </div>
@@ -202,172 +269,177 @@ const CartaDoc = ({ form }) => {
 /* ── Formulário + Preview ── */
 const TabCarta = () => {
   const hoje = new Date();
-  const [form, setForm] = useState({
-    emitNome:'', emitEndereco:'', emitCNPJ:'', emitIE:'',
-    destNome:'', destCNPJ:'',
-    nfNumero:'', nfSerie:'', nfDataEmissao:'',
-    cidade:'',
-    dia:  String(hoje.getDate()),
-    mes:  String(hoje.getMonth()),
-    ano:  String(hoje.getFullYear()),
-    codigos:[], retificacao:'', sigSrc:null,
+  const emptyForm = () => ({
+    cidade:'', dia:String(hoje.getDate()), mes:String(hoje.getMonth()), ano:String(hoje.getFullYear()),
+    empresa:'', endereco:'', cnpj:'', ie:'',
+    nfTipo:'nossa', nfNumero:'', nfDataEmissao:'',
+    retificacoes:[{codigo:'',texto:''}],
+    sigSrc:null,
   });
 
+  const [form, setForm] = useState(emptyForm);
   const savedSigs = useState(() => [
-    {id:'default-ev', name:'ASSINATURA EV. JR', dataUrl:rubricaUrl},
+    {id:'default-ev',name:'ASSINATURA EV. JR',dataUrl:rubricaUrl},
     ...loadSigs(),
   ])[0];
 
-  const allSigOpts = [{id:'__none__', name:'Sem assinatura', dataUrl:null}, ...savedSigs];
+  const set    = (k,v)  => setForm(p=>({...p,[k]:v}));
+  const addRow = ()     => setForm(p=>({...p,retificacoes:[...p.retificacoes,{codigo:'',texto:''}]}));
+  const rmRow  = (i)    => setForm(p=>({...p,retificacoes:p.retificacoes.filter((_,j)=>j!==i)}));
+  const setRow = (i,k,v)=> setForm(p=>({...p,retificacoes:p.retificacoes.map((r,j)=>j===i?{...r,[k]:v}:r)}));
 
-  const set = (k,v) => setForm(p=>({...p,[k]:v}));
-  const toggleCode = code => setForm(p=>({
-    ...p, codigos: p.codigos.includes(code) ? p.codigos.filter(c=>c!==code) : [...p.codigos, code],
-  }));
-
-  const sec = title => (
-    <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.07em',textTransform:'uppercase',
-      borderBottom:`1px solid ${T.border}`,paddingBottom:7,marginTop:22,marginBottom:14}}>
-      {title}
+  const sec = (t) => (
+    <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.06em',textTransform:'uppercase',
+      borderBottom:`1px solid ${T.border}`,paddingBottom:7,marginTop:20,marginBottom:14}}>
+      {t}
     </div>
   );
 
-  const radioSig = (s) => {
-    const active = form.sigSrc === s.dataUrl;
-    return (
-      <div key={s.id} onClick={()=>set('sigSrc', s.dataUrl)}
-        style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:9,cursor:'pointer',
-          border:`1px solid ${active?T.gold:T.border}`,background:active?`${T.gold}12`:'transparent',transition:'all .12s',marginBottom:6}}>
-        <div style={{width:13,height:13,borderRadius:'50%',flexShrink:0,
-          border:`1.5px solid ${active?T.gold:'#aaa'}`,background:active?T.gold:'transparent',transition:'all .12s'}}/>
-        {s.dataUrl
-          ? <img src={s.dataUrl} alt={s.name} style={{height:22,maxWidth:90,objectFit:'contain'}}/>
-          : <span style={{fontSize:12,color:T.textD,fontStyle:'italic'}}>Nenhuma</span>}
-        <span style={{fontSize:11.5,color:active?T.gold:T.textS,fontWeight:active?600:400}}>{s.name}</span>
-      </div>
-    );
-  };
-
   return (
     <div>
-      {/* CSS de impressão */}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
-          #carta-preview-wrap, #carta-preview-wrap * { visibility: visible !important; }
-          #carta-preview-wrap {
-            position: fixed !important; top: 0 !important; left: 0 !important;
-            width: 100% !important; background: #fff !important;
-            padding: 0 !important; margin: 0 !important;
-          }
+          #carta-doc, #carta-doc * { visibility: visible !important; }
+          #carta-doc { position: fixed !important; top: 0 !important; left: 0 !important;
+            width: 100% !important; background: #fff !important; padding: 0 !important; }
         }
       `}</style>
 
-      <div style={{display:'grid',gridTemplateColumns:'330px 1fr',gap:28,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:26,alignItems:'start'}}>
 
-        {/* ──────────── FORMULÁRIO ──────────── */}
+        {/* ═══════════ FORMULÁRIO ═══════════ */}
         <div style={{paddingBottom:40}}>
 
-          {sec('Dados do Emitente')}
-          <Field label="Razão Social">
-            <input style={inp} placeholder="Nome da empresa" value={form.emitNome} onChange={e=>set('emitNome',e.target.value)}/>
-          </Field>
-          <Field label="Endereço">
-            <input style={inp} placeholder="Rua, nº, bairro, cidade – UF" value={form.emitEndereco} onChange={e=>set('emitEndereco',e.target.value)}/>
-          </Field>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-            <div>
-              <Label>CNPJ</Label>
-              <input style={inp} placeholder="00.000.000/0000-00" value={form.emitCNPJ} onChange={e=>set('emitCNPJ',e.target.value)}/>
-            </div>
-            <div>
-              <Label>I. Estadual</Label>
-              <input style={inp} placeholder="000000000" value={form.emitIE} onChange={e=>set('emitIE',e.target.value)}/>
-            </div>
+          {sec('Dados da Empresa')}
+          <Fld label="Empresa (Razão Social)">
+            <input style={inp} placeholder="Ex: 7 SERV GESTAO DE BENEFICIOS" value={form.empresa} onChange={e=>set('empresa',e.target.value)}/>
+          </Fld>
+          <Fld label="Endereço">
+            <input style={inp} placeholder="Rua, nº, bairro, cidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}/>
+          </Fld>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:13}}>
+            <div><Lbl>CNPJ</Lbl><input style={inp} placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e=>set('cnpj',e.target.value)}/></div>
+            <div><Lbl>I. Estadual</Lbl><input style={inp} placeholder="000000000" value={form.ie} onChange={e=>set('ie',e.target.value)}/></div>
           </div>
 
           {sec('Data da Carta')}
-          <Field label="Cidade">
-            <input style={inp} placeholder="Ex: Eusébio" value={form.cidade} onChange={e=>set('cidade',e.target.value)}/>
-          </Field>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1.2fr',gap:10,marginBottom:14}}>
-            <div><Label>Dia</Label><input style={inp} type="number" min="1" max="31" value={form.dia} onChange={e=>set('dia',e.target.value)}/></div>
-            <div>
-              <Label>Mês</Label>
+          <Fld label="Cidade">
+            <input style={inp} placeholder="Ex: Fortaleza" value={form.cidade} onChange={e=>set('cidade',e.target.value)}/>
+          </Fld>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1.6fr 1.2fr',gap:10}}>
+            <Fld label="Dia">
+              <input style={inp} type="number" min="1" max="31" value={form.dia} onChange={e=>set('dia',e.target.value)}/>
+            </Fld>
+            <Fld label="Mês">
               <select style={{...inp,appearance:'none'}} value={form.mes} onChange={e=>set('mes',e.target.value)}>
-                {MONTHS_PT.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                {MONTHS_SEL.map((m,i)=><option key={i} value={i}>{m} — {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][i]}</option>)}
               </select>
-            </div>
-            <div><Label>Ano</Label><input style={inp} value={form.ano} onChange={e=>set('ano',e.target.value)}/></div>
+            </Fld>
+            <Fld label="Ano">
+              <input style={inp} value={form.ano} onChange={e=>set('ano',e.target.value)} maxLength={4}/>
+            </Fld>
           </div>
-
-          {sec('Destinatário')}
-          <Field label="Razão Social">
-            <input style={inp} placeholder="Nome do destinatário" value={form.destNome} onChange={e=>set('destNome',e.target.value)}/>
-          </Field>
-          <Field label="CNPJ">
-            <input style={inp} placeholder="00.000.000/0000-00" value={form.destCNPJ} onChange={e=>set('destCNPJ',e.target.value)}/>
-          </Field>
 
           {sec('Nota Fiscal')}
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:14}}>
-            <div><Label>Número</Label><input style={inp} placeholder="000001" value={form.nfNumero} onChange={e=>set('nfNumero',e.target.value)}/></div>
-            <div><Label>Série</Label><input style={inp} placeholder="1" value={form.nfSerie} onChange={e=>set('nfSerie',e.target.value)}/></div>
-          </div>
-          <Field label="Data de Emissão">
+          {/* NOSSA / SUA */}
+          <Fld label="Tipo">
+            <div style={{display:'flex',gap:10}}>
+              {['nossa','sua'].map(t=>(
+                <div key={t} onClick={()=>set('nfTipo',t)} style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',
+                  padding:'8px 14px',borderRadius:9,border:`1px solid ${form.nfTipo===t?T.gold:T.border}`,
+                  background:form.nfTipo===t?`${T.gold}14`:'transparent',transition:'all .12s',flex:1,justifyContent:'center'}}>
+                  <div style={{width:13,height:13,borderRadius:'50%',flexShrink:0,
+                    border:`1.5px solid ${form.nfTipo===t?T.gold:'#aaa'}`,background:form.nfTipo===t?T.gold:'transparent'}}/>
+                  <span style={{fontSize:13,fontWeight:form.nfTipo===t?700:400,color:form.nfTipo===t?T.gold:T.textS,textTransform:'uppercase'}}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </Fld>
+          <Fld label="N.F. Nº">
+            <input style={inp} placeholder="Ex: 12421" value={form.nfNumero} onChange={e=>set('nfNumero',e.target.value)}/>
+          </Fld>
+          <Fld label="Data de Emissão">
             <input style={inp} type="date" value={form.nfDataEmissao} onChange={e=>set('nfDataEmissao',e.target.value)}/>
-          </Field>
+          </Fld>
 
-          {sec('Irregularidades — marque os itens a corrigir')}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,marginBottom:16}}>
-            {CODIGOS.map(c=>{
-              const on = form.codigos.includes(c.code);
+          {sec('Retificações')}
+          <div style={{fontSize:12,color:T.textS,marginBottom:12,lineHeight:1.5}}>
+            Preencha o código e a correção. Use uma linha por retificação. Linhas preenchidas aparecem em vermelho no documento.
+          </div>
+          {form.retificacoes.map((r,i)=>(
+            <div key={i} style={{display:'grid',gridTemplateColumns:'80px 1fr 28px',gap:6,marginBottom:8,alignItems:'center'}}>
+              <div>
+                {i===0&&<Lbl>Cód.</Lbl>}
+                <input style={{...inp,textAlign:'center',fontWeight:600}} placeholder="14" value={r.codigo} onChange={e=>setRow(i,'codigo',e.target.value)} maxLength={3}/>
+              </div>
+              <div>
+                {i===0&&<Lbl>Retificação</Lbl>}
+                <input style={inp} placeholder="Ex: ONDE LÊ: ... LEIA-SE: ..." value={r.texto} onChange={e=>setRow(i,'texto',e.target.value)}/>
+              </div>
+              <div style={{paddingTop:i===0?20:0}}>
+                {form.retificacoes.length>1&&(
+                  <button onClick={()=>rmRow(i)} style={{width:26,height:26,border:`1px solid rgba(192,64,80,.3)`,
+                    borderRadius:7,background:'rgba(192,64,80,.06)',cursor:'pointer',color:'#C04050',
+                    display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          <button onClick={addRow} style={{display:'flex',alignItems:'center',gap:6,fontSize:12.5,color:T.gold,
+            background:'transparent',border:`1px dashed ${T.gold}88`,borderRadius:8,padding:'6px 12px',cursor:'pointer',fontFamily:'var(--font-body)',marginBottom:4}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adicionar linha
+          </button>
+
+          {sec('Assinatura')}
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {[{id:'__none__',name:'Sem assinatura',dataUrl:null},...savedSigs].map(s=>{
+              const active = form.sigSrc===s.dataUrl;
               return (
-                <div key={c.code} onClick={()=>toggleCode(c.code)}
-                  style={{display:'flex',alignItems:'center',gap:6,padding:'5px 7px',borderRadius:7,cursor:'pointer',userSelect:'none',
-                    border:`1px solid ${on?T.gold:T.border}`,background:on?`${T.gold}16`:'transparent',transition:'all .11s'}}>
-                  <div style={{width:13,height:13,borderRadius:3,flexShrink:0,transition:'all .11s',
-                    border:`1.5px solid ${on?T.gold:'#aaa'}`,background:on?T.gold:'transparent',
-                    display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {on && <svg width="8" height="8" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                  <span style={{fontSize:10.5,lineHeight:1.3,color:on?T.gold:T.textS,fontWeight:on?600:400}}>
-                    <strong>{c.code}</strong> {c.label}
-                  </span>
+                <div key={s.id} onClick={()=>set('sigSrc',s.dataUrl)} style={{display:'flex',alignItems:'center',gap:10,
+                  padding:'7px 10px',borderRadius:9,cursor:'pointer',transition:'all .12s',
+                  border:`1px solid ${active?T.gold:T.border}`,background:active?`${T.gold}12`:'transparent'}}>
+                  <div style={{width:13,height:13,borderRadius:'50%',flexShrink:0,transition:'all .12s',
+                    border:`1.5px solid ${active?T.gold:'#aaa'}`,background:active?T.gold:'transparent'}}/>
+                  {s.dataUrl
+                    ? <img src={s.dataUrl} alt={s.name} style={{height:22,maxWidth:90,objectFit:'contain'}}/>
+                    : <span style={{fontSize:12,color:T.textD,fontStyle:'italic'}}>Nenhuma</span>}
+                  <span style={{fontSize:11.5,color:active?T.gold:T.textS,fontWeight:active?600:400}}>{s.name}</span>
                 </div>
               );
             })}
           </div>
 
-          <Field label="Retificações a serem consideradas" hint="Descreva o que deve ser corrigido (mín. 15 caracteres).">
-            <textarea style={txa}
-              placeholder="Ex: Onde se lê 'Serviços de limpeza urbana', leia-se 'Serviços de manutenção predial'."
-              value={form.retificacao} onChange={e=>set('retificacao',e.target.value)}/>
-          </Field>
-
-          {sec('Assinatura automática')}
-          {allSigOpts.map(radioSig)}
-
-          <div style={{marginTop:22}}>
+          {/* Botões */}
+          <div style={{display:'flex',gap:10,marginTop:24,flexWrap:'wrap'}}>
             <button style={btnGold} onClick={()=>window.print()}
               onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-              <I><path d="M6 9V2h12l4 4v14a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><polyline points="14 2 14 8 20 8"/></I>
+              <Ico><path d="M6 9V2h12l4 4v14a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><polyline points="14 2 14 8 20 8"/></Ico>
               Imprimir / Salvar PDF
+            </button>
+            <button onClick={()=>setForm(emptyForm())} style={{display:'inline-flex',alignItems:'center',gap:7,
+              background:'transparent',border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 18px',
+              fontSize:13,color:T.textS,cursor:'pointer',fontFamily:'var(--font-body)'}}>
+              <Ico><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></Ico>
+              Limpar formulário
             </button>
           </div>
         </div>
 
-        {/* ──────────── PREVIEW ──────────── */}
+        {/* ═══════════ PREVIEW ═══════════ */}
         <div style={{position:'sticky',top:6,alignSelf:'start'}}>
           <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.07em',
             textTransform:'uppercase',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.4"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Pré-visualização em tempo real
           </div>
-          <div id="carta-preview-wrap"
-            style={{background:'#e8e8e8',borderRadius:12,border:`1px solid ${T.border}`,
-              padding:10,maxHeight:'82vh',overflow:'auto',boxShadow:'0 4px 20px rgba(0,0,0,.1)'}}>
-            <CartaDoc form={form}/>
+          <div style={{background:'#ddd',borderRadius:12,border:`1px solid ${T.border}`,padding:8,maxHeight:'84vh',overflow:'auto',boxShadow:'0 4px 20px rgba(0,0,0,.1)'}}>
+            <div id="carta-doc">
+              <CartaDoc form={form}/>
+            </div>
           </div>
         </div>
       </div>
@@ -395,71 +467,52 @@ const Censored = ({ children }) => (
   </div>
 );
 
-const OFICIO_MODELS = [{ id: 'eusebio', label: 'Ofício de Eusébio' }];
-
-const inputStyle = {
-  width:'100%',background:T.surface,border:`1px solid ${T.border}`,
-  borderRadius:9,padding:'10px 13px',fontSize:14,color:T.text,
-  fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box',
-};
+const OFICIO_MODELS = [{ id:'eusebio', label:'Ofício de Eusébio' }];
+const inputStyle = { width:'100%',background:T.surface,border:`1px solid ${T.border}`,borderRadius:9,padding:'10px 13px',fontSize:14,color:T.text,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box' };
 const textareaStyle = { ...inputStyle, minHeight:110, resize:'vertical', lineHeight:1.6 };
-const btnPrimary = {
-  display:'inline-flex',alignItems:'center',gap:8,
-  background:T.gold,color:'#fff',border:'none',borderRadius:10,
-  padding:'10px 22px',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)',
-  boxShadow:`0 2px 10px ${T.gold}44`,
-};
+const btnPrimary = { display:'inline-flex',alignItems:'center',gap:8,background:T.gold,color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)',boxShadow:`0 2px 10px ${T.gold}44` };
+const MONTH_NAMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
-const FieldO = ({ label, children, hint }) => (
+const FldO = ({label,children,hint}) => (
   <div style={{marginBottom:20}}>
-    {label && <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6}}>{label}</div>}
+    {label&&<div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6}}>{label}</div>}
     {children}
-    {hint && <div style={{fontSize:11.5,color:T.textD,marginTop:5}}>{hint}</div>}
+    {hint&&<div style={{fontSize:11.5,color:T.textD,marginTop:5}}>{hint}</div>}
   </div>
 );
-
-const MONTH_NAMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const IOf = (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{p.children}</svg>;
 
 const OficioEusebio = () => {
   const hoje = new Date();
-  const [form, setForm] = useState({
-    numero:'', ano:String(hoje.getFullYear()), dia:String(hoje.getDate()), mes:String(hoje.getMonth()),
-    destinatarioCargo:'', destinatarioNome:'', assunto:'', corpo:'', remetentNome:'', remetenteCargo:'', remetenteSec:'',
-  });
-  const set = (k,v) => setForm(p=>({...p,[k]:v}));
+  const [form, setForm] = useState({ numero:'',ano:String(hoje.getFullYear()),dia:String(hoje.getDate()),mes:String(hoje.getMonth()),destinatarioCargo:'',destinatarioNome:'',assunto:'',corpo:'',remetentNome:'',remetenteCargo:'',remetenteSec:'' });
+  const set = (k,v)=>setForm(p=>({...p,[k]:v}));
   const dataFmt = `Eusébio, ${form.dia} de ${MONTH_NAMES[Number(form.mes)]} de ${form.ano}`;
-  const IOf = (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{p.children}</svg>;
-
   return (
     <div style={{maxWidth:760,display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
       <div>
         <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Identificação</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-          <FieldO label="Nº do Ofício"><input style={inputStyle} placeholder="001" value={form.numero} onChange={e=>set('numero',e.target.value)}/></FieldO>
-          <FieldO label="Ano"><input style={inputStyle} placeholder="2026" value={form.ano} onChange={e=>set('ano',e.target.value)}/></FieldO>
+          <FldO label="Nº do Ofício"><input style={inputStyle} placeholder="001" value={form.numero} onChange={e=>set('numero',e.target.value)}/></FldO>
+          <FldO label="Ano"><input style={inputStyle} placeholder="2026" value={form.ano} onChange={e=>set('ano',e.target.value)}/></FldO>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:12,marginBottom:16}}>
-          <FieldO label="Dia"><input style={inputStyle} type="number" min="1" max="31" value={form.dia} onChange={e=>set('dia',e.target.value)}/></FieldO>
-          <FieldO label="Mês">
-            <select style={{...inputStyle,appearance:'none'}} value={form.mes} onChange={e=>set('mes',e.target.value)}>
-              {MONTH_NAMES.map((m,i)=><option key={i} value={i}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}
-            </select>
-          </FieldO>
+          <FldO label="Dia"><input style={inputStyle} type="number" min="1" max="31" value={form.dia} onChange={e=>set('dia',e.target.value)}/></FldO>
+          <FldO label="Mês"><select style={{...inputStyle,appearance:'none'}} value={form.mes} onChange={e=>set('mes',e.target.value)}>{MONTH_NAMES.map((m,i)=><option key={i} value={i}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></FldO>
         </div>
         <StarDivider my={16}/>
         <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Destinatário</div>
-        <FieldO label="Cargo / Título"><input style={inputStyle} placeholder="Ex: Ilmo. Sr. Secretário Municipal de Saúde" value={form.destinatarioCargo} onChange={e=>set('destinatarioCargo',e.target.value)}/></FieldO>
-        <FieldO label="Nome"><input style={inputStyle} placeholder="Nome do destinatário" value={form.destinatarioNome} onChange={e=>set('destinatarioNome',e.target.value)}/></FieldO>
+        <FldO label="Cargo / Título"><input style={inputStyle} placeholder="Ex: Ilmo. Sr. Secretário Municipal de Saúde" value={form.destinatarioCargo} onChange={e=>set('destinatarioCargo',e.target.value)}/></FldO>
+        <FldO label="Nome"><input style={inputStyle} placeholder="Nome do destinatário" value={form.destinatarioNome} onChange={e=>set('destinatarioNome',e.target.value)}/></FldO>
         <StarDivider my={16}/>
         <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Conteúdo</div>
-        <FieldO label="Assunto"><input style={inputStyle} placeholder="Assunto do ofício" value={form.assunto} onChange={e=>set('assunto',e.target.value)}/></FieldO>
-        <FieldO label="Corpo do Texto"><textarea style={{...textareaStyle,minHeight:130}} placeholder="Texto principal do ofício..." value={form.corpo} onChange={e=>set('corpo',e.target.value)}/></FieldO>
+        <FldO label="Assunto"><input style={inputStyle} placeholder="Assunto do ofício" value={form.assunto} onChange={e=>set('assunto',e.target.value)}/></FldO>
+        <FldO label="Corpo do Texto"><textarea style={{...textareaStyle,minHeight:130}} placeholder="Texto principal do ofício..." value={form.corpo} onChange={e=>set('corpo',e.target.value)}/></FldO>
         <StarDivider my={16}/>
         <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Remetente</div>
-        <FieldO label="Nome do Assinante"><input style={inputStyle} placeholder="Nome completo" value={form.remetentNome} onChange={e=>set('remetentNome',e.target.value)}/></FieldO>
+        <FldO label="Nome do Assinante"><input style={inputStyle} placeholder="Nome completo" value={form.remetentNome} onChange={e=>set('remetentNome',e.target.value)}/></FldO>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-          <FieldO label="Cargo"><input style={inputStyle} placeholder="Ex: Coordenador de Faturamento" value={form.remetenteCargo} onChange={e=>set('remetenteCargo',e.target.value)}/></FieldO>
-          <FieldO label="Secretaria"><input style={inputStyle} placeholder="Ex: SEMUS" value={form.remetenteSec} onChange={e=>set('remetenteSec',e.target.value)}/></FieldO>
+          <FldO label="Cargo"><input style={inputStyle} placeholder="Ex: Coordenador" value={form.remetenteCargo} onChange={e=>set('remetenteCargo',e.target.value)}/></FldO>
+          <FldO label="Secretaria"><input style={inputStyle} placeholder="Ex: SEMUS" value={form.remetenteSec} onChange={e=>set('remetenteSec',e.target.value)}/></FldO>
         </div>
         <StarDivider my={20}/>
         <button style={btnPrimary} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
@@ -473,16 +526,9 @@ const OficioEusebio = () => {
           <div style={{textAlign:'center',marginBottom:20,fontSize:13,fontWeight:'bold'}}>PREFEITURA MUNICIPAL DE EUSÉBIO</div>
           <div style={{textAlign:'right',marginBottom:16,fontSize:11.5,color:'#444'}}>{dataFmt}</div>
           <div style={{marginBottom:16,fontSize:11.5}}><strong>Ofício nº {form.numero||'___'}/{form.ano}</strong></div>
-          {(form.destinatarioCargo||form.destinatarioNome)&&(
-            <div style={{marginBottom:16,fontSize:11.5}}>
-              <div>{form.destinatarioCargo||'Cargo do Destinatário'}</div>
-              <div><strong>{form.destinatarioNome||'Nome do Destinatário'}</strong></div>
-            </div>
-          )}
+          {(form.destinatarioCargo||form.destinatarioNome)&&<div style={{marginBottom:16,fontSize:11.5}}><div>{form.destinatarioCargo||'Cargo'}</div><div><strong>{form.destinatarioNome||'Nome'}</strong></div></div>}
           {form.assunto&&<div style={{marginBottom:16,fontSize:11.5}}><strong>Assunto:</strong> {form.assunto}</div>}
-          <div style={{marginBottom:24,fontSize:11.5,textAlign:'justify',whiteSpace:'pre-wrap'}}>
-            {form.corpo||'O corpo do ofício será exibido aqui conforme você preenche os campos ao lado.'}
-          </div>
+          <div style={{marginBottom:24,fontSize:11.5,textAlign:'justify',whiteSpace:'pre-wrap'}}>{form.corpo||'O corpo do ofício será exibido aqui.'}</div>
           <div style={{marginTop:40,fontSize:11.5}}>
             <div style={{borderTop:'1px solid #999',width:180,marginBottom:4}}/>
             <div><strong>{form.remetentNome||'Nome do Assinante'}</strong></div>
@@ -518,10 +564,8 @@ export const TabOficinaEstelar = () => {
   const [hasDoc, setHasDoc] = useState(false);
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
-      {!hasDoc && (
-        <StellarHero compact eyebrow="Ferramentas Estelares" title="Editor de PDF"
-          subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas." icon={HERO_ICON}/>
-      )}
+      {!hasDoc&&<StellarHero compact eyebrow="Ferramentas Estelares" title="Editor de PDF"
+        subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas." icon={HERO_ICON}/>}
       <PdfEditor onDoc={setHasDoc}/>
     </div>
   );
@@ -530,7 +574,7 @@ export const TabOficinaEstelar = () => {
 export const TabCartaCorrecao = () => (
   <div style={{fontFamily:'var(--font-body)'}}>
     <StellarHero compact eyebrow="Ferramentas Estelares" title="Carta de Correção"
-      subtitle="Preencha os campos e acompanhe a carta sendo montada em tempo real." icon={HERO_ICON}/>
+      subtitle="Preencha os campos — o documento é montado em tempo real." icon={HERO_ICON}/>
     <TabCarta/>
   </div>
 );
