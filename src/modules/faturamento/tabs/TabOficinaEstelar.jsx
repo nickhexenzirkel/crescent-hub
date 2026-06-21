@@ -231,10 +231,13 @@ const CartaDoc = ({ form }) => {
         Para evitar qualquer sanção fiscal, solicitamos acusarem o recebimento desta, na cópia que a acompanha, devendo a via de V.Sª ficar arquivada com a nota fiscal em questão.
       </div>
 
-      {/* ── Atenciosamente ── */}
-      <div style={{textAlign:'right',fontSize:8.5,marginBottom:3}}>Atenciosamente,</div>
+      {/* ── Atenciosamente + Assinatura ── */}
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
-        <div style={{borderBottom:'1px solid #666',width:210}}/>
+        <div style={{textAlign:'center',minWidth:220}}>
+          {sigSrc&&<img src={sigSrc} alt="Assinatura" style={{height:38,maxWidth:200,objectFit:'contain',display:'block',margin:'0 auto 3px'}}/>}
+          <div style={{borderBottom:'1px solid #666',marginBottom:4,marginTop:sigSrc?0:28}}/>
+          <div style={{fontSize:8.5}}>Atenciosamente,</div>
+        </div>
       </div>
 
       {/* ── Rodapé ── */}
@@ -243,8 +246,7 @@ const CartaDoc = ({ form }) => {
           <div style={{marginBottom:3}}>Acusamos recebimento da 1ª via.</div>
           <div style={{fontWeight:'bold',marginBottom:18}}>LOCAL E DATA</div>
           <div style={{borderBottom:'1px solid #666',marginBottom:4,width:'90%'}}/>
-          <div style={{fontWeight:'bold',marginBottom:sigSrc?5:22}}>ASSINATURA</div>
-          {sigSrc&&<img src={sigSrc} alt="Assinatura" style={{height:30,maxWidth:120,objectFit:'contain',display:'block',marginBottom:4}}/>}
+          <div style={{fontWeight:'bold',marginBottom:22}}>ASSINATURA</div>
           <div style={{borderBottom:'1px solid #666',width:'90%'}}/>
         </div>
         <div>
