@@ -65,8 +65,8 @@ const INIT_ACTIVITIES = [
 
 const COMMANDS = [
   { cmd:'/solicitar_bloqueio',
-    desc:'Notifica o setor responsável e cria uma atividade pendente',
-    params:['Cliente / Município', 'Categoria: Abastecimento, Manutenção ou Patrimônio', '@Responsável', 'Quando desbloquear'] },
+    desc:'Notifica o Suporte Contratual e cria uma atividade pendente',
+    params:['Cliente / Município'] },
   { cmd:'/aviso',
     desc:'Envia um aviso urgente para todos no grupo',
     params:['Mensagem do aviso'] },
@@ -96,11 +96,16 @@ function parseBloqueio(raw) {
       if(id.startsWith(s)||u.name.toLowerCase().replace(/\s+/g,'').startsWith(s)){if(!mentions.includes(id))mentions.push(id);break;}
     }
   }
-  const municipio=(raw.split(/@/)[0]||'').replace(/^(eu\s+quero\s+bloquear\s+(manuten[cç][aã]o\s+(de\s+)?)?)/i,'').replace(/,\s*$/,'').trim()||'Não especificado';
-  const tm=/(amanhã|hoje|segunda|terça|quarta|quinta|sexta)[^\n@]*(às?\s+\d{1,2}[h:]\d{0,2}|\d{1,2}\s*hora)/i.exec(raw);
+  const municipio=(raw.split(/[@,]/)[0]||raw)
+    .replace(/^(eu\s+quero\s+bloquear\s+(manuten[cç][aã]o\s+(de\s+)?)?)/i,'')
+    .replace(/\s*-?\s*(categoria|desbloqueio|responsavel|respons[aá]vel)[:\s].*/i,'')
+    .trim()||'Não especificado';
+  const tm=/(amanhã|hoje|segunda|terça|quarta|quinta|sexta)[^\n@,]*(às?\s+\d{1,2}[h:]\d{0,2}|\d{1,2}\s*hora)/i.exec(raw);
   const hm=/às?\s+(\d{1,2})[h:](\d{0,2})/i.exec(raw);
+  const dm=/(\d{1,2})\/(\d{1,2})[^\d]*(\d{1,2})[h:](\d{0,2})/i.exec(raw);
   let desbloqueio='A definir';
   if(tm){desbloqueio=tm[0].trim();desbloqueio=desbloqueio[0].toUpperCase()+desbloqueio.slice(1);}
+  else if(dm) desbloqueio=`${dm[1]}/${dm[2]} às ${dm[3]}h${dm[4]||'00'}`;
   else if(hm) desbloqueio=`Às ${hm[1]}h${hm[2]||'00'}`;
   const rawLow=raw.toLowerCase();
   let categoria=null;
@@ -321,39 +326,47 @@ function AudioBubble({ msg, showHeader, mobile }) {
 
 function CommandBubble({ msg, mobile }) {
   const av=mobile?38:34;
+  const catEmoji={'Abastecimento':'💧','Manutenção':'🔧','Patrimônio':'🏛️'};
+  const cat=msg.cmdData.categoria;
+  const fields=[
+    {icon:'👤',label:'Cliente',    val:msg.cmdData.municipio,             color:'#fff'    },
+    {icon:'📋',label:'Categoria',  val:cat?`${catEmoji[cat]||''} ${cat}`:'—', color:'#A78BFA' },
+    {icon:'⏰',label:'Desbloqueio',val:msg.cmdData.desbloqueio,           color:'#E67E22' },
+    {icon:'👥',label:'Responsável',val:'Suporte Contratual & Operacional',color:'#5DCC80' },
+  ];
   return (
     <div style={{ display:'flex',alignItems:'flex-end',gap:9,flexDirection:'row-reverse',marginBottom:10 }}>
       <div style={{ width:av,flexShrink:0 }}/>
-      <div style={{ maxWidth: mobile?'85%':'70%' }}>
+      <div style={{ maxWidth: mobile?'88%':'72%' }}>
         <div style={{ background: T.dark?'#0D1628':'#1A2B4A', border:`1px solid ${T.gold}44`,
-          borderRadius:'18px 18px 5px 18px', padding:'12px 15px',
+          borderRadius:'18px 18px 5px 18px', padding:'13px 15px',
           boxShadow:`0 4px 16px ${T.gold}22`, fontFamily:'var(--font-body)' }}>
-          <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:11 }}>
-            <div style={{ background:'linear-gradient(135deg,#B04800,#E67E22)',borderRadius:6,padding:'2px 8px',
-              fontSize:9,fontWeight:800,color:'#fff',letterSpacing:'.06em' }}>⚡ COMANDO</div>
-            <code style={{ fontSize:10,color:'rgba(255,255,255,0.4)' }}>/solicitar_bloqueio</code>
+          {/* Badge */}
+          <div style={{ display:'inline-flex',alignItems:'center',gap:6,marginBottom:12,
+            background:'linear-gradient(135deg,#1A4A8B,#2560C4)',borderRadius:8,
+            padding:'5px 11px',fontSize:11,fontWeight:800,color:'#fff',letterSpacing:'.04em' }}>
+            🔒 <span>Solicitação de Bloqueio</span>
           </div>
-          {/* Texto de abertura */}
-          <div style={{ fontSize:13,color:'rgba(255,255,255,0.88)',lineHeight:1.55,marginBottom:11,
-            fontFamily:'var(--font-body)',fontWeight:500 }}>
+          {/* Intro */}
+          <div style={{ fontSize:13,color:'rgba(255,255,255,0.82)',lineHeight:1.55,marginBottom:14,
+            fontFamily:'var(--font-body)',fontWeight:400,fontStyle:'italic' }}>
             Olá! Por gentileza, bloquear as transações do cliente:
           </div>
-          {/* Campos em lista */}
-          <div style={{ display:'flex',flexDirection:'column',gap:7 }}>
-            {[
-              { val:msg.cmdData.municipio,                         color:'#fff'    },
-              { val:msg.cmdData.categoria||'Não especificada',     color:'#A78BFA' },
-              { val:msg.cmdData.desbloqueio,                       color:'#E67E22' },
-              { val:'Responsável: Suporte Contratual & Operacional',color:'#5DCC80' },
-            ].map((item,i)=>(
-              <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:8 }}>
-                <span style={{ color:'rgba(255,255,255,0.35)',fontSize:15,lineHeight:1.3,flexShrink:0,marginTop:1 }}>•</span>
-                <span style={{ fontSize:13,color:item.color,fontFamily:'var(--font-body)',
-                  fontWeight: i===3?600:500,lineHeight:1.45 }}>{item.val}</span>
+          {/* Campos */}
+          <div style={{ display:'flex',flexDirection:'column',gap:11 }}>
+            {fields.map(r=>(
+              <div key={r.label} style={{ display:'flex',gap:11,alignItems:'flex-start' }}>
+                <span style={{ fontSize:16,flexShrink:0,marginTop:1 }}>{r.icon}</span>
+                <div>
+                  <div style={{ fontSize:8,color:'rgba(255,255,255,0.26)',fontWeight:700,
+                    textTransform:'uppercase',letterSpacing:'.1em',marginBottom:3,fontFamily:'var(--font-body)' }}>{r.label}</div>
+                  <div style={{ fontSize:14,fontWeight:700,color:r.color,lineHeight:1.3,fontFamily:'var(--font-body)' }}>{r.val}</div>
+                </div>
               </div>
             ))}
           </div>
-          <div style={{ marginTop:9,borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,display:'flex',alignItems:'center',gap:6 }}>
+          <div style={{ marginTop:13,borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:9,
+            display:'flex',alignItems:'center',gap:6 }}>
             <div style={{ width:6,height:6,borderRadius:'50%',background:'#27AE60',flexShrink:0 }}/>
             <span style={{ fontSize:10,color:'#5DCC80',fontWeight:600 }}>Notificação enviada · Atividade registrada</span>
           </div>
@@ -411,8 +424,19 @@ function InputBar({ onSend, mobile }) {
   const inputRef=useRef(null); const imgRef=useRef(null);
   const fileRef=useRef(null); const audioFRef=useRef(null);
   const mrRef=useRef(null); const timerRef=useRef(null);
+  const [cmdCategoria,  setCmdCategoria]  = useState(null);
+  const [cmdDesbloqueio,setCmdDesbloqueio]= useState(null);
+  const [showCustomDate,setShowCustomDate]= useState(false);
+  const [customDateVal, setCustomDateVal] = useState('');
 
-  const onChange=(e)=>{const v=e.target.value;setInput(v);setCmdMenu(v==='/'||(v.startsWith('/')&&!v.includes(' ')));};
+  const resetQuick=()=>{setCmdCategoria(null);setCmdDesbloqueio(null);setShowCustomDate(false);setCustomDateVal('');};
+
+  const onChange=(e)=>{
+    const v=e.target.value;
+    setInput(v);
+    setCmdMenu(v==='/'||(v.startsWith('/')&&!v.includes(' ')));
+    if(!v.toLowerCase().startsWith('/solicitar_bloqueio')) resetQuick();
+  };
   const onKey=(e)=>{
     if(e.key==='Tab'){
       if(cmdMenu&&filtCmds.length>0){e.preventDefault();pickCmd(filtCmds[0].cmd);}
@@ -421,7 +445,17 @@ function InputBar({ onSend, mobile }) {
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}
     if(e.key==='Escape'){setCmdMenu(false);setAttachOpen(false);}
   };
-  const doSend=()=>{const t=input.trim();if(!t)return;onSend({type:'text',text:t});setInput('');setCmdMenu(false);setAttachOpen(false);inputRef.current?.focus();};
+  const doSend=()=>{
+    const t=input.trim();if(!t)return;
+    if(t.toLowerCase().startsWith('/solicitar_bloqueio')){
+      const desblFinal=cmdDesbloqueio==='custom'?customDateVal:cmdDesbloqueio;
+      onSend({type:'text',text:t,_quickCategoria:cmdCategoria||undefined,_quickDesbloqueio:desblFinal||undefined});
+      resetQuick();
+    } else {
+      onSend({type:'text',text:t});
+    }
+    setInput('');setCmdMenu(false);setAttachOpen(false);inputRef.current?.focus();
+  };
   const pickCmd=(cmd)=>{setInput(cmd+' ');setCmdMenu(false);inputRef.current?.focus();};
   const onImg=(e)=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=(ev)=>onSend({type:'image',src:ev.target.result,name:f.name,size:f.size});r.readAsDataURL(f);e.target.value='';setAttachOpen(false);};
   const onFile=(e)=>{const f=e.target.files?.[0];if(!f)return;onSend({type:'file',name:f.name,size:f.size,ext:f.name.split('.').pop()?.toLowerCase()||''});e.target.value='';setAttachOpen(false);};
@@ -550,34 +584,101 @@ function InputBar({ onSend, mobile }) {
               ))}
             </div>
           )}
-          {/* Card de uso: aparece após digitar o comando completo + espaço */}
+          {/* Painel de uso / quick-pick */}
           {activeCmd&&!cmdMenu&&(
-            <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left: mobile?0:44,right: mobile?0:48,
-              background: T.dark?'#0C1628':'#EFF6FF',
-              border:`1.5px solid ${T.gold}55`,borderRadius:14,padding:'13px 16px',
-              boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
-              zIndex:10,fontFamily:'var(--font-body)' }}>
-              <div style={{ fontSize:9,fontWeight:700,color:T.gold,textTransform:'uppercase',
-                letterSpacing:'.1em',marginBottom:9,display:'flex',alignItems:'center',gap:6 }}>
-                <span>⚡</span><span>Como usar</span>
+            activeCmd.cmd==='/solicitar_bloqueio'?(
+              <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left:mobile?0:44,right:mobile?0:48,
+                background:T.dark?'#0C1628':'#EFF6FF',
+                border:`1.5px solid ${T.gold}55`,borderRadius:16,padding:'14px 16px',
+                boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
+                zIndex:10,fontFamily:'var(--font-body)' }}>
+                <div style={{ fontSize:10,fontWeight:700,color:T.gold,textTransform:'uppercase',
+                  letterSpacing:'.1em',marginBottom:13,display:'flex',alignItems:'center',gap:7 }}>
+                  🔒 <span>Solicitação de Bloqueio — escolha as opções</span>
+                </div>
+                {/* Categoria */}
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
+                    letterSpacing:'.08em',marginBottom:8 }}>📋 Categoria</div>
+                  <div style={{ display:'flex',flexWrap:'wrap',gap:7 }}>
+                    {[{label:'💧 Abastecimento',val:'Abastecimento'},{label:'🔧 Manutenção',val:'Manutenção'},{label:'🏛️ Patrimônio',val:'Patrimônio'}].map(opt=>(
+                      <button key={opt.val} onClick={()=>setCmdCategoria(cmdCategoria===opt.val?null:opt.val)}
+                        style={{ padding:'7px 14px',borderRadius:22,cursor:'pointer',
+                          fontFamily:'var(--font-body)',fontSize:mobile?13:12,fontWeight:cmdCategoria===opt.val?700:500,
+                          border:`1.5px solid ${cmdCategoria===opt.val?T.gold:T.border}`,
+                          background:cmdCategoria===opt.val?`${T.gold}18`:'transparent',
+                          color:cmdCategoria===opt.val?T.gold:T.textS,
+                          WebkitTapHighlightColor:'transparent',transition:'all .15s' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Desbloqueio */}
+                <div style={{ marginBottom:11 }}>
+                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
+                    letterSpacing:'.08em',marginBottom:8 }}>⏰ Desbloqueio</div>
+                  <div style={{ display:'flex',flexWrap:'wrap',gap:7,marginBottom:7 }}>
+                    {[{label:'⏰ Hoje às 17h',val:'Hoje às 17h'},{label:'🌅 Amanhã às 8h',val:'Amanhã às 8h'},{label:'🌆 Amanhã às 17h',val:'Amanhã às 17h'},{label:'📅 Outra hora',val:'custom'}].map(opt=>(
+                      <button key={opt.val} onClick={()=>{const s=cmdDesbloqueio===opt.val?null:opt.val;setCmdDesbloqueio(s);setShowCustomDate(s==='custom');if(s!=='custom')setCustomDateVal('');}}
+                        style={{ padding:'7px 14px',borderRadius:22,cursor:'pointer',
+                          fontFamily:'var(--font-body)',fontSize:mobile?13:12,fontWeight:cmdDesbloqueio===opt.val?700:500,
+                          border:`1.5px solid ${cmdDesbloqueio===opt.val?T.gold:T.border}`,
+                          background:cmdDesbloqueio===opt.val?`${T.gold}18`:'transparent',
+                          color:cmdDesbloqueio===opt.val?T.gold:T.textS,
+                          WebkitTapHighlightColor:'transparent',transition:'all .15s' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {showCustomDate&&(
+                    <input value={customDateVal} onChange={e=>setCustomDateVal(e.target.value)}
+                      placeholder="Ex: 22/04 às 08:00, próxima segunda..."
+                      autoFocus
+                      style={{ width:'100%',boxSizing:'border-box',background:T.page,
+                        border:`1px solid ${T.gold}55`,borderRadius:10,
+                        padding:'8px 12px',fontSize:mobile?16:13,color:T.text,
+                        fontFamily:'var(--font-body)',outline:'none' }}/>
+                  )}
+                </div>
+                <div style={{ paddingTop:8,borderTop:`1px solid ${T.border}`,
+                  fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap' }}>
+                  <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
+                    padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
+                  <span>para enviar</span>
+                  {cmdCategoria&&<span style={{ color:T.gold,fontWeight:600 }}>· {cmdCategoria}</span>}
+                  {cmdDesbloqueio&&cmdDesbloqueio!=='custom'&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {cmdDesbloqueio}</span>}
+                  {cmdDesbloqueio==='custom'&&customDateVal&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {customDateVal}</span>}
+                </div>
               </div>
-              <div style={{ display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:9 }}>
-                <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:800 }}>{activeCmd.cmd}</code>
-                {activeCmd.params.map((p,i)=>(
-                  <span key={i} style={{ fontSize:mobile?11:10,color:'#C0500A',background:'#E67E2215',
-                    border:'1px solid #E67E2230',padding:'2px 8px',borderRadius:5,fontFamily:'monospace',lineHeight:1.6 }}>
-                    [{p}]
-                  </span>
-                ))}
+            ):(
+              <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left:mobile?0:44,right:mobile?0:48,
+                background:T.dark?'#0C1628':'#EFF6FF',
+                border:`1.5px solid ${T.gold}55`,borderRadius:14,padding:'13px 16px',
+                boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
+                zIndex:10,fontFamily:'var(--font-body)' }}>
+                <div style={{ fontSize:9,fontWeight:700,color:T.gold,textTransform:'uppercase',
+                  letterSpacing:'.1em',marginBottom:9,display:'flex',alignItems:'center',gap:6 }}>
+                  <span>⚡</span><span>Como usar</span>
+                </div>
+                <div style={{ display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:9 }}>
+                  <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:800 }}>{activeCmd.cmd}</code>
+                  {activeCmd.params.map((p,i)=>(
+                    <span key={i} style={{ fontSize:mobile?11:10,color:'#C0500A',background:'#E67E2215',
+                      border:'1px solid #E67E2230',padding:'2px 8px',borderRadius:5,fontFamily:'monospace',lineHeight:1.6 }}>
+                      [{p}]
+                    </span>
+                  ))}
+                </div>
+                <div style={{ fontSize:11,color:T.textS,lineHeight:1.5 }}>{activeCmd.desc}</div>
+                <div style={{ marginTop:9,paddingTop:8,borderTop:`1px solid ${T.border}`,
+                  fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5 }}>
+                  <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
+                    padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
+                  <span>para enviar</span>
+                </div>
               </div>
-              <div style={{ fontSize:11,color:T.textS,lineHeight:1.5 }}>{activeCmd.desc}</div>
-              <div style={{ marginTop:9,paddingTop:8,borderTop:`1px solid ${T.border}`,
-                fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5 }}>
-                <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
-                  padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
-                <span>para enviar a solicitação</span>
-              </div>
-            </div>
+            )
           )}
           <div style={{ display:'flex',gap:8,alignItems:'center' }}>
             <button onClick={()=>{setAttachOpen(o=>!o);setCmdMenu(false);}} style={circBtn(attachOpen)}>
@@ -1198,16 +1299,17 @@ export default function ConexaoSetorial({ onBack }) {
     if(data.type==='text'&&data.text.toLowerCase().startsWith('/solicitar_bloqueio')){
       const raw=data.text.slice('/solicitar_bloqueio'.length).trim();
       const cmdData=parseBloqueio(raw);
-      const mentioned=cmdData.mentions.map(u=>'@'+USERS[u]?.name).join(', ')||'@Setor';
+      if(data._quickCategoria)  cmdData.categoria   =data._quickCategoria;
+      if(data._quickDesbloqueio)cmdData.desbloqueio =data._quickDesbloqueio;
       setGroupMsgs(p=>[...p,
         {id:id1,from:ME,type:'command',text:data.text,time,cmdData},
-        {id:nextId.current++,type:'system',text:`✅ Notificação enviada para ${mentioned}  •  Adicionado a Atividades Pendentes`,time},
+        {id:nextId.current++,type:'system',text:'✅ Notificação enviada para Suporte Contratual & Operacional  •  Adicionado a Atividades Pendentes',time},
       ]);
-      setActivities(p=>[{id:nextId.current++,icon:'⏰',
-        title:`Desbloquear manutenção de ${cmdData.municipio}`,
+      setActivities(p=>[{id:nextId.current++,icon:'🔒',
+        title:`Bloquear transações de ${cmdData.municipio}`,
         desc:'Solicitado por Nicolas Andrade via /solicitar_bloqueio',
-        when:cmdData.desbloqueio,color:'#E67E22',
-        sector:cmdData.mentions.map(u=>USERS[u]?.sector).filter(Boolean).join(', ')||'Geral',urgent:false},...p]);
+        when:cmdData.desbloqueio,color:'#2560C4',
+        sector:'Suporte Contratual',urgent:false},...p]);
       setNotifToast(cmdData);
     } else {
       const msg={id:id1,from:ME,time,...data};
