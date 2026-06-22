@@ -1300,6 +1300,12 @@ export default function ConexaoSetorial({ onBack }) {
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const nextId=useRef(300);
 
+  useEffect(()=>{
+    if('Notification' in window && Notification.permission==='default'){
+      Notification.requestPermission();
+    }
+  },[]);
+
   const getMsgs=()=>selected==='group'?groupMsgs:(dmMsgsMap[selected]||[]);
 
   const openConv=(id)=>{
@@ -1325,6 +1331,16 @@ export default function ConexaoSetorial({ onBack }) {
         when:cmdData.desbloqueio,color:'#2560C4',
         sector:'Suporte Contratual',urgent:false},...p]);
       setNotifToast(cmdData);
+      if('Notification' in window && Notification.permission==='granted'){
+        const lines=[
+          `De: Nicolas Andrade · Faturamento`,
+          `👤 Cliente: ${cmdData.municipio}`,
+          cmdData.categoria?`📋 Categoria: ${cmdData.categoria}`:'',
+          `⏰ Desbloqueio: ${cmdData.desbloqueio}`,
+        ].filter(Boolean).join('\n');
+        const n=new Notification('🔒 Nova Solicitação de Bloqueio',{body:lines,tag:'bloqueio-solicitacao',renotify:true});
+        setTimeout(()=>n.close(),10000);
+      }
     } else {
       const msg={id:id1,from:ME,time,...data};
       if(selected==='group') setGroupMsgs(p=>[...p,msg]);
