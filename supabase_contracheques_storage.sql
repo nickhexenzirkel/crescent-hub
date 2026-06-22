@@ -33,3 +33,16 @@ create policy contracheques_update on storage.objects
 create policy contracheques_delete on storage.objects
   for delete to anon, authenticated
   using (bucket_id = 'contracheques');
+
+-- 3) Políticas da TABELA public.contracheques (insert falhava com 401/42501)
+alter table public.contracheques enable row level security;
+
+drop policy if exists contracheques_tbl_read   on public.contracheques;
+drop policy if exists contracheques_tbl_insert on public.contracheques;
+drop policy if exists contracheques_tbl_update on public.contracheques;
+drop policy if exists contracheques_tbl_delete on public.contracheques;
+
+create policy contracheques_tbl_read   on public.contracheques for select using (true);
+create policy contracheques_tbl_insert on public.contracheques for insert with check (true);
+create policy contracheques_tbl_update on public.contracheques for update using (true) with check (true);
+create policy contracheques_tbl_delete on public.contracheques for delete using (true);
