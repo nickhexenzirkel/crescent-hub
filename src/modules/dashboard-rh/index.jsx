@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
+import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 
 const AdminLoginModal = ({onSuccess, onCancel}) => {
   const [pw, setPw]     = useState('');
@@ -149,6 +150,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [chSaving,     setChSaving]     = useState(false);
   const [chMsg,        setChMsg]        = useState('');
   const [chEmpFilter,  setChEmpFilter]  = useState('');
+  // ── Importação em lote (PDF com vários contracheques) ──
+  const [chBatchFile,    setChBatchFile]    = useState(null);
+  const [chBatchParsing, setChBatchParsing] = useState(false);
+  const [chBatchSlips,   setChBatchSlips]   = useState(null); // null = nada analisado
+  const [chBatchMsg,     setChBatchMsg]     = useState('');
+  const [chBatchSending, setChBatchSending] = useState(false);
+  const [chBatchDone,    setChBatchDone]    = useState(0);
 
   const loadSpotifyServerStatus = async () => {
     try {
@@ -524,6 +532,104 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     if (!window.confirm('Remover este contracheque permanentemente?')) return;
     await _supabase.from('contracheques').delete().eq('id', id);
     await loadContracheques();
+  };
+
+  /* ── Importação em lote: tenta casar cada recibo com um funcionário ── */
+  const matchEmployee = (slip, emps) => {
+    const cpf = onlyDigits(slip.cpf);
+    if (cpf) {
+      const byCpf = emps.find(e => onlyDigits(e.cpf) === cpf);
+      if (byCpf) return byCpf;
+    }
+    const nm = normName(slip.name);
+    if (nm) {
+      const exact = emps.find(e => normName(e.name) === nm);
+      if (exact) return exact;
+      // tolera nome parcial (um contém o outro)
+      const part = emps.find(e => {
+        const en = normName(e.name);
+        return en && (en.includes(nm) || nm.includes(en));
+      });
+      if (part) return part;
+    }
+    return null;
+  };
+
+  const parseBatch = async (file) => {
+    setChBatchParsing(true); setChBatchMsg(''); setChBatchSlips(null); setChBatchDone(0);
+    try {
+      // garante a lista de funcionários (não depende do estado, que é assíncrono)
+      let emps = empList;
+      if (emps.length === 0) {
+        try {
+          const r = await fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() });
+          emps = (await r.json()).employees || [];
+          setEmpList(emps);
+        } catch { emps = []; }
+      }
+      const slips = await splitContrachequesPDF(file);
+      if (!slips.length) { setChBatchMsg('❌ Nenhum contracheque detectado no PDF.'); setChBatchParsing(false); return; }
+      const rows = slips.map((s, i) => {
+        const emp = matchEmployee(s, emps);
+        return {
+          id: i,
+          page: s.page,
+          detectedName: s.name || '(nome não lido)',
+          cpf: s.cpf || '',
+          competencia: s.competencia || '',
+          bytes: s.bytes,
+          employee_name: emp ? emp.name : '',   // vazio = precisa escolher manualmente
+          auto: !!emp,
+          status: 'pending',
+        };
+      });
+      setChBatchSlips(rows);
+    } catch (e) {
+      setChBatchMsg('❌ Erro ao analisar o PDF: ' + (e.message || e));
+    }
+    setChBatchParsing(false);
+  };
+
+  const setBatchRow = (id, patch) =>
+    setChBatchSlips(rows => rows.map(r => r.id === id ? { ...r, ...patch } : r));
+
+  const sendBatch = async () => {
+    const rows = (chBatchSlips || []).filter(r => r.employee_name && r.competencia);
+    if (!rows.length) { setChBatchMsg('⚠️ Nenhum contracheque pronto para envio (verifique funcionário e competência).'); return; }
+    setChBatchSending(true); setChBatchMsg(''); setChBatchDone(0);
+    let ok = 0, fail = 0;
+    for (const r of rows) {
+      try {
+        setBatchRow(r.id, { status: 'sending' });
+        const safeName = r.employee_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+        const safeComp = r.competencia.replace(/[\\/]/g, '-').replace(/\s+/g, '_');
+        const filePath = `${safeName}/${safeComp}_${Date.now()}_${r.id}.pdf`;
+        const blob = new Blob([r.bytes], { type: 'application/pdf' });
+        const { error: upErr } = await _supabase.storage
+          .from('contracheques')
+          .upload(filePath, blob, { contentType: 'application/pdf', upsert: false });
+        if (upErr) throw new Error(upErr.message);
+        const { data: urlData } = _supabase.storage.from('contracheques').getPublicUrl(filePath);
+        const { error: insErr } = await _supabase.from('contracheques').insert({
+          employee_name: r.employee_name,
+          competencia:   r.competencia,
+          file_url:      urlData.publicUrl,
+          created_at:    new Date().toISOString(),
+        });
+        if (insErr) throw new Error(insErr.message);
+        ok++; setBatchRow(r.id, { status: 'done' });
+      } catch (e) {
+        fail++; setBatchRow(r.id, { status: 'error', errMsg: e.message });
+      }
+      setChBatchDone(d => d + 1);
+    }
+    setChBatchMsg(`✅ ${ok} enviado(s)${fail ? ` · ❌ ${fail} com erro` : ''}.`);
+    setChBatchSending(false);
+    await loadContracheques();
+  };
+
+  const resetBatch = () => {
+    setChBatchFile(null); setChBatchSlips(null); setChBatchMsg(''); setChBatchDone(0);
   };
 
   useEffect(() => {
@@ -2164,6 +2270,112 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   style={{ width:'100%', padding:'12px', borderRadius:10, border:'none', cursor: chSaving ? 'wait' : 'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', boxShadow:`0 4px 16px ${T.goldLine}44`, transition:'opacity .15s', opacity: chSaving ? 0.7 : 1 }}>
                   {chSaving ? 'Enviando...' : '📎 Anexar Contracheque'}
                 </button>
+              </Card>
+
+              {/* ── Importação automática em lote ── */}
+              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <span style={{ fontSize:16, fontWeight:700, color:T.text }}>Importação Automática em Lote</span>
+                  <span style={{ fontSize:10, fontWeight:700, color:T.gold, background:T.goldGl, border:`1px solid ${T.goldLine}44`, padding:'2px 7px', borderRadius:6, letterSpacing:'.04em' }}>NOVO</span>
+                </div>
+                <div style={{ fontSize:13, color:T.textT, marginBottom:18, lineHeight:1.5 }}>
+                  Envie <strong>um único PDF com todos os contracheques</strong>. O sistema separa o recibo de cada colaborador (mesmo quando há dois na mesma página), identifica a pessoa pelo CPF/nome e anexa automaticamente para que cada um veja apenas o seu.
+                </div>
+
+                {/* dropzone */}
+                {!chBatchSlips && (
+                  <label style={{
+                    display:'flex', alignItems:'center', gap:12, padding:'14px 18px',
+                    border:`2px dashed ${chBatchFile ? T.goldLine : T.border}`, borderRadius:12, cursor: chBatchParsing ? 'wait' : 'pointer',
+                    background: chBatchFile ? T.goldGl : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'),
+                  }}>
+                    <input type="file" accept="application/pdf" disabled={chBatchParsing} style={{ display:'none' }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (f) { setChBatchFile(f); parseBatch(f); }
+                      }}/>
+                    <div style={{ width:38, height:38, borderRadius:10, background:T.surfaceSub||'rgba(0,0,0,0.04)', border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="1.8" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color: chBatchParsing ? T.gold : T.textD }}>
+                        {chBatchParsing ? 'Analisando o PDF...' : (chBatchFile ? chBatchFile.name : 'Clique para selecionar o PDF com todos os contracheques')}
+                      </div>
+                      <div style={{ fontSize:11, color:T.textT, marginTop:2 }}>Separação e identificação automáticas</div>
+                    </div>
+                  </label>
+                )}
+
+                {/* mensagem */}
+                {chBatchMsg && (
+                  <div style={{ padding:'10px 14px', borderRadius:9, marginTop:14, fontSize:12,
+                    background: chBatchMsg.startsWith('✅') ? 'rgba(34,197,94,0.08)' : 'rgba(192,64,80,0.06)',
+                    border:`1px solid ${chBatchMsg.startsWith('✅') ? 'rgba(34,197,94,0.25)' : 'rgba(192,64,80,0.20)'}`,
+                    color: chBatchMsg.startsWith('✅') ? '#16a34a' : '#C04050' }}>
+                    {chBatchMsg}
+                  </div>
+                )}
+
+                {/* prévia / revisão */}
+                {chBatchSlips && (
+                  <div style={{ marginTop:6 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, flexWrap:'wrap', gap:8 }}>
+                      <div style={{ fontSize:13, color:T.textS }}>
+                        <strong style={{ color:T.text }}>{chBatchSlips.length}</strong> contracheque(s) detectado(s) ·{' '}
+                        <span style={{ color:'#16a34a', fontWeight:600 }}>{chBatchSlips.filter(r => r.auto && r.employee_name).length} identificados</span>
+                        {chBatchSlips.filter(r => !r.employee_name).length > 0 &&
+                          <span style={{ color:'#C04050', fontWeight:600 }}> · {chBatchSlips.filter(r => !r.employee_name).length} pendente(s)</span>}
+                      </div>
+                      <button onClick={resetBatch} disabled={chBatchSending}
+                        style={{ fontSize:12, color:T.textD, background:'none', border:`1px solid ${T.border}`, borderRadius:8, padding:'5px 12px', cursor: chBatchSending ? 'not-allowed' : 'pointer' }}>
+                        Trocar arquivo
+                      </button>
+                    </div>
+
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {chBatchSlips.map(r => {
+                        const stColor = r.status==='done' ? '#16a34a' : r.status==='error' ? '#C04050' : r.status==='sending' ? T.gold : T.textD;
+                        return (
+                          <div key={r.id} style={{ display:'grid', gridTemplateColumns:'1.4fr 1fr 26px', gap:10, alignItems:'center', padding:'10px 12px', borderRadius:10, border:`1px solid ${r.employee_name ? T.border : 'rgba(192,64,80,0.35)'}`, background: r.employee_name ? (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)') : 'rgba(192,64,80,0.04)' }}>
+                            <div style={{ minWidth:0 }}>
+                              <label style={{ fontSize:10, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.06em', display:'block', marginBottom:3 }}>Funcionário {r.auto && r.employee_name && <span style={{ color:'#16a34a' }}>· auto</span>}</label>
+                              <select value={r.employee_name} disabled={chBatchSending}
+                                onChange={e => setBatchRow(r.id, { employee_name: e.target.value, auto: false })}
+                                style={{ width:'100%', padding:'7px 9px', border:`1.5px solid ${r.employee_name ? T.border : 'rgba(192,64,80,0.4)'}`, borderRadius:8, fontSize:12.5, color:T.text, background: isDark ? T.surface : '#fff', outline:'none', cursor:'pointer', colorScheme: isDark ? 'dark' : 'light' }}>
+                                <option value="">⚠ Selecione…</option>
+                                {empList.filter(e => e.active !== false).sort((a,b)=>a.name.localeCompare(b.name)).map(e => (
+                                  <option key={e.id} value={e.name}>{e.name}</option>
+                                ))}
+                              </select>
+                              <div style={{ fontSize:10.5, color:T.textT, marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                pág. {r.page} · lido: {r.detectedName}{r.cpf ? ` · CPF ${r.cpf}` : ''}
+                              </div>
+                            </div>
+                            <div>
+                              <label style={{ fontSize:10, fontWeight:600, color:T.textD, textTransform:'uppercase', letterSpacing:'.06em', display:'block', marginBottom:3 }}>Competência</label>
+                              <input value={r.competencia} disabled={chBatchSending}
+                                onChange={e => setBatchRow(r.id, { competencia: e.target.value })}
+                                placeholder="Ex: Maio/2026"
+                                style={{ width:'100%', padding:'7px 9px', border:`1.5px solid ${r.competencia ? T.border : 'rgba(192,64,80,0.4)'}`, borderRadius:8, fontSize:12.5, color:T.text, background: isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : '#fff', outline:'none', boxSizing:'border-box' }}/>
+                            </div>
+                            <div title={r.errMsg || r.status} style={{ display:'flex', alignItems:'center', justifyContent:'center', color:stColor }}>
+                              {r.status==='done' ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                : r.status==='error' ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                : r.status==='sending' ? <div style={{ width:14, height:14, borderRadius:'50%', border:`2px solid ${T.gold}`, borderTopColor:'transparent', animation:'spin .7s linear infinite' }}/>
+                                : <span style={{ width:7, height:7, borderRadius:'50%', background: r.employee_name ? '#16a34a' : '#C04050' }}/>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <button onClick={sendBatch} disabled={chBatchSending || chBatchSlips.every(r => !r.employee_name || !r.competencia)}
+                      style={{ width:'100%', marginTop:16, padding:'12px', borderRadius:10, border:'none', cursor: chBatchSending ? 'wait' : 'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', boxShadow:`0 4px 16px ${T.goldLine}44`, opacity: chBatchSending ? 0.75 : 1 }}>
+                      {chBatchSending ? `Enviando… (${chBatchDone}/${chBatchSlips.filter(r => r.employee_name && r.competencia).length})` : `📎 Anexar ${chBatchSlips.filter(r => r.employee_name && r.competencia).length} contracheque(s)`}
+                    </button>
+                  </div>
+                )}
               </Card>
 
               {/* Lista de contracheques */}

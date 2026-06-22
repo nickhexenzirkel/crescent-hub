@@ -210,8 +210,12 @@ const TabHoras = () => {
                         </div>
                         <div style={{ fontSize: 11, color: T.textS, marginTop: 3 }}>
                           {fmtHoras(Number(r.total_horas))} trabalhadas → {fmtHoras(Number(r.horas_calculadas))} no banco
-                          {r.valor_total > 0 && ` · ${BRL(r.valor_total)}`}
                         </div>
+                        {Number(r.valor_hora) > 0 && Number(r.total_horas) > 0 && (
+                          <div style={{ fontSize: 11, color: T.text, marginTop: 5, padding: '6px 9px', background: 'rgba(26,156,112,0.07)', border: '1px solid rgba(26,156,112,0.18)', borderRadius: 7, fontFamily: 'monospace', lineHeight: 1.6 }}>
+                            {Number(r.total_horas).toFixed(2)}h × {BRL(Number(r.valor_hora))} × <strong style={{ color: r.feriado_domingo ? '#D89030' : T.blue }}>{r.feriado_domingo ? '200%' : '150%'}</strong> = <strong style={{ color: '#1A9C70' }}>{BRL(Number(r.valor_total))}</strong>
+                          </div>
+                        )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: ss.bg, color: ss.color, textTransform: 'capitalize' }}>
