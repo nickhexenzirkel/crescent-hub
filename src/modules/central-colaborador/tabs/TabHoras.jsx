@@ -43,8 +43,10 @@ const STATUS_STYLE = {
 
 const TabHoras = () => {
   const authData  = getAuthUser();
-  const salario   = USER.salary || authData?.salary || 0;
-  const valorHora = salario > 0 ? salario / 240 : 0;
+  const salarioBase = USER.salary || authData?.salary || 0;
+  const salario1k   = USER.salary_1k || authData?.salary_1k || 0;
+  const salario     = salarioBase + salario1k;          // base + 1K Service
+  const valorHora   = salario > 0 ? salario / 240 : 0;  // salário ÷ 30 dias ÷ 8h
 
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(false);
