@@ -19,9 +19,20 @@ const PREMIUM = { color: '#F5B63A', glow: 'rgba(245,182,58,0.20)', name: 'Prisma
 
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 500;
-// Recompensa diária do check-in
-const CHECKIN_COMUM = 120;
-const CHECKIN_PREMIUM = 1;
+
+// Recompensa do check-in por DIA do mês (varia para dar graça ao calendário):
+//  • dias múltiplos de 7 (semana completa) → bônus maior
+//  • dias múltiplos de 5 → bônus médio
+//  • demais → base
+const dailyReward = (day) => {
+  if (day % 7 === 0) return { comum: 150, premium: 2 };
+  if (day % 5 === 0) return { comum: 200, premium: 1 };
+  return { comum: 120, premium: day % 2 === 0 ? 1 : 0 };
+};
+
+const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const pad2 = (n) => String(n).padStart(2, '0');
 
 const STORAGE_KEY = 'me_state_v1';
 
@@ -44,7 +55,7 @@ const RARITY_RANK = { 'Comum': 0, 'Raro': 1, 'Épico': 2, 'Lendário': 3 };
 const DEFAULT_STATE = {
   comum: 1480,
   premium: 6,
-  lastCheckin: null,
+  checkins: [],
   items: [
     { id: 'i1', name: 'Day-off Surpresa',         desc: 'Um dia inteiro de folga para usar quando quiser — sem descontar do banco de horas.', price: 5,    cur: 'premium', stock: 3,  rarity: 'Lendário',  emoji: '🏖️', featured: true },
     { id: 'i2', name: 'Vale-Presente R$100',       desc: 'Cartão presente para lojas parceiras',    price: 4,    cur: 'premium', stock: 5,  rarity: 'Épico',     emoji: '🎁' },
@@ -76,8 +87,10 @@ const loadState = () => {
         const ids = new Set((saved || []).map(x => x.id));
         return [...(saved || []), ...def.filter(x => !ids.has(x.id))];
       };
+      // Migra saves antigos (que tinham só lastCheckin) para a lista de check-ins
+      const checkins = Array.isArray(s.checkins) ? s.checkins : (s.lastCheckin ? [s.lastCheckin] : []);
       return {
-        ...DEFAULT_STATE, ...s,
+        ...DEFAULT_STATE, ...s, checkins,
         items: mergeById(s.items, DEFAULT_STATE.items),
         missions: mergeById(s.missions, DEFAULT_STATE.missions),
       };
@@ -144,12 +157,14 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   };
 
   // ── Check-in ──
-  const canCheckin = state.lastCheckin !== todayStr();
+  const today = todayStr();
+  const canCheckin = !(state.checkins || []).includes(today);
   const doCheckin = () => {
     if (!canCheckin) return;
-    setState(s => ({ ...s, comum: s.comum + CHECKIN_COMUM, premium: s.premium + CHECKIN_PREMIUM, lastCheckin: todayStr() }));
-    addHistory({ kind: 'checkin', desc: 'Check-in diário', comum: CHECKIN_COMUM, premium: CHECKIN_PREMIUM });
-    flash(`✅ Check-in feito! +${CHECKIN_COMUM} Comuns e +${CHECKIN_PREMIUM} Premium`);
+    const r = dailyReward(new Date().getDate());
+    setState(s => ({ ...s, comum: s.comum + r.comum, premium: s.premium + r.premium, checkins: [...(s.checkins || []), today] }));
+    addHistory({ kind: 'checkin', desc: 'Check-in diário', ...(r.comum ? { comum: r.comum } : {}), ...(r.premium ? { premium: r.premium } : {}) });
+    flash(`✅ Check-in feito! +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`);
   };
 
   // ── Missões ──
@@ -227,7 +242,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} lastCheckin={state.lastCheckin} cardBg={cardBg} />}
+        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} cardBg={cardBg} />}
       </div>
 
@@ -267,7 +282,7 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
       <SectionHead title="Loja de Recompensas" sub="Troque seus prismas por prêmios e colecionáveis. Itens esgotam ao serem comprados." />
 
       {/* Busca + filtros */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 320px' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -298,12 +313,12 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
           Nenhum prêmio encontrado.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 16, alignItems: 'stretch' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: 14, alignItems: 'stretch' }}>
           {/* DESTAQUE — maior prêmio */}
           {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} cardBg={cardBg} />}
 
           {/* Grade dos demais */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(210px,1fr))', gap: 14, alignContent: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(165px,1fr))', gap: 12, alignContent: 'start' }}>
             {rest.map(item => (
               <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} cardBg={cardBg} />
             ))}
@@ -323,35 +338,35 @@ const FeaturedCard = ({ item, afford, onBuy, cardBg }) => {
     <div style={{
       background: cardBg, border: `1.5px solid ${rc}55`, borderRadius: 20, overflow: 'hidden',
       position: 'relative', opacity: sold ? 0.65 : 1, display: 'flex', flexDirection: 'column',
-      boxShadow: `0 10px 36px ${rc}22`, minHeight: 380,
+      boxShadow: `0 10px 36px ${rc}22`, minHeight: 300,
     }}>
       {/* Brilho temático no topo */}
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${rc}26, transparent 60%)`, pointerEvents: 'none' }} />
       {/* Badge destaque */}
-      <div style={{ position: 'absolute', top: 14, left: 14, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '4px 11px', borderRadius: 999, letterSpacing: '.04em', zIndex: 2 }}>
+      <div style={{ position: 'absolute', top: 12, left: 12, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 10.5, fontWeight: 800, padding: '4px 10px', borderRadius: 999, letterSpacing: '.04em', zIndex: 2 }}>
         ⭐ DESTAQUE
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '44px 24px 12px', position: 'relative' }}>
-        <div style={{ fontSize: 96, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 8px 24px ${rc}55)` }}>{item.emoji}</div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '34px 20px 8px', position: 'relative' }}>
+        <div style={{ fontSize: 72, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 8px 24px ${rc}55)` }}>{item.emoji}</div>
       </div>
 
-      <div style={{ padding: '0 24px 24px', position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: rc, textTransform: 'uppercase', letterSpacing: '.08em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 12, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>
+      <div style={{ padding: '0 20px 20px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 800, color: rc, textTransform: 'uppercase', letterSpacing: '.08em' }}>{item.rarity}</span>
+          <span style={{ fontSize: 11.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>
             {sold ? 'Esgotado' : `${item.stock} restante${item.stock > 1 ? 's' : ''}`}
           </span>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.text, marginBottom: 7, lineHeight: 1.2 }}>{item.name}</div>
-        <div style={{ fontSize: 13.5, color: T.textT, lineHeight: 1.55, marginBottom: 20 }}>{item.desc}</div>
+        <div style={{ fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 5, lineHeight: 1.2 }}>{item.name}</div>
+        <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5, marginBottom: 14 }}>{item.desc}</div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: cfg.color, fontWeight: 800, fontSize: 22 }}>
-            <PrismIcon type={item.cur} size={24} />{fmt(item.price)}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: cfg.color, fontWeight: 800, fontSize: 20 }}>
+            <PrismIcon type={item.cur} size={22} />{fmt(item.price)}
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '12px 26px', borderRadius: 11, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
+            padding: '10px 22px', borderRadius: 11, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
             background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
             color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 14.5, fontFamily: 'var(--font-body)',
             opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 20px ${cfg.color}44`,
@@ -374,22 +389,22 @@ const ItemCard = ({ item, afford, onBuy, cardBg }) => {
   return (
     <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-      <div style={{ fontSize: 44, textAlign: 'center', padding: '18px 0 6px', filter: sold ? 'grayscale(1)' : 'none' }}>{item.emoji}</div>
-      <div style={{ padding: '0 15px 15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.06em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 11, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock}x`}</span>
+      <div style={{ fontSize: 34, textAlign: 'center', padding: '12px 0 4px', filter: sold ? 'grayscale(1)' : 'none' }}>{item.emoji}</div>
+      <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
+          <span style={{ fontSize: 10.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock}x`}</span>
         </div>
-        <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 4 }}>{item.name}</div>
-        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.45, marginBottom: 12, flex: 1 }}>{item.desc}</div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: cfg.color, fontWeight: 700, fontSize: 15 }}>
-            <PrismIcon type={item.cur} size={17} />{fmt(item.price)}
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 3, lineHeight: 1.2 }}>{item.name}</div>
+        <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4, marginBottom: 10, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: cfg.color, fontWeight: 700, fontSize: 14 }}>
+            <PrismIcon type={item.cur} size={16} />{fmt(item.price)}
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '7px 14px', borderRadius: 9, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
+            padding: '6px 12px', borderRadius: 8, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
             background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
-            color: sold ? T.textT : '#fff', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
+            color: sold ? T.textT : '#fff', fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
           }}>
             {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
           </button>
@@ -559,44 +574,107 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ CHECK-IN ═══════════════════════
-const Checkin = ({ canCheckin, onCheckin, lastCheckin, cardBg }) => (
-  <div>
-    <SectionHead title="Check-in Diário" sub="Volte todo dia para resgatar prismas grátis!" />
-    <div style={{ maxWidth: 520, margin: '0 auto', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 20, padding: '36px 32px', textAlign: 'center', boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${T.goldGl}, transparent 70%)`, pointerEvents: 'none' }} />
-      <div style={{ fontSize: 56, marginBottom: 6 }}>{canCheckin ? '🎁' : '✅'}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 6 }}>
-        {canCheckin ? 'Sua recompensa de hoje está pronta!' : 'Você já resgatou hoje'}
-      </div>
-      <div style={{ fontSize: 13.5, color: T.textT, marginBottom: 24 }}>
-        {canCheckin ? 'Resgate seus prismas diários abaixo.' : 'Volte amanhã para mais prismas grátis.'}
+const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();       // 0-based
+  const todayDay = now.getDate();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const claimed = new Set(checkins);
+  const todayR = dailyReward(todayDay);
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div>
+      <SectionHead title="Check-in Diário" sub="Resgate prismas grátis todo dia. Veja o calendário do mês com o que vem por aí." />
+
+      {/* Banner do dia + resgatar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 22px', marginBottom: 16, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 0% 0%, ${T.goldGl}, transparent 55%)`, pointerEvents: 'none' }} />
+        <div style={{ fontSize: 40, position: 'relative' }}>{canCheckin ? '🎁' : '✅'}</div>
+        <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>
+            {canCheckin ? 'Sua recompensa de hoje está pronta!' : 'Você já resgatou hoje'}
+          </div>
+          <div style={{ fontSize: 12.5, color: T.textT, marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            Recompensa de hoje:
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: COMUM.color, fontWeight: 700 }}><PrismIcon type="comum" size={14} />+{todayR.comum}</span>
+            {!!todayR.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: PREMIUM.color, fontWeight: 700 }}><PrismIcon type="premium" size={14} />+{todayR.premium}</span>}
+          </div>
+        </div>
+        <button disabled={!canCheckin} onClick={onCheckin} style={{
+          padding: '12px 28px', borderRadius: 11, border: 'none', cursor: canCheckin ? 'pointer' : 'not-allowed', position: 'relative',
+          background: canCheckin ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : T.surfaceSub || 'rgba(0,0,0,0.06)',
+          color: canCheckin ? '#fff' : T.textT, fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)',
+          boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none',
+        }}>
+          {canCheckin ? '🌟 Resgatar' : 'Resgatado ✓'}
+        </button>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 26 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 22px', borderRadius: 14, background: COMUM.glow, border: `1px solid ${COMUM.color}44` }}>
-          <PrismIcon type="comum" size={30} />
-          <span style={{ fontSize: 18, fontWeight: 800, color: COMUM.color }}>+{CHECKIN_COMUM}</span>
-          <span style={{ fontSize: 11, color: T.textT }}>Comuns</span>
+      {/* Calendário do mês */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px' : '20px 22px', boxShadow: T.sh }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14, textTransform: 'capitalize' }}>
+          {MONTH_NAMES[month]} {year}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 22px', borderRadius: 14, background: PREMIUM.glow, border: `1px solid ${PREMIUM.color}44` }}>
-          <PrismIcon type="premium" size={30} />
-          <span style={{ fontSize: 18, fontWeight: 800, color: PREMIUM.color }}>+{CHECKIN_PREMIUM}</span>
-          <span style={{ fontSize: 11, color: T.textT }}>Premium</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: isMobile ? 5 : 8 }}>
+          {WEEKDAYS.map((w, i) => (
+            <div key={'wd' + i} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: T.textD, padding: '2px 0 4px' }}>{w}</div>
+          ))}
+          {cells.map((d, idx) => {
+            if (d === null) return <div key={'e' + idx} />;
+            const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
+            const isClaimed = claimed.has(dateStr);
+            const isToday = d === todayDay;
+            const isPast = d < todayDay;
+            const r = dailyReward(d);
+            const showPremium = r.premium > 0;
+            const pc = showPremium ? PREMIUM : COMUM;
+
+            let bg = 'transparent', bd = T.border, op = 1;
+            if (isClaimed) { bg = 'rgba(34,197,94,0.10)'; bd = 'rgba(34,197,94,0.45)'; }
+            else if (isToday) { bg = T.goldGl; bd = T.goldLine; }
+            else if (isPast) { op = 0.4; }
+
+            return (
+              <div key={dateStr}
+                onClick={isToday && canCheckin ? onCheckin : undefined}
+                title={`Dia ${d}: +${r.comum} Comuns${r.premium ? ` · +${r.premium} Premium` : ''}`}
+                style={{
+                  position: 'relative', border: `1.5px solid ${bd}`, borderRadius: 11, opacity: op,
+                  background: bg, minHeight: isMobile ? 52 : 66, padding: '5px 4px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: isToday && canCheckin ? 'pointer' : 'default',
+                }}>
+                <span style={{ alignSelf: 'flex-start', fontSize: 11, fontWeight: 700, color: isToday ? T.gold : T.textS, paddingLeft: 2 }}>{d}</span>
+                {isClaimed ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 4 }}><polyline points="20 6 9 17 4 12" /></svg>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
+                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={14} />
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: pc.color }}>{showPremium ? `${r.premium}` : r.comum}</span>
+                  </span>
+                )}
+                {isToday && <span style={{ fontSize: 8, fontWeight: 800, color: T.gold, letterSpacing: '.04em' }}>HOJE</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legenda */}
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, fontSize: 11.5, color: T.textT }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'rgba(34,197,94,0.10)', border: '1.5px solid rgba(34,197,94,0.45)' }} /> Resgatado</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: T.goldGl, border: `1.5px solid ${T.goldLine}` }} /> Hoje</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PrismIcon type="comum" size={13} /> / <PrismIcon type="premium" size={13} /> Recompensa do dia</span>
         </div>
       </div>
-
-      <button disabled={!canCheckin} onClick={onCheckin} style={{
-        padding: '13px 40px', borderRadius: 12, border: 'none', cursor: canCheckin ? 'pointer' : 'not-allowed',
-        background: canCheckin ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : T.surfaceSub || 'rgba(0,0,0,0.06)',
-        color: canCheckin ? '#fff' : T.textT, fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
-        boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none', position: 'relative',
-      }}>
-        {canCheckin ? '🌟 Resgatar agora' : 'Resgatado ✓'}
-      </button>
-      {lastCheckin && <div style={{ fontSize: 11, color: T.textD, marginTop: 14, position: 'relative' }}>Último check-in: {lastCheckin}</div>}
     </div>
-  </div>
-);
+  );
+};
 
 // ═══════════════════════════════════════════ HISTÓRICO ══════════════════════
 const KIND_META = {
@@ -646,9 +724,9 @@ const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: T.textD, t
 const primaryBtn = (color) => ({ width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${color},${color}bb)`, color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)' });
 
 const SectionHead = ({ title, sub }) => (
-  <div style={{ marginBottom: 20 }}>
-    <div style={{ fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>{title}</div>
-    {sub && <div style={{ fontSize: 14, color: T.textT, marginTop: 4 }}>{sub}</div>}
+  <div style={{ marginBottom: 14 }}>
+    <div style={{ fontSize: 20, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>{title}</div>
+    {sub && <div style={{ fontSize: 13.5, color: T.textT, marginTop: 3 }}>{sub}</div>}
   </div>
 );
 
