@@ -19,12 +19,26 @@ const COMUM   = { color: '#27C6DE', glow: 'rgba(39,198,222,0.18)', name: 'Prisma
 const PREMIUM = { color: '#9B6BFF', glow: 'rgba(155,107,255,0.20)', name: 'Prisma Premium' };
 const RAINBOW = 'linear-gradient(100deg,#ff5e5e 0%,#ffa63d 17%,#ffe14d 34%,#5ed16a 51%,#4aa3ff 68%,#9b6bff 85%,#ff5ec4 100%)';
 
-// Preenchimento (botões/chips/medalhão): premium = arco-íris; comum = gradiente da cor
-const prismFill = (type) => type === 'premium' ? RAINBOW : `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`;
 // Estilo de TEXTO: premium = arco-íris recortado no texto; comum = cor sólida
 const prismText = (type) => type === 'premium'
   ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }
   : { color: COMUM.color };
+
+// Interiores escuros (para destacar o prisma) por tipo
+const DARK_PREMIUM = '#191328';
+const DARK_COMUM   = '#0c1a1f';
+// Borda ARCO-ÍRIS com interior escuro (respeita border-radius via duplo background)
+const rainbowBorder = (radius, dark = DARK_PREMIUM) => ({
+  border: '2px solid transparent', borderRadius: radius,
+  background: `linear-gradient(${dark},${dark}) padding-box, ${RAINBOW} border-box`,
+});
+// Estilo de botão "comprar/resgatar": premium = borda arco-íris + fundo escuro;
+// comum = preenchimento ciano; esgotado = cinza
+const buyBtn = (type, sold, radius) => sold
+  ? { background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textT, border: 'none', borderRadius: radius }
+  : type === 'premium'
+    ? { ...rainbowBorder(radius), color: '#fff' }
+    : { background: `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`, color: '#fff', border: 'none', borderRadius: radius };
 
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 500;
@@ -121,14 +135,12 @@ const PrismIcon = ({ type = 'comum', size = 22 }) => {
 
 const PrismChip = ({ type, amount }) => {
   const prem = type === 'premium';
-  const cfg = prem ? PREMIUM : COMUM;
+  const base = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 13px', fontWeight: 800, fontSize: 14, color: '#fff' };
+  const style = prem
+    ? { ...base, ...rainbowBorder(999) }
+    : { ...base, borderRadius: 999, border: `2px solid ${COMUM.color}`, background: DARK_COMUM };
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 13px', borderRadius: 999,
-      background: prem ? RAINBOW : cfg.glow, border: prem ? 'none' : `1px solid ${cfg.color}44`,
-      color: prem ? '#fff' : cfg.color, fontWeight: 800, fontSize: 14,
-      textShadow: prem ? '0 1px 2px rgba(0,0,0,0.28)' : 'none',
-    }}>
+    <span style={style}>
       <PrismIcon type={type} size={22} />{fmt(amount)}
     </span>
   );
@@ -447,9 +459,8 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
               <PrismIcon type={item.cur} size={36} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
             </span>
             <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-              padding: '13px 30px', borderRadius: 12, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-              background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
-              color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
+              padding: '13px 30px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 12),
+              fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
               opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 22px ${cfg.color}55`,
             }}>
               {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
@@ -501,9 +512,8 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
             <PrismIcon type={item.cur} size={28} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '10px 22px', borderRadius: 11, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
-            color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 14.5, fontFamily: 'var(--font-body)',
+            padding: '10px 22px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 11),
+            fontWeight: 800, fontSize: 14.5, fontFamily: 'var(--font-body)',
             opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 20px ${cfg.color}44`,
           }}>
             {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
@@ -537,9 +547,8 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
             <PrismIcon type={item.cur} size={22} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '6px 12px', borderRadius: 8, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
-            color: sold ? T.textT : '#fff', fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
+            padding: '6px 12px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 8),
+            fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
           }}>
             {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
           </button>
@@ -852,7 +861,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
             </span>
           </div>
 
-          <button onClick={exchange} style={{ ...primaryBtn(PREMIUM.color), background: RAINBOW }}>Trocar agora</button>
+          <button onClick={exchange} style={{ ...primaryBtn(PREMIUM.color), ...rainbowBorder(10), color: '#fff' }}>Trocar agora</button>
         </div>
       </div>
     </div>
@@ -932,12 +941,12 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                   }}
                   onMouseEnter={e => { if (isToday && canCheckin) e.currentTarget.style.transform = 'translateY(-3px)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}>
-                  {/* Medalhão circular com o prisma destacado */}
+                  {/* Medalhão: borda colorida + interior escuro para destacar o prisma */}
                   <div style={{
-                    position: 'relative', width: med, height: med, borderRadius: '50%',
-                    background: showPremium ? RAINBOW : `radial-gradient(circle at 50% 36%, ${pc.glow}, ${cardBg} 78%)`,
-                    border: showPremium ? '2px solid #ffffffcc' : `2px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: showPremium ? '0 3px 12px rgba(155,107,255,0.5)' : `0 3px 10px ${pc.color}44, inset 0 0 9px ${pc.color}22`,
+                    position: 'relative', width: med, height: med,
+                    ...(showPremium ? rainbowBorder('50%') : { borderRadius: '50%', border: `2px solid ${pc.color}`, background: DARK_COMUM }),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: showPremium ? '0 3px 12px rgba(155,107,255,0.45)' : `0 3px 10px ${pc.color}55`,
                     filter: isClaimed ? 'grayscale(0.4)' : 'none',
                   }}>
                     <PrismIcon type={showPremium ? 'premium' : 'comum'} size={28} />
