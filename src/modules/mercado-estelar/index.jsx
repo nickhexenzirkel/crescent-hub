@@ -30,8 +30,7 @@ const dailyReward = (day) => {
   return { comum: 120, premium: day % 2 === 0 ? 1 : 0 };
 };
 
-const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MONTH_NAMES =['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const pad2 = (n) => String(n).padStart(2, '0');
 
 const STORAGE_KEY = 'me_state_v1';
@@ -206,8 +205,8 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {!isMobile && <Logo size={26} />}
       </div>
 
-      {/* ── Tabs ── */}
-      <div style={{ display: 'flex', gap: 6, padding: isMobile ? '12px 12px 0' : '16px 24px 0', maxWidth: 1240, margin: '0 auto', width: '100%', flexWrap: 'wrap' }}>
+      {/* ── Tabs (botões em pílula) ── */}
+      <div style={{ display: 'flex', gap: 9, padding: isMobile ? '14px 12px 4px' : '18px 24px 4px', maxWidth: 1240, margin: '0 auto', width: '100%', flexWrap: 'wrap' }}>
         {[
           { id: 'loja',      label: 'Loja',      icon: '🛒' },
           { id: 'missoes',   label: 'Missões',   icon: '🎯' },
@@ -217,13 +216,19 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         ].map(t => {
           const on = tab === t.id;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px',
-              borderRadius: '12px 12px 0 0', border: `1px solid ${on ? T.goldLine + '55' : 'transparent'}`,
-              borderBottom: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)',
-              fontSize: 14, fontWeight: on ? 700 : 500,
-              background: on ? cardBg : 'transparent', color: on ? T.gold : T.textT,
-            }}>
+            <button key={t.id} onClick={() => setTab(t.id)}
+              onMouseEnter={e => { if (!on) e.currentTarget.style.borderColor = T.goldLine + '88'; }}
+              onMouseLeave={e => { if (!on) e.currentTarget.style.borderColor = T.border; }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 18px',
+                borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                fontSize: 14, fontWeight: on ? 700 : 600,
+                border: `1.5px solid ${on ? 'transparent' : T.border}`,
+                background: on ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.04)'),
+                color: on ? '#fff' : T.textS,
+                boxShadow: on ? `0 5px 16px ${T.goldLine}55` : '0 1px 2px rgba(0,0,0,0.05)',
+                transition: 'all .15s',
+              }}>
               <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
             </button>
           );
@@ -577,12 +582,17 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
 
 // ═══════════════════════════════════════════ CARTEIRA ═══════════════════════
 const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
-  const [sendTo, setSendTo] = useState(COLABORADORES[0]);
+  const [sendTo, setSendTo] = useState('');
+  const [sendQuery, setSendQuery] = useState('');
+  const [openList, setOpenList] = useState(false);
   const [sendCur, setSendCur] = useState('comum');
   const [sendAmt, setSendAmt] = useState('');
   const [exAmt, setExAmt] = useState('');
 
+  const matches = COLABORADORES.filter(c => c.toLowerCase().includes(sendQuery.trim().toLowerCase()));
+
   const send = () => {
+    if (!sendTo || !COLABORADORES.includes(sendTo)) { flash('Selecione um destinatário da lista'); return; }
     const amt = parseInt(sendAmt, 10);
     if (!amt || amt <= 0) { flash('Informe uma quantidade válida'); return; }
     if (state[sendCur] < amt) { flash('Saldo insuficiente'); return; }
@@ -632,9 +642,35 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
           <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16 }}>Transfira prismas para outro colaborador.</div>
 
           <label style={lbl}>Destinatário</label>
-          <select value={sendTo} onChange={e => setSendTo(e.target.value)} style={{ ...fieldStyle, marginBottom: 12, cursor: 'pointer' }}>
-            {COLABORADORES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: 13, pointerEvents: 'none' }}>
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              value={sendQuery}
+              onChange={e => { setSendQuery(e.target.value); setSendTo(''); setOpenList(true); }}
+              onFocus={() => setOpenList(true)}
+              onBlur={() => setTimeout(() => setOpenList(false), 150)}
+              placeholder="Digite o nome do colaborador..."
+              style={{ ...fieldStyle, paddingLeft: 34 }} />
+            {sendTo && !openList && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: 12, top: 12 }}><polyline points="20 6 9 17 4 12" /></svg>
+            )}
+            {openList && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 30, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: T.shL || '0 8px 24px rgba(0,0,0,0.18)', maxHeight: 210, overflowY: 'auto' }}>
+                {matches.length === 0 ? (
+                  <div style={{ padding: '12px 14px', fontSize: 13, color: T.textT }}>Nenhum colaborador encontrado</div>
+                ) : matches.map(c => (
+                  <div key={c} onMouseDown={() => { setSendTo(c); setSendQuery(c); setOpenList(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', cursor: 'pointer', fontSize: 13.5, color: T.text }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <AvatarCircle name={c} size={24} fontSize={9} />{c}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <label style={lbl}>Tipo de prisma</label>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -689,14 +725,9 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
   const year = now.getFullYear();
   const month = now.getMonth();       // 0-based
   const todayDay = now.getDate();
-  const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const claimed = new Set(checkins);
   const todayR = dailyReward(todayDay);
-
-  const cells = [];
-  for (let i = 0; i < firstWeekday; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
     <div>
@@ -726,17 +757,13 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
         </button>
       </div>
 
-      {/* Calendário do mês */}
+      {/* Calendário do mês — cards com prisma destacado no centro */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px' : '20px 22px', boxShadow: T.sh }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14, textTransform: 'capitalize' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16, textTransform: 'capitalize' }}>
           {MONTH_NAMES[month]} {year}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: isMobile ? 5 : 8 }}>
-          {WEEKDAYS.map((w, i) => (
-            <div key={'wd' + i} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: T.textD, padding: '2px 0 4px' }}>{w}</div>
-          ))}
-          {cells.map((d, idx) => {
-            if (d === null) return <div key={'e' + idx} />;
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 8 : 12 }}>
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
             const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
             const isClaimed = claimed.has(dateStr);
             const isToday = d === todayDay;
@@ -744,41 +771,65 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
             const r = dailyReward(d);
             const showPremium = r.premium > 0;
             const pc = showPremium ? PREMIUM : COMUM;
+            const qty = showPremium ? r.premium : r.comum;
+            const med = isMobile ? 46 : 58;
 
-            let bg = 'transparent', bd = T.border, op = 1;
-            if (isClaimed) { bg = 'rgba(34,197,94,0.10)'; bd = 'rgba(34,197,94,0.45)'; }
-            else if (isToday) { bg = T.goldGl; bd = T.goldLine; }
-            else if (isPast) { op = 0.4; }
+            let bg = T.surfaceSub || 'rgba(0,0,0,0.025)', bd = T.border;
+            if (isToday && canCheckin) { bg = T.goldGl; bd = T.goldLine; }
+            else if (isClaimed) { bg = 'rgba(34,197,94,0.08)'; bd = 'rgba(34,197,94,0.4)'; }
+            const dim = isPast && !isClaimed;
 
             return (
-              <div key={dateStr}
-                onClick={isToday && canCheckin ? onCheckin : undefined}
-                title={`Dia ${d}: +${r.comum} Comuns${r.premium ? ` · +${r.premium} Premium` : ''}`}
-                style={{
-                  position: 'relative', border: `1.5px solid ${bd}`, borderRadius: 11, opacity: op,
-                  background: bg, minHeight: isMobile ? 52 : 66, padding: '5px 4px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-                  cursor: isToday && canCheckin ? 'pointer' : 'default',
-                }}>
-                <span style={{ alignSelf: 'flex-start', fontSize: 11, fontWeight: 700, color: isToday ? T.gold : T.textS, paddingLeft: 2 }}>{d}</span>
-                {isClaimed ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 4 }}><polyline points="20 6 9 17 4 12" /></svg>
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginBottom: 3 }}>
-                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={14} />
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: pc.color }}>{showPremium ? `${r.premium}` : r.comum}</span>
-                  </span>
-                )}
-                {isToday && <span style={{ fontSize: 8, fontWeight: 800, color: T.gold, letterSpacing: '.04em' }}>HOJE</span>}
+              <div key={dateStr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+                <div
+                  onClick={isToday && canCheckin ? onCheckin : undefined}
+                  title={`${d}º dia · +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`}
+                  style={{
+                    position: 'relative', width: '100%', borderRadius: 14, border: `1.5px solid ${bd}`, background: bg,
+                    padding: isMobile ? '12px 4px 14px' : '16px 6px 18px', display: 'flex', justifyContent: 'center',
+                    opacity: dim ? 0.45 : 1, cursor: isToday && canCheckin ? 'pointer' : 'default',
+                    boxShadow: isToday && canCheckin ? `0 6px 18px ${T.goldLine}33` : 'none', transition: 'transform .15s',
+                  }}
+                  onMouseEnter={e => { if (isToday && canCheckin) e.currentTarget.style.transform = 'translateY(-3px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}>
+                  {/* Medalhão circular com o prisma destacado */}
+                  <div style={{
+                    position: 'relative', width: med, height: med, borderRadius: '50%',
+                    background: `radial-gradient(circle at 50% 36%, ${pc.glow}, ${cardBg} 78%)`,
+                    border: `2.5px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: `0 4px 14px ${pc.color}44, inset 0 0 12px ${pc.color}22`,
+                    filter: isClaimed ? 'grayscale(0.4)' : 'none',
+                  }}>
+                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={isMobile ? 26 : 32} />
+                    {/* badge ×N */}
+                    <span style={{
+                      position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
+                      background: pc.color, color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 8px',
+                      borderRadius: 999, whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                    }}>×{fmt(qty)}</span>
+                  </div>
+
+                  {/* Check de resgatado */}
+                  {isClaimed && (
+                    <div style={{ position: 'absolute', top: 6, right: 6, width: 19, height: 19, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    </div>
+                  )}
+                  {/* Ponto vermelho de "disponível hoje" */}
+                  {isToday && canCheckin && (
+                    <span style={{ position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />
+                  )}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º dia</span>
               </div>
             );
           })}
         </div>
 
         {/* Legenda */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16, fontSize: 11.5, color: T.textT }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'rgba(34,197,94,0.10)', border: '1.5px solid rgba(34,197,94,0.45)' }} /> Resgatado</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: T.goldGl, border: `1.5px solid ${T.goldLine}` }} /> Hoje</span>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18, fontSize: 11.5, color: T.textT }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: '50%', background: '#16a34a' }} /> Resgatado</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#e23b3b' }} /> Disponível hoje</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PrismIcon type="comum" size={13} /> / <PrismIcon type="premium" size={13} /> Recompensa do dia</span>
         </div>
       </div>
