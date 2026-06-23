@@ -99,16 +99,14 @@ const loadState = () => {
   return DEFAULT_STATE;
 };
 
-// ─── Ícone do Prisma (cristal/diamante) ───────────────────────────────────
+// ─── Ícone do Prisma (arte em public/) ─────────────────────────────────────
+const PRISM_SRC = { comum: '/PrismaComum.png', premium: '/PrismaPremium.png' };
 const PrismIcon = ({ type = 'comum', size = 22 }) => {
   const c = type === 'premium' ? PREMIUM.color : COMUM.color;
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ filter: `drop-shadow(0 1px 4px ${c}66)` }}>
-      <path d="M12 2 L20 8 L12 22 L4 8 Z" fill={c} opacity="0.92" />
-      <path d="M12 2 L20 8 L12 22 Z" fill="#fff" opacity="0.18" />
-      <path d="M4 8 H20" stroke="#fff" strokeWidth="0.8" opacity="0.5" />
-      <path d="M12 2 L8.5 8 L12 22 L15.5 8 Z" stroke="#fff" strokeWidth="0.6" opacity="0.35" fill="none" />
-    </svg>
+    <img src={PRISM_SRC[type] || PRISM_SRC.comum} alt={type === 'premium' ? 'Prisma Premium' : 'Prisma Comum'}
+      width={size} height={size}
+      style={{ width: size, height: size, objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle', filter: `drop-shadow(0 1px 4px ${c}66)` }} />
   );
 };
 
