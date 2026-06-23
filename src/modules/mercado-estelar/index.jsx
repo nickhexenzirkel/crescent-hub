@@ -56,15 +56,14 @@ const DEFAULT_STATE = {
   comum: 1480,
   premium: 6,
   checkins: [],
+  // Catálogo do mês: 6 prêmios → 1 Lendário, 3 Épicos, 1 Raro, 1 Comum
   items: [
-    { id: 'i1', name: 'Day-off Surpresa',         desc: 'Um dia inteiro de folga para usar quando quiser — sem descontar do banco de horas.', price: 5,    cur: 'premium', stock: 3,  rarity: 'Lendário',  emoji: '🏖️', featured: true },
-    { id: 'i2', name: 'Vale-Presente R$100',       desc: 'Cartão presente para lojas parceiras',    price: 4,    cur: 'premium', stock: 5,  rarity: 'Épico',     emoji: '🎁' },
-    { id: 'i3', name: 'Almoço por conta da casa',  desc: 'Voucher de almoço no restaurante',        price: 2,    cur: 'premium', stock: 8,  rarity: 'Raro',      emoji: '🍽️' },
-    { id: 'i4', name: 'Caneca Uniko Holográfica',  desc: 'Caneca colecionável edição estelar',      price: 600,  cur: 'comum',   stock: 12, rarity: 'Épico',     emoji: '☕' },
-    { id: 'i5', name: 'Adesivos do Cat-Bot',       desc: 'Cartela de stickers exclusivos',          price: 150,  cur: 'comum',   stock: 30, rarity: 'Comum',     emoji: '✨' },
-    { id: 'i6', name: 'Avatar Animado Raro',       desc: 'Skin animada para o seu perfil',          price: 350,  cur: 'comum',   stock: 1,  rarity: 'Lendário',  emoji: '🌟' },
-    { id: 'i7', name: 'Camiseta Uniko',            desc: 'Camiseta oficial da equipe',              price: 800,  cur: 'comum',   stock: 6,  rarity: 'Raro',      emoji: '👕' },
-    { id: 'i8', name: 'Pelúcia do Dodoco',         desc: 'Mascote de pelúcia colecionável',         price: 3,    cur: 'premium', stock: 2,  rarity: 'Lendário',  emoji: '🧸' },
+    { id: 'i1', name: 'Day-off Surpresa',        desc: 'Um dia inteiro de folga para usar quando quiser — sem descontar do banco de horas.', price: 5,   cur: 'premium', stock: 3,  rarity: 'Lendário', emoji: '🏖️', featured: true },
+    { id: 'i2', name: 'Vale-Presente R$100',     desc: 'Cartão presente para usar nas lojas parceiras do programa.',                          price: 4,   cur: 'premium', stock: 5,  rarity: 'Épico',    emoji: '🎁' },
+    { id: 'i3', name: 'Caneca Uniko Holográfica',desc: 'Caneca colecionável edição estelar, com acabamento holográfico exclusivo.',          price: 600, cur: 'comum',   stock: 12, rarity: 'Épico',    emoji: '☕' },
+    { id: 'i4', name: 'Pelúcia do Dodoco',       desc: 'Mascote de pelúcia colecionável do Uniko Wave.',                                      price: 3,   cur: 'premium', stock: 2,  rarity: 'Épico',    emoji: '🧸' },
+    { id: 'i5', name: 'Camiseta Uniko',          desc: 'Camiseta oficial da equipe, tecido premium.',                                         price: 800, cur: 'comum',   stock: 6,  rarity: 'Raro',     emoji: '👕' },
+    { id: 'i6', name: 'Adesivos do Cat-Bot',     desc: 'Cartela de stickers exclusivos do Cat-Bot.',                                          price: 150, cur: 'comum',   stock: 30, rarity: 'Comum',    emoji: '✨' },
   ],
   missions: [
     { id: 'm1', title: 'Constância',     desc: 'Faça check-in por 3 dias',           progress: 2,    goal: 3,    comum: 100, premium: 0, claimed: false },
@@ -83,17 +82,18 @@ const loadState = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      const mergeById = (saved, def) => {
-        const ids = new Set((saved || []).map(x => x.id));
-        return [...(saved || []), ...def.filter(x => !ids.has(x.id))];
-      };
+      // Catálogo de itens = sempre o DEFAULT (fonte da verdade), preservando só o
+      // estoque já consumido. Assim trocar o catálogo do mês não deixa item velho.
+      const items = DEFAULT_STATE.items.map(def => {
+        const saved = (s.items || []).find(x => x.id === def.id);
+        return saved ? { ...def, stock: saved.stock } : def;
+      });
+      // Missões: mantém progresso/resgate salvos, adiciona novas do default
+      const savedM = new Set((s.missions || []).map(x => x.id));
+      const missions = [...(s.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
       // Migra saves antigos (que tinham só lastCheckin) para a lista de check-ins
       const checkins = Array.isArray(s.checkins) ? s.checkins : (s.lastCheckin ? [s.lastCheckin] : []);
-      return {
-        ...DEFAULT_STATE, ...s, checkins,
-        items: mergeById(s.items, DEFAULT_STATE.items),
-        missions: mergeById(s.missions, DEFAULT_STATE.missions),
-      };
+      return { ...DEFAULT_STATE, ...s, checkins, items, missions };
     }
   } catch {}
   return DEFAULT_STATE;
@@ -257,10 +257,47 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   );
 };
 
+// ─── Contagem regressiva até o fim do mês (renovação dos prêmios) ──────────
+const MonthCountdown = () => {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const d = new Date();
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0).getTime(); // início do próximo mês
+  const diff = Math.max(0, end - now);
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  const Unit = ({ v, l }) => (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', minWidth: 34 }}>
+      <span style={{ fontSize: 17, fontWeight: 800, color: T.gold, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{pad2(v)}</span>
+      <span style={{ fontSize: 9, color: T.textT, textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 2 }}>{l}</span>
+    </span>
+  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.goldGl, border: `1px solid ${T.goldLine}44`, borderRadius: 14, padding: '12px 18px', marginBottom: 14 }}>
+      <span style={{ fontSize: 22 }}>⏳</span>
+      <div style={{ flex: 1, minWidth: 160 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Prêmios deste mês</div>
+        <div style={{ fontSize: 11.5, color: T.textT }}>Renovam quando o cronômetro zerar — aproveite antes que esgotem!</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Unit v={days} l="dias" /><Sep /><Unit v={hours} l="hrs" /><Sep /><Unit v={mins} l="min" /><Sep /><Unit v={secs} l="seg" />
+      </div>
+    </div>
+  );
+};
+const Sep = () => <span style={{ fontSize: 16, fontWeight: 800, color: T.textD, alignSelf: 'flex-start', marginTop: -1 }}>:</span>;
+
 // ═══════════════════════════════════════════════ LOJA ═══════════════════════
 const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | premium | comum
+  const [viewId, setViewId] = useState(null);  // item em tela cheia (lightbox)
+  const viewItem = viewId ? items.find(i => i.id === viewId) : null;
 
   const filtered = items
     .filter(i => filter === 'all' || i.cur === filter)
@@ -280,6 +317,9 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
   return (
     <div>
       <SectionHead title="Loja de Recompensas" sub="Troque seus prismas por prêmios e colecionáveis. Itens esgotam ao serem comprados." />
+
+      {/* Contagem regressiva mensal */}
+      <MonthCountdown />
 
       {/* Busca + filtros */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
@@ -315,22 +355,90 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: 14, alignItems: 'stretch' }}>
           {/* DESTAQUE — maior prêmio */}
-          {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} cardBg={cardBg} />}
+          {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
           {/* Grade dos demais */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(165px,1fr))', gap: 12, alignContent: 'start' }}>
             {rest.map(item => (
-              <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} cardBg={cardBg} />
+              <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Lightbox — prêmio em tela cheia */}
+      {viewItem && (
+        <ItemLightbox item={viewItem} afford={balances[viewItem.cur] >= viewItem.price} onBuy={onBuy} onClose={() => setViewId(null)} cardBg={cardBg} />
       )}
     </div>
   );
 };
 
+// Visualização em tela cheia do prêmio (card central + fundo desfocado)
+const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
+  const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
+  const sold = item.stock <= 0;
+  const rc = RARITY_COLOR[item.rarity] || T.textT;
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20, background: 'rgba(8,8,16,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      animation: 'meFade .2s ease',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        position: 'relative', width: '100%', maxWidth: 460, background: cardBg, borderRadius: 22,
+        border: `1.5px solid ${rc}55`, boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 60px ${rc}33`,
+        overflow: 'hidden', animation: 'mePop .25s cubic-bezier(.16,1,.3,1)',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${rc}30, transparent 55%)`, pointerEvents: 'none' }} />
+        {/* Fechar */}
+        <button onClick={onClose} aria-label="Fechar" style={{
+          position: 'absolute', top: 12, right: 12, zIndex: 3, width: 34, height: 34, borderRadius: '50%',
+          border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.25)', color: '#fff', fontSize: 18, lineHeight: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>×</button>
+
+        {/* Badge raridade */}
+        <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 999, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+          {item.rarity}
+        </div>
+
+        {/* Foto expandida */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
+          <div style={{ fontSize: 150, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
+        </div>
+
+        <div style={{ padding: '0 28px 28px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: T.text, lineHeight: 1.15 }}>{item.name}</div>
+            <span style={{ fontSize: 12.5, color: sold ? '#C04050' : T.textT, fontWeight: 700, flexShrink: 0, marginLeft: 10 }}>
+              {sold ? 'Esgotado' : `${item.stock} restante${item.stock > 1 ? 's' : ''}`}
+            </span>
+          </div>
+          <div style={{ fontSize: 14, color: T.textT, lineHeight: 1.6, marginBottom: 22 }}>{item.desc}</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: cfg.color, fontWeight: 800, fontSize: 26 }}>
+              <PrismIcon type={item.cur} size={28} />{fmt(item.price)}
+            </span>
+            <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
+              padding: '13px 30px', borderRadius: 12, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
+              background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
+              color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
+              opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 22px ${cfg.color}55`,
+            }}>
+              {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes meFade{from{opacity:0}to{opacity:1}}@keyframes mePop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}`}</style>
+    </div>
+  );
+};
+
 // Card grande de destaque (maior prêmio)
-const FeaturedCard = ({ item, afford, onBuy, cardBg }) => {
+const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
   const sold = item.stock <= 0;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
@@ -347,8 +455,10 @@ const FeaturedCard = ({ item, afford, onBuy, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '34px 20px 8px', position: 'relative' }}>
-        <div style={{ fontSize: 72, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 8px 24px ${rc}55)` }}>{item.emoji}</div>
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '34px 20px 8px', position: 'relative', cursor: 'zoom-in' }}>
+        <div style={{ fontSize: 72, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 8px 24px ${rc}55)`, transition: 'transform .18s' }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.07)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>{item.emoji}</div>
       </div>
 
       <div style={{ padding: '0 20px 20px', position: 'relative' }}>
@@ -382,14 +492,14 @@ const FeaturedCard = ({ item, afford, onBuy, cardBg }) => {
 };
 
 // Card pequeno (grade)
-const ItemCard = ({ item, afford, onBuy, cardBg }) => {
+const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
   const sold = item.stock <= 0;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
     <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-      <div style={{ fontSize: 34, textAlign: 'center', padding: '12px 0 4px', filter: sold ? 'grayscale(1)' : 'none' }}>{item.emoji}</div>
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ fontSize: 34, textAlign: 'center', padding: '12px 0 4px', filter: sold ? 'grayscale(1)' : 'none', cursor: 'zoom-in' }}>{item.emoji}</div>
       <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ fontSize: 9.5, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
