@@ -15,7 +15,16 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Cores fixas dos prismas (independem do tema para manter a identidade)
 const COMUM   = { color: '#27C6DE', glow: 'rgba(39,198,222,0.18)', name: 'Prisma Comum' };
-const PREMIUM = { color: '#F5B63A', glow: 'rgba(245,182,58,0.20)', name: 'Prisma Premium' };
+// Premium agora é ARCO-ÍRIS; a cor sólida (violeta) é só fallback p/ bordas/sombras
+const PREMIUM = { color: '#9B6BFF', glow: 'rgba(155,107,255,0.20)', name: 'Prisma Premium' };
+const RAINBOW = 'linear-gradient(100deg,#ff5e5e 0%,#ffa63d 17%,#ffe14d 34%,#5ed16a 51%,#4aa3ff 68%,#9b6bff 85%,#ff5ec4 100%)';
+
+// Preenchimento (botões/chips/medalhão): premium = arco-íris; comum = gradiente da cor
+const prismFill = (type) => type === 'premium' ? RAINBOW : `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`;
+// Estilo de TEXTO: premium = arco-íris recortado no texto; comum = cor sólida
+const prismText = (type) => type === 'premium'
+  ? { background: RAINBOW, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }
+  : { color: COMUM.color };
 
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 500;
@@ -111,13 +120,16 @@ const PrismIcon = ({ type = 'comum', size = 22 }) => {
 };
 
 const PrismChip = ({ type, amount }) => {
-  const cfg = type === 'premium' ? PREMIUM : COMUM;
+  const prem = type === 'premium';
+  const cfg = prem ? PREMIUM : COMUM;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px', borderRadius: 999,
-      background: cfg.glow, border: `1px solid ${cfg.color}44`, color: cfg.color, fontWeight: 700, fontSize: 13,
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 13px', borderRadius: 999,
+      background: prem ? RAINBOW : cfg.glow, border: prem ? 'none' : `1px solid ${cfg.color}44`,
+      color: prem ? '#fff' : cfg.color, fontWeight: 800, fontSize: 14,
+      textShadow: prem ? '0 1px 2px rgba(0,0,0,0.28)' : 'none',
     }}>
-      <PrismIcon type={type} size={16} />{fmt(amount)}
+      <PrismIcon type={type} size={22} />{fmt(amount)}
     </span>
   );
 };
@@ -431,12 +443,12 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
           <div style={{ fontSize: 14, color: T.textT, lineHeight: 1.6, marginBottom: 22 }}>{item.desc}</div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: cfg.color, fontWeight: 800, fontSize: 26 }}>
-              <PrismIcon type={item.cur} size={28} />{fmt(item.price)}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 26 }}>
+              <PrismIcon type={item.cur} size={36} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
             </span>
             <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
               padding: '13px 30px', borderRadius: 12, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-              background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
+              background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
               color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
               opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 22px ${cfg.color}55`,
             }}>
@@ -485,12 +497,12 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5, marginBottom: 14 }}>{item.desc}</div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: cfg.color, fontWeight: 800, fontSize: 20 }}>
-            <PrismIcon type={item.cur} size={22} />{fmt(item.price)}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontWeight: 800, fontSize: 20 }}>
+            <PrismIcon type={item.cur} size={28} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
             padding: '10px 22px', borderRadius: 11, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
+            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
             color: sold ? T.textT : '#fff', fontWeight: 800, fontSize: 14.5, fontFamily: 'var(--font-body)',
             opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 20px ${cfg.color}44`,
           }}>
@@ -521,12 +533,12 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
         <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 3, lineHeight: 1.2 }}>{item.name}</div>
         <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4, marginBottom: 10, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: cfg.color, fontWeight: 700, fontSize: 14 }}>
-            <PrismIcon type={item.cur} size={16} />{fmt(item.price)}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 14 }}>
+            <PrismIcon type={item.cur} size={22} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
           <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
             padding: '6px 12px', borderRadius: 8, border: 'none', cursor: (sold || !afford) ? 'not-allowed' : 'pointer',
-            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : `linear-gradient(135deg,${cfg.color},${cfg.color}bb)`,
+            background: sold ? T.surfaceSub || 'rgba(0,0,0,0.06)' : prismFill(item.cur),
             color: sold ? T.textT : '#fff', fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
           }}>
             {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
@@ -545,11 +557,32 @@ const SoldRibbon = () => (
 );
 
 // ═══════════════════════════════════════════════ COLEÇÃO ════════════════════
+const RARITY_ORDER = ['Lendário', 'Épico', 'Raro', 'Comum'];
+
 const Colecao = ({ collection, isMobile, cardBg }) => {
+  const [q, setQ] = useState('');
+  const [rar, setRar] = useState('all');
+  const [cur, setCur] = useState('all');
+  const [viewId, setViewId] = useState(null);
+  const viewItem = viewId ? collection.find(c => c.id === viewId) : null;
+
   const totalItens = collection.reduce((a, c) => a + c.qty, 0);
+  const filtered = collection
+    .filter(c => rar === 'all' || c.rarity === rar)
+    .filter(c => cur === 'all' || c.cur === cur)
+    .filter(c => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()));
+
+  const fieldStyle = { padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+  const chip = (on, c) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999,
+    border: `1.5px solid ${on ? c : T.border}`, cursor: 'pointer', fontFamily: 'var(--font-body)',
+    fontSize: 12.5, fontWeight: on ? 700 : 500, background: on ? c + '18' : 'transparent', color: on ? c : T.textS,
+  });
+
   return (
     <div>
       <SectionHead title="Minha Coleção" sub={collection.length ? `Você já resgatou ${totalItens} prêmio(s) · ${collection.length} tipo(s) diferente(s).` : 'Os prêmios que você resgatar aparecem aqui.'} />
+
       {collection.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
           <div style={{ fontSize: 44, marginBottom: 10 }}>🏆</div>
@@ -557,31 +590,96 @@ const Colecao = ({ collection, isMobile, cardBg }) => {
           <div style={{ fontSize: 13, marginTop: 4 }}>Resgate prêmios na Loja para começar a colecionar.</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(170px,1fr))', gap: 14 }}>
-          {collection.map(c => {
-            const rc = RARITY_COLOR[c.rarity] || T.textT;
-            const cfg = c.cur === 'premium' ? PREMIUM : COMUM;
-            return (
-              <div key={c.id} style={{ background: cardBg, border: `1px solid ${rc}44`, borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: T.sh, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-                {/* Selo de quantidade */}
-                {c.qty > 1 && (
-                  <span style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
-                )}
-                <div style={{ fontSize: 50, textAlign: 'center', padding: '20px 0 8px', filter: `drop-shadow(0 6px 16px ${rc}44)` }}>{c.emoji}</div>
-                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.2 }}>{c.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
-                    <PrismIcon type={c.cur} size={13} />
-                    <span style={{ fontSize: 11, color: T.textT }}>Resgatado em {c.date}</span>
+        <>
+          {/* Busca */}
+          <div style={{ position: 'relative', maxWidth: isMobile ? '100%' : 340, marginBottom: 10 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar prêmio..." style={{ ...fieldStyle, width: '100%', paddingLeft: 34 }} />
+          </div>
+
+          {/* Filtros: raridade */}
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
+            <button onClick={() => setRar('all')} style={chip(rar === 'all', T.gold)}>Todas raridades</button>
+            {RARITY_ORDER.map(r => <button key={r} onClick={() => setRar(r)} style={chip(rar === r, RARITY_COLOR[r])}>{r}</button>)}
+          </div>
+
+          {/* Filtros: tipo de prisma usado */}
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 16 }}>
+            <button onClick={() => setCur('all')} style={chip(cur === 'all', T.gold)}>Todos os prismas</button>
+            <button onClick={() => setCur('comum')} style={chip(cur === 'comum', COMUM.color)}><PrismIcon type="comum" size={15} />Comprado c/ Comum</button>
+            <button onClick={() => setCur('premium')} style={chip(cur === 'premium', PREMIUM.color)}><PrismIcon type="premium" size={15} />Comprado c/ Premium</button>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '50px 0', color: T.textT }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+              Nenhum prêmio encontrado para o filtro.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(170px,1fr))', gap: 14 }}>
+              {filtered.map(c => {
+                const rc = RARITY_COLOR[c.rarity] || T.textT;
+                return (
+                  <div key={c.id} style={{ background: cardBg, border: `1px solid ${rc}44`, borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: T.sh, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
+                    {c.qty > 1 && (
+                      <span style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
+                    )}
+                    <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ fontSize: 50, textAlign: 'center', padding: '20px 0 8px', filter: `drop-shadow(0 6px 16px ${rc}44)`, cursor: 'zoom-in' }}>{c.emoji}</div>
+                    <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.2 }}>{c.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
+                        <PrismIcon type={c.cur} size={16} />
+                        <span style={{ fontSize: 11, color: T.textT }}>Resgatado em {c.date}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
+
+      {/* Lightbox da coleção */}
+      {viewItem && <CollectionLightbox item={viewItem} onClose={() => setViewId(null)} cardBg={cardBg} />}
+    </div>
+  );
+};
+
+// Visualização em tela cheia de um prêmio da coleção
+const CollectionLightbox = ({ item, onClose, cardBg }) => {
+  const rc = RARITY_COLOR[item.rarity] || T.textT;
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20, background: 'rgba(8,8,16,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', animation: 'meFade .2s ease',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        position: 'relative', width: '100%', maxWidth: 440, background: cardBg, borderRadius: 22,
+        border: `1.5px solid ${rc}55`, boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 60px ${rc}33`, overflow: 'hidden', animation: 'mePop .25s cubic-bezier(.16,1,.3,1)',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${rc}30, transparent 55%)`, pointerEvents: 'none' }} />
+        <button onClick={onClose} aria-label="Fechar" style={{ position: 'absolute', top: 12, right: 12, zIndex: 3, width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.25)', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 999, letterSpacing: '.04em', textTransform: 'uppercase' }}>{item.rarity}</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
+          <div style={{ fontSize: 150, lineHeight: 1, filter: `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
+        </div>
+        <div style={{ padding: '0 28px 28px', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: T.text, lineHeight: 1.15 }}>{item.name}</div>
+            {item.qty > 1 && <span style={{ fontSize: 14, fontWeight: 800, color: rc }}>×{item.qty}</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.textT }}>
+            <PrismIcon type={item.cur} size={20} />
+            Resgatado com {item.cur === 'premium' ? 'Prisma Premium' : 'Prisma Comum'} · em {item.date}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -602,8 +700,8 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
                 <div style={{ fontSize: 12.5, color: T.textT, marginTop: 2 }}>{m.desc}</div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                {!!m.comum && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: COMUM.color }}><PrismIcon type="comum" size={14} />{m.comum}</span>}
-                {!!m.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: PREMIUM.color }}><PrismIcon type="premium" size={14} />{m.premium}</span>}
+                {!!m.comum && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: COMUM.color }}><PrismIcon type="comum" size={18} />{m.comum}</span>}
+                {!!m.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700 }}><PrismIcon type="premium" size={18} /><span style={prismText('premium')}>{m.premium}</span></span>}
               </div>
             </div>
 
@@ -674,12 +772,12 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
         {[{ k: 'comum', cfg: COMUM, hint: 'Prêmios colecionáveis e cosméticos' }, { k: 'premium', cfg: PREMIUM, hint: 'Prêmios grandes e exclusivos' }].map(({ k, cfg, hint }) => (
           <div key={k} style={{ background: cardBg, border: `1px solid ${cfg.color}33`, borderRadius: 14, padding: '14px 18px', position: 'relative', overflow: 'hidden', boxShadow: T.sh }}>
-            <div style={{ position: 'absolute', top: -24, right: -16, opacity: 0.12 }}><PrismIcon type={k} size={96} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <PrismIcon type={k} size={22} />
+            <div style={{ position: 'absolute', top: -28, right: -18, opacity: 0.16 }}><PrismIcon type={k} size={120} /></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
+              <PrismIcon type={k} size={30} />
               <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{cfg.name}</span>
             </div>
-            <div style={{ fontSize: 30, fontWeight: 800, color: cfg.color, lineHeight: 1 }}>{fmt(state[k])}</div>
+            <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, ...prismText(k) }}>{fmt(state[k])}</div>
             <div style={{ fontSize: 11, color: T.textT, marginTop: 5 }}>{hint}</div>
           </div>
         ))}
@@ -746,15 +844,15 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '11px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,0.02)', marginBottom: 12 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: COMUM.color, fontWeight: 700 }}>
-              <PrismIcon type="comum" size={20} />{fmt((parseInt(exAmt, 10) || 0))}
+              <PrismIcon type="comum" size={26} />{fmt((parseInt(exAmt, 10) || 0))}
             </span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: PREMIUM.color, fontWeight: 800, fontSize: 18 }}>
-              <PrismIcon type="premium" size={22} />{exPremium}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 18 }}>
+              <PrismIcon type="premium" size={28} /><span style={prismText('premium')}>{exPremium}</span>
             </span>
           </div>
 
-          <button onClick={exchange} style={primaryBtn(PREMIUM.color)}>Trocar agora</button>
+          <button onClick={exchange} style={{ ...primaryBtn(PREMIUM.color), background: RAINBOW }}>Trocar agora</button>
         </div>
       </div>
     </div>
@@ -786,7 +884,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
           <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             Recompensa de hoje:
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: COMUM.color, fontWeight: 700 }}><PrismIcon type="comum" size={14} />+{todayR.comum}</span>
-            {!!todayR.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: PREMIUM.color, fontWeight: 700 }}><PrismIcon type="premium" size={14} />+{todayR.premium}</span>}
+            {!!todayR.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700 }}><PrismIcon type="premium" size={18} /><span style={prismText('premium')}>+{todayR.premium}</span></span>}
           </div>
         </div>
         <button disabled={!canCheckin} onClick={onCheckin} style={{
@@ -814,7 +912,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
             const showPremium = r.premium > 0;
             const pc = showPremium ? PREMIUM : COMUM;
             const qty = showPremium ? r.premium : r.comum;
-            const med = isMobile ? 40 : 42;
+            const med = isMobile ? 46 : 50;
 
             let bg = T.surfaceSub || 'rgba(0,0,0,0.025)', bd = T.border;
             if (isToday && canCheckin) { bg = T.goldGl; bd = T.goldLine; }
@@ -837,17 +935,17 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                   {/* Medalhão circular com o prisma destacado */}
                   <div style={{
                     position: 'relative', width: med, height: med, borderRadius: '50%',
-                    background: `radial-gradient(circle at 50% 36%, ${pc.glow}, ${cardBg} 78%)`,
-                    border: `2px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: `0 3px 10px ${pc.color}44, inset 0 0 9px ${pc.color}22`,
+                    background: showPremium ? RAINBOW : `radial-gradient(circle at 50% 36%, ${pc.glow}, ${cardBg} 78%)`,
+                    border: showPremium ? '2px solid #ffffffcc' : `2px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: showPremium ? '0 3px 12px rgba(155,107,255,0.5)' : `0 3px 10px ${pc.color}44, inset 0 0 9px ${pc.color}22`,
                     filter: isClaimed ? 'grayscale(0.4)' : 'none',
                   }}>
-                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={22} />
+                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={28} />
                     {/* badge ×N */}
                     <span style={{
                       position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
-                      background: pc.color, color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px',
-                      borderRadius: 999, whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                      background: showPremium ? RAINBOW : pc.color, color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px',
+                      borderRadius: 999, whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.25)', textShadow: '0 1px 1px rgba(0,0,0,0.3)',
                     }}>×{fmt(qty)}</span>
                   </div>
 
@@ -943,8 +1041,9 @@ const Historico = ({ history, isMobile, cardBg }) => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
                 {['comum', 'premium'].map(cur => h[cur] != null && (
-                  <span key={cur} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: h[cur] >= 0 ? '#16a34a' : (cur === 'premium' ? PREMIUM.color : COMUM.color) }}>
-                    {h[cur] >= 0 ? '+' : ''}{fmt(h[cur])}<PrismIcon type={cur} size={14} />
+                  <span key={cur} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700 }}>
+                    <span style={h[cur] >= 0 ? { color: '#16a34a' } : (cur === 'premium' ? prismText('premium') : { color: COMUM.color })}>{h[cur] >= 0 ? '+' : ''}{fmt(h[cur])}</span>
+                    <PrismIcon type={cur} size={18} />
                   </span>
                 ))}
               </div>
