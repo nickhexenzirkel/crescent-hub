@@ -213,7 +213,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
-      alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'40px 32px'}}>
+      alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'20px 32px'}}>
 
       <WhatsNew/>
 
@@ -231,24 +231,24 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       )}
 
-      <div className="fsu" style={{textAlign:'center',marginBottom:44}}>
-        <div style={{display:'flex',justifyContent:'center',marginBottom:18}}>
-          <BrandLogo size={165}/>
+      <div className="fsu" style={{textAlign:'center',marginBottom:24}}>
+        <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
+          <BrandLogo size={92}/>
         </div>
-        <div style={{fontFamily:'var(--font-brand)',fontSize:28,fontWeight:700,
+        <div style={{fontFamily:'var(--font-brand)',fontSize:24,fontWeight:700,
           color:T.text,letterSpacing:'.07em',lineHeight:1}}>UNIKO</div>
-        <div style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textT,
-          letterSpacing:'.10em',textTransform:'uppercase',marginTop:5,marginBottom:14}}>
+        <div style={{fontFamily:'var(--font-body)',fontSize:12,color:T.textT,
+          letterSpacing:'.10em',textTransform:'uppercase',marginTop:4,marginBottom:10}}>
           Sistema Corporativo
         </div>
-        <div style={{width:'380px',margin:'0 auto 14px'}}><StarDivider/></div>
-        <div style={{fontFamily:'var(--font-body)',fontSize:16,color:T.textS}}>
+        <div style={{width:'320px',margin:'0 auto 10px'}}><StarDivider/></div>
+        <div style={{fontFamily:'var(--font-body)',fontSize:15,color:T.textS}}>
           Selecione um módulo para continuar
         </div>
       </div>
 
       <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,
-        gap:18,width:'100%',maxWidth: mods.length<=3 ? 900 : 1200}}>
+        gap:16,width:'100%',maxWidth: mods.length<=3 ? 820 : 1080}}>
         {mods.map(m=>(
           <div key={m.id}
             onClick={m.comingSoon ? undefined : ()=>onSelect(m.id)}
@@ -257,7 +257,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               border:`1px solid ${hov===m.id && !m.comingSoon ? m.color+'55' : m.comingSoon ? m.color+'33' : T.border}`,
               borderRadius:18,
               boxShadow: m.comingSoon ? T.sh : hov===m.id ? T.shL : T.sh,
-              padding:'36px 30px',
+              padding:'22px 24px',
               cursor: m.comingSoon ? 'default' : 'pointer',
               transform: m.comingSoon ? 'none' : hov===m.id ? 'translateY(-6px)' : 'none',
               opacity: m.comingSoon ? 0.82 : 1,
@@ -266,15 +266,17 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             <div style={{position:'absolute',top:0,left:'15%',right:'15%',height:2,
               background:`linear-gradient(90deg,transparent,${m.comingSoon?m.color+'66':T.goldV},transparent)`,
               borderRadius:999}}/>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-              <div style={{width:54,height:54,borderRadius:14,background:m.bg,
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+              <div style={{width:48,height:48,borderRadius:13,background:m.bg,
                 border:`1px solid ${m.color}22`,display:'flex',alignItems:'center',
-                justifyContent:'center',fontSize:23,color:m.color}}>{m.icon}</div>
+                justifyContent:'center',fontSize:21,color:m.color}}>
+                {React.cloneElement(m.icon, {width:23, height:23})}
+              </div>
               <Tag color={m.color} style={{marginTop:4}}>{m.tag}</Tag>
             </div>
-            <div style={{fontSize:19,fontWeight:600,color:T.text,marginBottom:7}}>{m.label}</div>
-            <div style={{fontSize:14,color:T.textS,marginBottom:22,lineHeight:1.65}}>{m.sub}</div>
-            <div style={{marginBottom:18}}></div>
+            <div style={{fontSize:18,fontWeight:600,color:T.text,marginBottom:6}}>{m.label}</div>
+            <div style={{fontSize:13.5,color:T.textS,marginBottom:14,lineHeight:1.55}}>{m.sub}</div>
+            <div style={{marginBottom:8}}></div>
             {m.comingSoon
               ? <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:m.color}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={m.color} strokeWidth="1.8" strokeLinecap="round">
@@ -299,7 +301,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         ))}
       </div>
 
-      <div className="fsu3" style={{marginTop:44,display:'flex',alignItems:'center',gap:10,opacity:.35}}>
+      <div className="fsu3" style={{marginTop:24,display:'flex',alignItems:'center',gap:10,opacity:.35}}>
         <Logo size={22}/>
         <span style={{fontFamily:'var(--font-body)',fontSize:12,color:T.textT,whiteSpace:'nowrap'}}>
           Criado por <span style={{fontFamily:'var(--font-brand)',fontSize:12,fontWeight:600,color:T.gold}}>Nicolas Andrade</span>
