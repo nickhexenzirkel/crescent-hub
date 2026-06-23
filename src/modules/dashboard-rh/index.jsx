@@ -4,6 +4,15 @@ import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/u
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 
+// Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
+// caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
+// chaves inválidas e o upload retorna 400 (Bad Request).
+const safeKeyPart = (s) => (s || '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')   // remove acentos (ç → c)
+  .replace(/[\\/]/g, '-')
+  .replace(/\s+/g, '_')
+  .replace(/[^a-zA-Z0-9_-]/g, '');
+
 const AdminLoginModal = ({onSuccess, onCancel}) => {
   const [pw, setPw]     = useState('');
   const [show, setShow] = useState(false);
@@ -500,8 +509,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     }
     setChSaving(true); setChMsg('');
     try {
-      const safeName = chForm.employee_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-      const safeComp = chForm.competencia.replace(/[\\/]/g, '-').replace(/\s+/g, '_');
+      const safeName = safeKeyPart(chForm.employee_name);
+      const safeComp = safeKeyPart(chForm.competencia);
       const filePath = `${safeName}/${safeComp}_${Date.now()}.pdf`;
 
       const { error: upErr } = await _supabase.storage
@@ -601,8 +610,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     for (const r of rows) {
       try {
         setBatchRow(r.id, { status: 'sending' });
-        const safeName = r.employee_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-        const safeComp = r.competencia.replace(/[\\/]/g, '-').replace(/\s+/g, '_');
+        const safeName = safeKeyPart(r.employee_name);
+        const safeComp = safeKeyPart(r.competencia);
         const filePath = `${safeName}/${safeComp}_${Date.now()}_${r.id}.pdf`;
         const blob = new Blob([r.bytes], { type: 'application/pdf' });
         const { error: upErr } = await _supabase.storage
@@ -2370,10 +2379,17 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       })}
                     </div>
 
-                    <button onClick={sendBatch} disabled={chBatchSending || chBatchSlips.every(r => !r.employee_name || !r.competencia)}
-                      style={{ width:'100%', marginTop:16, padding:'12px', borderRadius:10, border:'none', cursor: chBatchSending ? 'wait' : 'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', boxShadow:`0 4px 16px ${T.goldLine}44`, opacity: chBatchSending ? 0.75 : 1 }}>
-                      {chBatchSending ? `Enviando… (${chBatchDone}/${chBatchSlips.filter(r => r.employee_name && r.competencia).length})` : `📎 Anexar ${chBatchSlips.filter(r => r.employee_name && r.competencia).length} contracheque(s)`}
-                    </button>
+                    {!chBatchSlips.some(r => r.status === 'done') ? (
+                      <button onClick={sendBatch} disabled={chBatchSending || chBatchSlips.every(r => !r.employee_name || !r.competencia)}
+                        style={{ width:'100%', marginTop:16, padding:'12px', borderRadius:10, border:'none', cursor: chBatchSending ? 'wait' : 'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:14, fontFamily:'var(--font-body)', boxShadow:`0 4px 16px ${T.goldLine}44`, opacity: chBatchSending ? 0.75 : 1 }}>
+                        {chBatchSending ? `Enviando… (${chBatchDone}/${chBatchSlips.filter(r => r.employee_name && r.competencia).length})` : `📎 Anexar ${chBatchSlips.filter(r => r.employee_name && r.competencia).length} contracheque(s)`}
+                      </button>
+                    ) : (
+                      <button onClick={resetBatch} disabled={chBatchSending}
+                        style={{ width:'100%', marginTop:16, padding:'12px', borderRadius:10, border:`1.5px solid ${T.goldLine}`, cursor:'pointer', background:T.goldGl, color:T.gold, fontWeight:700, fontSize:14, fontFamily:'var(--font-body)' }}>
+                        ➕ Adicionar contracheque de outro mês
+                      </button>
+                    )}
                   </div>
                 )}
               </Card>
