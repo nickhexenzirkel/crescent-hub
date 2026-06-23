@@ -322,7 +322,7 @@ export default function CrescentHub() {
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
-          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
