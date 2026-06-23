@@ -734,21 +734,21 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
       <SectionHead title="Check-in Diário" sub="Resgate prismas grátis todo dia. Veja o calendário do mês com o que vem por aí." />
 
       {/* Banner do dia + resgatar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 22px', marginBottom: 16, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 0% 0%, ${T.goldGl}, transparent 55%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 40, position: 'relative' }}>{canCheckin ? '🎁' : '✅'}</div>
+        <div style={{ fontSize: 30, position: 'relative' }}>{canCheckin ? '🎁' : '✅'}</div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
             {canCheckin ? 'Sua recompensa de hoje está pronta!' : 'Você já resgatou hoje'}
           </div>
-          <div style={{ fontSize: 12.5, color: T.textT, marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             Recompensa de hoje:
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: COMUM.color, fontWeight: 700 }}><PrismIcon type="comum" size={14} />+{todayR.comum}</span>
             {!!todayR.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: PREMIUM.color, fontWeight: 700 }}><PrismIcon type="premium" size={14} />+{todayR.premium}</span>}
           </div>
         </div>
         <button disabled={!canCheckin} onClick={onCheckin} style={{
-          padding: '12px 28px', borderRadius: 11, border: 'none', cursor: canCheckin ? 'pointer' : 'not-allowed', position: 'relative',
+          padding: '10px 24px', borderRadius: 10, border: 'none', cursor: canCheckin ? 'pointer' : 'not-allowed', position: 'relative',
           background: canCheckin ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : T.surfaceSub || 'rgba(0,0,0,0.06)',
           color: canCheckin ? '#fff' : T.textT, fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)',
           boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none',
@@ -758,11 +758,11 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
       </div>
 
       {/* Calendário do mês — cards com prisma destacado no centro */}
-      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px' : '20px 22px', boxShadow: T.sh }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16, textTransform: 'capitalize' }}>
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '12px' : '14px 18px', boxShadow: T.sh }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10, textTransform: 'capitalize' }}>
           {MONTH_NAMES[month]} {year}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 8 : 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(5,1fr)' : 'repeat(10,1fr)', gap: isMobile ? 6 : 8 }}>
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
             const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
             const isClaimed = claimed.has(dateStr);
@@ -772,7 +772,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
             const showPremium = r.premium > 0;
             const pc = showPremium ? PREMIUM : COMUM;
             const qty = showPremium ? r.premium : r.comum;
-            const med = isMobile ? 46 : 58;
+            const med = isMobile ? 40 : 42;
 
             let bg = T.surfaceSub || 'rgba(0,0,0,0.025)', bd = T.border;
             if (isToday && canCheckin) { bg = T.goldGl; bd = T.goldLine; }
@@ -780,15 +780,15 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
             const dim = isPast && !isClaimed;
 
             return (
-              <div key={dateStr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+              <div key={dateStr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                 <div
                   onClick={isToday && canCheckin ? onCheckin : undefined}
                   title={`${d}º dia · +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`}
                   style={{
-                    position: 'relative', width: '100%', borderRadius: 14, border: `1.5px solid ${bd}`, background: bg,
-                    padding: isMobile ? '12px 4px 14px' : '16px 6px 18px', display: 'flex', justifyContent: 'center',
+                    position: 'relative', width: '100%', borderRadius: 11, border: `1.5px solid ${bd}`, background: bg,
+                    padding: '8px 3px 11px', display: 'flex', justifyContent: 'center',
                     opacity: dim ? 0.45 : 1, cursor: isToday && canCheckin ? 'pointer' : 'default',
-                    boxShadow: isToday && canCheckin ? `0 6px 18px ${T.goldLine}33` : 'none', transition: 'transform .15s',
+                    boxShadow: isToday && canCheckin ? `0 5px 14px ${T.goldLine}33` : 'none', transition: 'transform .15s',
                   }}
                   onMouseEnter={e => { if (isToday && canCheckin) e.currentTarget.style.transform = 'translateY(-3px)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}>
@@ -796,41 +796,41 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                   <div style={{
                     position: 'relative', width: med, height: med, borderRadius: '50%',
                     background: `radial-gradient(circle at 50% 36%, ${pc.glow}, ${cardBg} 78%)`,
-                    border: `2.5px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: `0 4px 14px ${pc.color}44, inset 0 0 12px ${pc.color}22`,
+                    border: `2px solid ${pc.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: `0 3px 10px ${pc.color}44, inset 0 0 9px ${pc.color}22`,
                     filter: isClaimed ? 'grayscale(0.4)' : 'none',
                   }}>
-                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={isMobile ? 26 : 32} />
+                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={22} />
                     {/* badge ×N */}
                     <span style={{
-                      position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
-                      background: pc.color, color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 8px',
+                      position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
+                      background: pc.color, color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px',
                       borderRadius: 999, whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
                     }}>×{fmt(qty)}</span>
                   </div>
 
                   {/* Check de resgatado */}
                   {isClaimed && (
-                    <div style={{ position: 'absolute', top: 6, right: 6, width: 19, height: 19, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    <div style={{ position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                   )}
                   {/* Ponto vermelho de "disponível hoje" */}
                   {isToday && canCheckin && (
-                    <span style={{ position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />
+                    <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />
                   )}
                 </div>
-                <span style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º dia</span>
+                <span style={{ fontSize: 10, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º</span>
               </div>
             );
           })}
         </div>
 
         {/* Legenda */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18, fontSize: 11.5, color: T.textT }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 14, height: 14, borderRadius: '50%', background: '#16a34a' }} /> Resgatado</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#e23b3b' }} /> Disponível hoje</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PrismIcon type="comum" size={13} /> / <PrismIcon type="premium" size={13} /> Recompensa do dia</span>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12, fontSize: 11, color: T.textT }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: '50%', background: '#16a34a' }} /> Resgatado</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e23b3b' }} /> Disponível hoje</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrismIcon type="comum" size={12} /> / <PrismIcon type="premium" size={12} /> Recompensa do dia</span>
         </div>
       </div>
     </div>
