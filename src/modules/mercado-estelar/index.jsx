@@ -248,7 +248,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'historico' && <Historico history={state.history} cardBg={cardBg} />}
+        {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
       </div>
 
       {/* ── Toast ── */}
@@ -621,28 +621,28 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
     <div>
       <SectionHead title="Carteira de Prismas" sub="Veja seus saldos, envie prismas para colegas e troque Comuns por Premium." />
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
         {[{ k: 'comum', cfg: COMUM, hint: 'Prêmios colecionáveis e cosméticos' }, { k: 'premium', cfg: PREMIUM, hint: 'Prêmios grandes e exclusivos' }].map(({ k, cfg, hint }) => (
-          <div key={k} style={{ background: cardBg, border: `1px solid ${cfg.color}33`, borderRadius: 16, padding: '22px 24px', position: 'relative', overflow: 'hidden', boxShadow: T.sh }}>
-            <div style={{ position: 'absolute', top: -30, right: -20, opacity: 0.12 }}><PrismIcon type={k} size={130} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <PrismIcon type={k} size={28} />
-              <span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{cfg.name}</span>
+          <div key={k} style={{ background: cardBg, border: `1px solid ${cfg.color}33`, borderRadius: 14, padding: '14px 18px', position: 'relative', overflow: 'hidden', boxShadow: T.sh }}>
+            <div style={{ position: 'absolute', top: -24, right: -16, opacity: 0.12 }}><PrismIcon type={k} size={96} /></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <PrismIcon type={k} size={22} />
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{cfg.name}</span>
             </div>
-            <div style={{ fontSize: 38, fontWeight: 800, color: cfg.color, lineHeight: 1 }}>{fmt(state[k])}</div>
-            <div style={{ fontSize: 12, color: T.textT, marginTop: 8 }}>{hint}</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: cfg.color, lineHeight: 1 }}>{fmt(state[k])}</div>
+            <div style={{ fontSize: 11, color: T.textT, marginTop: 5 }}>{hint}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         {/* Enviar prismas */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '22px 24px', boxShadow: T.sh }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>💸 Enviar Prismas</div>
-          <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16 }}>Transfira prismas para outro colaborador.</div>
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px', boxShadow: T.sh }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}>💸 Enviar Prismas</div>
+          <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>Transfira prismas para outro colaborador.</div>
 
           <label style={lbl}>Destinatário</label>
-          <div style={{ position: 'relative', marginBottom: 12 }}>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: 13, pointerEvents: 'none' }}>
               <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -673,10 +673,10 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
           </div>
 
           <label style={lbl}>Tipo de prisma</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {[{ k: 'comum', cfg: COMUM }, { k: 'premium', cfg: PREMIUM }].map(({ k, cfg }) => (
               <button key={k} onClick={() => setSendCur(k)} style={{
-                flex: 1, padding: '9px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
                 border: `1.5px solid ${sendCur === k ? cfg.color : T.border}`, fontWeight: 600, fontSize: 13,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 background: sendCur === k ? cfg.glow : 'transparent', color: sendCur === k ? cfg.color : T.textS,
@@ -687,22 +687,22 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
           </div>
 
           <label style={lbl}>Quantidade</label>
-          <input type="number" min="1" value={sendAmt} onChange={e => setSendAmt(e.target.value)} placeholder="0" style={{ ...fieldStyle, marginBottom: 16 }} />
+          <input type="number" min="1" value={sendAmt} onChange={e => setSendAmt(e.target.value)} placeholder="0" style={{ ...fieldStyle, marginBottom: 12 }} />
 
           <button onClick={send} style={primaryBtn(sendCur === 'premium' ? PREMIUM.color : COMUM.color)}>Enviar</button>
         </div>
 
         {/* Trocar Comum → Premium */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '22px 24px', boxShadow: T.sh }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>🔄 Trocar por Premium</div>
-          <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16 }}>
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px', boxShadow: T.sh }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}>🔄 Trocar por Premium</div>
+          <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>
             Converta Prismas Comuns em Premium. Taxa: <strong style={{ color: T.text }}>{EXCHANGE_RATE} Comuns = 1 Premium</strong>.
           </div>
 
           <label style={lbl}>Comuns a gastar</label>
-          <input type="number" min="0" step={EXCHANGE_RATE} value={exAmt} onChange={e => setExAmt(e.target.value)} placeholder="0" style={{ ...fieldStyle, marginBottom: 14 }} />
+          <input type="number" min="0" step={EXCHANGE_RATE} value={exAmt} onChange={e => setExAmt(e.target.value)} placeholder="0" style={{ ...fieldStyle, marginBottom: 12 }} />
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '14px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,0.02)', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '11px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,0.02)', marginBottom: 12 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: COMUM.color, fontWeight: 700 }}>
               <PrismIcon type="comum" size={20} />{fmt((parseInt(exAmt, 10) || 0))}
             </span>
@@ -846,19 +846,53 @@ const KIND_META = {
   missao:  { icon: '🏅', label: 'Missão' },
 };
 
-const Historico = ({ history, cardBg }) => (
-  <div>
-    <SectionHead title="Histórico de Transações" sub="Todas as suas movimentações de prismas." />
-    {history.length === 0 ? (
-      <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
-        <div style={{ fontSize: 40, marginBottom: 10 }}>🧾</div>
-        Nenhuma transação ainda.
+const Historico = ({ history, isMobile, cardBg }) => {
+  const [q, setQ] = useState('');
+  const [date, setDate] = useState('');
+
+  const filtered = history.filter(h =>
+    (!q.trim() || (h.desc || '').toLowerCase().includes(q.trim().toLowerCase())) &&
+    (!date || h.date === date)
+  );
+
+  const fieldStyle = { padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div>
+      <SectionHead title="Histórico de Transações" sub="Todas as suas movimentações de prismas." />
+
+      {/* Busca por pessoa + filtro por data */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 320px' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar por nome ou descrição..."
+            style={{ ...fieldStyle, width: '100%', paddingLeft: 34 }} />
+        </div>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer', colorScheme: T.page && /^#0|^#1/.test(T.page) ? 'dark' : 'light' }} />
+        {(q || date) && (
+          <button onClick={() => { setQ(''); setDate(''); }} style={{ padding: '9px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)' }}>
+            Limpar
+          </button>
+        )}
       </div>
-    ) : (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {history.map(h => {
-          const meta = KIND_META[h.kind] || { icon: '•', label: h.kind };
-          return (
+
+      {history.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🧾</div>
+          Nenhuma transação ainda.
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '50px 0', color: T.textT }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+          Nenhuma transação encontrada para o filtro.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(h => {
+            const meta = KIND_META[h.kind] || { icon: '•', label: h.kind };
+            return (
             <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '13px 18px' }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: T.goldGl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{meta.icon}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -873,12 +907,13 @@ const Historico = ({ history, cardBg }) => (
                 ))}
               </div>
             </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── helpers de UI ──────────────────────────────────────────────────────────
 const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: T.textD, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 };
