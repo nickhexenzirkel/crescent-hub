@@ -276,7 +276,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         )}
 
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'colecao'   && <Colecao collection={state.collection || []} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
@@ -390,12 +390,12 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
           Nenhum prêmio encontrado.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: 14, alignItems: 'stretch' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'stretch' }}>
           {/* DESTAQUE — maior prêmio */}
           {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
           {/* Grade dos demais */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(165px,1fr))', gap: 12, alignContent: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(200px,1fr))', gap: 14, alignContent: 'start' }}>
             {rest.map(item => (
               <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />
             ))}
@@ -534,14 +534,14 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
   return (
     <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ fontSize: 34, textAlign: 'center', padding: '12px 0 4px', filter: sold ? 'grayscale(1)' : 'none', cursor: 'zoom-in' }}>{item.emoji}</div>
-      <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <span style={{ fontSize: 9.5, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 10.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock}x`}</span>
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ fontSize: 44, textAlign: 'center', padding: '16px 0 6px', filter: sold ? 'grayscale(1)' : 'none', cursor: 'zoom-in' }}>{item.emoji}</div>
+      <div style={{ padding: '0 15px 15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
+          <span style={{ fontSize: 11, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock}x`}</span>
         </div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 3, lineHeight: 1.2 }}>{item.name}</div>
-        <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4, marginBottom: 10, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.2 }}>{item.name}</div>
+        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.45, marginBottom: 12, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 14 }}>
             <PrismIcon type={item.cur} size={22} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
@@ -568,15 +568,22 @@ const SoldRibbon = () => (
 // ═══════════════════════════════════════════════ COLEÇÃO ════════════════════
 const RARITY_ORDER = ['Lendário', 'Épico', 'Raro', 'Comum'];
 
-const Colecao = ({ collection, isMobile, cardBg }) => {
+const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
   const [q, setQ] = useState('');
   const [rar, setRar] = useState('all');
   const [cur, setCur] = useState('all');
   const [viewId, setViewId] = useState(null);
-  const viewItem = viewId ? collection.find(c => c.id === viewId) : null;
+
+  // Une os resgatados (owned) com os do catálogo ainda NÃO adquiridos (locked)
+  const owned = new Set(collection.map(c => c.id));
+  const ownedList = collection.map(c => ({ ...c, locked: false }));
+  const lockedList = items.filter(i => !owned.has(i.id))
+    .map(i => ({ id: i.id, name: i.name, emoji: i.emoji, rarity: i.rarity, cur: i.cur, price: i.price, locked: true }));
+  const all = [...ownedList, ...lockedList];
+  const viewItem = viewId ? all.find(c => c.id === viewId) : null;
 
   const totalItens = collection.reduce((a, c) => a + c.qty, 0);
-  const filtered = collection
+  const filtered = all
     .filter(c => rar === 'all' || c.rarity === rar)
     .filter(c => cur === 'all' || c.cur === cur)
     .filter(c => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -590,13 +597,12 @@ const Colecao = ({ collection, isMobile, cardBg }) => {
 
   return (
     <div>
-      <SectionHead title="Minha Coleção" sub={collection.length ? `Você já resgatou ${totalItens} prêmio(s) · ${collection.length} tipo(s) diferente(s).` : 'Os prêmios que você resgatar aparecem aqui.'} />
+      <SectionHead title="Minha Coleção" sub={`${collection.length} de ${all.length} prêmios desbloqueados${totalItens ? ` · ${totalItens} resgatado(s) no total` : ''}.`} />
 
-      {collection.length === 0 ? (
+      {all.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
           <div style={{ fontSize: 44, marginBottom: 10 }}>🏆</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.textS }}>Sua coleção está vazia</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Resgate prêmios na Loja para começar a colecionar.</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.textS }}>Nenhum prêmio disponível</div>
         </div>
       ) : (
         <>
@@ -627,23 +633,36 @@ const Colecao = ({ collection, isMobile, cardBg }) => {
               Nenhum prêmio encontrado para o filtro.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(170px,1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(205px,1fr))', gap: 16 }}>
               {filtered.map(c => {
                 const rc = RARITY_COLOR[c.rarity] || T.textT;
+                const locked = c.locked;
                 return (
-                  <div key={c.id} style={{ background: cardBg, border: `1px solid ${rc}44`, borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: T.sh, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-                    {c.qty > 1 && (
-                      <span style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
+                  <div key={c.id} style={{ background: cardBg, border: `1px solid ${locked ? T.border : rc + '44'}`, borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: T.sh, display: 'flex', flexDirection: 'column', opacity: locked ? 0.78 : 1 }}>
+                    <div style={{ height: 3, background: locked ? T.border : `linear-gradient(90deg,transparent,${rc},transparent)` }} />
+                    {!locked && c.qty > 1 && (
+                      <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: rc, color: '#fff', fontSize: 11.5, fontWeight: 800, padding: '2px 10px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
                     )}
-                    <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ fontSize: 50, textAlign: 'center', padding: '20px 0 8px', filter: `drop-shadow(0 6px 16px ${rc}44)`, cursor: 'zoom-in' }}>{c.emoji}</div>
-                    <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.2 }}>{c.name}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
-                        <PrismIcon type={c.cur} size={16} />
-                        <span style={{ fontSize: 11, color: T.textT }}>Resgatado em {c.date}</span>
-                      </div>
+                    {locked && (
+                      <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: T.textD, color: cardBg, fontSize: 13, padding: '3px 7px', borderRadius: 8 }}>🔒</span>
+                    )}
+                    <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ fontSize: 60, textAlign: 'center', padding: '24px 0 8px', filter: locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 6px 16px ${rc}44)`, cursor: 'zoom-in' }}>{c.emoji}</div>
+                    <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: locked ? T.textT : rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
+                      <div style={{ fontSize: 15.5, fontWeight: 700, color: T.text, marginBottom: 7, lineHeight: 1.2 }}>{c.name}</div>
+                      {locked ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 'auto' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 14 }}>
+                            <PrismIcon type={c.cur} size={18} /><span style={prismText(c.cur)}>{fmt(c.price)}</span>
+                          </span>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em' }}>Falta adquirir</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
+                          <PrismIcon type={c.cur} size={18} />
+                          <span style={{ fontSize: 11.5, color: T.textT }}>Resgatado em {c.date}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -676,17 +695,25 @@ const CollectionLightbox = ({ item, onClose, cardBg }) => {
         <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 999, letterSpacing: '.04em', textTransform: 'uppercase' }}>{item.rarity}</div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
-          <div style={{ fontSize: 150, lineHeight: 1, filter: `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
+          <div style={{ fontSize: 150, lineHeight: 1, filter: item.locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
+          {item.locked && <div style={{ position: 'absolute', fontSize: 60 }}>🔒</div>}
         </div>
         <div style={{ padding: '0 28px 28px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: T.text, lineHeight: 1.15 }}>{item.name}</div>
-            {item.qty > 1 && <span style={{ fontSize: 14, fontWeight: 800, color: rc }}>×{item.qty}</span>}
+            {!item.locked && item.qty > 1 && <span style={{ fontSize: 14, fontWeight: 800, color: rc }}>×{item.qty}</span>}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.textT }}>
-            <PrismIcon type={item.cur} size={20} />
-            Resgatado com {item.cur === 'premium' ? 'Prisma Premium' : 'Prisma Comum'} · em {item.date}
-          </div>
+          {item.locked ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.textT }}>
+              <span>Ainda não adquirido · custa</span>
+              <PrismIcon type={item.cur} size={20} /><span style={{ fontWeight: 800, ...prismText(item.cur) }}>{fmt(item.price)}</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: T.textT }}>
+              <PrismIcon type={item.cur} size={20} />
+              Resgatado com {item.cur === 'premium' ? 'Prisma Premium' : 'Prisma Comum'} · em {item.date}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -911,7 +938,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10, textTransform: 'capitalize' }}>
           {MONTH_NAMES[month]} {year}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(5,1fr)' : 'repeat(10,1fr)', gap: isMobile ? 6 : 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(8,1fr)', gap: isMobile ? 8 : 11 }}>
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
             const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
             const isClaimed = claimed.has(dateStr);
@@ -921,7 +948,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
             const showPremium = r.premium > 0;
             const pc = showPremium ? PREMIUM : COMUM;
             const qty = showPremium ? r.premium : r.comum;
-            const med = isMobile ? 46 : 50;
+            const med = isMobile ? 52 : 60;
 
             let bg = T.surfaceSub || 'rgba(0,0,0,0.025)', bd = T.border;
             if (isToday && canCheckin) { bg = T.goldGl; bd = T.goldLine; }
@@ -934,8 +961,8 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                   onClick={isToday && canCheckin ? onCheckin : undefined}
                   title={`${d}º dia · +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`}
                   style={{
-                    position: 'relative', width: '100%', borderRadius: 11, border: `1.5px solid ${bd}`, background: bg,
-                    padding: '8px 3px 11px', display: 'flex', justifyContent: 'center',
+                    position: 'relative', width: '100%', borderRadius: 13, border: `1.5px solid ${bd}`, background: bg,
+                    padding: '12px 4px 15px', display: 'flex', justifyContent: 'center',
                     opacity: dim ? 0.45 : 1, cursor: isToday && canCheckin ? 'pointer' : 'default',
                     boxShadow: isToday && canCheckin ? `0 5px 14px ${T.goldLine}33` : 'none', transition: 'transform .15s',
                   }}
@@ -949,7 +976,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                     boxShadow: showPremium ? '0 3px 12px rgba(155,107,255,0.45)' : `0 3px 10px ${pc.color}55`,
                     filter: isClaimed ? 'grayscale(0.4)' : 'none',
                   }}>
-                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={28} />
+                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={34} />
                     {/* badge ×N */}
                     <span style={{
                       position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
@@ -969,7 +996,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
                     <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />
                   )}
                 </div>
-                <span style={{ fontSize: 10, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º</span>
+                <span style={{ fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º dia</span>
               </div>
             );
           })}
