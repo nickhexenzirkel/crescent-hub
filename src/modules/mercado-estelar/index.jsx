@@ -55,6 +55,7 @@ const DEFAULT_STATE = {
   comum: 1480,
   premium: 6,
   checkins: [],
+  collection: [],
   // Catálogo do mês: 6 prêmios → 1 Lendário, 3 Épicos, 1 Raro, 1 Comum
   items: [
     { id: 'i1', name: 'Day-off Surpresa',        desc: 'Um dia inteiro de folga para usar quando quiser — sem descontar do banco de horas.', price: 5,   cur: 'premium', stock: 3,  rarity: 'Lendário', emoji: '🏖️', featured: true },
@@ -146,11 +147,18 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (item.stock <= 0) return;
     const bal = state[item.cur];
     if (bal < item.price) { flash(`Saldo de ${item.cur === 'premium' ? PREMIUM.name : COMUM.name} insuficiente`); return; }
-    setState(s => ({
-      ...s,
-      [item.cur]: s[item.cur] - item.price,
-      items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
-    }));
+    setState(s => {
+      const ex = (s.collection || []).find(c => c.id === item.id);
+      const collection = ex
+        ? s.collection.map(c => c.id === item.id ? { ...c, qty: c.qty + 1, date: todayStr() } : c)
+        : [{ id: item.id, name: item.name, emoji: item.emoji, rarity: item.rarity, cur: item.cur, qty: 1, date: todayStr() }, ...(s.collection || [])];
+      return {
+        ...s,
+        [item.cur]: s[item.cur] - item.price,
+        items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
+        collection,
+      };
+    });
     addHistory({ kind: 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
     flash(`🎉 Você resgatou: ${item.name}`);
   };
@@ -209,6 +217,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       <div style={{ display: 'flex', gap: 9, padding: isMobile ? '14px 12px 4px' : '18px 24px 4px', maxWidth: 1240, margin: '0 auto', width: '100%', flexWrap: 'wrap' }}>
         {[
           { id: 'loja',      label: 'Loja',      icon: '🛒' },
+          { id: 'colecao',   label: 'Coleção',   icon: '🏆' },
           { id: 'missoes',   label: 'Missões',   icon: '🎯' },
           { id: 'carteira',  label: 'Carteira',  icon: '💎' },
           { id: 'checkin',   label: 'Check-in',  icon: '📅' },
@@ -245,6 +254,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         )}
 
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'colecao'   && <Colecao collection={state.collection || []} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
@@ -536,6 +546,48 @@ const SoldRibbon = () => (
   </div>
 );
 
+// ═══════════════════════════════════════════════ COLEÇÃO ════════════════════
+const Colecao = ({ collection, isMobile, cardBg }) => {
+  const totalItens = collection.reduce((a, c) => a + c.qty, 0);
+  return (
+    <div>
+      <SectionHead title="Minha Coleção" sub={collection.length ? `Você já resgatou ${totalItens} prêmio(s) · ${collection.length} tipo(s) diferente(s).` : 'Os prêmios que você resgatar aparecem aqui.'} />
+      {collection.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
+          <div style={{ fontSize: 44, marginBottom: 10 }}>🏆</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.textS }}>Sua coleção está vazia</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Resgate prêmios na Loja para começar a colecionar.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(170px,1fr))', gap: 14 }}>
+          {collection.map(c => {
+            const rc = RARITY_COLOR[c.rarity] || T.textT;
+            const cfg = c.cur === 'premium' ? PREMIUM : COMUM;
+            return (
+              <div key={c.id} style={{ background: cardBg, border: `1px solid ${rc}44`, borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: T.sh, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
+                {/* Selo de quantidade */}
+                {c.qty > 1 && (
+                  <span style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 9px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
+                )}
+                <div style={{ fontSize: 50, textAlign: 'center', padding: '20px 0 8px', filter: `drop-shadow(0 6px 16px ${rc}44)` }}>{c.emoji}</div>
+                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 6, lineHeight: 1.2 }}>{c.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
+                    <PrismIcon type={c.cur} size={13} />
+                    <span style={{ fontSize: 11, color: T.textT }}>Resgatado em {c.date}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════ MISSÕES ════════════════════
 const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
   <div>
@@ -585,7 +637,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
   const [sendTo, setSendTo] = useState('');
   const [sendQuery, setSendQuery] = useState('');
   const [openList, setOpenList] = useState(false);
-  const [sendCur, setSendCur] = useState('comum');
+  const sendCur = 'comum'; // apenas Prisma Comum pode ser transferido
   const [sendAmt, setSendAmt] = useState('');
   const [exAmt, setExAmt] = useState('');
 
@@ -673,17 +725,9 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
           </div>
 
           <label style={lbl}>Tipo de prisma</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            {[{ k: 'comum', cfg: COMUM }, { k: 'premium', cfg: PREMIUM }].map(({ k, cfg }) => (
-              <button key={k} onClick={() => setSendCur(k)} style={{
-                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
-                border: `1.5px solid ${sendCur === k ? cfg.color : T.border}`, fontWeight: 600, fontSize: 13,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                background: sendCur === k ? cfg.glow : 'transparent', color: sendCur === k ? cfg.color : T.textS,
-              }}>
-                <PrismIcon type={k} size={15} />{k === 'premium' ? 'Premium' : 'Comum'}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '9px 12px', borderRadius: 9, border: `1.5px solid ${COMUM.color}`, background: COMUM.glow, color: COMUM.color, fontWeight: 700, fontSize: 13 }}>
+            <PrismIcon type="comum" size={15} />Prisma Comum
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: T.textT }}>Premium não pode ser enviado</span>
           </div>
 
           <label style={lbl}>Quantidade</label>
