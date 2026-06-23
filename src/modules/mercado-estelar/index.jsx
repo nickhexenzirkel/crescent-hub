@@ -105,12 +105,9 @@ const loadState = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      // Catálogo de itens = sempre o DEFAULT (fonte da verdade), preservando só o
-      // estoque já consumido. Assim trocar o catálogo do mês não deixa item velho.
-      const items = DEFAULT_STATE.items.map(def => {
-        const saved = (s.items || []).find(x => x.id === def.id);
-        return saved ? { ...def, stock: saved.stock } : def;
-      });
+      // Catálogo de itens: o admin gerencia (adiciona/edita/remove), então o save
+      // é a fonte da verdade; só cai no DEFAULT na 1ª vez (sem itens salvos).
+      const items = Array.isArray(s.items) && s.items.length ? s.items : DEFAULT_STATE.items;
       // Missões: mantém progresso/resgate salvos, adiciona novas do default
       const savedM = new Set((s.missions || []).map(x => x.id));
       const missions = [...(s.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
@@ -133,6 +130,28 @@ const PrismIcon = ({ type = 'comum', size = 22 }) => {
   );
 };
 
+// ─── Ícones SVG (herdam a cor via currentColor) ────────────────────────────
+const Svg = ({ size = 16, children, fill = 'none', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>{children}</svg>
+);
+const IcoCart    = (p) => <Svg {...p}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" /></Svg>;
+const IcoTrophy  = (p) => <Svg {...p}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z" /><path d="M7 5H4v2a3 3 0 003 3M17 5h3v2a3 3 0 01-3 3" /></Svg>;
+const IcoTarget  = (p) => <Svg {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /></Svg>;
+const IcoGem     = (p) => <Svg {...p}><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M8 3l-2 6 6 12 6-12-2-6" /></Svg>;
+const IcoCalendar= (p) => <Svg {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></Svg>;
+const IcoReceipt = (p) => <Svg {...p}><path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1z" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /></Svg>;
+const IcoShield  = (p) => <Svg {...p}><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z" /></Svg>;
+const IcoGift    = (p) => <Svg {...p}><polyline points="20 12 20 22 4 22 4 12" /><rect x="2" y="7" width="20" height="5" /><line x1="12" y1="22" x2="12" y2="7" /><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></Svg>;
+const IcoCheck   = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12" /></Svg>;
+const IcoClock   = (p) => <Svg {...p}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></Svg>;
+const IcoStar    = (p) => <Svg {...p} fill="currentColor" stroke="none"><path d="M12 2l2.6 6.6L22 9.3l-5 4.6 1.4 7.1L12 17.8 5.6 21l1.4-7.1-5-4.6 7.4-.7z" /></Svg>;
+const IcoSend    = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></Svg>;
+const IcoSwap    = (p) => <Svg {...p}><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 014-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 01-4 4H3" /></Svg>;
+const IcoSearch  = (p) => <Svg {...p}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></Svg>;
+const IcoLock    = (p) => <Svg {...p}><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></Svg>;
+const IcoPlus    = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>;
+const IcoTrash   = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></Svg>;
+
 const PrismChip = ({ type, amount }) => {
   const prem = type === 'premium';
   const base = { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 13px', fontWeight: 800, fontSize: 14, color: '#fff' };
@@ -154,6 +173,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
   const cardBg = T.surface;
   const userName = authUser?.name || 'Colaborador';
+  const isAdmin = authUser?.role === 'admin';
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
@@ -182,7 +202,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       };
     });
     addHistory({ kind: 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
-    flash(`🎉 Você resgatou: ${item.name}`);
+    flash(`Você resgatou: ${item.name}`);
   };
 
   // ── Check-in ──
@@ -193,7 +213,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     const r = dailyReward(new Date().getDate());
     setState(s => ({ ...s, comum: s.comum + r.comum, premium: s.premium + r.premium, checkins: [...(s.checkins || []), today] }));
     addHistory({ kind: 'checkin', desc: 'Check-in diário', ...(r.comum ? { comum: r.comum } : {}), ...(r.premium ? { premium: r.premium } : {}) });
-    flash(`✅ Check-in feito! +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`);
+    flash(`Check-in feito! +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`);
   };
 
   // ── Missões ──
@@ -204,7 +224,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true } : x),
     }));
     addHistory({ kind: 'missao', desc: `Missão: ${m.title}`, ...(m.comum ? { comum: m.comum } : {}), ...(m.premium ? { premium: m.premium } : {}) });
-    flash(`🏅 Recompensa da missão resgatada: ${m.title}`);
+    flash(`Recompensa da missão resgatada: ${m.title}`);
   };
 
   return (
@@ -238,12 +258,13 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       {/* ── Tabs (botões em pílula) ── */}
       <div style={{ display: 'flex', gap: 9, padding: isMobile ? '14px 12px 4px' : '18px 24px 4px', maxWidth: 1240, margin: '0 auto', width: '100%', flexWrap: 'wrap' }}>
         {[
-          { id: 'loja',      label: 'Loja',      icon: '🛒' },
-          { id: 'colecao',   label: 'Coleção',   icon: '🏆' },
-          { id: 'missoes',   label: 'Missões',   icon: '🎯' },
-          { id: 'carteira',  label: 'Carteira',  icon: '💎' },
-          { id: 'checkin',   label: 'Check-in',  icon: '📅' },
-          { id: 'historico', label: 'Histórico', icon: '🧾' },
+          { id: 'loja',      label: 'Loja',      Icon: IcoCart },
+          { id: 'colecao',   label: 'Coleção',   Icon: IcoTrophy },
+          { id: 'missoes',   label: 'Missões',   Icon: IcoTarget },
+          { id: 'carteira',  label: 'Carteira',  Icon: IcoGem },
+          { id: 'checkin',   label: 'Check-in',  Icon: IcoCalendar },
+          { id: 'historico', label: 'Histórico', Icon: IcoReceipt },
+          ...(isAdmin ? [{ id: 'admin', label: 'Administrador', Icon: IcoShield }] : []),
         ].map(t => {
           const on = tab === t.id;
           return (
@@ -260,7 +281,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
                 boxShadow: on ? `0 5px 16px ${T.goldLine}55` : '0 1px 2px rgba(0,0,0,0.05)',
                 transition: 'all .15s',
               }}>
-              <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
+              <t.Icon size={16} />{t.label}
             </button>
           );
         })}
@@ -281,6 +302,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
       </div>
 
       {/* ── Toast ── */}
@@ -316,7 +338,7 @@ const MonthCountdown = () => {
   );
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.goldGl, border: `1px solid ${T.goldLine}44`, borderRadius: 14, padding: '12px 18px', marginBottom: 14 }}>
-      <span style={{ fontSize: 22 }}>⏳</span>
+      <span style={{ display: 'inline-flex', color: T.gold }}><IcoClock size={24} /></span>
       <div style={{ flex: 1, minWidth: 160 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Prêmios deste mês</div>
         <div style={{ fontSize: 11.5, color: T.textT }}>Renovam quando o cronômetro zerar — aproveite antes que esgotem!</div>
@@ -386,7 +408,7 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoSearch size={38} /></div>
           Nenhum prêmio encontrado.
         </div>
       ) : (
@@ -449,7 +471,7 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: T.text, lineHeight: 1.15 }}>{item.name}</div>
             <span style={{ fontSize: 12.5, color: sold ? '#C04050' : T.textT, fontWeight: 700, flexShrink: 0, marginLeft: 10 }}>
-              {sold ? 'Esgotado' : `${item.stock} restante${item.stock > 1 ? 's' : ''}`}
+              {sold ? 'Esgotado' : `${item.stock} disponíve${item.stock > 1 ? 'is' : 'l'} para resgate`}
             </span>
           </div>
           <div style={{ fontSize: 14, color: T.textT, lineHeight: 1.6, marginBottom: 22 }}>{item.desc}</div>
@@ -501,7 +523,7 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 10.5, fontWeight: 800, color: rc, textTransform: 'uppercase', letterSpacing: '.08em' }}>{item.rarity}</span>
           <span style={{ fontSize: 11.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>
-            {sold ? 'Esgotado' : `${item.stock} restante${item.stock > 1 ? 's' : ''}`}
+            {sold ? 'Esgotado' : `${item.stock} disponíve${item.stock > 1 ? 'is' : 'l'} para resgate`}
           </span>
         </div>
         <div style={{ fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 5, lineHeight: 1.2 }}>{item.name}</div>
@@ -538,7 +560,7 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
       <div style={{ padding: '0 15px 15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 5 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 11, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock}x`}</span>
+          <span style={{ fontSize: 10.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock} disponíveis`}</span>
         </div>
         <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.2 }}>{item.name}</div>
         <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.45, marginBottom: 12, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
@@ -601,7 +623,7 @@ const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
 
       {all.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
-          <div style={{ fontSize: 44, marginBottom: 10 }}>🏆</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoTrophy size={42} /></div>
           <div style={{ fontSize: 15, fontWeight: 600, color: T.textS }}>Nenhum prêmio disponível</div>
         </div>
       ) : (
@@ -629,7 +651,7 @@ const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
 
           {filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '50px 0', color: T.textT }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoSearch size={34} /></div>
               Nenhum prêmio encontrado para o filtro.
             </div>
           ) : (
@@ -644,7 +666,7 @@ const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
                       <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: rc, color: '#fff', fontSize: 11.5, fontWeight: 800, padding: '2px 10px', borderRadius: 999, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>×{c.qty}</span>
                     )}
                     {locked && (
-                      <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: T.textD, color: cardBg, fontSize: 13, padding: '3px 7px', borderRadius: 8 }}>🔒</span>
+                      <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: T.textD, color: cardBg, padding: '4px', borderRadius: 8, display: 'inline-flex' }}><IcoLock size={13} /></span>
                     )}
                     <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ fontSize: 60, textAlign: 'center', padding: '24px 0 8px', filter: locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 6px 16px ${rc}44)`, cursor: 'zoom-in' }}>{c.emoji}</div>
                     <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -696,7 +718,7 @@ const CollectionLightbox = ({ item, onClose, cardBg }) => {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
           <div style={{ fontSize: 150, lineHeight: 1, filter: item.locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
-          {item.locked && <div style={{ position: 'absolute', fontSize: 60 }}>🔒</div>}
+          {item.locked && <div style={{ position: 'absolute', color: '#fff', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' }}><IcoLock size={56} /></div>}
         </div>
         <div style={{ padding: '0 28px 28px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -754,8 +776,9 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
               cursor: (!done || m.claimed) ? 'not-allowed' : 'pointer',
               background: m.claimed ? (T.surfaceSub || 'rgba(0,0,0,0.06)') : done ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.05)'),
               color: m.claimed ? T.textT : done ? '#fff' : T.textD, fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
             }}>
-              {m.claimed ? 'Resgatado ✓' : done ? '🎁 Resgatar recompensa' : 'Em progresso'}
+              {m.claimed ? <><IcoCheck size={15} />Resgatado</> : done ? <><IcoGift size={15} />Resgatar recompensa</> : 'Em progresso'}
             </button>
           </div>
         );
@@ -782,7 +805,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
     if (state[sendCur] < amt) { flash('Saldo insuficiente'); return; }
     setState(s => ({ ...s, [sendCur]: s[sendCur] - amt }));
     addHistory({ kind: 'envio', desc: `Enviou para ${sendTo}`, [sendCur]: -amt });
-    flash(`💸 Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
+    flash(`Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
     setSendAmt('');
   };
 
@@ -795,7 +818,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
     if (state.comum < cost) { flash('Saldo de Comuns insuficiente'); return; }
     setState(s => ({ ...s, comum: s.comum - cost, premium: s.premium + got }));
     addHistory({ kind: 'troca', desc: `Trocou ${fmt(cost)} Comuns por ${got} Premium`, comum: -cost, premium: got });
-    flash(`✨ Você obteve ${got} Prisma Premium`);
+    flash(`Você obteve ${got} Prisma Premium`);
     setExAmt('');
   };
 
@@ -822,7 +845,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         {/* Enviar prismas */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px', boxShadow: T.sh }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}>💸 Enviar Prismas</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}><span style={{ color: COMUM.color }}><IcoSend size={17} /></span>Enviar Prismas</div>
           <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>Transfira prismas para outro colaborador.</div>
 
           <label style={lbl}>Destinatário</label>
@@ -870,7 +893,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
 
         {/* Trocar Comum → Premium */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px', boxShadow: T.sh }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}>🔄 Trocar por Premium</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14.5, fontWeight: 700, color: T.text, marginBottom: 2 }}><span style={{ color: T.gold }}><IcoSwap size={17} /></span>Trocar por Premium</div>
           <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>
             Converta Prismas Comuns em Premium. Taxa: <strong style={{ color: T.text }}>{EXCHANGE_RATE} Comuns = 1 Premium</strong>.
           </div>
@@ -912,7 +935,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 0% 0%, ${T.goldGl}, transparent 55%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 30, position: 'relative' }}>{canCheckin ? '🎁' : '✅'}</div>
+        <div style={{ position: 'relative', color: canCheckin ? T.gold : '#16a34a' }}>{canCheckin ? <IcoGift size={30} /> : <IcoCheck size={30} />}</div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
             {canCheckin ? 'Sua recompensa de hoje está pronta!' : 'Você já resgatou hoje'}
@@ -928,8 +951,9 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
           background: canCheckin ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : T.surfaceSub || 'rgba(0,0,0,0.06)',
           color: canCheckin ? '#fff' : T.textT, fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)',
           boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none',
+          display: 'inline-flex', alignItems: 'center', gap: 7,
         }}>
-          {canCheckin ? '🌟 Resgatar' : 'Resgatado ✓'}
+          {canCheckin ? <><IcoStar size={16} />Resgatar</> : <><IcoCheck size={16} />Resgatado</>}
         </button>
       </div>
 
@@ -1015,11 +1039,11 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
 
 // ═══════════════════════════════════════════ HISTÓRICO ══════════════════════
 const KIND_META = {
-  compra:  { icon: '🛒', label: 'Compra' },
-  checkin: { icon: '📅', label: 'Check-in' },
-  envio:   { icon: '💸', label: 'Envio' },
-  troca:   { icon: '🔄', label: 'Troca' },
-  missao:  { icon: '🏅', label: 'Missão' },
+  compra:  { Icon: IcoCart,    label: 'Compra' },
+  checkin: { Icon: IcoCalendar,label: 'Check-in' },
+  envio:   { Icon: IcoSend,    label: 'Envio' },
+  troca:   { Icon: IcoSwap,    label: 'Troca' },
+  missao:  { Icon: IcoTarget,  label: 'Missão' },
 };
 
 const Historico = ({ history, isMobile, cardBg }) => {
@@ -1056,21 +1080,22 @@ const Historico = ({ history, isMobile, cardBg }) => {
 
       {history.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>🧾</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoReceipt size={40} /></div>
           Nenhuma transação ainda.
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '50px 0', color: T.textT }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoSearch size={34} /></div>
           Nenhuma transação encontrada para o filtro.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(h => {
-            const meta = KIND_META[h.kind] || { icon: '•', label: h.kind };
+            const meta = KIND_META[h.kind] || { Icon: IcoReceipt, label: h.kind };
+            const MIcon = meta.Icon;
             return (
             <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '13px 18px' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: T.goldGl, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{meta.icon}</div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><MIcon size={19} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.desc}</div>
                 <div style={{ fontSize: 11.5, color: T.textT }}>{meta.label} · {h.date}</div>
@@ -1088,6 +1113,119 @@ const Historico = ({ history, isMobile, cardBg }) => {
           })}
         </div>
       )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
+const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
+  const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '' };
+  const [form, setForm] = useState(blank);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+
+  const addItem = () => {
+    const price = parseInt(form.price, 10);
+    const stock = parseInt(form.stock, 10);
+    if (!form.name.trim()) { flash('Informe o nome do prêmio'); return; }
+    if (!price || price <= 0) { flash('Informe um preço válido'); return; }
+    if (isNaN(stock) || stock < 0) { flash('Informe a quantidade disponível'); return; }
+    const item = { id: 'i' + Date.now(), name: form.name.trim(), desc: form.desc.trim(), emoji: form.emoji || '🎁', rarity: form.rarity, cur: form.cur, price, stock };
+    setState(s => ({ ...s, items: [...s.items, item] }));
+    setForm(blank);
+    flash(`Prêmio "${item.name}" adicionado`);
+  };
+
+  const patchItem = (id, patch) => setState(s => ({ ...s, items: s.items.map(i => i.id === id ? { ...i, ...patch } : i) }));
+  const removeItem = (id) => setState(s => ({ ...s, items: s.items.filter(i => i.id !== id) }));
+
+  return (
+    <div>
+      <SectionHead title="Administrador" sub="Gerencie os prêmios da loja: cadastre novos, defina a quantidade disponível e edite as informações." />
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 16, alignItems: 'start' }}>
+        {/* Cadastrar novo prêmio */}
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoPlus size={17} /></span>Novo prêmio</div>
+
+          <label style={lbl}>Nome do prêmio</label>
+          <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Vale-Presente R$100" style={{ ...fieldStyle, marginBottom: 12 }} />
+
+          <label style={lbl}>Descrição</label>
+          <textarea value={form.desc} onChange={e => set('desc', e.target.value)} placeholder="Descrição do prêmio" rows={2} style={{ ...fieldStyle, marginBottom: 12, resize: 'vertical' }} />
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <div style={{ width: 80 }}>
+              <label style={lbl}>Ícone</label>
+              <input value={form.emoji} onChange={e => set('emoji', e.target.value)} placeholder="🎁" style={{ ...fieldStyle, textAlign: 'center', fontSize: 20 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Raridade</label>
+              <select value={form.rarity} onChange={e => set('rarity', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+                {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <label style={lbl}>Pago com</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
+              <button key={k} onClick={() => set('cur', k)} style={{
+                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 13,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
+              }}><PrismIcon type={k} size={15} />{label}</button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Preço (prismas)</label>
+              <input type="number" min="1" value={form.price} onChange={e => set('price', e.target.value)} placeholder="0" style={fieldStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Qtd. disponível</label>
+              <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} placeholder="0" style={fieldStyle} />
+            </div>
+          </div>
+
+          <button onClick={addItem} style={primaryBtn(T.gold)}>Adicionar prêmio</button>
+        </div>
+
+        {/* Prêmios existentes */}
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}>Prêmios cadastrados ({items.length})</div>
+          {items.length === 0 ? (
+            <div style={{ color: T.textT, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nenhum prêmio cadastrado.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map(i => {
+                const rc = RARITY_COLOR[i.rarity] || T.textT;
+                return (
+                  <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 11, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)' }}>
+                    <div style={{ fontSize: 26 }}>{i.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, color: T.textD, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Disponíveis</span>
+                      <input type="number" min="0" value={i.stock} onChange={e => patchItem(i.id, { stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        style={{ width: 60, padding: '6px 8px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                    </div>
+                    <button onClick={() => removeItem(i.id)} title="Remover" style={{ display: 'inline-flex', padding: 8, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C04050', cursor: 'pointer' }}><IcoTrash size={15} /></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
