@@ -3530,6 +3530,7 @@ function saveProfile(){
   const av = getAvatarOptions().find(a=>a.id===psetupSelectedAvatar);
   profile = { name, avatarId:psetupSelectedAvatar, avatarImg:av?.img||'images/DodocoWave.png', borderId:psetupSelectedBorder };
   localStorage.setItem('dw_profile', JSON.stringify(profile));
+  cloudSave();
   document.getElementById('profileSetupScr').classList.add('off');
   applySidebarProfile();
   // Admin seed se nome for NICOLAS
@@ -3671,6 +3672,7 @@ function applyProfileEdit(){
   const av = getAvatarOptions().find(a=>a.id===profileEditAvatar) || getAvatarOptions()[0];
   profile = { name, avatarId:av.id, avatarImg:av.img, borderId:profileEditBorder };
   localStorage.setItem('dw_profile', JSON.stringify(profile));
+  cloudSave();
   applySidebarProfile();
   // feedback visual
   const btn = document.getElementById('profileSaveBtn');
@@ -6793,6 +6795,26 @@ function closeCharSelect(){
   applyCharacter();
 }
 
+// ─── CLOUD SAVE (persistência por CONTA via TabUnikoWave → Supabase) ───
+// Personagens/mascotes conquistados, carteira (GW/GC), personagem selecionado,
+// perfil e pity ficam atrelados ao usuário e acompanham qualquer dispositivo.
+// A hidratação (carregar da nuvem) é feita pelo React ANTES de criar o iframe,
+// escrevendo direto no localStorage (mesma origem). Aqui só ENVIAMOS mudanças.
+const CLOUD_SAVE_KEYS = ['dw_wallet','dw_unlocked','dw_char','dw_profile','dw_wish_pity'];
+let _cloudSaveTimer = null;
+function cloudSaveNow(){
+  try{
+    if(!window.parent || window.parent===window) return;
+    const save = {};
+    for(const k of CLOUD_SAVE_KEYS){ const v = localStorage.getItem(k); if(v!=null) save[k]=v; }
+    window.parent.postMessage({ type:'UNIKO_SAVE_SET', save }, '*');
+  }catch(_){}
+}
+function cloudSave(){
+  if(_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+  _cloudSaveTimer = setTimeout(cloudSaveNow, 400);
+}
+
 // ─── GHOST WAVES WALLET SYSTEM ───
 const ADMIN_NAME = 'NICOLAS';
 const GW_KEY     = 'dw_wallet';
@@ -6802,7 +6824,7 @@ function loadWallet(){
   try { return JSON.parse(localStorage.getItem(GW_KEY)) || {gw:0,gc:0}; }
   catch(e){ return {gw:0,gc:0}; }
 }
-function saveWallet(w){ localStorage.setItem(GW_KEY, JSON.stringify(w)); }
+function saveWallet(w){ localStorage.setItem(GW_KEY, JSON.stringify(w)); cloudSave(); }
 function getGW(){ return loadWallet().gw; }
 function getGC(){ return loadWallet().gc; }
 
@@ -6813,7 +6835,7 @@ function loadUnlocked(){
   } catch(e){}
   return ['dodoco'];
 }
-function saveUnlocked(arr){ localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); }
+function saveUnlocked(arr){ localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); cloudSave(); }
 
 function isUnlocked(id){
   if(TEMP_UNLOCK_ALL) return true; // ⚠️ TEMPORÁRIO: todos liberados (ver TEMP_UNLOCK_ALL)
@@ -6959,6 +6981,7 @@ function selectChar(id){
   if(!isUnlocked(id)) return;
   selectedChar = id;
   localStorage.setItem('dw_char', id);
+  cloudSave();
   renderCharGrid();
 }
 
@@ -6987,7 +7010,7 @@ function wishBanners(){
     .map(([id,ch])=>({id, name:ch.name, tag:ch.tag, tagClass:ch.tagClass, previewImg:ch.previewImg}));
 }
 function loadPity(){ try{ return parseInt(localStorage.getItem(WISH_PITY_KEY),10)||0; }catch(_){ return 0; } }
-function savePity(n){ try{ localStorage.setItem(WISH_PITY_KEY, String(n)); }catch(_){} }
+function savePity(n){ try{ localStorage.setItem(WISH_PITY_KEY, String(n)); cloudSave(); }catch(_){} }
 // n = número do desejo atual (1-based) desde a última vitória
 function wishProb(n){
   const base=0.06, soft=20, hard=32;

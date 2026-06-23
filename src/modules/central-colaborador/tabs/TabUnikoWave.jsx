@@ -1,16 +1,80 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
+// Chaves do save do jogo que ficam atreladas à CONTA do usuário (não ao
+// navegador). Personagens/mascotes, carteira (GW/GC), personagem escolhido,
+// perfil e pity do gacha. Ver supabase_uniko_wave_saves.sql.
+const SAVE_KEYS = ['dw_wallet', 'dw_unlocked', 'dw_char', 'dw_profile', 'dw_wish_pity'];
+// Marca de quem é o save atualmente no localStorage (isola contas no mesmo PC).
+const OWNER_KEY = 'dw_cloud_owner';
+
+const playerName = () => {
+  try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
+  catch { return 'Colaborador'; }
+};
+
+const collectLocal = () => {
+  const save = {};
+  SAVE_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) save[k] = v; });
+  return save;
+};
+
+const pushSave = async (player, data) => {
+  try {
+    await supabase.from('uniko_wave_saves').upsert(
+      { player, data, updated_at: new Date().toISOString() },
+      { onConflict: 'player' });
+  } catch {}
+};
+
 const TabUnikoWave = () => {
   const iframeRef = useRef(null);
+  const saveTimer = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  // ── Hidratação: carrega o save da CONTA antes de montar o jogo ──────────
+  // Como o iframe compartilha o localStorage (mesma origem), escrever aqui
+  // garante que o jogo leia os valores corretos já no carregamento.
+  useEffect(() => {
+    let cancelled = false;
+    const hydrate = async () => {
+      const player = playerName();
+      let row = null;
+      try {
+        const { data } = await supabase
+          .from('uniko_wave_saves').select('data').eq('player', player).maybeSingle();
+        row = data;
+      } catch {}
+      if (cancelled) return;
+
+      if (row && row.data && typeof row.data === 'object') {
+        // Nuvem é a fonte da verdade: limpa o local e aplica o save do usuário.
+        SAVE_KEYS.forEach(k => localStorage.removeItem(k));
+        Object.entries(row.data).forEach(([k, v]) => {
+          if (SAVE_KEYS.includes(k) && v != null) localStorage.setItem(k, String(v));
+        });
+        localStorage.setItem(OWNER_KEY, player);
+      } else {
+        // Sem save na nuvem para este usuário ainda.
+        const owner = localStorage.getItem(OWNER_KEY);
+        if (owner === player) {
+          // Progresso local pertence a este usuário (ainda não sincronizado) → migra.
+          await pushSave(player, collectLocal());
+        } else {
+          // Local é de outra conta (ou vazio) → começa limpo para isolar contas.
+          SAVE_KEYS.forEach(k => localStorage.removeItem(k));
+          localStorage.setItem(OWNER_KEY, player);
+          await pushSave(player, {});
+        }
+      }
+      if (!cancelled) setReady(true);
+    };
+    hydrate();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    const playerName = () => {
-      try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
-      catch { return 'Colaborador'; }
-    };
-
     // Busca todas as pontuações e monta dois rankings: GLOBAL (soma por jogador,
     // somando o melhor de cada dificuldade) e POR DIFICULDADE (top de cada nível).
     const sendRank = async () => {
@@ -90,6 +154,15 @@ const TabUnikoWave = () => {
       if (!type) return;
       const fromGame = e.source === iframeRef.current?.contentWindow;
 
+      // Save por conta: o jogo avisa quando algo muda → persiste no Supabase (debounce).
+      if (fromGame && type === 'UNIKO_SAVE_SET') {
+        const data = e.data.save || {};
+        localStorage.setItem(OWNER_KEY, playerName());
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => pushSave(playerName(), data), 500);
+        return;
+      }
+
       // Ranking global
       if (fromGame && type === 'UNIKO_SCORE_SUBMIT') { submitScore(e.data); return; }
       if (fromGame && type === 'UNIKO_RANK_REQUEST') { sendRank(); return; }
@@ -101,24 +174,33 @@ const TabUnikoWave = () => {
       }
     };
     window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    return () => {
+      window.removeEventListener('message', handler);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
   }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: T.page }}>
-      <iframe
-        ref={iframeRef}
-        src="/unikowave/index.html"
-        title="Uniko Wave"
-        style={{
-          flex: 1,
-          border: 'none',
-          width: '100%',
-          height: '100%',
-          display: 'block',
-        }}
-        allow="autoplay; fullscreen"
-      />
+      {ready ? (
+        <iframe
+          ref={iframeRef}
+          src="/unikowave/index.html"
+          title="Uniko Wave"
+          style={{
+            flex: 1,
+            border: 'none',
+            width: '100%',
+            height: '100%',
+            display: 'block',
+          }}
+          allow="autoplay; fullscreen"
+        />
+      ) : (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textT, fontFamily: 'var(--font-body)', fontSize: 14 }}>
+          Carregando seu progresso…
+        </div>
+      )}
     </div>
   );
 };

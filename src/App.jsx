@@ -11,8 +11,8 @@ import DashboardRH from './modules/dashboard-rh';
 import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
+import MercadoEstelar from './modules/mercado-estelar';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
-import { ExtensionPrompt } from './shared/ExtensionPrompt';
 import { useIsMobile } from './hooks/useIsMobile';
 
 export default function CrescentHub() {
@@ -312,9 +312,6 @@ export default function CrescentHub() {
             setTimeout(() => setConfettiTheme(null), 3200);
           }}
         />
-        {/* Banner "Ação necessária": baixar/instalar a extensão Cat-Bot quando ausente */}
-        {authUser && !isMobile && <ExtensionPrompt/>}
-
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
@@ -325,6 +322,7 @@ export default function CrescentHub() {
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
