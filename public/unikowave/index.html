@@ -1988,6 +1988,14 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       </div>
       <div id="modeHint" style="font-size:9px;color:rgba(255,255,255,.45);text-align:center;margin-top:6px;letter-spacing:.5px;line-height:1.5"></div>
     </div>
+    <div class="settings-section" id="wgSubmodeSection" style="display:none">
+      <div class="prev-diff-label">Sub-modo (Guerra Estelar)</div>
+      <div class="prev-diff-btns" style="gap:8px">
+        <button class="diff-btn normal sel" id="wgSubRitmico" onclick="selectWgSubmode('ritmico')" style="min-width:calc(50% - 4px)">🎵 RÍTMICO</button>
+        <button class="diff-btn hard" id="wgSubLuta" onclick="selectWgSubmode('luta')" style="min-width:calc(50% - 4px)">👊 LUTA</button>
+      </div>
+      <div id="wgSubHint" style="font-size:9px;color:rgba(255,255,255,.45);text-align:center;margin-top:6px;letter-spacing:.5px;line-height:1.5"></div>
+    </div>
     <div class="settings-section">
       <div class="prev-diff-label">Dificuldade</div>
       <div class="prev-diff-btns" style="flex-wrap:wrap;gap:8px">
@@ -2430,6 +2438,19 @@ const WG_MINION_AIR = new Image();  WG_MINION_AIR.src  = 'images/DarkCatBotMinio
 const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/DarkCatBotBoss.png';
 const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/DarkCatBotBossDerrotado.png';
 
+// Sub-modo do Guerra Estelar: 'ritmico' (atual) ou 'luta' (holds só no meio→fim, mais batidas)
+let wgSubmode = localStorage.getItem('dw_wgsubmode') || 'ritmico';
+function selectWgSubmode(m){
+  wgSubmode = m; localStorage.setItem('dw_wgsubmode', m);
+  const r=document.getElementById('wgSubRitmico'), l=document.getElementById('wgSubLuta');
+  if(r) r.classList.toggle('sel', m==='ritmico');
+  if(l) l.classList.toggle('sel', m==='luta');
+  const h=document.getElementById('wgSubHint');
+  if(h) h.textContent = m==='luta'
+    ? 'Luta: mais notas de bater; notas de segurar só do meio pro fim.'
+    : 'Rítmico: notas de bater e segurar distribuídas pela música toda.';
+}
+
 function selectMode(m){
   gameMode = m;
   localStorage.setItem('dw_gamemode', m);
@@ -2440,6 +2461,9 @@ function selectMode(m){
   if(hint) hint.innerHTML = m==='wargame'
     ? '⚔ Você joga como <b>Mizuki</b> (única liberada). <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o Dark CatBot!'
     : '⌨ Modo clássico de notas em 4 lanes.';
+  const ss=document.getElementById('wgSubmodeSection');
+  if(ss) ss.style.display = m==='wargame' ? '' : 'none';
+  if(m==='wargame') selectWgSubmode(wgSubmode);
 }
 
 function openBgPicker(){
@@ -4896,6 +4920,7 @@ function updateLifeBar(){
 function gameOver(){
   if(gameOverByDeath||gameState==='result') return;
   gameOverByDeath=true;
+  try{ wgHoldSfxStop(); }catch(_){}
   try{ triggerScreenFlash('miss'); }catch(_){}
   if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
   audioIframeCmd('pauseVideo');
@@ -7411,7 +7436,7 @@ const WG = {
   phase:'play', bossSay:null, mizukiSay:null, nextBossSayAt:0, nextMizukiSayAt:0,
   bolts:[], hurtT:0, bossX:0, attacksDone:0, attackAt:[], attack:null,
   finisherStart:0, finisherKicks:0, finisherNeed:30, lungeT:0, resultScheduled:false,
-  kickX:0, kickY:0, kickAng:0, waving:false, waveT:0,
+  kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -7467,8 +7492,31 @@ function wgSfx(kind){
   else if(kind==='minion'){ wgTone(560,0.12,'triangle',0.16,180); wgNoise(0.07,0.12,3200); }
   else if(kind==='laser'){ wgTone(880,0.24,'sawtooth',0.18,110); wgNoise(0.1,0.08,2400); }
   else if(kind==='bossMove'){ wgTone(70,0.55,'sawtooth',0.18,300); }
-  else if(kind==='wave'){ wgTone(220,1.1,'sine',0.24,1500); wgTone(330,1.1,'triangle',0.16,1900); wgNoise(0.9,0.1,7000); }
+  else if(kind==='charge'){ wgTone(160,1.6,'sine',0.22,1300); }                 // carregando a flecha
+  else if(kind==='shoot'){ wgTone(1200,0.3,'sawtooth',0.2,300); wgNoise(0.12,0.1,4000); }
+  else if(kind==='beam'){ wgTone(180,1.4,'sine',0.26,900); wgTone(420,1.4,'triangle',0.16,1600); wgNoise(1.2,0.12,8000); }
 }
+// Som CONTÍNUO enquanto segura uma nota de segurar
+let _wgHoldOsc=null, _wgHoldGain=null, _wgHoldLfo=null;
+function wgHoldSfxStart(){
+  const ac=wgAC(); if(!ac || _wgHoldOsc) return;
+  _wgHoldOsc=ac.createOscillator(); _wgHoldGain=ac.createGain();
+  _wgHoldOsc.type='triangle'; _wgHoldOsc.frequency.value=330;
+  _wgHoldLfo=ac.createOscillator(); const lg=ac.createGain();
+  _wgHoldLfo.frequency.value=6; lg.gain.value=10; _wgHoldLfo.connect(lg); lg.connect(_wgHoldOsc.frequency); // vibrato leve
+  _wgHoldGain.gain.setValueAtTime(0.0001,ac.currentTime);
+  _wgHoldGain.gain.exponentialRampToValueAtTime(0.12,ac.currentTime+0.04);
+  _wgHoldOsc.connect(_wgHoldGain); _wgHoldGain.connect(ac.destination);
+  _wgHoldOsc.start(); _wgHoldLfo.start();
+}
+function wgHoldSfxStop(){
+  const ac=wgAC(); if(!_wgHoldOsc) return;
+  try{ _wgHoldGain.gain.cancelScheduledValues(ac.currentTime); _wgHoldGain.gain.setValueAtTime(_wgHoldGain.gain.value,ac.currentTime);
+    _wgHoldGain.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+0.08);
+    _wgHoldOsc.stop(ac.currentTime+0.1); _wgHoldLfo.stop(ac.currentTime+0.1); }catch(_){}
+  _wgHoldOsc=null; _wgHoldGain=null; _wgHoldLfo=null;
+}
+function wgSyncHoldSfx(){ if(WG.holds.air||WG.holds.ground) wgHoldSfxStart(); else wgHoldSfxStop(); }
 
 function wgComputeLayout(){
   WG.charX       = CW*0.15;
@@ -7491,7 +7539,13 @@ function wgInit(){
   WG.nextBossSayAt=5; WG.nextMizukiSayAt=8;
   WG.bossX=CW*0.85; WG.attacksDone=0; WG.attack=null;
   WG.finisherKicks=0; WG.finisherNeed=30; WG.lungeT=0; WG.resultScheduled=false;
-  WG.prevT=performance.now()*0.001;
+  WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
+  wgHoldSfxStop();
+  // Sub-modo LUTA: notas de segurar só do meio pro fim → vira tudo "bater" antes disso
+  if(wgSubmode==='luta' && songDuration>0){
+    const half=songDuration*0.5;
+    for(const n of chart){ if(n.holdDur>0 && n.hitTime<half) n.holdDur=0; }
+  }
   // 2 fases de ataque no MEIO da partida (boss vem à frente e dispara lasers)
   WG.attackAt = (songDuration>0)
     ? [songDuration*0.34, songDuration*0.64].filter(s=>s>=10 && s<=songDuration-14)
@@ -7529,6 +7583,7 @@ function wgAction(kind){
       // nota de segurar: começa a segurar (resolve no final / ao soltar)
       best.state='holding';
       WG.holds[kind]={note:best, start:st};
+      wgSyncHoldSfx(); // inicia o som contínuo de segurar
       spawnBurst(WG.hitX,laneY,C_HOLD,12);
       addJudge(WG.hitX,laneY-44,'SEGURA!',C_HOLD);
     } else {
@@ -7545,7 +7600,7 @@ function wgAction(kind){
 // Soltar (keyup) — finaliza nota de segurar
 function wgRelease(kind){
   const h=WG.holds[kind]; if(!h) return;
-  WG.holds[kind]=null;
+  WG.holds[kind]=null; wgSyncHoldSfx(); // para o som contínuo se não houver mais hold
   const st=songTime(), laneY=kind==='air'?WG.airNoteY:WG.groundNoteY;
   const completion=Math.min(1,(st-h.start)/Math.max(0.001,h.note.holdDur));
   if(completion>=0.55){
@@ -7588,7 +7643,7 @@ function wgDamageBoss(perf){
 function wgEnterFinisher(){
   if(WG.phase!=='play') return;
   WG.phase='finisher'; WG.finisherStart=songTime(); WG.finisherKicks=0; WG.finisherNeed=30;
-  WG.bossHp=WG.bossMaxHp; WG.attack=null; WG.waving=false; WG.waveT=0;
+  WG.bossHp=WG.bossMaxHp; WG.attack=null; WG.waving=false; WG.waveT=0; wgHoldSfxStop();
   // some com o vídeo de fundo no finisher (visual fica só no canvas)
   try{ if(_vbPlayer&&_vbPlayer.getIframe){ const f=_vbPlayer.getIframe(); if(f) f.style.opacity='0'; } }catch(_){}
   const vEl=document.getElementById('videoBg'); if(vEl) vEl.style.opacity='0';
@@ -7618,14 +7673,14 @@ function wgKick(){
   if(WG.finisherKicks%8===0) wgSay('boss', wgPick(WG_BOSS_TAUNTS),1.4);
 }
 
-// Onda estelar finalizadora: Mizuki para na pose da Linnea e emite a onda (rosa/amarelo/branco)
+// Finalização (~5s): Mizuki voa pro alto, atira uma flecha de luz que vira um
+// raio estelar colorido e derrota o boss ao acertar.
 function wgStartFinisherWave(){
   if(WG.waving) return;
-  WG.waving=true; WG.waveT=0; WG.lungeT=0; WG.atkTimer=0; WG.bossHp=WG.bossMaxHp*0.001;
-  wgSfx('wave');
-  wgSay('mizuki','✦ ONDA ESTELAR! ✦', 2.6);
-  wgSay('boss','N-NÃO!!! 😱', 2.2);
-  try{ triggerScreenFlash && triggerScreenFlash('perfect'); }catch(_){}
+  WG.waving=true; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.lungeT=0; WG.atkTimer=0; WG.bossHp=WG.bossMaxHp*0.001;
+  wgHoldSfxStop(); wgSfx('charge');
+  wgSay('mizuki','✦ FLECHA ESTELAR! ✦', 3);
+  wgSay('boss','N-NÃO!!! 😱', 2.4);
 }
 
 function wgBossDie(){
@@ -7784,7 +7839,8 @@ function drawWargame(t){
       h.note.state='perfect'; commitHit(h.note,true);
       const ly=kind==='air'?WG.airNoteY:WG.groundNoteY;
       wgHitFx(WG.hitX,ly,true,kind==='air'?C_AIR:C_GROUND);
-      WG.holds[kind]=null;
+      spawnDeadMinion(WG.hitX,ly,kind==='air');
+      WG.holds[kind]=null; wgSyncHoldSfx();
     }
   }
   const holdingAir = !!WG.holds.air, holdingGround = !!WG.holds.ground;
@@ -7839,8 +7895,13 @@ function drawWargame(t){
       const allDone = chart.every(n=>n.state!=='pending'&&n.state!=='holding');
       if((songDuration>0 ? st>=songDuration-6.5 : allDone)) wgEnterFinisher();
     }
-    // Onda estelar finalizadora → derrota o boss
-    if(WG.waving){ WG.waveT+=dt; if(WG.waveT>1.4 && !WG.bossDefeated) wgBossDie(); }
+    // Finalização (~5s): voa(0-1.4) → carrega(1.4-2.4) → atira flecha(2.4-3.3) → raio(3.3-4.7) → derrota
+    if(WG.waving){
+      WG.waveT+=dt;
+      if(WG.waveT>=2.4 && !WG.waveShot){ WG.waveShot=true; wgSfx('shoot'); }
+      if(WG.waveT>=3.3 && !WG.waveBeam){ WG.waveBeam=true; wgSfx('beam'); try{ triggerScreenFlash && triggerScreenFlash('perfect'); }catch(_){} }
+      if(WG.waveT>4.7 && !WG.bossDefeated) wgBossDie();
+    }
     // Segurança: se o finisher demorar demais, derrota automática
     if(WG.phase==='finisher' && !WG.waving && st-WG.finisherStart>60) wgBossDie();
   }
@@ -7933,8 +7994,11 @@ function drawWargame(t){
   const holding = holdingAir||holdingGround;
   let spr=WG_SPR.run, drawX, feet, mzRot=0;
   if(WG.waving){
-    // onda final: parada na pose da Linnea (WG_SPR.run)
-    spr=WG_SPR.run; drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
+    // finalização: voa pro alto/longe e flutua; ao atirar usa a pose de ataque
+    const p1=Math.min(1,WG.waveT/1.4), e=1-Math.pow(1-p1,3);
+    const sX=WG.charX+CW*0.30, sF=WG.floorFeet, fX=CW*0.20, fF=CH*0.34+chH*0.5;
+    drawX=sX+(fX-sX)*e; feet=sF+(fF-sF)*e + Math.sin(WG.waveT*3)*6*p1;
+    spr=(WG.waveT>=2.4 && WG.waveT<3.3)?WG_SPR.atk:WG_SPR.jump;
   } else if(WG.phase==='finisher' && WG.lungeT>0){
     // chute: aparece ao redor do boss (todos os ângulos)
     spr=WG_SPR.atk; drawX=WG.kickX; feet=WG.kickY+chH*0.5; mzRot=Math.cos(WG.kickAng)*-0.22;
@@ -7959,20 +8023,45 @@ function drawWargame(t){
   }
   ctx.restore();
 
-  // ── Onda estelar finalizadora (rosa / amarelo / branco) ──
+  // ── Finalização: carga → flecha de luz → raio estelar colorido (rosa/amarelo/branco/ciano/roxo) ──
   if(WG.waving){
-    const ox=drawX, oy=feet-chH*0.5, prog=Math.min(1,WG.waveT/1.4), maxR=Math.max(CW,CH)*0.85;
-    const WCOL=['#ff2e9a','#ffd34d','#ffffff'];
-    for(let r=0;r<3;r++){
-      const rr=prog*maxR - r*64; if(rr<=0) continue;
-      ctx.save(); ctx.globalAlpha=Math.max(0,1-prog)*0.85;
-      ctx.lineWidth=20; ctx.strokeStyle=WCOL[r%3]; ctx.shadowColor=WCOL[r%3]; ctx.shadowBlur=glow?30:0;
-      ctx.beginPath(); ctx.arc(ox,oy,rr,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    const wt=WG.waveT, ox=drawX, oy=feet-chH*0.55;
+    const bcx=WG.bossX, bcy=WG.floorFeet-bossH*0.5;
+    const ang=Math.atan2(bcy-oy,bcx-ox), len=Math.hypot(bcx-ox,bcy-oy);
+    // carga (1.2-2.4): brilho crescente nas mãos
+    if(wt>=1.2 && wt<2.5){
+      const cg=Math.min(1,(wt-1.2)/1.3), rad=14+58*cg;
+      ctx.save(); ctx.globalAlpha=cg;
+      const g=ctx.createRadialGradient(ox,oy,0,ox,oy,rad);
+      g.addColorStop(0,'#ffffff'); g.addColorStop(.5,'#ffd34d'); g.addColorStop(1,'rgba(255,46,154,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ox,oy,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
     }
-    ctx.save(); ctx.globalAlpha=Math.max(0,1-prog*0.8);
-    const g=ctx.createRadialGradient(ox,oy,0,ox,oy,160);
-    g.addColorStop(0,'rgba(255,255,255,.95)'); g.addColorStop(.45,'rgba(255,211,77,.55)'); g.addColorStop(1,'rgba(255,46,154,0)');
-    ctx.fillStyle=g; ctx.fillRect(ox-180,oy-180,360,360); ctx.restore();
+    // flecha de luz (2.4-3.3): viaja da Mizuki até o boss
+    if(wt>=2.4 && wt<3.3){
+      const ap=(wt-2.4)/0.9, ax=ox+(bcx-ox)*ap, ay=oy+(bcy-oy)*ap;
+      ctx.save(); ctx.translate(ax,ay); ctx.rotate(ang); ctx.shadowColor='#fff'; ctx.shadowBlur=glow?24:0;
+      const gr=ctx.createLinearGradient(-90,0,22,0); gr.addColorStop(0,'rgba(255,211,77,0)'); gr.addColorStop(1,'#ffffff');
+      ctx.fillStyle=gr; ctx.fillRect(-90,-5,112,10);
+      ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.moveTo(34,0); ctx.lineTo(10,-14); ctx.lineTo(10,14); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // raio estelar colorido (3.3+): feixe grosso multicolor + impacto no boss
+    if(wt>=3.3){
+      const bp=Math.min(1,(wt-3.3)/0.5), baseTh=78*bp;
+      const cols=['#ff2e9a','#ffd34d','#ffffff','#28e0ff','#b020ff'];
+      ctx.save(); ctx.translate(ox,oy); ctx.rotate(ang);
+      for(let li=0; li<cols.length; li++){
+        const th=baseTh*(1-li*0.16);
+        ctx.globalAlpha=0.85; ctx.fillStyle=cols[(li+Math.floor(animT*8))%cols.length];
+        ctx.shadowColor=cols[li%cols.length]; ctx.shadowBlur=glow?22:0;
+        ctx.fillRect(0,-th/2,len,th);
+      }
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha=0.92;
+      const ig=ctx.createRadialGradient(bcx,bcy,0,bcx,bcy,bossW*0.75*bp+10);
+      ig.addColorStop(0,'rgba(255,255,255,.95)'); ig.addColorStop(.5,'rgba(255,211,77,.6)'); ig.addColorStop(1,'rgba(255,46,154,0)');
+      ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(bcx,bcy,bossW*0.75*bp+10,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
   }
 
   // ── Números de dano flutuando ──
@@ -8345,6 +8434,7 @@ function pauseGame(){
   if(gameState!=='playing'&&gameState!=='countdown') return;
   prePauseState=gameState;
   gameState='paused';
+  try{ wgHoldSfxStop(); }catch(_){}
   if(audioCtx) audioCtx.suspend();
   // Pausa também a música do YouTube — modo vídeo (_vbPlayer) e modo efeitos (iframe oculto)
   if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
