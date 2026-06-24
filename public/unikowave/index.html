@@ -7437,6 +7437,39 @@ function wgRedTinted(img){
   _wgTint.set(img,c); return c;
 }
 
+// ─── SFX sintetizados (não dependem do buffer da música, que é null no modo vídeo) ───
+let _wgAC=null;
+function wgAC(){
+  try{ if(!_wgAC) _wgAC=new (window.AudioContext||window.webkitAudioContext)(); if(_wgAC.state==='suspended') _wgAC.resume(); }catch(_){ _wgAC=null; }
+  return _wgAC;
+}
+function wgTone(freq,dur,type,vol,slideTo){
+  const ac=wgAC(); if(!ac) return; const t0=ac.currentTime;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(freq,t0);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(vol||0.18,t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0+dur+0.03);
+}
+function wgNoise(dur,vol,filterFreq){
+  const ac=wgAC(); if(!ac) return; const t0=ac.currentTime;
+  const n=Math.max(1,Math.floor(ac.sampleRate*dur)), buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  const src=ac.createBufferSource(); src.buffer=buf; const g=ac.createGain(); g.gain.value=vol||0.18;
+  let node=src; if(filterFreq){ const f=ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=filterFreq; src.connect(f); node=f; }
+  node.connect(g); g.connect(ac.destination); src.start(t0); src.stop(t0+dur+0.03);
+}
+function wgSfx(kind){
+  if(!wgAC()) return;
+  if(kind==='kick'){ wgTone(190,0.16,'square',0.2,55); wgNoise(0.10,0.2,1400); }
+  else if(kind==='minion'){ wgTone(560,0.12,'triangle',0.16,180); wgNoise(0.07,0.12,3200); }
+  else if(kind==='laser'){ wgTone(880,0.24,'sawtooth',0.18,110); wgNoise(0.1,0.08,2400); }
+  else if(kind==='bossMove'){ wgTone(70,0.55,'sawtooth',0.18,300); }
+  else if(kind==='wave'){ wgTone(220,1.1,'sine',0.24,1500); wgTone(330,1.1,'triangle',0.16,1900); wgNoise(0.9,0.1,7000); }
+}
+
 function wgComputeLayout(){
   WG.charX       = CW*0.15;
   WG.charH       = Math.max(140, Math.min(240, CH*0.30));
@@ -7474,8 +7507,8 @@ function wgTimeX(time, st){
 // Ação (keydown): 'air' (W → sobe pra linha) ou 'ground' (S → bate no chão)
 function wgAction(kind){
   if(gameState!=='playing') return;
-  if(WG.phase==='finisher'){ wgKick(); return; } // no finisher qualquer tecla = chute
-  if(WG.phase==='done') return;
+  if(WG.waving || WG.phase==='done') return;        // onda final/derrota: não aceita input
+  if(WG.phase==='finisher'){ wgKick(); return; }     // no finisher qualquer tecla = chute
   if(WG.holds[kind]) return; // já segurando
   if(kind==='air'){ WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; }
   else            { WG.atkTimer=0.24; }
@@ -7536,6 +7569,7 @@ function wgHitFx(ex,laneY,perf,c){
 
 // Minion derrotado: cai pro chão girando e some
 function spawnDeadMinion(x,y,air){
+  wgSfx('minion'); // som de minion derrotado
   WG.deadMinions.push({ x, y, air, vx:-60-Math.random()*120, vy:-240-Math.random()*120,
     rot:0, vr:(Math.random()<0.5?-1:1)*(4+Math.random()*5), life:1 });
 }
@@ -7580,7 +7614,7 @@ function wgKick(){
   spawnBurst(WG.bossX,bcy,'#ffd34d',22);
   rings.push({x:WG.bossX,y:bcy,r:4,maxR:110,life:.5,decay:.1,color:'#ffd34d',w:5});
   WG.dmgNums.push({x:WG.bossX+(Math.random()*40-20),y:bcy,life:1,val:'-'+Math.round(120+Math.random()*80),color:'#ffd34d'});
-  playHitSound(true);
+  wgSfx('kick');
   if(WG.finisherKicks%8===0) wgSay('boss', wgPick(WG_BOSS_TAUNTS),1.4);
 }
 
@@ -7588,6 +7622,7 @@ function wgKick(){
 function wgStartFinisherWave(){
   if(WG.waving) return;
   WG.waving=true; WG.waveT=0; WG.lungeT=0; WG.atkTimer=0; WG.bossHp=WG.bossMaxHp*0.001;
+  wgSfx('wave');
   wgSay('mizuki','✦ ONDA ESTELAR! ✦', 2.6);
   wgSay('boss','N-NÃO!!! 😱', 2.2);
   try{ triggerScreenFlash && triggerScreenFlash('perfect'); }catch(_){}
@@ -7613,6 +7648,7 @@ function wgBossDie(){
 // Laser do boss: tira uma % pequena da vida e a Mizuki fica vermelha
 function wgFireBolt(){
   WG.bolts.push({ ox:WG.bossX, t:0 });
+  wgSfx('laser');
   score.health=Math.max(0,(score.health??100)-WG_BOLT_DMG);
   updateLifeBar(); updateHUD();
   WG.hurtT=0.55; WG.bossShake=6;
@@ -7782,6 +7818,7 @@ function drawWargame(t){
       const endT=st+4.4; // suprime as notas da janela do ataque (sem erro)
       for(const n of chart){ if((n.state==='pending'||n.state==='holding') && n.hitTime<=endT) n.state='gone'; }
       WG.holds.air=null; WG.holds.ground=null;
+      wgSfx('bossMove'); // som do boss avançando pro meio pra dar o choque
       wgSay('boss','Tome isto!! ⚡',2.4);
     }
     // Progresso da fase de ataque
@@ -7837,7 +7874,8 @@ function drawWargame(t){
       if(glow){ ctx.shadowColor='rgba(255,40,120,.55)'; ctx.shadowBlur=WG.bossHitFx>0?40:22; }
       ctx.drawImage(WG_BOSS_IMG, bcx-dw*0.5, bcy-dh*0.5, dw, dh);
       ctx.shadowBlur=0;
-      if(WG.bossHitFx>0){ ctx.globalAlpha=WG.bossHitFx*0.5; ctx.globalCompositeOperation='source-atop'; ctx.fillStyle='#ff3344'; ctx.fillRect(bcx-dw*0.5,bcy-dh*0.5,dw,dh); }
+      // flash de dano: tinge SÓ o corpo do boss (silhueta), não um quadrado
+      if(WG.bossHitFx>0){ const tn=wgRedTinted(WG_BOSS_IMG); if(tn){ ctx.globalAlpha=Math.min(0.8,WG.bossHitFx*0.7); ctx.drawImage(tn,bcx-dw*0.5,bcy-dh*0.5,dw,dh); ctx.globalAlpha=1; } }
     } else {
       const bg=ctx.createRadialGradient(bcx,bcy,8,bcx,bcy,bossW*0.5);
       bg.addColorStop(0, WG.bossHitFx>0?'rgba(255,120,120,.95)':'rgba(180,60,255,.92)');
@@ -7954,12 +7992,13 @@ function drawWargame(t){
   for(const b of WG.bolts){
     const k=Math.max(0,1-b.t/0.45);
     const x1=(b.ox||CW*0.82)-WG.charH*0.1, y1=WG.floorFeet-bossH*0.9, x2=drawX, y2=feet-chH*0.5;
-    ctx.save(); ctx.globalAlpha=k;
-    ctx.strokeStyle='#d6ecff'; ctx.lineWidth=3+4*k; ctx.lineCap='round';
-    ctx.shadowColor='#7fd0ff'; ctx.shadowBlur=glow?18:0;
-    ctx.beginPath(); ctx.moveTo(x1,y1);
-    const seg=7; for(let i=1;i<seg;i++){ const tt=i/seg; ctx.lineTo(x1+(x2-x1)*tt+(Math.random()-0.5)*42, y1+(y2-y1)*tt+(Math.random()-0.5)*22); }
-    ctx.lineTo(x2,y2); ctx.stroke(); ctx.restore();
+    // pontos da trajetória (zig-zag) reaproveitados pras duas passadas
+    const seg=7, pts=[[x1,y1]];
+    for(let i=1;i<seg;i++){ const tt=i/seg; pts.push([x1+(x2-x1)*tt+(Math.random()-0.5)*42, y1+(y2-y1)*tt+(Math.random()-0.5)*22]); }
+    pts.push([x2,y2]);
+    const stroke=(w,col,a)=>{ ctx.save(); ctx.globalAlpha=k*a; ctx.strokeStyle=col; ctx.lineWidth=w; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.shadowColor='#ff2030'; ctx.shadowBlur=glow?22:0; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); ctx.restore(); };
+    stroke(14+10*k,'#ff2030',0.9);   // laser VERMELHO grosso
+    stroke(5+4*k,'#ffd0d0',1);       // núcleo claro
   }
 
   // ── Balões de fala (boss + Mizuki) ──
