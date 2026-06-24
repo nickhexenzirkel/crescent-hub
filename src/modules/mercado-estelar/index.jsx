@@ -1281,11 +1281,80 @@ const ImageManager = ({ images = [], onChange, cardBg }) => {
   );
 };
 
+// Editor completo de um prêmio existente (título, descrição, preço, raridade,
+// moeda, estoque e fotos) — aplica só ao clicar em SALVAR.
+const ItemEditor = ({ item, onSave, onCancel, flash, cardBg }) => {
+  const [d, setD] = useState({ name: item.name, desc: item.desc || '', rarity: item.rarity, cur: item.cur, price: String(item.price), stock: String(item.stock), images: prizeImages(item) });
+  const set = (k, v) => setD(x => ({ ...x, [k]: v }));
+  const fieldStyle = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+  const save = () => {
+    const price = parseInt(d.price, 10), stock = parseInt(d.stock, 10);
+    if (!d.name.trim()) { flash('Informe o nome do prêmio'); return; }
+    if (!price || price <= 0) { flash('Informe um preço válido'); return; }
+    if (isNaN(stock) || stock < 0) { flash('Informe a quantidade disponível'); return; }
+    onSave({ name: d.name.trim(), desc: d.desc.trim(), rarity: d.rarity, cur: d.cur, price, stock, images: d.images });
+  };
+  return (
+    <div style={{ padding: '12px', borderTop: `1px dashed ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <label style={lbl}>Título</label>
+        <input value={d.name} onChange={e => set('name', e.target.value)} style={fieldStyle} />
+      </div>
+      <div>
+        <label style={lbl}>Descrição</label>
+        <textarea value={d.desc} onChange={e => set('desc', e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical' }} />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Raridade</label>
+          <select value={d.rarity} onChange={e => set('rarity', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+            {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Pago com</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
+              <button key={k} onClick={() => set('cur', k)} style={{
+                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${d.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 12.5,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                background: d.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: d.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
+              }}><PrismIcon type={k} size={14} />{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Preço (prismas)</label>
+          <input type="number" min="1" value={d.price} onChange={e => set('price', e.target.value)} style={fieldStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Qtd. disponível</label>
+          <input type="number" min="0" value={d.stock} onChange={e => set('stock', e.target.value)} style={fieldStyle} />
+        </div>
+      </div>
+      <div>
+        <label style={lbl}>Fotos <span style={{ textTransform: 'none', fontWeight: 500, color: T.textT }}>(1ª = capa)</span></label>
+        <ImageManager images={d.images} onChange={imgs => set('images', imgs)} cardBg={cardBg} />
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+        <button onClick={save} style={{ flex: 1, padding: '11px', borderRadius: 9, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}bb)`, color: '#fff', fontWeight: 800, fontSize: 13.5, fontFamily: 'var(--font-body)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+          Salvar
+        </button>
+        <button onClick={onCancel} style={{ padding: '11px 16px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13.5, fontFamily: 'var(--font-body)', cursor: 'pointer' }}>Cancelar</button>
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
 const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
   const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '', images: [] };
   const [form, setForm] = useState(blank);
-  const [editImgId, setEditImgId] = useState(null); // item com editor de imagens aberto
+  const [editId, setEditId] = useState(null); // item com editor aberto
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
@@ -1374,7 +1443,7 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
               {items.map(i => {
                 const rc = RARITY_COLOR[i.rarity] || T.textT;
                 const nImgs = prizeImages(i).length;
-                const open = editImgId === i.id;
+                const open = editId === i.id;
                 return (
                   <div key={i.id} style={{ borderRadius: 11, border: `1px solid ${open ? T.goldLine + '88' : T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px' }}>
@@ -1383,28 +1452,22 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
-                          <span style={{ fontSize: 10.5, color: T.textT }}>· {nImgs} foto{nImgs === 1 ? '' : 's'}</span>
+                          <span style={{ fontSize: 10.5, color: T.textT }}>· {i.stock} em estoque · {nImgs} foto{nImgs === 1 ? '' : 's'}</span>
                         </div>
                       </div>
-                      <button onClick={() => setEditImgId(open ? null : i.id)} title="Editar fotos" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-                        Fotos
+                      <button onClick={() => setEditId(open ? null : i.id)} title="Editar prêmio" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        {open ? 'Fechar' : 'Editar'}
                       </button>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: 9, color: T.textD, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Disponíveis</span>
-                        <input type="number" min="0" value={i.stock} onChange={e => patchItem(i.id, { stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                          style={{ width: 56, padding: '6px 8px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none' }} />
-                      </div>
                       <button onClick={() => removeItem(i.id)} title="Remover" style={{ display: 'inline-flex', padding: 8, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C04050', cursor: 'pointer' }}><IcoTrash size={15} /></button>
                     </div>
                     {open && (
-                      <div style={{ padding: '4px 12px 14px', borderTop: `1px dashed ${T.border}` }}>
-                        <div style={{ fontSize: 11, color: T.textT, margin: '10px 0 8px' }}>A 1ª imagem é a capa exibida na loja. As demais aparecem na galeria (setas) ao abrir o prêmio.</div>
-                        <ImageManager images={prizeImages(i)} onChange={imgs => patchItem(i.id, { images: imgs })} cardBg={cardBg} />
-                      </div>
+                      <ItemEditor item={i} flash={flash} cardBg={cardBg}
+                        onCancel={() => setEditId(null)}
+                        onSave={(patch) => { patchItem(i.id, patch); setEditId(null); flash(`"${patch.name}" atualizado`); }} />
                     )}
                   </div>
                 );
