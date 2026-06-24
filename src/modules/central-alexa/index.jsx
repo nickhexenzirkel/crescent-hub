@@ -751,11 +751,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const resetAt = resetSetting?.value || null;
 
     // Tudo agregado no servidor (escala sem baixar linhas brutas da fila)
-    const [songsRes, artistsRes, djRes, monthlyRes, countRes] = await Promise.all([
+    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes] = await Promise.all([
       _supabase.rpc('maquina_song_stats',   { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_artist_stats', { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_dj_stats',     { p_since: resetAt }),
       _supabase.from('maquina_monthly_songs').select('month,spotify_id,title,artist,album_art,plays'),
+      _supabase.from('maquina_monthly_djs').select('month,requested_by,plays'),
       _supabase.rpc('maquina_play_count',   { p_since: resetAt }),
     ]);
 
@@ -778,7 +779,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const djs = djRows.slice(0,20).map(d => ({ name:d.requested_by.trim(), count:d.plays }));
     const djTotal = djRows.reduce((a,d)=>a+d.plays,0);
 
-    // Por mês / retrospectiva (a partir da view agregada)
+    // DJs por mês (filtra nomes do sistema no cliente)
+    const monthDjMap = {};
+    (monthlyDjRes.data||[]).forEach(r => {
+      if (isSystemDj(r.requested_by)) return;
+      (monthDjMap[r.month] = monthDjMap[r.month] || []).push({ name:r.requested_by.trim(), count:r.plays });
+    });
+
+    // Por mês / retrospectiva (a partir das views agregadas)
     const monthMap = {};
     (monthlyRes.data||[]).forEach(r => { (monthMap[r.month] = monthMap[r.month] || []).push(r); });
     const months = Object.keys(monthMap).sort().reverse().map(key => {
@@ -787,12 +795,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       const label = new Date(y, m-1, 1).toLocaleDateString('pt-BR',{ month:'long', year:'numeric' });
       const artists = {};
       rows.forEach(r => (r.artist||'').split(', ').forEach(a => { if (a) artists[a] = (artists[a]||0) + r.plays; }));
+      const mDjs = (monthDjMap[key]||[]).sort((a,b)=>b.count-a.count);
       return {
         key,
         label: label.charAt(0).toUpperCase()+label.slice(1),
         topSongs: rows.slice().sort((a,b)=>b.plays-a.plays).slice(0,10)
           .map(r => ({ spotify_id:r.spotify_id, title:r.title, artist:r.artist, album_art:r.album_art, count:r.plays })),
         topArtists: Object.entries(artists).sort((a,b)=>b[1]-a[1]).slice(0,10),
+        djs: mDjs.slice(0,10),
+        djTotal: mDjs.reduce((a,d)=>a+d.count,0),
         total: rows.reduce((a,r)=>a+r.plays,0),
       };
     });
@@ -801,8 +812,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setMaquinaData({ topSongs, topArtists, total, resetAt, djs, djTotal, months });
     setMaquinaLoading(false);
 
-    // Carrega fotos dos DJs do ranking
-    djs.forEach(async ({ name }) => {
+    // Carrega fotos dos DJs (ranking geral + de todos os meses)
+    const allDjNames = new Set([ ...djs.map(d=>d.name), ...Object.values(monthDjMap).flat().map(d=>d.name) ]);
+    allDjNames.forEach(async (name) => {
       if (name === myName || photoCache[name]) return;
       const photo = await fetchPhotoByName(name);
       if (photo) setPhotoCache(p => ({ ...p, [name]: photo }));
@@ -871,9 +883,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     </div>
   );
 
-  // Renderiza os dois cards (músicas + artistas) de um conjunto agregado
+  // Renderiza os cards (músicas + artistas + DJs) de um conjunto agregado
   const renderTopCards = (d) => (
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.25fr 1fr 1fr",gap:isMobile?14:18}}>
       {/* Top Músicas */}
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
@@ -925,6 +937,30 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             </div>
           </div>
         ))}
+      </div>
+      {/* Quem Mais Coloca Música (DJs) */}
+      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
+          <span style={{fontSize:15,fontWeight:700,color:T.text}}>Quem Mais Coloca Música</span>
+        </div>
+        {(!d.djs || d.djs.length===0)
+          ? <div style={{fontSize:12,color:T.textT,padding:"8px 0"}}>Ninguém pediu música nesse período.</div>
+          : d.djs.map((dj,i)=>{
+            const medal = ['🥇','🥈','🥉'][i];
+            return (
+              <div key={dj.name} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
+                <div style={{width:22,textAlign:"center",fontSize:i<3?15:12,fontWeight:700,color:i<3?T.gold:T.textD}}>{medal||`#${i+1}`}</div>
+                <AvatarCircle name={dj.name} photo={dj.name===myName?myPhoto:photoCache[dj.name]} size={36} fontSize={13} rounded="9px"/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dj.name}</div>
+                </div>
+                <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:6,background:T.goldGl}}>
+                  <span style={{fontSize:11,fontWeight:700,color:T.gold}}>{dj.count} {dj.count===1?'música':'músicas'}</span>
+                </div>
+              </div>
+            );
+          })}
       </div>
     </div>
   );
@@ -2255,7 +2291,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 {[
                   {id:'geral',     label:'Visão Geral'},
                   {id:'mensal',    label:'Por Mês'},
-                  {id:'djs',       label:'Ranking de DJs'},
                   {id:'semaninha', label:'Semaninha'},
                 ].map(v=>{
                   const on = maquinaView===v.id;
@@ -2316,39 +2351,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                             </div>
                             {renderTopCards(maquinaData.months[selMonthIdx])}
                           </>
-                    )}
-
-                    {/* ── RANKING DE DJs ── */}
-                    {maquinaView==='djs' && (
-                      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh,maxWidth:620,margin:"0 auto"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
-                          <span style={{fontSize:15,fontWeight:700,color:T.text}}>Quem Mais Coloca Música</span>
-                          <span style={{fontSize:11,color:T.textT,marginLeft:"auto"}}>{maquinaData.djTotal} pedidos</span>
-                        </div>
-                        {maquinaData.djs.length===0
-                          ? <div style={{fontSize:12,color:T.textT,padding:"8px 0"}}>Ninguém pediu música ainda neste período.</div>
-                          : maquinaData.djs.map((dj,i)=>{
-                            const pct = maquinaData.djs[0].count ? Math.round(dj.count/maquinaData.djs[0].count*100) : 0;
-                            const medal = ['🥇','🥈','🥉'][i];
-                            return (
-                              <div key={dj.name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
-                                <div style={{width:26,textAlign:"center",fontSize:i<3?16:12,fontWeight:700,color:i<3?T.gold:T.textD}}>{medal||`#${i+1}`}</div>
-                                <AvatarCircle name={dj.name} photo={dj.name===myName?myPhoto:photoCache[dj.name]} size={38} fontSize={14} rounded="10px"/>
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dj.name}</div>
-                                  <div style={{height:5,borderRadius:3,background:T.border,marginTop:5,overflow:"hidden"}}>
-                                    <div style={{height:"100%",width:`${pct}%`,borderRadius:3,background:`linear-gradient(90deg,${T.gold},${T.goldL||T.gold})`}}/>
-                                  </div>
-                                </div>
-                                <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"3px 10px",borderRadius:7,background:T.goldGl}}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                                  <span style={{fontSize:12,fontWeight:700,color:T.gold}}>{dj.count}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
                     )}
 
                     {/* ── SEMANINHA (collage) ── */}

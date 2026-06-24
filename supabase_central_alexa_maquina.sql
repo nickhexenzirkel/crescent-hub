@@ -16,6 +16,17 @@ from public.queue
 where status in ('played','skipped') and spotify_id is not null
 group by 1, spotify_id;
 
+-- ── View: plays por mês e por DJ (quem mais colocou música no mês) ───────
+create or replace view public.maquina_monthly_djs as
+select
+  to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+  requested_by,
+  count(*)::int as plays
+from public.queue
+where status in ('played','skipped')
+  and requested_by is not null and trim(requested_by) <> ''
+group by 1, requested_by;
+
 -- ── Top músicas agregadas desde p_since (null = desde sempre) ────────────
 -- Usada pela Visão Geral e pelo collage da Semaninha (qualquer período).
 create or replace function public.maquina_song_stats(
@@ -81,6 +92,7 @@ $$;
 
 -- ── Permissões (o app usa a chave anônima) ───────────────────────────────
 grant select  on public.maquina_monthly_songs                          to anon, authenticated;
+grant select  on public.maquina_monthly_djs                            to anon, authenticated;
 grant execute on function public.maquina_song_stats(timestamptz,int)   to anon, authenticated;
 grant execute on function public.maquina_artist_stats(timestamptz,int) to anon, authenticated;
 grant execute on function public.maquina_dj_stats(timestamptz)         to anon, authenticated;
