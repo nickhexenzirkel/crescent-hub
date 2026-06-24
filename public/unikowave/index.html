@@ -2833,6 +2833,11 @@ function _startVideoBgRaw(videoId){
 // Vídeo chegou ao fim → encerra a partida (uma vez só)
 function _endByVideo(){
   if(_videoBgEnding) return;
+  // No Guerra Estelar a luta continua depois da música: NÃO encerra, entra/segue no finisher
+  if(gameMode==='wargame' && gameState==='playing' && !WG.bossDefeated){
+    if(WG.phase==='play') wgEnterFinisher();
+    return;
+  }
   _videoBgEnding=true;
   if(gameState==='playing') fadeOutVideoBg(()=>setTimeout(showResult,200));
 }
@@ -7488,7 +7493,8 @@ function wgNoise(dur,vol,filterFreq){
 }
 function wgSfx(kind){
   if(!wgAC()) return;
-  if(kind==='kick'){ wgTone(190,0.16,'square',0.2,55); wgNoise(0.10,0.2,1400); }
+  if(kind==='bass'){ wgTone(140,0.26,'sine',0.34,46); wgNoise(0.03,0.12,2600); } // BATIDA de bass (na nota)
+  else if(kind==='kick'){ wgTone(190,0.16,'square',0.2,55); wgNoise(0.10,0.2,1400); }
   else if(kind==='minion'){ wgTone(560,0.12,'triangle',0.16,180); wgNoise(0.07,0.12,3200); }
   else if(kind==='laser'){ wgTone(880,0.24,'sawtooth',0.18,110); wgNoise(0.1,0.08,2400); }
   else if(kind==='bossMove'){ wgTone(70,0.55,'sawtooth',0.18,300); }
@@ -7500,12 +7506,14 @@ function wgSfx(kind){
 let _wgHoldOsc=null, _wgHoldGain=null, _wgHoldLfo=null;
 function wgHoldSfxStart(){
   const ac=wgAC(); if(!ac || _wgHoldOsc) return;
+  // Drone de BASS sustentado com tremolo (pulsa como o bass da música durante o "WAAAY")
   _wgHoldOsc=ac.createOscillator(); _wgHoldGain=ac.createGain();
-  _wgHoldOsc.type='triangle'; _wgHoldOsc.frequency.value=330;
-  _wgHoldLfo=ac.createOscillator(); const lg=ac.createGain();
-  _wgHoldLfo.frequency.value=6; lg.gain.value=10; _wgHoldLfo.connect(lg); lg.connect(_wgHoldOsc.frequency); // vibrato leve
+  _wgHoldOsc.type='sine'; _wgHoldOsc.frequency.value=92;
   _wgHoldGain.gain.setValueAtTime(0.0001,ac.currentTime);
-  _wgHoldGain.gain.exponentialRampToValueAtTime(0.12,ac.currentTime+0.04);
+  _wgHoldGain.gain.exponentialRampToValueAtTime(0.16,ac.currentTime+0.05);
+  _wgHoldLfo=ac.createOscillator(); const lg=ac.createGain();
+  _wgHoldLfo.type='sine'; _wgHoldLfo.frequency.value=5.5; lg.gain.value=0.07; // tremolo no volume
+  _wgHoldLfo.connect(lg); lg.connect(_wgHoldGain.gain);
   _wgHoldOsc.connect(_wgHoldGain); _wgHoldGain.connect(ac.destination);
   _wgHoldOsc.start(); _wgHoldLfo.start();
 }
@@ -7624,7 +7632,7 @@ function wgHitFx(ex,laneY,perf,c){
 
 // Minion derrotado: cai pro chão girando e some
 function spawnDeadMinion(x,y,air){
-  wgSfx('minion'); // som de minion derrotado
+  wgSfx('bass'); // batida de bass no acerto da nota (cai no ritmo da música)
   WG.deadMinions.push({ x, y, air, vx:-60-Math.random()*120, vy:-240-Math.random()*120,
     rot:0, vr:(Math.random()<0.5?-1:1)*(4+Math.random()*5), life:1 });
 }
