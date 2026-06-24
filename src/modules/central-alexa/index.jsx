@@ -569,6 +569,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
   const [collageBusy, setCollageBusy]   = useState(false);
+  const [collagePeriod, setCollagePeriod] = useState('semana'); // semana | mes | ano | tudo
+  const [collageData, setCollageData]   = useState(null); // {covers, total, period}
+  const [collageLoading, setCollageLoading] = useState(false);
 
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
 
@@ -730,80 +733,71 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     return !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
   };
 
+  // Períodos do collage da Semaninha
+  const COLLAGE_PERIODS = [
+    { id:'semana', label:'7 dias',  days:7,   sub:'últimos 7 dias' },
+    { id:'mes',    label:'30 dias', days:30,  sub:'últimos 30 dias' },
+    { id:'ano',    label:'1 ano',   days:365, sub:'último ano' },
+    { id:'tudo',   label:'Tudo',    days:null, sub:'desde sempre' },
+  ];
+
   const loadMaquinaData = async () => {
     setMaquinaLoading(true);
 
-    // Busca data de reset (se existir)
+    // Data de reset (se existir) — define o "período atual" da Visão Geral / DJs
     const { data: resetSetting } = await _supabase
       .from('settings').select('value').eq('key','maquina_reset_at').maybeSingle();
     const resetAt = resetSetting?.value || null;
 
-    // Histórico completo (para mês/retrospectiva/semaninha)
-    const { data } = await _supabase
-      .from('queue').select('spotify_id,title,artist,album_art,created_at,requested_by')
-      .in('status',['played','skipped']).order('created_at',{ascending:false}).limit(5000);
-    if (!data) { setMaquinaLoading(false); return; }
+    // Tudo agregado no servidor (escala sem baixar linhas brutas da fila)
+    const [songsRes, artistsRes, djRes, monthlyRes, countRes] = await Promise.all([
+      _supabase.rpc('maquina_song_stats',   { p_since: resetAt, p_limit: 10 }),
+      _supabase.rpc('maquina_artist_stats', { p_since: resetAt, p_limit: 10 }),
+      _supabase.rpc('maquina_dj_stats',     { p_since: resetAt }),
+      _supabase.from('maquina_monthly_songs').select('month,spotify_id,title,artist,album_art,plays'),
+      _supabase.rpc('maquina_play_count',   { p_since: resetAt }),
+    ]);
 
-    // Agrega músicas + artistas de um conjunto de linhas
-    const tally = (rows) => {
-      const songs = {}, artists = {};
-      rows.forEach(s => {
-        songs[s.spotify_id] = songs[s.spotify_id] || { ...s, count: 0 };
-        songs[s.spotify_id].count++;
-        (s.artist||'').split(', ').forEach(a => { if (a) artists[a] = (artists[a]||0) + 1; });
-      });
-      return {
-        topSongs:   Object.values(songs).sort((a,b)=>b.count-a.count).slice(0,10),
-        topArtists: Object.entries(artists).sort((a,b)=>b[1]-a[1]).slice(0,10),
-        total:      rows.length,
-      };
-    };
+    if (songsRes.error) {
+      console.error('Máquina do Tempo: rode supabase_central_alexa_maquina.sql no Supabase.', songsRes.error);
+      setMaquinaData({ topSongs:[], topArtists:[], total:0, resetAt, djs:[], djTotal:0, months:[], sqlMissing:true });
+      setMaquinaLoading(false);
+      return;
+    }
 
-    // Período atual (desde o reset) — alimenta a Visão Geral e o ranking de DJs
-    const current = resetAt ? data.filter(r => r.created_at >= resetAt) : data;
-    const geral = tally(current);
+    // Visão Geral (período atual)
+    const topSongs = (songsRes.data||[]).map(s => ({
+      spotify_id:s.spotify_id, title:s.title, artist:s.artist, album_art:s.album_art, count:s.plays,
+    }));
+    const topArtists = (artistsRes.data||[]).map(a => [a.artist, a.plays]);
+    const total = countRes.data || 0;
 
-    // Ranking de DJs (quem mais coloca música no período atual)
-    const djCount = {};
-    current.forEach(s => {
-      if (isSystemDj(s.requested_by)) return;
-      const n = s.requested_by.trim();
-      djCount[n] = (djCount[n]||0) + 1;
-    });
-    const djTotal = Object.values(djCount).reduce((a,b)=>a+b,0);
-    const djs = Object.entries(djCount).sort((a,b)=>b[1]-a[1])
-      .map(([name,count])=>({ name, count })).slice(0,20);
+    // Ranking de DJs (filtra nomes do sistema no cliente)
+    const djRows = (djRes.data||[]).filter(d => !isSystemDj(d.requested_by));
+    const djs = djRows.slice(0,20).map(d => ({ name:d.requested_by.trim(), count:d.plays }));
+    const djTotal = djRows.reduce((a,d)=>a+d.plays,0);
 
-    // Por mês / retrospectiva (histórico completo)
+    // Por mês / retrospectiva (a partir da view agregada)
     const monthMap = {};
-    data.forEach(s => {
-      const d = new Date(s.created_at);
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      (monthMap[key] = monthMap[key] || []).push(s);
-    });
+    (monthlyRes.data||[]).forEach(r => { (monthMap[r.month] = monthMap[r.month] || []).push(r); });
     const months = Object.keys(monthMap).sort().reverse().map(key => {
+      const rows = monthMap[key];
       const [y,m] = key.split('-').map(Number);
       const label = new Date(y, m-1, 1).toLocaleDateString('pt-BR',{ month:'long', year:'numeric' });
-      return { key, label: label.charAt(0).toUpperCase()+label.slice(1), ...tally(monthMap[key]) };
+      const artists = {};
+      rows.forEach(r => (r.artist||'').split(', ').forEach(a => { if (a) artists[a] = (artists[a]||0) + r.plays; }));
+      return {
+        key,
+        label: label.charAt(0).toUpperCase()+label.slice(1),
+        topSongs: rows.slice().sort((a,b)=>b.plays-a.plays).slice(0,10)
+          .map(r => ({ spotify_id:r.spotify_id, title:r.title, artist:r.artist, album_art:r.album_art, count:r.plays })),
+        topArtists: Object.entries(artists).sort((a,b)=>b[1]-a[1]).slice(0,10),
+        total: rows.reduce((a,r)=>a+r.plays,0),
+      };
     });
-
-    // Semaninha (últimos 7 dias) — capas para o collage
-    const weekAgo = Date.now() - 7*24*60*60*1000;
-    const weekRows = data.filter(s => new Date(s.created_at).getTime() >= weekAgo);
-    const wsongs = {};
-    weekRows.forEach(s => {
-      if (!s.album_art) return;
-      wsongs[s.spotify_id] = wsongs[s.spotify_id] || { ...s, count: 0 };
-      wsongs[s.spotify_id].count++;
-    });
-    const week = {
-      covers: Object.values(wsongs).sort((a,b)=>b.count-a.count),
-      total:  weekRows.length,
-    };
 
     setSelMonthIdx(0);
-    setMaquinaData({ ...geral, resetAt, djs, djTotal, months, week });
+    setMaquinaData({ topSongs, topArtists, total, resetAt, djs, djTotal, months });
     setMaquinaLoading(false);
 
     // Carrega fotos dos DJs do ranking
@@ -814,9 +808,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     });
   };
 
+  // Carrega as capas mais ouvidas do período escolhido (collage da Semaninha)
+  const loadCollage = async (period) => {
+    setCollageLoading(true);
+    const cfg = COLLAGE_PERIODS.find(p => p.id===period) || COLLAGE_PERIODS[0];
+    const since = cfg.days ? new Date(Date.now() - cfg.days*86400000).toISOString() : null;
+    const [coversRes, countRes] = await Promise.all([
+      _supabase.rpc('maquina_song_stats', { p_since: since, p_limit: 120 }),
+      _supabase.rpc('maquina_play_count', { p_since: since }),
+    ]);
+    const covers = (coversRes.data||[]).filter(c => c.album_art).map(c => ({
+      spotify_id:c.spotify_id, title:c.title, artist:c.artist, album_art:c.album_art, count:c.plays,
+    }));
+    setCollageData({ covers, total: countRes.data || 0, period });
+    setCollageLoading(false);
+  };
+
   // Gera e baixa o collage da Semaninha (NxN) das capas mais ouvidas
   const downloadCollage = async () => {
-    const covers = maquinaData?.week?.covers || [];
+    const covers = collageData?.covers || [];
     if (!covers.length || collageBusy) return;
     setCollageBusy(true);
     const n = collageSize, tile = 240;
@@ -902,6 +912,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   );
 
   useEffect(() => { if (tab==='maquina')    loadMaquinaData(); }, [tab]);
+  useEffect(() => {
+    if (tab==='maquina' && maquinaView==='semaninha' && collageData?.period!==collagePeriod) loadCollage(collagePeriod);
+  }, [tab, maquinaView, collagePeriod]); // eslint-disable-line
   useEffect(() => { if (tab==='biblioteca') loadSpPlaylists(); }, [tab]);
 
   // ── Supabase realtime ────────────────────────────────────
@@ -2218,7 +2231,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               )}
             </div>
             {/* Seletor de visões */}
-            {!maquinaLoading && maquinaData && maquinaData.total>0 && (
+            {!maquinaLoading && maquinaData && !maquinaData.sqlMissing && (maquinaData.total>0 || maquinaData.months?.length>0) && (
               <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
                 {[
                   {id:'geral',     label:'Visão Geral'},
@@ -2245,7 +2258,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin .7s linear infinite",margin:"0 auto 10px"}}/>
                   Carregando histórico...
                 </div>
-              : !maquinaData || maquinaData.total===0
+              : maquinaData?.sqlMissing
+                ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+                    <div style={{fontSize:14}}>Estatísticas indisponíveis.</div>
+                    <div style={{fontSize:12,marginTop:4,opacity:.7}}>Rode <code style={{color:T.gold}}>supabase_central_alexa_maquina.sql</code> no Supabase pra ativar a Máquina do Tempo.</div>
+                  </div>
+              : !maquinaData || (maquinaData.total===0 && (maquinaData.months?.length||0)===0)
                 ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     <div style={{fontSize:14}}>Nenhuma música tocada ainda.</div>
@@ -2314,14 +2333,45 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     )}
 
                     {/* ── SEMANINHA (collage) ── */}
-                    {maquinaView==='semaninha' && (
+                    {maquinaView==='semaninha' && (()=>{
+                      const covers = collageData?.covers || [];
+                      const periodCfg = COLLAGE_PERIODS.find(p=>p.id===collagePeriod) || COLLAGE_PERIODS[0];
+                      const ready = collageData && collageData.period===collagePeriod && !collageLoading;
+                      return (
                       <div>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:16}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14}}>
                           <div>
                             <div style={{fontSize:15,fontWeight:700,color:T.text}}>Sua Semaninha 🎶</div>
-                            <div style={{fontSize:12,color:T.textT,marginTop:2}}>Capas mais ouvidas nos últimos 7 dias · {maquinaData.week.total} plays</div>
+                            <div style={{fontSize:12,color:T.textT,marginTop:2}}>
+                              Capas mais ouvidas · {periodCfg.sub}{ready && ` · ${collageData.total} plays`}
+                            </div>
                           </div>
-                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          <button onClick={downloadCollage} disabled={collageBusy || !ready || covers.length===0}
+                            style={{padding:'6px 14px',borderRadius:9,cursor:(!ready||covers.length===0)?'not-allowed':'pointer',fontFamily:'var(--font-body)',
+                              fontSize:12,fontWeight:700,transition:'all .15s',display:'flex',alignItems:'center',gap:6,
+                              border:`1.5px solid ${T.gold}`,background:T.gold,color:'#1a1320',opacity:(collageBusy||!ready||covers.length===0)?.55:1}}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            {collageBusy?'Gerando…':'Baixar'}
+                          </button>
+                        </div>
+                        {/* Seletor de período + tamanho */}
+                        <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginBottom:18}}>
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                            {COLLAGE_PERIODS.map(p=>{
+                              const on = collagePeriod===p.id;
+                              return (
+                                <button key={p.id} onClick={()=>setCollagePeriod(p.id)}
+                                  style={{padding:'6px 13px',borderRadius:999,cursor:'pointer',fontFamily:'var(--font-body)',
+                                    fontSize:12,fontWeight:700,transition:'all .15s',
+                                    border:`1.5px solid ${on?T.gold:T.border}`,
+                                    background:on?T.goldGl:'transparent',color:on?T.gold:T.textS}}>
+                                  {p.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div style={{width:1,height:20,background:T.border}}/>
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                             {[3,5,8,10].map(n=>{
                               const on = collageSize===n;
                               return (
@@ -2334,41 +2384,41 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                 </button>
                               );
                             })}
-                            <button onClick={downloadCollage} disabled={collageBusy || maquinaData.week.covers.length===0}
-                              style={{padding:'6px 14px',borderRadius:9,cursor:maquinaData.week.covers.length===0?'not-allowed':'pointer',fontFamily:'var(--font-body)',
-                                fontSize:12,fontWeight:700,transition:'all .15s',display:'flex',alignItems:'center',gap:6,
-                                border:`1.5px solid ${T.gold}`,background:T.gold,color:'#1a1320',opacity:(collageBusy||maquinaData.week.covers.length===0)?.55:1}}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                              {collageBusy?'Gerando…':'Baixar'}
-                            </button>
                           </div>
                         </div>
-                        {maquinaData.week.covers.length===0
-                          ? <div style={{textAlign:"center",padding:50,color:T.textT}}>
-                              <div style={{fontSize:14}}>Nenhuma música tocada nos últimos 7 dias.</div>
-                              <div style={{fontSize:12,marginTop:4,opacity:.7}}>Coloque umas músicas no UnikoWave durante a semana!</div>
+                        {!ready
+                          ? <div style={{textAlign:"center",padding:60,color:T.textT}}>
+                              <div style={{width:24,height:24,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin .7s linear infinite",margin:"0 auto 10px"}}/>
+                              Montando o collage...
                             </div>
-                          : <div style={{maxWidth:Math.min(560, collageSize*70+40),margin:"0 auto",borderRadius:14,overflow:"hidden",border:`1px solid ${T.border}`,boxShadow:T.sh,background:'#0c0c14'}}>
-                              <div style={{display:"grid",gridTemplateColumns:`repeat(${collageSize},1fr)`,gap:0}}>
-                                {Array.from({length:collageSize*collageSize}).map((_,i)=>{
-                                  const covers = maquinaData.week.covers;
-                                  const c = covers[i % covers.length];
-                                  return (
-                                    <div key={i} style={{position:"relative",aspectRatio:"1/1",background:T.goldGl}}>
-                                      {c?.album_art && <img src={c.album_art} alt="" loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
-                                    </div>
-                                  );
-                                })}
+                          : covers.length===0
+                            ? <div style={{textAlign:"center",padding:50,color:T.textT}}>
+                                <div style={{fontSize:14}}>Nenhuma música tocada nesse período.</div>
+                                <div style={{fontSize:12,marginTop:4,opacity:.7}}>Coloque umas músicas no UnikoWave!</div>
                               </div>
-                            </div>
+                            : <>
+                                <div style={{maxWidth:Math.min(560, collageSize*70+40),margin:"0 auto",borderRadius:14,overflow:"hidden",border:`1px solid ${T.border}`,boxShadow:T.sh,background:'#0c0c14'}}>
+                                  <div style={{display:"grid",gridTemplateColumns:`repeat(${collageSize},1fr)`,gap:0}}>
+                                    {Array.from({length:collageSize*collageSize}).map((_,i)=>{
+                                      const c = covers[i % covers.length];
+                                      return (
+                                        <div key={i} style={{position:"relative",aspectRatio:"1/1",background:T.goldGl}}>
+                                          {c?.album_art && <img src={c.album_art} alt="" loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                {covers.length < collageSize*collageSize && (
+                                  <div style={{textAlign:"center",fontSize:11,color:T.textD,marginTop:10}}>
+                                    Só {covers.length} música{covers.length>1?'s':''} distinta{covers.length>1?'s':''} nesse período — as capas se repetem pra preencher o {collageSize}×{collageSize}.
+                                  </div>
+                                )}
+                              </>
                         }
-                        {maquinaData.week.covers.length>0 && maquinaData.week.covers.length < collageSize*collageSize && (
-                          <div style={{textAlign:"center",fontSize:11,color:T.textD,marginTop:10}}>
-                            Só {maquinaData.week.covers.length} música{maquinaData.week.covers.length>1?'s':''} distinta{maquinaData.week.covers.length>1?'s':''} essa semana — as capas se repetem pra preencher o {collageSize}×{collageSize}.
-                          </div>
-                        )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </>
                 )
             }
