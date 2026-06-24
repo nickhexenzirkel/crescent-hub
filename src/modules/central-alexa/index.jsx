@@ -893,12 +893,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
             }
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
+              <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title?.length>55 ? s.title.slice(0,55)+'…' : s.title}</div>
               <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
             </div>
             <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:6,background:T.goldGl}}>
               <svg width="9" height="9" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span style={{fontSize:11,fontWeight:700,color:T.gold}}>{s.count}x</span>
+              <span style={{fontSize:11,fontWeight:700,color:T.gold}}>{s.count} plays</span>
             </div>
           </div>
         ))}
