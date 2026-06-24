@@ -43,20 +43,35 @@ const buyBtn = (type, sold, radius) => sold
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 500;
 
-// Recompensa do check-in por DIA do mês (varia para dar graça ao calendário):
-//  • dias múltiplos de 7 (semana completa) → bônus maior
-//  • dias múltiplos de 5 → bônus médio
-//  • demais → base
-const dailyReward = (day) => {
-  if (day % 7 === 0) return { comum: 150, premium: 2 };
-  if (day % 5 === 0) return { comum: 200, premium: 1 };
-  return { comum: 120, premium: day % 2 === 0 ? 1 : 0 };
+// ── CHECK-IN: ciclo de 7 dias, ganhos crescentes que INTERCALAM a moeda ──
+// O dia do ciclo vem do "streak" (dias seguidos). Errar 1 dia zera → volta ao dia 1.
+// Como os valores crescem, não vale a pena ficar só no dia 1.
+const CHECKIN_CYCLE = [
+  { amount: 50,  cur: 'premium' }, // dia 1
+  { amount: 80,  cur: 'comum'   }, // dia 2
+  { amount: 100, cur: 'premium' }, // dia 3
+  { amount: 50,  cur: 'comum'   }, // dia 4
+  { amount: 90,  cur: 'premium' }, // dia 5
+  { amount: 120, cur: 'comum'   }, // dia 6
+  { amount: 150, cur: 'premium' }, // dia 7 (bônus de semana)
+];
+// Teto MENSAL de ganho do check-in por moeda (mesmo intercalando)
+const MONTHLY_CAP = { premium: 300, comum: 200 };
+const cycleReward = (streak) => CHECKIN_CYCLE[((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length];
+
+// Quantos dias seguidos (contando o de hoje) terá o próximo check-in.
+// Conta dias anteriores consecutivos presentes na lista; se faltou um, recomeça em 1.
+const computeStreak = (checkins) => {
+  const set = new Set(checkins || []);
+  let streak = 1; const d = new Date(); d.setDate(d.getDate() - 1);
+  while (set.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
 };
 
 const MONTH_NAMES =['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const pad2 = (n) => String(n).padStart(2, '0');
 
-const STORAGE_KEY = 'me_state_v1';
+const STORAGE_KEY = 'me_state_v2';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -76,27 +91,43 @@ const RARITY_RANK = { 'Comum': 0, 'Raro': 1, 'Épico': 2, 'Lendário': 3 };
 
 const DEFAULT_STATE = {
   comum: 1480,
-  premium: 6,
+  premium: 320,
   checkins: [],
   collection: [],
-  // Catálogo do mês: 6 prêmios → 1 Lendário, 3 Épicos, 1 Raro, 1 Comum
+  // Controle do teto mensal do check-in (reinicia a cada mês)
+  capMonth: '',
+  earned: { premium: 0, comum: 0 },
+  // Catálogo de prêmios reais. Regra de moeda: Comum/Raro = Prisma Comum;
+  // Épico/Lendário = Prisma Premium (os mais caros).
   items: [
-    { id: 'i1', name: 'Day-off Surpresa',        desc: 'Um dia inteiro de folga para usar quando quiser — sem descontar do banco de horas.', price: 5,   cur: 'premium', stock: 3,  rarity: 'Lendário', emoji: '🏖️', featured: true },
-    { id: 'i2', name: 'Vale-Presente R$100',     desc: 'Cartão presente para usar nas lojas parceiras do programa.',                          price: 4,   cur: 'premium', stock: 5,  rarity: 'Épico',    emoji: '🎁' },
-    { id: 'i3', name: 'Caneca Uniko Holográfica',desc: 'Caneca colecionável edição estelar, com acabamento holográfico exclusivo.',          price: 600, cur: 'comum',   stock: 12, rarity: 'Épico',    emoji: '☕' },
-    { id: 'i4', name: 'Pelúcia do Dodoco',       desc: 'Mascote de pelúcia colecionável do Uniko Wave.',                                      price: 3,   cur: 'premium', stock: 2,  rarity: 'Épico',    emoji: '🧸' },
-    { id: 'i5', name: 'Camiseta Uniko',          desc: 'Camiseta oficial da equipe, tecido premium.',                                         price: 800, cur: 'comum',   stock: 6,  rarity: 'Raro',     emoji: '👕' },
-    { id: 'i6', name: 'Adesivos do Cat-Bot',     desc: 'Cartela de stickers exclusivos do Cat-Bot.',                                          price: 150, cur: 'comum',   stock: 30, rarity: 'Comum',    emoji: '✨' },
+    { id: 'p_pix200',  name: 'PIX de R$ 200',                  desc: 'Transferência PIX de R$ 200,00 direto na sua conta.',              price: 950, cur: 'premium', stock: 2, rarity: 'Lendário', emoji: '💸', featured: true },
+    { id: 'p_smart',   name: 'Smartwatch',                     desc: 'Relógio inteligente com monitor de atividades e notificações.',     price: 900, cur: 'premium', stock: 1, rarity: 'Lendário', emoji: '⌚' },
+    { id: 'p_vr',      name: 'Óculos VR Box 2.0',              desc: 'Óculos de realidade virtual VR Box 2.0 para o celular.',           price: 850, cur: 'premium', stock: 1, rarity: 'Lendário', emoji: '🥽' },
+    { id: 'p_pix100',  name: 'PIX de R$ 100',                  desc: 'Transferência PIX de R$ 100,00 direto na sua conta.',              price: 520, cur: 'premium', stock: 3, rarity: 'Épico',    emoji: '💵' },
+    { id: 'p_uber',    name: 'Recarga Uber R$ 100',            desc: 'Crédito de R$ 100,00 na sua conta Uber.',                          price: 510, cur: 'premium', stock: 2, rarity: 'Épico',    emoji: '🚗' },
+    { id: 'p_cea',     name: 'Cartão Presente C&A',            desc: 'Cartão presente C&A para compras nas lojas e no app.',             price: 500, cur: 'premium', stock: 2, rarity: 'Épico',    emoji: '🛍️' },
+    { id: 'p_center',  name: '2 Ingressos Centerplex',         desc: 'Par de ingressos de cinema na rede Centerplex.',                   price: 620, cur: 'comum',   stock: 5, rarity: 'Raro',     emoji: '🎬' },
+    { id: 'p_casapiu', name: 'Cartão Presente Casa Piu',       desc: 'Cartão presente Casa Piu para sua casa.',                          price: 700, cur: 'comum',   stock: 1, rarity: 'Raro',     emoji: '🏠' },
+    { id: 'p_mochila', name: 'Mochila Casual',                 desc: 'Mochila casual resistente para o dia a dia.',                      price: 560, cur: 'comum',   stock: 2, rarity: 'Raro',     emoji: '🎒' },
+    { id: 'p_recarga', name: 'Recarga de Celular R$ 50',       desc: 'Recarga de R$ 50,00 para a operadora que você escolher.',          price: 300, cur: 'comum',   stock: 3, rarity: 'Comum',    emoji: '📱' },
+    { id: 'p_fone',    name: 'Fone QKZ AK6 Intra-auricular',   desc: 'Fone de ouvido intra-auricular QKZ AK6 com cabo.',                 price: 280, cur: 'comum',   stock: 5, rarity: 'Comum',    emoji: '🎧' },
+    { id: 'p_body',    name: 'Body Splash WePink',             desc: 'Body splash WePink — perfumaria.',                                 price: 260, cur: 'comum',   stock: 3, rarity: 'Comum',    emoji: '🧴' },
   ],
+  // DESAFIOS (period: 'dia' | 'mes' | 'unica'). Progresso é mockado por enquanto
+  // (o acompanhamento real vem com o Supabase).
   missions: [
-    { id: 'm1', title: 'Constância',     desc: 'Faça check-in por 3 dias',           progress: 2,    goal: 3,    comum: 100, premium: 0, claimed: false },
-    { id: 'm2', title: 'Primeira compra',desc: 'Resgate qualquer item na loja',      progress: 0,    goal: 1,    comum: 0,   premium: 1, claimed: false },
-    { id: 'm3', title: 'Ritmista',       desc: 'Jogue 5 músicas no Uniko Wave',      progress: 3,    goal: 5,    comum: 150, premium: 0, claimed: false },
-    { id: 'm4', title: 'Generosidade',   desc: 'Envie prismas para um colega',       progress: 1,    goal: 1,    comum: 80,  premium: 0, claimed: false },
-    { id: 'm5', title: 'Colecionador',   desc: 'Acumule 2.000 Prismas Comuns',       progress: 1480, goal: 2000, comum: 0,   premium: 2, claimed: false },
+    { id: 'c_uniko20',  title: 'Maratona Uniko Wave',  desc: 'Jogue Uniko Wave por 20 minutos',                 period: 'dia',   progress: 12,  goal: 20,  comum: 0,   premium: 30,  claimed: false },
+    { id: 'c_music10',  title: 'DJ do dia',            desc: 'Peça 10 músicas no Nico Music',                   period: 'dia',   progress: 6,   goal: 10,  comum: 0,   premium: 10,  claimed: false },
+    { id: 'c_firstbuy', title: 'Primeira compra',      desc: 'Faça sua primeira compra na Prisma Store',        period: 'unica', progress: 0,   goal: 1,   comum: 150, premium: 0,   claimed: false },
+    { id: 'c_ponto',    title: 'Presença impecável',   desc: '100% de presença sem ocorrências no ponto',       period: 'mes',   progress: 1,   goal: 1,   comum: 0,   premium: 80,  claimed: false },
+    { id: 'c_feedback', title: 'Voz ativa',            desc: 'Dê um feedback no sistema',                       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 30,  claimed: false },
+    { id: 'c_rank1',    title: '🥇 Top 1 do Nico Music',desc: '1º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 100, claimed: false },
+    { id: 'c_rank2',    title: '🥈 Top 2 do Nico Music',desc: '2º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 70,  claimed: false },
+    { id: 'c_rank3',    title: '🥉 Top 3 do Nico Music',desc: '3º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 50,  claimed: false },
+    { id: 'c_setor',    title: 'Setor nota 90+',       desc: 'Seu setor passou de 90% no chatbot do mês',       period: 'mes',   progress: 1,   goal: 1,   comum: 200, premium: 0,   claimed: false },
   ],
   history: [
-    { id: 'h0', kind: 'checkin', desc: 'Check-in diário', comum: 120, premium: 1, date: '2026-06-20' },
+    { id: 'h0', kind: 'checkin', desc: 'Check-in diário', premium: 50, date: '2026-06-20' },
   ],
 };
 
@@ -205,15 +236,33 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     flash(`Você resgatou: ${item.name}`);
   };
 
-  // ── Check-in ──
+  // ── Check-in (streak + ciclo de 7 dias + teto mensal por moeda) ──
   const today = todayStr();
+  const monthKey = today.slice(0, 7);
   const canCheckin = !(state.checkins || []).includes(today);
+  const streak = computeStreak(state.checkins);                 // dia do ciclo que o check-in de hoje terá
+  const nextReward = cycleReward(streak);
+  // Ganhos do check-in já obtidos neste mês (reinicia quando o mês muda)
+  const earned = state.capMonth === monthKey ? (state.earned || { premium: 0, comum: 0 }) : { premium: 0, comum: 0 };
+  const capRemaining = { premium: Math.max(0, MONTHLY_CAP.premium - earned.premium), comum: Math.max(0, MONTHLY_CAP.comum - earned.comum) };
+
   const doCheckin = () => {
     if (!canCheckin) return;
-    const r = dailyReward(new Date().getDate());
-    setState(s => ({ ...s, comum: s.comum + r.comum, premium: s.premium + r.premium, checkins: [...(s.checkins || []), today] }));
-    addHistory({ kind: 'checkin', desc: 'Check-in diário', ...(r.comum ? { comum: r.comum } : {}), ...(r.premium ? { premium: r.premium } : {}) });
-    flash(`Check-in feito! +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`);
+    const cur = nextReward.cur;
+    const give = Math.min(nextReward.amount, capRemaining[cur]); // respeita o teto mensal
+    setState(s => {
+      const base = s.capMonth === monthKey ? (s.earned || { premium: 0, comum: 0 }) : { premium: 0, comum: 0 };
+      return {
+        ...s,
+        [cur]: s[cur] + give,
+        checkins: [...(s.checkins || []), today],
+        capMonth: monthKey,
+        earned: { ...base, [cur]: base[cur] + give },
+      };
+    });
+    if (give > 0) addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give });
+    const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
+    flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${streak})` : `Check-in feito! Teto mensal de ${label} já atingido.`);
   };
 
   // ── Missões ──
@@ -300,7 +349,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
       </div>
@@ -743,18 +792,27 @@ const CollectionLightbox = ({ item, onClose, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════════ MISSÕES ════════════════════
+const PERIOD_META = {
+  dia:   { label: 'Diário',  color: '#27C6DE' },
+  mes:   { label: 'Mensal',  color: '#9B6FE8' },
+  unica: { label: 'Única',   color: '#F5B63A' },
+};
 const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
   <div>
-    <SectionHead title="Missões Disponíveis" sub="Complete desafios e resgate prismas de recompensa." />
+    <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas. O progresso será automático quando integrarmos os sistemas." />
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
       {missions.map(m => {
         const done = m.progress >= m.goal;
         const pct = Math.min(100, Math.round((m.progress / m.goal) * 100));
+        const pm = PERIOD_META[m.period] || PERIOD_META.dia;
         return (
           <div key={m.id} style={{ background: cardBg, border: `1px solid ${done && !m.claimed ? T.goldLine + '66' : T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh, opacity: m.claimed ? 0.7 : 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{m.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{m.title}</div>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: pm.color, background: pm.color + '22', border: `1px solid ${pm.color}55`, padding: '1px 7px', borderRadius: 999 }}>{pm.label}</span>
+                </div>
                 <div style={{ fontSize: 12.5, color: T.textT, marginTop: 2 }}>{m.desc}</div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -919,18 +977,18 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ CHECK-IN ═══════════════════════
-const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();       // 0-based
-  const todayDay = now.getDate();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const claimed = new Set(checkins);
-  const todayR = dailyReward(todayDay);
+const Checkin = ({ canCheckin, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
+  // Posição do dia de hoje dentro do ciclo de 7 (0-based)
+  const todayIdx = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length;
+  const cap = MONTHLY_CAP;
+  const capBar = (cur) => {
+    const e = Math.min(earned[cur], cap[cur]); const pct = Math.round((e / cap[cur]) * 100);
+    return { e, pct };
+  };
 
   return (
     <div>
-      <SectionHead title="Check-in Diário" sub="Resgate prismas grátis todo dia. Veja o calendário do mês com o que vem por aí." />
+      <SectionHead title="Check-in Diário" sub="Entre todo dia: os ganhos crescem ao longo da sequência e a moeda intercala. Faltou um dia? A sequência volta pro dia 1." />
 
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
@@ -938,12 +996,14 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
         <div style={{ position: 'relative', color: canCheckin ? T.gold : '#16a34a' }}>{canCheckin ? <IcoGift size={30} /> : <IcoCheck size={30} />}</div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
-            {canCheckin ? 'Sua recompensa de hoje está pronta!' : 'Você já resgatou hoje'}
+            {canCheckin ? `Dia ${streak} de sequência — recompensa pronta!` : `Você já resgatou hoje (dia ${streak - 1})`}
           </div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            Recompensa de hoje:
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: COMUM.color, fontWeight: 700 }}><PrismIcon type="comum" size={14} />+{todayR.comum}</span>
-            {!!todayR.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700 }}><PrismIcon type="premium" size={18} /><span style={prismText('premium')}>+{todayR.premium}</span></span>}
+            {canCheckin ? 'Recompensa de hoje:' : 'Volte amanhã para manter a sequência. Próxima:'}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
+              <PrismIcon type={nextReward.cur} size={nextReward.cur === 'premium' ? 18 : 14} />
+              <span style={prismText(nextReward.cur)}>+{nextReward.amount}</span>
+            </span>
           </div>
         </div>
         <button disabled={!canCheckin} onClick={onCheckin} style={{
@@ -957,81 +1017,78 @@ const Checkin = ({ canCheckin, onCheckin, checkins, isMobile, cardBg }) => {
         </button>
       </div>
 
-      {/* Calendário do mês — cards com prisma destacado no centro */}
-      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '12px' : '14px 18px', boxShadow: T.sh }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 10, textTransform: 'capitalize' }}>
-          {MONTH_NAMES[month]} {year}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(8,1fr)', gap: isMobile ? 8 : 11 }}>
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
-            const dateStr = `${year}-${pad2(month + 1)}-${pad2(d)}`;
-            const isClaimed = claimed.has(dateStr);
-            const isToday = d === todayDay;
-            const isPast = d < todayDay;
-            const r = dailyReward(d);
-            const showPremium = r.premium > 0;
-            const pc = showPremium ? PREMIUM : COMUM;
-            const qty = showPremium ? r.premium : r.comum;
-            const med = isMobile ? 52 : 60;
-
+      {/* Ciclo de 7 dias */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 7 dias</div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 8 : 11 }}>
+          {CHECKIN_CYCLE.map((r, i) => {
+            const dayNum = i + 1;
+            const isNext = i === todayIdx && canCheckin;
+            const done = i < todayIdx || (i === todayIdx && !canCheckin);
+            const prem = r.cur === 'premium';
+            const pc = prem ? PREMIUM : COMUM;
+            const med = isMobile ? 50 : 58;
             let bg = T.surfaceSub || 'rgba(0,0,0,0.025)', bd = T.border;
-            if (isToday && canCheckin) { bg = T.goldGl; bd = T.goldLine; }
-            else if (isClaimed) { bg = 'rgba(34,197,94,0.08)'; bd = 'rgba(34,197,94,0.4)'; }
-            const dim = isPast && !isClaimed;
-
+            if (isNext) { bg = T.goldGl; bd = T.goldLine; }
+            else if (done) { bg = 'rgba(34,197,94,0.08)'; bd = 'rgba(34,197,94,0.4)'; }
             return (
-              <div key={dateStr} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div
-                  onClick={isToday && canCheckin ? onCheckin : undefined}
-                  title={`${d}º dia · +${r.comum} Comuns${r.premium ? ` e +${r.premium} Premium` : ''}`}
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <div onClick={isNext ? onCheckin : undefined}
+                  title={`Dia ${dayNum} · +${r.amount} ${prem ? 'Premium' : 'Comuns'}`}
                   style={{
                     position: 'relative', width: '100%', borderRadius: 13, border: `1.5px solid ${bd}`, background: bg,
-                    padding: '12px 4px 15px', display: 'flex', justifyContent: 'center',
-                    opacity: dim ? 0.45 : 1, cursor: isToday && canCheckin ? 'pointer' : 'default',
-                    boxShadow: isToday && canCheckin ? `0 5px 14px ${T.goldLine}33` : 'none', transition: 'transform .15s',
+                    padding: '12px 4px 16px', display: 'flex', justifyContent: 'center',
+                    cursor: isNext ? 'pointer' : 'default', boxShadow: isNext ? `0 5px 14px ${T.goldLine}33` : 'none', transition: 'transform .15s',
                   }}
-                  onMouseEnter={e => { if (isToday && canCheckin) e.currentTarget.style.transform = 'translateY(-3px)'; }}
+                  onMouseEnter={e => { if (isNext) e.currentTarget.style.transform = 'translateY(-3px)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}>
-                  {/* Medalhão: borda colorida + interior escuro para destacar o prisma */}
                   <div style={{
                     position: 'relative', width: med, height: med,
-                    ...(showPremium ? rainbowBorder('50%') : { borderRadius: '50%', border: `2px solid ${pc.color}`, background: DARK_COMUM }),
+                    ...(prem ? rainbowBorder('50%') : { borderRadius: '50%', border: `2px solid ${pc.color}`, background: DARK_COMUM }),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: showPremium ? '0 3px 12px rgba(155,107,255,0.45)' : `0 3px 10px ${pc.color}55`,
-                    filter: isClaimed ? 'grayscale(0.4)' : 'none',
+                    boxShadow: prem ? '0 3px 12px rgba(155,107,255,0.45)' : `0 3px 10px ${pc.color}55`,
                   }}>
-                    <PrismIcon type={showPremium ? 'premium' : 'comum'} size={34} />
-                    {/* badge ×N */}
+                    <PrismIcon type={r.cur} size={32} />
                     <span style={{
                       position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
-                      background: showPremium ? RAINBOW : pc.color, color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px',
+                      background: prem ? RAINBOW : pc.color, color: '#fff', fontSize: 9.5, fontWeight: 800, padding: '1px 7px',
                       borderRadius: 999, whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.25)', textShadow: '0 1px 1px rgba(0,0,0,0.3)',
-                    }}>×{fmt(qty)}</span>
+                    }}>+{r.amount}</span>
                   </div>
-
-                  {/* Check de resgatado */}
-                  {isClaimed && (
-                    <div style={{ position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+                  {done && (
+                    <div style={{ position: 'absolute', top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                   )}
-                  {/* Ponto vermelho de "disponível hoje" */}
-                  {isToday && canCheckin && (
-                    <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />
-                  )}
+                  {isNext && <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />}
                 </div>
-                <span style={{ fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? T.gold : T.textT }}>{d}º dia</span>
+                <span style={{ fontSize: 11.5, fontWeight: isNext ? 800 : 600, color: isNext ? T.gold : T.textT }}>Dia {dayNum}</span>
               </div>
             );
           })}
         </div>
+      </div>
 
-        {/* Legenda */}
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12, fontSize: 11, color: T.textT }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: '50%', background: '#16a34a' }} /> Resgatado</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e23b3b' }} /> Disponível hoje</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><PrismIcon type="comum" size={12} /> / <PrismIcon type="premium" size={12} /> Recompensa do dia</span>
-        </div>
+      {/* Tetos mensais */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>Limite mensal do check-in</div>
+        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Mesmo intercalando, o ganho via check-in é limitado por mês.</div>
+        {['premium', 'comum'].map(cur => {
+          const { e, pct } = capBar(cur);
+          const prem = cur === 'premium';
+          return (
+            <div key={cur} style={{ marginBottom: cur === 'premium' ? 12 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                <PrismIcon type={cur} size={prem ? 18 : 14} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, ...prismText(cur) }}>{prem ? PREMIUM.name : COMUM.name}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: T.textT }}>{fmt(e)} / {fmt(cap[cur])}</span>
+              </div>
+              <div style={{ height: 9, borderRadius: 999, background: T.surfaceSub || 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: prem ? RAINBOW : `linear-gradient(90deg,${COMUM.color},${COMUM.color}aa)`, transition: 'width .3s' }} />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
