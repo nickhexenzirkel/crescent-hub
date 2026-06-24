@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
+import { supabase } from '../../contexts/user';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -196,24 +197,82 @@ const PrismChip = ({ type, amount }) => {
   );
 };
 
+// ── Mapeamento estado ↔ Supabase ──
+const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [] });
+const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, updated_at: new Date().toISOString() });
+const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [] });
+const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
+
 const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   const isMobile = useIsMobile();
   const [tab, setTab] = useState('loja');
   const [state, setState] = useState(loadState);
   const [toast, setToast] = useState('');
+  const [loaded, setLoaded] = useState(false); // já hidratou do Supabase?
 
   const cardBg = T.surface;
   const userName = authUser?.name || 'Colaborador';
   const isAdmin = authUser?.role === 'admin';
 
+  // Cache local (pintura instantânea / offline)
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
   }, [state]);
 
+  // ── Hidrata do Supabase (catálogo + estado do usuário + histórico) ──
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        let { data: rows } = await supabase.from('mercado_items').select('*').order('sort');
+        let items;
+        if (rows && rows.length) items = rows.map(itemFromRow);
+        else { items = DEFAULT_STATE.items; await supabase.from('mercado_items').upsert(DEFAULT_STATE.items.map(itemToRow)); }
+
+        const { data: st } = await supabase.from('mercado_state').select('data').eq('player', userName).maybeSingle();
+        let user = st?.data && Object.keys(st.data).length ? st.data : null;
+        if (!user) { user = USER_SLICE(DEFAULT_STATE); await supabase.from('mercado_state').upsert({ player: userName, data: user, updated_at: new Date().toISOString() }); }
+        const savedM = new Set((user.missions || []).map(x => x.id));
+        const missions = [...(user.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
+
+        const { data: hist } = await supabase.from('mercado_history').select('*').eq('player', userName).order('created_at', { ascending: false }).limit(120);
+        if (!alive) return;
+        setState(s => ({ ...DEFAULT_STATE, ...user, missions, items, history: (hist || []).map(histFromRow) }));
+      } catch {}
+      if (alive) setLoaded(true);
+    })();
+    return () => { alive = false; };
+  }, []); // eslint-disable-line
+
+  // Persiste o estado do usuário (saldos/check-in/coleção/desafios)
+  useEffect(() => {
+    if (!loaded) return;
+    const data = USER_SLICE(state);
+    const t = setTimeout(() => { supabase.from('mercado_state').upsert({ player: userName, data, updated_at: new Date().toISOString() }); }, 400);
+    return () => clearTimeout(t);
+  }, [loaded, state.comum, state.premium, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
+
+  // Persiste o catálogo (upsert dos itens + remove os apagados)
+  const prevItemIds = useRef(null);
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(async () => {
+      try {
+        await supabase.from('mercado_items').upsert(state.items.map(itemToRow));
+        const ids = state.items.map(i => i.id);
+        if (prevItemIds.current) { const removed = prevItemIds.current.filter(id => !ids.includes(id)); if (removed.length) await supabase.from('mercado_items').delete().in('id', removed); }
+        prevItemIds.current = ids;
+      } catch {}
+    }, 400);
+    return () => clearTimeout(t);
+  }, [loaded, state.items]); // eslint-disable-line
+
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
 
-  const addHistory = (entry) =>
+  const addHistory = (entry) => {
     setState(s => ({ ...s, history: [{ id: 'h' + Date.now(), date: todayStr(), ...entry }, ...s.history] }));
+    try { supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null }); } catch {}
+  };
 
   // ── Compra na loja ──
   const buyItem = (item) => {
@@ -351,7 +410,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
       </div>
 
       {/* ── Toast ── */}
@@ -1170,6 +1229,7 @@ const KIND_META = {
   envio:   { Icon: IcoSend,    label: 'Envio' },
   troca:   { Icon: IcoSwap,    label: 'Troca' },
   missao:  { Icon: IcoTarget,  label: 'Missão' },
+  admin:   { Icon: IcoShield,  label: 'Administrador' },
 };
 
 const Historico = ({ history, isMobile, cardBg }) => {
@@ -1351,10 +1411,11 @@ const ItemEditor = ({ item, onSave, onCancel, flash, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
-const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
+const Admin = ({ items, setState, flash, isMobile, cardBg, player }) => {
   const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '', images: [] };
   const [form, setForm] = useState(blank);
   const [editId, setEditId] = useState(null); // item com editor aberto
+  const [sub, setSub] = useState('premios');  // premios | transacoes
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
@@ -1376,8 +1437,26 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
 
   return (
     <div>
-      <SectionHead title="Administrador" sub="Gerencie os prêmios da loja: cadastre novos, defina a quantidade disponível e edite as informações." />
+      <SectionHead title="Administrador" sub="Gerencie os prêmios da loja e controle as transações dos colaboradores." />
 
+      {/* Sub-abas */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }].map(t => {
+          const on = sub === t.id;
+          return (
+            <button key={t.id} onClick={() => setSub(t.id)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: on ? 700 : 600,
+              border: `1.5px solid ${on ? 'transparent' : T.border}`, background: on ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.04)'),
+              color: on ? '#fff' : T.textS,
+            }}><t.Icon size={15} />{t.label}</button>
+          );
+        })}
+      </div>
+
+      {sub === 'transacoes'
+        ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
+        : (
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 16, alignItems: 'start' }}>
         {/* Cadastrar novo prêmio */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
@@ -1476,9 +1555,134 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };
+
+// Controle de transações: vê o histórico de todos e transfere prismas
+const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
+  const [hist, setHist] = useState([]);
+  const [wallets, setWallets] = useState([]); // [{player, comum, premium}]
+  const [busy, setBusy] = useState(true);
+  const [to, setTo] = useState('');
+  const [cur, setCur] = useState('premium');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+
+  const load = async () => {
+    setBusy(true);
+    try {
+      const { data: h } = await supabase.from('mercado_history').select('*').order('created_at', { ascending: false }).limit(200);
+      setHist((h || []).map(histFromRow).map((r, idx) => ({ ...r, _p: (h[idx] || {}).player })));
+      const { data: ws } = await supabase.from('mercado_state').select('player,data');
+      setWallets((ws || []).map(w => ({ player: w.player, comum: w.data?.comum || 0, premium: w.data?.premium || 0 })).sort((a, b) => a.player.localeCompare(b.player)));
+    } catch {}
+    setBusy(false);
+  };
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  // Lista de destinatários: carteiras existentes + colaboradores conhecidos
+  const players = [...new Set([...wallets.map(w => w.player), ...COLABORADORES])].sort((a, b) => a.localeCompare(b));
+
+  const transfer = async () => {
+    const amt = parseInt(amount, 10);
+    if (!to) { flash('Escolha o destinatário'); return; }
+    if (!amt || amt <= 0) { flash('Informe um valor válido'); return; }
+    try {
+      const { data: row } = await supabase.from('mercado_state').select('data').eq('player', to).maybeSingle();
+      const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
+      const data = { ...base, [cur]: (base[cur] || 0) + amt };
+      await supabase.from('mercado_state').upsert({ player: to, data, updated_at: new Date().toISOString() });
+      await supabase.from('mercado_history').insert({ player: to, kind: 'admin', descr: note.trim() || `Transferência do administrador`, [cur]: amt });
+      // Se o admin transferiu pra si mesmo, reflete no estado local
+      if (to === adminName && ownSetState) ownSetState(s => ({ ...s, [cur]: (s[cur] || 0) + amt }));
+      flash(`+${amt} ${cur === 'premium' ? PREMIUM.name : COMUM.name} → ${to}`);
+      setAmount(''); setNote('');
+      load();
+    } catch { flash('Falha ao transferir'); }
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* Transferir prismas */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoSend size={16} /></span>Transferir prismas</div>
+        <label style={lbl}>Para</label>
+        <select value={to} onChange={e => setTo(e.target.value)} style={{ ...adminField, marginBottom: 12, cursor: 'pointer' }}>
+          <option value="">Selecione o colaborador…</option>
+          {players.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <label style={lbl}>Moeda</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
+            <button key={k} onClick={() => setCur(k)} style={{
+              flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+              border: `1.5px solid ${cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 13,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
+            }}><PrismIcon type={k} size={15} />{label}</button>
+          ))}
+        </div>
+        <label style={lbl}>Quantidade</label>
+        <input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={{ ...adminField, marginBottom: 12 }} />
+        <label style={lbl}>Observação (opcional)</label>
+        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Ex: bônus de desempenho" style={{ ...adminField, marginBottom: 16 }} />
+        <button onClick={transfer} style={primaryBtn(T.gold)}>Transferir</button>
+
+        {/* Saldos atuais */}
+        <div style={{ marginTop: 18, fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>Saldos ({wallets.length})</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
+          {wallets.length === 0 ? <div style={{ fontSize: 12, color: T.textT }}>Nenhuma carteira ainda.</div> : wallets.map(w => (
+            <div key={w.player} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+              <span style={{ flex: 1, minWidth: 0, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.player}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 700, color: COMUM.color }}><PrismIcon type="comum" size={13} />{fmt(w.comum)}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 700 }}><PrismIcon type="premium" size={15} /><span style={prismText('premium')}>{fmt(w.premium)}</span></span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Histórico de todos */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Transações de todos</div>
+          <button onClick={load} title="Atualizar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" /></svg>Atualizar
+          </button>
+        </div>
+        {busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
+          : hist.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma transação ainda.</div>
+            : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 520, overflowY: 'auto' }}>
+                {hist.map(h => {
+                  const meta = KIND_META[h.kind] || { Icon: IcoReceipt, label: h.kind };
+                  const MIcon = meta.Icon;
+                  return (
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><MIcon size={15} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h._p}</div>
+                        <div style={{ fontSize: 11.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.desc} · {h.date}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        {['comum', 'premium'].map(c => h[c] != null && (
+                          <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700 }}>
+                            <span style={h[c] >= 0 ? { color: '#16a34a' } : (c === 'premium' ? prismText('premium') : { color: COMUM.color })}>{h[c] >= 0 ? '+' : ''}{fmt(h[c])}</span>
+                            <PrismIcon type={c} size={15} />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+      </div>
+    </div>
+  );
+};
+const adminField = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
 // ─── helpers de UI ──────────────────────────────────────────────────────────
 const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: T.textD, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 };
