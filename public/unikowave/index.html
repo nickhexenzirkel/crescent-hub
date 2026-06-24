@@ -7445,7 +7445,7 @@ const WG = {
   bolts:[], hurtT:0, bossX:0, attacksDone:0, attackAt:[], attack:null,
   finisherStart:0, finisherKicks:0, finisherNeed:30, lungeT:0, resultScheduled:false,
   kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
-  beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null, embers:[],
+  beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null, embers:[], fireRecolorAt:30,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -7555,7 +7555,7 @@ function wgInit(){
   WG.bossX=CW*0.85; WG.attacksDone=0; WG.attack=null;
   WG.finisherKicks=0; WG.finisherNeed=30; WG.lungeT=0; WG.resultScheduled=false;
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
-  WG.judge=null; WG.fireH=null; WG.embers.length=0;
+  WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
   wgHoldSfxStop();
   // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
   WG.firePalette=null;
@@ -7764,6 +7764,15 @@ function wgDefaultFirePalette(){
   for(let i=1;i<P;i++){ const t=i/(P-1); pal.push(t<0.4?mix(dark,c2,t/0.4):t<0.8?mix(c2,c1,(t-0.4)/0.4):mix(c1,white,(t-0.8)/0.2)); }
   return _wgFireDef=pal;
 }
+// Paleta de fogo a partir de um matiz (hue 0..360) — usada nas trocas de cor aleatórias
+function wgFirePaletteFromHue(h){
+  const hsl=(hh,s,l)=>{ s/=100;l/=100; const k=n=>(n+hh/30)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(Math.min(k(n)-3,9-k(n)),1)); return [Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)]; };
+  const A=hsl(h,90,11), B=hsl(h,100,45), C=hsl(h,100,72), W=[255,255,255];
+  const mix=(a,b,t)=>`rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+  const P=36, pal=[null];
+  for(let i=1;i<P;i++){ const t=i/(P-1); pal.push(t<0.4?mix(A,B,t/0.4):t<0.8?mix(B,C,(t-0.4)/0.4):mix(C,W,(t-0.8)/0.2)); }
+  return pal;
+}
 function wgBuildFirePalette(img){
   try{
     const c=document.createElement('canvas'); c.width=16; c.height=16;
@@ -7789,10 +7798,10 @@ function wgDrawFire(top){
   ctx.fillStyle='#0a0510'; ctx.fillRect(0,top,CW,CH-top); // fundo escuro (cobre o vídeo)
   for(let x=0;x<cols;x++){
     // corpo ondulando + PONTAS estreitas e altas (sin elevado a potência → picos finos)
-    const body = rows*(0.26 + 0.16*Math.sin(x*0.4+tt*6) + 0.10*Math.sin(x*0.13-tt*4));
-    const tip  = rows*0.62*Math.pow(Math.max(0,Math.sin(x*0.80 - tt*7)),6);
-    const tip2 = rows*0.50*Math.pow(Math.max(0,Math.sin(x*1.70 + tt*11)),8);
-    const target = Math.max(rows*0.18, body + tip + tip2 + Math.random()*rows*0.10);
+    const body = rows*(0.18 + 0.11*Math.sin(x*0.4+tt*6) + 0.07*Math.sin(x*0.13-tt*4));
+    const tip  = rows*0.42*Math.pow(Math.max(0,Math.sin(x*0.80 - tt*7)),6);
+    const tip2 = rows*0.32*Math.pow(Math.max(0,Math.sin(x*1.70 + tt*11)),8);
+    const target = Math.max(rows*0.12, body + tip + tip2 + Math.random()*rows*0.07);
     H[x] += (target - H[x])*0.5;
   }
   // suavização MUITO leve (mantém as pontas afiadas, sem virar onda)
@@ -7958,6 +7967,8 @@ function drawWargame(t){
   // ── Lógica de tempo (falas, fases de ataque, finisher) — só durante a partida ──
   const homeX=CW*0.85, frontX=CW*0.46;
   if(gameState==='playing'){
+    // Depois de 30s, o fogo muda de cor aleatória a cada 15s
+    if(st>=WG.fireRecolorAt){ WG.firePalette=wgFirePaletteFromHue(Math.random()*360); WG.fireRecolorAt=st+15; }
     // Falas periódicas
     if(WG.phase!=='done'){
       if(st>=WG.nextBossSayAt && !WG.bossDefeated && !WG.attack){ wgSay('boss', wgPick(WG_BOSS_TAUNTS)); WG.nextBossSayAt=st+12+Math.random()*7; }
