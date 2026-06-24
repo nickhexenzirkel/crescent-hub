@@ -106,7 +106,7 @@ const AccountPanel = () => {
     setBusy(true);
     try {
       const token = localStorage.getItem('ch_token');
-      const r = await fetch(`${SERVER_URL}/api/auth/password`, {
+      const r = await fetch(`${SERVER_URL}/api/auth/change-password`, {
         method:'PUT',
         headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})},
         body: JSON.stringify({ currentPassword: cur, newPassword: nw }),

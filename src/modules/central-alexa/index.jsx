@@ -1292,11 +1292,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setIsReplacing(track.id);
     // Otimista: atualiza a linha localmente
     setQueue(prev => prev.map(s => s.id === target.id ? {
-      ...s, uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
+      ...s, spotify_uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
       album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str,
     } : s));
     const { error } = await _supabase.from('queue').update({
-      uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
+      spotify_uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
       album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str,
     }).eq('id', target.id);
     if (error) { setServerMsg('Não foi possível substituir a música.'); setTimeout(()=>setServerMsg(''), 5000); }
