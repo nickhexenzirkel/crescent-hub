@@ -1988,6 +1988,10 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       </div>
       <div id="modeHint" style="font-size:9px;color:rgba(255,255,255,.45);text-align:center;margin-top:6px;letter-spacing:.5px;line-height:1.5"></div>
     </div>
+    <div class="settings-section" id="wgBossSection" style="display:none">
+      <div class="prev-diff-label">Boss</div>
+      <div id="wgBossList" class="prev-diff-btns" style="flex-wrap:wrap;gap:8px"></div>
+    </div>
     <div class="settings-section">
       <div class="prev-diff-label">Dificuldade</div>
       <div class="prev-diff-btns" style="flex-wrap:wrap;gap:8px">
@@ -2423,6 +2427,49 @@ WG_SPR.run.src  = 'images/PersonagemLinnea.png'; // Mizuki (base/correndo)
 WG_SPR.jump.src = 'images/MizukiPulo.png';
 WG_SPR.atk.src  = 'images/MizukiAtaque.png';
 
+// ─── BOSS personalizável do Guerra Estelar ───
+const WG_BOSSES = [
+  { id:'darkcat', name:'Dark CatBot', img:'images/DarkCatBot.png' },
+  { id:'estelar', name:'Estelar',     img:null }, // desenhado no canvas
+];
+let wgBossId        = localStorage.getItem('dw_wgboss')     || 'darkcat';
+let wgBossCustomUrl = localStorage.getItem('dw_wgboss_url') || '';
+const WG_BOSS_IMG = new Image();
+function wgBossImgSrc(){
+  if(wgBossId==='custom') return wgBossCustomUrl||null;
+  const b=WG_BOSSES.find(x=>x.id===wgBossId); return b?b.img:null;
+}
+function loadWgBossImg(){
+  const src=wgBossImgSrc();
+  if(src){ WG_BOSS_IMG.src=src; }
+}
+loadWgBossImg();
+
+function renderWgBosses(){
+  const list=document.getElementById('wgBossList'); if(!list) return;
+  const items=[...WG_BOSSES];
+  if(wgBossCustomUrl) items.push({id:'custom', name:'Personalizado', img:wgBossCustomUrl});
+  list.innerHTML = items.map(b=>{
+    const sel = b.id===wgBossId ? 'sel' : '';
+    const thumb = b.img
+      ? `<img src="${b.img}" style="width:32px;height:32px;object-fit:contain;border-radius:6px" onerror="this.style.display='none'">`
+      : `<div style="width:32px;height:32px;border-radius:6px;background:radial-gradient(circle,#b03cff,#3a0a5e);display:flex;align-items:center;justify-content:center;font-size:16px">★</div>`;
+    return `<button class="diff-btn ${b.id==='estelar'?'normal':'insane'} ${sel}" onclick="selectWgBoss('${b.id}')" style="display:flex;align-items:center;gap:7px;min-width:calc(50% - 4px);justify-content:flex-start">${thumb}<span style="font-size:9px">${b.name}</span></button>`;
+  }).join('')
+   + `<button class="diff-btn hard" onclick="addCustomWgBoss()" style="width:100%;font-size:10px">🖼 USAR MINHA IMAGEM (URL)</button>`;
+}
+function selectWgBoss(id){
+  wgBossId=id; localStorage.setItem('dw_wgboss',id);
+  loadWgBossImg(); renderWgBosses();
+}
+function addCustomWgBoss(){
+  const url=prompt('Cole a URL de uma imagem (PNG/JPG) para o boss:', wgBossCustomUrl||'https://');
+  if(url && /^https?:\/\//i.test(url.trim())){
+    wgBossCustomUrl=url.trim(); localStorage.setItem('dw_wgboss_url',wgBossCustomUrl);
+    selectWgBoss('custom');
+  }
+}
+
 function selectMode(m){
   gameMode = m;
   localStorage.setItem('dw_gamemode', m);
@@ -2431,8 +2478,11 @@ function selectMode(m){
   if(w) w.classList.toggle('sel', m==='wargame');
   const hint=document.getElementById('modeHint');
   if(hint) hint.innerHTML = m==='wargame'
-    ? '⚔ Você joga como <b>Mizuki</b> (única liberada). Ataque os inimigos no chão e pule os do alto no ritmo pra derrotar o boss!'
+    ? '⚔ Você joga como <b>Mizuki</b> (única liberada). <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o boss!'
     : '⌨ Modo clássico de notas em 4 lanes.';
+  const bs=document.getElementById('wgBossSection');
+  if(bs) bs.style.display = m==='wargame' ? '' : 'none';
+  if(m==='wargame') renderWgBosses();
 }
 
 function openBgPicker(){
@@ -2928,8 +2978,8 @@ function buildKeyLegend(){
   const leg0=document.getElementById('keyLegend');
   if(gameMode==='wargame'){
     if(leg0) leg0.innerHTML=
-      `<div class="kl-item"><div class="kl-key klB" style="font-size:10px">${IS_MOBILE?'◄ ESQ':'J / A'}</div><div class="kl-lbl" style="color:#ff00aa">ATACAR (chão)</div></div>`
-     +`<div class="kl-item"><div class="kl-key klA" style="font-size:10px">${IS_MOBILE?'DIR ►':'K / ⎵'}</div><div class="kl-lbl" style="color:#00f0ff">PULAR (ar)</div></div>`;
+      `<div class="kl-item"><div class="kl-key klA" style="font-size:11px">${IS_MOBILE?'▲ CIMA':'W'}</div><div class="kl-lbl" style="color:#28e0ff">LINHA DO AR</div></div>`
+     +`<div class="kl-item"><div class="kl-key klS" style="font-size:11px">${IS_MOBILE?'▼ BAIXO':'S'}</div><div class="kl-lbl" style="color:#ff2e9a">CHÃO</div></div>`;
     return;
   }
   const LABELS = ['LANE 1','LANE 2','LANE 3','LANE 4'];
@@ -7392,67 +7442,74 @@ function drawGame(t){
 // ─── MODO GUERRA ESTELAR (estilo Muse Dash) ───
 // ═══════════════════════════════════════════════
 const WG = {
-  active:false, charX:0, groundY:0, charH:150,
-  y:0, vy:0, jumping:false, atkTimer:0, runPhase:0,
+  active:false, charX:0, hitX:0, charH:150,
+  floorFeet:0, airFeet:0, feetY:0, groundNoteY:0, airNoteY:0,
+  airTimer:0, atkTimer:0, runPhase:0,
   bossHp:0, bossMaxHp:0, bossDefeated:false, bossHitFx:0, bossShake:0,
   dmgNums:[], prevT:0,
 };
-const WG_TRAVEL = 1.7;   // segundos que o inimigo leva entrando pela direita
-const WG_JUMP_V = 720;   // velocidade inicial do pulo (px/s)
-const WG_GRAV   = 2100;  // gravidade (px/s²)
-const WG_AIR_RISE = 150; // altura da linha aérea acima do chão
+const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
+const WG_AIR_HOLD = 0.34; // tempo que a Mizuki fica na linha do ar após apertar W
+const C_GROUND = '#ff2e9a', C_AIR = '#28e0ff';
 
-function wgGroundY(){ return CH*0.80; }
-function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (pular) / 0-1 = chão (atacar)
+function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (W) / 0-1 = chão (S)
+
+function wgComputeLayout(){
+  WG.charX       = CW*0.16;
+  WG.charH       = Math.max(120, Math.min(210, CH*0.26));
+  WG.hitX        = WG.charX + WG.charH*0.34;          // ponto de acerto (à frente da Mizuki)
+  WG.floorFeet   = CH*0.84;                            // pés no chão
+  WG.airNoteY    = CH*0.40;                            // linha flutuante (pauta)
+  WG.airFeet     = WG.airNoteY + WG.charH*0.50;        // pés quando sobe (centro ~ linha do ar)
+  WG.groundNoteY = WG.floorFeet - WG.charH*0.42;       // notas do chão na altura do tronco
+}
 
 function wgInit(){
   WG.active=true;
-  WG.charX = CW*0.20;
-  WG.groundY = wgGroundY();
-  WG.charH = Math.max(110, Math.min(180, CH*0.22));
-  WG.y=0; WG.vy=0; WG.jumping=false; WG.atkTimer=0; WG.runPhase=0;
+  wgComputeLayout();
+  WG.feetY=WG.floorFeet; WG.airTimer=0; WG.atkTimer=0; WG.runPhase=0;
   WG.bossDefeated=false; WG.bossHitFx=0; WG.bossShake=0; WG.dmgNums.length=0;
   WG.prevT=performance.now()*0.001;
+  loadWgBossImg();
   // Boss morre por volta do fim se acertar ~80% das notas
   const pending = chart.filter(n=>n.state!=='miss').length || chart.length || 1;
   WG.bossMaxHp = Math.max(1, Math.round(pending*0.8));
   WG.bossHp = WG.bossMaxHp;
 }
 
-// Posição X de um inimigo (entra pela direita, chega no personagem no hitTime)
+// Posição X de um inimigo (entra pela direita, chega no ponto de acerto no hitTime)
 function wgEnemyX(note, st){
-  const rightEdge = CW*1.02;
-  const p = (note.hitTime - st)/WG_TRAVEL; // 1 = acabou de entrar, 0 = no personagem
-  return WG.charX + p*(rightEdge - WG.charX);
+  const rightEdge = CW*1.04;
+  const p = (note.hitTime - st)/WG_TRAVEL; // 1 = acabou de entrar, 0 = no ponto de acerto
+  return WG.hitX + p*(rightEdge - WG.hitX);
 }
 
-// Ação do jogador: 'attack' (chão) ou 'jump' (ar)
+// Ação do jogador: 'air' (W → sobe pra linha flutuante) ou 'ground' (S → bate no chão)
 function wgAction(kind){
   if(gameState!=='playing') return;
-  if(kind==='jump' && !WG.jumping){ WG.jumping=true; WG.vy=-WG_JUMP_V; }
-  if(kind==='attack'){ WG.atkTimer=0.22; }
+  if(kind==='air')    WG.airTimer=WG_AIR_HOLD;
+  if(kind==='ground') WG.atkTimer=0.22;
   const st=songTime();
   let best=null,bestD=9999;
   for(const n of chart){
     if(n.hitTime-st>WIN_GOOD*4) break; // chart ordenado por hitTime
     if(n.state!=='pending') continue;
-    const wantAir = (kind==='jump');
-    if(wgIsAir(n)!==wantAir) continue;
+    if(wgIsAir(n)!==(kind==='air')) continue;
     const d=Math.abs(n.hitTime-st);
     if(d<bestD){bestD=d;best=n;}
   }
+  const laneY = kind==='air' ? WG.airNoteY : WG.groundNoteY;
   if(best && bestD<=WIN_GOOD+0.025){
     const perf=bestD<=WIN_PERFECT;
     best.state=perf?'perfect':'good';
-    commitHit(best,perf); // dano no boss vem daqui (hook em commitHit)
-    const ex=Math.max(WG.charX, wgEnemyX(best,st));
-    const ey=wgIsAir(best)? WG.groundY-WG_AIR_RISE : WG.groundY-WG.charH*0.4;
-    spawnBurst(ex,ey,perf?'#ffe66d':'#00ff88',perf?18:10);
-    rings.push({x:ex,y:ey,r:2,maxR:80,life:perf?.7:.5,decay:.08,color:perf?'#ffd34d':'#00ff88',w:3});
-    addJudge(ex,ey-30,perf?'PERFECT':'GOOD',perf?'#ffd34d':'#00ff88');
+    commitHit(best,perf); // dano no boss vem do hook em commitHit
+    const ex=WG.hitX, c=kind==='air'?C_AIR:C_GROUND;
+    spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?22:13);
+    rings.push({x:ex,y:laneY,r:4,maxR:perf?110:80,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:4});
+    rings.push({x:ex,y:laneY,r:2,maxR:50,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
+    addJudge(ex,laneY-40,perf?'PERFECT':'GOOD',perf?'#ffd34d':c);
   } else {
-    // golpe no vazio — sem penalidade (as notas perdidas são tratadas por updateMisses)
-    rings.push({x:WG.charX+90,y:WG.groundY-WG.charH*0.4,r:4,maxR:46,life:.3,decay:.12,color:'#ffffff',w:3,flash:true});
+    rings.push({x:WG.hitX,y:laneY,r:4,maxR:42,life:.28,decay:.13,color:'#ffffff',w:3,flash:true});
   }
 }
 
@@ -7460,82 +7517,133 @@ function wgAction(kind){
 function wgDamageBoss(perf){
   if(WG.bossDefeated) return;
   WG.bossHp = Math.max(0, WG.bossHp - (perf?1:0.6));
-  WG.bossHitFx=1; WG.bossShake=6;
-  const bx=CW*0.86, by=WG.groundY-WG.charH*0.85;
-  WG.dmgNums.push({x:bx+(Math.random()*40-20), y:by, life:1, val:perf?'-100':'-60', color:perf?'#ffd34d':'#fff'});
+  WG.bossHitFx=1; WG.bossShake=8;
+  const bx=CW*0.85, by=WG.floorFeet-WG.charH*0.95;
+  WG.dmgNums.push({x:bx+(Math.random()*50-25), y:by, life:1, val:perf?'-100':'-60', color:perf?'#ffd34d':'#fff'});
   if(WG.bossHp<=0 && !WG.bossDefeated){
     WG.bossDefeated=true;
     addJudge(CW*0.5, CH*0.4, '★ BOSS DERROTADO! ★', '#ffd34d');
-    spawnBurst(bx,by,'#ffd34d',40);
+    spawnBurst(bx,by,'#ffd34d',46);
   }
 }
 
 function drawWgBackground(t){
-  // Em modo vídeo o canvas é transparente e o vídeo aparece atrás. Desenhamos só
-  // o céu escurecido em cima e o CHÃO embaixo (o cenário onde o personagem corre).
-  const gy=wgGroundY();
+  // Vídeo aparece atrás (canvas transparente). Desenhamos o palco estilo Muse Dash:
+  // céu escurecido, linha flutuante (pauta) e piso quadriculado neon.
+  if(WG.floorFeet===0) wgComputeLayout();
+  const gy=WG.floorFeet, ay=WG.airNoteY||CH*0.40;
+  const glow=(typeof GFX!=='undefined'&&GFX.glow);
+
   // Escurece o topo pra leitura dos inimigos
   const sky=ctx.createLinearGradient(0,0,0,gy);
-  sky.addColorStop(0,'rgba(4,4,16,0.55)');
-  sky.addColorStop(1,'rgba(4,4,16,0.12)');
+  sky.addColorStop(0,'rgba(10,2,24,0.62)');
+  sky.addColorStop(1,'rgba(10,2,24,0.16)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
-  // Chão
+
+  // ── Linha flutuante (pauta neon) onde a Mizuki sobe com W ──
+  ctx.strokeStyle='rgba(40,224,255,.35)'; ctx.lineWidth=2;
+  ctx.shadowColor='rgba(40,224,255,.6)'; ctx.shadowBlur=glow?12:0;
+  for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(0,ay+i*8); ctx.lineTo(CW,ay+i*8); ctx.stroke(); }
+  ctx.shadowBlur=0;
+
+  // ── Piso quadriculado (xadrez) rolando ──
   const fl=ctx.createLinearGradient(0,gy,0,CH);
-  fl.addColorStop(0,'rgba(20,12,40,0.92)');
-  fl.addColorStop(1,'rgba(6,4,16,0.98)');
+  fl.addColorStop(0,'rgba(36,10,54,0.94)');
+  fl.addColorStop(1,'rgba(10,3,22,0.99)');
   ctx.fillStyle=fl; ctx.fillRect(0,gy,CW,CH-gy);
-  // Borda superior do chão brilhando
-  ctx.strokeStyle='rgba(0,240,255,.8)'; ctx.lineWidth=3;
-  ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=(typeof GFX!=='undefined'&&GFX.glow)?14:0;
-  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke(); ctx.shadowBlur=0;
-  // Linhas de "velocidade" rolando (sensação de correr)
-  const scroll=(t*420)% 90;
-  ctx.strokeStyle='rgba(0,200,255,.18)'; ctx.lineWidth=2;
-  for(let x=-90+scroll; x<CW; x+=90){
-    ctx.beginPath(); ctx.moveTo(x,gy+12); ctx.lineTo(x-26,CH); ctx.stroke();
+  const tile=46, scroll=(t*430)%(tile*2);
+  ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,CH-gy); ctx.clip();
+  for(let row=0; gy+row*tile<CH; row++){
+    for(let col=-2; col*tile<CW+tile*2; col++){
+      if(((row+col)&1)===0) continue;
+      ctx.fillStyle = row%2? 'rgba(255,46,154,.10)' : 'rgba(120,60,255,.10)';
+      ctx.fillRect(col*tile - scroll, gy+row*tile, tile, tile);
+    }
   }
+  ctx.restore();
+  // Borda superior do piso brilhando
+  ctx.strokeStyle='rgba(255,46,154,.85)'; ctx.lineWidth=3;
+  ctx.shadowColor='rgba(255,46,154,.7)'; ctx.shadowBlur=glow?16:0;
+  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke(); ctx.shadowBlur=0;
+}
+
+// Desenha um inimigo/nota grande e destacado
+function drawWgNote(ex,ey,air,glow){
+  const r = air ? 32 : 36;
+  const c = air ? C_AIR : C_GROUND;
+  ctx.save();
+  ctx.translate(ex,ey);
+  if(air){
+    // losango ciano (sobe — W)
+    const s=r*0.74;
+    ctx.rotate(Math.PI/4);
+    ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=glow?22:0;
+    ctx.fillRect(-s,-s,s*2,s*2);
+    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
+    ctx.strokeRect(-s,-s,s*2,s*2);
+    ctx.rotate(-Math.PI/4);
+  } else {
+    // esfera magenta (chão — S)
+    ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=glow?22:0;
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+  }
+  // ícone central (seta) indicando a tecla
+  ctx.fillStyle='#ffffff';
+  ctx.beginPath();
+  if(air){ ctx.moveTo(0,-10); ctx.lineTo(9,5); ctx.lineTo(-9,5); }   // ▲ (W)
+  else   { ctx.moveTo(0,10);  ctx.lineTo(9,-5); ctx.lineTo(-9,-5); } // ▼ (S)
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 
 function drawWargame(t){
-  // dt para física (limitado pra estabilidade)
   const now=performance.now()*0.001;
   let dt=now-WG.prevT; WG.prevT=now; dt=Math.max(0,Math.min(0.05,dt));
   const st=songTime();
 
-  // ── Física do pulo ──
-  if(WG.jumping){
-    WG.vy += WG_GRAV*dt;
-    WG.y  += WG.vy*dt;
-    if(WG.y>=0){ WG.y=0; WG.vy=0; WG.jumping=false; }
-  }
+  // ── Estado da Mizuki: sobe pra linha do ar enquanto airTimer>0 ──
+  if(WG.airTimer>0) WG.airTimer-=dt;
   if(WG.atkTimer>0) WG.atkTimer-=dt;
+  const targetFeet = WG.airTimer>0 ? WG.airFeet : WG.floorFeet;
+  WG.feetY += (targetFeet-WG.feetY)*Math.min(1,dt*20);
+  const onAir = Math.abs(WG.feetY-WG.airFeet) < Math.abs(WG.feetY-WG.floorFeet);
   WG.runPhase += dt*10;
   if(WG.bossHitFx>0) WG.bossHitFx-=dt*3;
-  if(WG.bossShake>0) WG.bossShake-=dt*30;
+  if(WG.bossShake>0) WG.bossShake-=dt*36;
+  const chH=WG.charH, glow=(typeof GFX!=='undefined'&&GFX.glow);
 
-  const gy=WG.groundY, chH=WG.charH;
-
-  // ── Boss (à direita) ──
-  const bx=CW*0.86 + (Math.random()*2-1)*WG.bossShake, by=gy;
-  const bossW=chH*1.1, bossH=chH*1.25;
+  // ── Boss (à direita) — imagem personalizável ou silhueta estelar ──
+  const bShake=(Math.random()*2-1)*WG.bossShake;
+  const bossH=chH*1.7, bossW=bossH, bcx=CW*0.85+bShake, bBottom=WG.floorFeet*0.98, bcy=bBottom-bossH*0.5;
   if(!WG.bossDefeated || WG.bossHitFx>0){
     ctx.save();
     ctx.globalAlpha = WG.bossDefeated ? Math.max(0,WG.bossHitFx) : 1;
-    // corpo do boss (silhueta estelar)
-    const bg=ctx.createRadialGradient(bx,by-bossH*0.5,8,bx,by-bossH*0.5,bossW*0.7);
-    bg.addColorStop(0, WG.bossHitFx>0?'rgba(255,120,120,.95)':'rgba(180,60,255,.9)');
-    bg.addColorStop(1,'rgba(40,10,80,.15)');
-    ctx.fillStyle=bg;
-    ctx.beginPath(); ctx.ellipse(bx,by-bossH*0.5,bossW*0.5,bossH*0.5,0,0,Math.PI*2); ctx.fill();
-    // olhos
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(bx-bossW*0.16,by-bossH*0.6,6,0,Math.PI*2); ctx.arc(bx+bossW*0.16,by-bossH*0.6,6,0,Math.PI*2); ctx.fill();
+    if(WG_BOSS_IMG && WG_BOSS_IMG.complete && WG_BOSS_IMG.naturalWidth){
+      const ratio=WG_BOSS_IMG.naturalWidth/WG_BOSS_IMG.naturalHeight;
+      const dh=bossH, dw=dh*ratio;
+      if(glow){ ctx.shadowColor='rgba(255,40,120,.55)'; ctx.shadowBlur=WG.bossHitFx>0?40:22; }
+      ctx.drawImage(WG_BOSS_IMG, bcx-dw*0.5, bcy-dh*0.5, dw, dh);
+      ctx.shadowBlur=0;
+      if(WG.bossHitFx>0){ // flash de dano
+        ctx.globalAlpha=WG.bossHitFx*0.5; ctx.globalCompositeOperation='source-atop';
+        ctx.fillStyle='#ff3344'; ctx.fillRect(bcx-dw*0.5,bcy-dh*0.5,dw,dh);
+      }
+    } else {
+      const bg=ctx.createRadialGradient(bcx,bcy,8,bcx,bcy,bossW*0.5);
+      bg.addColorStop(0, WG.bossHitFx>0?'rgba(255,120,120,.95)':'rgba(180,60,255,.92)');
+      bg.addColorStop(1,'rgba(40,10,80,.12)');
+      ctx.fillStyle=bg; ctx.beginPath(); ctx.ellipse(bcx,bcy,bossW*0.42,bossH*0.46,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(bcx-bossW*0.13,bcy-bossH*0.1,7,0,Math.PI*2); ctx.arc(bcx+bossW*0.13,bcy-bossH*0.1,7,0,Math.PI*2); ctx.fill();
+    }
     ctx.restore();
   }
 
   // ── Barra de vida do BOSS (topo central) ──
   const bw=Math.min(CW*0.5,420), bhx=(CW-bw)/2, bhy=CH*0.06;
-  ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(bhx-3,bhy-3,bw+6,18);
+  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(bhx-3,bhy-3,bw+6,18);
   ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(bhx,bhy,bw,12);
   const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
   const hg=ctx.createLinearGradient(bhx,0,bhx+bw,0);
@@ -7544,55 +7652,50 @@ function drawWargame(t){
   ctx.font='700 11px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom';
   ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-4);
 
-  // ── Inimigos (notas) ──
+  // ── Marcadores do ponto de acerto (uma por linha) ──
+  for(const ln of [{y:WG.airNoteY,c:C_AIR,active:onAir},{y:WG.groundNoteY,c:C_GROUND,active:!onAir}]){
+    ctx.save();
+    ctx.globalAlpha=ln.active?0.9:0.4;
+    ctx.strokeStyle=ln.c; ctx.lineWidth=ln.active?4:2.5;
+    ctx.shadowColor=ln.c; ctx.shadowBlur=glow&&ln.active?16:0;
+    const pr=ln.active?30:24;
+    ctx.beginPath(); ctx.arc(WG.hitX,ln.y,pr,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Inimigos (notas) grandes e destacados ──
   for(const n of chart){
     if(n.state!=='pending') continue;
     const p=(n.hitTime-st)/WG_TRAVEL;
-    if(p>1.05||p<-0.3) continue;
-    const ex=wgEnemyX(n,st);
+    if(p>1.06||p<-0.3) continue;
     const air=wgIsAir(n);
-    const ey= air ? gy-WG_AIR_RISE : gy-chH*0.32;
-    const r= air ? 22 : 26;
-    ctx.save();
-    if(air){
-      // inimigo aéreo (losango ciano — PULAR)
-      ctx.fillStyle='rgba(0,240,255,.92)'; ctx.shadowColor='rgba(0,240,255,.8)'; ctx.shadowBlur=(GFX.glow)?12:0;
-      ctx.translate(ex,ey); ctx.rotate(Math.PI/4); ctx.fillRect(-r*0.7,-r*0.7,r*1.4,r*1.4);
-    } else {
-      // inimigo terrestre (esfera magenta — ATACAR)
-      ctx.fillStyle='rgba(255,0,160,.92)'; ctx.shadowColor='rgba(255,0,160,.8)'; ctx.shadowBlur=(GFX.glow)?12:0;
-      ctx.beginPath(); ctx.arc(ex,ey,r,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
+    drawWgNote(wgEnemyX(n,st), air?WG.airNoteY:WG.groundNoteY, air, glow);
   }
   ctx.shadowBlur=0;
 
-  // ── Linha de acerto (onde o personagem bate) ──
-  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2;
-  ctx.setLineDash([6,8]); ctx.beginPath(); ctx.moveTo(WG.charX+50,gy-chH); ctx.lineTo(WG.charX+50,gy+6); ctx.stroke(); ctx.setLineDash([]);
-
-  // ── Personagem (Mizuki) ──
+  // ── Mizuki ──
   let spr=WG_SPR.run;
   if(WG.atkTimer>0) spr=WG_SPR.atk;
-  else if(WG.jumping) spr=WG_SPR.jump;
-  const bob = WG.jumping?0:Math.abs(Math.sin(WG.runPhase))*5;
-  const cy = gy + WG.y - bob; // base (pés)
-  const cw = chH*0.85;
+  else if(onAir||WG.airTimer>0) spr=WG_SPR.jump;
+  const bob = onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
+  const feet = WG.feetY - bob;
   if(spr.complete && spr.naturalWidth){
-    const ratio = spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.8;
-    const dw = chH*ratio, dh=chH;
-    ctx.drawImage(spr, WG.charX-dw*0.5, cy-dh, dw, dh);
+    const ratio = spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7;
+    const dh=chH, dw=chH*ratio;
+    if(glow){ ctx.shadowColor='rgba(255,200,100,.45)'; ctx.shadowBlur=14; }
+    ctx.drawImage(spr, WG.charX-dw*0.5, feet-dh, dw, dh);
+    ctx.shadowBlur=0;
   } else {
-    ctx.fillStyle='rgba(255,180,80,.9)'; ctx.fillRect(WG.charX-cw*0.3,cy-chH,cw*0.6,chH);
+    ctx.fillStyle='rgba(255,180,80,.9)'; ctx.fillRect(WG.charX-chH*0.25,feet-chH,chH*0.5,chH);
   }
 
   // ── Números de dano flutuando ──
   for(let i=WG.dmgNums.length-1;i>=0;i--){
-    const d=WG.dmgNums[i]; d.y-=1.4; d.life-=0.02;
+    const d=WG.dmgNums[i]; d.y-=1.5; d.life-=0.02;
     if(d.life<=0){ WG.dmgNums.splice(i,1); continue; }
     ctx.globalAlpha=Math.min(1,d.life*2); ctx.fillStyle=d.color;
-    ctx.font='900 18px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.shadowColor=d.color; ctx.shadowBlur=(GFX.glow)?10:0;
+    ctx.font='900 20px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor=d.color; ctx.shadowBlur=glow?10:0;
     ctx.fillText(d.val,d.x,d.y); ctx.shadowBlur=0; ctx.globalAlpha=1;
   }
 
@@ -8119,25 +8222,25 @@ document.addEventListener('keyup',e=>{
 
 for(let i=0;i<4;i++){
   const el=document.getElementById('tz'+i);
-  el.addEventListener('pointerdown',e=>{e.preventDefault(); if(gameMode==='wargame'){ wgAction(i<2?'attack':'jump'); return; } pressLane(i);});
+  el.addEventListener('pointerdown',e=>{e.preventDefault(); if(gameMode==='wargame'){ wgAction(e.clientY < window.innerHeight/2 ? 'air':'ground'); return; } pressLane(i);});
   el.addEventListener('pointerup',e=>{e.preventDefault();releaseLane(i);});
   el.addEventListener('pointercancel',()=>releaseLane(i));
 }
 
 // ─── INPUT GUERRA ESTELAR ───
-// Teclado: ATAQUE = J/A/F/Z/←  •  PULO = K/L/Espaço/W/↑/→
+// Teclado: W / ↑ = linha do AR  •  S / ↓ = CHÃO
 document.addEventListener('keydown',e=>{
   if(gameMode!=='wargame'||e.repeat) return;
   if(gameState!=='playing'&&gameState!=='countdown') return;
   const ae=document.activeElement; if(ae&&['input','textarea'].includes(ae.tagName.toLowerCase())) return;
   const k=e.code.toLowerCase();
-  if(k==='keyj'||k==='keya'||k==='keyf'||k==='keyz'||k==='arrowleft'){ e.preventDefault(); wgAction('attack'); }
-  else if(k==='keyk'||k==='keyl'||k==='space'||k==='keyw'||k==='arrowup'||k==='arrowright'){ e.preventDefault(); wgAction('jump'); }
+  if(k==='keyw'||k==='arrowup'){ e.preventDefault(); wgAction('air'); }
+  else if(k==='keys'||k==='arrowdown'){ e.preventDefault(); wgAction('ground'); }
 });
-// Toque/clique na tela (fora das tzones): metade esquerda = atacar, direita = pular
+// Toque/clique na tela: metade de cima = AR (W), metade de baixo = CHÃO (S)
 document.getElementById('gc').addEventListener('pointerdown',e=>{
   if(gameMode!=='wargame'||gameState!=='playing') return;
-  wgAction(e.clientX < window.innerWidth/2 ? 'attack' : 'jump');
+  wgAction(e.clientY < window.innerHeight/2 ? 'air' : 'ground');
 });
 
 document.getElementById('urlIn').addEventListener('keydown',e=>{if(e.key==='Enter') startLoad();});
