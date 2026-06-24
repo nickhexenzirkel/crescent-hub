@@ -7445,7 +7445,7 @@ const WG = {
   bolts:[], hurtT:0, bossX:0, attacksDone:0, attackAt:[], attack:null,
   finisherStart:0, finisherKicks:0, finisherNeed:30, lungeT:0, resultScheduled:false,
   kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
-  beltH:0, fireTop:0, firePalette:null, fireGrid:null, fireCols:0, fireRows:0, fireCell:12, judge:null,
+  beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -7540,8 +7540,8 @@ function wgComputeLayout(){
   WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
   WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
   WG.beltH       = Math.round(CH*0.045);                // esteira
-  // espaço (gap) abaixo da esteira e SÓ depois o fogo (band no fundo, não preenche tudo)
-  WG.fireTop     = WG.floorFeet + WG.beltH + Math.round(CH*0.035);
+  // espaço (gap) abaixo da esteira e SÓ depois o fogo (faixa no fundo, com chamas subindo)
+  WG.fireTop     = WG.floorFeet + WG.beltH + Math.round(CH*0.02);
 }
 
 function wgInit(){
@@ -7555,7 +7555,7 @@ function wgInit(){
   WG.bossX=CW*0.85; WG.attacksDone=0; WG.attack=null;
   WG.finisherKicks=0; WG.finisherNeed=30; WG.lungeT=0; WG.resultScheduled=false;
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
-  WG.judge=null; WG.fireGrid=null;
+  WG.judge=null; WG.fireGrid=null; WG.fireH=null;
   wgHoldSfxStop();
   // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
   WG.firePalette=null;
@@ -7779,19 +7779,36 @@ function wgBuildFirePalette(img){
     return pal;
   }catch(_){ return null; } // capa com CORS bloqueado → usa paleta padrão
 }
-// Fogo em pixels (algoritmo "doom fire") abaixo da esteira
+// Fogo em pixels: alturas de chama por coluna (ruído animado + suavização) → tongues fluidas
 function wgDrawFire(top){
   const pal=WG.firePalette||wgDefaultFirePalette(), P=pal.length;
-  const cell=WG.fireCell||12, cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(4,Math.ceil(fireH/cell));
-  if(!WG.fireGrid || WG.fireCols!==cols || WG.fireRows!==rows){ WG.fireGrid=new Uint8Array(cols*rows); WG.fireCols=cols; WG.fireRows=rows; }
-  const g=WG.fireGrid;
-  for(let xc=0;xc<cols;xc++) g[(rows-1)*cols+xc]=(Math.random()<0.86)?(P-1):Math.floor((P-1)*0.55); // base quente
-  for(let y=0;y<rows-1;y++) for(let xc=0;xc<cols;xc++){
-    const xx=Math.min(cols-1,Math.max(0,xc+(Math.floor(Math.random()*3)-1)));
-    g[y*cols+xc]=Math.max(0, g[(y+1)*cols+xx]-(Math.random()<0.72?1:0));
+  const cell=WG.fireCell||9, cols=Math.ceil(CW/cell)+2, fireH=CH-top, rows=Math.max(6,Math.ceil(fireH/cell));
+  if(!WG.fireH || WG.fireCols!==cols){ WG.fireH=new Float32Array(cols); for(let i=0;i<cols;i++) WG.fireH[i]=rows*0.6; WG.fireCols=cols; }
+  WG.fireRows=rows;
+  const H=WG.fireH, tt=animT;
+  // fundo escuro da faixa (cobre o vídeo)
+  ctx.fillStyle='#0a0510'; ctx.fillRect(0,top,CW,CH-top);
+  // altura-alvo de cada coluna a partir de ruído (várias senoides + flicker) e suaviza no tempo
+  for(let x=0;x<cols;x++){
+    const n = Math.sin(x*0.55 + tt*7) + 0.7*Math.sin(x*0.21 - tt*10) + 0.5*Math.sin(x*1.4 + tt*15) + (Math.random()-0.5)*1.1;
+    const target = rows*(0.42 + 0.52*Math.max(0,Math.min(1,(n+2.2)/4.4)));
+    H[x] += (target - H[x])*0.4;
   }
-  ctx.fillStyle='#0a0210'; ctx.fillRect(0,top,CW,CH-top); // base escura (cobre o vídeo)
-  for(let y=0;y<rows;y++) for(let xc=0;xc<cols;xc++){ const v=g[y*cols+xc]; if(v<=0) continue; const col=pal[v]; if(!col) continue; ctx.fillStyle=col; ctx.fillRect(xc*cell, top+y*cell, cell+1, cell+1); }
+  // suaviza entre colunas vizinhas (chamas conectadas/fluidas)
+  for(let s=0;s<2;s++) for(let x=1;x<cols-1;x++) H[x]=(H[x-1]+H[x]*2+H[x+1])/4;
+  // desenha cada coluna (base quente embaixo, esfriando e afinando até o topo)
+  for(let x=0;x<cols;x++){
+    const h=H[x], hi=Math.max(1,Math.round(h));
+    for(let r=0;r<hi && r<rows;r++){           // r=0 = base (mais quente)
+      const tnorm=r/h;                          // 0 base → 1 topo
+      let idx=Math.round((P-1)*(1-tnorm*tnorm)); // base branca, topo escurece (afina)
+      if(Math.random()<0.22) idx-=1;            // cintilação
+      if(idx<=0) continue;
+      const col=pal[idx]; if(!col) continue;
+      ctx.fillStyle=col;
+      ctx.fillRect(x*cell, CH-(r+1)*cell, cell+1, cell+1);
+    }
+  }
 }
 // Esteira (chão) rolando pra ESQUERDA
 function wgDrawBelt(gy,h){
