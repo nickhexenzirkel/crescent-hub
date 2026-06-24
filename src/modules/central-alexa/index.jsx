@@ -905,7 +905,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
             }
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title?.length>55 ? s.title.slice(0,55)+'…' : s.title}</div>
+              <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title?.length>28 ? s.title.slice(0,28)+'…' : s.title}</div>
               <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
             </div>
             <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:6,background:T.goldGl}}>
