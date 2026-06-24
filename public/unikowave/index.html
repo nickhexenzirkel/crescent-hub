@@ -4706,8 +4706,10 @@ function beginGame(){
   
   // Guerra Estelar: usa o vídeo de fundo (se houver), oculta o mascote Dodoco e inicia o estado.
   const _dpnl=document.getElementById('dodocoPanel'); if(_dpnl) _dpnl.style.display = gameMode==='wargame'?'none':'';
-  // No wargame a vida aparece na barra inferior (canvas) → oculta a barra de vida do HUD clássico
-  const _lb=document.getElementById('lifeBar'); if(_lb) _lb.style.display = gameMode==='wargame'?'none':'';
+  // No wargame a UI é desenhada no canvas (vida/combo/score/judgment) → oculta as
+  // partes do HUD clássico (mantendo só o botão de PAUSA e a barra de progresso).
+  const _wgHide=['lifeBar','hudTopCenter','hudStars','hudBottom'];
+  _wgHide.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = gameMode==='wargame'?'none':''; });
   if(gameMode==='wargame' && lastVideoUrl && bgMode!=='video') bgMode='video';
   buildKeyLegend();
 
@@ -4893,6 +4895,7 @@ function commitHit(note,perf){
 function scoreMiss(){
   const hadCombo=score.combo;
   score.miss++; score.combo=0;
+  if(gameMode==='wargame') wgSetJudge('MISS','#ff4466'); // grande, sobre a Mizuki
   onMissStreak();
   // Mostra MISS no centro da estrada se havia combo significativo
   if(hadCombo>=10){
@@ -7442,6 +7445,7 @@ const WG = {
   bolts:[], hurtT:0, bossX:0, attacksDone:0, attackAt:[], attack:null,
   finisherStart:0, finisherKicks:0, finisherNeed:30, lungeT:0, resultScheduled:false,
   kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
+  beltH:0, fireTop:0, firePalette:null, fireGrid:null, fireCols:0, fireRows:0, fireCell:12, judge:null,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -7535,6 +7539,8 @@ function wgComputeLayout(){
   WG.airNoteY    = CH*0.48;                             // linha do ar (mais baixa, não tão alta)
   WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
   WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
+  WG.beltH       = Math.round(CH*0.05);                 // esteira
+  WG.fireTop     = WG.floorFeet + WG.beltH;             // fogo em pixels abaixo da esteira
 }
 
 function wgInit(){
@@ -7548,7 +7554,17 @@ function wgInit(){
   WG.bossX=CW*0.85; WG.attacksDone=0; WG.attack=null;
   WG.finisherKicks=0; WG.finisherNeed=30; WG.lungeT=0; WG.resultScheduled=false;
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
+  WG.judge=null; WG.fireGrid=null;
   wgHoldSfxStop();
+  // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
+  WG.firePalette=null;
+  try{
+    const vid=getYTId(lastYtUrl||lastVideoUrl||'');
+    if(vid){ const im=new Image(); im.crossOrigin='anonymous';
+      im.onload=()=>{ const p=wgBuildFirePalette(im); if(p) WG.firePalette=p; };
+      im.src='https://img.youtube.com/vi/'+vid+'/hqdefault.jpg';
+    }
+  }catch(_){}
   // Sub-modo LUTA: notas de segurar só do meio pro fim → vira tudo "bater" antes disso
   if(wgSubmode==='luta' && songDuration>0){
     const half=songDuration*0.5;
@@ -7627,7 +7643,7 @@ function wgHitFx(ex,laneY,perf,c){
   spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
   rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:5});
   rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
-  addJudge(ex,laneY-44,perf?'PERFECT':'GOOD',perf?'#ffd34d':c);
+  wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ffd34d':'#00ff9a'); // grande, sobre a Mizuki
 }
 
 // Minion derrotado: cai pro chão girando e some
@@ -7735,46 +7751,83 @@ function drawWgBubble(cx,baseY,text,bg,fg){
   ctx.restore();
 }
 
+// Define grande judgment (PERFECT/GOOD/MISS) acima da Mizuki
+function wgSetJudge(text,color){ WG.judge={text,color,t:0}; }
+
+// Paleta de fogo (ramp 0=vazio → quente) a partir das cores da capa
+let _wgFireDef=null;
+function wgDefaultFirePalette(){
+  if(_wgFireDef) return _wgFireDef;
+  const P=36, pal=[null], mix=(A,B,t)=>`rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`;
+  const dark=[40,6,4], c2=[255,60,20], c1=[255,180,40], white=[255,255,210];
+  for(let i=1;i<P;i++){ const t=i/(P-1); pal.push(t<0.4?mix(dark,c2,t/0.4):t<0.8?mix(c2,c1,(t-0.4)/0.4):mix(c1,white,(t-0.8)/0.2)); }
+  return _wgFireDef=pal;
+}
+function wgBuildFirePalette(img){
+  try{
+    const c=document.createElement('canvas'); c.width=16; c.height=16;
+    const x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(img,0,0,16,16);
+    const d=x.getImageData(0,0,16,16).data, cols=[];
+    for(let i=0;i<d.length;i+=4){ const r=d[i],g=d[i+1],b=d[i+2]; cols.push({r,g,b,sat:Math.max(r,g,b)-Math.min(r,g,b)}); }
+    cols.sort((a,b)=>b.sat-a.sat);
+    const c1=cols[0]||{r:255,g:180,b:40}, c2=cols[3]||{r:255,g:60,b:20};
+    const A=[Math.round(c2.r*0.22),Math.round(c2.g*0.22),Math.round(c2.b*0.22)], B=[c2.r,c2.g,c2.b], C=[c1.r,c1.g,c1.b], W=[255,255,255];
+    const mix=(a,b,t)=>`rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+    const P=36, pal=[null];
+    for(let i=1;i<P;i++){ const t=i/(P-1); pal.push(t<0.4?mix(A,B,t/0.4):t<0.8?mix(B,C,(t-0.4)/0.4):mix(C,W,(t-0.8)/0.2)); }
+    return pal;
+  }catch(_){ return null; } // capa com CORS bloqueado → usa paleta padrão
+}
+// Fogo em pixels (algoritmo "doom fire") abaixo da esteira
+function wgDrawFire(top){
+  const pal=WG.firePalette||wgDefaultFirePalette(), P=pal.length;
+  const cell=WG.fireCell||12, cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(4,Math.ceil(fireH/cell));
+  if(!WG.fireGrid || WG.fireCols!==cols || WG.fireRows!==rows){ WG.fireGrid=new Uint8Array(cols*rows); WG.fireCols=cols; WG.fireRows=rows; }
+  const g=WG.fireGrid;
+  for(let xc=0;xc<cols;xc++) g[(rows-1)*cols+xc]=(Math.random()<0.86)?(P-1):Math.floor((P-1)*0.55); // base quente
+  for(let y=0;y<rows-1;y++) for(let xc=0;xc<cols;xc++){
+    const xx=Math.min(cols-1,Math.max(0,xc+(Math.floor(Math.random()*3)-1)));
+    g[y*cols+xc]=Math.max(0, g[(y+1)*cols+xx]-(Math.random()<0.72?1:0));
+  }
+  ctx.fillStyle='#0a0210'; ctx.fillRect(0,top,CW,CH-top); // base escura (cobre o vídeo)
+  for(let y=0;y<rows;y++) for(let xc=0;xc<cols;xc++){ const v=g[y*cols+xc]; if(v<=0) continue; const col=pal[v]; if(!col) continue; ctx.fillStyle=col; ctx.fillRect(xc*cell, top+y*cell, cell+1, cell+1); }
+}
+// Esteira (chão) rolando pra ESQUERDA
+function wgDrawBelt(gy,h){
+  const glow=(typeof GFX!=='undefined'&&GFX.glow);
+  const bg=ctx.createLinearGradient(0,gy,0,gy+h); bg.addColorStop(0,'#2a1840'); bg.addColorStop(1,'#120a20');
+  ctx.fillStyle=bg; ctx.fillRect(0,gy,CW,h);
+  ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
+  const seg=34, scroll=(animT*340)%seg; // rola p/ esquerda
+  ctx.strokeStyle='rgba(255,46,154,.45)'; ctx.lineWidth=3;
+  for(let x=CW - scroll; x>-seg; x-=seg){ ctx.beginPath(); ctx.moveTo(x,gy+3); ctx.lineTo(x-15,gy+h-3); ctx.stroke(); }
+  ctx.restore();
+  ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=glow?12:0;
+  ctx.strokeStyle='rgba(0,240,255,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
+  ctx.strokeStyle='rgba(255,46,154,.9)'; ctx.beginPath(); ctx.moveTo(0,gy+h); ctx.lineTo(CW,gy+h); ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
 function drawWgBackground(t){
-  // Vídeo aparece atrás (canvas transparente). Desenhamos o palco estilo Muse Dash:
-  // céu escurecido, linha flutuante (pauta) e piso quadriculado neon.
   if(WG.floorFeet===0) wgComputeLayout();
   const gy=WG.floorFeet;
-  const glow=(typeof GFX!=='undefined'&&GFX.glow);
 
   // No FINISHER o vídeo some → fundo OPACO (cósmico) cobrindo tudo
   if(WG.phase==='finisher' || WG.phase==='done'){
     const sp=ctx.createLinearGradient(0,0,0,CH);
     sp.addColorStop(0,'#150626'); sp.addColorStop(0.6,'#0c0420'); sp.addColorStop(1,'#05010f');
     ctx.fillStyle=sp; ctx.fillRect(0,0,CW,CH);
-    // estrelinhas
     for(let i=0;i<60;i++){ const sx=(i*137.5)%CW, sy=(i*89.3)%gy, tw=0.4+0.6*Math.abs(Math.sin(animT*2+i)); ctx.globalAlpha=tw*0.7; ctx.fillStyle=i%3?'#ffd34d':'#ff7ad0'; ctx.fillRect(sx,sy,2,2); }
     ctx.globalAlpha=1;
-  } else {
-    const sky=ctx.createLinearGradient(0,0,0,gy);
-    sky.addColorStop(0,'rgba(10,2,24,0.62)');
-    sky.addColorStop(1,'rgba(10,2,24,0.16)');
-    ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
+    return;
   }
-
-  // Piso quadriculado rolando
-  const fl=ctx.createLinearGradient(0,gy,0,CH);
-  fl.addColorStop(0,'rgba(36,10,54,0.94)');
-  fl.addColorStop(1,'rgba(10,3,22,0.99)');
-  ctx.fillStyle=fl; ctx.fillRect(0,gy,CW,CH-gy);
-  const tile=46, scroll=(t*430)%(tile*2);
-  ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,CH-gy); ctx.clip();
-  for(let row=0; gy+row*tile<CH; row++){
-    for(let col=-2; col*tile<CW+tile*2; col++){
-      if(((row+col)&1)===0) continue;
-      ctx.fillStyle = row%2? 'rgba(255,46,154,.10)' : 'rgba(120,60,255,.10)';
-      ctx.fillRect(col*tile - scroll, gy+row*tile, tile, tile);
-    }
-  }
-  ctx.restore();
-  ctx.strokeStyle='rgba(255,46,154,.85)'; ctx.lineWidth=3;
-  ctx.shadowColor='rgba(255,46,154,.7)'; ctx.shadowBlur=glow?16:0;
-  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke(); ctx.shadowBlur=0;
+  // Céu semitransparente (deixa o vídeo aparecer acima da esteira)
+  const sky=ctx.createLinearGradient(0,0,0,gy);
+  sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
+  // Esteira + fogo em pixels
+  wgDrawBelt(gy, WG.beltH);
+  wgDrawFire(WG.fireTop);
 }
 
 // Desenha um minion (imagem) com brilho da cor da linha e seta indicando a tecla.
@@ -7866,6 +7919,7 @@ function drawWargame(t){
   if(WG.bossShake>0) WG.bossShake-=dt*36;
   if(WG.hurtT>0) WG.hurtT-=dt;
   if(WG.lungeT>0) WG.lungeT-=dt;
+  if(WG.judge) WG.judge.t+=dt;
   if(WG.bossDefeated) WG.bossDefeatT+=dt;
 
   // ── Lógica de tempo (falas, fases de ataque, finisher) — só durante a partida ──
@@ -8121,6 +8175,25 @@ function drawWargame(t){
     ctx.fillText('APERTE W PRA CHUTAR!', CW*0.5, cy+ks*0.85);
     ctx.fillStyle='#ffd34d'; ctx.font='900 26px Orbitron,monospace';
     ctx.fillText(WG.finisherKicks+' / '+WG.finisherNeed, CW*0.5, cy+ks*0.85+30);
+    ctx.restore();
+  }
+
+  // ── Pontuação (canto superior esquerdo) ──
+  ctx.save(); ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.shadowColor='rgba(0,240,255,.6)'; ctx.shadowBlur=glow?10:0;
+  ctx.fillStyle='#fff'; ctx.font='900 34px Orbitron,monospace';
+  ctx.fillText(String(score.v||0).padStart(6,'0'), 22, 16);
+  ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font='800 12px Orbitron,monospace'; ctx.fillText('SCORE', 24, 54);
+  ctx.restore();
+
+  // ── Judgment GRANDE acima da Mizuki (PERFECT / GOOD / MISS) ──
+  if(WG.judge && WG.judge.t<0.62){
+    const j=WG.judge, p=j.t/0.62, pop=1.35-0.35*Math.min(1,p/0.35), a=p>0.72?1-(p-0.72)/0.28:1;
+    const jx=drawX, jy=feet-chH-28 - p*16;
+    ctx.save(); ctx.globalAlpha=Math.max(0,a); ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`900 ${Math.round(Math.min(58,CW*0.062)*pop)}px Orbitron,monospace`;
+    ctx.lineWidth=6; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.strokeText(j.text,jx,jy);
+    ctx.fillStyle=j.color; ctx.shadowColor=j.color; ctx.shadowBlur=glow?22:0; ctx.fillText(j.text,jx,jy);
     ctx.restore();
   }
 
