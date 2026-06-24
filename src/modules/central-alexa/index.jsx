@@ -776,7 +776,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
     // Ranking de DJs (filtra nomes do sistema no cliente)
     const djRows = (djRes.data||[]).filter(d => !isSystemDj(d.requested_by));
-    const djs = djRows.slice(0,20).map(d => ({ name:d.requested_by.trim(), count:d.plays }));
+    const djs = djRows.slice(0,10).map(d => ({ name:d.requested_by.trim(), count:d.plays }));
     const djTotal = djRows.reduce((a,d)=>a+d.plays,0);
 
     // DJs por mês (filtra nomes do sistema no cliente)
