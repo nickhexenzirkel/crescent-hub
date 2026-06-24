@@ -128,6 +128,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [tmpSc,     setTmpSc]     = useState(100);
   const fileRef     = useRef(null);
   const dragRef     = useRef(null);   // drag state
+  const previewRef  = useRef(null);   // preview da foto (wheel não-passivo p/ zoom)
   const imgAspect   = useRef(1);      // naturalHeight/naturalWidth of current photo
 
   const P    = getBanner(activeTheme);
@@ -312,6 +313,19 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       document.removeEventListener('mouseup', onUp);
     };
   }, [showPhoto]);
+
+  /* Zoom por scroll — listener não-passivo p/ poder usar preventDefault
+     (o onWheel do React é passivo e dispara o warning do navegador) */
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el || !showPhoto || !tmpPhoto) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      setTmpSc(s => Math.max(100, Math.min(300, s + (e.deltaY > 0 ? -8 : 8))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [showPhoto, tmpPhoto]);
 
   /* ════════════════════════════════════════════════════════════════ */
   return (
@@ -620,15 +634,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             {/* Preview com drag */}
             <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
               <div
+                ref={previewRef}
                 onMouseDown={e=>{
                   if (!tmpPhoto) return;
                   e.preventDefault();
                   dragRef.current = { sx:e.clientX, sy:e.clientY, px:tmpPos.x, py:tmpPos.y, sc:tmpSc, moved:false };
-                }}
-                onWheel={e=>{
-                  if (!tmpPhoto) return;
-                  e.preventDefault();
-                  setTmpSc(s=>Math.max(100, Math.min(300, s+(e.deltaY>0?-8:8))));
                 }}
                 style={{
                   width:180,height:180,borderRadius:'50%',overflow:'hidden',
