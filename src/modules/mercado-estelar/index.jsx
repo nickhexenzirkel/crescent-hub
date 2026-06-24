@@ -432,7 +432,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       </div>
 
       {/* ── Conteúdo ── */}
-      <div style={{ flex: 1, maxWidth: 1240, margin: '0 auto', width: '100%', padding: isMobile ? '12px' : '20px 24px 40px' }}>
+      <div style={{ flex: 1, maxWidth: 1240, margin: '0 auto', width: '100%', padding: isMobile ? '12px' : '12px 24px 20px' }}>
         {isMobile && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             <PrismChip type="comum" amount={state.comum} />
@@ -595,7 +595,7 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
           Nenhum prêmio encontrado.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'stretch' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 14, alignItems: 'start' }}>
           {/* DESTAQUE — maior prêmio */}
           {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
@@ -735,8 +735,8 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 14px 4px', position: 'relative', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={190} emojiSize={88} radius={16} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 12px 2px', position: 'relative', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={150} emojiSize={76} radius={14} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
       </div>
 
       <div style={{ padding: '0 18px 16px', position: 'relative' }}>
@@ -1775,9 +1775,9 @@ const lbl = { display: 'block', fontSize: 11, fontWeight: 700, color: T.textD, t
 const primaryBtn = (color) => ({ width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${color},${color}bb)`, color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)' });
 
 const SectionHead = ({ title, sub }) => (
-  <div style={{ marginBottom: 14 }}>
-    <div style={{ fontSize: 20, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>{title}</div>
-    {sub && <div style={{ fontSize: 13.5, color: T.textT, marginTop: 3 }}>{sub}</div>}
+  <div style={{ marginBottom: 10 }}>
+    <div style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>{title}</div>
+    {sub && <div style={{ fontSize: 12.5, color: T.textT, marginTop: 2 }}>{sub}</div>}
   </div>
 );
 
