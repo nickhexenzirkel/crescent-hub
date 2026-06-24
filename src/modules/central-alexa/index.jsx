@@ -384,6 +384,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
   const [confirmTrack, setConfirmTrack] = useState(null); // track aguardando confirmação de longa duração
+  const [replaceTarget, setReplaceTarget]     = useState(null); // música da fila sendo substituída
+  const [replaceVal, setReplaceVal]           = useState("");
+  const [replaceResults, setReplaceResults]   = useState([]);
+  const [replaceSearching, setReplaceSearching] = useState(false);
+  const [isReplacing, setIsReplacing]         = useState(null); // track.id sendo aplicado
+  const replaceTimer  = useRef(null);
   const [skipVotes, setSkipVotes]       = useState({});   // song_id → contagem
   const [myVotedSongs, setMyVotedSongs] = useState(new Set());
   const [spotifyOk, setSpotifyOk]       = useState(false);
@@ -1236,6 +1242,68 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setMovingId(null);
   };
 
+  // ── Substituir música da fila ────────────────────────────
+  const openReplace = (song) => {
+    setReplaceTarget(song);
+    setReplaceVal("");
+    setReplaceResults([]);
+  };
+  const closeReplace = () => {
+    clearTimeout(replaceTimer.current);
+    setReplaceTarget(null);
+    setReplaceVal("");
+    setReplaceResults([]);
+    setIsReplacing(null);
+  };
+
+  const handleReplaceSearch = (val) => {
+    setReplaceVal(val);
+    clearTimeout(replaceTimer.current);
+    if (!val.trim()) { setReplaceResults([]); return; }
+    setReplaceSearching(true);
+    replaceTimer.current = setTimeout(async () => {
+      const r = await api('get', `/api/search?q=${encodeURIComponent(val)}`);
+      setReplaceResults(r.tracks || []);
+      setReplaceSearching(false);
+    }, 450);
+  };
+
+  // Troca os dados da linha da fila pela nova música, mantendo posição,
+  // status e quem pediu — espelha o padrão de `moveSong` (escreve direto no Supabase).
+  const replaceSong = async (track) => {
+    const target = replaceTarget;
+    if (!target || isReplacing) return;
+
+    // Respeita o limite de vagas para colaboradores ao trocar por uma música longa.
+    if (!isAdmin) {
+      const myActive = queue.filter(s =>
+        s.requested_by === myName && ['pending','playing'].includes(s.status)
+      );
+      const slotsUsed   = myActive.reduce((acc, s) => acc + ((s.duration_ms||0) >= LONG_MS ? 2 : 1), 0);
+      const oldSlots    = (target.duration_ms||0) >= LONG_MS ? 2 : 1;
+      const newSlots    = (track.duration_ms||0)  >= LONG_MS ? 2 : 1;
+      if (slotsUsed - oldSlots + newSlots > 2) {
+        setServerMsg('Essa música é longa demais e ultrapassa seu limite de vagas.');
+        setTimeout(()=>setServerMsg(''), 5000);
+        return;
+      }
+    }
+
+    setIsReplacing(track.id);
+    // Otimista: atualiza a linha localmente
+    setQueue(prev => prev.map(s => s.id === target.id ? {
+      ...s, uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
+      album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str,
+    } : s));
+    const { error } = await _supabase.from('queue').update({
+      uri: track.uri, spotify_id: track.id, title: track.title, artist: track.artist,
+      album_art: track.album_art, duration_ms: track.duration_ms, duration_str: track.duration_str,
+    }).eq('id', target.id);
+    if (error) { setServerMsg('Não foi possível substituir a música.'); setTimeout(()=>setServerMsg(''), 5000); }
+    await loadQueue();
+    closeReplace();
+  };
+
   const handleVote = async (song) => {
     if (myVotedSongs.has(song.id)) {
       setServerMsg('Você já votou para pular essa música');
@@ -1364,6 +1432,69 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 style={{flex:1,padding:"11px 0",borderRadius:10,border:"none",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 Confirmar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: substituir música da fila ── */}
+      {replaceTarget&&(
+        <div onClick={closeReplace} style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:20,padding:"22px 22px 20px",maxWidth:440,width:"100%",boxShadow:T.shL}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <div style={{fontWeight:700,fontSize:15,color:T.text}}>Substituir música</div>
+              <button onClick={closeReplace} style={{background:"rgba(0,0,0,0.06)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:T.textS,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            </div>
+            {/* Música atual */}
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:11,background:T.goldGl,border:`1px solid ${T.goldLine}33`,marginBottom:14}}>
+              {replaceTarget.album_art
+                ? <img src={replaceTarget.album_art} alt="" style={{width:38,height:38,borderRadius:7,objectFit:"cover",flexShrink:0}}/>
+                : <div style={{width:38,height:38,borderRadius:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🎵</div>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:T.textD,textTransform:"uppercase",letterSpacing:".06em",fontWeight:600,marginBottom:1}}>Trocando</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{replaceTarget.title}</div>
+                <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{replaceTarget.artist}</div>
+              </div>
+            </div>
+            {/* Busca */}
+            <div style={{display:"flex",alignItems:"center",gap:9,padding:"10px 13px",borderRadius:11,border:`1.5px solid ${T.border}`,background:isDark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.02)",marginBottom:10}}>
+              {replaceSearching
+                ? <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite",flexShrink:0}}/>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{flexShrink:0}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
+              <input autoFocus value={replaceVal} onChange={e=>handleReplaceSearch(e.target.value)}
+                placeholder="Buscar a música certa..."
+                style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:14,color:T.text,fontFamily:"var(--font-body)",caretColor:T.gold}}/>
+            </div>
+            {/* Resultados */}
+            <div style={{maxHeight:"42vh",overflowY:"auto",borderRadius:12,border:replaceResults.length?`1px solid ${T.border}`:"none"}}>
+              {replaceResults.map(t=>(
+                <div key={t.id} onClick={()=>replaceSong(t)}
+                  style={{display:"flex",alignItems:"center",gap:11,padding:"9px 12px",cursor:isReplacing?"wait":"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {t.album_art
+                    ? <img src={t.album_art} alt="" style={{width:38,height:38,borderRadius:7,objectFit:"cover",flexShrink:0}}/>
+                    : <div style={{width:38,height:38,borderRadius:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🎵</div>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                    <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
+                  </div>
+                  <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:7}}>
+                    <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
+                    {isReplacing===t.id
+                      ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+                      : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}} title="Substituir por esta">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>}
+                  </div>
+                </div>
+              ))}
+              {!replaceResults.length && replaceVal.trim() && !replaceSearching && (
+                <div style={{padding:"20px",textAlign:"center",color:T.textT,fontSize:12}}>Nenhuma música encontrada.</div>
+              )}
+              {!replaceVal.trim() && (
+                <div style={{padding:"20px",textAlign:"center",color:T.textT,fontSize:12}}>Digite para buscar a música que você realmente queria.</div>
+              )}
             </div>
           </div>
         </div>
@@ -1898,6 +2029,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                                 </button>
                               </div>
+                            )}
+                            {/* Substituir música — própria, ou de qualquer uma se Admin */}
+                            {canDelete && (
+                              <button onClick={()=>openReplace(s)}
+                                title={isMyOwn ? "Substituir minha música" : "Substituir música (Admin)"}
+                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;}}
+                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                              </button>
                             )}
                             {/* Deletar música — própria, ou de qualquer um se Admin */}
                             {canDelete && (

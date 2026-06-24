@@ -7,11 +7,21 @@ const _supabase  = _createSupabaseClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c'
 );
 
+// Decodifica o payload (base64url) do JWT preservando UTF-8.
+// `atob` devolve uma string binária (latin1); ler os bytes como UTF-8 evita
+// que acentos virem mojibake (ex.: "Lourenço" → "LourenÃ§o").
+function decodeJwtPayload(token) {
+  const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+}
+
 function getAuthUser() {
   try {
     const token = localStorage.getItem('ch_token');
     if (!token) return null;
-    return JSON.parse(atob(token.split('.')[1]));
+    return decodeJwtPayload(token);
   } catch { return null; }
 }
 

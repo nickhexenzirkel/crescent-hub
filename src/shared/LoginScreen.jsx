@@ -30,19 +30,36 @@ const LoginScreen = ({ onLogin }) => {
     return d.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, '$1.$2.$3-$4');
   };
 
+  const attemptLogin = async (cpfDigits, password) => {
+    const r = await fetch(`${SERVER_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf: cpfDigits, password }),
+    });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok, data };
+  };
+
   const go = async () => {
+    // Aceita o CPF de qualquer forma (com ponto, traço, espaços) — usa só os dígitos.
     const rawCpf = cpf.replace(/\D/g, '');
     if (rawCpf.length !== 11) { setErr('CPF inválido. Digite os 11 dígitos.'); return; }
     if (!pass)                 { setErr('Digite sua senha.'); return; }
     setErr(''); setLoading(true);
     try {
-      const r = await fetch(`${SERVER_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cpf: rawCpf, password: pass }),
-      });
-      const data = await r.json();
-      if (!r.ok) { setErr(data.error || 'Erro ao entrar.'); setLoading(false); return; }
+      let { ok, data } = await attemptLogin(rawCpf, pass);
+      // Muitos colaboradores usam o próprio CPF como senha. Se digitarem o CPF
+      // formatado (com pontos/traço) no campo de senha, tenta de novo só com os
+      // números. O retry só roda quando a primeira tentativa falhou, então nunca
+      // quebra uma senha válida que por acaso contenha pontuação.
+      if (!ok) {
+        const passDigits = pass.replace(/\D/g, '');
+        if (passDigits.length === 11 && passDigits !== pass) {
+          const retry = await attemptLogin(rawCpf, passDigits);
+          if (retry.ok) { ok = retry.ok; data = retry.data; }
+        }
+      }
+      if (!ok) { setErr(data.error || 'Erro ao entrar.'); setLoading(false); return; }
       localStorage.setItem('ch_token', data.token);
       onLogin(data.user);
     } catch {
