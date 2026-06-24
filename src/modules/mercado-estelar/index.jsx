@@ -543,7 +543,7 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
   // Maior prêmio em destaque (fixo em todas as páginas) + o resto paginado (6/pág)
   const featured = filtered[0] || null;
   const rest = filtered.slice(1);
-  const PAGE = 6;
+  const PAGE = 7;
   const [page, setPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(rest.length / PAGE));
   const pageSafe = page % pageCount;
@@ -595,7 +595,7 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
           Nenhum prêmio encontrado.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 14, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 14, alignItems: 'stretch' }}>
           {/* DESTAQUE — maior prêmio */}
           {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
@@ -735,8 +735,8 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 12px 2px', position: 'relative', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={150} emojiSize={76} radius={14} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, minHeight: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 12px 2px', position: 'relative', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h="100%" emojiSize={88} radius={14} sold={sold} style={{ width: '100%', filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
       </div>
 
       <div style={{ padding: '0 18px 16px', position: 'relative' }}>
