@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
-import { supabase } from '../../contexts/user';
+import { supabase, SERVER_URL } from '../../contexts/user';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -81,6 +81,42 @@ const COLABORADORES = [
   'Alan Matos', 'Brenda Késia', 'Cleanderson Pereira', 'Gleydson Marques',
   'Guilherme Alves', 'Karina Barbosa', 'Mara Almeida', 'Maria Renata', 'Mikael Araújo',
 ];
+
+// Busca a lista completa de colaboradores no backend (mesma fonte da aba Colegas)
+const fetchTeamNames = async () => {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/team`, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` } });
+    const d = await r.json();
+    const names = (d.employees || []).filter(e => e.active !== false).map(e => e.name).filter(Boolean);
+    if (names.length) return names;
+  } catch {}
+  return null;
+};
+
+// Hook: TODOS os colaboradores (backend + carteiras já existentes + fallback fixo)
+const useAllPlayers = () => {
+  const [list, setList] = useState(COLABORADORES);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const out = new Set(COLABORADORES);
+      const team = await fetchTeamNames(); if (team) team.forEach(n => out.add(n));
+      try { const { data } = await supabase.from('mercado_state').select('player'); (data || []).forEach(r => r.player && out.add(r.player)); } catch {}
+      if (alive) setList([...out].filter(Boolean).sort((a, b) => a.localeCompare(b)));
+    })();
+    return () => { alive = false; };
+  }, []);
+  return list;
+};
+
+// Credita prismas na carteira de OUTRO usuário no Supabase + registra no histórico dele
+const creditPlayer = async (player, cur, amount, descr) => {
+  const { data: row } = await supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
+  const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
+  const data = { ...base, [cur]: (base[cur] || 0) + amount };
+  await supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
+  await supabase.from('mercado_history').insert({ player, kind: 'envio', descr, [cur]: amount });
+};
 
 const RARITY_COLOR = {
   'Comum':    '#7A92A8',
@@ -407,7 +443,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
@@ -683,8 +719,8 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 18px 4px', position: 'relative', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={150} emojiSize={72} radius={14} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 8px 24px ${rc}33)` }} />
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 14px 4px', position: 'relative', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={230} emojiSize={96} radius={16} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
       </div>
 
       <div style={{ padding: '0 20px 20px', position: 'relative' }}>
@@ -974,25 +1010,27 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
 );
 
 // ═══════════════════════════════════════════ CARTEIRA ═══════════════════════
-const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg }) => {
+const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) => {
   const [sendTo, setSendTo] = useState('');
   const [sendQuery, setSendQuery] = useState('');
   const [openList, setOpenList] = useState(false);
   const sendCur = 'comum'; // apenas Prisma Comum pode ser transferido
   const [sendAmt, setSendAmt] = useState('');
   const [exAmt, setExAmt] = useState('');
+  const people = useAllPlayers().filter(p => p !== me); // não enviar pra si mesmo
 
-  const matches = COLABORADORES.filter(c => c.toLowerCase().includes(sendQuery.trim().toLowerCase()));
+  const matches = people.filter(c => c.toLowerCase().includes(sendQuery.trim().toLowerCase()));
 
   const send = () => {
-    if (!sendTo || !COLABORADORES.includes(sendTo)) { flash('Selecione um destinatário da lista'); return; }
+    if (!sendTo || !people.includes(sendTo)) { flash('Selecione um destinatário da lista'); return; }
     const amt = parseInt(sendAmt, 10);
     if (!amt || amt <= 0) { flash('Informe uma quantidade válida'); return; }
     if (state[sendCur] < amt) { flash('Saldo insuficiente'); return; }
     setState(s => ({ ...s, [sendCur]: s[sendCur] - amt }));
     addHistory({ kind: 'envio', desc: `Enviou para ${sendTo}`, [sendCur]: -amt });
+    creditPlayer(sendTo, sendCur, amt, `Recebido de ${me || 'um colega'}`); // credita o destinatário no Supabase
     flash(`Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
-    setSendAmt('');
+    setSendAmt(''); setSendTo(''); setSendQuery('');
   };
 
   const exPremium = Math.floor((parseInt(exAmt, 10) || 0) / EXCHANGE_RATE);
@@ -1566,9 +1604,12 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   const [wallets, setWallets] = useState([]); // [{player, comum, premium}]
   const [busy, setBusy] = useState(true);
   const [to, setTo] = useState('');
+  const [toQuery, setToQuery] = useState('');
+  const [openTo, setOpenTo] = useState(false);
   const [cur, setCur] = useState('premium');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const allPlayers = useAllPlayers();
 
   const load = async () => {
     setBusy(true);
@@ -1582,8 +1623,9 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   };
   useEffect(() => { load(); }, []); // eslint-disable-line
 
-  // Lista de destinatários: carteiras existentes + colaboradores conhecidos
-  const players = [...new Set([...wallets.map(w => w.player), ...COLABORADORES])].sort((a, b) => a.localeCompare(b));
+  // Lista de destinatários: TODOS os colaboradores + carteiras existentes
+  const players = [...new Set([...allPlayers, ...wallets.map(w => w.player)])].sort((a, b) => a.localeCompare(b));
+  const toMatches = players.filter(p => p.toLowerCase().includes(toQuery.trim().toLowerCase()));
 
   const transfer = async () => {
     const amt = parseInt(amount, 10);
@@ -1598,7 +1640,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
       // Se o admin transferiu pra si mesmo, reflete no estado local
       if (to === adminName && ownSetState) ownSetState(s => ({ ...s, [cur]: (s[cur] || 0) + amt }));
       flash(`+${amt} ${cur === 'premium' ? PREMIUM.name : COMUM.name} → ${to}`);
-      setAmount(''); setNote('');
+      setAmount(''); setNote(''); setTo(''); setToQuery('');
       load();
     } catch { flash('Falha ao transferir'); }
   };
@@ -1609,10 +1651,29 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoSend size={16} /></span>Transferir prismas</div>
         <label style={lbl}>Para</label>
-        <select value={to} onChange={e => setTo(e.target.value)} style={{ ...adminField, marginBottom: 12, cursor: 'pointer' }}>
-          <option value="">Selecione o colaborador…</option>
-          {players.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: 13, pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input value={toQuery}
+            onChange={e => { setToQuery(e.target.value); setTo(''); setOpenTo(true); }}
+            onFocus={() => setOpenTo(true)} onBlur={() => setTimeout(() => setOpenTo(false), 150)}
+            placeholder="Pesquisar colaborador..." style={{ ...adminField, paddingLeft: 34 }} />
+          {to && !openTo && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: 12, top: 12 }}><polyline points="20 6 9 17 4 12" /></svg>}
+          {openTo && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 30, background: cardBg, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: T.shL || '0 8px 24px rgba(0,0,0,0.18)', maxHeight: 220, overflowY: 'auto' }}>
+              {toMatches.length === 0 ? <div style={{ padding: '12px 14px', fontSize: 13, color: T.textT }}>Nenhum colaborador encontrado</div>
+                : toMatches.map(p => (
+                  <div key={p} onMouseDown={() => { setTo(p); setToQuery(p); setOpenTo(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', cursor: 'pointer', fontSize: 13.5, color: T.text }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <AvatarCircle name={p} size={24} fontSize={9} />{p}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
         <label style={lbl}>Moeda</label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
