@@ -7539,8 +7539,9 @@ function wgComputeLayout(){
   WG.airNoteY    = CH*0.48;                             // linha do ar (mais baixa, não tão alta)
   WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
   WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
-  WG.beltH       = Math.round(CH*0.05);                 // esteira
-  WG.fireTop     = WG.floorFeet + WG.beltH;             // fogo em pixels abaixo da esteira
+  WG.beltH       = Math.round(CH*0.045);                // esteira
+  // espaço (gap) abaixo da esteira e SÓ depois o fogo (band no fundo, não preenche tudo)
+  WG.fireTop     = WG.floorFeet + WG.beltH + Math.round(CH*0.035);
 }
 
 function wgInit(){
@@ -7739,8 +7740,8 @@ function wgFireBolt(){
 function drawWgBubble(cx,baseY,text,bg,fg){
   if(!text) return;
   ctx.save();
-  ctx.font='800 15px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  const tw=ctx.measureText(text).width, pad=14, w=tw+pad*2, h=30, x=cx-w/2, y=baseY-h-12;
+  ctx.font="10px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const tw=ctx.measureText(text).width, pad=14, w=tw+pad*2, h=32, x=cx-w/2, y=baseY-h-12;
   const rr=(rx,ry,rw,rh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,r);} else {ctx.beginPath();ctx.rect(rx,ry,rw,rh);} };
   ctx.fillStyle=bg; ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=2;
   rr(x,y,w,h,9); ctx.fill(); ctx.stroke();
@@ -7825,8 +7826,11 @@ function drawWgBackground(t){
   const sky=ctx.createLinearGradient(0,0,0,gy);
   sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
-  // Esteira + fogo em pixels
+  // Esteira
   wgDrawBelt(gy, WG.beltH);
+  // Abaixo da esteira: faixa escura (gap) e SÓ no fundo o fogo
+  const belowY=gy+WG.beltH;
+  ctx.fillStyle='#0a0816'; ctx.fillRect(0, belowY, CW, CH-belowY);
   wgDrawFire(WG.fireTop);
 }
 
@@ -8018,7 +8022,7 @@ function drawWargame(t){
   const hg=ctx.createLinearGradient(bhx,0,bhx+bw,0);
   hg.addColorStop(0,'#ff2e6e'); hg.addColorStop(1,'#b000ff');
   ctx.fillStyle=hg; ctx.fillRect(bhx,bhy,bw*hpPct,12);
-  ctx.font='700 11px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+  ctx.font="8px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='bottom';
   ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-4);
 
   // ── Notas / minions (incl. notas de segurar com linha roxa) ──
@@ -8131,7 +8135,7 @@ function drawWargame(t){
     const d=WG.dmgNums[i]; d.y-=1.5; d.life-=0.02;
     if(d.life<=0){ WG.dmgNums.splice(i,1); continue; }
     ctx.globalAlpha=Math.min(1,d.life*2); ctx.fillStyle=d.color;
-    ctx.font='900 20px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font="12px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.shadowColor=d.color; ctx.shadowBlur=glow?10:0;
     ctx.fillText(d.val,d.x,d.y); ctx.shadowBlur=0; ctx.globalAlpha=1;
   }
@@ -8167,13 +8171,13 @@ function drawWargame(t){
     const kx=CW*0.5-ks/2, ky=cy-ks/2;
     if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(kx,ky,ks,ks,12); } else { ctx.beginPath(); ctx.rect(kx,ky,ks,ks); }
     ctx.shadowColor='#ff8800'; ctx.shadowBlur=glow?22:0; ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
-    ctx.fillStyle='#ffd34d'; ctx.font=`900 ${Math.round(ks*0.6)}px Orbitron,monospace`;
+    ctx.fillStyle='#ffd34d'; ctx.font=`${Math.round(ks*0.5)}px 'Press Start 2P',monospace`;
     ctx.fillText('W', CW*0.5, cy+2);
     // texto + contador
     ctx.globalAlpha=1;
-    ctx.fillStyle='#fff'; ctx.font='900 20px Orbitron,monospace';
+    ctx.fillStyle='#fff'; ctx.font="11px 'Press Start 2P',monospace";
     ctx.fillText('APERTE W PRA CHUTAR!', CW*0.5, cy+ks*0.85);
-    ctx.fillStyle='#ffd34d'; ctx.font='900 26px Orbitron,monospace';
+    ctx.fillStyle='#ffd34d'; ctx.font="16px 'Press Start 2P',monospace";
     ctx.fillText(WG.finisherKicks+' / '+WG.finisherNeed, CW*0.5, cy+ks*0.85+30);
     ctx.restore();
   }
@@ -8181,17 +8185,17 @@ function drawWargame(t){
   // ── Pontuação (canto superior esquerdo) ──
   ctx.save(); ctx.textAlign='left'; ctx.textBaseline='top';
   ctx.shadowColor='rgba(0,240,255,.6)'; ctx.shadowBlur=glow?10:0;
-  ctx.fillStyle='#fff'; ctx.font='900 34px Orbitron,monospace';
-  ctx.fillText(String(score.v||0).padStart(6,'0'), 22, 16);
-  ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font='800 12px Orbitron,monospace'; ctx.fillText('SCORE', 24, 54);
+  ctx.fillStyle='#fff'; ctx.font="22px 'Press Start 2P',monospace";
+  ctx.fillText(String(score.v||0).padStart(6,'0'), 22, 18);
+  ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font="8px 'Press Start 2P',monospace"; ctx.fillText('SCORE', 24, 50);
   ctx.restore();
 
   // ── Judgment GRANDE acima da Mizuki (PERFECT / GOOD / MISS) ──
   if(WG.judge && WG.judge.t<0.62){
     const j=WG.judge, p=j.t/0.62, pop=1.35-0.35*Math.min(1,p/0.35), a=p>0.72?1-(p-0.72)/0.28:1;
-    const jx=drawX, jy=feet-chH-28 - p*16;
+    const jx=drawX, jy=feet-chH-104 - p*16; // acima do balão de fala da Mizuki
     ctx.save(); ctx.globalAlpha=Math.max(0,a); ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=`900 ${Math.round(Math.min(58,CW*0.062)*pop)}px Orbitron,monospace`;
+    ctx.font=`${Math.round(Math.min(34,CW*0.04)*pop)}px 'Press Start 2P',monospace`;
     ctx.lineWidth=6; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.strokeText(j.text,jx,jy);
     ctx.fillStyle=j.color; ctx.shadowColor=j.color; ctx.shadowBlur=glow?22:0; ctx.fillText(j.text,jx,jy);
     ctx.restore();
@@ -8204,10 +8208,10 @@ function drawWargame(t){
     ctx.save();
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle=`hsl(${hue},100%,62%)`; ctx.shadowColor=`hsl(${hue},100%,60%)`; ctx.shadowBlur=glow?26:0;
-    const cs=Math.min(96, CW*0.10);
-    ctx.font=`900 ${cs}px Orbitron,monospace`; ctx.fillText(combo, CW*0.5, CH*0.20);
-    ctx.font=`900 ${Math.round(cs*0.28)}px Orbitron,monospace`; ctx.fillStyle='#fff'; ctx.shadowBlur=0;
-    ctx.fillText('COMBO', CW*0.5, CH*0.20+cs*0.55);
+    const cs=Math.min(52, CW*0.058);
+    ctx.font=`${cs}px 'Press Start 2P',monospace`; ctx.fillText(combo, CW*0.5, CH*0.20);
+    ctx.font=`${Math.round(cs*0.34)}px 'Press Start 2P',monospace`; ctx.fillStyle='#fff'; ctx.shadowBlur=0;
+    ctx.fillText('COMBO', CW*0.5, CH*0.20+cs*0.62);
     ctx.restore();
   }
 
@@ -8243,10 +8247,10 @@ function drawWgBottomBar(combo){
   const cgr=ctx.createLinearGradient(cx0,0,cx0+comboW,0); cgr.addColorStop(0,'#28e0ff'); cgr.addColorStop(1,'#7af0ff');
   ctx.fillStyle=cgr; rr(cx0,y0,comboW*(combo>0?Math.max(0.04,cg):0),h,7); ctx.fill();
   // textos
-  ctx.font='900 12px Orbitron,monospace'; ctx.textBaseline='middle';
+  ctx.font="8px 'Press Start 2P',monospace"; ctx.textBaseline='middle';
   ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText(Math.round(health)+'%', x0+lifeW*0.5, y0+h*0.5);
   ctx.fillStyle='#062536'; ctx.fillText('x'+combo, cx0+comboW*0.5, y0+h*0.5);
-  ctx.fillStyle='#28e0ff'; ctx.textAlign='left'; ctx.font='900 12px Orbitron,monospace';
+  ctx.fillStyle='#28e0ff'; ctx.textAlign='left'; ctx.font="8px 'Press Start 2P',monospace";
   ctx.fillText('COMBO', cx0+comboW+8, y0+h*0.5);
   ctx.restore();
 }
@@ -8486,7 +8490,7 @@ function drawJudgments(t){
     const j=judgments[i]; j.y+=j.vy;j.life-=j.decay;j.sc*=0.97;
     if(j.life<=0){judgments.splice(i,1);continue;}
     ctx.globalAlpha=Math.min(1,j.life*2); ctx.fillStyle=j.color; ctx.shadowColor=j.color;ctx.shadowBlur=GFX.glow?12:0;
-    ctx.font=`900 ${Math.floor(16*j.sc)}px Orbitron,monospace`; ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font=`${Math.floor(11*j.sc)}px 'Press Start 2P',monospace`; ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(j.text,j.x,j.y); ctx.shadowBlur=0;ctx.globalAlpha=1;
   }
 }
