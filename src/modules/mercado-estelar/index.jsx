@@ -127,8 +127,8 @@ const RARITY_COLOR = {
 const RARITY_RANK = { 'Comum': 0, 'Raro': 1, 'Épico': 2, 'Lendário': 3 };
 
 const DEFAULT_STATE = {
-  comum: 1480,
-  premium: 320,
+  comum: 0,
+  premium: 0,
   checkins: [],
   collection: [],
   // Controle do teto mensal do check-in (reinicia a cada mês)
@@ -540,9 +540,15 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
     .filter(i => !query.trim() || (i.name + ' ' + i.desc).toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity]) || (b.price - a.price));
 
-  // Maior prêmio em destaque + o resto na grade
+  // Maior prêmio em destaque (fixo em todas as páginas) + o resto paginado (6/pág)
   const featured = filtered[0] || null;
   const rest = filtered.slice(1);
+  const PAGE = 6;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rest.length / PAGE));
+  const pageSafe = page % pageCount;
+  const pagedRest = rest.slice(pageSafe * PAGE, pageSafe * PAGE + PAGE);
+  useEffect(() => { setPage(0); }, [query, filter]);
 
   const FILTERS = [
     { id: 'all',     label: 'Todos',   icon: null },
@@ -593,11 +599,21 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
           {/* DESTAQUE — maior prêmio */}
           {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
-          {/* Grade dos demais */}
+          {/* Grade dos demais (6 por página) + botão de próxima página */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(200px,1fr))', gap: 14, alignContent: 'start' }}>
-            {rest.map(item => (
+            {pagedRest.map(item => (
               <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />
             ))}
+            {rest.length > PAGE && (
+              <button onClick={() => setPage(p => (p + 1) % pageCount)} title="Ver outros prêmios"
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+                style={{ ...rainbowBorder(16), cursor: 'pointer', minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '20px 16px', fontFamily: 'var(--font-body)', textAlign: 'center', transition: 'transform .18s ease' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '.02em', lineHeight: 1.4, ...prismText('premium') }}>CLIQUE PARA VER OUTROS PRÊMIOS</span>
+                <span style={{ fontSize: 52, lineHeight: 1, fontWeight: 900, ...prismText('premium') }}>➜</span>
+                <span style={{ fontSize: 11, color: T.textT, fontWeight: 600 }}>Página {pageSafe + 1} de {pageCount}</span>
+              </button>
+            )}
           </div>
         </div>
       )}
