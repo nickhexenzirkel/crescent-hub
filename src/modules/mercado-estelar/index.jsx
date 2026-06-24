@@ -224,7 +224,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       const ex = (s.collection || []).find(c => c.id === item.id);
       const collection = ex
         ? s.collection.map(c => c.id === item.id ? { ...c, qty: c.qty + 1, date: todayStr() } : c)
-        : [{ id: item.id, name: item.name, emoji: item.emoji, rarity: item.rarity, cur: item.cur, qty: 1, date: todayStr() }, ...(s.collection || [])];
+        : [{ id: item.id, name: item.name, emoji: item.emoji, images: prizeImages(item), rarity: item.rarity, cur: item.cur, qty: 1, date: todayStr() }, ...(s.collection || [])];
       return {
         ...s,
         [item.cur]: s[item.cur] - item.price,
@@ -400,6 +400,39 @@ const MonthCountdown = () => {
 };
 const Sep = () => <span style={{ fontSize: 16, fontWeight: 800, color: T.textD, alignSelf: 'flex-start', marginTop: -1 }}>:</span>;
 
+// ── Imagens dos prêmios: 1ª é a CAPA; demais são adicionais (galeria) ──
+const prizeImages = (item) => Array.isArray(item?.images) ? item.images.filter(Boolean) : [];
+
+// Mídia do prêmio: mostra a foto (idx) com object-fit cover; se não houver, cai no emoji
+const PrizeMedia = ({ item, idx = 0, h = 120, emojiSize = 44, radius = 12, sold = false, style }) => {
+  const imgs = prizeImages(item);
+  const src = imgs[idx] != null ? imgs[idx] : imgs[0];
+  return (
+    <div style={{ width: '100%', height: h, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: radius, overflow: 'hidden', ...style }}>
+      {src
+        ? <img src={src} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: sold ? 'grayscale(1)' : 'none' }} />
+        : <span style={{ fontSize: emojiSize, lineHeight: 1, filter: sold ? 'grayscale(1)' : 'none' }}>{item.emoji}</span>}
+    </div>
+  );
+};
+
+// Reduz uma imagem escolhida do PC para dataURL leve (cabe no localStorage do protótipo)
+const fileToDataUrl = (file, maxDim = 760) => new Promise((res, rej) => {
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const sc = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = rej; img.src = fr.result;
+  };
+  fr.onerror = rej; fr.readAsDataURL(file);
+});
+
 // ═══════════════════════════════════════════════ LOJA ═══════════════════════
 const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
   const [query, setQuery] = useState('');
@@ -487,6 +520,15 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
   const sold = item.stock <= 0;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
+  const imgs = prizeImages(item);
+  const [imgIdx, setImgIdx] = useState(0);
+  const total = Math.max(1, imgs.length);
+  const go = (d) => setImgIdx(i => (i + d + total) % total);
+  const arrowBtn = (side) => ({
+    position: 'absolute', top: '50%', [side]: 10, transform: 'translateY(-50%)', zIndex: 4,
+    width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer',
+    background: 'rgba(0,0,0,0.35)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -511,9 +553,26 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
           {item.rarity}
         </div>
 
-        {/* Foto expandida */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
-          <div style={{ fontSize: 150, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
+        {/* Foto expandida + galeria (setas pra trocar de imagem) */}
+        <div style={{ padding: '48px 18px 14px', position: 'relative' }}>
+          {imgs.length > 0
+            ? <PrizeMedia item={item} idx={imgIdx} h={260} radius={16} sold={sold} style={{ boxShadow: sold ? 'none' : `0 14px 40px ${rc}55` }} />
+            : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ fontSize: 150, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</span></div>}
+          {imgs.length > 1 && (
+            <>
+              <button onClick={() => go(-1)} aria-label="Anterior" style={arrowBtn('left')}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <button onClick={() => go(1)} aria-label="Próxima" style={arrowBtn('right')}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+                {imgs.map((_, i) => (
+                  <span key={i} onClick={() => setImgIdx(i)} style={{ width: i === imgIdx ? 18 : 8, height: 8, borderRadius: 999, background: i === imgIdx ? rc : T.border, cursor: 'pointer', transition: 'all .15s' }} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ padding: '0 28px 28px', position: 'relative' }}>
@@ -550,10 +609,13 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
   const sold = item.stock <= 0;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
-    <div style={{
+    <div
+      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.025)'; e.currentTarget.style.boxShadow = `0 18px 48px ${rc}3a`; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = `0 10px 36px ${rc}22`; }}
+      style={{
       background: cardBg, border: `1.5px solid ${rc}55`, borderRadius: 20, overflow: 'hidden',
       position: 'relative', opacity: sold ? 0.65 : 1, display: 'flex', flexDirection: 'column',
-      boxShadow: `0 10px 36px ${rc}22`, minHeight: 300,
+      boxShadow: `0 10px 36px ${rc}22`, minHeight: 300, transition: 'transform .2s ease, box-shadow .2s ease',
     }}>
       {/* Brilho temático no topo */}
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${rc}26, transparent 60%)`, pointerEvents: 'none' }} />
@@ -562,10 +624,8 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '34px 20px 8px', position: 'relative', cursor: 'zoom-in' }}>
-        <div style={{ fontSize: 72, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 8px 24px ${rc}55)`, transition: 'transform .18s' }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.07)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>{item.emoji}</div>
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 18px 4px', position: 'relative', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={150} emojiSize={72} radius={14} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 8px 24px ${rc}33)` }} />
       </div>
 
       <div style={{ padding: '0 20px 20px', position: 'relative' }}>
@@ -603,9 +663,14 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
   const sold = item.stock <= 0;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
-    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh }}>
+    <div
+      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = `0 14px 32px ${rc}33`; e.currentTarget.style.zIndex = 2; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = T.sh; e.currentTarget.style.zIndex = 1; }}
+      style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh, transition: 'transform .18s ease, box-shadow .18s ease' }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ fontSize: 44, textAlign: 'center', padding: '16px 0 6px', filter: sold ? 'grayscale(1)' : 'none', cursor: 'zoom-in' }}>{item.emoji}</div>
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ padding: '12px 12px 6px', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={110} emojiSize={44} radius={11} sold={sold} />
+      </div>
       <div style={{ padding: '0 15px 15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 5 }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
@@ -649,7 +714,7 @@ const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
   const owned = new Set(collection.map(c => c.id));
   const ownedList = collection.map(c => ({ ...c, locked: false }));
   const lockedList = items.filter(i => !owned.has(i.id))
-    .map(i => ({ id: i.id, name: i.name, emoji: i.emoji, rarity: i.rarity, cur: i.cur, price: i.price, locked: true }));
+    .map(i => ({ id: i.id, name: i.name, emoji: i.emoji, images: prizeImages(i), rarity: i.rarity, cur: i.cur, price: i.price, locked: true }));
   const all = [...ownedList, ...lockedList];
   const viewItem = viewId ? all.find(c => c.id === viewId) : null;
 
@@ -717,7 +782,9 @@ const Colecao = ({ collection, items = [], isMobile, cardBg }) => {
                     {locked && (
                       <span style={{ position: 'absolute', top: 11, right: 11, zIndex: 2, background: T.textD, color: cardBg, padding: '4px', borderRadius: 8, display: 'inline-flex' }}><IcoLock size={13} /></span>
                     )}
-                    <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ fontSize: 60, textAlign: 'center', padding: '24px 0 8px', filter: locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 6px 16px ${rc}44)`, cursor: 'zoom-in' }}>{c.emoji}</div>
+                    <div onClick={() => setViewId(c.id)} title="Ampliar" style={{ padding: '18px 14px 6px', cursor: 'zoom-in', filter: locked ? 'grayscale(1) brightness(0.85)' : 'none' }}>
+                      <PrizeMedia item={c} h={96} emojiSize={60} radius={11} />
+                    </div>
                     <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                       <span style={{ fontSize: 10.5, fontWeight: 700, color: locked ? T.textT : rc, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{c.rarity}</span>
                       <div style={{ fontSize: 15.5, fontWeight: 700, color: T.text, marginBottom: 7, lineHeight: 1.2 }}>{c.name}</div>
@@ -765,9 +832,11 @@ const CollectionLightbox = ({ item, onClose, cardBg }) => {
         <button onClick={onClose} aria-label="Fechar" style={{ position: 'absolute', top: 12, right: 12, zIndex: 3, width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.25)', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 5, background: rc, color: '#fff', fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 999, letterSpacing: '.04em', textTransform: 'uppercase' }}>{item.rarity}</div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px 20px', position: 'relative' }}>
-          <div style={{ fontSize: 150, lineHeight: 1, filter: item.locked ? 'grayscale(1) brightness(0.85)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</div>
-          {item.locked && <div style={{ position: 'absolute', color: '#fff', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' }}><IcoLock size={56} /></div>}
+        <div style={{ padding: '48px 18px 14px', position: 'relative', filter: item.locked ? 'grayscale(1) brightness(0.85)' : 'none' }}>
+          {prizeImages(item).length > 0
+            ? <PrizeMedia item={item} h={240} radius={16} style={{ boxShadow: `0 14px 40px ${rc}55` }} />
+            : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ fontSize: 150, lineHeight: 1, filter: `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</span></div>}
+          {item.locked && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' }}><IcoLock size={56} /></div>}
         </div>
         <div style={{ padding: '0 28px 28px', position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1174,10 +1243,49 @@ const Historico = ({ history, isMobile, cardBg }) => {
   );
 };
 
+// Gerenciador de imagens do prêmio: 1ª é a CAPA; demais são adicionais (galeria).
+// Permite anexar por URL ou enviar do PC, remover, e definir qual é a capa.
+const ImageManager = ({ images = [], onChange, cardBg }) => {
+  const [url, setUrl] = useState('');
+  const fieldStyle = { flex: 1, padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box', minWidth: 0 };
+  const addUrl = () => { const u = url.trim(); if (/^https?:\/\//i.test(u) || u.startsWith('data:')) { onChange([...(images || []), u]); setUrl(''); } };
+  const onFile = async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const d = await fileToDataUrl(f, 760); onChange([...(images || []), d]); } catch {} e.target.value = ''; };
+  const remove = (i) => onChange(images.filter((_, k) => k !== i));
+  const makeCover = (i) => { const arr = [...images]; const [x] = arr.splice(i, 1); arr.unshift(x); onChange(arr); };
+  return (
+    <div>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {images.map((src, i) => (
+            <div key={i} style={{ position: 'relative', width: 64, height: 64, borderRadius: 10, overflow: 'hidden', border: `2px solid ${i === 0 ? T.gold : T.border}` }}>
+              <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: T.gold, color: '#fff', fontSize: 8.5, fontWeight: 800, textAlign: 'center', letterSpacing: '.04em' }}>CAPA</span>}
+              {i !== 0 && <button onClick={() => makeCover(i)} title="Definir como capa" style={{ position: 'absolute', bottom: 2, left: 2, width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.55)', color: '#ffd34d', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>★</button>}
+              <button onClick={() => remove(i)} title="Remover" style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } }} placeholder="Cole a URL de uma imagem..." style={fieldStyle} />
+        <button onClick={addUrl} style={{ padding: '9px 14px', borderRadius: 9, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}bb)`, color: '#fff', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>Anexar</button>
+      </div>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, fontWeight: 600, color: T.textS, cursor: 'pointer' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, border: `1.5px dashed ${T.border}` }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+          Enviar do computador
+        </span>
+        <input type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
+      </label>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
 const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
-  const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '' };
+  const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '', images: [] };
   const [form, setForm] = useState(blank);
+  const [editImgId, setEditImgId] = useState(null); // item com editor de imagens aberto
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
@@ -1188,7 +1296,7 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
     if (!form.name.trim()) { flash('Informe o nome do prêmio'); return; }
     if (!price || price <= 0) { flash('Informe um preço válido'); return; }
     if (isNaN(stock) || stock < 0) { flash('Informe a quantidade disponível'); return; }
-    const item = { id: 'i' + Date.now(), name: form.name.trim(), desc: form.desc.trim(), emoji: form.emoji || '🎁', rarity: form.rarity, cur: form.cur, price, stock };
+    const item = { id: 'i' + Date.now(), name: form.name.trim(), desc: form.desc.trim(), emoji: form.emoji || '🎁', rarity: form.rarity, cur: form.cur, price, stock, images: form.images || [] };
     setState(s => ({ ...s, items: [...s.items, item] }));
     setForm(blank);
     flash(`Prêmio "${item.name}" adicionado`);
@@ -1223,6 +1331,11 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
                 {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
+          </div>
+
+          <label style={lbl}>Fotos do prêmio <span style={{ textTransform: 'none', fontWeight: 500, color: T.textT }}>(1ª = capa)</span></label>
+          <div style={{ marginBottom: 12 }}>
+            <ImageManager images={form.images} onChange={imgs => set('images', imgs)} cardBg={cardBg} />
           </div>
 
           <label style={lbl}>Pago com</label>
@@ -1260,22 +1373,39 @@ const Admin = ({ items, setState, flash, isMobile, cardBg }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map(i => {
                 const rc = RARITY_COLOR[i.rarity] || T.textT;
+                const nImgs = prizeImages(i).length;
+                const open = editImgId === i.id;
                 return (
-                  <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 11, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)' }}>
-                    <div style={{ fontSize: 26 }}>{i.emoji}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
+                  <div key={i.id} style={{ borderRadius: 11, border: `1px solid ${open ? T.goldLine + '88' : T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px' }}>
+                      <div style={{ width: 46, height: 46, flexShrink: 0, borderRadius: 9, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: cardBg, border: `1px solid ${T.border}` }}>
+                        <PrizeMedia item={i} h={46} emojiSize={24} radius={0} />
                       </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
+                          <span style={{ fontSize: 10.5, color: T.textT }}>· {nImgs} foto{nImgs === 1 ? '' : 's'}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setEditImgId(open ? null : i.id)} title="Editar fotos" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                        Fotos
+                      </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: 9, color: T.textD, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Disponíveis</span>
+                        <input type="number" min="0" value={i.stock} onChange={e => patchItem(i.id, { stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                          style={{ width: 56, padding: '6px 8px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none' }} />
+                      </div>
+                      <button onClick={() => removeItem(i.id)} title="Remover" style={{ display: 'inline-flex', padding: 8, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C04050', cursor: 'pointer' }}><IcoTrash size={15} /></button>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, color: T.textD, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 2 }}>Disponíveis</span>
-                      <input type="number" min="0" value={i.stock} onChange={e => patchItem(i.id, { stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                        style={{ width: 60, padding: '6px 8px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none' }} />
-                    </div>
-                    <button onClick={() => removeItem(i.id)} title="Remover" style={{ display: 'inline-flex', padding: 8, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C04050', cursor: 'pointer' }}><IcoTrash size={15} /></button>
+                    {open && (
+                      <div style={{ padding: '4px 12px 14px', borderTop: `1px dashed ${T.border}` }}>
+                        <div style={{ fontSize: 11, color: T.textT, margin: '10px 0 8px' }}>A 1ª imagem é a capa exibida na loja. As demais aparecem na galeria (setas) ao abrir o prêmio.</div>
+                        <ImageManager images={prizeImages(i)} onChange={imgs => patchItem(i.id, { images: imgs })} cardBg={cardBg} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
