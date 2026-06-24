@@ -2427,9 +2427,13 @@ WG_SPR.run.src  = 'images/PersonagemLinnea.png'; // Mizuki (base/correndo)
 WG_SPR.jump.src = 'images/MizukiPulo.png';
 WG_SPR.atk.src  = 'images/MizukiAtaque.png';
 
+// Minion (substitui as notas no Guerra Estelar)
+const WG_MINION = new Image();
+WG_MINION.src = 'images/DarkCatBotMinions.png';
+
 // ─── BOSS personalizável do Guerra Estelar ───
 const WG_BOSSES = [
-  { id:'darkcat', name:'Dark CatBot', img:'images/DarkCatBot.png' },
+  { id:'darkcat', name:'Dark CatBot', img:'images/DarkCatBotBoss.png' },
   { id:'estelar', name:'Estelar',     img:null }, // desenhado no canvas
 ];
 let wgBossId        = localStorage.getItem('dw_wgboss')     || 'darkcat';
@@ -4720,6 +4724,8 @@ function beginGame(){
   
   // Guerra Estelar: usa o vídeo de fundo (se houver), oculta o mascote Dodoco e inicia o estado.
   const _dpnl=document.getElementById('dodocoPanel'); if(_dpnl) _dpnl.style.display = gameMode==='wargame'?'none':'';
+  // No wargame a vida aparece na barra inferior (canvas) → oculta a barra de vida do HUD clássico
+  const _lb=document.getElementById('lifeBar'); if(_lb) _lb.style.display = gameMode==='wargame'?'none':'';
   if(gameMode==='wargame' && lastVideoUrl && bgMode!=='video') bgMode='video';
   buildKeyLegend();
 
@@ -7442,32 +7448,35 @@ function drawGame(t){
 // ─── MODO GUERRA ESTELAR (estilo Muse Dash) ───
 // ═══════════════════════════════════════════════
 const WG = {
-  active:false, charX:0, hitX:0, charH:150,
+  active:false, charX:0, hitX:0, charH:150, noteR:60,
   floorFeet:0, airFeet:0, feetY:0, groundNoteY:0, airNoteY:0,
-  airTimer:0, atkTimer:0, runPhase:0,
+  airTimer:0, airAnimT:0, atkTimer:0, runPhase:0,
+  holds:{air:null, ground:null}, touchKind:null,
   bossHp:0, bossMaxHp:0, bossDefeated:false, bossHitFx:0, bossShake:0,
   dmgNums:[], prevT:0,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
-const WG_AIR_HOLD = 0.34; // tempo que a Mizuki fica na linha do ar após apertar W
-const C_GROUND = '#ff2e9a', C_AIR = '#28e0ff';
+const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
+const C_GROUND = '#ff2e9a', C_AIR = '#28e0ff', C_HOLD = '#b020ff';
 
 function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (W) / 0-1 = chão (S)
 
 function wgComputeLayout(){
-  WG.charX       = CW*0.16;
-  WG.charH       = Math.max(120, Math.min(210, CH*0.26));
-  WG.hitX        = WG.charX + WG.charH*0.34;          // ponto de acerto (à frente da Mizuki)
-  WG.floorFeet   = CH*0.84;                            // pés no chão
-  WG.airNoteY    = CH*0.40;                            // linha flutuante (pauta)
-  WG.airFeet     = WG.airNoteY + WG.charH*0.50;        // pés quando sobe (centro ~ linha do ar)
-  WG.groundNoteY = WG.floorFeet - WG.charH*0.42;       // notas do chão na altura do tronco
+  WG.charX       = CW*0.15;
+  WG.charH       = Math.max(140, Math.min(240, CH*0.30));
+  WG.noteR       = WG.charH*0.40;                      // raio do minion (maior)
+  WG.hitX        = WG.charX + WG.charH*0.16;            // ponto de contato (pé da Mizuki)
+  WG.floorFeet   = CH*0.82;                             // pés no chão
+  WG.airNoteY    = CH*0.38;                             // linha flutuante (pauta)
+  WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
+  WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
 }
 
 function wgInit(){
   WG.active=true;
   wgComputeLayout();
-  WG.feetY=WG.floorFeet; WG.airTimer=0; WG.atkTimer=0; WG.runPhase=0;
+  WG.feetY=WG.floorFeet; WG.airTimer=0; WG.airAnimT=99; WG.atkTimer=0; WG.runPhase=0;
+  WG.holds.air=null; WG.holds.ground=null; WG.touchKind=null;
   WG.bossDefeated=false; WG.bossHitFx=0; WG.bossShake=0; WG.dmgNums.length=0;
   WG.prevT=performance.now()*0.001;
   loadWgBossImg();
@@ -7477,18 +7486,17 @@ function wgInit(){
   WG.bossHp = WG.bossMaxHp;
 }
 
-// Posição X de um inimigo (entra pela direita, chega no ponto de acerto no hitTime)
-function wgEnemyX(note, st){
-  const rightEdge = CW*1.04;
-  const p = (note.hitTime - st)/WG_TRAVEL; // 1 = acabou de entrar, 0 = no ponto de acerto
-  return WG.hitX + p*(rightEdge - WG.hitX);
+// X de uma nota num dado tempo (entra pela direita, chega no pé da Mizuki no hitTime)
+function wgTimeX(time, st){
+  const p=(time-st)/WG_TRAVEL; return WG.hitX + p*(CW*1.06 - WG.hitX);
 }
 
-// Ação do jogador: 'air' (W → sobe pra linha flutuante) ou 'ground' (S → bate no chão)
+// Ação (keydown): 'air' (W → sobe pra linha) ou 'ground' (S → bate no chão)
 function wgAction(kind){
   if(gameState!=='playing') return;
-  if(kind==='air')    WG.airTimer=WG_AIR_HOLD;
-  if(kind==='ground') WG.atkTimer=0.22;
+  if(WG.holds[kind]) return; // já segurando
+  if(kind==='air'){ WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; }
+  else            { WG.atkTimer=0.24; }
   const st=songTime();
   let best=null,bestD=9999;
   for(const n of chart){
@@ -7499,18 +7507,47 @@ function wgAction(kind){
     if(d<bestD){bestD=d;best=n;}
   }
   const laneY = kind==='air' ? WG.airNoteY : WG.groundNoteY;
+  const c = kind==='air'?C_AIR:C_GROUND;
   if(best && bestD<=WIN_GOOD+0.025){
     const perf=bestD<=WIN_PERFECT;
-    best.state=perf?'perfect':'good';
-    commitHit(best,perf); // dano no boss vem do hook em commitHit
-    const ex=WG.hitX, c=kind==='air'?C_AIR:C_GROUND;
-    spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?22:13);
-    rings.push({x:ex,y:laneY,r:4,maxR:perf?110:80,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:4});
-    rings.push({x:ex,y:laneY,r:2,maxR:50,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
-    addJudge(ex,laneY-40,perf?'PERFECT':'GOOD',perf?'#ffd34d':c);
+    if(best.holdDur>0){
+      // nota de segurar: começa a segurar (resolve no final / ao soltar)
+      best.state='holding';
+      WG.holds[kind]={note:best, start:st};
+      spawnBurst(WG.hitX,laneY,C_HOLD,12);
+      addJudge(WG.hitX,laneY-44,'SEGURA!',C_HOLD);
+    } else {
+      best.state=perf?'perfect':'good';
+      commitHit(best,perf); // dano no boss via hook em commitHit
+      wgHitFx(WG.hitX,laneY,perf,c);
+    }
   } else {
-    rings.push({x:WG.hitX,y:laneY,r:4,maxR:42,life:.28,decay:.13,color:'#ffffff',w:3,flash:true});
+    rings.push({x:WG.hitX,y:laneY,r:4,maxR:46,life:.28,decay:.13,color:'#ffffff',w:3,flash:true});
   }
+}
+
+// Soltar (keyup) — finaliza nota de segurar
+function wgRelease(kind){
+  const h=WG.holds[kind]; if(!h) return;
+  WG.holds[kind]=null;
+  const st=songTime(), laneY=kind==='air'?WG.airNoteY:WG.groundNoteY;
+  const completion=Math.min(1,(st-h.start)/Math.max(0.001,h.note.holdDur));
+  if(completion>=0.55){
+    h.note.state='perfect'; commitHit(h.note,true);
+    wgHitFx(WG.hitX,laneY,true,kind==='air'?C_AIR:C_GROUND);
+    addJudge(WG.hitX,laneY-44,'HOLD ★','#ffd34d');
+  } else {
+    h.note.state='miss'; scoreMiss();
+    addJudge(WG.hitX,laneY-44,'MISS','#ff4444');
+  }
+}
+
+// Efeito de impacto no pé da Mizuki
+function wgHitFx(ex,laneY,perf,c){
+  spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
+  rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:5});
+  rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
+  addJudge(ex,laneY-44,perf?'PERFECT':'GOOD',perf?'#ffd34d':c);
 }
 
 // Aplica dano ao boss (chamado de commitHit quando em wargame)
@@ -7531,22 +7568,21 @@ function drawWgBackground(t){
   // Vídeo aparece atrás (canvas transparente). Desenhamos o palco estilo Muse Dash:
   // céu escurecido, linha flutuante (pauta) e piso quadriculado neon.
   if(WG.floorFeet===0) wgComputeLayout();
-  const gy=WG.floorFeet, ay=WG.airNoteY||CH*0.40;
+  const gy=WG.floorFeet, ay=WG.airNoteY||CH*0.38;
   const glow=(typeof GFX!=='undefined'&&GFX.glow);
 
-  // Escurece o topo pra leitura dos inimigos
   const sky=ctx.createLinearGradient(0,0,0,gy);
   sky.addColorStop(0,'rgba(10,2,24,0.62)');
   sky.addColorStop(1,'rgba(10,2,24,0.16)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
 
-  // ── Linha flutuante (pauta neon) onde a Mizuki sobe com W ──
+  // Linha flutuante (pauta neon) onde a Mizuki sobe com W
   ctx.strokeStyle='rgba(40,224,255,.35)'; ctx.lineWidth=2;
   ctx.shadowColor='rgba(40,224,255,.6)'; ctx.shadowBlur=glow?12:0;
-  for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(0,ay+i*8); ctx.lineTo(CW,ay+i*8); ctx.stroke(); }
+  for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(0,ay+i*9); ctx.lineTo(CW,ay+i*9); ctx.stroke(); }
   ctx.shadowBlur=0;
 
-  // ── Piso quadriculado (xadrez) rolando ──
+  // Piso quadriculado rolando
   const fl=ctx.createLinearGradient(0,gy,0,CH);
   fl.addColorStop(0,'rgba(36,10,54,0.94)');
   fl.addColorStop(1,'rgba(10,3,22,0.99)');
@@ -7561,39 +7597,28 @@ function drawWgBackground(t){
     }
   }
   ctx.restore();
-  // Borda superior do piso brilhando
   ctx.strokeStyle='rgba(255,46,154,.85)'; ctx.lineWidth=3;
   ctx.shadowColor='rgba(255,46,154,.7)'; ctx.shadowBlur=glow?16:0;
   ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke(); ctx.shadowBlur=0;
 }
 
-// Desenha um inimigo/nota grande e destacado
-function drawWgNote(ex,ey,air,glow){
-  const r = air ? 32 : 36;
-  const c = air ? C_AIR : C_GROUND;
+// Desenha um minion (imagem) grande, com brilho da cor da linha e seta indicando a tecla
+function drawWgMinion(x,y,air,scale,glow){
+  const size=WG.noteR*2*(scale||1), c=air?C_AIR:C_GROUND;
   ctx.save();
-  ctx.translate(ex,ey);
-  if(air){
-    // losango ciano (sobe — W)
-    const s=r*0.74;
-    ctx.rotate(Math.PI/4);
-    ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=glow?22:0;
-    ctx.fillRect(-s,-s,s*2,s*2);
-    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
-    ctx.strokeRect(-s,-s,s*2,s*2);
-    ctx.rotate(-Math.PI/4);
+  if(glow){ ctx.shadowColor=c; ctx.shadowBlur=22; }
+  if(WG_MINION.complete && WG_MINION.naturalWidth){
+    const ratio=WG_MINION.naturalWidth/WG_MINION.naturalHeight, w=size*ratio, h=size;
+    ctx.drawImage(WG_MINION, x-w/2, y-h/2, w, h);
   } else {
-    // esfera magenta (chão — S)
-    ctx.fillStyle=c; ctx.shadowColor=c; ctx.shadowBlur=glow?22:0;
-    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
-    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,size/2,0,Math.PI*2); ctx.fill();
   }
-  // ícone central (seta) indicando a tecla
-  ctx.fillStyle='#ffffff';
+  ctx.shadowBlur=0;
+  // seta (▲ W / ▼ S) acima do minion
+  ctx.fillStyle=c; const ay=y-size/2-6;
   ctx.beginPath();
-  if(air){ ctx.moveTo(0,-10); ctx.lineTo(9,5); ctx.lineTo(-9,5); }   // ▲ (W)
-  else   { ctx.moveTo(0,10);  ctx.lineTo(9,-5); ctx.lineTo(-9,-5); } // ▼ (S)
+  if(air){ ctx.moveTo(x,ay-10); ctx.lineTo(x+9,ay+3); ctx.lineTo(x-9,ay+3); }
+  else   { ctx.moveTo(x,ay+13); ctx.lineTo(x+9,ay);   ctx.lineTo(x-9,ay);   }
   ctx.closePath(); ctx.fill();
   ctx.restore();
 }
@@ -7603,33 +7628,43 @@ function drawWargame(t){
   let dt=now-WG.prevT; WG.prevT=now; dt=Math.max(0,Math.min(0.05,dt));
   const st=songTime();
 
-  // ── Estado da Mizuki: sobe pra linha do ar enquanto airTimer>0 ──
+  // ── Notas de segurar: completa sozinha ao chegar no fim ──
+  for(const kind of ['air','ground']){
+    const h=WG.holds[kind]; if(!h) continue;
+    if(st >= h.note.hitTime + h.note.holdDur){
+      h.note.state='perfect'; commitHit(h.note,true);
+      const ly=kind==='air'?WG.airNoteY:WG.groundNoteY;
+      wgHitFx(WG.hitX,ly,true,kind==='air'?C_AIR:C_GROUND);
+      WG.holds[kind]=null;
+    }
+  }
+  const holdingAir = !!WG.holds.air, holdingGround = !!WG.holds.ground;
+
+  // ── Estado/animação da Mizuki ──
   if(WG.airTimer>0) WG.airTimer-=dt;
   if(WG.atkTimer>0) WG.atkTimer-=dt;
-  const targetFeet = WG.airTimer>0 ? WG.airFeet : WG.floorFeet;
-  WG.feetY += (targetFeet-WG.feetY)*Math.min(1,dt*20);
+  WG.airAnimT+=dt;
+  const airActive = WG.airTimer>0 || holdingAir;
+  const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
+  WG.feetY += (targetFeet-WG.feetY)*Math.min(1,dt*22);
   const onAir = Math.abs(WG.feetY-WG.airFeet) < Math.abs(WG.feetY-WG.floorFeet);
   WG.runPhase += dt*10;
   if(WG.bossHitFx>0) WG.bossHitFx-=dt*3;
   if(WG.bossShake>0) WG.bossShake-=dt*36;
   const chH=WG.charH, glow=(typeof GFX!=='undefined'&&GFX.glow);
 
-  // ── Boss (à direita) — imagem personalizável ou silhueta estelar ──
+  // ── Boss (à direita) ──
   const bShake=(Math.random()*2-1)*WG.bossShake;
-  const bossH=chH*1.7, bossW=bossH, bcx=CW*0.85+bShake, bBottom=WG.floorFeet*0.98, bcy=bBottom-bossH*0.5;
+  const bossH=chH*1.7, bossW=bossH, bcx=CW*0.85+bShake, bcy=WG.floorFeet*0.98-bossH*0.5;
   if(!WG.bossDefeated || WG.bossHitFx>0){
     ctx.save();
     ctx.globalAlpha = WG.bossDefeated ? Math.max(0,WG.bossHitFx) : 1;
     if(WG_BOSS_IMG && WG_BOSS_IMG.complete && WG_BOSS_IMG.naturalWidth){
-      const ratio=WG_BOSS_IMG.naturalWidth/WG_BOSS_IMG.naturalHeight;
-      const dh=bossH, dw=dh*ratio;
+      const ratio=WG_BOSS_IMG.naturalWidth/WG_BOSS_IMG.naturalHeight, dh=bossH, dw=dh*ratio;
       if(glow){ ctx.shadowColor='rgba(255,40,120,.55)'; ctx.shadowBlur=WG.bossHitFx>0?40:22; }
       ctx.drawImage(WG_BOSS_IMG, bcx-dw*0.5, bcy-dh*0.5, dw, dh);
       ctx.shadowBlur=0;
-      if(WG.bossHitFx>0){ // flash de dano
-        ctx.globalAlpha=WG.bossHitFx*0.5; ctx.globalCompositeOperation='source-atop';
-        ctx.fillStyle='#ff3344'; ctx.fillRect(bcx-dw*0.5,bcy-dh*0.5,dw,dh);
-      }
+      if(WG.bossHitFx>0){ ctx.globalAlpha=WG.bossHitFx*0.5; ctx.globalCompositeOperation='source-atop'; ctx.fillStyle='#ff3344'; ctx.fillRect(bcx-dw*0.5,bcy-dh*0.5,dw,dh); }
     } else {
       const bg=ctx.createRadialGradient(bcx,bcy,8,bcx,bcy,bossW*0.5);
       bg.addColorStop(0, WG.bossHitFx>0?'rgba(255,120,120,.95)':'rgba(180,60,255,.92)');
@@ -7642,7 +7677,7 @@ function drawWargame(t){
   }
 
   // ── Barra de vida do BOSS (topo central) ──
-  const bw=Math.min(CW*0.5,420), bhx=(CW-bw)/2, bhy=CH*0.06;
+  const bw=Math.min(CW*0.5,420), bhx=(CW-bw)/2, bhy=CH*0.05;
   ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(bhx-3,bhy-3,bw+6,18);
   ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(bhx,bhy,bw,12);
   const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
@@ -7652,31 +7687,33 @@ function drawWargame(t){
   ctx.font='700 11px Orbitron,monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom';
   ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-4);
 
-  // ── Marcadores do ponto de acerto (uma por linha) ──
-  for(const ln of [{y:WG.airNoteY,c:C_AIR,active:onAir},{y:WG.groundNoteY,c:C_GROUND,active:!onAir}]){
-    ctx.save();
-    ctx.globalAlpha=ln.active?0.9:0.4;
-    ctx.strokeStyle=ln.c; ctx.lineWidth=ln.active?4:2.5;
-    ctx.shadowColor=ln.c; ctx.shadowBlur=glow&&ln.active?16:0;
-    const pr=ln.active?30:24;
-    ctx.beginPath(); ctx.arc(WG.hitX,ln.y,pr,0,Math.PI*2); ctx.stroke();
-    ctx.restore();
-  }
-
-  // ── Inimigos (notas) grandes e destacados ──
+  // ── Notas / minions (incl. notas de segurar com linha roxa) ──
   for(const n of chart){
-    if(n.state!=='pending') continue;
-    const p=(n.hitTime-st)/WG_TRAVEL;
-    if(p>1.06||p<-0.3) continue;
-    const air=wgIsAir(n);
-    drawWgNote(wgEnemyX(n,st), air?WG.airNoteY:WG.groundNoteY, air, glow);
+    if(n.state!=='pending' && n.state!=='holding') continue;
+    const air=wgIsAir(n), laneY=air?WG.airNoteY:WG.groundNoteY;
+    if(n.holdDur>0){
+      const headX = n.state==='holding' ? WG.hitX : wgTimeX(n.hitTime,st);
+      const tailX = wgTimeX(n.hitTime+n.holdDur, st);
+      if(tailX<-WG.noteR || headX>CW+WG.noteR) continue;
+      // linha roxa de ligação
+      ctx.save();
+      ctx.strokeStyle=C_HOLD; ctx.lineWidth=WG.noteR*0.7; ctx.lineCap='round';
+      if(glow){ ctx.shadowColor=C_HOLD; ctx.shadowBlur=16; }
+      ctx.beginPath(); ctx.moveTo(headX,laneY); ctx.lineTo(tailX,laneY); ctx.stroke();
+      ctx.restore();
+      drawWgMinion(tailX,laneY,air,0.85,glow);            // minion no FINAL
+      if(n.state!=='holding') drawWgMinion(headX,laneY,air,1,glow); // minion no COMEÇO
+    } else {
+      const p=(n.hitTime-st)/WG_TRAVEL;
+      if(p>1.08||p<-0.3) continue;
+      drawWgMinion(wgTimeX(n.hitTime,st), laneY, air, 1, glow);
+    }
   }
-  ctx.shadowBlur=0;
 
-  // ── Mizuki ──
+  // ── Mizuki — W: pulo rápido → ataque ──
   let spr=WG_SPR.run;
-  if(WG.atkTimer>0) spr=WG_SPR.atk;
-  else if(onAir||WG.airTimer>0) spr=WG_SPR.jump;
+  if(airActive)            spr = WG.airAnimT<0.12 ? WG_SPR.jump : WG_SPR.atk;
+  else if(WG.atkTimer>0)   spr = WG_SPR.atk;
   const bob = onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
   const feet = WG.feetY - bob;
   if(spr.complete && spr.naturalWidth){
@@ -7699,8 +7736,61 @@ function drawWargame(t){
     ctx.fillText(d.val,d.x,d.y); ctx.shadowBlur=0; ctx.globalAlpha=1;
   }
 
-  // efeitos compartilhados (partículas, anéis, julgamentos)
+  // efeitos compartilhados
   drawParticles(); drawRings(); drawJudgments(t);
+
+  // ── COMBO grande (centro-superior) ──
+  const combo=score.combo||0;
+  if(combo>=2){
+    const hue=combo>=200?50:combo>=100?185:315;
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=`hsl(${hue},100%,62%)`; ctx.shadowColor=`hsl(${hue},100%,60%)`; ctx.shadowBlur=glow?26:0;
+    const cs=Math.min(96, CW*0.10);
+    ctx.font=`900 ${cs}px Orbitron,monospace`; ctx.fillText(combo, CW*0.5, CH*0.20);
+    ctx.font=`900 ${Math.round(cs*0.28)}px Orbitron,monospace`; ctx.fillStyle='#fff'; ctx.shadowBlur=0;
+    ctx.fillText('COMBO', CW*0.5, CH*0.20+cs*0.55);
+    ctx.restore();
+  }
+
+  // ── Barra inferior estilo Muse Dash: VIDA (rosa) + COMBO (ciano) ──
+  drawWgBottomBar(combo);
+}
+
+// Barra inferior central: coração + vida (rosa) + medidor de combo (ciano)
+function drawWgBottomBar(combo){
+  const barW=Math.min(CW*0.46,440), h=22, x0=(CW-barW)/2, y0=CH-46;
+  const lifeW=barW*0.60, comboW=barW*0.40, gap=6;
+  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);} else {ctx.beginPath();ctx.rect(x,y,w,hh);} };
+  // moldura
+  ctx.save();
+  ctx.fillStyle='rgba(8,4,20,.72)'; rr(x0-34,y0-7,barW+44,h+14,12); ctx.fill();
+  ctx.strokeStyle='rgba(40,224,255,.5)'; ctx.lineWidth=2; rr(x0-34,y0-7,barW+44,h+14,12); ctx.stroke();
+  // coração (vida)
+  const hx=x0-20, hy=y0+h*0.5, hs=11;
+  ctx.fillStyle='#ff2e6e'; ctx.shadowColor='#ff2e6e'; ctx.shadowBlur=10;
+  ctx.beginPath();
+  ctx.moveTo(hx,hy+hs*0.7);
+  ctx.bezierCurveTo(hx-hs,hy-hs*0.4,hx-hs*0.5,hy-hs,hx,hy-hs*0.3);
+  ctx.bezierCurveTo(hx+hs*0.5,hy-hs,hx+hs,hy-hs*0.4,hx,hy+hs*0.7);
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  // VIDA (rosa)
+  const health=Math.max(0,Math.min(100,score.health??100));
+  ctx.fillStyle='rgba(255,255,255,.12)'; rr(x0,y0,lifeW,h,7); ctx.fill();
+  const lg=ctx.createLinearGradient(x0,0,x0+lifeW,0); lg.addColorStop(0,'#ff2e6e'); lg.addColorStop(1,'#ff7ab0');
+  ctx.fillStyle=lg; rr(x0,y0,lifeW*(health/100),h,7); ctx.fill();
+  // COMBO (ciano) — enche a cada 50 de combo
+  const cx0=x0+lifeW+gap, cg=(combo%50)/50;
+  ctx.fillStyle='rgba(255,255,255,.12)'; rr(cx0,y0,comboW,h,7); ctx.fill();
+  const cgr=ctx.createLinearGradient(cx0,0,cx0+comboW,0); cgr.addColorStop(0,'#28e0ff'); cgr.addColorStop(1,'#7af0ff');
+  ctx.fillStyle=cgr; rr(cx0,y0,comboW*(combo>0?Math.max(0.04,cg):0),h,7); ctx.fill();
+  // textos
+  ctx.font='900 12px Orbitron,monospace'; ctx.textBaseline='middle';
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText(Math.round(health)+'%', x0+lifeW*0.5, y0+h*0.5);
+  ctx.fillStyle='#062536'; ctx.fillText('x'+combo, cx0+comboW*0.5, y0+h*0.5);
+  ctx.fillStyle='#28e0ff'; ctx.textAlign='left'; ctx.font='900 12px Orbitron,monospace';
+  ctx.fillText('COMBO', cx0+comboW+8, y0+h*0.5);
+  ctx.restore();
 }
 
 // ─── ESTRADA EM PERSPECTIVA ───
@@ -8222,13 +8312,13 @@ document.addEventListener('keyup',e=>{
 
 for(let i=0;i<4;i++){
   const el=document.getElementById('tz'+i);
-  el.addEventListener('pointerdown',e=>{e.preventDefault(); if(gameMode==='wargame'){ wgAction(e.clientY < window.innerHeight/2 ? 'air':'ground'); return; } pressLane(i);});
-  el.addEventListener('pointerup',e=>{e.preventDefault();releaseLane(i);});
-  el.addEventListener('pointercancel',()=>releaseLane(i));
+  el.addEventListener('pointerdown',e=>{e.preventDefault(); if(gameMode==='wargame'){ WG.touchKind=e.clientY<window.innerHeight/2?'air':'ground'; wgAction(WG.touchKind); return; } pressLane(i);});
+  el.addEventListener('pointerup',e=>{e.preventDefault(); if(gameMode==='wargame'){ if(WG.touchKind){wgRelease(WG.touchKind);WG.touchKind=null;} return; } releaseLane(i);});
+  el.addEventListener('pointercancel',()=>{ if(gameMode==='wargame'){ if(WG.touchKind){wgRelease(WG.touchKind);WG.touchKind=null;} return; } releaseLane(i);});
 }
 
 // ─── INPUT GUERRA ESTELAR ───
-// Teclado: W / ↑ = linha do AR  •  S / ↓ = CHÃO
+// Teclado: W / ↑ = linha do AR  •  S / ↓ = CHÃO (segurar p/ notas de hold)
 document.addEventListener('keydown',e=>{
   if(gameMode!=='wargame'||e.repeat) return;
   if(gameState!=='playing'&&gameState!=='countdown') return;
@@ -8237,11 +8327,20 @@ document.addEventListener('keydown',e=>{
   if(k==='keyw'||k==='arrowup'){ e.preventDefault(); wgAction('air'); }
   else if(k==='keys'||k==='arrowdown'){ e.preventDefault(); wgAction('ground'); }
 });
+document.addEventListener('keyup',e=>{
+  if(gameMode!=='wargame') return;
+  const k=e.code.toLowerCase();
+  if(k==='keyw'||k==='arrowup') wgRelease('air');
+  else if(k==='keys'||k==='arrowdown') wgRelease('ground');
+});
 // Toque/clique na tela: metade de cima = AR (W), metade de baixo = CHÃO (S)
 document.getElementById('gc').addEventListener('pointerdown',e=>{
   if(gameMode!=='wargame'||gameState!=='playing') return;
-  wgAction(e.clientY < window.innerHeight/2 ? 'air' : 'ground');
+  WG.touchKind = e.clientY < window.innerHeight/2 ? 'air' : 'ground';
+  wgAction(WG.touchKind);
 });
+document.getElementById('gc').addEventListener('pointerup',()=>{ if(gameMode==='wargame'&&WG.touchKind){ wgRelease(WG.touchKind); WG.touchKind=null; } });
+document.getElementById('gc').addEventListener('pointercancel',()=>{ if(gameMode==='wargame'&&WG.touchKind){ wgRelease(WG.touchKind); WG.touchKind=null; } });
 
 document.getElementById('urlIn').addEventListener('keydown',e=>{if(e.key==='Enter') startLoad();});
 
