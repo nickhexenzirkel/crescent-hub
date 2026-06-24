@@ -481,11 +481,11 @@ const MonthCountdown = () => {
     </span>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.goldGl, border: `1px solid ${T.goldLine}44`, borderRadius: 14, padding: '12px 18px', marginBottom: 14 }}>
-      <span style={{ display: 'inline-flex', color: T.gold }}><IcoClock size={24} /></span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.goldGl, border: `1px solid ${T.goldLine}44`, borderRadius: 14, padding: '9px 16px', marginBottom: 10 }}>
+      <span style={{ display: 'inline-flex', color: T.gold }}><IcoClock size={22} /></span>
       <div style={{ flex: 1, minWidth: 160 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Prêmios deste mês</div>
-        <div style={{ fontSize: 11.5, color: T.textT }}>Renovam quando o cronômetro zerar — aproveite antes que esgotem!</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Prêmios deste mês</div>
+        <div style={{ fontSize: 11, color: T.textT }}>Renovam quando o cronômetro zerar — aproveite antes que esgotem!</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Unit v={days} l="dias" /><Sep /><Unit v={hours} l="hrs" /><Sep /><Unit v={mins} l="min" /><Sep /><Unit v={secs} l="seg" />
@@ -726,7 +726,7 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
       style={{
       background: cardBg, border: `1.5px solid ${rc}55`, borderRadius: 20, overflow: 'hidden',
       position: 'relative', opacity: sold ? 0.65 : 1, display: 'flex', flexDirection: 'column',
-      boxShadow: `0 10px 36px ${rc}22`, minHeight: 300, transition: 'transform .2s ease, box-shadow .2s ease',
+      boxShadow: `0 10px 36px ${rc}22`, transition: 'transform .2s ease, box-shadow .2s ease',
     }}>
       {/* Brilho temático no topo */}
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 0%, ${rc}26, transparent 60%)`, pointerEvents: 'none' }} />
@@ -735,19 +735,19 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
         ⭐ DESTAQUE
       </div>
 
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 14px 4px', position: 'relative', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={230} emojiSize={96} radius={16} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '14px 14px 4px', position: 'relative', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={190} emojiSize={88} radius={16} sold={sold} style={{ filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
       </div>
 
-      <div style={{ padding: '0 20px 20px', position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+      <div style={{ padding: '0 18px 16px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 10.5, fontWeight: 800, color: rc, textTransform: 'uppercase', letterSpacing: '.08em' }}>{item.rarity}</span>
           <span style={{ fontSize: 11.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>
-            {sold ? 'Esgotado' : `${item.stock} disponíve${item.stock > 1 ? 'is' : 'l'} para resgate`}
+            {sold ? 'Esgotado' : `${item.stock} p/ resgate`}
           </span>
         </div>
-        <div style={{ fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 5, lineHeight: 1.2 }}>{item.name}</div>
-        <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5, marginBottom: 14 }}>{item.desc}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4, lineHeight: 1.2 }}>{item.name}</div>
+        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.45, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontWeight: 800, fontSize: 20 }}>
@@ -779,16 +779,16 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = T.sh; e.currentTarget.style.zIndex = 1; }}
       style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh, transition: 'transform .18s ease, box-shadow .18s ease' }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
-      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ padding: '12px 12px 6px', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={110} emojiSize={44} radius={11} sold={sold} />
+      <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ padding: '9px 9px 3px', cursor: 'zoom-in' }}>
+        <PrizeMedia item={item} h={84} emojiSize={40} radius={10} sold={sold} />
       </div>
-      <div style={{ padding: '0 15px 15px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 10.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock} disponíveis`}</span>
+      <div style={{ padding: '0 13px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
+          <span style={{ fontSize: 10, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock} disp.`}</span>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4, lineHeight: 1.2 }}>{item.name}</div>
-        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.45, marginBottom: 12, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 3, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.name}</div>
+        <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4, marginBottom: 9, flex: 1, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 14 }}>
             <PrismIcon type={item.cur} size={22} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
@@ -979,8 +979,18 @@ const PERIOD_META = {
 };
 const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
   <div>
-    <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas. O progresso será automático quando integrarmos os sistemas." />
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
+    <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas." />
+    {/* Aviso: em desenvolvimento */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: T.goldGl, border: `1px solid ${T.goldLine}55`, borderRadius: 14, padding: '14px 18px', marginBottom: 16 }}>
+      <span style={{ color: T.gold, flexShrink: 0 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>
+      </span>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🚧 Em desenvolvimento</div>
+        <div style={{ fontSize: 12.5, color: T.textT, marginTop: 1 }}>Os desafios abaixo são uma prévia. O acompanhamento e o resgate serão liberados em breve.</div>
+      </div>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14, opacity: 0.85 }}>
       {missions.map(m => {
         const done = m.progress >= m.goal;
         const pct = Math.min(100, Math.round((m.progress / m.goal) * 100));
@@ -1009,14 +1019,13 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
               <span style={{ fontSize: 11.5, color: T.textT, fontWeight: 600, flexShrink: 0 }}>{fmt(m.progress)}/{fmt(m.goal)}</span>
             </div>
 
-            <button disabled={!done || m.claimed} onClick={() => onClaim(m)} style={{
-              width: '100%', padding: '10px', borderRadius: 9, border: 'none',
-              cursor: (!done || m.claimed) ? 'not-allowed' : 'pointer',
-              background: m.claimed ? (T.surfaceSub || 'rgba(0,0,0,0.06)') : done ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.05)'),
-              color: m.claimed ? T.textT : done ? '#fff' : T.textD, fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
+            <button disabled style={{
+              width: '100%', padding: '10px', borderRadius: 9, border: `1px dashed ${T.border}`,
+              cursor: 'not-allowed', background: T.surfaceSub || 'rgba(0,0,0,0.05)',
+              color: T.textD, fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
             }}>
-              {m.claimed ? <><IcoCheck size={15} />Resgatado</> : done ? <><IcoGift size={15} />Resgatar recompensa</> : 'Em progresso'}
+              🚧 Em desenvolvimento
             </button>
           </div>
         );
