@@ -36,23 +36,27 @@ const UnikoName = () => {
   );
 };
 
-/* Ícone do Uniko na home: flutua de leve (lento) e PISCA a cada 3s (troca UNIKO_NEW ↔ UNIKO_PISCA). */
-const UnikoMascot = ({ size }) => (
-  <div style={{ position:'relative', width:size, height:size, animation:'unikoFloat 5s ease-in-out infinite',
-    filter:`drop-shadow(0 8px 26px ${T.goldLine}44)` }}>
-    <style>{`
-      @keyframes unikoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-      @keyframes unikoBlink{0%,95%{opacity:1}95.6%,97.4%{opacity:0}98%,100%{opacity:1}}
-    `}</style>
-    {/* frame 2 (olhos fechados) por baixo */}
-    <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true"
-      style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain' }}/>
-    {/* frame 1 (normal) por cima — some rapidinho a cada 3s revelando o piscar */}
-    <img src="/UNIKO_NEW.png" alt="Uniko"
-      style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain',
-        animation:'unikoBlink 3s linear infinite' }}/>
-  </div>
-);
+/* Ícone do Uniko na home: flutua de leve (lento) e PISCA a cada 3s com 3 frames —
+   normal (UNIKO_NEW) → meio fechado (UNIKO_PISCA_FRAME_2) → fechado (UNIKO_PISCA) → meio → normal. */
+const UnikoMascot = ({ size }) => {
+  const img = { position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain' };
+  return (
+    <div style={{ position:'relative', width:size, height:size, animation:'unikoFloat 5s ease-in-out infinite',
+      filter:`drop-shadow(0 8px 26px ${T.goldLine}44)` }}>
+      <style>{`
+        @keyframes unikoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes unikoBlinkTop{0%,90%{opacity:1}90.6%,99%{opacity:0}99.4%,100%{opacity:1}}
+        @keyframes unikoBlinkMid{0%,93.8%{opacity:1}94.2%,96%{opacity:0}96.4%,100%{opacity:1}}
+      `}</style>
+      {/* base: olho FECHADO */}
+      <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true" style={img}/>
+      {/* meio: olho MEIO FECHADO (aparece no fechar e no abrir) */}
+      <img src="/UNIKO_PISCA_FRAME_2.png" alt="" aria-hidden="true" style={{ ...img, animation:'unikoBlinkMid 3s linear infinite' }}/>
+      {/* topo: NORMAL — some durante a piscada revelando os frames abaixo */}
+      <img src="/UNIKO_NEW.png" alt="Uniko" style={{ ...img, animation:'unikoBlinkTop 3s linear infinite' }}/>
+    </div>
+  );
+};
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
