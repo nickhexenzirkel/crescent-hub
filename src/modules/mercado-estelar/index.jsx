@@ -1035,11 +1035,33 @@ const PERIOD_META = {
   mes:   { label: 'Mensal',  color: '#9B6FE8' },
   unica: { label: 'Única',   color: '#F5B63A' },
 };
-const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
+const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
+  const [filter, setFilter] = useState('all'); // all | dia | mes | unica
+  const FILTERS = [
+    { id: 'all', label: 'Todas' }, { id: 'dia', label: 'Diário' },
+    { id: 'mes', label: 'Mensal' }, { id: 'unica', label: 'Única' },
+  ];
+  const shown = filter === 'all' ? missions : missions.filter(m => m.period === filter);
+  return (
   <div>
     <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas." />
+    {/* Filtro por período */}
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+      {FILTERS.map(f => {
+        const on = filter === f.id;
+        const c = f.id === 'all' ? T.gold : (PERIOD_META[f.id]?.color || T.gold);
+        return (
+          <button key={f.id} onClick={() => setFilter(f.id)} style={{
+            padding: '8px 16px', borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: on ? 700 : 600, fontFamily: 'var(--font-body)',
+            border: `1.5px solid ${on ? 'transparent' : T.border}`,
+            background: on ? c : (T.surfaceSub || 'rgba(0,0,0,0.04)'),
+            color: on ? '#fff' : T.textS,
+          }}>{f.label}</button>
+        );
+      })}
+    </div>
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
-      {missions.map(m => {
+      {shown.map(m => {
         const maint = !!m.maintenance;
         const done = !maint && m.progress >= m.goal;
         const claimable = done && !m.claimed;
@@ -1088,7 +1110,8 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
       })}
     </div>
   </div>
-);
+  );
+};
 
 // ═══════════════════════════════════════════ CARTEIRA ═══════════════════════
 const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) => {
@@ -1724,6 +1747,8 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   const [cur, setCur] = useState('premium');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [bulkCur, setBulkCur] = useState('premium');
+  const [bulkAmt, setBulkAmt] = useState('');
   const allPlayers = useAllPlayers();
 
   const load = async () => {
@@ -1749,7 +1774,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     try {
       const { data: row } = await supabase.from('mercado_state').select('data').eq('player', to).maybeSingle();
       const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
-      const data = { ...base, [cur]: (base[cur] || 0) + amt };
+      const data = { ...base, [cur]: (base[cur] || 0) + amt, updatedAt: Date.now() };
       await supabase.from('mercado_state').upsert({ player: to, data, updated_at: new Date().toISOString() });
       await supabase.from('mercado_history').insert({ player: to, kind: 'admin', descr: note.trim() || `Transferência do administrador`, [cur]: amt });
       // Se o admin transferiu pra si mesmo, reflete no estado local
@@ -1760,8 +1785,51 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     } catch { flash('Falha ao transferir'); }
   };
 
+  // Aplica uma mutação na carteira de TODOS os colaboradores que têm carteira (preserva o resto do estado).
+  const bulkApply = async (mutate, descr, histEntry) => {
+    setBusy(true);
+    try {
+      for (const w of wallets) {
+        const { data: row } = await supabase.from('mercado_state').select('data').eq('player', w.player).maybeSingle();
+        const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
+        const data = { ...base, ...mutate(base, w), updatedAt: Date.now() };
+        await supabase.from('mercado_state').upsert({ player: w.player, data, updated_at: new Date().toISOString() });
+        const entry = histEntry(w);
+        if (entry && Object.keys(entry).length) await supabase.from('mercado_history').insert({ player: w.player, kind: 'admin', descr, ...entry });
+      }
+      if (ownSetState) ownSetState(s => ({ ...s, ...mutate(s, { comum: s.comum, premium: s.premium }) }));
+      load();
+    } catch { flash('Falha na ação em massa'); }
+    setBusy(false);
+  };
+
+  const bulkRemove = async () => {
+    const amt = parseInt(bulkAmt, 10);
+    if (!amt || amt <= 0) { flash('Informe um valor válido'); return; }
+    const label = bulkCur === 'premium' ? PREMIUM.name : COMUM.name;
+    if (!window.confirm(`Retirar ${amt} ${label} de TODOS os ${wallets.length} colaboradores? Esta ação não pode ser desfeita.`)) return;
+    await bulkApply(
+      (base) => ({ [bulkCur]: Math.max(0, (base[bulkCur] || 0) - amt) }),
+      `Retirada do administrador (−${amt} ${label})`,
+      (w) => { const taken = Math.min(amt, w[bulkCur] || 0); return taken > 0 ? { [bulkCur]: -taken } : {}; },
+    );
+    flash(`Retirado ${amt} ${label} de todos`);
+    setBulkAmt('');
+  };
+
+  const bulkZero = async () => {
+    if (!window.confirm(`ZERAR os prismas (Comum e Premium) de TODOS os ${wallets.length} colaboradores? Esta ação não pode ser desfeita.`)) return;
+    await bulkApply(
+      () => ({ comum: 0, premium: 0 }),
+      'Prismas zerados pelo administrador',
+      (w) => { const e = {}; if ((w.comum || 0) > 0) e.comum = -(w.comum || 0); if ((w.premium || 0) > 0) e.premium = -(w.premium || 0); return e; },
+    );
+    flash('Prismas de todos zerados');
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Transferir prismas */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoSend size={16} /></span>Transferir prismas</div>
@@ -1817,6 +1885,33 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Ações em massa (retirar / zerar prismas de todos) */}
+      <div style={{ background: cardBg, border: `1px solid #C0405040`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: '#C04050', marginBottom: 4 }}>⚠️ Ações em massa</div>
+        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Afeta a carteira de <b>todos</b> os colaboradores. Não pode ser desfeito.</div>
+
+        <label style={lbl}>Retirar de todos</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
+            <button key={k} onClick={() => setBulkCur(k)} style={{
+              flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+              border: `1.5px solid ${bulkCur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 13,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: bulkCur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: bulkCur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
+            }}><PrismIcon type={k} size={15} />{label}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <input type="number" min="1" value={bulkAmt} onChange={e => setBulkAmt(e.target.value)} placeholder="Quantidade" style={{ ...adminField, flex: 1 }} />
+          <button onClick={bulkRemove} disabled={busy} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: busy ? 'wait' : 'pointer', background: '#C04050', color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)', flexShrink: 0 }}>Retirar</button>
+        </div>
+
+        <button onClick={bulkZero} disabled={busy} style={{ width: '100%', padding: '11px', borderRadius: 10, border: '1.5px solid #C04050', cursor: busy ? 'wait' : 'pointer', background: 'transparent', color: '#C04050', fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-body)' }}>
+          Zerar prismas de TODOS
+        </button>
+      </div>
       </div>
 
       {/* Histórico de todos */}
