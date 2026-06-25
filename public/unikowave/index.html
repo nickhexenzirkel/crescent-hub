@@ -7588,7 +7588,7 @@ function wgComputeLayout(){
   WG.airNoteY    = CH*0.48;                             // linha do ar (mais baixa, não tão alta)
   WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
   WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
-  WG.beltH       = Math.round(CH*0.045);                // esteira
+  WG.beltH       = Math.round(CH*0.11);                 // esteira (alta o bastante pra ver a textura)
   // espaço (gap) abaixo da esteira e SÓ depois o fogo (faixa no fundo, com chamas subindo)
   WG.fireTop     = WG.floorFeet + WG.beltH + Math.round(CH*0.02);
 }
@@ -7925,7 +7925,7 @@ function wgDrawFire(top){
 function wgDrawBelt(gy,h){
   const glow=(typeof GFX!=='undefined'&&GFX.glow);
   // Esteira animada por imagens: alterna os 3 frames pra dar impressão de movimento
-  const fps=12, frame=WG_BELT_FRAMES[Math.floor(animT*fps)%3];
+  const fps=5, frame=WG_BELT_FRAMES[Math.floor(animT*fps)%3];
   if(frame && frame.complete && frame.naturalWidth){
     ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
     ctx.drawImage(frame,0,gy,CW,h);
