@@ -4,18 +4,30 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), peso médio (não grossa), com o
-   "N" sendo um "U" invertido (U girado 180°). Layout flex p/ espaçamento uniforme e alinhado. */
+/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), peso médio, com o "N" sendo um "U"
+   invertido. Um ponto de luz AZUL percorre cada letra (recortado na própria letra) e pula
+   pra próxima, em loop. */
 const UnikoName = () => {
-  const letter = { display:'inline-block', lineHeight:1 };
+  const letters = [{ c:'U' }, { c:'U', rot:true }, { c:'I' }, { c:'K' }, { c:'O' }];
+  const N = letters.length, DUR = 2.6;
+  const spot = {
+    position:'absolute', left:0, top:0, pointerEvents:'none',
+    backgroundImage:'radial-gradient(circle at center, #8AD2FF 0%, rgba(74,160,255,.65) 30%, transparent 60%)',
+    backgroundRepeat:'no-repeat', backgroundSize:'70% 240%', backgroundPosition:'-35% 50%',
+    WebkitBackgroundClip:'text', backgroundClip:'text',
+    color:'transparent', WebkitTextFillColor:'transparent',
+  };
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:'.12em',
       fontFamily:"'Poppins', var(--font-brand)", fontWeight:600, letterSpacing:'normal' }}>
-      <span style={letter}>U</span>
-      <span style={{ ...letter, transform:'rotate(180deg)' }}>U</span>
-      <span style={letter}>I</span>
-      <span style={letter}>K</span>
-      <span style={letter}>O</span>
+      <style>{`@keyframes uTrace{0%{background-position:-35% 50%;opacity:1}20%{background-position:135% 50%;opacity:1}20.01%,100%{opacity:0}}`}</style>
+      {letters.map((l, i) => (
+        <span key={i} style={{ position:'relative', display:'inline-block', lineHeight:1,
+          transform: l.rot ? 'rotate(180deg)' : undefined }}>
+          <span>{l.c}</span>
+          <span aria-hidden style={{ ...spot, animation:`uTrace ${DUR}s linear infinite`, animationDelay:`${(i / N) * DUR}s` }}>{l.c}</span>
+        </span>
+      ))}
     </span>
   );
 };
