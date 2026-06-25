@@ -15,8 +15,7 @@ const UnikoName = () => (
       O
       <span style={{
         position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
-        fontSize:'0.42em', lineHeight:1, color:'#FFF0C0',
-        textShadow:'0 0 5px rgba(255,221,130,.95), 0 0 9px rgba(255,200,90,.5)',
+        fontSize:'0.4em', lineHeight:1, color:'inherit',
         pointerEvents:'none',
       }}>✦</span>
     </span>
