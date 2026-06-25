@@ -2449,7 +2449,10 @@ WG_SPR.jump.src = 'images/MizukiPulo.png';
 WG_SPR.atk.src  = 'images/MizukiAtaque.png';
 WG_SPR.chateada.src = 'images/PersonagemLinnea_Chateada.png'; // boss atacando: flutua chateada
 WG_SPR.alegre.src   = 'images/PersonagemLinnea_Alegre.png';   // intro do começo da partida
-WG_SPR.hold = new Image(); WG_SPR.hold.src = 'images/MizukiChuteLendario.png'; // segurando nota de segurar
+// Chute Lendário (segurando nota): 3 frames → explosão com movimento ao longo da nota
+WG_SPR.hold  = new Image(); WG_SPR.hold.src  = 'images/MizukiChuteLendario.png';       // início do chute
+WG_SPR.hold2 = new Image(); WG_SPR.hold2.src = 'images/MizukiChuteLendarioFrame2.png'; // explosão grande (maior parte)
+WG_SPR.hold3 = new Image(); WG_SPR.hold3.src = 'images/MizukiChuteLendarioFrame3.png'; // nota quase acabando
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -8329,7 +8332,12 @@ function drawWargame(t){
     spr=WG_SPR.run; drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
   } else {
     // partida normal
-    if(holding)                  spr=(WG_SPR.hold.complete&&WG_SPR.hold.naturalWidth)?WG_SPR.hold:WG_SPR.atk; // segurando nota → Chute Lendário
+    if(holding){                 // segurando nota → Chute Lendário com explosão em movimento (3 frames)
+      const h=WG.holds.air||WG.holds.ground;
+      let frac=0; if(h&&h.note&&h.note.holdDur>0) frac=Math.max(0,Math.min(1,(st-h.note.hitTime)/h.note.holdDur));
+      const pick = frac<0.15 ? WG_SPR.hold : (frac<0.85 ? WG_SPR.hold2 : WG_SPR.hold3);
+      spr=(pick.complete&&pick.naturalWidth)?pick:((WG_SPR.hold.complete&&WG_SPR.hold.naturalWidth)?WG_SPR.hold:WG_SPR.atk);
+    }
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
