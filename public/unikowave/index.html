@@ -940,34 +940,29 @@ canvas{display:block}
   animation:dodoFloat 3s ease-in-out infinite;
   filter:drop-shadow(0 20px 40px rgba(255,0,204,0.35));
 }
-/* ─── RESULTADO DO GUERRA ESTELAR (tela própria) ─── */
-#resScrWG{background:radial-gradient(ellipse at 50% 25%,#1c0a2e 0%,#0a0518 60%,#05030f 100%)}
-.wgres-card{
-  width:min(94vw,820px);max-height:94vh;overflow:auto;position:relative;z-index:2;
-  background:linear-gradient(165deg,rgba(40,14,60,.6),rgba(12,6,26,.85));
-  border:2px solid rgba(255,46,154,.45);border-radius:24px;
-  padding:clamp(16px,3vw,28px) clamp(18px,4vw,40px);
-  box-shadow:0 28px 80px rgba(0,0,0,.6),0 0 60px rgba(255,46,154,.2);
-  display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.4vh,12px);
-}
-.wgres-title{font-family:var(--font-pixel);font-size:clamp(15px,2.6vw,26px);letter-spacing:3px;
-  color:#ffd34d;text-shadow:0 0 18px rgba(255,200,60,.85);text-align:center;
-  animation:gPop .5s cubic-bezier(.34,1.56,.64,1) both}
-.wgres-stage{display:flex;align-items:flex-end;justify-content:center;
-  gap:clamp(16px,7vw,90px);width:100%;height:clamp(140px,28vh,250px)}
-.wgres-mizuki{height:100%;width:auto;object-fit:contain;object-position:center bottom;
-  filter:drop-shadow(0 14px 34px rgba(255,46,154,.55));animation:dodoFloat 3s ease-in-out infinite}
-.wgres-boss{height:60%;width:auto;object-fit:contain;object-position:center bottom;
-  transform:rotate(-12deg);opacity:.92;
-  filter:grayscale(.3) drop-shadow(0 12px 26px rgba(0,0,0,.6));
-  animation:dodoFloat 4.2s ease-in-out infinite}
-.wgres-grade{font-family:var(--font-pixel);font-size:clamp(34px,8vw,64px);line-height:1;
-  animation:gPop .5s cubic-bezier(.34,1.56,.64,1) both}
-.wgres-score{font-family:var(--font-pixel);font-size:clamp(22px,5vw,40px);font-weight:900;
-  letter-spacing:2px;color:var(--Y);text-shadow:0 0 16px var(--Y)}
-.wgres-acc{font-family:var(--font-pixel);font-size:clamp(12px,1.8vw,17px);color:#28e0ff;letter-spacing:2px}
-.wgres-stars .res-star.lit{filter:drop-shadow(0 0 18px #ffd34d) drop-shadow(0 0 34px #ffaa00);opacity:1;transform:scale(1.2)}
-.wgres-stars{margin:8px 0 2px!important}
+/* ─── RESULTADO DO GUERRA ESTELAR — imagem de fundo + overlays nas áreas reservadas ─── */
+#resScrWG{background:radial-gradient(ellipse at 50% 35%,#150821,#080411 70%,#04020c)}
+.wgres2-wrap{position:relative;display:inline-block;line-height:0;max-width:96vw;max-height:95vh}
+.wgres2-bg{display:block;width:auto;height:auto;max-width:96vw;max-height:95vh;border-radius:8px}
+.wgres2-ov{position:absolute;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-pixel);pointer-events:none;text-align:center;line-height:1.1;white-space:nowrap}
+/* PONTUAÇÃO (caixa grande) */
+.wgres2-score{left:53%;top:17%;width:43%;height:27%;font-size:clamp(16px,3vw,40px);font-weight:900;
+  color:#fff;letter-spacing:1px;text-shadow:0 0 16px rgba(255,140,230,.9),0 0 30px rgba(180,80,255,.6)}
+/* NOTA → estrelas */
+.wgres2-stars{left:53%;top:55.5%;width:43%;height:9%;gap:3%}
+.wgres2-stars .res-star{width:clamp(16px,3.6vw,36px);height:auto;flex:0 0 auto}
+.wgres2-stars .res-star.lit{filter:drop-shadow(0 0 12px #ffd34d) drop-shadow(0 0 24px #ffaa00);opacity:1;transform:scale(1.15)}
+/* ERROS / ACURÁCIA (valor sob o rótulo da caixa) */
+.wgres2-erros{left:53%;top:72%;width:20.5%;height:6.5%;font-size:clamp(12px,2vw,24px);
+  color:#ff6a86;text-shadow:0 0 10px rgba(255,80,120,.7)}
+.wgres2-acc{left:75.5%;top:72%;width:20.5%;height:6.5%;font-size:clamp(12px,2vw,24px);
+  color:#5ad0ff;text-shadow:0 0 10px rgba(60,200,255,.7)}
+/* Botões clicáveis transparentes por cima dos REPLAY/MENU desenhados */
+.wgres2-btn{position:absolute;background:transparent;border:none;cursor:pointer;border-radius:14px;pointer-events:all;transition:background .15s}
+.wgres2-btn:hover{background:rgba(255,255,255,.10)}
+#wg2Replay{left:53%;top:84%;width:21%;height:8.5%}
+#wg2Menu{left:75.5%;top:84%;width:21%;height:8.5%}
 /* Balão de fala — grande no topo da coluna */
 .res-bubble{
   position:absolute;
@@ -2210,34 +2205,26 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   </div>
 </div>
 
-<!-- ══ RESULTADO — GUERRA ESTELAR (layout próprio: Mizuki + boss derrotado) ══ -->
+<!-- ══ RESULTADO — GUERRA ESTELAR (imagem própria + overlays nas áreas reservadas) ══ -->
 <div id="resScrWG" class="scr off">
-  <div class="wgres-card">
-    <div class="wgres-title" id="wgResTitle">★ BOSS DERROTADO ★</div>
-    <div class="wgres-stage">
-      <img class="wgres-mizuki" id="wgMizuki" src="images/MizukiChuteLendarioFrame3.png" alt="" onerror="this.style.opacity='0.3'">
-      <img class="wgres-boss" id="wgBoss" src="images/DarkCatBotBossDerrotado.png" alt="" onerror="this.style.display='none'">
+  <div class="wgres2-wrap">
+    <img class="wgres2-bg" src="images/WGResult.png" alt="">
+    <!-- PONTUAÇÃO -->
+    <div class="wgres2-ov wgres2-score" id="wg2Score">0</div>
+    <!-- NOTA → estrelas -->
+    <div class="wgres2-ov wgres2-stars" id="wg2Stars">
+      <svg class="res-star" id="wg2star0" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
+      <svg class="res-star" id="wg2star1" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
+      <svg class="res-star" id="wg2star2" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
+      <svg class="res-star" id="wg2star3" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
+      <svg class="res-star" id="wg2star4" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
     </div>
-    <div class="wgres-grade" id="wgResGrade">A</div>
-    <div class="wgres-acc" id="wgResAcc">0.00%</div>
-    <div class="wgres-score" id="wgResScore">0</div>
-    <div class="res-stars wgres-stars" id="wgResStars">
-      <svg class="res-star" id="wgrstar0" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
-      <svg class="res-star" id="wgrstar1" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
-      <svg class="res-star" id="wgrstar2" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
-      <svg class="res-star" id="wgrstar3" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
-      <svg class="res-star" id="wgrstar4" viewBox="0 0 13 11"><path fill="#ffd34d" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
-    </div>
-    <div class="megastar-badge" id="wgResMega" style="font-size:11px;letter-spacing:3px">✦ MEGASTAR ✦</div>
-    <div class="res-stats">
-      <div class="sbox sp"><div class="sv" id="wgP">0</div><div class="sl">PERFECT</div></div>
-      <div class="sbox sg"><div class="sv" id="wgG">0</div><div class="sl">GOOD</div></div>
-      <div class="sbox sm"><div class="sv" id="wgM">0</div><div class="sl">MISS</div></div>
-    </div>
-    <div class="res-btns">
-      <button class="btn-re" onclick="retryGame()">↺ REPLAY</button>
-      <button class="btn-mn" onclick="goMenu()">☰ MENU</button>
-    </div>
+    <!-- ERROS / ACURÁCIA -->
+    <div class="wgres2-ov wgres2-erros" id="wg2Erros">0</div>
+    <div class="wgres2-ov wgres2-acc" id="wg2Acc">0%</div>
+    <!-- Botões transparentes por cima do REPLAY/MENU desenhados na imagem -->
+    <button class="wgres2-btn" id="wg2Replay" onclick="retryGame()" aria-label="Replay"></button>
+    <button class="wgres2-btn" id="wg2Menu" onclick="goMenu()" aria-label="Menu"></button>
   </div>
 </div>
 
@@ -9052,23 +9039,17 @@ function showResult(){
 
   const isWG = (gameMode==='wargame');
   const bubble = document.getElementById('resBubble');
+  // Tela própria do Guerra Estelar (imagem da vitória) só quando DERROTA o boss; senão usa a padrão.
+  const wgWin = isWG && !gameOverByDeath && !!(typeof WG!=='undefined' && WG.bossDefeated);
 
-  if(isWG){
-    // ── Resultado do GUERRA ESTELAR — tela própria (Mizuki + boss derrotado) ──
+  if(wgWin){
+    // ── Resultado do GUERRA ESTELAR — overlays nas áreas reservadas da imagem ──
     const $=(id)=>document.getElementById(id);
-    const win = !gameOverByDeath && !!(typeof WG!=='undefined' && WG.bossDefeated);
-    if($('wgResTitle')) $('wgResTitle').textContent = win ? '★ BOSS DERROTADO ★' : '💀 VOCÊ FOI DERROTADO';
-    const mz=$('wgMizuki'); if(mz) mz.src = win ? 'images/MizukiChuteLendarioFrame3.png' : 'images/PersonagemLinnea_Chateada.png';
-    const bz=$('wgBoss'); if(bz) bz.style.display = win ? '' : 'none';
-    const gE=$('wgResGrade'); if(gE){ gE.textContent=grade; gE.style.color=col; gE.style.textShadow=`0 0 20px ${col}`; }
-    if($('wgResAcc')) $('wgResAcc').textContent = (acc===0?'0.00%':acc.toFixed(2)+'%');
-    if($('wgResScore')) $('wgResScore').textContent = score.v.toLocaleString();
-    if($('wgP')) $('wgP').textContent=score.perfect;
-    if($('wgG')) $('wgG').textContent=score.good;
-    if($('wgM')) $('wgM').textContent=score.miss;
-    for(let i=0;i<5;i++){ const s=$('wgrstar'+i); if(s) s.classList.remove('lit'); }
-    for(let i=0;i<sl;i++) setTimeout(()=>{ const s=$('wgrstar'+i); if(s) s.classList.add('lit'); },(i+1)*260);
-    $('wgResMega')?.classList.toggle('show', sl2>=6);
+    if($('wg2Score')) $('wg2Score').textContent = score.v.toLocaleString();
+    if($('wg2Erros')) $('wg2Erros').textContent = score.miss;
+    if($('wg2Acc'))   $('wg2Acc').textContent   = (acc===0?'0.00%':acc.toFixed(2)+'%');
+    for(let i=0;i<5;i++){ const s=$('wg2star'+i); if(s) s.classList.remove('lit'); }
+    for(let i=0;i<sl;i++) setTimeout(()=>{ const s=$('wg2star'+i); if(s) s.classList.add('lit'); },(i+1)*260);
   } else {
     if(bubble) bubble.style.display='';
     // Dodoco/personagem reage ao resultado
@@ -9099,11 +9080,11 @@ function showResult(){
       requestAnimationFrame(()=>{bubble.style.animation='';});
     }
   }
-  if(!isWG) spawnFallingLetters(col);
+  if(!wgWin) spawnFallingLetters(col);
   document.getElementById('hud').classList.add('off'); document.getElementById('countdownOverlay').classList.add('off');
   document.getElementById('pauseOverlay').classList.add('off');
   const pb=document.getElementById('pauseBtn'); if(pb) pb.innerHTML=pxIcon('pause',{size:'1em'})+' PAUSA';
-  showScreen(isWG ? 'resScrWG' : 'resScr');
+  showScreen(wgWin ? 'resScrWG' : 'resScr');
 
   // ── Salva na biblioteca ──
   if(lastYtUrl && songTitle && songTitle!=='DEMO MODE'){
