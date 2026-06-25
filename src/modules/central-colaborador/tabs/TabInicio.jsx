@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser, saveUserPhoto } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
+import { PRISMA_MISSIONS, loadMissionProgress } from '../../../shared/prismaMissions';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
@@ -86,17 +87,13 @@ const STARS_POS = [
 /* Delays negativos = começam no meio da animação ao montar (aparecem imediatamente) */
 const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
 
-/* Missões em andamento do Prisma Store — só VISUAL por enquanto (dados mockados) */
-const MOCK_MISSOES = [
-  { title: 'Maratona Uniko Wave', cur: 'premium', prog: 12, goal: 20 },
-  { title: 'DJ do dia · 10 músicas', cur: 'premium', prog: 6, goal: 10 },
-];
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete }) => {
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
   const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
+  const [missoes,   setMissoes]   = useState([]); // missões em andamento (mais próximas de concluir)
   const [evts,      setEvts]      = useState([]);
   /* Capture Uniko! (função futura) — posição de spawn aleatória só pro visual por enquanto */
   const [captureSpot] = useState(() => ({ left: 14 + Math.random() * 60, top: 24 + Math.random() * 38 }));
@@ -205,6 +202,28 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     setUniko(readDoko()); // lê imediatamente no mount
     const id = setInterval(() => setUniko(readDoko()), 2000);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  /* ── Missões em andamento (Prisma Store) EM TEMPO REAL: mostra as mais próximas de concluir ── */
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const prog = await loadMissionProgress({ userName: USER.name, cpf: getAuthUser?.()?.cpf });
+        if (!alive) return;
+        const list = PRISMA_MISSIONS
+          .filter(m => !m.maintenance)
+          .map(m => ({ ...m, progress: Math.min(m.goal, prog[m.id] || 0) }))
+          .filter(m => m.progress > 0 && m.progress < m.goal)        // em andamento (começou e não acabou)
+          .sort((a, b) => (b.progress / b.goal) - (a.progress / a.goal)) // mais perto de concluir primeiro
+          .slice(0, 3);
+        setMissoes(list);
+      } catch {}
+    };
+    load();
+    const id = setInterval(load, 25000); // tempo real (revalida a cada 25s)
+    return () => { alive = false; clearInterval(id); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
@@ -437,28 +456,30 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           </div>
         </Card>
 
-        {/* Missões em andamento (Prisma Store) — visual por enquanto */}
+        {/* Missões em andamento (Prisma Store) — tempo real, mais próximas de concluir */}
         <Card className="home-card" style={{padding:'14px 16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>Missões em andamento</span>
             <span style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.04em'}}>PRISMA</span>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:9}}>
-            {MOCK_MISSOES.map((m,i)=>{
-              const col = m.cur==='premium' ? '#9B6BFF' : '#27C6DE';
-              const pct = Math.min(100, Math.round((m.prog/m.goal)*100));
-              return (
-                <div key={i}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3,gap:8}}>
-                    <span style={{fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.title}</span>
-                    <span style={{fontSize:10.5,fontWeight:700,color:col,flexShrink:0}}>{m.prog}/{m.goal}</span>
-                  </div>
-                  <div style={{height:5,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:`${pct}%`,borderRadius:999,background:`linear-gradient(90deg,${col},${col}99)`,transition:'width .4s ease'}}/>
-                  </div>
-                </div>
-              );
-            })}
+            {missoes.length===0
+              ? <div style={{fontSize:11,color:T.textT,textAlign:'center',padding:'10px 0'}}>Nenhuma missão em andamento</div>
+              : missoes.map(m=>{
+                  const col = m.premium ? '#9B6BFF' : '#27C6DE';
+                  const pct = Math.min(100, Math.round((m.progress/m.goal)*100));
+                  return (
+                    <div key={m.id}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3,gap:8}}>
+                        <span style={{fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.title}</span>
+                        <span style={{fontSize:10.5,fontWeight:700,color:col,flexShrink:0}}>{m.progress}/{m.goal}</span>
+                      </div>
+                      <div style={{height:5,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${pct}%`,borderRadius:999,background:`linear-gradient(90deg,${col},${col}99)`,transition:'width .4s ease'}}/>
+                      </div>
+                    </div>
+                  );
+                })}
           </div>
         </Card>
 

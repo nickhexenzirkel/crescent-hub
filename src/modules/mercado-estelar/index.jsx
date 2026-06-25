@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
+import { PRISMA_MISSIONS, loadMissionProgress } from '../../shared/prismaMissions';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -156,21 +157,7 @@ const DEFAULT_STATE = {
   ],
   // DESAFIOS (period: 'dia' | 'mes' | 'unica'). Progresso é mockado por enquanto
   // (o acompanhamento real vem com o Supabase).
-  missions: [
-    // ── DIÁRIAS ──
-    { id: 'c_uniko20',   title: 'Maratona Uniko Wave',   desc: 'Jogue 20 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 20, comum: 100, premium: 0,   claimed: false },
-    { id: 'c_uniko40',   title: 'Maratona Uniko Wave',   desc: 'Jogue 40 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 40, comum: 0,   premium: 10,  claimed: false },
-    // ── MENSAIS ──
-    { id: 'c_ponto',     title: 'Presença Impecável',    desc: '100% de presença sem ocorrências no ponto',     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
-    { id: 'c_feedback',  title: 'Voz ativa',             desc: 'Dê um feedback no sistema',                     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 30,  claimed: false },
-    { id: 'c_rank1',     title: '🥇 Top 1 do mês',        desc: '1º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
-    { id: 'c_rank2',     title: '🥈 Top 2 do mês',        desc: '2º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
-    { id: 'c_rank3',     title: '🥉 Top 3 do mês',        desc: '3º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
-    { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false, maintenance: true },
-    // ── ESPECIAIS (única vez) ──
-    { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
-    { id: 'c_secondbuy', title: 'Segunda compra',        desc: 'Faça sua segunda compra na Prisma Store',       period: 'unica', progress: 0, goal: 1,  comum: 400, premium: 0,   claimed: false },
-  ],
+  missions: PRISMA_MISSIONS.map(m => ({ ...m })),
   history: [
     { id: 'h0', kind: 'checkin', desc: 'Check-in diário', premium: 50, date: '2026-06-20' },
   ],
@@ -337,50 +324,8 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (!loaded) return;
     let alive = true;
     (async () => {
-      const prog = {};
-      // 1ª/2ª compra — conta as compras no histórico do usuário
-      const buys = (state.history || []).filter(h => h.kind === 'compra').length;
-      prog.c_firstbuy  = buys >= 1 ? 1 : 0;
-      prog.c_secondbuy = buys >= 2 ? 1 : 0;
-      // Maratona Uniko Wave — minutos jogados HOJE (soma das partidas do dia)
-      try {
-        const day = new Date().toISOString().slice(0, 10);
-        const { data } = await supabase.from('uniko_playtime')
-          .select('seconds').eq('player', userName).eq('day', day).maybeSingle();
-        const mins = Math.floor((data?.seconds || 0) / 60);
-        prog.c_uniko20 = Math.min(20, mins);
-        prog.c_uniko40 = Math.min(40, mins);
-      } catch {}
-      // Presença Impecável — saldo 0 (sem horas +/-) e 0 inconsistências no mês (Ponto Eletrônico)
-      try {
-        const cpf = authUser?.cpf || getAuthUser?.()?.cpf;
-        if (cpf) {
-          const month = todayStr().slice(0, 7);
-          const { data } = await supabase.from('ponto_presenca')
-            .select('saldo,issues').eq('cpf', cpf).eq('month', month).maybeSingle();
-          prog.c_ponto = (data && data.saldo === 0 && data.issues === 0) ? 1 : 0;
-        }
-      } catch {}
-      // Voz ativa — feedback NÃO anônimo do usuário neste mês
-      try {
-        const monthStart = todayStr().slice(0, 7) + '-01';
-        const { count } = await supabase.from('feedbacks')
-          .select('id', { count: 'exact', head: true })
-          .eq('employee_name', userName).gte('created_at', monthStart);
-        prog.c_feedback = (count || 0) >= 1 ? 1 : 0;
-      } catch {}
-      // Top 1/2/3 — quem mais COLOCA MÚSICA no mês (ranking de DJs da Central Alexa)
-      try {
-        const month = todayStr().slice(0, 7);
-        const { data } = await supabase.from('maquina_monthly_djs').select('requested_by,plays').eq('month', month);
-        const isSys = (n) => { const rb = (n || '').trim().toLowerCase(); return !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa'); };
-        const agg = {};
-        for (const d of (data || [])) { if (isSys(d.requested_by)) continue; const n = (d.requested_by || '').trim(); agg[n] = (agg[n] || 0) + (Number(d.plays) || 0); }
-        const rank = Object.entries(agg).sort((a, b) => b[1] - a[1]).map(([n]) => n).indexOf((userName || '').trim()) + 1;
-        prog.c_rank1 = rank === 1 ? 1 : 0;
-        prog.c_rank2 = rank === 2 ? 1 : 0;
-        prog.c_rank3 = rank === 3 ? 1 : 0;
-      } catch {}
+      const purchases = (state.history || []).filter(h => h.kind === 'compra').length;
+      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases });
       if (alive) setLiveProg(prog);
     })();
     return () => { alive = false; };
