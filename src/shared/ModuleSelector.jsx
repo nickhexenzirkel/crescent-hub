@@ -4,22 +4,12 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-/* Wordmark "UNIKO" estilizado: o "N" é um U invertido e há um brilho ✦ dentro do "O".
-   Herda fonte/peso/cor/letterSpacing do <span> pai (usa fragment, sem quebrar o espaçamento). */
+/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), bem espaçada, com o "N" sendo
+   um "U" invertido (U girado 180°). Herda a cor e o tamanho do elemento pai. */
 const UnikoName = () => (
-  <>
-    U
-    <span style={{ display:'inline-block', transform:'rotate(180deg)', verticalAlign:'baseline' }}>U</span>
-    IK
-    <span style={{ position:'relative', display:'inline-block' }}>
-      O
-      <span style={{
-        position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
-        fontSize:'0.4em', lineHeight:1, color:'inherit',
-        pointerEvents:'none',
-      }}>✦</span>
-    </span>
-  </>
+  <span style={{ fontFamily:"'Poppins', var(--font-brand)", fontWeight:800, letterSpacing:'.16em' }}>
+    U<span style={{ display:'inline-block', transform:'rotate(180deg)' }}>U</span>IKO
+  </span>
 );
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
@@ -123,7 +113,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           <div style={{display:'flex', justifyContent:'center', marginBottom:12}}>
             <BrandLogo size={150}/>
           </div>
-          <div style={{fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700,
+          <div style={{fontFamily:'var(--font-brand)', fontSize:32, fontWeight:700,
             color:T.text, letterSpacing:'.07em'}}><UnikoName/></div>
           <div style={{fontSize:11, color:T.textT, letterSpacing:'.10em',
             textTransform:'uppercase', marginTop:3, marginBottom:12}}>Sistema Corporativo</div>
@@ -253,7 +243,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
           <BrandLogo size={200}/>
         </div>
-        <div style={{fontFamily:'var(--font-brand)',fontSize:24,fontWeight:700,
+        <div style={{fontFamily:'var(--font-brand)',fontSize:42,fontWeight:700,
           color:T.text,letterSpacing:'.07em',lineHeight:1}}><UnikoName/></div>
         <div style={{fontFamily:'var(--font-body)',fontSize:12,color:T.textT,
           letterSpacing:'.10em',textTransform:'uppercase',marginTop:4,marginBottom:10}}>
