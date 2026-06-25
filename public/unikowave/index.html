@@ -7608,8 +7608,17 @@ function wgInit(){
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
   wgHoldSfxStop();
-  // Fogo sempre com a paleta quente realista (laranja/vermelho/branco)
-  WG.firePalette=null;
+  // Fogo em ESTÁGIOS: a cada 15s troca de paleta (matizes da CAPA da música) e sobe um
+  // pouco de altura. Sem capa válida (CORS), usa matizes quentes variados.
+  WG.fireHues = WG_DEFAULT_FIRE_HUES.slice();
+  WG.firePalettes = WG.fireHues.map(h=>wgFirePaletteFromHue(h));
+  try{
+    const vid=getYTId(lastYtUrl||lastVideoUrl||'');
+    if(vid){ const im=new Image(); im.crossOrigin='anonymous';
+      im.onload=()=>{ const hues=wgBuildCoverHues(im); if(hues){ WG.fireHues=hues; WG.firePalettes=hues.map(h=>wgFirePaletteFromHue(h)); } };
+      im.src='https://img.youtube.com/vi/'+vid+'/hqdefault.jpg';
+    }
+  }catch(_){}
   // Sub-modo LUTA: notas de segurar só do meio pro fim → vira tudo "bater" antes disso
   if(wgSubmode==='luta' && songDuration>0){
     const half=songDuration*0.5;
@@ -7847,9 +7856,38 @@ function wgBuildFirePalette(img){
     return pal;
   }catch(_){ return null; } // capa com CORS bloqueado → usa paleta padrão
 }
+// HSL → "rgb()" (string) — usado no fundo escuro colorido do fogo
+function wgHsl(h,s,l){ s/=100;l/=100; const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(Math.min(k(n)-3,9-k(n)),1)); return `rgb(${Math.round(f(0)*255)},${Math.round(f(8)*255)},${Math.round(f(4)*255)})`; }
+function wgRgbHue(r,g,b){ r/=255;g/=255;b/=255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dd=mx-mn; if(dd===0)return 0; let h; if(mx===r)h=((g-b)/dd)%6; else if(mx===g)h=(b-r)/dd+2; else h=(r-g)/dd+4; h*=60; return (h+360)%360; }
+function wgHueDist(a,b){ let d=Math.abs(a-b)%360; return d>180?360-d:d; }
+// Matizes quentes padrão (fallback quando a capa não dá cor / CORS bloqueado)
+const WG_DEFAULT_FIRE_HUES=[24,12,36,6,44,18];
+// Extrai os matizes MAIS marcantes da capa (estágios de cor do fogo a cada 15s)
+function wgBuildCoverHues(img){
+  try{
+    const c=document.createElement('canvas'); c.width=24; c.height=24;
+    const x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(img,0,0,24,24);
+    const d=x.getImageData(0,0,24,24).data, cand=[];
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i],g=d[i+1],b=d[i+2], mx=Math.max(r,g,b),mn=Math.min(r,g,b), sat=mx-mn, bri=mx;
+      if(bri<45 || sat<28) continue;                       // ignora muito escuro / sem cor
+      cand.push({ hue:wgRgbHue(r,g,b), score:sat*0.7+bri*0.3 });
+    }
+    cand.sort((a,b)=>b.score-a.score);
+    const hues=[];
+    for(const c0 of cand){ if(hues.length>=6) break; if(hues.every(h=>wgHueDist(h,c0.hue)>26)) hues.push(c0.hue); }
+    return hues.length>=2 ? hues : null;                   // capa sem cor → mantém o fallback quente
+  }catch(_){ return null; }
+}
 // Fogo em pixels: corpo de chama + pontas altas/finas (tips) + faíscas subindo
 function wgDrawFire(top){
-  const pal=WG.firePalette||wgDefaultFirePalette(), P=pal.length;
+  // ESTÁGIO atual (troca a cada 15s) → paleta de cor (matiz da capa) + altura um pouco maior.
+  const stages=(WG.firePalettes&&WG.firePalettes.length)?WG.firePalettes:[wgDefaultFirePalette()];
+  const hues  =(WG.fireHues&&WG.fireHues.length)?WG.fireHues:[24];
+  const stIdx =Math.max(0,Math.floor((typeof songTime==='function'?songTime():0)/15));
+  const pal=stages[stIdx%stages.length], P=pal.length;
+  const hue=hues[stIdx%hues.length];
+  const stageBoost=Math.min(7,stIdx)*0.05;   // sobe um pouco de altura a cada 15s (com teto)
   // Fogo em PIXELS estilo "Doom fire": grade de calor que se propaga de baixo pra cima com
   // deriva lateral e decaimento aleatório → chamas tremulando de verdade (nada de "LEDs").
   const cell=5;
@@ -7869,8 +7907,8 @@ function wgDrawFire(top){
   if(WG.fireLevel==null) WG.fireLevel=fireTarget;
   WG.fireLevel += (fireTarget-WG.fireLevel)*0.04;   // transição suave entre os níveis
   const lvl = WG.fireLevel;
-  // Altura das labaredas cresce com o combo (norm 0..1). Combo baixo = fogo baixinho.
-  const norm=Math.max(0,Math.min(1,(lvl-0.40)/0.78));
+  // Altura cresce com o combo E sobe um pouco a cada estágio de 15s (stageBoost).
+  const norm=Math.max(0,Math.min(1,(lvl-0.40)/0.78 + stageBoost));
   const maxHeat=((P-1)*(0.46+0.54*norm))|0;             // calor das fontes → altura das chamas
   // 1) Base = FONTES de chama que ANDAM devagar (senoides lentas + ruído). Mistura de labaredas
   //    ALTAS (raras), curtas (maioria) e vãos escuros → padrão "I.iIii.iIi.IiiI".
@@ -7899,8 +7937,14 @@ function wgDrawFire(top){
       g[above+tx]=v>0?v:0;
     }
   }
-  // 3) Render dos pixels de chama
-  ctx.fillStyle='#080410'; ctx.fillRect(0,top,CW,CH-top);   // fundo escuro (cobre o vídeo)
+  // 3) Render — fundo ESCURO em gradiente colorido que muda de cor (no estágio + desliza no tempo).
+  //    É ele que aparece nos vãos entre as labaredas (a "parte preta").
+  const bgHue=(hue+animT*6)%360;
+  const bg=ctx.createLinearGradient(0,top,0,CH);
+  bg.addColorStop(0,   wgHsl(bgHue,58,10));
+  bg.addColorStop(0.55,wgHsl((bgHue+18)%360,46,5));
+  bg.addColorStop(1,'#050108');
+  ctx.fillStyle=bg; ctx.fillRect(0,top,CW,CH-top);          // cobre o vídeo
   for(let y=0;y<rows;y++){
     const sy=top+y*cell;
     for(let x=0;x<cols;x++){
