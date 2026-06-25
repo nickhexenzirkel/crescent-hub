@@ -2,33 +2,47 @@ import React, { useState, useMemo } from 'react';
 import { T } from '../contexts/theme';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
 
-const LavaLamp = () => (
-  <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
-    <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
-    <div style={{position:'absolute',width:'210%',height:460,borderRadius:'50%',
-      background:`radial-gradient(ellipse 80% 50% at 50% 50%,${T.b1} 0%,transparent 70%)`,
-      top:'-180px',left:'-55%',filter:'blur(92px)',animation:'wave1 13s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:'200%',height:420,borderRadius:'50%',
-      background:`radial-gradient(ellipse 78% 50% at 50% 50%,${T.b2} 0%,transparent 70%)`,
-      top:'8%',left:'-50%',filter:'blur(86px)',animation:'wave2 16s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:'190%',height:400,borderRadius:'50%',
-      background:`radial-gradient(ellipse 75% 50% at 50% 50%,${T.b3} 0%,transparent 68%)`,
-      top:'28%',left:'-45%',filter:'blur(82px)',animation:'wave3 11s ease-in-out infinite'}}/>
-    <div style={{position:'absolute',width:'200%',height:430,borderRadius:'50%',
-      background:`radial-gradient(ellipse 78% 50% at 50% 50%,${T.b4} 0%,transparent 70%)`,
-      top:'46%',left:'-50%',filter:'blur(88px)',animation:'wave1 14s ease-in-out infinite 2s'}}/>
-    <div style={{position:'absolute',width:'190%',height:400,borderRadius:'50%',
-      background:`radial-gradient(ellipse 75% 50% at 50% 50%,${T.b5} 0%,transparent 68%)`,
-      bottom:'10%',left:'-45%',filter:'blur(80px)',animation:'wave2 12s ease-in-out infinite 1s'}}/>
-    <div style={{position:'absolute',width:'210%',height:450,borderRadius:'50%',
-      background:`radial-gradient(ellipse 80% 50% at 50% 50%,${T.b6} 0%,transparent 70%)`,
-      bottom:'-160px',left:'-55%',filter:'blur(90px)',animation:'wave3 17s ease-in-out infinite 3s'}}/>
-    <div style={{position:'absolute',width:'170%',height:370,borderRadius:'50%',
-      background:`radial-gradient(ellipse 70% 50% at 50% 50%,${T.b7} 0%,transparent 68%)`,
-      top:'63%',left:'-35%',filter:'blur(78px)',animation:'wave1 10s ease-in-out infinite 4s'}}/>
-    <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>
-  </div>
-)
+/* Fundo estilo "Apple Music": blobs grandes e suaves em posições aleatórias, deslizando e
+   morfando devagar, com as cores da paleta do tema atual (T.b1..T.b7). */
+const LAVA_ANIMS = ['mlA','mlB','mlC','mlD'];
+const LavaLamp = () => {
+  // Posições/tempos sorteados uma vez por carga (random); as cores são lidas a cada render
+  // (acompanham a troca de tema). 8 blobs espalhados por âncoras + jitter pra cobrir a tela.
+  const blobs = useMemo(() => {
+    const anchors = [[-16,-16],[42,-20],[78,8],[-20,42],[30,58],[68,52],[8,18],[50,28]];
+    const r = (a,b)=>a+Math.random()*(b-a);
+    return anchors.map((p,i)=>({
+      ci:i % 7,
+      size: r(46,68),                       // vw
+      left: p[0]+r(-8,8),                    // %
+      top:  p[1]+r(-8,8),                    // %
+      anim: LAVA_ANIMS[i % LAVA_ANIMS.length],
+      dur:  r(18,30),                        // s (bem lento)
+      delay:-r(0,14),                        // s
+    }));
+  }, []);
+  const cols = [T.b1,T.b2,T.b3,T.b4,T.b5,T.b6,T.b7];
+  return (
+    <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
+      <style>{`
+        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(5vw,-4vw) scale(1.16)}66%{transform:translate(-4vw,4vw) scale(.9)}}
+        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-6vw,3vw) scale(1.12)}80%{transform:translate(4vw,-3vw) scale(.92)}}
+        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(4vw,5vw) scale(1.18)}}
+        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-5vw,-4vw) scale(1.2)}70%{transform:translate(3vw,3vw) scale(.88)}}
+      `}</style>
+      <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
+      {blobs.map((b,i)=>(
+        <div key={i} style={{position:'absolute',
+          width:`${b.size}vw`, height:`${b.size}vw`, borderRadius:'50%',
+          top:`${b.top}%`, left:`${b.left}%`,
+          background:`radial-gradient(circle at 50% 50%, ${cols[b.ci]} 0%, transparent 62%)`,
+          filter:'blur(95px)', willChange:'transform',
+          animation:`${b.anim} ${b.dur}s ease-in-out infinite`, animationDelay:`${b.delay}s`}}/>
+      ))}
+      <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>
+    </div>
+  );
+};
 const Moon = ({size=32, color=T.goldL, opacity=0.45, float=false}) => (
   <svg width={size} height={size} viewBox="0 0 32 32"
     style={{opacity, flexShrink:0, animation:float?'moonFloat 4s ease-in-out infinite':undefined}}>
