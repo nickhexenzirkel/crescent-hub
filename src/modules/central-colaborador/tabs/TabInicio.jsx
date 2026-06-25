@@ -88,13 +88,12 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete }) => {
-  const [sv,        setSv]        = useState(false);
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
-  const [myTrophies,    setMyTrophies]     = useState([]);
-  const [showTrophyModal, setTrophyModal] = useState(false);
-  const [hovTrophyIdx,    setHovTrophy]   = useState(null);
+  const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
   const [evts,      setEvts]      = useState([]);
+  /* Capture Uniko! (função futura) — posição de spawn aleatória só pro visual por enquanto */
+  const [captureSpot] = useState(() => ({ left: 14 + Math.random() * 60, top: 24 + Math.random() * 38 }));
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {
@@ -160,8 +159,9 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
   /* ── Fetch inicial + realtime ── */
   useEffect(() => {
-    _supabase.from('trophies').select('*').eq('to_name', USER.name).order('created_at',{ascending:false})
-      .then(({data})=>setMyTrophies(data||[]));
+    // Carteira de prismas do colaborador (Prisma Store → tabela mercado_state)
+    _supabase.from('mercado_state').select('data').eq('player', USER.name).maybeSingle()
+      .then(({ data }) => { const d = data?.data || {}; setPrismas({ comum: d.comum || 0, premium: d.premium || 0 }); });
     fetchLembs();
     fetchNotas();
     fetchEvts();
@@ -338,6 +338,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         @keyframes moonP{0%,100%{opacity:.72}50%{opacity:1}}
         @keyframes shootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:0.45;transform:translate(82px,82px)}72%,100%{opacity:0;transform:translate(108px,108px)}}
         @keyframes nowP{0%,100%{box-shadow:0 0 0 0 rgba(212,168,67,.16)}50%{box-shadow:0 0 0 5px rgba(212,168,67,.05)}}
+        @keyframes capFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+        @keyframes capPulse{0%,100%{opacity:.55;transform:translate(-50%,-50%)scale(.92)}50%{opacity:1;transform:translate(-50%,-50%)scale(1.12)}}
       `}</style>
 
       {/* ══ HERO ═══════════════════════════════════════════════════ */}
@@ -409,49 +411,40 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </div>
       </div>
 
-      {/* ══ TIRA: SALÁRIO · TROFÉUS · NOW PLAYING ══════════════════ */}
+      {/* ══ TIRA: UNIKO WAVE · PRISMA STORE · NOW PLAYING ══════════ */}
       <div style={{display:'grid',gridTemplateColumns:(isPlay&&nowPlay)?'1fr 1fr 1.4fr':'1fr 1fr',gap:12,marginBottom:14}}>
-        <Card style={{padding:'14px 18px'}}>
+        {/* Uniko Wave */}
+        <Card style={{padding:'14px 16px',cursor:'pointer'}} onClick={()=>setTab('unikowave')}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <div style={{width:38,height:38,borderRadius:10,flexShrink:0,background:'rgba(40,168,112,.10)',border:'1px solid rgba(40,168,112,.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#28A870',fontWeight:700,fontSize:16}}>$</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:11,color:T.textT}}>Salário Líquido</div>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{sv?`R$ ${((USER.salary||0)+(USER.salary_1k||0)-(USER.inss||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`:'R$ ••••,••'}</div>
+            <div style={{width:42,height:42,borderRadius:11,overflow:'hidden',flexShrink:0,boxShadow:'0 4px 14px rgba(155,107,255,.35)'}}>
+              <img src={unikoWave} alt="Uniko Wave" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
             </div>
-            <button onClick={()=>setSv(!sv)} style={{background:'none',border:'none',cursor:'pointer',color:sv?T.gold:T.textD,padding:3,flexShrink:0}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                {sv?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>:<><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22"/></>}
-              </svg>
-            </button>
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:5,marginTop:8}}>
-            <div style={{width:6,height:6,borderRadius:'50%',background:'#28A870'}}/>
-            <span style={{fontSize:11,color:'#28A870'}}>Pagamento em dia</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.06em'}}>RITMO</div>
+              <div style={{fontSize:15,fontWeight:700,color:T.text,lineHeight:1.1}}>Uniko Wave</div>
+              <div style={{fontSize:10.5,color:T.textT,marginTop:2}}>Jogue e ganhe prismas</div>
+            </div>
+            <span style={{width:30,height:30,borderRadius:'50%',background:'rgba(155,107,255,.14)',border:'1px solid rgba(155,107,255,.3)',color:'#9B6BFF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>▶</span>
           </div>
         </Card>
 
-        <Card style={{padding:'14px 18px'}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <div style={{width:38,height:38,borderRadius:10,flexShrink:0,background:T.goldGl,border:`1px solid ${T.gold}22`,display:'flex',alignItems:'center',justifyContent:'center',color:T.gold}}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><polygon points="12 2 15.1 8.3 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.3 12 2"/></svg>
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:11,color:T.textT}}>Troféus</div>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginTop:2}}>{myTrophies.length}</div>
-            </div>
-            <BtnVer tab="conquistas" onClick={myTrophies.length>0?()=>setTrophyModal(true):undefined} label="Ver"/>
+        {/* Prisma Store (carteira) */}
+        <Card style={{padding:'14px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <span style={{fontSize:13,fontWeight:600,color:T.text}}>Prisma Store</span>
+            <span style={{fontSize:10.5,color:T.textT}}>Sua carteira</span>
           </div>
-          <div style={{display:'flex',gap:6,marginTop:10,flexWrap:'wrap',minHeight:20}}>
-            {myTrophies.length > 0
-              ? (() => {
-                  const IMGS = { nebula:'/TroféuNebula.png', estelar:'/TroféuEstelar.png', supernova:'/TroféuSupernova.png' };
-                  return myTrophies.slice(0,6).map((t,i) => (
-                    <img key={i} src={IMGS[t.type]||IMGS.nebula} alt={t.type}
-                      onError={e=>{e.target.onerror=null;e.target.style.opacity='0';}}
-                      style={{width:28,height:28,objectFit:'contain'}}/>
-                  ));
-                })()
-              : <span style={{fontSize:11,color:T.textT}}>Nenhum ainda</span>}
+          <div style={{display:'flex',gap:9}}>
+            {[{k:'comum',src:'/PrismaComum.png',label:'Comum',col:'#27C6DE',v:prismas.comum},
+              {k:'premium',src:'/PrismaPremium.png',label:'Premium',col:'#9B6BFF',v:prismas.premium}].map(p=>(
+              <div key={p.k} style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:T.surface,border:`1px solid ${T.border}`}}>
+                <img src={p.src} alt={p.label} onError={e=>{e.target.style.display='none';}} style={{width:26,height:26,objectFit:'contain',flexShrink:0}}/>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color:p.col,lineHeight:1}}>{(p.v||0).toLocaleString('pt-BR')}</div>
+                  <div style={{fontSize:9.5,color:T.textT,marginTop:1}}>{p.label}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
 
@@ -470,6 +463,30 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             </div>
           </Card>
         )}
+      </div>
+
+      {/* ══ CAPTURE UNIKO! (função futura — só visual por enquanto) ═════ */}
+      <div style={{position:'relative',height:118,borderRadius:18,overflow:'hidden',marginBottom:14,background:'linear-gradient(135deg,#0C0818,#180C2C,#1C1038,#100828)',border:'1px solid rgba(155,107,255,.28)',boxShadow:'0 8px 28px rgba(12,8,24,.4)'}}>
+        {/* estrelinhas de fundo */}
+        {STARS_POS.slice(0,8).map((s,i)=>(
+          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.7)',pointerEvents:'none',animation:`twinkle ${2.4+i*.3}s ease-in-out infinite`,animationDelay:s.d}}/>
+        ))}
+        {/* selo "em breve" */}
+        <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#C0A8FF',background:'rgba(155,107,255,.16)',border:'1px solid rgba(155,107,255,.35)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
+
+        {/* texto */}
+        <div style={{position:'absolute',left:20,top:'50%',transform:'translateY(-50%)',zIndex:2,maxWidth:'58%'}}>
+          <div style={{fontSize:11,color:'#C0A8FF',fontWeight:700,letterSpacing:'.08em',marginBottom:3}}>✦ MINIGAME</div>
+          <div style={{fontSize:19,fontWeight:800,color:'#fff',lineHeight:1.05,marginBottom:4}}>Capture o Uniko!</div>
+          <div style={{fontSize:11.5,color:'rgba(255,255,255,.62)',lineHeight:1.4}}>De vez em quando um Uniko vai aparecer aqui — clique pra capturar e ganhar prismas.</div>
+        </div>
+
+        {/* Uniko que vai spawnar (posição aleatória; aqui só fantasma/placeholder) */}
+        <div title="Em breve você vai capturar o Uniko aqui!" style={{position:'absolute',left:`${captureSpot.left}%`,top:`${captureSpot.top}%`,zIndex:1,pointerEvents:'none'}}>
+          {/* halo do ponto de spawn */}
+          <div style={{position:'absolute',left:'50%',top:'50%',width:74,height:74,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'1.5px dashed rgba(192,168,255,.45)',animation:'capPulse 2.6s ease-in-out infinite'}}/>
+          <img src={unikoPop} alt="Uniko" style={{position:'relative',width:58,height:58,borderRadius:'50%',objectFit:'cover',opacity:.55,filter:'grayscale(.25) drop-shadow(0 4px 12px rgba(155,107,255,.5))',animation:'capFloat 3.4s ease-in-out infinite'}}/>
+        </div>
       </div>
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}
@@ -669,77 +686,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>setShowPhoto(false)} style={{flex:1,padding:'10px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
               <button onClick={savePhoto} style={{flex:1,padding:'10px',borderRadius:9,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>Salvar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL DE TROFÉUS ───────────────────────────────────── */}
-      {showTrophyModal && (
-        <div style={{position:'fixed',inset:0,zIndex:3000,background:'rgba(0,0,0,0.65)',
-          backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-          display:'flex',alignItems:'center',justifyContent:'center',padding:24}}
-          onClick={()=>{setTrophyModal(false);setHovTrophy(null);}}>
-          <div onClick={e=>e.stopPropagation()} style={{
-            background:T.dark?T.surface:'#fff',borderRadius:22,
-            width:'100%',maxWidth:700,maxHeight:'85vh',
-            display:'flex',flexDirection:'column',
-            boxShadow:'0 32px 80px rgba(0,0,0,0.40)',
-            border:`1px solid ${T.border}`,overflow:'hidden',
-          }}>
-            {/* Header */}
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-              padding:'20px 26px',borderBottom:`1px solid ${T.border}`,flexShrink:0,
-              background:`linear-gradient(135deg,${T.goldGl},transparent)`}}>
-              <div>
-                <div style={{fontSize:18,fontWeight:700,color:T.text,fontFamily:'var(--font-body)'}}>Meus Troféus</div>
-                <div style={{fontSize:12,color:T.textT,marginTop:2}}>{myTrophies.length} troféu{myTrophies.length!==1?'s':''} recebido{myTrophies.length!==1?'s':''}</div>
-              </div>
-              <button onClick={()=>{setTrophyModal(false);setHovTrophy(null);}}
-                style={{width:32,height:32,borderRadius:9,border:`1px solid ${T.border}`,
-                  background:'transparent',cursor:'pointer',display:'flex',
-                  alignItems:'center',justifyContent:'center',color:T.textS,fontSize:18}}>×</button>
-            </div>
-
-            {/* Grid */}
-            <div style={{overflowY:'auto',padding:'24px 26px'}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:16}}>
-                {myTrophies.map((t, i) => {
-                  const IMGS = {nebula:'/TroféuNebula.png',estelar:'/TroféuEstelar.png',supernova:'/TroféuSupernova.png'};
-                  const img  = IMGS[t.type] || IMGS.nebula;
-                  const isHov = hovTrophyIdx === i;
-                  return (
-                    <div key={i}
-                      onMouseEnter={()=>setHovTrophy(i)}
-                      onMouseLeave={()=>setHovTrophy(null)}
-                      style={{position:'relative',borderRadius:16,overflow:'hidden',cursor:'default',
-                        background:T.dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.02)',
-                        border:`1.5px solid ${isHov?T.goldLine+'66':T.border}`,
-                        padding:'20px 12px 14px',textAlign:'center',
-                        transition:'all .15s',
-                        transform:isHov?'translateY(-3px)':'none',
-                        boxShadow:isHov?T.shM:'none'}}>
-                      <img src={img} alt={t.type}
-                        onError={e=>{e.target.onerror=null;e.target.style.opacity='0.2';}}
-                        style={{width:110,height:110,objectFit:'contain',display:'block',margin:'0 auto 10px',
-                          filter:isHov?'drop-shadow(0 6px 18px rgba(0,0,0,0.25))':'none',
-                          transition:'filter .2s, transform .2s',
-                          transform:isHov?'scale(1.06)':'scale(1)'}}/>
-                      {/* Info sempre visível abaixo */}
-                      <div style={{fontSize:12,fontWeight:700,color:T.text,lineHeight:1.3,
-                        overflow:'hidden',textOverflow:'ellipsis',
-                        display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',
-                        marginBottom:4}}>
-                        {t.description}
-                      </div>
-                      <div style={{fontSize:11,color:T.textT}}>De: {t.from_name}</div>
-                      <div style={{fontSize:10,color:T.textD,marginTop:2}}>
-                        {t.created_at?new Date(t.created_at).toLocaleDateString('pt-BR'):''}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           </div>
         </div>
