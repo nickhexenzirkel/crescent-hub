@@ -71,6 +71,7 @@ canvas{display:block}
 .snav-btn::after{content:'';position:absolute;right:14px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;background:var(--M);opacity:0;transition:opacity .2s}
 .snav-btn:hover{background:rgba(255,255,255,0.1);color:#fff;transform:translateX(5px)}
 .snav-btn.active{background:linear-gradient(135deg,rgba(255,45,146,.28),rgba(100,80,255,.28));border:1px solid rgba(255,45,146,.45);color:#fff;transform:translateX(0)}
+.snav-btn.gp-focus{outline:2px solid var(--C,#00f0ff);outline-offset:1px;color:#fff;transform:translateX(5px);box-shadow:0 0 14px rgba(0,240,255,.35)}
 .snav-btn.active::after{opacity:1}
 .snav-icon{font-size:18px;opacity:0.85;flex-shrink:0}
 
@@ -3007,9 +3008,12 @@ function buildKeyLegend(){
 
 function selectDiff(d){
   difficulty=d;
-  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('sel'));
-  const btn=document.querySelector('.diff-btn.'+d);
+  // Escopo na grade de dificuldade: os botões de modo/sub-modo também usam a
+  // classe .diff-btn (com cores normal/insane/hard), então NÃO podem ser limpos aqui.
+  document.querySelectorAll('.prev-diff-grid .diff-btn').forEach(b=>b.classList.remove('sel'));
+  const btn=document.querySelector('.prev-diff-grid .diff-btn.'+d);
   if(btn) btn.classList.add('sel');
+  if(typeof DIFFS!=='undefined'){ const i=DIFFS.indexOf(d); if(i>=0) gpDiffIdx=i; } // sincroniza cursor do controle
 }
 
 const LANE_COLORS=['#00f0ff','#ff00cc','#b000ff','#fff000'];
@@ -7921,7 +7925,8 @@ function drawWgBackground(t){
 // Desenha um minion (imagem) com brilho da cor da linha e seta indicando a tecla.
 // air = voador (imagem com asas, ▲ W) / chão = comum (▼ S)
 function drawWgMinion(x,y,air,scale,glow,phase){
-  const size=WG.noteR*2*(scale||1), c=air?C_AIR:C_GROUND;
+  const airBoost = air ? 1.2 : 1; // minion voador um pouco maior que o terrestre
+  const size=WG.noteR*2*(scale||1)*airBoost, c=air?C_AIR:C_GROUND;
   const img=air?WG_MINION_AIR:WG_MINION;
   // Animação LEVE (puramente visual — não muda o tempo/acerto da nota):
   // voador flutua (sobe/desce) e gira de leve; terrestre dá um "passo" (bob curto).
@@ -8123,7 +8128,9 @@ function drawWargame(t){
       const tailX = wgTimeX(n.hitTime+n.holdDur, st);
       if(tailX<-WG.noteR || headX>CW+WG.noteR) continue;
       drawWgHoldBeam(headX, tailX, laneY, t, glow, n.state==='holding');
-      drawWgMinion(headX,laneY,air,1,glow,n.hitTime*1.7); // minion só no COMEÇO
+      // Minion na PONTA (fim) do caminho; enquanto segura, ele EXPANDE/pulsa.
+      const holdScale = n.state==='holding' ? (1.3 + 0.18*Math.sin(animT*8)) : 1;
+      drawWgMinion(tailX,laneY,air,holdScale,glow,n.hitTime*1.7);
     } else {
       const p=(n.hitTime-st)/WG_TRAVEL;
       if(p>1.08||p<-0.3) continue;
@@ -9069,6 +9076,7 @@ let gpConnected = false;
 let gpIndex = -1;
 let gpBtnPrev = new Array(17).fill(false);  // was button down last frame?
 let gpLanePrev = [false,false,false,false]; // was lane held last frame?
+let gpWgPrev = {air:false, ground:false};   // Guerra Estelar: ar/chão segurados no frame anterior
 let gpNavCooldown = 0; // debounce for menu navigation
 let gpLibIdx = 0;      // selected library card index
 let gpDiffIdx = 1;     // 0=easy, 1=normal, 2=hard, 3=insane, 4=impossible
@@ -9076,7 +9084,7 @@ let gpMenuIdx = 0;     // selected main menu button index (0-3)
 let gpSettingsIdx = 0; // selected settings option index (0-7)
 let gpBgIdx = 0;       // selected bg mode button (0=effects, 1=video)
 
-const DIFFS = ['easy','normal','hard','insane','impossible'];
+const DIFFS = ['easy','normal','hard','insane','impossible','nightmare'];
 
 // ── Connection events ──
 window.addEventListener('gamepadconnected', e => {
@@ -9147,7 +9155,7 @@ function gpHighlightLib(){
 
 // ── Visual feedback: highlight diff button ──
 function gpHighlightDiff(){
-  const btns = document.querySelectorAll('.diff-btn');
+  const btns = document.querySelectorAll('.prev-diff-grid .diff-btn');
   btns.forEach((b,i)=>{
     b.style.outline = i===gpDiffIdx ? '2px solid #fff' : '';
     b.style.background = i===gpDiffIdx ? 'rgba(255,255,255,.12)' : '';
@@ -9155,13 +9163,13 @@ function gpHighlightDiff(){
   });
 }
 
-// ── Main menu button highlight ──
+// ── Main menu highlight: navega os botões reais da sidebar ──
+function gpMenuButtons(){ return document.querySelectorAll('.sidebar-nav .snav-btn'); }
 function gpHighlightMenu(){
-  for(let i=0;i<4;i++){
-    const el=document.getElementById('mnBtn'+i);
-    if(!el) continue;
-    el.classList.toggle('gp-focus', i===gpMenuIdx);
-  }
+  const btns=gpMenuButtons();
+  if(gpMenuIdx<0) gpMenuIdx=0;
+  if(gpMenuIdx>btns.length-1) gpMenuIdx=Math.max(0,btns.length-1);
+  btns.forEach((el,i)=> el.classList.toggle('gp-focus', i===gpMenuIdx));
 }
 
 // ── Settings option highlight ──
@@ -9279,17 +9287,17 @@ function pollGamepad(){
   const pressed  = btnNow.map((v,i)=>  v && !gpBtnPrev[i]);
   const released = btnNow.map((v,i)=> !v &&  gpBtnPrev[i]);
 
-  // ── Right analog stick + D-Pad navigation (with cooldown) ──
-  const rx = gp.axes[GP.RX]||0;
-  const ry = gp.axes[GP.RY]||0;
+  // ── Analógicos (esquerdo OU direito) + D-Pad para navegar (com cooldown) ──
+  const nx = (gp.axes[GP.RX]||0) || (gp.axes[GP.LX]||0);
+  const ny = (gp.axes[GP.RY]||0) || (gp.axes[GP.LY]||0);
   if(gpNavCooldown > 0) gpNavCooldown--;
   const canNav = gpNavCooldown === 0;
 
   // Only fire nav on the falling edge of analog or on dpad press
-  const navLeft  = (canNav && rx < -0.55) || pressed[GP.DLEFT];
-  const navRight = (canNav && rx >  0.55) || pressed[GP.DRIGHT];
-  const navUp    = (canNav && ry < -0.55) || pressed[GP.DUP];
-  const navDown  = (canNav && ry >  0.55) || pressed[GP.DDOWN];
+  const navLeft  = (canNav && nx < -0.55) || pressed[GP.DLEFT];
+  const navRight = (canNav && nx >  0.55) || pressed[GP.DRIGHT];
+  const navUp    = (canNav && ny < -0.55) || pressed[GP.DUP];
+  const navDown  = (canNav && ny >  0.55) || pressed[GP.DDOWN];
 
   const anyNav = navLeft||navRight||navUp||navDown;
   if(anyNav) gpNavCooldown = 16; // ~270ms at 60fps
@@ -9302,13 +9310,27 @@ function pollGamepad(){
   // ─── PLAYING / COUNTDOWN ───
   // ════════════════════════════════════════
   if(gameState==='playing' || gameState==='countdown'){
-    gpLanePrev.fill(false); // not relevant here; use direct check
-    const laneBtns = gpLaneButtons();
-    for(let l=0;l<4;l++){
-      const held = btnDownEx(gp, laneBtns[l]);
-      if(held && !gpLanePrev[l]) pressLane(l);
-      if(!held && gpLanePrev[l]) releaseLane(l);
-      gpLanePrev[l] = held;
+    if(gameMode==='wargame'){
+      // Guerra Estelar: AR (subir) e CHÃO (bater). Aceita Bola(○)/Cruz(✕),
+      // D-pad cima/baixo OU analógico esquerdo cima/baixo. (PS4/PS5/Xbox: standard mapping)
+      const ly = gp.axes[GP.LY]||0;
+      const airHeld    = btnDownEx(gp,GP.CIRCLE) || btnDownEx(gp,GP.DUP)   || ly < -0.5; // ○ / ↑ / analógico ↑
+      const groundHeld = btnDownEx(gp,GP.CROSS)  || btnDownEx(gp,GP.DDOWN) || ly >  0.5; // ✕ / ↓ / analógico ↓
+      if(airHeld    && !gpWgPrev.air)    wgAction('air');
+      if(!airHeld   &&  gpWgPrev.air)    wgRelease('air');
+      if(groundHeld && !gpWgPrev.ground) wgAction('ground');
+      if(!groundHeld&&  gpWgPrev.ground) wgRelease('ground');
+      gpWgPrev.air = airHeld; gpWgPrev.ground = groundHeld;
+      gpLanePrev.fill(false);
+    } else {
+      gpLanePrev.fill(false); // not relevant here; use direct check
+      const laneBtns = gpLaneButtons();
+      for(let l=0;l<4;l++){
+        const held = btnDownEx(gp, laneBtns[l]);
+        if(held && !gpLanePrev[l]) pressLane(l);
+        if(!held && gpLanePrev[l]) releaseLane(l);
+        gpLanePrev[l] = held;
+      }
     }
     if(pressed[GP.START]) pauseGame(); // Options/Start = pause
 
@@ -9376,12 +9398,13 @@ function pollGamepad(){
   // ════════════════════════════════════════
   } else if(screenVisible('previewScr')){
     gpLanePrev.fill(false);
-    // L1/Left = easier, R1/Right = harder
-    if((navLeft||navUp  ||pressed[GP.L1]) && canNav||pressed[GP.L1]){
-      gpDiffIdx=Math.max(0,gpDiffIdx-1); selectDiff(DIFFS[gpDiffIdx]); gpHighlightDiff();    }
-    if((navRight||navDown||pressed[GP.R1]) && canNav||pressed[GP.R1]){
-      gpDiffIdx=Math.min(4,gpDiffIdx+1); selectDiff(DIFFS[gpDiffIdx]); gpHighlightDiff();
-    }
+    // Dificuldade: ←/→ (ou ↑/↓) ou L1/R1
+    if(navLeft ||navUp  ||pressed[GP.L1]){ gpDiffIdx=Math.max(0,gpDiffIdx-1);               selectDiff(DIFFS[gpDiffIdx]); gpHighlightDiff(); }
+    if(navRight||navDown||pressed[GP.R1]){ gpDiffIdx=Math.min(DIFFS.length-1,gpDiffIdx+1);  selectDiff(DIFFS[gpDiffIdx]); gpHighlightDiff(); }
+    // Modo de jogo: Triângulo (△/Y) alterna Teclado Estelar ↔ Guerra Estelar
+    if(triBtn){ selectMode(gameMode==='wargame'?'classic':'wargame'); }
+    // Sub-modo (só no Guerra Estelar): L2/R2 alterna Rítmico ↔ Luta
+    if(gameMode==='wargame' && (pressed[GP.L2]||pressed[GP.R2])){ selectWgSubmode(wgSubmode==='ritmico'?'luta':'ritmico'); }
     if(confirm)        beginFromPreview();
     if(back) { showScreen('menuScr'); initMenuBg(); }
 
@@ -9390,27 +9413,22 @@ function pollGamepad(){
   // ════════════════════════════════════════
   } else if(gameState==='menu' || screenVisible('menuScr')){
     gpLanePrev.fill(false);
-    // Navigate the 4 bottom buttons
-    const mnCount = 4;
+    // Navega os botões da sidebar (INÍCIO, JOGAR, PERSONAGENS, AUDIÇÃO,
+    // BIBLIOTECA, RANKING, CONFIGURAÇÕES, EDITAR PERFIL) com ↑/↓
+    const navBtns = gpMenuButtons();
+    const mnCount = navBtns.length;
     if(gpMenuIdx < 0) gpMenuIdx = 0;
-    if(navRight||navDown){ gpMenuIdx=Math.min(mnCount-1,gpMenuIdx+1); gpHighlightMenu(); }
-    if(navLeft||navUp)   { gpMenuIdx=Math.max(0,gpMenuIdx-1);         gpHighlightMenu(); }
-    // Confirm on focused button
+    if(gpMenuIdx > mnCount-1) gpMenuIdx = mnCount-1;
+    if(navDown||navRight){ gpMenuIdx=Math.min(mnCount-1,gpMenuIdx+1); gpHighlightMenu(); }
+    if(navUp  ||navLeft) { gpMenuIdx=Math.max(0,gpMenuIdx-1);         gpHighlightMenu(); }
+    // Cruz (✕/A) abre o painel em foco
     if(confirm){
       const urlIn=document.getElementById('urlIn');
-      const actions=[openSettings,startDemo,openLibrary,openBgPicker];
-      if(urlIn.value.trim()){
-        startLoad(); // X with URL = play
-      } else {
-        if(actions[gpMenuIdx]) actions[gpMenuIdx]();
-      }
+      if(urlIn && urlIn.value.trim()){ startLoad(); } // se há URL digitada, ✕ começa
+      else { const b=navBtns[gpMenuIdx]; if(b) b.click(); }
     }
-    if(triBtn) openLibrary();
-    if(pressed[GP.SELECT]) openSettings();
-    if(pressed[GP.START]){
-      const urlIn=document.getElementById('urlIn');
-      if(urlIn.value.trim()) startLoad();
-    }
+    if(triBtn) openLibrary();                 // Triângulo: atalho p/ Biblioteca
+    if(pressed[GP.SELECT]) openSettings();     // Select/Share: Configurações
   }
 
   updateGpGuide(gp);
