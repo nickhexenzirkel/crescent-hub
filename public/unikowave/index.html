@@ -5004,16 +5004,17 @@ function updateHUD(){
   const groove=document.getElementById('grooveFill');
   if(groove) groove.style.width=Math.min(100,acc).toFixed(1)+'%';
 
-  // Stars (nova escala mais difícil):
-  // 1★ frac≥0.10 | 2★ frac≥0.30 | 3★ frac≥0.55 | 4★ frac≥0.78 | 5★ frac≥0.93 + miss=0 | MEGA frac≥0.99 + miss=0
-  const frac=maxPossibleScore>0?score.v/maxPossibleScore:0;
+  // Estrelas pela PRECISÃO (acc) — justo nos dois modos: não infla com o multiplicador de combo.
+  // 1★ acc≥30 | 2★ ≥55 | 3★ ≥75 | 4★ ≥88 | 5★ ≥95 + sem miss | MEGA ≥99 + sem miss
   let sl=0;
-  if(frac>=0.99&&score.miss===0)sl=6;
-  else if(frac>=0.93&&score.miss===0)sl=5;
-  else if(frac>=0.78)sl=4;
-  else if(frac>=0.55)sl=3;
-  else if(frac>=0.30)sl=2;
-  else if(frac>=0.10)sl=1;
+  if(total>0){
+    if(acc>=99&&score.miss===0)sl=6;
+    else if(acc>=95&&score.miss===0)sl=5;
+    else if(acc>=88)sl=4;
+    else if(acc>=75)sl=3;
+    else if(acc>=55)sl=2;
+    else if(acc>=30)sl=1;
+  }
   const prevSl=starLevel; starLevel=sl;
   for(let i=0;i<5;i++) document.getElementById('star'+i).classList.toggle('lit',i<Math.min(sl,5));
   document.getElementById('megastarBadge').classList.toggle('show',sl>=6);
@@ -8967,14 +8968,16 @@ function showResult(){
   
   for(let i=0;i<5;i++) document.getElementById('rstar'+i).classList.remove('lit');
   // Calcula stars com nova escala difícil
-  const frac2=maxPossibleScore>0?score.v/maxPossibleScore:0;
+  // Estrelas pela PRECISÃO (acc) — mesma escala justa do HUD (vale pros dois modos).
   let sl2=0;
-  if(frac2>=0.99&&score.miss===0)sl2=6;
-  else if(frac2>=0.93&&score.miss===0)sl2=5;
-  else if(frac2>=0.78)sl2=4;
-  else if(frac2>=0.55)sl2=3;
-  else if(frac2>=0.30)sl2=2;
-  else if(frac2>=0.10)sl2=1;
+  if(total>0){
+    if(acc>=99&&score.miss===0)sl2=6;
+    else if(acc>=95&&score.miss===0)sl2=5;
+    else if(acc>=88)sl2=4;
+    else if(acc>=75)sl2=3;
+    else if(acc>=55)sl2=2;
+    else if(acc>=30)sl2=1;
+  }
   const sl=Math.min(5,sl2);
   for(let i=0;i<sl;i++) setTimeout(()=>document.getElementById('rstar'+i).classList.add('lit'),(i+1)*260);
 
