@@ -7852,8 +7852,8 @@ function wgDrawFire(top){
   const pal=WG.firePalette||wgDefaultFirePalette(), P=pal.length;
   // Fogo em PIXELS estilo "Doom fire": grade de calor que se propaga de baixo pra cima com
   // deriva lateral e decaimento aleatório → chamas tremulando de verdade (nada de "LEDs").
-  const cell=7;
-  const cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(12,Math.ceil(fireH/cell)+1);
+  const cell=5;
+  const cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(10,Math.ceil(fireH/cell)+1);
   if(!WG.fireGrid || WG.fireCols!==cols || WG.fireRows!==rows){
     WG.fireGrid=new Uint8Array(cols*rows); WG.fireCols=cols; WG.fireRows=rows;
   }
@@ -7869,23 +7869,25 @@ function wgDrawFire(top){
   if(WG.fireLevel==null) WG.fireLevel=fireTarget;
   WG.fireLevel += (fireTarget-WG.fireLevel)*0.04;   // transição suave entre os níveis
   const lvl = WG.fireLevel;
-  // 1) Base = FONTES de chama que ANDAM (soma de senoides móveis + ruído). Em vez de uma linha
-  //    sólida, dá pontos quentes (raiz das labaredas) e vãos escuros entre eles → línguas de fogo.
+  // Altura das labaredas cresce com o combo (norm 0..1). Combo baixo = fogo baixinho.
+  const norm=Math.max(0,Math.min(1,(lvl-0.40)/0.78));
+  const maxHeat=((P-1)*(0.46+0.54*norm))|0;             // calor das fontes → altura das chamas
+  // 1) Base = FONTES de chama que ANDAM devagar (senoides lentas + ruído). Mistura de labaredas
+  //    ALTAS (raras), curtas (maioria) e vãos escuros → padrão "I.iIii.iIi.IiiI".
   const base=(rows-1)*cols, t=animT;
   for(let x=0;x<cols;x++){
-    let s = 0.30*Math.sin(x*0.22 + t*2.2)
-          + 0.22*Math.sin(x*0.55 - t*3.1)
-          + 0.16*Math.sin(x*0.11 + t*1.4)
-          + 0.12*Math.sin(x*0.85 + t*4.7);
-    s = 0.5 + s + (Math.random()-0.5)*0.55;
+    let s = 0.30*Math.sin(x*0.22 + t*0.85)
+          + 0.22*Math.sin(x*0.55 - t*1.25)
+          + 0.16*Math.sin(x*0.11 + t*0.55)
+          + 0.12*Math.sin(x*0.95 + t*1.9);
+    s = 0.5 + s + (Math.random()-0.5)*0.5;
     let hv;
-    if(s>0.60)      hv=P-1;                              // fonte forte → labareda alta
-    else if(s>0.34) hv=((P-1)*(0.45+0.45*Math.random()))|0;
-    else            hv=((P-1)*0.12*Math.random())|0;     // vão quase apagado (preto)
+    if(s>0.82)      hv=maxHeat;                                  // labareda ALTA (rara) — "I"
+    else if(s>0.30) hv=(maxHeat*(0.28+0.42*Math.random()))|0;   // curtas/médias (maioria) — "i"
+    else            hv=0;                                        // vão escuro — "."
     g[base+x]=hv;
   }
-  // 2) Propaga de baixo pra cima. Decaimento menor quando o combo (lvl) é alto = labaredas mais altas.
-  const decP=0.58-0.40*lvl;
+  // 2) Propaga de baixo pra cima com deriva lateral e decaimento moderado constante (tapera a ponta).
   for(let y=rows-1;y>=1;y--){
     const above=(y-1)*cols, row=y*cols;
     for(let x=0;x<cols;x++){
@@ -7893,7 +7895,7 @@ function wgDrawFire(top){
       if(px<=0){ g[above+x]=0; continue; }
       const rnd=(Math.random()*3.2)|0;                 // 0..3 → deriva lateral
       let tx=x+1-rnd; if(tx<0)tx=0; else if(tx>=cols)tx=cols-1;
-      const v=px-((Math.random()<decP)?1:0);           // decaimento 0/1
+      const v=px-(1+((Math.random()*2.2)|0));          // decaimento 1..2 por linha (chama mais baixa)
       g[above+tx]=v>0?v:0;
     }
   }
@@ -7905,11 +7907,13 @@ function wgDrawFire(top){
       const idx=g[y*cols+x]; if(idx<=0) continue;
       const col=pal[idx]; if(!col) continue;
       ctx.fillStyle=col; ctx.fillRect(x*cell,sy,cell+1,cell+1);
-      // solta faísca das PONTAS (célula quente com vazio logo acima)
-      if(idx>P*0.45 && y>0 && g[(y-1)*cols+x]<=0 && Math.random()<0.03*lvl){
+      // solta MUITAS faíscas: das PONTAS (célula quente com vazio acima) + algumas do corpo quente
+      const isTip = y>0 && g[(y-1)*cols+x]<=0;
+      if(idx>P*0.40 && ((isTip && Math.random()<0.12+0.10*lvl) || Math.random()<0.014*lvl)){
+        const tiny=Math.random()<0.7;
         WG.embers.push({ x:x*cell+cell/2+(Math.random()-0.5)*cell, y:sy,
-          vx:(Math.random()-0.5)*30, vy:-(18+Math.random()*52)*(0.7+lvl*0.5),
-          life:0.55+Math.random()*0.5, sz:0.9+Math.random()*1.6 });
+          vx:(Math.random()-0.5)*(tiny?42:26), vy:-(20+Math.random()*60)*(0.7+lvl*0.5),
+          life:tiny?(0.5+Math.random()*0.5):(0.85+Math.random()*0.6), sz:tiny?(0.7+Math.random()*1.2):(1.6+Math.random()*1.8) });
       }
     }
   }
