@@ -1164,6 +1164,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const addToQueue = async (track, confirmed = false) => {
     if (isAdding) return;
 
+    // Bloqueia adicionar nos últimos 15s da música atual — só libera quando passar pra próxima da fila.
+    const playingNow = currentSong || queue.find(s => s.status === 'playing') || queue[0];
+    if (playingNow?.duration_ms > 0) {
+      const remaining = playingNow.duration_ms - progressMs;
+      if (remaining > 0 && remaining <= 15000) {
+        setServerMsg('A música está quase acabando! Espere a próxima começar pra adicionar uma nova. ⏭️');
+        setTimeout(() => setServerMsg(''), 5000);
+        setSearchResults([]);
+        setVoiceVal('');
+        return;
+      }
+    }
+
     // Verificação local antecipada (evita round-trip desnecessário)
     if (!isAdmin) {
       const myActive = queue.filter(s =>
