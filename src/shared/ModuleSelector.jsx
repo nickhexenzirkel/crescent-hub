@@ -4,6 +4,25 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+/* Wordmark "UNIKO" estilizado: o "N" é um U invertido e há um brilho ✦ dentro do "O".
+   Herda fonte/peso/cor/letterSpacing do <span> pai (usa fragment, sem quebrar o espaçamento). */
+const UnikoName = () => (
+  <>
+    U
+    <span style={{ display:'inline-block', transform:'rotate(180deg)', verticalAlign:'baseline' }}>U</span>
+    IK
+    <span style={{ position:'relative', display:'inline-block' }}>
+      O
+      <span style={{
+        position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+        fontSize:'0.42em', lineHeight:1, color:'#FFF0C0',
+        textShadow:'0 0 5px rgba(255,221,130,.95), 0 0 9px rgba(255,200,90,.5)',
+        pointerEvents:'none',
+      }}>✦</span>
+    </span>
+  </>
+);
+
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -83,7 +102,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           <div style={{display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0}}>
             <BrandLogo size={32}/>
             <span style={{fontFamily:'var(--font-brand)', fontSize:16, fontWeight:700,
-              color:T.text, letterSpacing:'.06em'}}>ᑌ∩IKO</span>
+              color:T.text, letterSpacing:'.06em'}}><UnikoName/></span>
           </div>
           {authUser && (
             <div style={{display:'flex', alignItems:'center', gap:8, flexShrink:0}}>
@@ -106,7 +125,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             <BrandLogo size={150}/>
           </div>
           <div style={{fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700,
-            color:T.text, letterSpacing:'.07em'}}>ᑌ∩IKO</div>
+            color:T.text, letterSpacing:'.07em'}}><UnikoName/></div>
           <div style={{fontSize:11, color:T.textT, letterSpacing:'.10em',
             textTransform:'uppercase', marginTop:3, marginBottom:12}}>Sistema Corporativo</div>
           <div style={{maxWidth:240, margin:'0 auto'}}>
@@ -236,7 +255,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           <BrandLogo size={200}/>
         </div>
         <div style={{fontFamily:'var(--font-brand)',fontSize:24,fontWeight:700,
-          color:T.text,letterSpacing:'.07em',lineHeight:1}}>ᑌ∩IKO</div>
+          color:T.text,letterSpacing:'.07em',lineHeight:1}}><UnikoName/></div>
         <div style={{fontFamily:'var(--font-body)',fontSize:12,color:T.textT,
           letterSpacing:'.10em',textTransform:'uppercase',marginTop:4,marginBottom:10}}>
           Sistema Corporativo
