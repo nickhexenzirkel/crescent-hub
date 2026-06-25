@@ -7933,6 +7933,11 @@ function wgDrawBelt(gy,h){
     const bw=CW, bh=bw*(frame.naturalHeight/frame.naturalWidth);
     const surf=0.46;                       // fração da altura onde fica a superfície do chão
     const top=gy - bh*surf;
+    // Base sólida no chão inteiro (de gy até o fim) pra TAPAR as partes transparentes da
+    // imagem — sem isso aparecem "buracos/fendas" entre as pernas da esteira.
+    const base=ctx.createLinearGradient(0,gy,0,CH);
+    base.addColorStop(0,'#2a1840'); base.addColorStop(0.5,'#190d2e'); base.addColorStop(1,'#0a0816');
+    ctx.fillStyle=base; ctx.fillRect(0,gy,CW,CH-gy);
     const speed=CW*0.35;                   // px/s que a esteira corre pra esquerda
     let off=-((animT*speed)%bw);           // deslocamento (-bw, 0]
     ctx.drawImage(frame, off,      top, bw, bh);
