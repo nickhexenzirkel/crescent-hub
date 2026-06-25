@@ -103,7 +103,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {/* Logo + tagline */}
         <div style={{textAlign:'center', padding:'28px 20px 20px'}}>
           <div style={{display:'flex', justifyContent:'center', marginBottom:12}}>
-            <BrandLogo size={72}/>
+            <BrandLogo size={115}/>
           </div>
           <div style={{fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700,
             color:T.text, letterSpacing:'.07em'}}>UNIKO</div>
@@ -130,8 +130,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 style={{
                   background: isPressed ? T.page : T.surface,
                   border:`1px solid ${isPressed && !m.comingSoon ? m.color+'66' : m.comingSoon ? m.color+'33' : T.border}`,
-                  borderRadius:16,
-                  padding:'16px 14px 14px',
+                  borderRadius:14,
+                  padding:'13px 12px 12px',
                   cursor: m.comingSoon ? 'default' : 'pointer',
                   opacity: m.comingSoon ? 0.78 : 1,
                   transform: isPressed ? 'scale(0.96)' : 'scale(1)',
@@ -148,11 +148,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 {/* Ícone + tag */}
                 <div style={{display:'flex', justifyContent:'space-between',
                   alignItems:'flex-start', marginBottom:10}}>
-                  <div style={{width:44, height:44, borderRadius:12, background:m.bg,
+                  <div style={{width:38, height:38, borderRadius:11, background:m.bg,
                     border:`1px solid ${m.color}22`, display:'flex', alignItems:'center',
                     justifyContent:'center', color:m.color}}>
                     {/* Ícones menores no mobile */}
-                    {React.cloneElement(m.icon, {width:20, height:20})}
+                    {React.cloneElement(m.icon, {width:18, height:18})}
                   </div>
                   <Tag color={m.color} style={{fontSize:8, padding:'2px 5px'}}>{m.tag}</Tag>
                 </div>
@@ -233,7 +233,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
       <div className="fsu" style={{textAlign:'center',marginBottom:24}}>
         <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
-          <BrandLogo size={92}/>
+          <BrandLogo size={150}/>
         </div>
         <div style={{fontFamily:'var(--font-brand)',fontSize:24,fontWeight:700,
           color:T.text,letterSpacing:'.07em',lineHeight:1}}>UNIKO</div>
@@ -248,35 +248,35 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       </div>
 
       <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,
-        gap:16,width:'100%',maxWidth: mods.length<=3 ? 820 : 1080}}>
+        gap:14,width:'100%',maxWidth: mods.length<=3 ? 720 : 940}}>
         {mods.map(m=>(
           <div key={m.id}
             onClick={m.comingSoon ? undefined : ()=>onSelect(m.id)}
             onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
             style={{background:T.surface,
               border:`1px solid ${hov===m.id && !m.comingSoon ? m.color+'55' : m.comingSoon ? m.color+'33' : T.border}`,
-              borderRadius:18,
+              borderRadius:16,
               boxShadow: m.comingSoon ? T.sh : hov===m.id ? T.shL : T.sh,
-              padding:'22px 24px',
+              padding:'16px 18px',
               cursor: m.comingSoon ? 'default' : 'pointer',
-              transform: m.comingSoon ? 'none' : hov===m.id ? 'translateY(-6px)' : 'none',
+              transform: m.comingSoon ? 'none' : hov===m.id ? 'translateY(-5px)' : 'none',
               opacity: m.comingSoon ? 0.82 : 1,
               transition:'all .25s cubic-bezier(.16,1,.3,1)',
               position:'relative',overflow:'hidden',fontFamily:'var(--font-body)'}}>
             <div style={{position:'absolute',top:0,left:'15%',right:'15%',height:2,
               background:`linear-gradient(90deg,transparent,${m.comingSoon?m.color+'66':T.goldV},transparent)`,
               borderRadius:999}}/>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-              <div style={{width:48,height:48,borderRadius:13,background:m.bg,
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+              <div style={{width:42,height:42,borderRadius:11,background:m.bg,
                 border:`1px solid ${m.color}22`,display:'flex',alignItems:'center',
-                justifyContent:'center',fontSize:21,color:m.color}}>
-                {React.cloneElement(m.icon, {width:23, height:23})}
+                justifyContent:'center',fontSize:19,color:m.color}}>
+                {React.cloneElement(m.icon, {width:20, height:20})}
               </div>
               <Tag color={m.color} style={{marginTop:4}}>{m.tag}</Tag>
             </div>
-            <div style={{fontSize:18,fontWeight:600,color:T.text,marginBottom:6}}>{m.label}</div>
-            <div style={{fontSize:13.5,color:T.textS,marginBottom:14,lineHeight:1.55}}>{m.sub}</div>
-            <div style={{marginBottom:8}}></div>
+            <div style={{fontSize:16,fontWeight:600,color:T.text,marginBottom:5}}>{m.label}</div>
+            <div style={{fontSize:12.5,color:T.textS,marginBottom:10,lineHeight:1.5}}>{m.sub}</div>
+            <div style={{marginBottom:6}}></div>
             {m.comingSoon
               ? <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:m.color}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={m.color} strokeWidth="1.8" strokeLinecap="round">
