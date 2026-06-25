@@ -504,33 +504,33 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </div>
       )}
 
-      {/* ══ WIDGETS 2×2 ════════════════════════════════════════════ */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:8}}>
+      {/* ══ WIDGETS — 4 numa linha (My Uniko · Eventos · Lembretes · Avisos) ═══ */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'start'}}>
 
         {/* My Uniko */}
-        <Card style={{padding:'16px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,fontWeight:600,color:T.text}}>My Uniko</span>
+        <Card style={{padding:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>My Uniko</span>
             <BtnVer tab="uniko"/>
           </div>
-          <div style={{display:'flex',gap:11,alignItems:'center',marginBottom:12}}>
-            <div style={{width:48,height:48,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:`2px solid ${uS.c}55`,boxShadow:`0 0 0 4px ${uS.c}18`}}>
+          <div style={{display:'flex',gap:9,alignItems:'center',marginBottom:9}}>
+            <div style={{width:38,height:38,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:`2px solid ${uS.c}55`,boxShadow:`0 0 0 3px ${uS.c}18`}}>
               <img src={SKINS[skin]||SKINS.tecnico} alt="Uniko" style={{width:'100%',height:'100%',objectFit:'cover',filter:dormindo?'brightness(.7) saturate(.5)':'none',transition:'filter .4s'}}/>
             </div>
-            <div>
-              <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
-                <span style={{fontSize:15}}>{uS.e}</span>
-                <span style={{fontSize:12,fontWeight:700,color:uS.c}}>{uS.l}</span>
+            <div style={{minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
+                <span style={{fontSize:13}}>{uS.e}</span>
+                <span style={{fontSize:11.5,fontWeight:700,color:uS.c}}>{uS.l}</span>
               </div>
-              <div style={{fontSize:10.5,color:T.textT}}>{uS.s}</div>
+              <div style={{fontSize:10,color:T.textT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{uS.s}</div>
             </div>
           </div>
-          <StarDivider my={8} dim/>
+          <StarDivider my={6} dim/>
           {[{l:'Fome',v:fome},{l:'Energia',v:energia},{l:'Sono',v:sono}].map(({l,v})=>(
-            <div key={l} style={{marginBottom:7}}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                <span style={{fontSize:10.5,color:T.textS}}>{l}</span>
-                <span style={{fontSize:10.5,fontWeight:700,color:barCol(v)}}>{Math.round(v)}%</span>
+            <div key={l} style={{marginBottom:5}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                <span style={{fontSize:10,color:T.textS}}>{l}</span>
+                <span style={{fontSize:10,fontWeight:700,color:barCol(v)}}>{Math.round(v)}%</span>
               </div>
               <div style={{height:4,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>
                 <div style={{height:'100%',width:`${v}%`,borderRadius:999,background:`linear-gradient(90deg,${barCol(v)},${barCol(v)}88)`,transition:'width .4s ease'}}/>
@@ -540,21 +540,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Eventos Hoje */}
-        <Card style={{padding:'16px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,fontWeight:600,color:T.text}}>Eventos Hoje</span>
+        <Card style={{padding:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Eventos Hoje</span>
             <BtnVer tab="eventos"/>
           </div>
           {todayEvts.length===0
-            ?<EmptyW icon={<Ico size={28} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>} text="Nenhum evento hoje" sub="Aproveite o dia!"/>
+            ?<EmptyW icon={<Ico size={26} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>} text="Nenhum evento hoje" sub="Aproveite o dia!"/>
             :todayEvts.slice(0,3).map(ev=>(
-              <div key={ev.id} style={{display:'flex',gap:10,padding:'8px 10px',borderRadius:9,marginBottom:7,background:T.surface,border:`1px solid ${T.border}`}}>
-                <div style={{width:32,height:32,borderRadius:7,background:T.goldGl,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <Ico size={12} stroke={T.gold} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>
+              <div key={ev.id} style={{display:'flex',gap:8,padding:'6px 8px',borderRadius:8,marginBottom:6,background:T.surface,border:`1px solid ${T.border}`}}>
+                <div style={{width:26,height:26,borderRadius:6,background:T.goldGl,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <Ico size={11} stroke={T.gold} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.title}</div>
-                  <div style={{fontSize:10.5,color:T.textT,marginTop:1}}>{ev.event_time?`◷ ${fmtT(ev.event_time)}`:'Dia todo'}</div>
+                  <div style={{fontSize:11.5,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.title}</div>
+                  <div style={{fontSize:10,color:T.textT,marginTop:1}}>{ev.event_time?`◷ ${fmtT(ev.event_time)}`:'Dia todo'}</div>
                 </div>
               </div>
             ))
@@ -562,21 +562,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Próximos Lembretes */}
-        <Card style={{padding:'16px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,fontWeight:600,color:T.text}}>Lembretes</span>
+        <Card style={{padding:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Lembretes</span>
             <BtnVer tab="lembretes"/>
           </div>
           {upcoming.length===0
-            ?<EmptyW icon={<Ico size={28} d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>}/>} text="Nenhum lembrete próximo" sub="Crie em Meus Lembretes"/>
-            :upcoming.map((r,i)=>(
-              <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,paddingTop:i===0?0:8,paddingBottom:i<upcoming.length-1?8:0,borderBottom:i<upcoming.length-1?`1px solid ${T.border}`:'none'}}>
-                <div style={{background:T.goldGl,border:`1px solid ${T.gold}28`,borderRadius:7,padding:'4px 8px',flexShrink:0,minWidth:42,textAlign:'center'}}>
-                  <div style={{fontSize:11,fontWeight:700,color:T.gold,lineHeight:1}}>{fmtT(r.time)}</div>
+            ?<EmptyW icon={<Ico size={26} d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>}/>} text="Nenhum lembrete próximo" sub="Crie em Meus Lembretes"/>
+            :upcoming.slice(0,3).map((r,i,arr)=>(
+              <div key={r.id} style={{display:'flex',alignItems:'center',gap:8,paddingTop:i===0?0:6,paddingBottom:i<arr.length-1?6:0,borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+                <div style={{background:T.goldGl,border:`1px solid ${T.gold}28`,borderRadius:6,padding:'3px 6px',flexShrink:0,minWidth:38,textAlign:'center'}}>
+                  <div style={{fontSize:10.5,fontWeight:700,color:T.gold,lineHeight:1}}>{fmtT(r.time)}</div>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.title}</div>
-                  <div style={{fontSize:10,color:T.textT,marginTop:1}}>
+                  <div style={{fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.title}</div>
+                  <div style={{fontSize:9.5,color:T.textT,marginTop:1}}>
                     {r.repeat!=='never'?({daily:'Diário',weekly:'Semanal',monthly:'Mensal'}[r.repeat]||r.repeat)
                       :r.date&&r.date!==today?fmtDS(r.date):'Hoje'}
                   </div>
@@ -587,21 +587,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Avisos RH */}
-        <Card style={{padding:'16px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,fontWeight:600,color:T.text}}>Avisos do RH</span>
+        <Card style={{padding:'12px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Avisos do RH</span>
             <BtnVer tab="comunicados"/>
           </div>
           {comuns.length===0
-            ?<EmptyW icon={<Ico size={28} d={<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>}/>} text="Nenhum aviso recente"/>
-            :comuns.slice(0,3).map((c,i)=>(
-              <div key={c.id} style={{padding:'8px 10px',borderRadius:9,marginBottom:i<comuns.length-1?7:0,background:c.urgent?'rgba(192,64,80,.05)':T.surface,border:`1px solid ${c.urgent?'rgba(192,64,80,.22)':T.border}`}}>
+            ?<EmptyW icon={<Ico size={26} d={<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>}/>} text="Nenhum aviso recente"/>
+            :comuns.slice(0,3).map((c,i,arr)=>(
+              <div key={c.id} style={{padding:'6px 8px',borderRadius:8,marginBottom:i<arr.length-1?6:0,background:c.urgent?'rgba(192,64,80,.05)':T.surface,border:`1px solid ${c.urgent?'rgba(192,64,80,.22)':T.border}`}}>
                 <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:c.body?2:0}}>
-                  {c.urgent&&<span style={{fontSize:11}}>🚨</span>}
-                  <div style={{fontSize:12,fontWeight:600,color:c.urgent?'#C04050':T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.title}</div>
-                  <span style={{fontSize:10,color:T.textT,flexShrink:0}}>{new Date(c.created_at).toLocaleDateString('pt-BR',{day:'numeric',month:'short'})}</span>
+                  {c.urgent&&<span style={{fontSize:10}}>🚨</span>}
+                  <div style={{fontSize:11.5,fontWeight:600,color:c.urgent?'#C04050':T.text,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.title}</div>
+                  <span style={{fontSize:9.5,color:T.textT,flexShrink:0}}>{new Date(c.created_at).toLocaleDateString('pt-BR',{day:'numeric',month:'short'})}</span>
                 </div>
-                {c.body&&<div style={{fontSize:11,color:T.textS,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.body}</div>}
+                {c.body&&<div style={{fontSize:10.5,color:T.textS,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.body}</div>}
               </div>
             ))
           }
