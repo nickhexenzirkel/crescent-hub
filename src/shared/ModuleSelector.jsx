@@ -83,7 +83,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           <div style={{display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0}}>
             <BrandLogo size={32}/>
             <span style={{fontFamily:'var(--font-brand)', fontSize:16, fontWeight:700,
-              color:T.text, letterSpacing:'.06em'}}>UNIKO</span>
+              color:T.text, letterSpacing:'.06em'}}>ᑌ∩IKO</span>
           </div>
           {authUser && (
             <div style={{display:'flex', alignItems:'center', gap:8, flexShrink:0}}>
@@ -103,10 +103,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {/* Logo + tagline */}
         <div style={{textAlign:'center', padding:'28px 20px 20px'}}>
           <div style={{display:'flex', justifyContent:'center', marginBottom:12}}>
-            <BrandLogo size={115}/>
+            <BrandLogo size={150}/>
           </div>
           <div style={{fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700,
-            color:T.text, letterSpacing:'.07em'}}>UNIKO</div>
+            color:T.text, letterSpacing:'.07em'}}>ᑌ∩IKO</div>
           <div style={{fontSize:11, color:T.textT, letterSpacing:'.10em',
             textTransform:'uppercase', marginTop:3, marginBottom:12}}>Sistema Corporativo</div>
           <div style={{maxWidth:240, margin:'0 auto'}}>
@@ -233,10 +233,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
       <div className="fsu" style={{textAlign:'center',marginBottom:24}}>
         <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
-          <BrandLogo size={150}/>
+          <BrandLogo size={200}/>
         </div>
         <div style={{fontFamily:'var(--font-brand)',fontSize:24,fontWeight:700,
-          color:T.text,letterSpacing:'.07em',lineHeight:1}}>UNIKO</div>
+          color:T.text,letterSpacing:'.07em',lineHeight:1}}>ᑌ∩IKO</div>
         <div style={{fontFamily:'var(--font-body)',fontSize:12,color:T.textT,
           letterSpacing:'.10em',textTransform:'uppercase',marginTop:4,marginBottom:10}}>
           Sistema Corporativo
