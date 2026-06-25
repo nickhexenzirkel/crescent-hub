@@ -7869,11 +7869,23 @@ function wgDrawFire(top){
   if(WG.fireLevel==null) WG.fireLevel=fireTarget;
   WG.fireLevel += (fireTarget-WG.fireLevel)*0.04;   // transição suave entre os níveis
   const lvl = WG.fireLevel;
-  // 1) Alimenta a BASE (última linha) com calor máximo, cintilando
-  const base=(rows-1)*cols;
-  for(let x=0;x<cols;x++) g[base+x]=(Math.random()<0.85)?(P-1):(P-2-(Math.random()*5|0));
-  // 2) Propaga de baixo pra cima. Decaimento menor quando o combo (lvl) é alto = chamas mais altas.
-  const decP=0.60-0.34*lvl;
+  // 1) Base = FONTES de chama que ANDAM (soma de senoides móveis + ruído). Em vez de uma linha
+  //    sólida, dá pontos quentes (raiz das labaredas) e vãos escuros entre eles → línguas de fogo.
+  const base=(rows-1)*cols, t=animT;
+  for(let x=0;x<cols;x++){
+    let s = 0.30*Math.sin(x*0.22 + t*2.2)
+          + 0.22*Math.sin(x*0.55 - t*3.1)
+          + 0.16*Math.sin(x*0.11 + t*1.4)
+          + 0.12*Math.sin(x*0.85 + t*4.7);
+    s = 0.5 + s + (Math.random()-0.5)*0.55;
+    let hv;
+    if(s>0.60)      hv=P-1;                              // fonte forte → labareda alta
+    else if(s>0.34) hv=((P-1)*(0.45+0.45*Math.random()))|0;
+    else            hv=((P-1)*0.12*Math.random())|0;     // vão quase apagado (preto)
+    g[base+x]=hv;
+  }
+  // 2) Propaga de baixo pra cima. Decaimento menor quando o combo (lvl) é alto = labaredas mais altas.
+  const decP=0.58-0.40*lvl;
   for(let y=rows-1;y>=1;y--){
     const above=(y-1)*cols, row=y*cols;
     for(let x=0;x<cols;x++){
