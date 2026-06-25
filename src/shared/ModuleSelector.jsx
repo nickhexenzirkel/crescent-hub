@@ -11,13 +11,13 @@ const UnikoName = () => {
   const W = 11, DUR = 3.2, N = 5;
   const paths = [
     'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
-    'M108,112 L108,50 Q108,18 140,18 Q172,18 172,50 L172,112',                    // N (U invertido)
-    'M205,18 L205,112',                                                           // I
-    'M235,18 L235,112 M292,18 L237,65 L296,112',                                  // K
-    'M360,18 Q400,18 400,65 Q400,112 360,112 Q320,112 320,65 Q320,18 360,18 Z',   // O
+    'M128,112 L128,50 Q128,18 160,18 Q192,18 192,50 L192,112',                    // N (U invertido)
+    'M238,18 L238,112',                                                           // I
+    'M284,18 L284,112 M341,18 L286,65 L345,112',                                  // K
+    'M430,18 Q469,18 469,65 Q469,112 430,112 Q391,112 391,65 Q391,18 430,18 Z',   // O
   ];
   return (
-    <svg viewBox="0 0 418 130" role="img" aria-label="UNIKO"
+    <svg viewBox="0 0 487 130" role="img" aria-label="UNIKO"
       style={{ height:'0.82em', width:'auto', display:'inline-block', verticalAlign:'middle', overflow:'visible', color:'inherit' }}>
       <style>{`@keyframes uTrace{0%{stroke-dashoffset:0;opacity:1}20%{stroke-dashoffset:-1;opacity:1}20.01%,100%{opacity:0}}`}</style>
       {paths.map((d, i) => (
@@ -35,6 +35,24 @@ const UnikoName = () => {
     </svg>
   );
 };
+
+/* Ícone do Uniko na home: flutua de leve (lento) e PISCA a cada 3s (troca UNIKO_NEW ↔ UNIKO_PISCA). */
+const UnikoMascot = ({ size }) => (
+  <div style={{ position:'relative', width:size, height:size, animation:'unikoFloat 5s ease-in-out infinite',
+    filter:`drop-shadow(0 8px 26px ${T.goldLine}44)` }}>
+    <style>{`
+      @keyframes unikoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+      @keyframes unikoBlink{0%,95%{opacity:1}95.6%,97.4%{opacity:0}98%,100%{opacity:1}}
+    `}</style>
+    {/* frame 2 (olhos fechados) por baixo */}
+    <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true"
+      style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain' }}/>
+    {/* frame 1 (normal) por cima — some rapidinho a cada 3s revelando o piscar */}
+    <img src="/UNIKO_NEW.png" alt="Uniko"
+      style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain',
+        animation:'unikoBlink 3s linear infinite' }}/>
+  </div>
+);
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
@@ -135,7 +153,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {/* Logo + tagline */}
         <div style={{textAlign:'center', padding:'28px 20px 20px'}}>
           <div style={{display:'flex', justifyContent:'center', marginBottom:12}}>
-            <BrandLogo size={150}/>
+            <UnikoMascot size={128}/>
           </div>
           <div style={{fontFamily:'var(--font-brand)', fontSize:32, fontWeight:700,
             color:T.text, letterSpacing:'.07em'}}><UnikoName/></div>
@@ -265,7 +283,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
       <div className="fsu" style={{textAlign:'center',marginBottom:24}}>
         <div style={{display:'flex',justifyContent:'center',marginBottom:8}}>
-          <BrandLogo size={200}/>
+          <UnikoMascot size={172}/>
         </div>
         <div style={{fontFamily:'var(--font-brand)',fontSize:42,fontWeight:700,
           color:T.text,letterSpacing:'.07em',lineHeight:1}}><UnikoName/></div>
