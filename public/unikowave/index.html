@@ -2215,7 +2215,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <div class="wgres-card">
     <div class="wgres-title" id="wgResTitle">★ BOSS DERROTADO ★</div>
     <div class="wgres-stage">
-      <img class="wgres-mizuki" id="wgMizuki" src="images/MizukiChuteLendarioFrame2.png" alt="" onerror="this.style.opacity='0.3'">
+      <img class="wgres-mizuki" id="wgMizuki" src="images/MizukiFlechaFinal-Photoroom.png" alt="" onerror="this.style.opacity='0.3'">
       <img class="wgres-boss" id="wgBoss" src="images/DarkCatBotBossDerrotado.png" alt="" onerror="this.style.display='none'">
     </div>
     <div class="wgres-grade" id="wgResGrade">A</div>
@@ -2512,7 +2512,7 @@ WG_SPR.alegre.src   = 'images/PersonagemLinnea_Alegre.png';   // intro do começ
 // Chute Lendário (segurando nota): 3 frames → explosão com movimento ao longo da nota
 WG_SPR.hold2 = new Image(); WG_SPR.hold2.src = 'images/MizukiChuteEstelar_Frame2.png'; // segurando nota: começo/meio
 WG_SPR.hold3 = new Image(); WG_SPR.hold3.src = 'images/MizukiChuteEstelar_Frame3.png'; // nota quase acabando
-WG_SPR.arrow = new Image(); WG_SPR.arrow.src = 'images/MizukiChuteLendarioFrame2.png'; // FLECHA ESTELAR (finisher): pose de lançar a flecha
+WG_SPR.arrow = new Image(); WG_SPR.arrow.src = 'images/MizukiFlechaFinal-Photoroom.png'; // FLECHA ESTELAR (finisher): pose de lançar a flecha
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -9058,7 +9058,7 @@ function showResult(){
     const $=(id)=>document.getElementById(id);
     const win = !gameOverByDeath && !!(typeof WG!=='undefined' && WG.bossDefeated);
     if($('wgResTitle')) $('wgResTitle').textContent = win ? '★ BOSS DERROTADO ★' : '💀 VOCÊ FOI DERROTADO';
-    const mz=$('wgMizuki'); if(mz) mz.src = win ? 'images/MizukiChuteLendarioFrame2.png' : 'images/PersonagemLinnea_Chateada.png';
+    const mz=$('wgMizuki'); if(mz) mz.src = win ? 'images/MizukiFlechaFinal-Photoroom.png' : 'images/PersonagemLinnea_Chateada.png';
     const bz=$('wgBoss'); if(bz) bz.style.display = win ? '' : 'none';
     const gE=$('wgResGrade'); if(gE){ gE.textContent=grade; gE.style.color=col; gE.style.textShadow=`0 0 20px ${col}`; }
     if($('wgResAcc')) $('wgResAcc').textContent = (acc===0?'0.00%':acc.toFixed(2)+'%');
