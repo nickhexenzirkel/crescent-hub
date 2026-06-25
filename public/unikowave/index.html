@@ -940,6 +940,14 @@ canvas{display:block}
   animation:dodoFloat 3s ease-in-out infinite;
   filter:drop-shadow(0 20px 40px rgba(255,0,204,0.35));
 }
+/* Boss derrotado caído ao lado da Mizuki — só no resultado do Guerra Estelar */
+.res-boss-wg{
+  position:absolute;bottom:2%;left:-4%;z-index:2;
+  height:clamp(120px,26vh,250px);width:auto;object-fit:contain;
+  transform:rotate(-14deg);opacity:.94;
+  filter:grayscale(.25) drop-shadow(0 12px 26px rgba(0,0,0,.55));
+  animation:dodoFloat 4.5s ease-in-out infinite;
+}
 /* Balão de fala — grande no topo da coluna */
 .res-bubble{
   position:absolute;
@@ -2153,6 +2161,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <div class="res-letters" id="resLetters"></div>
   <!-- ── Coluna ESQUERDA: personagem grande + balão ── -->
   <div class="res-left">
+    <img id="resBossWG" class="res-boss-wg" src="images/DarkCatBotBossDerrotado.png" alt="" style="display:none">
     <img id="mascot2" src="images/DodocoWave.png" alt="" onerror="this.style.opacity='0.3'">
     <div class="res-bubble" id="resBubble">Você foi<br>incrível! ✨</div>
   </div>
@@ -2169,6 +2178,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       <svg class="res-star" id="rstar3" style="color:#ff8800" viewBox="0 0 13 11"><path fill="currentColor" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
       <svg class="res-star" id="rstar4" style="color:#ffee00" viewBox="0 0 13 11"><path fill="currentColor" d="M6,0h1v1h-1zM5,1h3v2h-3zM4,3h5v1h-5zM0,4h13v2h-13zM1,6h11v1h-11zM2,7h9v2h-9zM1,9h4v1h-4zM8,9h4v1h-4zM0,10h4v1h-4zM9,10h4v1h-4z"/></svg>
     </div>
+    <div class="megastar-badge" id="resMegastar" style="font-size:11px;letter-spacing:3px;margin-top:4px">✦ MEGASTAR ✦</div>
     <div class="res-stats">
       <div class="sbox sp"><div class="sv" id="rP">0</div><div class="sl">PERFECT</div></div>
       <div class="sbox sg"><div class="sv" id="rG">0</div><div class="sl">GOOD</div></div>
@@ -2452,6 +2462,7 @@ WG_SPR.alegre.src   = 'images/PersonagemLinnea_Alegre.png';   // intro do começ
 // Chute Lendário (segurando nota): 3 frames → explosão com movimento ao longo da nota
 WG_SPR.hold2 = new Image(); WG_SPR.hold2.src = 'images/MizukiChuteEstelar_Frame2.png'; // segurando nota: começo/meio
 WG_SPR.hold3 = new Image(); WG_SPR.hold3.src = 'images/MizukiChuteEstelar_Frame3.png'; // nota quase acabando
+WG_SPR.arrow = new Image(); WG_SPR.arrow.src = 'images/MizukiChuteLendarioFrame2.png'; // FLECHA ESTELAR (finisher): pose de lançar a flecha
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -3553,7 +3564,8 @@ let psetupSelectedBorder = 'default';
 function renderPsetupAvatarGrid(gridId, selectedId, onSelect){
   const grid = document.getElementById(gridId);
   if(!grid) return;
-  grid.innerHTML = getAvatarOptions().map(av=>`
+  // Só mostra os ícones de personagens que o jogador REALMENTE tem (gacha/desbloqueados).
+  grid.innerHTML = getAvatarOptions().filter(av => (typeof isUnlocked==='function' ? isUnlocked(av.id) : true)).map(av=>`
     <div class="psetup-av-card ${selectedId===av.id?'selected':''}" data-avid="${av.id}">
       <img class="psetup-av-img" src="${av.img}" alt="${av.name}" onerror="this.src='images/DodocoWave.png'">
       <div class="psetup-av-name">${av.name}</div>
@@ -8423,7 +8435,12 @@ function drawWargame(t){
     const p1=Math.min(1,WG.waveT/1.4), e=1-Math.pow(1-p1,3);
     const sX=WG.charX+CW*0.30, sF=WG.floorFeet, fX=CW*0.20, fF=CH*0.34+chH*0.5;
     drawX=sX+(fX-sX)*e; feet=sF+(fF-sF)*e + Math.sin(WG.waveT*3)*6*p1;
-    spr=(WG.waveT>=2.4 && WG.waveT<3.3)?WG_SPR.atk:WG_SPR.jump;
+    // FLECHA ESTELAR: ao carregar/lançar (waveT>=1.2) usa o frame de lançar a flecha
+    if(WG.waveT>=1.2){
+      spr=(WG_SPR.arrow.complete && WG_SPR.arrow.naturalWidth) ? WG_SPR.arrow : WG_SPR.atk;
+    } else {
+      spr=WG_SPR.jump;
+    }
   } else if(WG.phase==='finisher' && WG.lungeT>0){
     // chute: aparece ao redor do boss (todos os ângulos)
     spr=WG_SPR.atk; drawX=WG.kickX; feet=WG.kickY+chH*0.5; mzRot=Math.cos(WG.kickAng)*-0.22;
@@ -8980,35 +8997,50 @@ function showResult(){
   }
   const sl=Math.min(5,sl2);
   for(let i=0;i<sl;i++) setTimeout(()=>document.getElementById('rstar'+i).classList.add('lit'),(i+1)*260);
+  // 6ª estrela / MEGASTAR também no resultado
+  document.getElementById('resMegastar')?.classList.toggle('show', sl2>=6);
 
-  // Dodoco reage ao resultado
-  const total2=score.perfect+score.good+score.miss;
-  const missRate2=total2>0?score.miss/total2:0;
-  let resultDodoState;
-  if(sl2>=5) resultDodoState='animado';
-  else if(sl2>=3) resultDodoState='surpreso';
-  else if(missRate2>0.3) resultDodoState='raiva';
-  else resultDodoState='tranquilo';
-  if(gameOverByDeath) resultDodoState='raiva'; // morreu → Dodoco desapontado
-  setTimeout(()=>{
-    setDodoco(resultDodoState);
-    const ch=CHARACTERS[selectedChar]||CHARACTERS.dodoco;
+  const isWG = (gameMode==='wargame');
+  const bossWG = document.getElementById('resBossWG');
+  const bubble = document.getElementById('resBubble');
+
+  if(isWG){
+    // ── Resultado do GUERRA ESTELAR: Mizuki lançando a flecha + boss derrotado ──
     const m2=document.getElementById('mascot2');
-    if(m2) m2.src=ch.imgs[resultDodoState]||ch.imgs.wave;
-    charSay(resultDodoState);
-  },400);
-  
-  // Balão de fala dinâmico
-  const bubble=document.getElementById('resBubble');
-  if(bubble){
-    const msgs=sl2>=5?['Perfeito!\nVocê é incrível! ✨','ALL STAR!\nQue show! 🌟','Inacreditável!\nMestre do ritmo! 💫']:
-                sl2>=3?['Você foi\nincrível! ✨','Muito bem!\nContinue assim! 🎵','Boa! Quase\nperfeito! 🔥']:
-                sl2>=1?['Bom esforço!\nTente de novo!','Continue\npraticando! 💪','Não desista!\nVocê vai longe!']:
-                       ['Quase lá!\nTente novamente!','Não desanime!\nVocê consegue!','A próxima\nvez vai! 🎮'];
-    bubble.innerHTML=msgs[Math.floor(Math.random()*msgs.length)].replace(/\n/g,'<br>');
-    void bubble.offsetWidth;
-    bubble.style.animation='none';
-    requestAnimationFrame(()=>{bubble.style.animation='';});
+    if(m2) m2.src='images/MizukiChuteLendarioFrame2.png';
+    if(bossWG) bossWG.style.display = gameOverByDeath ? 'none' : '';
+    if(bubble) bubble.style.display='none';
+    document.getElementById('resTag').textContent = gameOverByDeath ? '💀 GAME OVER' : '★ BOSS DERROTADO ★';
+  } else {
+    if(bossWG) bossWG.style.display='none';
+    if(bubble) bubble.style.display='';
+    // Dodoco/personagem reage ao resultado
+    const total2=score.perfect+score.good+score.miss;
+    const missRate2=total2>0?score.miss/total2:0;
+    let resultDodoState;
+    if(sl2>=5) resultDodoState='animado';
+    else if(sl2>=3) resultDodoState='surpreso';
+    else if(missRate2>0.3) resultDodoState='raiva';
+    else resultDodoState='tranquilo';
+    if(gameOverByDeath) resultDodoState='raiva'; // morreu → Dodoco desapontado
+    setTimeout(()=>{
+      setDodoco(resultDodoState);
+      const ch=CHARACTERS[selectedChar]||CHARACTERS.dodoco;
+      const m2=document.getElementById('mascot2');
+      if(m2) m2.src=ch.imgs[resultDodoState]||ch.imgs.wave;
+      charSay(resultDodoState);
+    },400);
+    // Balão de fala dinâmico
+    if(bubble){
+      const msgs=sl2>=5?['Perfeito!\nVocê é incrível! ✨','ALL STAR!\nQue show! 🌟','Inacreditável!\nMestre do ritmo! 💫']:
+                  sl2>=3?['Você foi\nincrível! ✨','Muito bem!\nContinue assim! 🎵','Boa! Quase\nperfeito! 🔥']:
+                  sl2>=1?['Bom esforço!\nTente de novo!','Continue\npraticando! 💪','Não desista!\nVocê vai longe!']:
+                         ['Quase lá!\nTente novamente!','Não desanime!\nVocê consegue!','A próxima\nvez vai! 🎮'];
+      bubble.innerHTML=msgs[Math.floor(Math.random()*msgs.length)].replace(/\n/g,'<br>');
+      void bubble.offsetWidth;
+      bubble.style.animation='none';
+      requestAnimationFrame(()=>{bubble.style.animation='';});
+    }
   }
   spawnFallingLetters(col);
   document.getElementById('hud').classList.add('off'); document.getElementById('countdownOverlay').classList.add('off');
