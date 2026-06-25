@@ -7632,12 +7632,11 @@ function wgAction(kind){
     const sp=WG.special;
     if(kind==='air'){
       WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; // Mizuki pula/ataca
-      if(!sp.defeated && (animT - sp.born) >= 0.8){ // só conta depois que ele troca pra cara normal
-        sp.hits++;
-        wgSfx('minion'); WG.bossShake=10;
-        wgHitFx(sp.x, sp.y, true, C_AIR);
-        spawnBurst(sp.x, sp.y, '#28e0ff', 12);
-        if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki','Tomaaa!! 💥',1.8); }
+      // Cada ataque dispara uma FLECHA que voa até o DarkCatBot e causa o dano ao acertar.
+      // Só depois que ele troca pra cara normal; limita as flechas em voo ao que falta.
+      if(!sp.defeated && (animT - sp.born) >= 0.8 && (sp.hits + sp.arrows.length) < sp.need){
+        sp.arrows.push({ t:0, x0:WG.hitX, y0:WG.airNoteY, x1:sp.x, y1:sp.y });
+        wgSfx('shoot');
       }
     } else { WG.atkTimer=0.24; } // S no chão só anima, não conta
     return;
@@ -7952,8 +7951,10 @@ function drawWgMinion(x,y,air,scale,glow,phase,smile){
     img = (Math.floor(animT*9 + (phase||0)) % 2) ? WG_MINION_AIR_DOWN : WG_MINION_AIR;
     if(!img.complete || !img.naturalWidth) img = WG_MINION_AIR; // fallback enquanto carrega
   } else {
-    // Recém-nascido SORRI na 1ª METADE do caminho e volta à expressão normal perto do acerto
-    img = (smile && WG_MINION_SMILE.complete && WG_MINION_SMILE.naturalWidth) ? WG_MINION_SMILE : WG_MINION;
+    // RINDO: alterna rápido entre sorrindo e normal (como o voador bate as asas) →
+    // juntando os dois frames parece que o minion está dando risada.
+    const laugh = (Math.floor(animT*9 + (phase||0)) % 2) && WG_MINION_SMILE.complete && WG_MINION_SMILE.naturalWidth;
+    img = laugh ? WG_MINION_SMILE : WG_MINION;
   }
   // Animação LEVE (puramente visual — não muda o tempo/acerto da nota):
   // voador flutua (sobe/desce) e gira de leve; terrestre dá um "passo" (bob curto).
@@ -8001,6 +8002,16 @@ function drawWgSpecial(glow){
   if(img.complete && img.naturalWidth){ const r=img.naturalWidth/img.naturalHeight; ctx.drawImage(img,-size*r/2,-size/2,size*r,size); }
   else { ctx.fillStyle=C_AIR; ctx.beginPath(); ctx.arc(0,0,size/2,0,Math.PI*2); ctx.fill(); }
   ctx.restore();
+  // ── Flechas voando da Mizuki até o DarkCatBot ──
+  if(sp.arrows) for(const a of sp.arrows){
+    const ax=a.x0+(a.x1-a.x0)*a.t, ay=a.y0+(a.y1-a.y0)*a.t, ang=Math.atan2(a.y1-a.y0,a.x1-a.x0);
+    ctx.save(); ctx.translate(ax,ay); ctx.rotate(ang);
+    if(glow){ ctx.shadowColor='#9ff0ff'; ctx.shadowBlur=16; }
+    const gr=ctx.createLinearGradient(-48,0,16,0); gr.addColorStop(0,'rgba(40,224,255,0)'); gr.addColorStop(1,'#ffffff');
+    ctx.fillStyle=gr; ctx.fillRect(-48,-4,62,8);
+    ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.moveTo(22,0); ctx.lineTo(6,-10); ctx.lineTo(6,10); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
   if(sp.defeated) return;
   // ── HUD do especial: golpes restantes, tecla W e barra de vida ──
   ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -8100,7 +8111,7 @@ function drawWargame(t){
     //    o boss; o jogador bate 15x com W (ar) pra derrotá-lo e o jogo segue. ──
     if(WG.phase==='play' && !WG.attack && !WG.bossDefeated && !WG.specialDone && (score.combo||0)>=50){
       WG.specialDone=true; WG.phase='special';
-      WG.special={ hits:0, need:15, born:animT, defeated:false, defeatT:0, x:CW*0.56, y:WG.airNoteY };
+      WG.special={ hits:0, need:15, born:animT, defeated:false, defeatT:0, x:CW*0.56, y:WG.airNoteY, arrows:[] };
       WG.holds.air=null; WG.holds.ground=null; wgSyncHoldSfx();
       for(const n of chart){ if((n.state==='pending'||n.state==='holding') && n.hitTime<=st+1.9) n.state='gone'; } // limpa a tela
       wgSfx('bossMove'); wgSay('mizuki','Apareceu um grandão! Bate de W!',2.6);
@@ -8110,6 +8121,18 @@ function drawWargame(t){
       const sp=WG.special;
       // mantém os minions suprimidos enquanto o evento rola (sem erro)
       for(const n of chart){ if(n.state==='pending' && n.hitTime<=st+1.9) n.state='gone'; }
+      // FLECHAS: voam até o DarkCatBot (~0.18s) e causam o dano ao impactar
+      for(let i=sp.arrows.length-1;i>=0;i--){
+        const a=sp.arrows[i]; a.t += dt/0.18;
+        if(a.t>=1){
+          sp.arrows.splice(i,1);
+          if(!sp.defeated){
+            sp.hits++; wgSfx('minion'); WG.bossShake=12;
+            wgHitFx(sp.x, sp.y, true, C_AIR); spawnBurst(sp.x, sp.y, '#28e0ff', 12);
+            if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; sp.arrows.length=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki','Tomaaa!! 💥',1.8); }
+          }
+        }
+      }
       // segurança anti-travamento: se ninguém bater por muito tempo, derrota sozinho
       if(!sp.defeated && (animT - sp.born) > 25){ sp.defeated=true; sp.defeatT=0; }
       if(sp.defeated){
