@@ -2443,10 +2443,12 @@ let bgMode = localStorage.getItem('dw_bgmode') || 'effects';
 // ─── MODO DE JOGO (clássico = Teclado Estelar / wargame = Guerra Estelar) ───
 let gameMode = localStorage.getItem('dw_gamemode') || 'classic';
 // Sprites da Mizuki para o modo Guerra Estelar (só ela joga por enquanto)
-const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image() };
+const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image() };
 WG_SPR.run.src  = 'images/PersonagemLinnea.png'; // Mizuki (base/correndo)
 WG_SPR.jump.src = 'images/MizukiPulo.png';
 WG_SPR.atk.src  = 'images/MizukiAtaque.png';
+WG_SPR.chateada.src = 'images/PersonagemLinnea_Chateada.png'; // boss atacando: flutua chateada
+WG_SPR.alegre.src   = 'images/PersonagemLinnea_Alegre.png';   // intro do começo da partida
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -7473,7 +7475,7 @@ const WG = {
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
 const C_GROUND = '#ff2e9a', C_AIR = '#28e0ff', C_HOLD = '#b020ff';
-const WG_BOLT_DMG = 4;    // % de vida que cada raio do boss tira
+const WG_BOLT_DMG = 3;    // % de vida que cada raio do boss tira (mais raios, dano por raio menor)
 
 // ── Escala da DIFICULDADE no Guerra Estelar ──
 // A dificuldade escolhida na tela de play também vale aqui: além de mais notas
@@ -7594,7 +7596,7 @@ function wgInit(){
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
-  WG.specialDone=false; WG.special=null; // evento do minion especial (combo 50)
+  WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
   wgHoldSfxStop();
   // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
   WG.firePalette=null;
@@ -7626,6 +7628,7 @@ function wgTimeX(time, st){
 function wgAction(kind){
   if(gameState!=='playing') return;
   if(WG.waving || WG.phase==='done') return;        // onda final/derrota: não aceita input
+  if(WG.attack) return;                              // boss atacando: Mizuki paralisada (flutuando)
   if(WG.phase==='finisher'){ wgKick(); return; }     // no finisher qualquer tecla = chute
   // EVENTO ESPECIAL (combo 50): só o W (ar) bate no minion gigante; 15 acertos derrotam
   if(WG.phase==='special' && WG.special){
@@ -7887,31 +7890,58 @@ function wgDrawFire(top){
       const w = narrow ? cell*0.55 : cell+1;
       ctx.fillRect(narrow ? x*cell+(cell-w)/2 : x*cell, CH-(r+1)*cell, w, cell+1);
     }
-    // solta faísca das colunas mais altas — mais faíscas quando o fogo está intenso (combo alto)
-    if(h>rows*(0.72-0.16*lvl) && Math.random()<0.04*lvl) WG.embers.push({x:x*cell+cell/2, y:CH-h*cell, vx:(Math.random()-0.5)*22, vy:-(24+Math.random()*46)*(0.7+lvl*0.5), life:1});
+    // solta MUITAS faíscas pequenas das colunas (mais quando o fogo está intenso)
+    if(h>rows*(0.55-0.2*lvl) && Math.random()<0.13*lvl){
+      const tiny=Math.random()<0.7; // maioria minúscula
+      WG.embers.push({
+        x:x*cell+cell/2 + (Math.random()-0.5)*cell, y:CH-h*cell,
+        vx:(Math.random()-0.5)*(tiny?34:22), vy:-(18+Math.random()*52)*(0.7+lvl*0.5),
+        life:tiny?(0.55+Math.random()*0.45):1,
+        sz:tiny?(0.8+Math.random()*1.4):(2+Math.random()*2)
+      });
+    }
   }
-  // faíscas (partículas) subindo e sumindo
+  // faíscas (partículas) subindo, balançando e sumindo
   for(let i=WG.embers.length-1;i>=0;i--){
-    const e=WG.embers[i]; e.y+=e.vy*0.016; e.x+=e.vx*0.016; e.vy*=0.99; e.life-=0.025;
+    const e=WG.embers[i];
+    e.y+=e.vy*0.016; e.x+=(e.vx + Math.sin((CH-e.y)*0.05+e.x*0.02)*8)*0.016; e.vy*=0.99; e.life-=0.025;
     if(e.life<=0 || e.y<top-20){ WG.embers.splice(i,1); continue; }
     ctx.globalAlpha=Math.max(0,e.life); ctx.fillStyle=pal[Math.max(1,Math.round((P-1)*Math.min(1,e.life+0.2)))]||'#ffd27a';
-    const s=2+e.life*3; ctx.fillRect(e.x,e.y,s,s);
+    const s=(e.sz||2)*(0.5+e.life*0.7); ctx.fillRect(e.x,e.y,s,s);
   }
   ctx.globalAlpha=1;
 }
-// Esteira (chão) rolando pra ESQUERDA
+// Esteira (chão) rolando pra ESQUERDA — com sombra/profundidade
 function wgDrawBelt(gy,h){
   const glow=(typeof GFX!=='undefined'&&GFX.glow);
-  const bg=ctx.createLinearGradient(0,gy,0,gy+h); bg.addColorStop(0,'#2a1840'); bg.addColorStop(1,'#120a20');
+  // base com gradiente vertical (mais clara em cima, escura embaixo) → volume
+  const bg=ctx.createLinearGradient(0,gy,0,gy+h);
+  bg.addColorStop(0,'#3a2456'); bg.addColorStop(0.5,'#241338'); bg.addColorStop(1,'#0d0820');
   ctx.fillStyle=bg; ctx.fillRect(0,gy,CW,h);
   ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
-  const seg=34, scroll=(animT*340)%seg; // rola p/ esquerda
-  ctx.strokeStyle='rgba(255,46,154,.45)'; ctx.lineWidth=3;
-  for(let x=CW - scroll; x>-seg; x-=seg){ ctx.beginPath(); ctx.moveTo(x,gy+3); ctx.lineTo(x-15,gy+h-3); ctx.stroke(); }
+  // sombra interna no topo (a esteira "afunda" sob o chão)
+  const sh=ctx.createLinearGradient(0,gy,0,gy+h*0.55);
+  sh.addColorStop(0,'rgba(0,0,0,.5)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=sh; ctx.fillRect(0,gy,CW,h*0.55);
+  // treads diagonais com RELEVO: sombra escura deslocada + faixa rosa + brilho fino
+  const seg=34, scroll=(animT*340)%seg;
+  for(let x=CW - scroll; x>-seg; x-=seg){
+    ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(x+3,gy+4); ctx.lineTo(x-12,gy+h-1); ctx.stroke();      // sombra
+    ctx.strokeStyle='rgba(255,46,154,.5)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,gy+3);   ctx.lineTo(x-15,gy+h-3); ctx.stroke();   // corpo
+    ctx.strokeStyle='rgba(255,150,215,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x-1,gy+3); ctx.lineTo(x-16,gy+h-3); ctx.stroke();  // brilho
+  }
+  // sombra interna na base também (escurece o pé da esteira)
+  const sh2=ctx.createLinearGradient(0,gy+h*0.5,0,gy+h);
+  sh2.addColorStop(0,'rgba(0,0,0,0)'); sh2.addColorStop(1,'rgba(0,0,0,.45)');
+  ctx.fillStyle=sh2; ctx.fillRect(0,gy+h*0.5,CW,h*0.5);
   ctx.restore();
-  ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=glow?12:0;
-  ctx.strokeStyle='rgba(0,240,255,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
-  ctx.strokeStyle='rgba(255,46,154,.9)'; ctx.beginPath(); ctx.moveTo(0,gy+h); ctx.lineTo(CW,gy+h); ctx.stroke();
+  // bordas neon + linha de highlight logo abaixo do topo
+  ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=glow?14:0;
+  ctx.strokeStyle='rgba(0,240,255,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(190,245,255,.35)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,gy+2); ctx.lineTo(CW,gy+2); ctx.stroke();
+  ctx.shadowColor='rgba(255,46,154,.7)'; ctx.shadowBlur=glow?12:0;
+  ctx.strokeStyle='rgba(255,46,154,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy+h); ctx.lineTo(CW,gy+h); ctx.stroke();
   ctx.shadowBlur=0;
 }
 
@@ -8109,8 +8139,8 @@ function drawWargame(t){
     }
     // ── EVENTO ESPECIAL (combo 50): minion gigante. Para de nascer minion e some
     //    o boss; o jogador bate 15x com W (ar) pra derrotá-lo e o jogo segue. ──
-    if(WG.phase==='play' && !WG.attack && !WG.bossDefeated && !WG.specialDone && (score.combo||0)>=50){
-      WG.specialDone=true; WG.phase='special';
+    if(WG.phase==='play' && !WG.attack && !WG.bossDefeated && WG.specialCount<3 && (score.combo||0) >= 50*(WG.specialCount+1)){
+      WG.specialCount++; WG.phase='special';
       WG.special={ hits:0, need:15, born:animT, defeated:false, defeatT:0, x:CW*0.56, y:WG.airNoteY, arrows:[] };
       WG.holds.air=null; WG.holds.ground=null; wgSyncHoldSfx();
       for(const n of chart){ if((n.state==='pending'||n.state==='holding') && n.hitTime<=st+1.9) n.state='gone'; } // limpa a tela
@@ -8158,8 +8188,8 @@ function drawWargame(t){
       const A=WG.attack; A.t+=dt;
       if(A.ph==='in'){ WG.bossX+=(frontX-WG.bossX)*Math.min(1,dt*6); if(A.t>0.55){A.ph='fire';A.t=0;A.nextFire=0.2;} }
       else if(A.ph==='fire'){ WG.bossX+=(frontX-WG.bossX)*Math.min(1,dt*6);
-        if(A.t>=A.nextFire && A.fired<4){ wgFireBolt(); A.fired++; A.nextFire=A.t+0.6; }
-        if(A.fired>=4 && A.t>A.nextFire+0.2){ A.ph='out'; A.t=0; } }
+        if(A.t>=A.nextFire && A.fired<6){ wgFireBolt(); A.fired++; A.nextFire=A.t+0.42; }
+        if(A.fired>=6 && A.t>A.nextFire+0.2){ A.ph='out'; A.t=0; } }
       else { WG.bossX+=(homeX-WG.bossX)*Math.min(1,dt*6); if(A.t>0.6){ WG.attack=null; WG.attacksDone++; } }
     } else if(WG.phase==='finisher' && !WG.bossDefeated){
       WG.bossX+=(CW*0.60-WG.bossX)*Math.min(1,dt*5); // boss bem na frente da Mizuki
@@ -8279,7 +8309,13 @@ function drawWargame(t){
   // ── Mizuki ──
   const holding = holdingAir||holdingGround;
   let spr=WG_SPR.run, drawX, feet, mzRot=0;
-  if(WG.waving){
+  if(gameState==='countdown'){
+    // INTRO: Mizuki alegre antes da partida começar (saltitando feliz)
+    spr=WG_SPR.alegre; drawX=WG.charX; feet=WG.floorFeet - Math.abs(Math.sin(animT*4))*12;
+  } else if(WG.attack){
+    // BOSS ATACANDO: Mizuki chateada, flutuando no ar e sem conseguir se mexer
+    spr=WG_SPR.chateada; drawX=WG.charX; feet=WG.airFeet - chH*0.14 + Math.sin(animT*1.8)*7; mzRot=Math.sin(animT*1.4)*0.05;
+  } else if(WG.waving){
     // finalização: voa pro alto/longe e flutua; ao atirar usa a pose de ataque
     const p1=Math.min(1,WG.waveT/1.4), e=1-Math.pow(1-p1,3);
     const sX=WG.charX+CW*0.30, sF=WG.floorFeet, fX=CW*0.20, fF=CH*0.34+chH*0.5;
@@ -8363,17 +8399,24 @@ function drawWargame(t){
   // efeitos compartilhados
   drawParticles(); drawRings(); drawJudgments(t);
 
-  // ── Lasers do boss (até a Mizuki) ──
+  // ── Lasers do boss: DOIS feixes vermelhos saindo dos OLHOS até a Mizuki ──
   for(const b of WG.bolts){
     const k=Math.max(0,1-b.t/0.45);
-    const x1=(b.ox||CW*0.82)-WG.charH*0.1, y1=WG.floorFeet-bossH*0.9, x2=drawX, y2=feet-chH*0.5;
-    // pontos da trajetória (zig-zag) reaproveitados pras duas passadas
-    const seg=7, pts=[[x1,y1]];
-    for(let i=1;i<seg;i++){ const tt=i/seg; pts.push([x1+(x2-x1)*tt+(Math.random()-0.5)*42, y1+(y2-y1)*tt+(Math.random()-0.5)*22]); }
-    pts.push([x2,y2]);
-    const stroke=(w,col,a)=>{ ctx.save(); ctx.globalAlpha=k*a; ctx.strokeStyle=col; ctx.lineWidth=w; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.shadowColor='#ff2030'; ctx.shadowBlur=glow?22:0; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); ctx.restore(); };
-    stroke(14+10*k,'#ff2030',0.9);   // laser VERMELHO grosso
-    stroke(5+4*k,'#ffd0d0',1);       // núcleo claro
+    const cxB=(b.ox||CW*0.82), eyeY=WG.floorFeet*0.98 - bossH*0.62;
+    const eyes=[[cxB - bossW*0.12, eyeY],[cxB + bossW*0.12, eyeY]];
+    const x2=drawX, y2=feet-chH*0.5;
+    for(const [ex,ey] of eyes){
+      // feixe quase reto com leve tremor
+      const seg=6, pts=[[ex,ey]];
+      for(let i=1;i<seg;i++){ const tt=i/seg; pts.push([ex+(x2-ex)*tt+(Math.random()-0.5)*16, ey+(y2-ey)*tt+(Math.random()-0.5)*12]); }
+      pts.push([x2,y2]);
+      const stroke=(w,col,a)=>{ ctx.save(); ctx.globalAlpha=k*a; ctx.strokeStyle=col; ctx.lineWidth=w; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.shadowColor='#ff2030'; ctx.shadowBlur=glow?20:0; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); ctx.restore(); };
+      stroke(9+7*k,'#ff2030',0.9);  // feixe vermelho
+      stroke(3+3*k,'#ffd0d0',1);    // núcleo claro
+      // brilho no olho (origem do laser)
+      ctx.save(); ctx.globalAlpha=k; ctx.fillStyle='#ff5a5a'; ctx.shadowColor='#ff2030'; ctx.shadowBlur=glow?18:0;
+      ctx.beginPath(); ctx.arc(ex,ey,4+3*k,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
   }
 
   // ── Balões de fala (boss + Mizuki) ──
