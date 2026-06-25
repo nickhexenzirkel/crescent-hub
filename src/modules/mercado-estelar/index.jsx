@@ -383,7 +383,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         </button>
         <div style={{ width: 1, height: 20, background: T.border }} />
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg>
-        {!isMobile && <span style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.04em' }}>Mercado Estelar</span>}
+        {!isMobile && <span style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.04em' }}>Prisma Store</span>}
         <div style={{ flex: 1 }} />
         {!isMobile && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -498,14 +498,14 @@ const Sep = () => <span style={{ fontSize: 16, fontWeight: 800, color: T.textD, 
 // ── Imagens dos prêmios: 1ª é a CAPA; demais são adicionais (galeria) ──
 const prizeImages = (item) => Array.isArray(item?.images) ? item.images.filter(Boolean) : [];
 
-// Mídia do prêmio: mostra a foto (idx) com object-fit cover; se não houver, cai no emoji
-const PrizeMedia = ({ item, idx = 0, h = 120, emojiSize = 44, radius = 12, sold = false, style }) => {
+// Mídia do prêmio: mostra a foto (idx); fit "cover" recorta, "contain" mostra inteira (tamanho real)
+const PrizeMedia = ({ item, idx = 0, h = 120, emojiSize = 44, radius = 12, sold = false, fit = 'cover', style }) => {
   const imgs = prizeImages(item);
   const src = imgs[idx] != null ? imgs[idx] : imgs[0];
   return (
     <div style={{ width: '100%', height: h, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: radius, overflow: 'hidden', ...style }}>
       {src
-        ? <img src={src} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: sold ? 'grayscale(1)' : 'none' }} />
+        ? <img src={src} alt={item.name} style={{ width: '100%', height: '100%', objectFit: fit, display: 'block', filter: sold ? 'grayscale(1)' : 'none' }} />
         : <span style={{ fontSize: emojiSize, lineHeight: 1, filter: sold ? 'grayscale(1)' : 'none' }}>{item.emoji}</span>}
     </div>
   );
@@ -667,7 +667,7 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
         {/* Foto expandida + galeria (setas pra trocar de imagem) */}
         <div style={{ padding: '48px 18px 14px', position: 'relative' }}>
           {imgs.length > 0
-            ? <PrizeMedia item={item} idx={imgIdx} h={260} radius={16} sold={sold} style={{ boxShadow: sold ? 'none' : `0 14px 40px ${rc}55` }} />
+            ? <PrizeMedia item={item} idx={imgIdx} h={360} radius={16} sold={sold} fit="contain" style={{ background: 'rgba(0,0,0,0.18)' }} />
             : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ fontSize: 150, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</span></div>}
           {imgs.length > 1 && (
             <>
