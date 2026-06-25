@@ -157,15 +157,19 @@ const DEFAULT_STATE = {
   // DESAFIOS (period: 'dia' | 'mes' | 'unica'). Progresso é mockado por enquanto
   // (o acompanhamento real vem com o Supabase).
   missions: [
-    { id: 'c_uniko20',  title: 'Maratona Uniko Wave',  desc: 'Jogue Uniko Wave por 20 minutos',                 period: 'dia',   progress: 12,  goal: 20,  comum: 0,   premium: 30,  claimed: false },
-    { id: 'c_music10',  title: 'DJ do dia',            desc: 'Peça 10 músicas no Nico Music',                   period: 'dia',   progress: 6,   goal: 10,  comum: 0,   premium: 10,  claimed: false },
-    { id: 'c_firstbuy', title: 'Primeira compra',      desc: 'Faça sua primeira compra na Prisma Store',        period: 'unica', progress: 0,   goal: 1,   comum: 150, premium: 0,   claimed: false },
-    { id: 'c_ponto',    title: 'Presença impecável',   desc: '100% de presença sem ocorrências no ponto',       period: 'mes',   progress: 1,   goal: 1,   comum: 0,   premium: 80,  claimed: false },
-    { id: 'c_feedback', title: 'Voz ativa',            desc: 'Dê um feedback no sistema',                       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 30,  claimed: false },
-    { id: 'c_rank1',    title: '🥇 Top 1 do Nico Music',desc: '1º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 100, claimed: false },
-    { id: 'c_rank2',    title: '🥈 Top 2 do Nico Music',desc: '2º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 70,  claimed: false },
-    { id: 'c_rank3',    title: '🥉 Top 3 do Nico Music',desc: '3º lugar de quem mais pediu música no mês',       period: 'mes',   progress: 0,   goal: 1,   comum: 0,   premium: 50,  claimed: false },
-    { id: 'c_setor',    title: 'Setor nota 90+',       desc: 'Seu setor passou de 90% no chatbot do mês',       period: 'mes',   progress: 1,   goal: 1,   comum: 200, premium: 0,   claimed: false },
+    // ── DIÁRIAS ──
+    { id: 'c_uniko20',   title: 'Maratona Uniko Wave',   desc: 'Jogue 20 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 20, comum: 100, premium: 0,   claimed: false },
+    { id: 'c_uniko40',   title: 'Maratona Uniko Wave',   desc: 'Jogue 40 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 40, comum: 0,   premium: 10,  claimed: false },
+    // ── MENSAIS ──
+    { id: 'c_ponto',     title: 'Presença Impecável',    desc: '100% de presença sem ocorrências no ponto',     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
+    { id: 'c_feedback',  title: 'Voz ativa',             desc: 'Dê um feedback no sistema',                     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 30,  claimed: false },
+    { id: 'c_rank1',     title: '🥇 Top 1 do Uniko Wave', desc: '1º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
+    { id: 'c_rank2',     title: '🥈 Top 2 do Uniko Wave', desc: '2º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
+    { id: 'c_rank3',     title: '🥉 Top 3 do Uniko Wave', desc: '3º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
+    { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false },
+    // ── ESPECIAIS (única vez) ──
+    { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
+    { id: 'c_secondbuy', title: 'Segunda compra',        desc: 'Faça sua segunda compra na Prisma Store',       period: 'unica', progress: 0, goal: 1,  comum: 400, premium: 0,   claimed: false },
   ],
   history: [
     { id: 'h0', kind: 'checkin', desc: 'Check-in diário', premium: 50, date: '2026-06-20' },
@@ -180,9 +184,12 @@ const loadState = () => {
       // Catálogo de itens: o admin gerencia (adiciona/edita/remove), então o save
       // é a fonte da verdade; só cai no DEFAULT na 1ª vez (sem itens salvos).
       const items = Array.isArray(s.items) && s.items.length ? s.items : DEFAULT_STATE.items;
-      // Missões: mantém progresso/resgate salvos, adiciona novas do default
-      const savedM = new Set((s.missions || []).map(x => x.id));
-      const missions = [...(s.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
+      // Missões: definição (título/recompensa/meta) vem do DEFAULT; só progresso/resgate são do usuário.
+      const savedMap = new Map((s.missions || []).map(x => [x.id, x]));
+      const missions = DEFAULT_STATE.missions.map(dm => {
+        const sv = savedMap.get(dm.id);
+        return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed } : dm;
+      });
       // Migra saves antigos (que tinham só lastCheckin) para a lista de check-ins
       const checkins = Array.isArray(s.checkins) ? s.checkins : (s.lastCheckin ? [s.lastCheckin] : []);
       return { ...DEFAULT_STATE, ...s, checkins, items, missions };
@@ -287,8 +294,11 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         const local = loadState();
         const localNewer = (local.updatedAt || 0) > (user.updatedAt || 0);
         const chosen = localNewer ? local : user;
-        const savedM = new Set((chosen.missions || []).map(x => x.id));
-        const missions = [...(chosen.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
+        const savedMap = new Map((chosen.missions || []).map(x => [x.id, x]));
+        const missions = DEFAULT_STATE.missions.map(dm => {
+          const sv = savedMap.get(dm.id);
+          return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed } : dm;
+        });
         setState(s => ({ ...DEFAULT_STATE, ...chosen, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
         if (localNewer) { try { await supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(local), updated_at: new Date().toISOString() }); } catch {} }
       } catch {}
