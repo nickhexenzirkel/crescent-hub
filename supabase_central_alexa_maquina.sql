@@ -14,6 +14,7 @@ select
   count(*)::int  as plays
 from public.queue
 where status in ('played','skipped') and spotify_id is not null
+  and coalesce(requested_by,'') !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta como play
 group by 1, spotify_id;
 
 -- ── View: plays por mês e por DJ (quem mais colocou música no mês) ───────
@@ -25,6 +26,7 @@ select
 from public.queue
 where status in ('played','skipped')
   and requested_by is not null and trim(requested_by) <> ''
+  and requested_by !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta
 group by 1, requested_by;
 
 -- ── Top músicas agregadas desde p_since (null = desde sempre) ────────────
@@ -39,6 +41,7 @@ language sql stable as $$
   from public.queue
   where status in ('played','skipped') and spotify_id is not null
     and (p_since is null or created_at >= p_since)
+    and coalesce(requested_by,'') !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta
   group by spotify_id
   order by plays desc
   limit p_limit;
@@ -57,6 +60,7 @@ language sql stable as $$
   where status in ('played','skipped')
     and (p_since is null or created_at >= p_since)
     and trim(a) <> ''
+    and coalesce(requested_by,'') !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta
   group by trim(a)
   order by plays desc
   limit p_limit;
@@ -73,6 +77,7 @@ language sql stable as $$
   from public.queue
   where status in ('played','skipped')
     and requested_by is not null and trim(requested_by) <> ''
+    and requested_by !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta
     and (p_since is null or created_at >= p_since)
   group by requested_by
   order by plays desc;
@@ -87,6 +92,7 @@ language sql stable as $$
   select count(*)::int
   from public.queue
   where status in ('played','skipped')
+    and coalesce(requested_by,'') !~* '(autoplay|uniko|alexa|sistema)'  -- Autoplay/sistema NÃO conta
     and (p_since is null or created_at >= p_since);
 $$;
 
