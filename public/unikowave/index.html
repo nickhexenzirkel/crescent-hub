@@ -6903,6 +6903,7 @@ function _pickDialogue(arr){
 }
 
 function charSay(key){
+  if(gameMode==='wargame') return;          // no Guerra Estelar não usa o balão do personagem escolhido
   const dlg = CHARACTERS[selectedChar]?.dialogues;
   if(!dlg || !dlg[key]) return;
   showCharBubble(_pickDialogue(dlg[key]));
@@ -7607,15 +7608,8 @@ function wgInit(){
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
   wgHoldSfxStop();
-  // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
+  // Fogo sempre com a paleta quente realista (laranja/vermelho/branco)
   WG.firePalette=null;
-  try{
-    const vid=getYTId(lastYtUrl||lastVideoUrl||'');
-    if(vid){ const im=new Image(); im.crossOrigin='anonymous';
-      im.onload=()=>{ const p=wgBuildFirePalette(im); if(p) WG.firePalette=p; };
-      im.src='https://img.youtube.com/vi/'+vid+'/hqdefault.jpg';
-    }
-  }catch(_){}
   // Sub-modo LUTA: notas de segurar só do meio pro fim → vira tudo "bater" antes disso
   if(wgSubmode==='luta' && songDuration>0){
     const half=songDuration*0.5;
@@ -7856,9 +7850,14 @@ function wgBuildFirePalette(img){
 // Fogo em pixels: corpo de chama + pontas altas/finas (tips) + faíscas subindo
 function wgDrawFire(top){
   const pal=WG.firePalette||wgDefaultFirePalette(), P=pal.length;
-  const cell=WG.fireCell||9, cols=Math.ceil(CW/cell)+2, fireH=CH-top, rows=Math.max(8,Math.ceil(fireH/cell));
-  if(!WG.fireH || WG.fireCols!==cols){ WG.fireH=new Float32Array(cols); for(let i=0;i<cols;i++) WG.fireH[i]=rows*0.4; WG.fireCols=cols; }
-  WG.fireRows=rows;
+  // Fogo em PIXELS estilo "Doom fire": grade de calor que se propaga de baixo pra cima com
+  // deriva lateral e decaimento aleatório → chamas tremulando de verdade (nada de "LEDs").
+  const cell=7;
+  const cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(12,Math.ceil(fireH/cell)+1);
+  if(!WG.fireGrid || WG.fireCols!==cols || WG.fireRows!==rows){
+    WG.fireGrid=new Uint8Array(cols*rows); WG.fireCols=cols; WG.fireRows=rows;
+  }
+  const g=WG.fireGrid;
   // ── Intensidade do fogo: começa CALMA e cresce nos marcos de combo (30/50/100/200) ──
   const comboNow = (score && score.combo) || 0;
   let fireTarget;
@@ -7866,48 +7865,40 @@ function wgDrawFire(top){
   else if(comboNow>=100) fireTarget=0.92;
   else if(comboNow>=50)  fireTarget=0.72;
   else if(comboNow>=30)  fireTarget=0.56;
-  else                   fireTarget=0.38 + Math.min(comboNow,30)/30*0.08; // calmo, sobe de leve até 30
+  else                   fireTarget=0.42 + Math.min(comboNow,30)/30*0.10; // calmo, sobe de leve até 30
   if(WG.fireLevel==null) WG.fireLevel=fireTarget;
-  WG.fireLevel += (fireTarget-WG.fireLevel)*0.035;  // transição bem suave entre os níveis
+  WG.fireLevel += (fireTarget-WG.fireLevel)*0.04;   // transição suave entre os níveis
   const lvl = WG.fireLevel;
-  // Fase própria que acumula mais rápido quando o fogo está intenso (sem saltos de fase)
-  const nowT=animT, fdt=Math.max(0,Math.min(0.05,(WG._fireLastT!=null?nowT-WG._fireLastT:0))); WG._fireLastT=nowT;
-  WG.firePhase=(WG.firePhase||0)+fdt*(0.6+lvl*0.95);
-  const H=WG.fireH, tt=WG.firePhase;
-  ctx.fillStyle='#0a0510'; ctx.fillRect(0,top,CW,CH-top); // fundo escuro (cobre o vídeo)
-  for(let x=0;x<cols;x++){
-    // corpo ondulando + PONTAS estreitas e altas (sin elevado a potência → picos finos)
-    // altura e agitação escalam com `lvl` (combo) — calmo = baixo/parado, intenso = alto/vivo
-    const body = rows*(0.11 + 0.10*lvl + (0.09*Math.sin(x*0.4+tt*6) + 0.06*Math.sin(x*0.13-tt*4))*lvl);
-    const tip  = rows*(0.34*lvl)*Math.pow(Math.max(0,Math.sin(x*0.80 - tt*7)),6);
-    const tip2 = rows*(0.26*lvl)*Math.pow(Math.max(0,Math.sin(x*1.70 + tt*11)),8);
-    const target = Math.max(rows*0.09, body + tip + tip2 + Math.random()*rows*0.06*lvl);
-    H[x] += (target - H[x])*0.5;
-  }
-  // suavização MUITO leve (mantém as pontas afiadas, sem virar onda)
-  for(let x=1;x<cols-1;x++) H[x]=(H[x-1]*0.4 + H[x]*2.2 + H[x+1]*0.4)/3;
-  for(let x=0;x<cols;x++){
-    const h=H[x], hi=Math.min(rows,Math.max(1,Math.round(h)));
-    for(let r=0;r<hi;r++){                       // r=0 = base (mais quente)
-      const tnorm=r/h;
-      let idx=Math.round((P-1)*(1-tnorm*tnorm)); // base branca → topo escurece/afina
-      if(Math.random()<0.25) idx-=1;
-      if(idx<=0) continue;
-      const col=pal[idx]; if(!col) continue;
-      ctx.fillStyle=col;
-      const narrow = r>hi-3;                      // afina a ponta
-      const w = narrow ? cell*0.55 : cell+1;
-      ctx.fillRect(narrow ? x*cell+(cell-w)/2 : x*cell, CH-(r+1)*cell, w, cell+1);
+  // 1) Alimenta a BASE (última linha) com calor máximo, cintilando
+  const base=(rows-1)*cols;
+  for(let x=0;x<cols;x++) g[base+x]=(Math.random()<0.85)?(P-1):(P-2-(Math.random()*5|0));
+  // 2) Propaga de baixo pra cima. Decaimento menor quando o combo (lvl) é alto = chamas mais altas.
+  const decP=0.60-0.34*lvl;
+  for(let y=rows-1;y>=1;y--){
+    const above=(y-1)*cols, row=y*cols;
+    for(let x=0;x<cols;x++){
+      const px=g[row+x];
+      if(px<=0){ g[above+x]=0; continue; }
+      const rnd=(Math.random()*3.2)|0;                 // 0..3 → deriva lateral
+      let tx=x+1-rnd; if(tx<0)tx=0; else if(tx>=cols)tx=cols-1;
+      const v=px-((Math.random()<decP)?1:0);           // decaimento 0/1
+      g[above+tx]=v>0?v:0;
     }
-    // solta MUITAS faíscas pequenas das colunas (mais quando o fogo está intenso)
-    if(h>rows*(0.55-0.2*lvl) && Math.random()<0.13*lvl){
-      const tiny=Math.random()<0.7; // maioria minúscula
-      WG.embers.push({
-        x:x*cell+cell/2 + (Math.random()-0.5)*cell, y:CH-h*cell,
-        vx:(Math.random()-0.5)*(tiny?34:22), vy:-(18+Math.random()*52)*(0.7+lvl*0.5),
-        life:tiny?(0.55+Math.random()*0.45):1,
-        sz:tiny?(0.8+Math.random()*1.4):(2+Math.random()*2)
-      });
+  }
+  // 3) Render dos pixels de chama
+  ctx.fillStyle='#080410'; ctx.fillRect(0,top,CW,CH-top);   // fundo escuro (cobre o vídeo)
+  for(let y=0;y<rows;y++){
+    const sy=top+y*cell;
+    for(let x=0;x<cols;x++){
+      const idx=g[y*cols+x]; if(idx<=0) continue;
+      const col=pal[idx]; if(!col) continue;
+      ctx.fillStyle=col; ctx.fillRect(x*cell,sy,cell+1,cell+1);
+      // solta faísca das PONTAS (célula quente com vazio logo acima)
+      if(idx>P*0.45 && y>0 && g[(y-1)*cols+x]<=0 && Math.random()<0.03*lvl){
+        WG.embers.push({ x:x*cell+cell/2+(Math.random()-0.5)*cell, y:sy,
+          vx:(Math.random()-0.5)*30, vy:-(18+Math.random()*52)*(0.7+lvl*0.5),
+          life:0.55+Math.random()*0.5, sz:0.9+Math.random()*1.6 });
+      }
     }
   }
   // faíscas (partículas) subindo, balançando e sumindo
@@ -8162,8 +8153,7 @@ function drawWargame(t){
   // ── Lógica de tempo (falas, fases de ataque, finisher) — só durante a partida ──
   const homeX=CW*0.85, frontX=CW*0.46;
   if(gameState==='playing'){
-    // Depois de 30s, o fogo muda de cor aleatória a cada 15s
-    if(st>=WG.fireRecolorAt){ WG.firePalette=wgFirePaletteFromHue(Math.random()*360); WG.fireRecolorAt=st+15; }
+    // (fogo mantém paleta quente realista — sem trocas de cor aleatórias)
     // Falas periódicas
     if(WG.phase!=='done'){
       if(st>=WG.nextBossSayAt && !WG.bossDefeated && !WG.attack){ wgSay('boss', wgPick(WG_BOSS_TAUNTS)); WG.nextBossSayAt=st+12+Math.random()*7; }
@@ -8288,17 +8278,37 @@ function drawWargame(t){
     ctx.restore();
   }
 
-  // ── Barra de vida do BOSS (topo central) — oculta durante o evento especial ──
+  // ── Barra de vida do BOSS (topo central) — MAIOR, com paleta vermelho/preto animada ──
   if(WG.phase!=='special'){
-    const bw=Math.min(CW*0.5,420), bhx=(CW-bw)/2, bhy=CH*0.05;
-    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(bhx-3,bhy-3,bw+6,18);
-    ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(bhx,bhy,bw,12);
+    const bw=Math.min(CW*0.64,580), h=20, bhx=(CW-bw)/2, bhy=CH*0.05;
+    const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);}else{ctx.beginPath();ctx.rect(x,y,w,hh);} };
+    ctx.save();
+    // moldura + trilho
+    ctx.fillStyle='rgba(0,0,0,.6)'; rr(bhx-4,bhy-4,bw+8,h+8,7); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.1)'; rr(bhx,bhy,bw,h,5); ctx.fill();
     const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
-    const hg=ctx.createLinearGradient(bhx,0,bhx+bw,0);
-    hg.addColorStop(0,'#ff2e6e'); hg.addColorStop(1,'#b000ff');
-    ctx.fillStyle=hg; ctx.fillRect(bhx,bhy,bw*hpPct,12);
-    ctx.font="8px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='bottom';
-    ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-4);
+    // preenchimento animado — base vermelha pulsando + listras pretas diagonais correndo
+    ctx.save(); rr(bhx,bhy,bw*hpPct,h,5); ctx.clip();
+    const pulse=0.5+0.5*Math.sin(animT*3.5);
+    const bgg=ctx.createLinearGradient(bhx,bhy,bhx,bhy+h);
+    bgg.addColorStop(0,`rgb(${(205+50*pulse)|0},22,40)`);
+    bgg.addColorStop(0.5,'#1a0008');
+    bgg.addColorStop(1,`rgb(${(150+45*pulse)|0},12,26)`);
+    ctx.fillStyle=bgg; ctx.fillRect(bhx,bhy,bw,h);
+    ctx.fillStyle='rgba(0,0,0,.42)';
+    const sw=20, off=(animT*44)%(sw*2);
+    for(let sx=bhx-sw*2-off; sx<bhx+bw; sx+=sw*2){
+      ctx.beginPath(); ctx.moveTo(sx,bhy); ctx.lineTo(sx+sw,bhy); ctx.lineTo(sx+sw-h,bhy+h); ctx.lineTo(sx-h,bhy+h); ctx.closePath(); ctx.fill();
+    }
+    const sh=ctx.createLinearGradient(0,bhy,0,bhy+h*0.5); sh.addColorStop(0,'rgba(255,255,255,.28)'); sh.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=sh; ctx.fillRect(bhx,bhy,bw,h*0.5);
+    ctx.restore();
+    // borda neon vermelha
+    ctx.strokeStyle='rgba(255,40,70,.7)'; ctx.lineWidth=2; rr(bhx,bhy,bw,h,5); ctx.stroke();
+    ctx.font="9px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.shadowColor='#ff2040'; ctx.shadowBlur=8;
+    ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-6);
+    ctx.shadowBlur=0; ctx.restore();
   }
 
   // ── Notas / minions (incl. notas de segurar com linha roxa) ──
@@ -8516,41 +8526,59 @@ function drawWargame(t){
     ctx.restore();
   }
 
-  // ── Barra inferior estilo Muse Dash: VIDA (rosa) + COMBO (ciano) ──
+  // ── VIDA (acima do botão de PAUSA) + medidor de COMBO (inferior central) ──
+  drawWgLifeBar();
   drawWgBottomBar(combo);
 }
 
-// Barra inferior central: coração + vida (rosa) + medidor de combo (ciano)
-function drawWgBottomBar(combo){
-  const barW=Math.min(CW*0.46,440), h=22, x0=(CW-barW)/2, y0=CH-46;
-  const lifeW=barW*0.60, comboW=barW*0.40, gap=6;
-  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);} else {ctx.beginPath();ctx.rect(x,y,w,hh);} };
-  // moldura
+// Barra de VIDA — fica em cima do botão de PAUSA, grande, com paleta vermelho→rosa.
+function drawWgLifeBar(){
+  const barW=Math.min(CW*0.26,330), h=26, x0=20, y0=120;   // o botão de PAUSA fica em top:160
+  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);}else{ctx.beginPath();ctx.rect(x,y,w,hh);} };
   ctx.save();
-  ctx.fillStyle='rgba(8,4,20,.72)'; rr(x0-34,y0-7,barW+44,h+14,12); ctx.fill();
-  ctx.strokeStyle='rgba(40,224,255,.5)'; ctx.lineWidth=2; rr(x0-34,y0-7,barW+44,h+14,12); ctx.stroke();
-  // coração (vida)
-  const hx=x0-20, hy=y0+h*0.5, hs=11;
-  ctx.fillStyle='#ff2e6e'; ctx.shadowColor='#ff2e6e'; ctx.shadowBlur=10;
-  ctx.beginPath();
-  ctx.moveTo(hx,hy+hs*0.7);
+  // moldura
+  ctx.fillStyle='rgba(22,2,10,.78)'; rr(x0-6,y0-7,barW+12,h+14,12); ctx.fill();
+  ctx.strokeStyle='rgba(255,46,110,.65)'; ctx.lineWidth=2; rr(x0-6,y0-7,barW+12,h+14,12); ctx.stroke();
+  // trilho
+  ctx.fillStyle='rgba(255,255,255,.1)'; rr(x0,y0,barW,h,8); ctx.fill();
+  // preenchimento vermelho→rosa
+  const health=Math.max(0,Math.min(100,score.health??100));
+  ctx.save(); rr(x0,y0,Math.max(0.0001,barW*(health/100)),h,8); ctx.clip();
+  const lg=ctx.createLinearGradient(x0,0,x0+barW,0);
+  lg.addColorStop(0,'#b3002a'); lg.addColorStop(0.5,'#ff1f5a'); lg.addColorStop(1,'#ff85c0');
+  ctx.fillStyle=lg; ctx.fillRect(x0,y0,barW,h);
+  const shine=ctx.createLinearGradient(0,y0,0,y0+h*0.5); shine.addColorStop(0,'rgba(255,255,255,.38)'); shine.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=shine; ctx.fillRect(x0,y0,barW,h*0.5);
+  ctx.restore();
+  // coração
+  const hx=x0+13, hy=y0+h*0.5, hs=9;
+  ctx.fillStyle='#fff'; ctx.shadowColor='#ff2e6e'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.moveTo(hx,hy+hs*0.7);
   ctx.bezierCurveTo(hx-hs,hy-hs*0.4,hx-hs*0.5,hy-hs,hx,hy-hs*0.3);
   ctx.bezierCurveTo(hx+hs*0.5,hy-hs,hx+hs,hy-hs*0.4,hx,hy+hs*0.7);
   ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-  // VIDA (rosa)
-  const health=Math.max(0,Math.min(100,score.health??100));
-  ctx.fillStyle='rgba(255,255,255,.12)'; rr(x0,y0,lifeW,h,7); ctx.fill();
-  const lg=ctx.createLinearGradient(x0,0,x0+lifeW,0); lg.addColorStop(0,'#ff2e6e'); lg.addColorStop(1,'#ff7ab0');
-  ctx.fillStyle=lg; rr(x0,y0,lifeW*(health/100),h,7); ctx.fill();
+  // texto %
+  ctx.font="9px 'Press Start 2P',monospace"; ctx.textBaseline='middle'; ctx.textAlign='center';
+  ctx.fillStyle='#fff'; ctx.fillText(Math.round(health)+'%', x0+barW*0.5+8, y0+h*0.5);
+  ctx.restore();
+}
+
+// Medidor de COMBO (ciano) — centro inferior.
+function drawWgBottomBar(combo){
+  const barW=Math.min(CW*0.30,320), h=20, x0=(CW-barW)/2, y0=CH-42, comboW=barW;
+  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);} else {ctx.beginPath();ctx.rect(x,y,w,hh);} };
+  // moldura
+  ctx.save();
+  ctx.fillStyle='rgba(8,4,20,.72)'; rr(x0-10,y0-7,barW+70,h+14,12); ctx.fill();
+  ctx.strokeStyle='rgba(40,224,255,.5)'; ctx.lineWidth=2; rr(x0-10,y0-7,barW+70,h+14,12); ctx.stroke();
   // COMBO (ciano) — enche a cada 50 de combo
-  const cx0=x0+lifeW+gap, cg=(combo%50)/50;
+  const cx0=x0, cg=(combo%50)/50;
   ctx.fillStyle='rgba(255,255,255,.12)'; rr(cx0,y0,comboW,h,7); ctx.fill();
   const cgr=ctx.createLinearGradient(cx0,0,cx0+comboW,0); cgr.addColorStop(0,'#28e0ff'); cgr.addColorStop(1,'#7af0ff');
   ctx.fillStyle=cgr; rr(cx0,y0,comboW*(combo>0?Math.max(0.04,cg):0),h,7); ctx.fill();
   // textos
   ctx.font="8px 'Press Start 2P',monospace"; ctx.textBaseline='middle';
-  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText(Math.round(health)+'%', x0+lifeW*0.5, y0+h*0.5);
-  ctx.fillStyle='#062536'; ctx.fillText('x'+combo, cx0+comboW*0.5, y0+h*0.5);
+  ctx.fillStyle='#062536'; ctx.textAlign='center'; ctx.fillText('x'+combo, cx0+comboW*0.5, y0+h*0.5);
   ctx.fillStyle='#28e0ff'; ctx.textAlign='left'; ctx.font="8px 'Press Start 2P',monospace";
   ctx.fillText('COMBO', cx0+comboW+8, y0+h*0.5);
   ctx.restore();
