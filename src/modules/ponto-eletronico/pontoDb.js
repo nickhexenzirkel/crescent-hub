@@ -104,6 +104,27 @@ export async function savePontoSnapshot({ marks, nameMap, excluded, header }) {
   return { total: markRows.length };
 }
 
+/* Persiste o RESUMO de presença por funcionário e MÊS (saldo em min + nº de inconsistências).
+   Usado pela missão "Presença Impecável" da Prisma Store (saldo 0 e 0 inconsistências no mês).
+   Tabela: ponto_presenca (ver supabase_ponto_presenca.sql). */
+export async function savePontoPresenca(employees) {
+  if (!Array.isArray(employees) || !employees.length) return;
+  const ts = nowISO();
+  const acc = {}; // `${cpf}|${YYYY-MM}` → { cpf, month, saldo, issues }
+  for (const emp of employees) {
+    for (const d of (emp.days || [])) {
+      const month = (d.date || '').slice(0, 7);
+      if (!month) continue;
+      const k = emp.cpf + '|' + month;
+      if (!acc[k]) acc[k] = { cpf: emp.cpf, month, saldo: 0, issues: 0 };
+      acc[k].saldo  += (d.balance || 0);
+      acc[k].issues += (d.issues ? d.issues.length : 0);
+    }
+  }
+  const rows = Object.values(acc).map(r => ({ ...r, updated_at: ts }));
+  if (rows.length) await upsertChunks('ponto_presenca', rows, { onConflict: 'cpf,month' });
+}
+
 /* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga. */
 export async function saveJustificativa({ cpf, date, text }) {
   const clean = (text || '').trim();

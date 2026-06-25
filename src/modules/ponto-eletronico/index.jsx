@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -265,6 +265,13 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso }) : null,
     [rawData, tolerance, jornada, toleranciaAtraso]
   );
+
+  /* Persiste o resumo de presença por funcionário/mês (alimenta a missão "Presença Impecável") */
+  React.useEffect(() => {
+    if (!afd?.employees?.length) return;
+    const t = setTimeout(() => { savePontoPresenca(afd.employees).catch(() => {}); }, 1200);
+    return () => clearTimeout(t);
+  }, [afd]);
 
   /* ── Carrega tudo do banco ao abrir o módulo ── */
   React.useEffect(() => {

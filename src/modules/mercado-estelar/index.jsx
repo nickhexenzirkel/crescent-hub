@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
-import { supabase, SERVER_URL } from '../../contexts/user';
+import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -166,7 +166,7 @@ const DEFAULT_STATE = {
     { id: 'c_rank1',     title: '🥇 Top 1 do Uniko Wave', desc: '1º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
     { id: 'c_rank2',     title: '🥈 Top 2 do Uniko Wave', desc: '2º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
     { id: 'c_rank3',     title: '🥉 Top 3 do Uniko Wave', desc: '3º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
-    { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false },
+    { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false, maintenance: true },
     // ── ESPECIAIS (única vez) ──
     { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
     { id: 'c_secondbuy', title: 'Segunda compra',        desc: 'Faça sua segunda compra na Prisma Store',       period: 'unica', progress: 0, goal: 1,  comum: 400, premium: 0,   claimed: false },
@@ -350,6 +350,16 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         const mins = Math.floor((data?.seconds || 0) / 60);
         prog.c_uniko20 = Math.min(20, mins);
         prog.c_uniko40 = Math.min(40, mins);
+      } catch {}
+      // Presença Impecável — saldo 0 (sem horas +/-) e 0 inconsistências no mês (Ponto Eletrônico)
+      try {
+        const cpf = authUser?.cpf || getAuthUser?.()?.cpf;
+        if (cpf) {
+          const month = todayStr().slice(0, 7);
+          const { data } = await supabase.from('ponto_presenca')
+            .select('saldo,issues').eq('cpf', cpf).eq('month', month).maybeSingle();
+          prog.c_ponto = (data && data.saldo === 0 && data.issues === 0) ? 1 : 0;
+        }
       } catch {}
       // Voz ativa — feedback NÃO anônimo do usuário neste mês
       try {
@@ -1083,11 +1093,13 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
     <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas." />
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
       {missions.map(m => {
-        const done = m.progress >= m.goal;
+        const maint = !!m.maintenance;
+        const done = !maint && m.progress >= m.goal;
+        const claimable = done && !m.claimed;
         const pct = Math.min(100, Math.round((m.progress / m.goal) * 100));
         const pm = PERIOD_META[m.period] || PERIOD_META.dia;
         return (
-          <div key={m.id} style={{ background: cardBg, border: `1px solid ${done && !m.claimed ? T.goldLine + '66' : T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh, opacity: m.claimed ? 0.7 : 1 }}>
+          <div key={m.id} style={{ background: cardBg, border: `1px solid ${claimable ? T.goldLine + '66' : T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh, opacity: maint ? 0.6 : m.claimed ? 0.7 : 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
@@ -1111,18 +1123,18 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
             </div>
 
             <button
-              disabled={!done || m.claimed}
-              onClick={() => done && !m.claimed && onClaim(m)}
+              disabled={!claimable}
+              onClick={() => claimable && onClaim(m)}
               style={{
                 width: '100%', padding: '10px', borderRadius: 9,
-                border: (done && !m.claimed) ? 'none' : `1px solid ${T.border}`,
-                cursor: (done && !m.claimed) ? 'pointer' : (m.claimed ? 'default' : 'not-allowed'),
-                background: (done && !m.claimed) ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.05)'),
-                color: (done && !m.claimed) ? '#fff' : T.textD,
+                border: claimable ? 'none' : `1px solid ${T.border}`,
+                cursor: claimable ? 'pointer' : (m.claimed ? 'default' : 'not-allowed'),
+                background: claimable ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.05)'),
+                color: claimable ? '#fff' : T.textD,
                 fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               }}>
-              {m.claimed ? '✓ Resgatado' : done ? '✨ Resgatar' : 'Em andamento'}
+              {maint ? '🔧 Em manutenção' : m.claimed ? '✓ Resgatado' : done ? '✨ Resgatar' : 'Em andamento'}
             </button>
           </div>
         );
