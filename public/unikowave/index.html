@@ -542,8 +542,10 @@ canvas{display:block}
 /* ─── PREVIEW ─── */
 #previewScr{background:#04040f;overflow:hidden}
 #previewBg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;filter:blur(20px) brightness(0.25);transform:scale(1.1)}
-.preview-card{position:relative;z-index:2;background:rgba(4,4,20,.75);border:1.5px solid rgba(0,240,255,.2);border-radius:20px;padding:28px;max-width:560px;width:100%;display:flex;flex-direction:column;gap:20px;backdrop-filter:blur(12px)}
-.prev-thumb-wrap{width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;position:relative}
+.preview-card{position:relative;z-index:2;background:rgba(4,4,20,.78);border:1.5px solid rgba(0,240,255,.2);border-radius:20px;padding:22px;max-width:520px;width:100%;display:flex;flex-direction:column;gap:14px;backdrop-filter:blur(12px);max-height:calc(100vh - 36px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(0,240,255,.4) transparent}
+.preview-card::-webkit-scrollbar{width:6px}
+.preview-card::-webkit-scrollbar-thumb{background:rgba(0,240,255,.35);border-radius:3px}
+.prev-thumb-wrap{width:100%;height:clamp(120px,20vh,180px);border-radius:12px;overflow:hidden;position:relative;flex-shrink:0}
 .prev-thumb{width:100%;height:100%;object-fit:cover}
 .prev-thumb-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a22,#12093a);font-size:48px}
 .prev-info{display:flex;flex-direction:column;gap:6px}
@@ -552,7 +554,14 @@ canvas{display:block}
 .prev-dur{font-size:11px;color:#3a4870;letter-spacing:2px;font-family:var(--font-pixel)}
 .prev-diff-label{font-size:10px;color:#4a5890;letter-spacing:3px;text-transform:uppercase}
 .prev-diff-btns{display:flex;gap:10px}
-.diff-btn{flex:1;padding:14px;border-radius:12px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);color:rgba(255,255,255,.4);font-family:var(--font-pixel);font-size:11px;cursor:pointer;transition:all .2s;text-align:center;letter-spacing:1px}
+.prev-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prev-diff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.prev-hint{font-size:9px;color:rgba(255,255,255,.45);text-align:center;letter-spacing:.5px;line-height:1.5;margin-top:2px}
+.prev-hint:empty{display:none}
+.diff-btn{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0;padding:12px 8px;border-radius:12px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);color:rgba(255,255,255,.4);font-family:var(--font-pixel);font-size:10px;line-height:1.15;cursor:pointer;transition:all .2s;text-align:center;letter-spacing:.5px}
+.diff-btn .pxi{display:inline-flex;align-items:center;flex-shrink:0;line-height:0}
+.diff-btn .pxi-svg{width:13px;height:13px}
+.diff-btn>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .diff-btn:hover{background:rgba(255,255,255,.07);color:#fff}
 .diff-btn.easy.sel{border-color:#00ff88;color:#00ff88;background:rgba(0,255,136,.08)}
 .diff-btn.normal.sel{border-color:#00f0ff;color:#00f0ff;background:rgba(0,240,255,.08)}
@@ -562,9 +571,14 @@ canvas{display:block}
 @keyframes impBlink{0%,100%{box-shadow:0 0 8px #ff8800}50%{box-shadow:0 0 20px #ff8800,0 0 40px #ff000088}}
 .diff-btn.nightmare.sel{border-color:#cc0000;color:#ff1111;background:rgba(180,0,0,.15);text-shadow:0 0 12px #ff0000,0 0 24px #ff000088;animation:nmBlink .5s ease-in-out infinite}
 @keyframes nmBlink{0%,100%{box-shadow:0 0 10px #cc0000,inset 0 0 8px rgba(180,0,0,.2)}50%{box-shadow:0 0 28px #ff0000,0 0 55px #88000088,inset 0 0 16px rgba(200,0,0,.3)}}
-.prev-play{background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:12px;color:#000;font-family:var(--font-pixel);font-size:14px;font-weight:900;padding:16px;cursor:pointer;letter-spacing:2px;transition:transform .1s,box-shadow .15s}
+.prev-play-row{display:grid;grid-template-columns:1.3fr 1fr;gap:10px}
+.prev-play{display:flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:12px;color:#000;font-family:var(--font-pixel);font-size:12px;font-weight:900;padding:15px 12px;cursor:pointer;letter-spacing:1.5px;transition:transform .1s,box-shadow .15s;line-height:1.1}
+.prev-play small{font-size:8px;letter-spacing:.5px;opacity:.78;font-weight:400;display:block;margin-top:2px}
+.prev-play .pxi-svg{width:16px;height:16px;flex-shrink:0}
+.prev-play-fast{background:linear-gradient(135deg,#3a4870,#566089);color:#fff}
 .prev-play:hover{box-shadow:0 0 30px rgba(0,240,255,.5);transform:scale(1.02)}
 .prev-play:active{transform:scale(.97)}
+.prev-play-note{font-size:9px;color:rgba(255,255,255,.4);text-align:center;letter-spacing:.5px;margin-top:-4px}
 
 /* ─── GAME ─── */
 #gameWrap{position:fixed;inset:0;z-index:1}
@@ -1973,7 +1987,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <div class="preview-card">
     <div class="prev-thumb-wrap">
       <img class="prev-thumb" id="prevThumb" src="" alt="" style="display:none" onerror="this.style.display='none';document.getElementById('prevThumbFb').style.display='flex'">
-      <div class="prev-thumb-fallback" id="prevThumbFb">🎵</div>
+      <div class="prev-thumb-fallback" id="prevThumbFb"><i class="pxi" data-pxicon="note" data-pxsize="46px"></i></div>
     </div>
     <div class="prev-info">
       <div class="prev-title" id="prevTitle">Carregando...</div>
@@ -1982,35 +1996,37 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
     </div>
     <div class="settings-section">
       <div class="prev-diff-label">Modo de Jogo</div>
-      <div class="prev-diff-btns" style="gap:8px">
-        <button class="diff-btn normal mode-btn sel" id="modeBtnClassic" onclick="selectMode('classic')" style="min-width:calc(50% - 4px)">⌨ TECLADO ESTELAR</button>
-        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')" style="min-width:calc(50% - 4px)">⚔ GUERRA ESTELAR</button>
+      <div class="prev-mode-grid">
+        <button class="diff-btn normal mode-btn sel" id="modeBtnClassic" onclick="selectMode('classic')"><i class="pxi" data-pxicon="keyboard"></i><span>TECLADO ESTELAR</span></button>
+        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')"><i class="pxi" data-pxicon="swords"></i><span>GUERRA ESTELAR</span></button>
       </div>
-      <div id="modeHint" style="font-size:9px;color:rgba(255,255,255,.45);text-align:center;margin-top:6px;letter-spacing:.5px;line-height:1.5"></div>
+      <div id="modeHint" class="prev-hint"></div>
     </div>
     <div class="settings-section" id="wgSubmodeSection" style="display:none">
       <div class="prev-diff-label">Sub-modo (Guerra Estelar)</div>
-      <div class="prev-diff-btns" style="gap:8px">
-        <button class="diff-btn normal sel" id="wgSubRitmico" onclick="selectWgSubmode('ritmico')" style="min-width:calc(50% - 4px)">🎵 RÍTMICO</button>
-        <button class="diff-btn hard" id="wgSubLuta" onclick="selectWgSubmode('luta')" style="min-width:calc(50% - 4px)">👊 LUTA</button>
+      <div class="prev-mode-grid">
+        <button class="diff-btn normal sel" id="wgSubRitmico" onclick="selectWgSubmode('ritmico')"><i class="pxi" data-pxicon="note"></i><span>RÍTMICO</span></button>
+        <button class="diff-btn hard" id="wgSubLuta" onclick="selectWgSubmode('luta')"><i class="pxi" data-pxicon="fist"></i><span>LUTA</span></button>
       </div>
-      <div id="wgSubHint" style="font-size:9px;color:rgba(255,255,255,.45);text-align:center;margin-top:6px;letter-spacing:.5px;line-height:1.5"></div>
+      <div id="wgSubHint" class="prev-hint"></div>
     </div>
     <div class="settings-section">
       <div class="prev-diff-label">Dificuldade</div>
-      <div class="prev-diff-btns" style="flex-wrap:wrap;gap:8px">
+      <div class="prev-diff-grid">
         <button class="diff-btn easy" onclick="selectDiff('easy')">FÁCIL</button>
         <button class="diff-btn normal sel" onclick="selectDiff('normal')">NORMAL</button>
         <button class="diff-btn hard" onclick="selectDiff('hard')">DIFÍCIL</button>
-        <button class="diff-btn insane" onclick="selectDiff('insane')" style="min-width:calc(50% - 4px)">INSANO</button>
-        <button class="diff-btn impossible" onclick="selectDiff('impossible')" style="min-width:calc(50% - 4px)">IMPOSSÍVEL</button>
-        <button class="diff-btn nightmare" onclick="selectDiff('nightmare')" style="width:100%">☠ PESADELO</button>
+        <button class="diff-btn insane" onclick="selectDiff('insane')">INSANO</button>
+        <button class="diff-btn impossible" onclick="selectDiff('impossible')">IMPOSSÍVEL</button>
+        <button class="diff-btn nightmare" onclick="selectDiff('nightmare')"><i class="pxi" data-pxicon="skull"></i><span>PESADELO</span></button>
       </div>
     </div>
-    <div id="localVidBadge" style="display:none;font-size:10px;letter-spacing:1px;color:rgba(0,240,255,.6);text-align:center;margin-top:-8px;padding:4px 0"></div>
-    <button class="prev-play" onclick="beginFromPreview(false)">▶ PLAY (ritmo real)</button>
-    <button class="prev-play" onclick="beginFromPreview(true)" style="margin-top:10px;background:linear-gradient(135deg,#3a4870,#566089);color:#fff;font-size:11px">⚡ PLAY RÁPIDO (ritmo estimado)</button>
-    <div style="font-size:9px;color:rgba(255,255,255,.4);text-align:center;margin-top:6px;letter-spacing:.5px">Rápido = começa na hora, sem esperar baixar o áudio</div>
+    <div id="localVidBadge" style="display:none;font-size:10px;letter-spacing:1px;color:rgba(0,240,255,.6);text-align:center;margin-top:-4px;padding:2px 0"></div>
+    <div class="prev-play-row">
+      <button class="prev-play" onclick="beginFromPreview(false)"><i class="pxi" data-pxicon="play"></i><span>PLAY <small>(ritmo real)</small></span></button>
+      <button class="prev-play prev-play-fast" onclick="beginFromPreview(true)"><i class="pxi" data-pxicon="bolt"></i><span>RÁPIDO <small>(estimado)</small></span></button>
+    </div>
+    <div class="prev-play-note">Rápido = começa na hora, sem esperar baixar o áudio</div>
   </div>
 </div>
 
@@ -2023,7 +2039,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <div id="songProgress"><div id="songProgressFill"></div></div>
   <!-- Barra de vida: errar muito esgota e perde a partida -->
   <div id="lifeBar"><div id="lifeFill"></div></div>
-  <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)">⏸ PAUSA</button>
+  <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
   <div id="hudStars">
     <div class="star-row">
       <span class="star-item" id="star0" data-i="0">★</span>
@@ -2166,7 +2182,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
 
 <!-- ══ PAUSE OVERLAY ══ -->
 <div id="pauseOverlay" class="off">
-  <div class="pause-title">⏸ PAUSADO</div>
+  <div class="pause-title"><i class="pxi" data-pxicon="pause"></i> PAUSADO</div>
   <div class="pause-sub">pressione ESC para continuar</div>
   <button class="btn-pause-cont" onclick="resumeGame()">▶ CONTINUAR</button>
   <button class="btn-pause-quit" id="pauseFsBtn" onclick="toggleFullscreen()">⛶ TELA CHEIA</button>
@@ -2459,8 +2475,8 @@ function selectMode(m){
   if(w) w.classList.toggle('sel', m==='wargame');
   const hint=document.getElementById('modeHint');
   if(hint) hint.innerHTML = m==='wargame'
-    ? '⚔ Você joga como <b>Mizuki</b> (única liberada). <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o Dark CatBot!'
-    : '⌨ Modo clássico de notas em 4 lanes.';
+    ? (pxIcon('swords',{size:'1em'})+' Você joga como <b>Mizuki</b> (única liberada). <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o Dark CatBot!')
+    : (pxIcon('keyboard',{size:'1em'})+' Modo clássico de notas em 4 lanes.');
   const ss=document.getElementById('wgSubmodeSection');
   if(ss) ss.style.display = m==='wargame' ? '' : 'none';
   if(m==='wargame') selectWgSubmode(wgSubmode);
@@ -7556,6 +7572,7 @@ function wgInit(){
   WG.finisherKicks=0; WG.finisherNeed=30; WG.lungeT=0; WG.resultScheduled=false;
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
+  WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   wgHoldSfxStop();
   // Paleta do fogo a partir da capa (thumbnail) do vídeo da música
   WG.firePalette=null;
@@ -7794,14 +7811,29 @@ function wgDrawFire(top){
   const cell=WG.fireCell||9, cols=Math.ceil(CW/cell)+2, fireH=CH-top, rows=Math.max(8,Math.ceil(fireH/cell));
   if(!WG.fireH || WG.fireCols!==cols){ WG.fireH=new Float32Array(cols); for(let i=0;i<cols;i++) WG.fireH[i]=rows*0.4; WG.fireCols=cols; }
   WG.fireRows=rows;
-  const H=WG.fireH, tt=animT;
+  // ── Intensidade do fogo: começa CALMA e cresce nos marcos de combo (30/50/100/200) ──
+  const comboNow = (score && score.combo) || 0;
+  let fireTarget;
+  if(comboNow>=200)      fireTarget=1.18;   // fogança máxima — chamas altas e agitadas
+  else if(comboNow>=100) fireTarget=0.92;
+  else if(comboNow>=50)  fireTarget=0.72;
+  else if(comboNow>=30)  fireTarget=0.56;
+  else                   fireTarget=0.38 + Math.min(comboNow,30)/30*0.08; // calmo, sobe de leve até 30
+  if(WG.fireLevel==null) WG.fireLevel=fireTarget;
+  WG.fireLevel += (fireTarget-WG.fireLevel)*0.035;  // transição bem suave entre os níveis
+  const lvl = WG.fireLevel;
+  // Fase própria que acumula mais rápido quando o fogo está intenso (sem saltos de fase)
+  const nowT=animT, fdt=Math.max(0,Math.min(0.05,(WG._fireLastT!=null?nowT-WG._fireLastT:0))); WG._fireLastT=nowT;
+  WG.firePhase=(WG.firePhase||0)+fdt*(0.6+lvl*0.95);
+  const H=WG.fireH, tt=WG.firePhase;
   ctx.fillStyle='#0a0510'; ctx.fillRect(0,top,CW,CH-top); // fundo escuro (cobre o vídeo)
   for(let x=0;x<cols;x++){
     // corpo ondulando + PONTAS estreitas e altas (sin elevado a potência → picos finos)
-    const body = rows*(0.18 + 0.11*Math.sin(x*0.4+tt*6) + 0.07*Math.sin(x*0.13-tt*4));
-    const tip  = rows*0.42*Math.pow(Math.max(0,Math.sin(x*0.80 - tt*7)),6);
-    const tip2 = rows*0.32*Math.pow(Math.max(0,Math.sin(x*1.70 + tt*11)),8);
-    const target = Math.max(rows*0.12, body + tip + tip2 + Math.random()*rows*0.07);
+    // altura e agitação escalam com `lvl` (combo) — calmo = baixo/parado, intenso = alto/vivo
+    const body = rows*(0.11 + 0.10*lvl + (0.09*Math.sin(x*0.4+tt*6) + 0.06*Math.sin(x*0.13-tt*4))*lvl);
+    const tip  = rows*(0.34*lvl)*Math.pow(Math.max(0,Math.sin(x*0.80 - tt*7)),6);
+    const tip2 = rows*(0.26*lvl)*Math.pow(Math.max(0,Math.sin(x*1.70 + tt*11)),8);
+    const target = Math.max(rows*0.09, body + tip + tip2 + Math.random()*rows*0.06*lvl);
     H[x] += (target - H[x])*0.5;
   }
   // suavização MUITO leve (mantém as pontas afiadas, sem virar onda)
@@ -7819,8 +7851,8 @@ function wgDrawFire(top){
       const w = narrow ? cell*0.55 : cell+1;
       ctx.fillRect(narrow ? x*cell+(cell-w)/2 : x*cell, CH-(r+1)*cell, w, cell+1);
     }
-    // solta faísca das colunas mais altas
-    if(h>rows*0.68 && Math.random()<0.05) WG.embers.push({x:x*cell+cell/2, y:CH-h*cell, vx:(Math.random()-0.5)*22, vy:-(24+Math.random()*46), life:1});
+    // solta faísca das colunas mais altas — mais faíscas quando o fogo está intenso (combo alto)
+    if(h>rows*(0.72-0.16*lvl) && Math.random()<0.04*lvl) WG.embers.push({x:x*cell+cell/2, y:CH-h*cell, vx:(Math.random()-0.5)*22, vy:-(24+Math.random()*46)*(0.7+lvl*0.5), life:1});
   }
   // faíscas (partículas) subindo e sumindo
   for(let i=WG.embers.length-1;i>=0;i--){
@@ -7879,9 +7911,10 @@ function drawWgMinion(x,y,air,scale,glow){
   const img=air?WG_MINION_AIR:WG_MINION;
   // Animação LEVE (puramente visual — não muda o tempo/acerto da nota):
   // voador flutua (sobe/desce) e gira de leve; terrestre dá um "passo" (bob curto).
+  // Movimento LENTO e SUAVE (frequências baixas) p/ não ficar tremendo rápido.
   const ph=x*0.04;
-  const dy  = air ? Math.sin(animT*1.3+ph)*size*0.08 : -Math.abs(Math.sin(animT*3.2+ph))*size*0.05;
-  const rot = air ? Math.sin(animT*1.0+ph)*0.07 : 0;
+  const dy  = air ? Math.sin(animT*0.6+ph)*size*0.085 : -Math.abs(Math.sin(animT*1.3+ph))*size*0.045;
+  const rot = air ? Math.sin(animT*0.45+ph)*0.06 : 0;
   ctx.save();
   ctx.translate(x, y+dy); if(rot) ctx.rotate(rot);
   if(glow){ ctx.shadowColor=c; ctx.shadowBlur=22; }
@@ -8579,7 +8612,7 @@ function resumeGame(){
   gameStartWallTime+=pausedMs;       // âncora provisória até o vídeo voltar a tocar
   _vbSynced=false;                   // força re-snap no relógio real do YouTube ao retomar
   document.getElementById('pauseOverlay').classList.add('off');
-  const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='⏸ PAUSA';
+  const pb=document.getElementById('pauseBtn'); if(pb) pb.innerHTML=pxIcon('pause',{size:'1em'})+' PAUSA';
   requestAnimationFrame(gameLoop);
 }
 
@@ -8654,7 +8687,7 @@ function showResult(){
   spawnFallingLetters(col);
   document.getElementById('hud').classList.add('off'); document.getElementById('countdownOverlay').classList.add('off');
   document.getElementById('pauseOverlay').classList.add('off');
-  const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='⏸ PAUSA';
+  const pb=document.getElementById('pauseBtn'); if(pb) pb.innerHTML=pxIcon('pause',{size:'1em'})+' PAUSA';
   showScreen('resScr');
 
   // ── Salva na biblioteca ──
@@ -8731,7 +8764,7 @@ function retryGame(){
 function goMenu(){
   gameState='menu'; document.getElementById('hud').classList.add('off'); document.getElementById('countdownOverlay').classList.add('off');
   document.getElementById('pauseOverlay').classList.add('off');
-  const pb=document.getElementById('pauseBtn'); if(pb) pb.textContent='⏸ PAUSA';
+  const pb=document.getElementById('pauseBtn'); if(pb) pb.innerHTML=pxIcon('pause',{size:'1em'})+' PAUSA';
   document.getElementById('resLetters').innerHTML=''; fireP.length=0; hideVideoBg(); stopAudioIframe(); showScreen('menuScr'); initMenuBg();
   showMenuPanel('panelPlay', document.getElementById('mnBtn0'));
   gpMenuIdx=0; gpHighlightMenu();
@@ -9389,7 +9422,39 @@ function pollGamepad(){
 // Start polling
 pollGamepad();
 
-buildKeyLegend(); resize(); initMenuBg(); showScreen('menuScr'); updatePlayCharBadge();
+// ─── ÍCONES PIXEL-ART (SVG) — substituem emojis na interface ───
+// Cada ícone é uma grade de '1' (pixel aceso). Renderiza como <svg> de <rect> 1×1,
+// herda a cor do texto (currentColor) e fica nítido (crispEdges) como pixel art.
+const PX_ICONS = {
+  play:    ["1000000","1110000","1111100","1111111","1111100","1110000","1000000"],
+  bolt:    ["0011100","0111000","1110000","1111110","0011100","0111000","1100000","1000000"],
+  note:    ["0001110","0001110","0001100","0001100","1101100","1111100","0111000"],
+  swords:  ["1100011","1110110","0111100","0011000","0111100","1110110","1100011"],
+  fist:    ["0111100","1101110","1111111","1111111","1111110","0111100"],
+  skull:   ["0111110","1111111","1011101","1111111","1111111","0101010","0101010"],
+  keyboard:["111111111","100000001","101010101","100000001","101110101","111111111"],
+  pause:   ["110011","110011","110011","110011","110011","110011"],
+  crown:   ["1010101","1010101","1111111","0111110","0111110","1111111"],
+  trophy:  ["1111111","1111111","0111110","0011100","0011100","0111110"],
+  gear:    ["0011100","0111110","1101011","1100011","1101011","0111110","0011100"],
+  search:  ["0111100","1000010","1000010","0111110","0001101","0000011","0000001"],
+};
+function pxIcon(name, opt){
+  const g=PX_ICONS[name]; if(!g) return '';
+  const o=opt||{}, rows=g.length, cols=g[0].length, size=o.size||'1.05em';
+  let r='';
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(g[y][x]==='1') r+=`<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  return `<svg class="pxi-svg" viewBox="0 0 ${cols} ${rows}" width="${size}" height="${size}" fill="${o.color||'currentColor'}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet" style="display:inline-block;vertical-align:-0.14em">${r}</svg>`;
+}
+function applyPxIcons(root){
+  (root||document).querySelectorAll('[data-pxicon]').forEach(el=>{
+    if(el._pxDone) return;
+    const n=el.getAttribute('data-pxicon'), svg=pxIcon(n,{size:el.getAttribute('data-pxsize')||undefined});
+    if(svg){ el.innerHTML=svg; el._pxDone=true; }
+  });
+}
+
+buildKeyLegend(); resize(); initMenuBg(); showScreen('menuScr'); updatePlayCharBadge(); applyPxIcons();
 gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI(); _applyHomeMedia();
 
 // ─── PROFILE INIT ───
