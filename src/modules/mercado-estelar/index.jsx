@@ -1747,6 +1747,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   const [cur, setCur] = useState('premium');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [dir, setDir] = useState('add'); // add | remove (de um colaborador específico)
   const [bulkCur, setBulkCur] = useState('premium');
   const [bulkAmt, setBulkAmt] = useState('');
   const allPlayers = useAllPlayers();
@@ -1774,15 +1775,20 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     try {
       const { data: row } = await supabase.from('mercado_state').select('data').eq('player', to).maybeSingle();
       const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
-      const data = { ...base, [cur]: (base[cur] || 0) + amt, updatedAt: Date.now() };
+      const cur0 = base[cur] || 0;
+      const remove = dir === 'remove';
+      const newVal = remove ? Math.max(0, cur0 - amt) : cur0 + amt;
+      const delta = newVal - cur0; // mudança real (retirada respeita o saldo, sem ficar negativo)
+      const data = { ...base, [cur]: newVal, updatedAt: Date.now() };
       await supabase.from('mercado_state').upsert({ player: to, data, updated_at: new Date().toISOString() });
-      await supabase.from('mercado_history').insert({ player: to, kind: 'admin', descr: note.trim() || `Transferência do administrador`, [cur]: amt });
-      // Se o admin transferiu pra si mesmo, reflete no estado local
-      if (to === adminName && ownSetState) ownSetState(s => ({ ...s, [cur]: (s[cur] || 0) + amt }));
-      flash(`+${amt} ${cur === 'premium' ? PREMIUM.name : COMUM.name} → ${to}`);
+      await supabase.from('mercado_history').insert({ player: to, kind: 'admin', descr: note.trim() || (remove ? 'Retirada do administrador' : 'Transferência do administrador'), [cur]: delta });
+      // Se mexeu na própria carteira, reflete no estado local
+      if (to === adminName && ownSetState) ownSetState(s => ({ ...s, [cur]: Math.max(0, (s[cur] || 0) + delta) }));
+      const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
+      flash(`${delta >= 0 ? '+' : ''}${delta} ${label} → ${to}`);
       setAmount(''); setNote(''); setTo(''); setToQuery('');
       load();
-    } catch { flash('Falha ao transferir'); }
+    } catch { flash('Falha na operação'); }
   };
 
   // Aplica uma mutação na carteira de TODOS os colaboradores que têm carteira (preserva o resto do estado).
@@ -1830,10 +1836,22 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   return (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Transferir prismas */}
+      {/* Adicionar / Retirar prismas de um colaborador */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoSend size={16} /></span>Transferir prismas</div>
-        <label style={lbl}>Para</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 12 }}><span style={{ color: T.gold }}><IcoSend size={16} /></span>{dir === 'remove' ? 'Retirar prismas' : 'Adicionar prismas'}</div>
+        {/* Direção */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {[{ k: 'add', label: '＋ Adicionar', c: '#16a34a' }, { k: 'remove', label: '－ Retirar', c: '#C04050' }].map(({ k, label, c }) => {
+            const on = dir === k;
+            return (
+              <button key={k} onClick={() => setDir(k)} style={{
+                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: on ? 700 : 600, fontSize: 13,
+                border: `1.5px solid ${on ? c : T.border}`, background: on ? c + '18' : 'transparent', color: on ? c : T.textS,
+              }}>{label}</button>
+            );
+          })}
+        </div>
+        <label style={lbl}>{dir === 'remove' ? 'De quem retirar' : 'Para'}</label>
         <div style={{ position: 'relative', marginBottom: 12 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: 13, pointerEvents: 'none' }}>
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -1871,8 +1889,10 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
         <label style={lbl}>Quantidade</label>
         <input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={{ ...adminField, marginBottom: 12 }} />
         <label style={lbl}>Observação (opcional)</label>
-        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Ex: bônus de desempenho" style={{ ...adminField, marginBottom: 16 }} />
-        <button onClick={transfer} style={primaryBtn(T.gold)}>Transferir</button>
+        <input value={note} onChange={e => setNote(e.target.value)} placeholder={dir === 'remove' ? 'Ex: estorno / ajuste' : 'Ex: bônus de desempenho'} style={{ ...adminField, marginBottom: 16 }} />
+        <button onClick={transfer} disabled={busy} style={dir === 'remove'
+          ? { width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: busy ? 'wait' : 'pointer', background: '#C04050', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)' }
+          : primaryBtn(T.gold)}>{dir === 'remove' ? 'Retirar' : 'Adicionar'}</button>
 
         {/* Saldos atuais */}
         <div style={{ marginTop: 18, fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>Saldos ({wallets.length})</div>
