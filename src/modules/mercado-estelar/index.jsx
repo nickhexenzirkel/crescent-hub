@@ -353,9 +353,10 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       } catch {}
       // Voz ativa — feedback NÃO anônimo do usuário neste mês
       try {
+        const monthStart = todayStr().slice(0, 7) + '-01';
         const { count } = await supabase.from('feedbacks')
           .select('id', { count: 'exact', head: true })
-          .eq('employee_name', userName).gte('created_at', monthKey + '-01');
+          .eq('employee_name', userName).gte('created_at', monthStart);
         prog.c_feedback = (count || 0) >= 1 ? 1 : 0;
       } catch {}
       // Top 1/2/3 do Uniko Wave — ranking global (soma do melhor de cada dificuldade por jogador)
@@ -371,7 +372,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       if (alive) setLiveProg(prog);
     })();
     return () => { alive = false; };
-  }, [loaded, state.history, userName, monthKey]); // eslint-disable-line
+  }, [loaded, state.history, userName]); // eslint-disable-line
 
   // Missões com progresso AO VIVO + resgate que REINICIA por período (diária=por dia,
   // mensal=por mês, única=pra sempre). claimedAt guarda quando foi resgatada.
