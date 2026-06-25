@@ -7936,10 +7936,10 @@ function wgDrawBelt(gy,h){
     const top=gy - bh*surf;
     const speed=CW*0.35;                   // px/s que a esteira corre pra esquerda
     let off=-((animT*speed)%bw);           // deslocamento (-bw, 0]
-    // 1) Preenche o chão INTEIRO com a faixa OPACA da esteira (só a superfície dos treads,
-    //    sem a parte transparente das pernas) esticada de gy até o fim. Assim os "buracos"
-    //    viram esteira de verdade — o chão todo é a imagem da esteira.
-    const sy0=Math.round(sh*0.05), syh=Math.round(sh*0.47);
+    // 1) Preenche o chão INTEIRO com uma fatia TOTALMENTE OPACA do meio dos treads (evita as
+    //    quinas anguladas/transparentes das pontas) esticada de gy até o fim. Assim os
+    //    "buracos" viram esteira de verdade — o chão todo é a imagem da esteira.
+    const sy0=Math.round(sh*0.24), syh=Math.round(sh*0.14);
     ctx.drawImage(frame, 0,sy0,sw,syh, off,      gy, bw, CH-gy);
     ctx.drawImage(frame, 0,sy0,sw,syh, off + bw, gy, bw, CH-gy);
     // 2) Esteira em proporção real por cima (com as pernas) pro visual bonito
