@@ -2003,7 +2003,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                               return (
                                 <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
                                   {isSystem
-                                    ? <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                                    ? <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
                                     : <AvatarCircle
                                         name={s.requested_by}
                                         photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
@@ -2624,7 +2624,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:T.gold,filter:"blur(40px)",opacity:0.08,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.goldL||T.gold,filter:"blur(30px)",opacity:0.06,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
-                <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko" onError={e=>{e.target.onerror=null;e.target.src='/Uniko.png';}} style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
+                <img src={T.unikoSrc || '/UNIKO_NEW.png'} alt="Uniko" onError={e=>{e.target.onerror=null;e.target.src='/UNIKO_NEW.png';}} style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
                 <div style={{textAlign:"center",position:"relative",zIndex:1}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Uniko x Alexa</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:2}}>Pergunte sobre tempo, eventos, músicas, lembretes...</div>
@@ -2650,7 +2650,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         {/* Avatar Alexa */}
                         {m.role==="alexa"&&(
                           <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,overflow:"hidden",marginBottom:2,flexShrink:0}}>
-                            <img src="/UnikoQuadrado.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                            <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                           </div>
                         )}
 
@@ -2673,7 +2673,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                             )}
                             {m.role==="alexa"&&(
                               <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                                <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:14,height:14,borderRadius:3,objectFit:"cover"}}/>
+                                <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:14,height:14,borderRadius:3,objectFit:"cover"}}/>
                                 <span style={{fontSize:11,fontWeight:700,color:T.gold}}>Uniko</span>
                               </div>
                             )}
@@ -2719,7 +2719,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   {alexaTyping&&(
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,overflow:"hidden"}}>
-                        <img src="/UnikoQuadrado.png" alt="Uniko" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                        <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                       </div>
                       <div style={{padding:"12px 16px",borderRadius:"4px 14px 14px 14px",background:T.goldGl,border:`1px solid ${T.goldLine}44`,display:"flex",gap:4,alignItems:"center"}}>
                         {[0,0.15,0.3].map((d,i)=>(

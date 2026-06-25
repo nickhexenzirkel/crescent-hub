@@ -172,7 +172,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
         <button onClick={onBack} style={{ width:36, height:36, borderRadius:10, border:`1px solid ${T.border}`, background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:T.textS, outline:'none' }}>
           <Ico d={<polyline points="15 18 9 12 15 6"/>}/>
         </button>
-        <img src="/UnikoQuadrado.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'cover' }}/>
+        <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'cover' }}/>
         <div>
           <div style={{ fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>
             {activeTab === 'lembretes' ? 'Meus Lembretes' : 'Minhas Anotações'}
@@ -252,7 +252,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
               </div>
             : lembretes.length === 0
               ? <div style={{ textAlign:'center', padding:'60px 0', color:T.textT }}>
-                  <img src={T.unikoSrc || '/Uniko.png'} alt="" onError={e=>{e.target.onerror=null;e.target.src='/Uniko.png';}} style={{ width:70, opacity:.35, display:'block', margin:'0 auto 14px' }}/>
+                  <img src={T.unikoSrc || '/UNIKO_NEW.png'} alt="" onError={e=>{e.target.onerror=null;e.target.src='/UNIKO_NEW.png';}} style={{ width:70, opacity:.35, display:'block', margin:'0 auto 14px' }}/>
                   <div style={{ fontSize:15, marginBottom:6 }}>Nenhum lembrete ainda</div>
                   <div style={{ fontSize:13, opacity:.65 }}>Crie um e o Uniko te avisa no horário!</div>
                 </div>

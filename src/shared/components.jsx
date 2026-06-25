@@ -92,10 +92,10 @@ const Logo = ({size=64}) => (
     }}/>
 );
 
-/* Logo principal da marca — troca com o tema via T.unikoSrc */
+/* Logo principal da marca — Uniko único (UNIKO_NEW), sem variação por tema */
 const BrandLogo = ({size=120}) => (
-  <img src={T.unikoSrc || '/Uniko.png'} alt="Uniko"
-    onError={e => { e.target.onerror = null; e.target.src = '/Uniko.png'; }}
+  <img src={T.unikoSrc || '/UNIKO_NEW.png'} alt="Uniko"
+    onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }}
     style={{
       width:size, height:size,
       objectFit:'contain',
@@ -105,9 +105,9 @@ const BrandLogo = ({size=120}) => (
     }}/>
 );
 
-/* Ícone quadrado — UnikoQuadrado.png em /public (topbars, sidebars, favicon) */
+/* Ícone quadrado — UNIKO_FRENTE_FRONTAL.png em /public (topbars, sidebars, favicon) */
 const UnikoIcon = ({size=32, rounded=true}) => (
-  <img src="/UnikoQuadrado.png" alt="Uniko"
+  <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko"
     style={{
       width:size, height:size,
       objectFit:'cover',
