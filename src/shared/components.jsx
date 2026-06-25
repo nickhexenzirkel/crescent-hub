@@ -120,14 +120,14 @@ const UnikoIcon = ({size=32, rounded=true}) => (
 /* ══════════════════════════════════════════
    ATOMS
 ══════════════════════════════════════════ */
-const Card = ({children,style,onClick,elevated}) => (
-  <div onClick={onClick} style={{
+const Card = ({children,style,onClick,elevated,className}) => (
+  <div onClick={onClick} className={className} style={{
     background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,
     boxShadow:elevated?T.shM:T.sh,position:'relative',overflow:'hidden',
     cursor:onClick?'pointer':'default',
     transition:'all .22s cubic-bezier(.16,1,.3,1)',fontFamily:'var(--font-body)',
     ...style}}
-    onMouseEnter={onClick?e=>{e.currentTarget.style.boxShadow=T.shL;e.currentTarget.style.transform='translateY(-3px)';}:undefined}
+    onMouseEnter={onClick?e=>{e.currentTarget.style.boxShadow=T.shL;e.currentTarget.style.transform='translateY(-4px) scale(1.02)';}:undefined}
     onMouseLeave={onClick?e=>{e.currentTarget.style.boxShadow=elevated?T.shM:T.sh;e.currentTarget.style.transform='none';}:undefined}>
     {children}
   </div>

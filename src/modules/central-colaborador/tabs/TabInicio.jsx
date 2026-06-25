@@ -86,6 +86,12 @@ const STARS_POS = [
 /* Delays negativos = começam no meio da animação ao montar (aparecem imediatamente) */
 const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'},{x:'34%',y:'26%',delay:'-0.8s'}];
 
+/* Missões em andamento do Prisma Store — só VISUAL por enquanto (dados mockados) */
+const MOCK_MISSOES = [
+  { title: 'Maratona Uniko Wave', cur: 'premium', prog: 12, goal: 20 },
+  { title: 'DJ do dia · 10 músicas', cur: 'premium', prog: 6, goal: 10 },
+];
+
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete }) => {
   const [lembs,     setLembs]     = useState([]);
@@ -341,6 +347,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         @keyframes capFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes capPulse{0%,100%{opacity:.55;transform:translate(-50%,-50%)scale(.92)}50%{opacity:1;transform:translate(-50%,-50%)scale(1.12)}}
         @keyframes capBorder{0%,100%{border-color:rgba(155,107,255,.30);box-shadow:0 0 0 0 rgba(155,107,255,.16)}50%{border-color:rgba(155,107,255,.85);box-shadow:0 0 0 4px rgba(155,107,255,.10)}}
+        .fi .home-card{transition:transform .25s cubic-bezier(.16,1,.3,1),box-shadow .25s ease}
+        .fi .home-card:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 16px 40px rgba(0,0,0,.13);z-index:3}
       `}</style>
 
       {/* ══ HERO ═══════════════════════════════════════════════════ */}
@@ -412,10 +420,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </div>
       </div>
 
-      {/* ══ TIRA: UNIKO WAVE · PRISMA STORE · NOW PLAYING ══════════ */}
-      <div style={{display:'grid',gridTemplateColumns:(isPlay&&nowPlay)?'1fr 1fr 1.4fr':'1fr 1fr',gap:12,marginBottom:14}}>
+      {/* ══ TIRA: UNIKO WAVE · MISSÕES · PRISMA STORE · NOW PLAYING ══ */}
+      <div style={{display:'grid',gridTemplateColumns:(isPlay&&nowPlay)?'1fr 1fr 1fr 1.4fr':'1fr 1fr 1fr',gap:12,marginBottom:14}}>
         {/* Uniko Wave */}
-        <Card style={{padding:'14px 16px',cursor:'pointer'}} onClick={()=>setTab('unikowave')}>
+        <Card className="home-card" style={{padding:'14px 16px',cursor:'pointer'}} onClick={()=>setTab('unikowave')}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:42,height:42,borderRadius:11,overflow:'hidden',flexShrink:0,boxShadow:'0 4px 14px rgba(155,107,255,.35)'}}>
               <img src={unikoWave} alt="Uniko Wave" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
@@ -429,8 +437,33 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           </div>
         </Card>
 
+        {/* Missões em andamento (Prisma Store) — visual por enquanto */}
+        <Card className="home-card" style={{padding:'14px 16px'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <span style={{fontSize:13,fontWeight:600,color:T.text}}>Missões em andamento</span>
+            <span style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.04em'}}>PRISMA</span>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:9}}>
+            {MOCK_MISSOES.map((m,i)=>{
+              const col = m.cur==='premium' ? '#9B6BFF' : '#27C6DE';
+              const pct = Math.min(100, Math.round((m.prog/m.goal)*100));
+              return (
+                <div key={i}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3,gap:8}}>
+                    <span style={{fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.title}</span>
+                    <span style={{fontSize:10.5,fontWeight:700,color:col,flexShrink:0}}>{m.prog}/{m.goal}</span>
+                  </div>
+                  <div style={{height:5,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${pct}%`,borderRadius:999,background:`linear-gradient(90deg,${col},${col}99)`,transition:'width .4s ease'}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
         {/* Prisma Store (carteira) */}
-        <Card style={{padding:'14px 16px'}}>
+        <Card className="home-card" style={{padding:'14px 16px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>Prisma Store</span>
             <span style={{fontSize:10.5,color:T.textT}}>Sua carteira</span>
@@ -450,7 +483,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {isPlay&&nowPlay&&(
-          <Card style={{padding:'14px 18px',animation:'nowP 2.5s ease-in-out infinite'}}>
+          <Card className="home-card" style={{padding:'14px 18px',animation:'nowP 2.5s ease-in-out infinite'}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               {nowPlay.album_art
                 ?<img src={nowPlay.album_art} alt="" style={{width:38,height:38,borderRadius:8,objectFit:'cover',flexShrink:0}}/>
@@ -467,7 +500,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       </div>
 
       {/* ══ CAPTURE UNIKO! (função futura — só visual por enquanto) ═════ */}
-      <div style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:T.surface,border:'1.5px solid rgba(155,107,255,.30)',boxShadow:T.sh,animation:'capBorder 2.2s ease-in-out infinite'}}>
+      <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:T.surface,border:'1.5px solid rgba(155,107,255,.30)',boxShadow:T.sh,animation:'capBorder 2.2s ease-in-out infinite'}}>
         {/* selo "em breve" */}
         <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#9B6BFF',background:'rgba(155,107,255,.12)',border:'1px solid rgba(155,107,255,.3)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
 
@@ -505,7 +538,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
 
         {/* My Uniko */}
-        <Card style={{padding:'12px'}}>
+        <Card className="home-card" style={{padding:'12px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>My Uniko</span>
             <BtnVer tab="uniko"/>
@@ -537,7 +570,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Eventos Hoje */}
-        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Eventos Hoje</span>
             <BtnVer tab="eventos"/>
@@ -561,7 +594,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Próximos Lembretes */}
-        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Lembretes</span>
             <BtnVer tab="lembretes"/>
@@ -588,7 +621,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Avisos RH */}
-        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Avisos do RH</span>
             <BtnVer tab="comunicados"/>
@@ -613,7 +646,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ WIDGET ANOTAÇÕES ═══════════════════════════════════════ */}
       {notas.length > 0 && (
-        <Card style={{padding:'16px',marginTop:12}}>
+        <Card className="home-card" style={{padding:'16px',marginTop:12}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text,display:'flex',alignItems:'center',gap:6}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
