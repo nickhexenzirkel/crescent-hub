@@ -149,6 +149,22 @@ const TabUnikoWave = () => {
       sendRank();
     };
 
+    // Acumula o tempo jogado do dia (segundos) por jogador na tabela uniko_playtime.
+    const addPlaytime = async (sec) => {
+      const add = Math.round(Number(sec) || 0);
+      const player = playerName();
+      if (add <= 0 || !player) return;
+      const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (dia atual)
+      try {
+        const { data } = await supabase.from('uniko_playtime')
+          .select('seconds').eq('player', player).eq('day', day).maybeSingle();
+        const cur = data?.seconds || 0;
+        await supabase.from('uniko_playtime').upsert(
+          { player, day, seconds: cur + add, updated_at: new Date().toISOString() },
+          { onConflict: 'player,day' });
+      } catch {}
+    };
+
     const handler = (e) => {
       const type = e.data?.type;
       if (!type) return;
@@ -166,6 +182,9 @@ const TabUnikoWave = () => {
       // Ranking global
       if (fromGame && type === 'UNIKO_SCORE_SUBMIT') { submitScore(e.data); return; }
       if (fromGame && type === 'UNIKO_RANK_REQUEST') { sendRank(); return; }
+
+      // Tempo jogado (segundos da partida que acabou) → acumula no total do DIA (Supabase)
+      if (fromGame && type === 'UNIKO_PLAYTIME') { addPlaytime(e.data.seconds); return; }
 
       // Ponte do YouTube/Catbot (existente)
       if (fromGame && type.startsWith('UNIKO_YT_')) { window.postMessage(e.data, '*'); return; }

@@ -188,7 +188,7 @@ const loadState = () => {
       const savedMap = new Map((s.missions || []).map(x => [x.id, x]));
       const missions = DEFAULT_STATE.missions.map(dm => {
         const sv = savedMap.get(dm.id);
-        return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed } : dm;
+        return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed, claimedAt: sv.claimedAt } : dm;
       });
       // Migra saves antigos (que tinham só lastCheckin) para a lista de check-ins
       const checkins = Array.isArray(s.checkins) ? s.checkins : (s.lastCheckin ? [s.lastCheckin] : []);
@@ -297,7 +297,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         const savedMap = new Map((chosen.missions || []).map(x => [x.id, x]));
         const missions = DEFAULT_STATE.missions.map(dm => {
           const sv = savedMap.get(dm.id);
-          return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed } : dm;
+          return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed, claimedAt: sv.claimedAt } : dm;
         });
         setState(s => ({ ...DEFAULT_STATE, ...chosen, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
         if (localNewer) { try { await supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(local), updated_at: new Date().toISOString() }); } catch {} }
@@ -342,6 +342,15 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       const buys = (state.history || []).filter(h => h.kind === 'compra').length;
       prog.c_firstbuy  = buys >= 1 ? 1 : 0;
       prog.c_secondbuy = buys >= 2 ? 1 : 0;
+      // Maratona Uniko Wave — minutos jogados HOJE (soma das partidas do dia)
+      try {
+        const day = new Date().toISOString().slice(0, 10);
+        const { data } = await supabase.from('uniko_playtime')
+          .select('seconds').eq('player', userName).eq('day', day).maybeSingle();
+        const mins = Math.floor((data?.seconds || 0) / 60);
+        prog.c_uniko20 = Math.min(20, mins);
+        prog.c_uniko40 = Math.min(40, mins);
+      } catch {}
       // Voz ativa — feedback NÃO anônimo do usuário neste mês
       try {
         const { count } = await supabase.from('feedbacks')
@@ -364,8 +373,22 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => { alive = false; };
   }, [loaded, state.history, userName, monthKey]); // eslint-disable-line
 
-  // Missões com o progresso AO VIVO (mantém goal/recompensa/claimed; só sobrescreve progress trackável)
-  const missionsLive = state.missions.map(m => liveProg[m.id] != null ? { ...m, progress: liveProg[m.id] } : m);
+  // Missões com progresso AO VIVO + resgate que REINICIA por período (diária=por dia,
+  // mensal=por mês, única=pra sempre). claimedAt guarda quando foi resgatada.
+  const missionsLive = (() => {
+    const td = todayStr(), mo = td.slice(0, 7);
+    const stillClaimed = (m) => {
+      if (!m.claimed) return false;
+      if (m.period === 'dia') return m.claimedAt === td;
+      if (m.period === 'mes') return (m.claimedAt || '').slice(0, 7) === mo;
+      return true; // única
+    };
+    return state.missions.map(m => ({
+      ...m,
+      progress: liveProg[m.id] != null ? liveProg[m.id] : m.progress,
+      claimed: stillClaimed(m),
+    }));
+  })();
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
 
@@ -435,7 +458,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (m.progress < m.goal || m.claimed) return;
     setState(s => ({
       ...s, comum: s.comum + (m.comum || 0), premium: s.premium + (m.premium || 0),
-      missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true } : x),
+      missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true, claimedAt: today } : x),
       updatedAt: Date.now(),
     }));
     addHistory({ kind: 'missao', desc: `Missão: ${m.title}`, ...(m.comum ? { comum: m.comum } : {}), ...(m.premium ? { premium: m.premium } : {}) });

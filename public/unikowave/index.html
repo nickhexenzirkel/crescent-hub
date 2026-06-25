@@ -8937,6 +8937,11 @@ function resumeGame(){
 function showResult(){
   if(gameState==='result') return;
   gameState='result';
+  // Contabiliza o TEMPO JOGADO desta partida (segundos realmente tocados) p/ o tracking de missões.
+  try{
+    const playedSec=Math.round(songTime());
+    if(playedSec>0) (window.parent!==window?window.parent:window).postMessage({type:'UNIKO_PLAYTIME',seconds:playedSec},'*');
+  }catch(_){}
   hideVideoBg();
   stopAudioIframe();
   _cmFlash=0; _cmT=1.0; resetLaneColors();
