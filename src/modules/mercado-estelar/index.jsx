@@ -330,6 +330,43 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => clearTimeout(t);
   }, [loaded, state.items]); // eslint-disable-line
 
+  // ── Tracking REAL das missões: progresso ao vivo a partir de dados do Supabase/histórico ──
+  // (compras, ranking do Uniko Wave e feedback). Playtime/ponto/setor entram quando houver fonte.
+  const [liveProg, setLiveProg] = useState({});
+  useEffect(() => {
+    if (!loaded) return;
+    let alive = true;
+    (async () => {
+      const prog = {};
+      // 1ª/2ª compra — conta as compras no histórico do usuário
+      const buys = (state.history || []).filter(h => h.kind === 'compra').length;
+      prog.c_firstbuy  = buys >= 1 ? 1 : 0;
+      prog.c_secondbuy = buys >= 2 ? 1 : 0;
+      // Voz ativa — feedback NÃO anônimo do usuário neste mês
+      try {
+        const { count } = await supabase.from('feedbacks')
+          .select('id', { count: 'exact', head: true })
+          .eq('employee_name', userName).gte('created_at', monthKey + '-01');
+        prog.c_feedback = (count || 0) >= 1 ? 1 : 0;
+      } catch {}
+      // Top 1/2/3 do Uniko Wave — ranking global (soma do melhor de cada dificuldade por jogador)
+      try {
+        const { data } = await supabase.from('uniko_scores').select('player,score');
+        const tot = {};
+        for (const r of (data || [])) tot[r.player] = (tot[r.player] || 0) + (Number(r.score) || 0);
+        const rank = Object.entries(tot).sort((a, b) => b[1] - a[1]).map(([p]) => p).indexOf(userName) + 1;
+        prog.c_rank1 = rank === 1 ? 1 : 0;
+        prog.c_rank2 = rank === 2 ? 1 : 0;
+        prog.c_rank3 = rank === 3 ? 1 : 0;
+      } catch {}
+      if (alive) setLiveProg(prog);
+    })();
+    return () => { alive = false; };
+  }, [loaded, state.history, userName, monthKey]); // eslint-disable-line
+
+  // Missões com o progresso AO VIVO (mantém goal/recompensa/claimed; só sobrescreve progress trackável)
+  const missionsLive = state.missions.map(m => liveProg[m.id] != null ? { ...m, progress: liveProg[m.id] } : m);
+
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
 
   const addHistory = (entry) => {
@@ -476,7 +513,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
@@ -1020,17 +1057,7 @@ const PERIOD_META = {
 const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
   <div>
     <SectionHead title="Desafios" sub="Complete desafios diários, mensais e únicos para farmar prismas." />
-    {/* Aviso: em desenvolvimento */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: T.goldGl, border: `1px solid ${T.goldLine}55`, borderRadius: 14, padding: '14px 18px', marginBottom: 16 }}>
-      <span style={{ color: T.gold, flexShrink: 0 }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>
-      </span>
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>🚧 Em desenvolvimento</div>
-        <div style={{ fontSize: 12.5, color: T.textT, marginTop: 1 }}>Os desafios abaixo são uma prévia. O acompanhamento e o resgate serão liberados em breve.</div>
-      </div>
-    </div>
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14, opacity: 0.85 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
       {missions.map(m => {
         const done = m.progress >= m.goal;
         const pct = Math.min(100, Math.round((m.progress / m.goal) * 100));
@@ -1059,13 +1086,19 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => (
               <span style={{ fontSize: 11.5, color: T.textT, fontWeight: 600, flexShrink: 0 }}>{fmt(m.progress)}/{fmt(m.goal)}</span>
             </div>
 
-            <button disabled style={{
-              width: '100%', padding: '10px', borderRadius: 9, border: `1px dashed ${T.border}`,
-              cursor: 'not-allowed', background: T.surfaceSub || 'rgba(0,0,0,0.05)',
-              color: T.textD, fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            }}>
-              🚧 Em desenvolvimento
+            <button
+              disabled={!done || m.claimed}
+              onClick={() => done && !m.claimed && onClaim(m)}
+              style={{
+                width: '100%', padding: '10px', borderRadius: 9,
+                border: (done && !m.claimed) ? 'none' : `1px solid ${T.border}`,
+                cursor: (done && !m.claimed) ? 'pointer' : (m.claimed ? 'default' : 'not-allowed'),
+                background: (done && !m.claimed) ? `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)` : (T.surfaceSub || 'rgba(0,0,0,0.05)'),
+                color: (done && !m.claimed) ? '#fff' : T.textD,
+                fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              }}>
+              {m.claimed ? '✓ Resgatado' : done ? '✨ Resgatar' : 'Em andamento'}
             </button>
           </div>
         );
