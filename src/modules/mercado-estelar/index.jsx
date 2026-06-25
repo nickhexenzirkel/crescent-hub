@@ -134,6 +134,10 @@ const DEFAULT_STATE = {
   // Controle do teto mensal do check-in (reinicia a cada mês)
   capMonth: '',
   earned: { premium: 0, comum: 0 },
+  // Carimbo da última alteração FEITA pelo usuário (resolve conflito local x Supabase)
+  updatedAt: 0,
+  // Data de expiração dos prêmios deste mês (YYYY-MM-DD) — global, definida pelo admin
+  expiresAt: '',
   // Catálogo de prêmios reais. Regra de moeda: Comum/Raro = Prisma Comum;
   // Épico/Lendário = Prisma Premium (os mais caros).
   items: [
@@ -234,7 +238,9 @@ const PrismChip = ({ type, amount }) => {
 };
 
 // ── Mapeamento estado ↔ Supabase ──
-const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [] });
+const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], updatedAt: s.updatedAt || 0 });
+// Linha "fake" da tabela mercado_state usada só pra guardar config GLOBAL (ex.: expiração)
+const CONFIG_PLAYER = '__mercado_config__';
 const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, updated_at: new Date().toISOString() });
 const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [] });
 const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
@@ -265,15 +271,26 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         if (rows && rows.length) items = rows.map(itemFromRow);
         else { items = DEFAULT_STATE.items; await supabase.from('mercado_items').upsert(DEFAULT_STATE.items.map(itemToRow)); }
 
+        // Config GLOBAL (data de expiração dos prêmios deste mês)
+        const { data: cfgRow } = await supabase.from('mercado_state').select('data').eq('player', CONFIG_PLAYER).maybeSingle();
+        const expiresAt = cfgRow?.data?.expiresAt || '';
+
         const { data: st } = await supabase.from('mercado_state').select('data').eq('player', userName).maybeSingle();
         let user = st?.data && Object.keys(st.data).length ? st.data : null;
         if (!user) { user = USER_SLICE(DEFAULT_STATE); await supabase.from('mercado_state').upsert({ player: userName, data: user, updated_at: new Date().toISOString() }); }
-        const savedM = new Set((user.missions || []).map(x => x.id));
-        const missions = [...(user.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
 
         const { data: hist } = await supabase.from('mercado_history').select('*').eq('player', userName).order('created_at', { ascending: false }).limit(120);
         if (!alive) return;
-        setState(s => ({ ...DEFAULT_STATE, ...user, missions, items, history: (hist || []).map(histFromRow) }));
+
+        // Resolve conflito local x nuvem: se o progresso LOCAL é mais recente (ex.: o save foi
+        // perdido por sair da página antes do upsert), mantém o local e reenvia pro Supabase.
+        const local = loadState();
+        const localNewer = (local.updatedAt || 0) > (user.updatedAt || 0);
+        const chosen = localNewer ? local : user;
+        const savedM = new Set((chosen.missions || []).map(x => x.id));
+        const missions = [...(chosen.missions || []), ...DEFAULT_STATE.missions.filter(x => !savedM.has(x.id))];
+        setState(s => ({ ...DEFAULT_STATE, ...chosen, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
+        if (localNewer) { try { await supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(local), updated_at: new Date().toISOString() }); } catch {} }
       } catch {}
       if (alive) setLoaded(true);
     })();
@@ -286,7 +303,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     const data = USER_SLICE(state);
     const t = setTimeout(() => { supabase.from('mercado_state').upsert({ player: userName, data, updated_at: new Date().toISOString() }); }, 400);
     return () => clearTimeout(t);
-  }, [loaded, state.comum, state.premium, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
+  }, [loaded, state.updatedAt, state.comum, state.premium, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
 
   // Persiste o catálogo (upsert dos itens + remove os apagados)
   const prevItemIds = useRef(null);
@@ -310,9 +327,13 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     try { supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null }); } catch {}
   };
 
+  // Prêmios expiram na data definida pelo admin (compara YYYY-MM-DD)
+  const prizesExpired = !!state.expiresAt && todayStr() > state.expiresAt;
+
   // ── Compra na loja ──
   const buyItem = (item) => {
     if (item.stock <= 0) return;
+    if (prizesExpired) { flash('Os prêmios deste mês já expiraram.'); return; }
     const bal = state[item.cur];
     if (bal < item.price) { flash(`Saldo de ${item.cur === 'premium' ? PREMIUM.name : COMUM.name} insuficiente`); return; }
     setState(s => {
@@ -325,6 +346,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         [item.cur]: s[item.cur] - item.price,
         items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
         collection,
+        updatedAt: Date.now(),
       };
     });
     addHistory({ kind: 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
@@ -353,6 +375,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         checkins: [...(s.checkins || []), today],
         capMonth: monthKey,
         earned: { ...base, [cur]: base[cur] + give },
+        updatedAt: Date.now(),
       };
     });
     if (give > 0) addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give });
@@ -366,6 +389,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     setState(s => ({
       ...s, comum: s.comum + (m.comum || 0), premium: s.premium + (m.premium || 0),
       missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true } : x),
+      updatedAt: Date.now(),
     }));
     addHistory({ kind: 'missao', desc: `Missão: ${m.title}`, ...(m.comum ? { comum: m.comum } : {}), ...(m.premium ? { premium: m.premium } : {}) });
     flash(`Recompensa da missão resgatada: ${m.title}`);
@@ -440,13 +464,13 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           </div>
         )}
 
-        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={state.missions} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'admin' && isAdmin && <Admin items={state.items} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
+        {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
       </div>
 
       {/* ── Toast ── */}
@@ -461,15 +485,19 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 };
 
 // ─── Contagem regressiva até o fim do mês (renovação dos prêmios) ──────────
-const MonthCountdown = () => {
+const MonthCountdown = ({ expiresAt }) => {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
   const d = new Date();
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0).getTime(); // início do próximo mês
+  // Se o admin definiu uma data de expiração, conta até ela (fim do dia); senão, até o fim do mês.
+  const end = expiresAt
+    ? new Date(expiresAt + 'T23:59:59').getTime()
+    : new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0).getTime();
   const diff = Math.max(0, end - now);
+  const expired = now > end;
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
@@ -481,15 +509,17 @@ const MonthCountdown = () => {
     </span>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: T.goldGl, border: `1px solid ${T.goldLine}44`, borderRadius: 14, padding: '9px 16px', marginBottom: 10 }}>
-      <span style={{ display: 'inline-flex', color: T.gold }}><IcoClock size={22} /></span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: expired ? 'rgba(192,64,80,0.10)' : T.goldGl, border: `1px solid ${expired ? 'rgba(192,64,80,0.35)' : T.goldLine + '44'}`, borderRadius: 14, padding: '9px 16px', marginBottom: 10 }}>
+      <span style={{ display: 'inline-flex', color: expired ? '#C04050' : T.gold }}><IcoClock size={22} /></span>
       <div style={{ flex: 1, minWidth: 160 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Prêmios deste mês</div>
-        <div style={{ fontSize: 11, color: T.textT }}>Renovam quando o cronômetro zerar — aproveite antes que esgotem!</div>
+        <div style={{ fontSize: 11, color: T.textT }}>{expired ? 'Os prêmios expiraram — aguarde a próxima leva!' : (expiresAt ? 'Disponíveis só até o cronômetro zerar — aproveite!' : 'Renovam quando o cronômetro zerar — aproveite antes que esgotem!')}</div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Unit v={days} l="dias" /><Sep /><Unit v={hours} l="hrs" /><Sep /><Unit v={mins} l="min" /><Sep /><Unit v={secs} l="seg" />
-      </div>
+      {!expired && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Unit v={days} l="dias" /><Sep /><Unit v={hours} l="hrs" /><Sep /><Unit v={mins} l="min" /><Sep /><Unit v={secs} l="seg" />
+        </div>
+      )}
     </div>
   );
 };
@@ -529,7 +559,7 @@ const fileToDataUrl = (file, maxDim = 760) => new Promise((res, rej) => {
 });
 
 // ═══════════════════════════════════════════════ LOJA ═══════════════════════
-const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
+const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | premium | comum
   const [viewId, setViewId] = useState(null);  // item em tela cheia (lightbox)
@@ -560,8 +590,8 @@ const Loja = ({ items, balances, onBuy, isMobile, cardBg }) => {
     <div>
       <SectionHead title="Loja de Recompensas" sub="Troque seus prismas por prêmios e colecionáveis. Itens esgotam ao serem comprados." />
 
-      {/* Contagem regressiva mensal */}
-      <MonthCountdown />
+      {/* Contagem regressiva — até a data de expiração definida pelo admin (ou fim do mês) */}
+      <MonthCountdown expiresAt={expiresAt} />
 
       {/* Busca + filtros */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
@@ -1051,7 +1081,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) 
     const amt = parseInt(sendAmt, 10);
     if (!amt || amt <= 0) { flash('Informe uma quantidade válida'); return; }
     if (state[sendCur] < amt) { flash('Saldo insuficiente'); return; }
-    setState(s => ({ ...s, [sendCur]: s[sendCur] - amt }));
+    setState(s => ({ ...s, [sendCur]: s[sendCur] - amt, updatedAt: Date.now() }));
     addHistory({ kind: 'envio', desc: `Enviou para ${sendTo}`, [sendCur]: -amt });
     creditPlayer(sendTo, sendCur, amt, `Recebido de ${me || 'um colega'}`); // credita o destinatário no Supabase
     flash(`Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
@@ -1065,7 +1095,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) 
     if (got <= 0) { flash(`Mínimo ${EXCHANGE_RATE} Comuns para 1 Premium`); return; }
     const cost = got * EXCHANGE_RATE;
     if (state.comum < cost) { flash('Saldo de Comuns insuficiente'); return; }
-    setState(s => ({ ...s, comum: s.comum - cost, premium: s.premium + got }));
+    setState(s => ({ ...s, comum: s.comum - cost, premium: s.premium + got, updatedAt: Date.now() }));
     addHistory({ kind: 'troca', desc: `Trocou ${fmt(cost)} Comuns por ${got} Premium`, comum: -cost, premium: got });
     flash(`Você obteve ${got} Prisma Premium`);
     setExAmt('');
@@ -1474,7 +1504,7 @@ const ItemEditor = ({ item, onSave, onCancel, flash, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
-const Admin = ({ items, setState, flash, isMobile, cardBg, player }) => {
+const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) => {
   const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '', images: [] };
   const [form, setForm] = useState(blank);
   const [editId, setEditId] = useState(null); // item com editor aberto
@@ -1498,6 +1528,12 @@ const Admin = ({ items, setState, flash, isMobile, cardBg, player }) => {
   const patchItem = (id, patch) => setState(s => ({ ...s, items: s.items.map(i => i.id === id ? { ...i, ...patch } : i) }));
   const removeItem = (id) => setState(s => ({ ...s, items: s.items.filter(i => i.id !== id) }));
 
+  // Expiração GLOBAL dos prêmios (vale pra todos os colaboradores) → linha de config no Supabase
+  const setExpiry = (date) => {
+    setState(s => ({ ...s, expiresAt: date }));
+    try { supabase.from('mercado_state').upsert({ player: CONFIG_PLAYER, data: { expiresAt: date }, updated_at: new Date().toISOString() }); } catch {}
+  };
+
   return (
     <div>
       <SectionHead title="Administrador" sub="Gerencie os prêmios da loja e controle as transações dos colaboradores." />
@@ -1520,6 +1556,33 @@ const Admin = ({ items, setState, flash, isMobile, cardBg, player }) => {
       {sub === 'transacoes'
         ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
         : (
+      <>
+      {/* Duração / expiração dos prêmios deste mês (global) */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+          <span style={{ fontSize: 17 }}>🗓️</span>Duração dos prêmios deste mês
+        </div>
+        <div style={{ fontSize: 13, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
+          Defina até quando os prêmios ficam disponíveis. Depois dessa data eles expiram e ninguém mais consegue resgatar (vale para todos os colaboradores).
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <label style={lbl}>Expira em</label>
+            <input type="date" value={expiresAt || ''} onChange={e => setExpiry(e.target.value)} style={{ ...fieldStyle, width: isMobile ? '100%' : 210, cursor: 'pointer' }} />
+          </div>
+          {expiresAt && (
+            <button onClick={() => { setExpiry(''); flash('Prêmios sem data de expiração'); }} style={{ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600 }}>Sem expiração</button>
+          )}
+        </div>
+        {expiresAt && (() => {
+          const exp = new Date(expiresAt + 'T23:59:59');
+          const days = Math.ceil((exp - new Date()) / 86400000);
+          const past = days < 0;
+          return <div style={{ fontSize: 12.5, color: past ? '#C04050' : T.textT, marginTop: 10 }}>
+            {past ? 'Os prêmios já expiraram.' : <>Expira em <b style={{ color: T.text }}>{new Date(expiresAt + 'T00:00:00').toLocaleDateString('pt-BR')}</b>{days >= 0 && <> · faltam <b style={{ color: T.text }}>{days}</b> dia{days === 1 ? '' : 's'}</>}</>}
+          </div>;
+        })()}
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 16, alignItems: 'start' }}>
         {/* Cadastrar novo prêmio */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
@@ -1618,6 +1681,7 @@ const Admin = ({ items, setState, flash, isMobile, cardBg, player }) => {
           )}
         </div>
       </div>
+      </>
       )}
     </div>
   );
