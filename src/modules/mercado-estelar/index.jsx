@@ -1833,6 +1833,26 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     flash('Prismas de todos zerados');
   };
 
+  const bulkResetCheckin = async () => {
+    if (!window.confirm(`Resetar o CHECK-IN de TODOS os ${wallets.length} colaboradores? Zera a sequência e o teto mensal — todos poderão fazer check-in de novo.`)) return;
+    await bulkApply(
+      () => ({ checkins: [], capMonth: '', earned: { premium: 0, comum: 0 } }),
+      'Check-in resetado pelo administrador',
+      () => ({}),
+    );
+    flash('Check-in de todos resetado');
+  };
+
+  const bulkResetMissions = async () => {
+    if (!window.confirm(`Resetar as MISSÕES de TODOS os ${wallets.length} colaboradores? Todas voltam a poder ser resgatadas.`)) return;
+    await bulkApply(
+      () => ({ missions: PRISMA_MISSIONS.map(m => ({ ...m })) }),
+      'Missões resetadas pelo administrador',
+      () => ({}),
+    );
+    flash('Missões de todos resetadas');
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1931,6 +1951,13 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
         <button onClick={bulkZero} disabled={busy} style={{ width: '100%', padding: '11px', borderRadius: 10, border: '1.5px solid #C04050', cursor: busy ? 'wait' : 'pointer', background: 'transparent', color: '#C04050', fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-body)' }}>
           Zerar prismas de TODOS
         </button>
+
+        <div style={{ height: 1, background: T.border, margin: '14px 0 12px' }} />
+        <label style={lbl}>Resetar progresso de todos</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={bulkResetCheckin} disabled={busy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${T.border}`, cursor: busy ? 'wait' : 'pointer', background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>↺ Check-in</button>
+          <button onClick={bulkResetMissions} disabled={busy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${T.border}`, cursor: busy ? 'wait' : 'pointer', background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>↺ Missões</button>
+        </div>
       </div>
       </div>
 
