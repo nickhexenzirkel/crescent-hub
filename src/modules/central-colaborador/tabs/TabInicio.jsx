@@ -340,6 +340,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         @keyframes nowP{0%,100%{box-shadow:0 0 0 0 rgba(212,168,67,.16)}50%{box-shadow:0 0 0 5px rgba(212,168,67,.05)}}
         @keyframes capFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes capPulse{0%,100%{opacity:.55;transform:translate(-50%,-50%)scale(.92)}50%{opacity:1;transform:translate(-50%,-50%)scale(1.12)}}
+        @keyframes capBorder{0%,100%{border-color:rgba(155,107,255,.30);box-shadow:0 0 0 0 rgba(155,107,255,.16)}50%{border-color:rgba(155,107,255,.85);box-shadow:0 0 0 4px rgba(155,107,255,.10)}}
       `}</style>
 
       {/* ══ HERO ═══════════════════════════════════════════════════ */}
@@ -466,19 +467,15 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       </div>
 
       {/* ══ CAPTURE UNIKO! (função futura — só visual por enquanto) ═════ */}
-      <div style={{position:'relative',height:118,borderRadius:18,overflow:'hidden',marginBottom:14,background:'linear-gradient(135deg,#0C0818,#180C2C,#1C1038,#100828)',border:'1px solid rgba(155,107,255,.28)',boxShadow:'0 8px 28px rgba(12,8,24,.4)'}}>
-        {/* estrelinhas de fundo */}
-        {STARS_POS.slice(0,8).map((s,i)=>(
-          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.7)',pointerEvents:'none',animation:`twinkle ${2.4+i*.3}s ease-in-out infinite`,animationDelay:s.d}}/>
-        ))}
+      <div style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:T.surface,border:'1.5px solid rgba(155,107,255,.30)',boxShadow:T.sh,animation:'capBorder 2.2s ease-in-out infinite'}}>
         {/* selo "em breve" */}
-        <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#C0A8FF',background:'rgba(155,107,255,.16)',border:'1px solid rgba(155,107,255,.35)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
+        <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#9B6BFF',background:'rgba(155,107,255,.12)',border:'1px solid rgba(155,107,255,.3)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
 
         {/* texto */}
         <div style={{position:'absolute',left:20,top:'50%',transform:'translateY(-50%)',zIndex:2,maxWidth:'58%'}}>
-          <div style={{fontSize:11,color:'#C0A8FF',fontWeight:700,letterSpacing:'.08em',marginBottom:3}}>✦ MINIGAME</div>
-          <div style={{fontSize:19,fontWeight:800,color:'#fff',lineHeight:1.05,marginBottom:4}}>Capture o Uniko!</div>
-          <div style={{fontSize:11.5,color:'rgba(255,255,255,.62)',lineHeight:1.4}}>De vez em quando um Uniko vai aparecer aqui — clique pra capturar e ganhar prismas.</div>
+          <div style={{fontSize:11,color:'#9B6BFF',fontWeight:700,letterSpacing:'.08em',marginBottom:3}}>✦ MINIGAME</div>
+          <div style={{fontSize:19,fontWeight:800,color:T.text,lineHeight:1.05,marginBottom:4}}>Capture o Uniko!</div>
+          <div style={{fontSize:11.5,color:T.textT,lineHeight:1.4}}>De vez em quando um Uniko vai aparecer aqui — clique pra capturar e ganhar prismas.</div>
         </div>
 
         {/* Uniko que vai spawnar (posição aleatória; aqui só fantasma/placeholder) */}
