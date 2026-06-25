@@ -13,11 +13,11 @@ const LavaLamp = () => {
     const r = (a,b)=>a+Math.random()*(b-a);
     return anchors.map((p,i)=>({
       ci:i % 7,
-      size: r(46,68),                       // vw
+      size: r(40,58),                       // vw
       left: p[0]+r(-8,8),                    // %
       top:  p[1]+r(-8,8),                    // %
       anim: LAVA_ANIMS[i % LAVA_ANIMS.length],
-      dur:  r(18,30),                        // s (bem lento)
+      dur:  r(13,22),                        // s
       delay:-r(0,14),                        // s
     }));
   }, []);
@@ -25,10 +25,10 @@ const LavaLamp = () => {
   return (
     <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       <style>{`
-        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(5vw,-4vw) scale(1.16)}66%{transform:translate(-4vw,4vw) scale(.9)}}
-        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-6vw,3vw) scale(1.12)}80%{transform:translate(4vw,-3vw) scale(.92)}}
-        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(4vw,5vw) scale(1.18)}}
-        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-5vw,-4vw) scale(1.2)}70%{transform:translate(3vw,3vw) scale(.88)}}
+        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(13vw,-10vw) scale(1.28)}66%{transform:translate(-11vw,9vw) scale(.8)}}
+        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-15vw,8vw) scale(1.22)}80%{transform:translate(10vw,-7vw) scale(.84)}}
+        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vw,12vw) scale(1.32)}}
+        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-12vw,-9vw) scale(1.3)}70%{transform:translate(9vw,7vw) scale(.78)}}
       `}</style>
       <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
       {blobs.map((b,i)=>(
@@ -36,7 +36,7 @@ const LavaLamp = () => {
           width:`${b.size}vw`, height:`${b.size}vw`, borderRadius:'50%',
           top:`${b.top}%`, left:`${b.left}%`,
           background:`radial-gradient(circle at 50% 50%, ${cols[b.ci]} 0%, transparent 62%)`,
-          filter:'blur(95px)', willChange:'transform',
+          filter:'blur(78px)', willChange:'transform',
           animation:`${b.anim} ${b.dur}s ease-in-out infinite`, animationDelay:`${b.delay}s`}}/>
       ))}
       <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>
