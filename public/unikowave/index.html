@@ -2463,6 +2463,12 @@ const WG_MINION_AIR_DOWN = new Image(); WG_MINION_AIR_DOWN.src = 'images/DarkCat
 const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/DarkCatBotBoss.png';
 const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/DarkCatBotBossDerrotado.png';
 
+// Esteira (chão) animada: 3 frames que dão a impressão de movimento
+const WG_BELT_FRAMES = [new Image(), new Image(), new Image()];
+WG_BELT_FRAMES[0].src = 'images/ESTEIRA_FRAME1.png';
+WG_BELT_FRAMES[1].src = 'images/ESTEIRA_FRAME2.png';
+WG_BELT_FRAMES[2].src = 'images/ESTEIRA_FRAME3.png';
+
 // Sub-modo do Guerra Estelar: 'ritmico' (atual) ou 'luta' (holds só no meio→fim, mais batidas)
 let wgSubmode = localStorage.getItem('dw_wgsubmode') || 'ritmico';
 function selectWgSubmode(m){
@@ -7918,27 +7924,35 @@ function wgDrawFire(top){
 // Esteira (chão) rolando pra ESQUERDA — com sombra/profundidade
 function wgDrawBelt(gy,h){
   const glow=(typeof GFX!=='undefined'&&GFX.glow);
-  // base com gradiente vertical (mais clara em cima, escura embaixo) → volume
-  const bg=ctx.createLinearGradient(0,gy,0,gy+h);
-  bg.addColorStop(0,'#3a2456'); bg.addColorStop(0.5,'#241338'); bg.addColorStop(1,'#0d0820');
-  ctx.fillStyle=bg; ctx.fillRect(0,gy,CW,h);
-  ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
-  // sombra interna no topo (a esteira "afunda" sob o chão)
-  const sh=ctx.createLinearGradient(0,gy,0,gy+h*0.55);
-  sh.addColorStop(0,'rgba(0,0,0,.5)'); sh.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=sh; ctx.fillRect(0,gy,CW,h*0.55);
-  // treads diagonais com RELEVO: sombra escura deslocada + faixa rosa + brilho fino
-  const seg=34, scroll=(animT*340)%seg;
-  for(let x=CW - scroll; x>-seg; x-=seg){
-    ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(x+3,gy+4); ctx.lineTo(x-12,gy+h-1); ctx.stroke();      // sombra
-    ctx.strokeStyle='rgba(255,46,154,.5)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,gy+3);   ctx.lineTo(x-15,gy+h-3); ctx.stroke();   // corpo
-    ctx.strokeStyle='rgba(255,150,215,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x-1,gy+3); ctx.lineTo(x-16,gy+h-3); ctx.stroke();  // brilho
+  // Esteira animada por imagens: alterna os 3 frames pra dar impressão de movimento
+  const fps=12, frame=WG_BELT_FRAMES[Math.floor(animT*fps)%3];
+  if(frame && frame.complete && frame.naturalWidth){
+    ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
+    ctx.drawImage(frame,0,gy,CW,h);
+    ctx.restore();
+  } else {
+    // Fallback procedural (caso as imagens ainda não tenham carregado)
+    const bg=ctx.createLinearGradient(0,gy,0,gy+h);
+    bg.addColorStop(0,'#3a2456'); bg.addColorStop(0.5,'#241338'); bg.addColorStop(1,'#0d0820');
+    ctx.fillStyle=bg; ctx.fillRect(0,gy,CW,h);
+    ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
+    // sombra interna no topo (a esteira "afunda" sob o chão)
+    const sh=ctx.createLinearGradient(0,gy,0,gy+h*0.55);
+    sh.addColorStop(0,'rgba(0,0,0,.5)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=sh; ctx.fillRect(0,gy,CW,h*0.55);
+    // treads diagonais com RELEVO: sombra escura deslocada + faixa rosa + brilho fino
+    const seg=34, scroll=(animT*340)%seg;
+    for(let x=CW - scroll; x>-seg; x-=seg){
+      ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(x+3,gy+4); ctx.lineTo(x-12,gy+h-1); ctx.stroke();      // sombra
+      ctx.strokeStyle='rgba(255,46,154,.5)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,gy+3);   ctx.lineTo(x-15,gy+h-3); ctx.stroke();   // corpo
+      ctx.strokeStyle='rgba(255,150,215,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x-1,gy+3); ctx.lineTo(x-16,gy+h-3); ctx.stroke();  // brilho
+    }
+    // sombra interna na base também (escurece o pé da esteira)
+    const sh2=ctx.createLinearGradient(0,gy+h*0.5,0,gy+h);
+    sh2.addColorStop(0,'rgba(0,0,0,0)'); sh2.addColorStop(1,'rgba(0,0,0,.45)');
+    ctx.fillStyle=sh2; ctx.fillRect(0,gy+h*0.5,CW,h*0.5);
+    ctx.restore();
   }
-  // sombra interna na base também (escurece o pé da esteira)
-  const sh2=ctx.createLinearGradient(0,gy+h*0.5,0,gy+h);
-  sh2.addColorStop(0,'rgba(0,0,0,0)'); sh2.addColorStop(1,'rgba(0,0,0,.45)');
-  ctx.fillStyle=sh2; ctx.fillRect(0,gy+h*0.5,CW,h*0.5);
-  ctx.restore();
   // bordas neon + linha de highlight logo abaixo do topo
   ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=glow?14:0;
   ctx.strokeStyle='rgba(0,240,255,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
