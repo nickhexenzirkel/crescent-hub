@@ -505,7 +505,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       )}
 
       {/* ══ WIDGETS — 4 numa linha (My Uniko · Eventos · Lembretes · Avisos) ═══ */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
 
         {/* My Uniko */}
         <Card style={{padding:'12px'}}>
@@ -540,11 +540,12 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Eventos Hoje */}
-        <Card style={{padding:'12px'}}>
+        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Eventos Hoje</span>
             <BtnVer tab="eventos"/>
           </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:todayEvts.length===0?'center':'flex-start'}}>
           {todayEvts.length===0
             ?<EmptyW icon={<Ico size={26} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>} text="Nenhum evento hoje" sub="Aproveite o dia!"/>
             :todayEvts.slice(0,3).map(ev=>(
@@ -559,14 +560,16 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               </div>
             ))
           }
+          </div>
         </Card>
 
         {/* Próximos Lembretes */}
-        <Card style={{padding:'12px'}}>
+        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Lembretes</span>
             <BtnVer tab="lembretes"/>
           </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:upcoming.length===0?'center':'flex-start'}}>
           {upcoming.length===0
             ?<EmptyW icon={<Ico size={26} d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>}/>} text="Nenhum lembrete próximo" sub="Crie em Meus Lembretes"/>
             :upcoming.slice(0,3).map((r,i,arr)=>(
@@ -584,14 +587,16 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               </div>
             ))
           }
+          </div>
         </Card>
 
         {/* Avisos RH */}
-        <Card style={{padding:'12px'}}>
+        <Card style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Avisos do RH</span>
             <BtnVer tab="comunicados"/>
           </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:comuns.length===0?'center':'flex-start'}}>
           {comuns.length===0
             ?<EmptyW icon={<Ico size={26} d={<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>}/>} text="Nenhum aviso recente"/>
             :comuns.slice(0,3).map((c,i,arr)=>(
@@ -605,6 +610,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               </div>
             ))
           }
+          </div>
         </Card>
       </div>
 
