@@ -7924,15 +7924,19 @@ function wgDrawFire(top){
 // Esteira (chão) rolando pra ESQUERDA — com sombra/profundidade
 function wgDrawBelt(gy,h){
   const glow=(typeof GFX!=='undefined'&&GFX.glow);
-  // Esteira animada por imagens: alterna os 3 frames pra dar impressão de movimento.
-  // A imagem (1:3) é desenhada na LARGURA TOTAL preservando a proporção — nada esticado.
-  // A superfície da esteira (topo dos treads, ~46% da altura da imagem) é alinhada à
-  // linha do chão (gy); as "pernas" da esteira ficam abaixo, indo pro fundo.
-  const fps=5, frame=WG_BELT_FRAMES[Math.floor(animT*fps)%3];
+  // Esteira: usa SÓ o frame 1, desenhado na LARGURA TOTAL preservando a proporção (1:3),
+  // e rolando infinitamente pra ESQUERDA (duas cópias lado a lado) pra dar a impressão de
+  // movimento sem a esteira "pular de lugar". A superfície (topo dos treads, ~46% da altura)
+  // é alinhada à linha do chão (gy); as "pernas" da esteira ficam abaixo, indo pro fundo.
+  const frame=WG_BELT_FRAMES[0];
   if(frame && frame.complete && frame.naturalWidth){
     const bw=CW, bh=bw*(frame.naturalHeight/frame.naturalWidth);
     const surf=0.46;                       // fração da altura onde fica a superfície do chão
-    ctx.drawImage(frame, 0, gy - bh*surf, bw, bh);
+    const top=gy - bh*surf;
+    const speed=CW*0.35;                   // px/s que a esteira corre pra esquerda
+    let off=-((animT*speed)%bw);           // deslocamento (-bw, 0]
+    ctx.drawImage(frame, off,      top, bw, bh);
+    ctx.drawImage(frame, off + bw, top, bw, bh);
     return;
   }
   // Fallback procedural (caso as imagens ainda não tenham carregado)
