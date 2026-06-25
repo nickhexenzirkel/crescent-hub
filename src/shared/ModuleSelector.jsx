@@ -4,31 +4,35 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), peso médio, com o "N" sendo um "U"
-   invertido. Um ponto de luz AZUL percorre cada letra (recortado na própria letra) e pula
-   pra próxima, em loop. */
+/* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
+   AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
+   em loop — como se estivesse escrevendo. */
 const UnikoName = () => {
-  const letters = [{ c:'U' }, { c:'U', rot:true }, { c:'I' }, { c:'K' }, { c:'O' }];
-  const N = letters.length, DUR = 2.6;
-  const spot = {
-    position:'absolute', left:0, top:0, pointerEvents:'none',
-    backgroundImage:'radial-gradient(circle at center, #8AD2FF 0%, rgba(74,160,255,.65) 30%, transparent 60%)',
-    backgroundRepeat:'no-repeat', backgroundSize:'70% 240%', backgroundPosition:'-35% 50%',
-    WebkitBackgroundClip:'text', backgroundClip:'text',
-    color:'transparent', WebkitTextFillColor:'transparent',
-  };
+  const W = 11, DUR = 3.2, N = 5;
+  const paths = [
+    'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
+    'M108,112 L108,50 Q108,18 140,18 Q172,18 172,50 L172,112',                    // N (U invertido)
+    'M205,18 L205,112',                                                           // I
+    'M235,18 L235,112 M292,18 L237,65 L296,112',                                  // K
+    'M360,18 Q400,18 400,65 Q400,112 360,112 Q320,112 320,65 Q320,18 360,18 Z',   // O
+  ];
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:'.12em',
-      fontFamily:"'Poppins', var(--font-brand)", fontWeight:600, letterSpacing:'normal' }}>
-      <style>{`@keyframes uTrace{0%{background-position:-35% 50%;opacity:1}20%{background-position:135% 50%;opacity:1}20.01%,100%{opacity:0}}`}</style>
-      {letters.map((l, i) => (
-        <span key={i} style={{ position:'relative', display:'inline-block', lineHeight:1,
-          transform: l.rot ? 'rotate(180deg)' : undefined }}>
-          <span>{l.c}</span>
-          <span aria-hidden style={{ ...spot, animation:`uTrace ${DUR}s linear infinite`, animationDelay:`${(i / N) * DUR}s` }}>{l.c}</span>
-        </span>
+    <svg viewBox="0 0 418 130" role="img" aria-label="UNIKO"
+      style={{ height:'0.82em', width:'auto', display:'inline-block', verticalAlign:'middle', overflow:'visible', color:'inherit' }}>
+      <style>{`@keyframes uTrace{0%{stroke-dashoffset:0;opacity:1}20%{stroke-dashoffset:-1;opacity:1}20.01%,100%{opacity:0}}`}</style>
+      {paths.map((d, i) => (
+        <g key={i}>
+          {/* letra (cor do texto) */}
+          <path d={d} fill="none" stroke="currentColor" strokeWidth={W} strokeLinecap="round" strokeLinejoin="round"/>
+          {/* ponto de luz azul percorrendo o traço */}
+          <path d={d} fill="none" stroke="#4AA6FF" strokeWidth={W + 1} strokeLinecap="round" strokeLinejoin="round"
+            pathLength="1"
+            style={{ strokeDasharray:'0.05 1', strokeDashoffset:0, opacity:0,
+              filter:'drop-shadow(0 0 4px #4AA6FF) drop-shadow(0 0 9px #4AA6FF)',
+              animation:`uTrace ${DUR}s linear infinite`, animationDelay:`${(i / N) * DUR}s` }}/>
+        </g>
       ))}
-    </span>
+    </svg>
   );
 };
 
