@@ -4,13 +4,21 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), bem espaçada, com o "N" sendo
-   um "U" invertido (U girado 180°). Herda a cor e o tamanho do elemento pai. */
-const UnikoName = () => (
-  <span style={{ fontFamily:"'Poppins', var(--font-brand)", fontWeight:800, letterSpacing:'.16em' }}>
-    U<span style={{ display:'inline-block', transform:'rotate(180deg)' }}>U</span>IKO
-  </span>
-);
+/* Wordmark "UNIKO" — fonte moderna geométrica (Poppins), peso médio (não grossa), com o
+   "N" sendo um "U" invertido (U girado 180°). Layout flex p/ espaçamento uniforme e alinhado. */
+const UnikoName = () => {
+  const letter = { display:'inline-block', lineHeight:1 };
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:'.12em',
+      fontFamily:"'Poppins', var(--font-brand)", fontWeight:600, letterSpacing:'normal' }}>
+      <span style={letter}>U</span>
+      <span style={{ ...letter, transform:'rotate(180deg)' }}>U</span>
+      <span style={letter}>I</span>
+      <span style={letter}>K</span>
+      <span style={letter}>O</span>
+    </span>
+  );
+};
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
