@@ -163,9 +163,9 @@ const DEFAULT_STATE = {
     // ── MENSAIS ──
     { id: 'c_ponto',     title: 'Presença Impecável',    desc: '100% de presença sem ocorrências no ponto',     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
     { id: 'c_feedback',  title: 'Voz ativa',             desc: 'Dê um feedback no sistema',                     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 30,  claimed: false },
-    { id: 'c_rank1',     title: '🥇 Top 1 do Uniko Wave', desc: '1º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
-    { id: 'c_rank2',     title: '🥈 Top 2 do Uniko Wave', desc: '2º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
-    { id: 'c_rank3',     title: '🥉 Top 3 do Uniko Wave', desc: '3º lugar no ranking do Uniko Wave no mês',      period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
+    { id: 'c_rank1',     title: '🥇 Top 1 do mês',        desc: '1º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
+    { id: 'c_rank2',     title: '🥈 Top 2 do mês',        desc: '2º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
+    { id: 'c_rank3',     title: '🥉 Top 3 do mês',        desc: '3º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
     { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false, maintenance: true },
     // ── ESPECIAIS (única vez) ──
     { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
@@ -369,12 +369,14 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           .eq('employee_name', userName).gte('created_at', monthStart);
         prog.c_feedback = (count || 0) >= 1 ? 1 : 0;
       } catch {}
-      // Top 1/2/3 do Uniko Wave — ranking global (soma do melhor de cada dificuldade por jogador)
+      // Top 1/2/3 — quem mais COLOCA MÚSICA no mês (ranking de DJs da Central Alexa)
       try {
-        const { data } = await supabase.from('uniko_scores').select('player,score');
-        const tot = {};
-        for (const r of (data || [])) tot[r.player] = (tot[r.player] || 0) + (Number(r.score) || 0);
-        const rank = Object.entries(tot).sort((a, b) => b[1] - a[1]).map(([p]) => p).indexOf(userName) + 1;
+        const month = todayStr().slice(0, 7);
+        const { data } = await supabase.from('maquina_monthly_djs').select('requested_by,plays').eq('month', month);
+        const isSys = (n) => { const rb = (n || '').trim().toLowerCase(); return !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa'); };
+        const agg = {};
+        for (const d of (data || [])) { if (isSys(d.requested_by)) continue; const n = (d.requested_by || '').trim(); agg[n] = (agg[n] || 0) + (Number(d.plays) || 0); }
+        const rank = Object.entries(agg).sort((a, b) => b[1] - a[1]).map(([n]) => n).indexOf((userName || '').trim()) + 1;
         prog.c_rank1 = rank === 1 ? 1 : 0;
         prog.c_rank2 = rank === 2 ? 1 : 0;
         prog.c_rank3 = rank === 3 ? 1 : 0;
