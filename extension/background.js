@@ -557,7 +557,7 @@ function showDesktopNotification(n) {
     const title = isUrgent ? `🚨 ${base}` : `.𖥔 . ${base} .𖥔 .`;
     chrome.notifications.create(id, {
       type:    'basic',
-      iconUrl: chrome.runtime.getURL('UNIKO_ALARME.png'),
+      iconUrl: chrome.runtime.getURL(isUrgent ? 'UNIKO_ATENCAO.png' : 'UNIKO_ALARME.png'),
       title,
       message: String(n.message || '').slice(0, 500),
       priority: isUrgent ? 2 : 1,

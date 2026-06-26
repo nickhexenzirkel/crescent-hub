@@ -37,7 +37,7 @@ export function webNotify(n) {
     const isUrgent = n?.type === 'aviso_urgente';
     const base = n?.title || (isUrgent ? 'Aviso Urgente' : 'Lembrete');
     const title = isUrgent ? `🚨 ${base}` : `.𖥔 . ${base} .𖥔 .`;
-    new Notification(title, { body: n?.message || '', requireInteraction: true, icon: '/UNIKO_ALARME.png' });
+    new Notification(title, { body: n?.message || '', requireInteraction: true, icon: isUrgent ? encodeURI('/UNIKO_ATENÇÃO.png') : '/UNIKO_ALARME.png' });
     return true;
   } catch { return false; }
 }
