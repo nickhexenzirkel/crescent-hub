@@ -48,8 +48,8 @@ const KB = [
     a: 'A Central Alexa toca música no Echo via Spotify e mostra um clipe do YouTube. Quem mais coloca música no mês entra no Top do ranking (vale missão!).' },
   { k: ['feedback', 'voz ativa', 'opinião', 'opiniao', 'sugestão', 'sugestao'],
     a: 'Dê um feedback no sistema pra completar a missão Voz ativa e ganhar prismas. É só registrar sua opinião/sugestão no mês.' },
-  { k: ['lembrete', 'lembrar', 'lembre', 'agendar', 'alarme'],
-    a: 'Posso criar um lembrete pra você! Diga algo como "me lembre de bater o ponto às 14:30". Você também gerencia tudo no módulo de Lembretes.' },
+  { k: ['lembrete', 'lembrar', 'lembre', 'agendar', 'alarme', 'apagar lembrete', 'apagar lembretes', 'deletar lembrete', 'remover lembrete', 'meus lembretes'],
+    a: 'Posso criar lembretes pra você — diga "me lembre de bater o ponto às 14:30". Para ver, editar ou apagar seus lembretes (inclusive todos), use o módulo Meus Lembretes no Portal do Colaborador. Por aqui eu só crio lembretes novos.' },
   { k: ['evento', 'eventos', 'agenda', 'calendário', 'calendario'],
     a: 'Os eventos da empresa aparecem no Portal, na aba Eventos. Eu te aviso quando um novo for adicionado.' },
   { k: ['rh', 'aviso', 'comunicado', 'urgente'],
@@ -84,7 +84,12 @@ function notifSprite(n) {
 
 // Detecta intenção de criar lembrete e extrai mensagem + horário (HH:MM). null se não for.
 function parseReminder(raw) {
-  if (!/lembr/i.test(raw)) return null;
+  // Só CRIAÇÃO de lembrete (imperativo): "me lembre/lembra de...", "lembre-me...",
+  // "lembrar de...", "lembrete: ...". Perguntas sobre lembretes (apagar/ver/quais/como/consigo)
+  // NÃO caem aqui — vão pra resposta registrada/FAQ/IA.
+  const isCreate = /\bme\s+lembr|\blembr[ae]\s+(?:de|que|pra|para)\b|\blembr[ea]-me\b|\blembrar\s+(?:de|que)\b|\blembrete\s*[:\-]/i.test(raw);
+  if (!isCreate) return null;
+  if (/^\s*(como|quais|qual|o que|posso|consigo|d[áa]\s+pra|onde|quando|por\s*que|porque)\b/i.test(raw)) return null;
   let time = null;
   const tm = raw.match(/(\d{1,2})[:hH](\d{2})/) || raw.match(/(\d{1,2})\s*h(?:oras?|rs)?\b/i);
   if (tm) time = tm[2] ? `${String(tm[1]).padStart(2, '0')}:${tm[2]}` : `${String(tm[1]).padStart(2, '0')}:00`;
