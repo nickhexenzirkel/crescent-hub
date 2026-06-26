@@ -100,6 +100,11 @@ function parseReminder(raw) {
 
 const FAQ_FALLBACK = 'Ainda não sei responder isso 😅. Posso ajudar com: Prisma Store, missões, check-in, Uniko Wave, Ponto, Central Alexa, feedback e lembretes. Tente perguntar sobre um deles!';
 
+// Normaliza a pergunta numa chave (MESMA do servidor/dashboard) — pra casar com a uniko_qa_cache.
+const qkeyOf = (s) => String(s || '').toLowerCase()
+  .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  .replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
 // FAQ por palavra-chave: devolve a resposta se ALGUM gatilho bateu; senão null (→ cai na IA).
 function faqMatch(raw) {
   const q = (raw || '').toLowerCase();
@@ -186,10 +191,28 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     { from: 'uniko', text: 'Oi! Eu sou o UNIKO 🤖. Pergunte sobre o sistema ou peça um lembrete ("me lembre de X às HH:MM").' },
   ]);
   const [input, setInput] = useState('');
+  const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
   const bubbleTimer = useRef(null);
   const listRef = useRef(null);
   const openRef = useRef(open);   openRef.current = open;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
+
+  // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
+  // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await _supabase.from('uniko_qa_cache').select('qkey,answer').eq('in_faq', true);
+        if (!alive) return;
+        const map = {};
+        for (const r of (data || [])) if (r.qkey && r.answer) map[r.qkey] = r.answer;
+        setOverrides(map);
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, [authUser]);
 
   const scrollDown = useCallback(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, []);
 
@@ -352,11 +375,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
       return;
     }
 
-    // 2) FAQ primeiro (grátis/instantânea)
+    // 2) Resposta REGISTRADA pelo admin (override) vence a FAQ curada
+    const ov = overrides[qkeyOf(text)];
+    if (ov) { setMessages(m => [...m, { from: 'uniko', text: ov }]); return; }
+
+    // 3) FAQ curada (grátis/instantânea)
     const faq = faqMatch(text);
     if (faq) { setMessages(m => [...m, { from: 'uniko', text: faq }]); return; }
 
-    // 3) Não bateu na FAQ → IA (com placeholder "pensando"; se falhar, usa o fallback)
+    // 4) Não bateu na FAQ → IA (com placeholder "pensando"; se falhar, usa o fallback)
     setMessages(m => [...m, { from: 'uniko', text: '…', pending: true }]);
     const ai = await askAI(text);
     const reply = ai || FAQ_FALLBACK;
