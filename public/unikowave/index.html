@@ -1692,6 +1692,38 @@ canvas{display:block}
         <span class="lib-search-icon">🔍</span>
         <input class="lib-search" id="libSearch" type="text" placeholder="Buscar música..." oninput="filterLibrary(this.value)" autocomplete="off">
       </div>
+      <style>
+        .lib-filters{display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:700px;margin:2px auto 4px;justify-content:center}
+        .lib-fsel{background:rgba(10,16,40,.9);color:#cfe3ff;border:1px solid #2a3a66;border-radius:8px;padding:6px 8px;font-size:11px;font-family:inherit;outline:none;cursor:pointer}
+        .lib-fsel:focus{border-color:#00f0ff}
+      </style>
+      <div class="lib-filters" id="libFilters">
+        <select class="lib-fsel" id="libFCat" onchange="setLibFilter('cat',this.value)" title="Categoria">
+          <option value="todas">📚 Todas</option>
+          <option value="recentes">🕒 Recentes</option>
+          <option value="inicial">🎮 Iniciais</option>
+          <option value="descobrir">🔭 Descobrir</option>
+          <option value="sua">★ Suas</option>
+        </select>
+        <select class="lib-fsel" id="libFDiff" onchange="setLibFilter('diff',this.value)" title="Dificuldade">
+          <option value="todas">Dificuldade: todas</option>
+          <option value="easy">Fácil</option><option value="normal">Normal</option><option value="hard">Difícil</option>
+          <option value="insane">Insano</option><option value="impossible">Impossível</option><option value="nightmare">Pesadelo</option>
+        </select>
+        <select class="lib-fsel" id="libFMode" onchange="setLibFilter('mode',this.value)" title="Modo de jogo">
+          <option value="todos">Modo: todos</option>
+          <option value="classic">🎹 Clássico</option>
+          <option value="wargame">⚔ Guerra Estelar</option>
+        </select>
+        <select class="lib-fsel" id="libFStars" onchange="setLibFilter('stars',this.value)" title="Estrelas">
+          <option value="0">★ todas</option>
+          <option value="1">★ 1+</option><option value="2">★ 2+</option><option value="3">★ 3+</option><option value="4">★ 4+</option><option value="5">★ 5</option>
+        </select>
+        <select class="lib-fsel" id="libFScore" onchange="setLibFilter('score',this.value)" title="Pontuação mínima">
+          <option value="0">Pontuação: qualquer</option>
+          <option value="10000">10 mil+</option><option value="50000">50 mil+</option><option value="100000">100 mil+</option><option value="250000">250 mil+</option>
+        </select>
+      </div>
       <div id="libEmpty" class="lib-empty-state" style="margin-top:40px">
         <div class="lib-empty-icon">🎵</div>
         <div class="lib-empty-msg">BIBLIOTECA VAZIA</div>
@@ -4038,6 +4070,16 @@ const DISCOVER_SONGS = [
   { vid:'WSDSWdIt3jY', title:'Side Quest King' },
 ];
 
+// Filtros da biblioteca (categoria, dificuldade, modo, estrelas mín., pontuação mín.)
+let libFilters = { cat:'todas', diff:'todas', mode:'todos', stars:0, score:0 };
+function setLibFilter(key, val){
+  libFilters[key] = (key==='stars'||key==='score') ? (parseInt(val,10)||0) : val;
+  renderLibraryPanel();
+}
+const _LIB_STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
+const _LIB_DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
+const _LIB_DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
+
 function renderLibraryPanel(){
   const saved=libLoad();
   const libEmpty=document.getElementById('libEmpty');
@@ -4045,54 +4087,69 @@ function renderLibraryPanel(){
   const libGrid=document.getElementById('libGrid');
   if(!libGrid) return;
 
-  const mkFixed=(s)=>({
-    ytUrl:`https://www.youtube.com/watch?v=${s.vid}`,
-    title:s.title, diff:'normal', dur:0,
-    thumbUrl:`https://img.youtube.com/vi/${s.vid}/hqdefault.jpg`,
-    starter:true,
-  });
+  const mkFixed=(s)=>({ ytUrl:`https://www.youtube.com/watch?v=${s.vid}`, title:s.title, diff:'normal', dur:0,
+    thumbUrl:`https://img.youtube.com/vi/${s.vid}/hqdefault.jpg`, starter:true });
   const starters=STARTER_SONGS.map(mkFixed);
   const discover=DISCOVER_SONGS.map(mkFixed);
-  _libCache=[...starters, ...discover, ...saved];
+  _libCache=[...starters, ...discover, ...saved];   // índice usado pelo libReplay
 
   if(libCount) libCount.textContent=saved.length===1?'1 música salva':`${saved.length} músicas salvas`;
-  if(libEmpty) libEmpty.style.display='none'; // sempre há as músicas fixas
+  if(libEmpty) libEmpty.style.display='none';
   libGrid.innerHTML='';
 
-  const STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
-  const DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
-  const DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
+  // Lista unificada com categoria + índice no _libCache
+  const all=[];
+  starters.forEach((s,i)=>all.push({...s, category:'inicial', _idx:i}));
+  discover.forEach((s,i)=>all.push({...s, category:'descobrir', _idx:starters.length+i}));
+  saved.forEach((s,i)=>all.push({...s, category:'sua', _idx:starters.length+discover.length+i}));
+
+  const F=libFilters;
+  const pass=(s)=>{
+    if(F.diff!=='todas' && s.diff!==F.diff) return false;
+    if(F.mode!=='todos' && s.mode!==F.mode) return false;   // fixas não têm modo → ficam de fora ao filtrar modo
+    if(F.stars>0 && (s.stars||0) < F.stars) return false;
+    if(F.score>0 && (s.score||0) < F.score) return false;
+    return true;
+  };
   const esc=(t)=>(t||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='lib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
-  const fixedCard=(e,idx,label)=>{
-    const thumb=`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`;
-    const card=document.createElement('div'); card.className='lib-card';
-    card.innerHTML=`${thumb}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-diff" style="color:#00f0ff">${label}</div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR</button></div>`;
-    card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
-    libGrid.appendChild(card);
+  const card=(s)=>{
+    const c=document.createElement('div'); c.className='lib-card';
+    const thumb = s.thumbUrl ? `<img class="lib-thumb" src="${s.thumbUrl}" alt="" onerror="this.style.display='none'">` : `<div class="lib-thumb-fb">🎵</div>`;
+    let body;
+    if(s.category==='sua'){
+      const gc=s.gradeCol||'#00f0ff';
+      const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<(s.stars||0);const scc=_LIB_STAR_COLORS[k];return lit?`<span style="color:${scc};filter:drop-shadow(0 0 4px ${scc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
+      const modeTag = s.mode==='wargame' ? '<span style="color:#ff5a6e">⚔ Guerra</span>' : (s.mode==='classic' ? '<span style="color:#00f0ff">🎹 Clássico</span>' : '');
+      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${s.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(s.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between;font-size:10px"><div class="lib-diff" style="color:${_LIB_DIFF_COLORS[s.diff]||'#00f0ff'}">${_LIB_DIFF_LABELS[s.diff]||s.diff||''}</div><div>${modeTag}</div></div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR NOVAMENTE</button></div>`;
+    } else {
+      const label = s.category==='inicial' ? 'Música inicial' : 'Nova música';
+      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-diff" style="color:#00f0ff">${label}</div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR</button></div>`;
+    }
+    c.innerHTML=`${thumb}${body}`;
+    c.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(s._idx));
+    libGrid.appendChild(c);
   };
+  const section=(title,list)=>{ if(list.length){ addTitle(title); list.forEach(card); } };
 
-  // ── Seção: Jogue pela primeira vez! ──
-  addTitle('🎮 Jogue pela primeira vez!');
-  starters.forEach((e,idx)=>fixedCard(e, idx, 'Música inicial'));
+  const recents=()=>all.filter(s=>s.category==='sua'&&s.playedAt).filter(pass).sort((a,b)=>(b.playedAt||0)-(a.playedAt||0)).slice(0,10);
+  const ofCat=(c)=>all.filter(s=>s.category===c).filter(pass);
+  const suas=()=>ofCat('sua').sort((a,b)=>(b.playedAt||0)-(a.playedAt||0));
 
-  // ── Seção: Descubra novas músicas ──
-  addTitle('🔭 Descubra novas músicas');
-  discover.forEach((e,i)=>fixedCard(e, starters.length+i, 'Nova música'));
+  if(F.cat==='recentes')      section('🕒 Tocadas recentemente', recents());
+  else if(F.cat==='inicial')  section('🎮 Jogue pela primeira vez!', ofCat('inicial'));
+  else if(F.cat==='descobrir')section('🔭 Descubra novas músicas', ofCat('descobrir'));
+  else if(F.cat==='sua')      section('★ Suas músicas', suas());
+  else { // todas
+    section('🕒 Tocadas recentemente', recents());
+    section('🎮 Jogue pela primeira vez!', ofCat('inicial'));
+    section('🔭 Descubra novas músicas', ofCat('descobrir'));
+    section('★ Suas músicas', suas());
+  }
 
-  // ── Seção: Suas músicas ──
-  if(saved.length){
-    addTitle('★ Suas músicas');
-    saved.forEach((e,i)=>{
-      const idx=starters.length+discover.length+i;
-      const gc=e.gradeCol||'#00f0ff';
-      const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<e.stars;const sc=STAR_COLORS[k];return lit?`<span style="color:${sc};filter:drop-shadow(0 0 4px ${sc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
-      const thumbBlock=e.thumbUrl?`<img class="lib-thumb" src="${e.thumbUrl}" alt="" onerror="this.style.display='none'">`:`<div class="lib-thumb-fb">🎵</div>`;
-      const card=document.createElement('div'); card.className='lib-card';
-      card.innerHTML=`${thumbBlock}<div class="lib-body"><div class="lib-song">${esc(e.title)}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${e.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(e.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between"><div class="lib-diff" style="color:${DIFF_COLORS[e.diff]||'#00f0ff'}">${DIFF_LABELS[e.diff]||e.diff||''}</div></div><button class="lib-play-btn" data-idx="${idx}">▶ JOGAR NOVAMENTE</button></div>`;
-      card.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(idx));
-      libGrid.appendChild(card);
-    });
+  if(!libGrid.children.length){
+    const e=document.createElement('div'); e.className='lib-section-title'; e.style.opacity='0.6';
+    e.textContent='Nenhuma música com esses filtros.'; libGrid.appendChild(e);
   }
 }
 
@@ -9491,25 +9548,20 @@ function libSaveEntry(ytUrl, title, thumbUrl, scoreVal, gradeStr, gradeCol, star
   const entries = libLoad();
   const vid = getYTId(ytUrl);
   const idx = entries.findIndex(e=>e.vid===vid && e.diff===diff);
-  const entry = {
-    vid, ytUrl, title,
-    thumbUrl: thumbUrl || (vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : ''),
-    score: scoreVal,
-    grade: gradeStr,
-    gradeCol,
-    stars: starsCount,
-    diff,
-    playedAt: Date.now()
-  };
-  // Só substitui se nova pontuação for maior
+  const now = Date.now();
+  const tu = thumbUrl || (vid ? `https://img.youtube.com/vi/${vid}/mqdefault.jpg` : '');
+  const mode = (typeof gameMode!=='undefined') ? gameMode : 'classic';
   if(idx>=0){
-    if(scoreVal >= entries[idx].score){
-      entries[idx] = entry;
+    const e = entries[idx];
+    e.playedAt = now;     // recência: atualiza SEMPRE que joga (pra "Tocadas recentemente")
+    e.mode = mode;
+    if(scoreVal >= (e.score||0)){ // só troca o recorde se a pontuação for maior
+      e.score=scoreVal; e.grade=gradeStr; e.gradeCol=gradeCol; e.stars=starsCount; e.thumbUrl=tu; e.ytUrl=ytUrl; e.title=title;
     }
+    entries.splice(idx,1); entries.unshift(e); // move pro topo (mais recente)
   } else {
-    entries.unshift(entry);
-    // Mantém máximo 50 entradas
-    if(entries.length>50) entries.pop();
+    entries.unshift({ vid, ytUrl, title, thumbUrl:tu, score:scoreVal, grade:gradeStr, gradeCol, stars:starsCount, diff, mode, playedAt:now });
+    if(entries.length>50) entries.pop(); // máximo 50
   }
   libSave(entries);
 }
