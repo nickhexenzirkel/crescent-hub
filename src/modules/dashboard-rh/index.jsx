@@ -3,6 +3,7 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
+import UnikoQATab from './UnikoQATab';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -686,6 +687,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
+    {id:'uniko_ia',       label:'Perguntas do UNIKO',  icon:<><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></>},
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
@@ -1387,6 +1389,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </Card>
             </div>
           )}
+
+          {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
+          {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}
 
           {/* ── TAB: LEMBRETES & ALEXA PROGRAMADA ── */}
           {tab==='lembretes'&&(
