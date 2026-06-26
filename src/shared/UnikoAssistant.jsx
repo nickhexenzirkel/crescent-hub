@@ -1,16 +1,27 @@
 // src/shared/UnikoAssistant.jsx
 // Assistente robô UNIKO — fixo no canto inferior esquerdo, flutua de leve, pisca, e ao
-// falar/interagir expande um pouco e mostra um balão de fala. Responde sobre as funções do
-// sistema (FAQ curada — ver answerQuery, o ÚNICO ponto a trocar por IA depois), cria lembretes
-// de verdade (tabela reminders) e voca os avisos/lembretes que chegam (prop `notif`).
+// falar/interagir expande um pouco e mostra um balão de fala COM ANIMAÇÃO DE DIGITAÇÃO.
+// A imagem (sprite) troca conforme a interação: alarme/lembrete, atenção (RH), alexa, wave,
+// prisma comum/premium. A cada 10s solta uma DICA aleatória do sistema (com o sprite do tema).
+// Responde via FAQ curada (answerQuery — ÚNICO ponto a trocar por IA depois) e cria lembretes
+// reais (tabela reminders). Voca os avisos/lembretes que chegam (prop `notif`).
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase } from '../contexts/user';
 
+// Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
+const IMG = {
+  ALARME:  encodeURI('/UNIKO_ALARME.png'),
+  ATENCAO: encodeURI('/UNIKO_ATENÇÃO.png'),
+  ALEXA:   encodeURI('/UNIKO_ALEXA.png'),
+  WAVE:    encodeURI('/UNIKO_WAVESIGN.png'),
+  PRISMAC: encodeURI('/UNIKO_PRISMACOMUM.png'),
+  PRISMAP: encodeURI('/UNIKO_PRISMAPREMIUM.png'),
+};
+
 /* ──────────────────────────────────────────────────────────────────────────
-   BASE DE CONHECIMENTO (FAQ curada). Cada item: gatilhos (palavras-chave) + resposta.
-   answerQuery() pontua por nº de gatilhos batidos e devolve a melhor resposta. Este é o
-   ÚNICO ponto que troca por IA real depois (basta answerQuery virar um fetch ao servidor).
+   BASE DE CONHECIMENTO (FAQ curada). answerQuery() pontua por gatilhos batidos.
+   É o ÚNICO ponto que troca por IA real depois (vira um fetch ao servidor).
    ────────────────────────────────────────────────────────────────────────── */
 const KB = [
   { k: ['prisma', 'loja', 'recompensa', 'premio', 'prêmio', 'resgatar', 'comprar'],
@@ -38,10 +49,30 @@ const KB = [
   { k: ['tema', 'cor', 'aparência', 'aparencia', 'escuro', 'claro'],
     a: 'Dá pra trocar o tema/visual pelo botão flutuante de tema. Tem modos claro e escuro.' },
   { k: ['ajuda', 'o que você faz', 'o que voce faz', 'oi', 'olá', 'ola', 'ei', 'help', 'funções', 'funcoes'],
-    a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas recebidos, avisos do RH, eventos e do progresso das suas missões.' },
+    a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas, avisos do RH, eventos e do progresso das suas missões.' },
 ];
 
-// Detecta intenção de criar lembrete e extrai mensagem + horário (HH:MM). Retorna null se não for.
+// Dicas rotativas (a cada 10s) — cada uma com o SPRITE do tema.
+const TIPS = [
+  { text: 'Dica: jogue Uniko Wave todo dia pra completar a Maratona e ganhar prismas! 🎮', sprite: IMG.WAVE },
+  { text: 'Dica: a aba Audição do Uniko Wave é o gacha — gire pra liberar personagens! 🎰', sprite: IMG.WAVE },
+  { text: 'Dica: faça check-in todos os dias pra manter a sequência e ganhar prismas Premium! ✨', sprite: IMG.PRISMAP },
+  { text: 'Dica: prismas Premium valem os prêmios mais raros da Prisma Store! 💎', sprite: IMG.PRISMAP },
+  { text: 'Dica: troque seus prismas por prêmios reais lá na Prisma Store! 🎁', sprite: IMG.PRISMAC },
+  { text: 'Dica: coloque música na Central Alexa e dispute o Top do mês! 🎵', sprite: IMG.ALEXA },
+  { text: 'Dica: dê um feedback no sistema pra completar a missão Voz ativa! 💬', sprite: IMG.ATENCAO },
+  { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: IMG.ALARME },
+];
+
+// Sprite do aviso/lembrete que chega pelo App.
+function notifSprite(n) {
+  const t = n?.type, title = (n?.title || '').toLowerCase();
+  if (t === 'alexa') return IMG.ALEXA;
+  if (t === 'aviso_urgente' || /aviso|aten|urgente|important/.test(title)) return IMG.ATENCAO;
+  return IMG.ALARME; // lembrete / alarme
+}
+
+// Detecta intenção de criar lembrete e extrai mensagem + horário (HH:MM). null se não for.
 function parseReminder(raw) {
   if (!/lembr/i.test(raw)) return null;
   let time = null;
@@ -71,9 +102,33 @@ function answerQuery(raw) {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-/* Carinha do UNIKO com piscar (3 frames sobrepostos). */
-const UnikoFace = ({ size }) => {
+/* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever). */
+const Typer = ({ text, speed = 16, onTick }) => {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    setN(0);
+    if (!text) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i++; setN(i); onTick && onTick();
+      if (i >= text.length) clearInterval(id);
+    }, speed);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, speed]);
+  return <>{text ? text.slice(0, n) : ''}</>;
+};
+
+/* Carinha do UNIKO. Sem `src` → carinha normal piscando (3 frames). Com `src` → sprite fixo. */
+const UnikoFace = ({ size, src }) => {
   const img = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' };
+  if (src) {
+    return (
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <img src={src} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaSpritePop .3s ease' }} />
+      </div>
+    );
+  }
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true" style={img} />
@@ -86,6 +141,7 @@ const UnikoFace = ({ size }) => {
 const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
+  const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
   const [pop, setPop] = useState(false);            // pulso de "expandir ao falar"
   const [messages, setMessages] = useState([
     { from: 'uniko', text: 'Oi! Eu sou o UNIKO 🤖. Pergunte sobre o sistema ou peça um lembrete ("me lembre de X às HH:MM").' },
@@ -94,21 +150,27 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const bubbleTimer = useRef(null);
   const popTimer = useRef(null);
   const listRef = useRef(null);
+  const openRef = useRef(open);   openRef.current = open;
+  const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
 
-  // "Falar": expande de leve (pop) e mostra o balão. dismissable = balão de aviso (com Ok).
-  const say = useCallback((text, dismissable = false) => {
+  const scrollDown = useCallback(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, []);
+
+  // "Falar": expande de leve (pop), troca o sprite e mostra o balão (com digitação).
+  // dismissable = balão de aviso/lembrete (fica até o "Ok"); senão some sozinho.
+  const say = useCallback((text, { sprite: sp = null, dismissable = false } = {}) => {
     setPop(true);
     clearTimeout(popTimer.current);
     popTimer.current = setTimeout(() => setPop(false), 650);
+    setSprite(sp);
     setBubble({ text, dismissable });
     clearTimeout(bubbleTimer.current);
     if (!dismissable) {
-      const ms = Math.min(12000, 4000 + text.length * 60);
-      bubbleTimer.current = setTimeout(() => setBubble(null), ms);
+      const ms = Math.min(13000, 4500 + text.length * 55);
+      bubbleTimer.current = setTimeout(() => { setBubble(null); setSprite(null); }, ms);
     }
   }, []);
 
-  // Voca avisos/lembretes que chegam pelo App (prop notif). Mantém o balão até o "Ok".
+  // Voca avisos/lembretes que chegam pelo App (prop notif) com o sprite certo. Fica até o "Ok".
   const lastNotifId = useRef(null);
   useEffect(() => {
     if (!notif || notif.id === lastNotifId.current) return;
@@ -116,13 +178,23 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     const txt = notif.title && notif.title !== 'Lembrete'
       ? `${notif.title}: ${notif.message}`
       : `Ei, lembra de: ${notif.message}`;
-    say(txt, true);
-    if (open) setOpen(false);
-  }, [notif, say, open]);
+    say(txt, { sprite: notifSprite(notif), dismissable: true });
+    if (openRef.current) setOpen(false);
+  }, [notif, say]);
 
-  // Rola o chat pro fim quando chega mensagem nova
-  useEffect(() => { if (open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [messages, open]);
+  // DICAS rotativas a cada 10s (só com o painel fechado e sem aviso pendente esperando "Ok").
+  useEffect(() => {
+    if (!authUser) return;
+    const id = setInterval(() => {
+      if (openRef.current) return;
+      if (bubbleRef.current?.dismissable) return;
+      const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
+      say(tip.text, { sprite: tip.sprite });
+    }, 10000);
+    return () => clearInterval(id);
+  }, [authUser, say]);
 
+  useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
   useEffect(() => () => { clearTimeout(bubbleTimer.current); clearTimeout(popTimer.current); }, []);
 
   const createReminder = async (message, time) => {
@@ -141,10 +213,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     if (!text) return;
     setInput('');
     setMessages(m => [...m, { from: 'me', text }]);
+    setPop(true); clearTimeout(popTimer.current); popTimer.current = setTimeout(() => setPop(false), 650);
 
     const rem = parseReminder(text);
-    let reply;
+    let reply, sp = null;
     if (rem) {
+      sp = IMG.ALARME;
       if (!rem.time) reply = 'Claro! Só me diga o horário também, ex.: "me lembre disso às 14:30". ⏰';
       else if (!rem.message) reply = 'Beleza! E do que você quer que eu te lembre às ' + rem.time + '?';
       else {
@@ -156,8 +230,9 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     } else {
       reply = answerQuery(text);
     }
+    if (sp) setSprite(sp);
+    // Mensagem do UNIKO entra "digitando" (o Typer anima ao montar).
     setMessages(m => [...m, { from: 'uniko', text: reply }]);
-    setPop(true); clearTimeout(popTimer.current); popTimer.current = setTimeout(() => setPop(false), 650);
   };
 
   if (!authUser) return null;
@@ -172,10 +247,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         @keyframes uaBlinkTop{0%,90%{opacity:1}90.6%,99%{opacity:0}99.4%,100%{opacity:1}}
         @keyframes uaBlinkMid{0%,93.8%{opacity:1}94.2%,96%{opacity:0}96.4%,100%{opacity:1}}
         @keyframes uaPop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+        @keyframes uaSpritePop{from{opacity:.3;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
-      {/* ── Robô (flutua sempre; expande de leve ao falar) ── */}
+      {/* ── Robô (flutua sempre; expande de leve ao falar; sprite muda por interação) ── */}
       <div style={{ animation: 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
         <button
           onClick={() => setOpen(o => !o)}
@@ -185,18 +261,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
             transform: pop ? 'scale(1.16)' : 'scale(1)', transition: 'transform .25s cubic-bezier(.34,1.56,.64,1)',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}55)`,
           }}>
-          <UnikoFace size={72} />
+          <UnikoFace size={72} src={sprite} />
         </button>
       </div>
 
-      {/* ── Balão de fala (avisos/lembretes e respostas com painel fechado) ── */}
+      {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
         <div style={{ pointerEvents: 'auto', position: 'absolute', left: 84, bottom: 8, maxWidth: 290, animation: 'uaPop .3s ease' }}>
           <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '14px 14px 14px 4px', padding: '11px 14px', boxShadow: T.shL || '0 8px 26px rgba(0,0,0,0.18)' }}>
             <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 4 }}>UNIKO</div>
-            <div style={{ fontSize: 13, lineHeight: 1.5 }}>{bubble.text}</div>
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}><Typer text={bubble.text} /></div>
             {bubble.dismissable && (
-              <button onClick={() => { setBubble(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
+              <button onClick={() => { setBubble(null); setSprite(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
                 style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                 Ok
               </button>
@@ -210,7 +286,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         <div style={{ pointerEvents: 'auto', position: 'absolute', left: 0, bottom: 88, width: 'min(340px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 130px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
-            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} /></div>
+            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
               <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>Assistente do sistema</div>
@@ -221,7 +297,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {messages.map((m, i) => (
               <div key={i} style={{ alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start', maxWidth: '84%', background: m.from === 'me' ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: m.from === 'me' ? '#3a2a05' : (T.text || '#222'), borderRadius: m.from === 'me' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
-                {m.text}
+                {m.from === 'uniko' && i === messages.length - 1 ? <Typer text={m.text} onTick={scrollDown} /> : m.text}
               </div>
             ))}
           </div>
