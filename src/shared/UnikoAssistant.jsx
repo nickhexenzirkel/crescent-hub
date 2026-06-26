@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase } from '../contexts/user';
+import { loadMissionProgress } from './prismaMissions';
 
 // Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
 const IMG = {
@@ -177,9 +178,9 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   // "Falar": troca o sprite e mostra o balão (com digitação). O robô fica EXPANDIDO
   // enquanto o balão estiver visível (o scale é derivado de `bubble` no render).
   // dismissable = balão de aviso/lembrete (fica até o "Ok"); senão some sozinho.
-  const say = useCallback((text, { sprite: sp = null, dismissable = false } = {}) => {
+  const say = useCallback((text, { sprite: sp = null, dismissable = false, onOk = null } = {}) => {
     setSprite(sp);
-    setBubble({ text, dismissable });
+    setBubble({ text, dismissable, onOk });
     clearTimeout(bubbleTimer.current);
     if (!dismissable) {
       const ms = Math.min(13000, 4500 + text.length * 55);
@@ -195,7 +196,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     const txt = notif.title && notif.title !== 'Lembrete'
       ? `${notif.title}: ${notif.message}`
       : `Ei, lembra de: ${notif.message}`;
-    say(txt, { sprite: notifSprite(notif), dismissable: true });
+    say(txt, { sprite: notifSprite(notif), dismissable: true, onOk: () => onDismissNotif && onDismissNotif(notif.id) });
     if (openRef.current) setOpen(false);
   }, [notif, say]);
 
@@ -209,6 +210,89 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
       say(tip.text, { sprite: tip.sprite });
     }, 30000);
     return () => clearInterval(id);
+  }, [authUser, say]);
+
+  // ── PROATIVO 1: prismas recebidos de outra pessoa (transferência/envio) ──
+  // mercado_history do usuário com kind 'envio' (player→player) ou 'admin' (admin→você) e
+  // valor POSITIVO (ignora retiradas). 1ª passada só marca o que já existe (não reavisa antigos).
+  useEffect(() => {
+    if (!authUser?.name) return;
+    let alive = true; const seen = new Set(); let first = true;
+    const poll = async () => {
+      let data;
+      try {
+        const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        ({ data } = await _supabase.from('mercado_history')
+          .select('id,kind,comum,premium,created_at')
+          .eq('player', authUser.name).in('kind', ['envio', 'admin'])
+          .gte('created_at', since).order('created_at', { ascending: true }));
+      } catch { return; }
+      if (!alive) return;
+      for (const r of (data || [])) {
+        if (seen.has(r.id)) continue;
+        seen.add(r.id);
+        if (first) continue;
+        const premium = r.premium || 0, comum = r.comum || 0;
+        if (premium <= 0 && comum <= 0) continue;
+        const isPrem = premium > 0, amt = isPrem ? premium : comum;
+        say(`Você recebeu ${amt} ${isPrem ? 'Prisma Premium' : 'Prisma Comum'}! 🎉`,
+          { sprite: isPrem ? IMG.PRISMAP : IMG.PRISMAC, dismissable: true });
+      }
+      first = false;
+    };
+    poll();
+    const id = setInterval(poll, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [authUser, say]);
+
+  // ── PROATIVO 2: novos eventos na agenda (calendar_events) — dedup por id ──
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true; const seen = new Set(); let first = true;
+    const poll = async () => {
+      let data;
+      try { ({ data } = await _supabase.from('calendar_events').select('id,title,event_date')); }
+      catch { return; }
+      if (!alive) return;
+      const rows = data || [];
+      if (first) { rows.forEach(r => seen.add(r.id)); first = false; return; }
+      for (const r of rows) {
+        if (seen.has(r.id)) continue;
+        seen.add(r.id);
+        const when = r.event_date ? ` (${String(r.event_date).split('-').reverse().join('/')})` : '';
+        say(`Novo evento na agenda: ${r.title}${when}! 📅`, { sprite: IMG.ATENCAO });
+      }
+    };
+    poll();
+    const id = setInterval(poll, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [authUser, say]);
+
+  // ── PROATIVO 3: relembra o progresso da Maratona Uniko Wave (só quando há progresso) ──
+  useEffect(() => {
+    if (!authUser?.name) return;
+    let alive = true; let last = '';
+    const check = async () => {
+      if (openRef.current || bubbleRef.current) return; // não interrompe chat/balão ativo
+      let baseline = {};
+      try {
+        const { data: row } = await _supabase.from('mercado_state').select('data').eq('player', authUser.name).maybeSingle();
+        baseline = row?.data?.missionBaseline || {};
+      } catch {}
+      if (!alive) return;
+      let prog;
+      try { prog = await loadMissionProgress({ userName: authUser.name, cpf: authUser?.cpf, baseline }); }
+      catch { return; }
+      if (!alive) return;
+      const m20 = prog.c_uniko20 || 0, m40 = prog.c_uniko40 || 0;
+      let msg = '';
+      if (m20 > 0 && m20 < 20) msg = `Você já jogou ${m20}/20 min no Uniko Wave hoje — falta pouco pra Maratona (100 Prismas Comuns)! 🎮`;
+      else if (m20 >= 20 && m40 > 0 && m40 < 40) msg = `Mandou bem! ${m40}/40 min hoje — jogue mais um pouco pra fechar a Maratona de 40 min (10 Prismas Premium)! 🎮`;
+      if (msg && msg !== last) { last = msg; say(msg, { sprite: IMG.WAVE }); }
+    };
+    const t = setTimeout(check, 45000);
+    const id = setInterval(check, 300000); // a cada 5 min
+    return () => { alive = false; clearTimeout(t); clearInterval(id); };
   }, [authUser, say]);
 
   useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
@@ -290,7 +374,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
             <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
-              <button onClick={() => { setBubble(null); setSprite(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
+              <button onClick={() => { const ok = bubble.onOk; setBubble(null); setSprite(null); ok && ok(); }}
                 style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                 Ok
               </button>
