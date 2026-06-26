@@ -7870,9 +7870,16 @@ function wgRelease(kind){
 
 // Efeito de impacto no pé da Mizuki
 function wgHitFx(ex,laneY,perf,c){
+  if(wgChar==='venebra'){
+    // MAGIA DE SANGUE: o acerto inteiro vira vermelho sangue (bem visível)
+    spawnBurst(ex,laneY,perf?'#ff2a3a':'#c81428',perf?26:16);
+    wgBloodBurst(ex,laneY,perf?16:10);
+    rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#e01030':'#a30012',w:5});
+    rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffd0d6',w:3,flash:true});
+    wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ff5a6e':'#ff8a96');
+    return;
+  }
   spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
-  if(wgChar==='venebra') wgBloodBurst(ex,laneY,perf?9:6);   // magia de sangue ao bater no minion
-
   rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:5});
   rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
   wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ffd34d':'#00ff9a'); // grande, sobre a Mizuki
@@ -8423,8 +8430,10 @@ function drawWargame(t){
         if(a.t>=1){
           sp.arrows.splice(i,1);
           if(!sp.defeated){
-            sp.hits++; wgSfx('minion'); WG.bossShake=12;
-            wgHitFx(sp.x, sp.y, true, C_AIR); spawnBurst(sp.x, sp.y, '#28e0ff', 12);
+            sp.hits++; score.combo++; if(score.combo>score.maxCombo) score.maxCombo=score.combo; updateHUD(); // conta como combo
+            wgSfx('minion'); WG.bossShake=12;
+            wgHitFx(sp.x, sp.y, true, C_AIR);
+            if(wgChar==='venebra') wgBloodBurst(sp.x, sp.y, 12); else spawnBurst(sp.x, sp.y, '#28e0ff', 12);
             if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; sp.arrows.length=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki','Tomaaa!! 💥',1.8); }
           }
         }
@@ -8632,7 +8641,7 @@ function drawWargame(t){
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
-    const tremble=holding?Math.sin(animT*32)*5:0;  // segurando nota → treme pra cima/baixo
+    const tremble=(holding || (WG.phase==='special' && wgChar==='venebra'))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
     drawX=WG.charX; feet=WG.feetY-bob+tremble;
   }
   const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chH*mzRatio;
@@ -9140,7 +9149,7 @@ function spawnBurst(x,y,color,n){
   }
 }
 // Magia de sangue (Lady Venebra): partículas vermelhas PEQUENAS que escorrem um pouco.
-const WG_BLOOD_COLS=['#c81428','#7a0010','#ff5a6e','#5a0a16'];
+const WG_BLOOD_COLS=['#d11a24','#a30012','#7a0010','#c01020','#8b0000'];
 function wgBloodBurst(x,y,n){
   for(let i=0;i<n;i++){
     const a=Math.random()*Math.PI*2,sp=0.8+Math.random()*3;
