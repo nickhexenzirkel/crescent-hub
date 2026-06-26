@@ -2855,6 +2855,50 @@ function _syncClockToVideo(p){
   }
 }
 
+// ── Auto-pausa em BUFFERING do vídeo ──────────────────────────────────────
+// Se o stream do YouTube engasga (rede/throttle), o player sai de PLAYING.
+// Sem tratar isso o relógio das notas congela e dá "snap" ao voltar → as notas
+// saltam pra dentro/fora e a música pulsa. Em vez disso pausamos a SIMULAÇÃO de
+// forma limpa e retomamos sozinhos quando o vídeo volta a tocar (re-snap suave).
+// É distinto da pausa MANUAL (pauseGame): não mostra o menu, só um "carregando…".
+let _bufferPaused=false, _bufferPrevState='playing', _bufferOverlayTimer=null;
+function _bufferOverlayEl(){
+  let el=document.getElementById('bufferOverlay');
+  if(!el){
+    el=document.createElement('div'); el.id='bufferOverlay';
+    el.style.cssText='position:absolute;inset:0;display:none;align-items:center;justify-content:center;'
+      +'background:rgba(0,0,0,.42);color:#fff;font-family:var(--font-body,sans-serif);font-size:18px;'
+      +'z-index:40;pointer-events:none;letter-spacing:.5px;text-shadow:0 2px 6px #000';
+    el.textContent='⏳ carregando vídeo…';
+    (document.getElementById('gameWrap')||document.body).appendChild(el);
+  }
+  return el;
+}
+function _bufferPause(){
+  if(_bufferPaused) return;
+  if(gameState!=='playing'&&gameState!=='countdown') return; // ignora se não está em partida
+  _bufferPaused=true; _bufferPrevState=gameState; gameState='paused';
+  try{ wgHoldSfxStop(); }catch(_){}
+  if(audioCtx) audioCtx.suspend();
+  pauseStartWallMs=performance.now();
+  // Mostra o "carregando…" só se o engasgo persistir (>220ms) p/ não piscar em micro-buffers.
+  clearTimeout(_bufferOverlayTimer);
+  _bufferOverlayTimer=setTimeout(()=>{ if(_bufferPaused) _bufferOverlayEl().style.display='flex'; },220);
+}
+function _bufferResume(){
+  clearTimeout(_bufferOverlayTimer);
+  if(!_bufferPaused) return;
+  _bufferPaused=false;
+  _bufferOverlayEl().style.display='none';
+  // Se o usuário pausou MANUALMENTE por cima, não retoma sozinho.
+  if(gameState!=='paused') return;
+  gameState=_bufferPrevState||'playing';
+  if(audioCtx) audioCtx.resume();
+  gameStartWallTime+=performance.now()-pauseStartWallMs; // âncora provisória
+  _vbSynced=false;                                       // re-snap no relógio real ao retomar
+  requestAnimationFrame(gameLoop);
+}
+
 // Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
 function startVideoBg(videoId, muted){
   if(bgMode!=='video'||!videoId) return;
@@ -2879,7 +2923,8 @@ function startVideoBg(videoId, muted){
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
-          if(e.data===YT.PlayerState.PLAYING) _syncClockToVideo(e.target);
+          if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
+          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); }
         },
       },
     });
@@ -4798,6 +4843,8 @@ function beginGame(){
 
   showScreen('gameWrap'); document.getElementById('hud').classList.remove('off'); resize();
   gameState='countdown';
+  _bufferPaused=false; clearTimeout(_bufferOverlayTimer);          // reseta a auto-pausa de buffering
+  { const bo=document.getElementById('bufferOverlay'); if(bo) bo.style.display='none'; }
   if(gameMode==='wargame') wgInit(); else WG.active=false;
   _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
   applyVideoBg(lastVideoUrl);
@@ -7940,7 +7987,12 @@ function wgDrawFire(top){
   const stageBoost=Math.min(7,stIdx)*0.05;   // sobe um pouco de altura a cada 15s (com teto)
   // Fogo em PIXELS estilo "Doom fire": grade de calor que se propaga de baixo pra cima com
   // deriva lateral e decaimento aleatório → chamas tremulando de verdade (nada de "LEDs").
-  const cell=5;
+  // Resolução do fogo pela QUALIDADE GRÁFICA (GFX): célula maior = grade menor = MUITO
+  // mais leve (custo ~1/cell², menos fillRects e menos Math.random por frame). ultra/baixo
+  // usam células grandes; normal mantém o visual fino. _emberCap limita as faíscas.
+  const _pmul=(typeof GFX!=='undefined'&&GFX.particleMul!=null)?GFX.particleMul:1;
+  const cell=_pmul>=1?5:_pmul>=0.5?6:_pmul>0?8:10;
+  const _emberCap=Math.round(180*_pmul); // ultra (_pmul=0) → sem faíscas
   const cols=Math.ceil(CW/cell)+1, fireH=CH-top, rows=Math.max(10,Math.ceil(fireH/cell)+1);
   if(!WG.fireGrid || WG.fireCols!==cols || WG.fireRows!==rows){
     WG.fireGrid=new Uint8Array(cols*rows); WG.fireCols=cols; WG.fireRows=rows;
@@ -7989,12 +8041,18 @@ function wgDrawFire(top){
   }
   // 3) Render — fundo ESCURO em gradiente colorido que muda de cor (no estágio + desliza no tempo).
   //    É ele que aparece nos vãos entre as labaredas (a "parte preta").
+  // Gradiente CACHEADO: recriar todo frame aloca à toa. Só refaz quando o matiz/geometria
+  // muda o suficiente (passo de 4°) — imperceptível e bem mais leve.
   const bgHue=(hue+animT*6)%360;
-  const bg=ctx.createLinearGradient(0,top,0,CH);
-  bg.addColorStop(0,   wgHsl(bgHue,58,10));
-  bg.addColorStop(0.55,wgHsl((bgHue+18)%360,46,5));
-  bg.addColorStop(1,'#050108');
-  ctx.fillStyle=bg; ctx.fillRect(0,top,CW,CH-top);          // cobre o vídeo
+  const bgKey=(Math.round(bgHue/4))+'|'+(top|0)+'|'+(CH|0);
+  if(WG._fireBgKey!==bgKey){
+    const bg=ctx.createLinearGradient(0,top,0,CH);
+    bg.addColorStop(0,   wgHsl(bgHue,58,10));
+    bg.addColorStop(0.55,wgHsl((bgHue+18)%360,46,5));
+    bg.addColorStop(1,'#050108');
+    WG._fireBg=bg; WG._fireBgKey=bgKey;
+  }
+  ctx.fillStyle=WG._fireBg; ctx.fillRect(0,top,CW,CH-top);  // cobre o vídeo
   for(let y=0;y<rows;y++){
     const sy=top+y*cell;
     for(let x=0;x<cols;x++){
@@ -8003,7 +8061,8 @@ function wgDrawFire(top){
       ctx.fillStyle=col; ctx.fillRect(x*cell,sy,cell+1,cell+1);
       // solta MUITAS faíscas: das PONTAS (célula quente com vazio acima) + algumas do corpo quente
       const isTip = y>0 && g[(y-1)*cols+x]<=0;
-      if(idx>P*0.40 && ((isTip && Math.random()<0.12+0.10*lvl) || Math.random()<0.014*lvl)){
+      if(_pmul>0 && WG.embers.length<_emberCap && idx>P*0.40
+         && ((isTip && Math.random()<(0.12+0.10*lvl)*_pmul) || Math.random()<0.014*lvl*_pmul)){
         const tiny=Math.random()<0.7;
         WG.embers.push({ x:x*cell+cell/2+(Math.random()-0.5)*cell, y:sy,
           vx:(Math.random()-0.5)*(tiny?42:26), vy:-(20+Math.random()*60)*(0.7+lvl*0.5),
