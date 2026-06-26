@@ -7213,7 +7213,7 @@ function calcGWReward(grade, stars){
 function renderCharGrid(){
   const grid = document.getElementById('charGrid');
   if(!grid) return;
-  grid.innerHTML = Object.entries(CHARACTERS).filter(([,ch])=>!ch.wargameOnly).map(([id, ch])=>{
+  grid.innerHTML = Object.entries(CHARACTERS).map(([id, ch])=>{
     const unlocked = isUnlocked(id);
     const sel = id === selectedChar;
     const canAfford = getGW() >= ch.gwPrice;
