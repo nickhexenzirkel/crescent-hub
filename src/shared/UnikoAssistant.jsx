@@ -31,35 +31,79 @@ const MOUTH = {
    BASE DE CONHECIMENTO (FAQ curada). answerQuery() pontua por gatilhos batidos.
    É o ÚNICO ponto que troca por IA real depois (vira um fetch ao servidor).
    ────────────────────────────────────────────────────────────────────────── */
+// Keywords sem acento (o faqMatch tira acento da pergunta). Frases (com espaço) pesam 2; palavra 1.
 const KB = [
-  { k: ['prisma', 'loja', 'recompensa', 'premio', 'prêmio', 'resgatar', 'comprar'],
-    a: 'Na Prisma Store você troca seus prismas (Comum e Premium) por prêmios reais. Ganha prismas no check-in diário e completando missões. Só admins abrem o módulo.' },
-  { k: ['missão', 'missao', 'missões', 'missoes', 'desafio', 'desafios'],
-    a: 'As missões dão prismas: Maratona Uniko Wave (jogar X min/dia), Voz ativa (dar feedback), Presença Impecável, Top do mês de música, e as de 1ª/2ª compra. O progresso é em tempo real; quando completa, é só resgatar.' },
-  { k: ['check-in', 'checkin', 'check in', 'sequência', 'sequencia', 'streak'],
-    a: 'O check-in é um ciclo de 7 dias com prismas crescentes. Se faltar um dia a sequência volta ao dia 1. Tem teto mensal de prismas.' },
-  { k: ['uniko wave', 'jogo', 'ritmo', 'jogar', 'guerra estelar'],
-    a: 'O Uniko Wave é o jogo de ritmo. Acerte as notas no tempo da música! Tem o modo clássico e o Guerra Estelar (estilo Muse Dash). Jogar acumula tempo pras missões Maratona.' },
-  { k: ['gacha', 'audição', 'audicao', 'desejo', 'personagem', 'mascote'],
-    a: 'No Uniko Wave, a aba Audição é o gacha: cada desejo custa 100 GW e libera personagens/mascotes. Tem garantia (pity) por volta do 32º desejo.' },
-  { k: ['ponto', 'horas', 'banco de horas', 'marcação', 'marcacao', 'justificativa'],
-    a: 'O Ponto Eletrônico controla suas marcações, banco de horas e justificativas. As marcações brutas são recalculadas automaticamente.' },
-  { k: ['alexa', 'música', 'musica', 'tocar', 'spotify', 'echo'],
-    a: 'A Central Alexa toca música no Echo via Spotify e mostra um clipe do YouTube. Quem mais coloca música no mês entra no Top do ranking (vale missão!).' },
-  { k: ['feedback', 'voz ativa', 'opinião', 'opiniao', 'sugestão', 'sugestao'],
-    a: 'Dê um feedback no sistema pra completar a missão Voz ativa e ganhar prismas. É só registrar sua opinião/sugestão no mês.' },
-  { k: ['lembrete', 'lembrar', 'lembre', 'agendar', 'alarme', 'apagar lembrete', 'apagar lembretes', 'deletar lembrete', 'remover lembrete', 'meus lembretes'],
-    a: 'Posso criar lembretes pra você — diga "me lembre de bater o ponto às 14:30". Para ver, editar ou apagar seus lembretes (inclusive todos), use o módulo Meus Lembretes no Portal do Colaborador. Por aqui eu só crio lembretes novos.' },
-  { k: ['evento', 'eventos', 'agenda', 'calendário', 'calendario'],
-    a: 'Os eventos da empresa aparecem no Portal, na aba Eventos. Eu te aviso quando um novo for adicionado.' },
-  { k: ['rh', 'aviso', 'comunicado', 'urgente'],
-    a: 'Os avisos do RH chegam por mim em tempo real — os urgentes aparecem em tela cheia e os normais eu falo aqui no balão.' },
-  { k: ['tema', 'cor', 'aparência', 'aparencia', 'escuro', 'claro'],
+  // ── UNIKO WAVE ──
+  { k: ['como conseguir personag', 'conseguir personag', 'consigo personag', 'como pego personag', 'desbloquear personag', 'ganhar personag', 'novo personag', 'personag', 'mascote', 'gacha', 'audicao', 'desejo', 'banner', 'pity'],
+    a: 'Personagens e mascotes vêm da AUDIÇÃO (o gacha) do Uniko Wave: cada desejo custa 100 GW e libera personagens. A chance sobe a cada desejo sem ganhar (pity), chegando perto de 99% lá pelo 32º. Você junta GW jogando músicas.' },
+  { k: ['o que e gw', 'ganhar gw', 'conseguir gw', 'como ganho gw', 'moeda do uniko'],
+    a: 'GW é a moeda da Audição (gacha) do Uniko Wave — 100 GW por desejo. Você acumula GW jogando e mandando bem nas músicas.' },
+  { k: ['como jog', 'jogar uniko', 'como funciona o uniko', 'o que e uniko wave', 'notas no ritmo', 'combo'],
+    a: 'No Uniko Wave você acerta as notas no tempo da música pra fazer pontos e combo (PERFECT vale mais que GOOD). Escolha a música na Biblioteca e a dificuldade, e mande ver no ritmo!' },
+  { k: ['guerra estelar', 'muse dash', 'modo de luta', 'darkcatbot', 'dark catbot', 'derrotar o boss', 'modo boss', 'finisher'],
+    a: 'Guerra Estelar é o modo estilo Muse Dash: sua personagem corre e você aperta W (linha do ar) e S (chão) no ritmo pra acertar os minions e derrotar o Dark CatBot. No fim vem o finisher pra dar o golpe final.' },
+  { k: ['mizuki', 'lady venebra', 'venebra', 'personagem da guerra', 'escolher personagem da guerra'],
+    a: 'Na Guerra Estelar você joga como Mizuki ou Lady Venebra — escolha antes da partida, na seção Personagem da tela de preview. A Lady Venebra é a vampira da realeza, com o finisher EXPLOSÃO DE MAGIA SANGUÍNEA.' },
+  { k: ['dificuldade', 'facil', 'dificil', 'nightmare', 'nivel de dificuldade'],
+    a: 'Antes de jogar você escolhe a dificuldade, do Fácil ao Nightmare — quanto mais difícil, mais notas e mais pontos.' },
+  { k: ['ranking do uniko', 'placar do uniko', 'melhor pontuacao', 'recorde', 'top do uniko wave'],
+    a: 'O Uniko Wave tem ranking (geral e por dificuldade): sua melhor pontuação de cada música/dificuldade entra no placar com seu nick e personagem.' },
+  { k: ['biblioteca', 'escolher musica', 'qual musica jogar', 'adicionar musica no jogo'],
+    a: 'As músicas do Uniko Wave ficam na BIBLIOTECA. Tem seções fixas pra todos ("Jogue pela primeira vez!" e "Descubra novas músicas") além das que você adiciona.' },
+  { k: ['travando', 'travado', 'lento', ' lag', 'lagando', 'qualidade grafica', 'fps', 'engasgando'],
+    a: 'Se o jogo travar, abra as Configurações do Uniko Wave e baixe a Qualidade Gráfica (Ultra Leve ou Baixo) — reduz efeitos e melhora o FPS em máquinas mais fracas.' },
+  // ── PRISMA STORE ──
+  { k: ['ganhar prisma', 'conseguir prisma', 'como ganho prisma', 'como conseguir prisma', 'mais prisma', 'juntar prisma'],
+    a: 'Você ganha prismas no CHECK-IN diário e completando MISSÕES (Maratona Uniko Wave, Voz ativa, Presença Impecável, Top do mês de música, 1ª/2ª compra). Comum é mais fácil; Premium é o raro.' },
+  { k: ['prisma comum', 'prisma premium', 'diferenca de prisma', 'tipos de prisma', 'duas moedas'],
+    a: 'São duas moedas: Prisma Comum (mais fácil de juntar) e Prisma Premium (raro e mais valioso, pros prêmios Épico/Lendário).' },
+  { k: ['check-in', 'checkin', 'check in', 'sequencia', 'streak', 'dia do check'],
+    a: 'O check-in é um ciclo de 7 dias com prismas crescentes que alternam as moedas (dia 1: 50 Premium; 2: 80 Comum; 3: 100 Premium; 4: 50 Comum; 5: 90 Premium; 6: 120 Comum; 7: 150 Premium). Faltou um dia, volta pro dia 1. Tem teto mensal (300 Premium / 200 Comum).' },
+  { k: ['missao', 'missoes', 'desafio', 'maratona', 'voz ativa', 'presenca impecavel', 'completar missao'],
+    a: 'Missões dão prismas: Maratona Uniko Wave (20 min/dia = 100 Comum; 40 min/dia = 10 Premium), Voz ativa (1 feedback no mês = 30 Premium), Presença Impecável (presença 100% sem ocorrências = 100 Premium), Top 1/2/3 de quem mais coloca música (100/70/50 Premium) e 1ª/2ª compra (200/400 Comum).' },
+  { k: ['resgatar premio', 'comprar premio', 'loja', 'trocar prisma', 'premios', 'pix', 'recompensa'],
+    a: 'Na Loja da Prisma Store você troca prismas por prêmios reais (PIX, eletrônicos, vouchers...). Comum/Raro custam Prisma Comum; Épico/Lendário custam Prisma Premium. Alguns prêmios têm data de expiração.' },
+  { k: ['transferir prisma', 'enviar prisma', 'dar prisma', 'mandar prisma'],
+    a: 'Dá pra transferir Prisma Comum pra um colega na Prisma Store. O admin também pode adicionar, retirar ou zerar prismas.' },
+  // ── PORTAL / RH ──
+  { k: ['ponto eletronico', 'banco de horas', 'minhas horas', 'saldo de horas', 'marcacao', 'bater ponto'],
+    a: 'O Ponto Eletrônico controla suas marcações, banco de horas e justificativas. No Portal do Colaborador você vê seu Banco de Horas (logo abaixo de Seus Dados).' },
+  { k: ['justificativa', 'justificar falta', 'abonar', 'atestado'],
+    a: 'Justificativas de ponto (faltas/atrasos) são tratadas no Ponto Eletrônico — fale com o RH pra registrar.' },
+  { k: ['contracheque', 'holerite', 'financeiro', 'salario', 'pagamento', 'demonstrativo'],
+    a: 'Seus contracheques ficam na aba Financeiro do Portal do Colaborador.' },
+  { k: ['feedback', 'sugestao', 'reclamacao', 'opiniao', 'dar feedback'],
+    a: 'Dê um feedback na aba Feedback do Portal pra registrar opinião/sugestão — isso completa a missão Voz ativa e dá prismas.' },
+  { k: ['evento', 'eventos', 'agenda', 'calendario'],
+    a: 'Os eventos da empresa ficam na aba Eventos do Portal. Eu te aviso quando um evento novo é adicionado.' },
+  { k: ['comunicado', 'aviso da empresa', 'noticia', 'aviso do rh'],
+    a: 'Comunicados do RH aparecem na aba Comunicados do Portal — e os avisos urgentes aparecem em tela cheia. Eu também aviso aqui em tempo real.' },
+  { k: ['conquista', 'conquistas', 'trofeu', 'badge', 'medalha'],
+    a: 'Suas conquistas ficam na aba Conquistas do Portal do Colaborador.' },
+  { k: ['colega', 'colegas', 'quem trabalha', 'lista de funcionarios'],
+    a: 'A aba Colegas do Portal mostra a lista de colegas da empresa.' },
+  // ── CENTRAL ALEXA ──
+  { k: ['tocar musica', 'colocar musica', 'central alexa', 'alexa', 'spotify', 'echo', 'pedir musica', 'botar musica'],
+    a: 'Na Central Alexa você coloca música pra tocar no Echo via Spotify, com clipe do YouTube. Tem fila e votação pra pular. Quem mais coloca música no mês entra no Top (vale missão de prismas).' },
+  { k: ['maquina do tempo', 'dj do mes', 'quem colocou musica', 'top do mes de musica'],
+    a: 'A Máquina do Tempo (Central Alexa) mostra as estatísticas e o ranking dos DJs — quem mais colocou música no mês.' },
+  { k: ['festival'],
+    a: 'O Festival é um modo da Central Alexa que toca a música no Echo com uma mini janela de videoclipe.' },
+  // ── DIVERSOS ──
+  { k: ['my uniko', 'dodoco', 'mascote dodoco', 'bichinho', 'cuidar do mascote'],
+    a: 'No My Uniko você cuida do mascote Dodoco — fome, energia e sono. Mantenha ele feliz!' },
+  { k: ['games', 'jogos arcade', 'ranking geral', 'jogos do portal'],
+    a: 'Na aba Games do Portal tem jogos arcade com um Ranking Geral que soma seus pontos.' },
+  { k: ['lembrete', 'lembrar', 'lembre', 'agendar', 'alarme', 'apagar lembrete', 'deletar lembrete', 'remover lembrete', 'meus lembretes'],
+    a: 'Posso criar lembretes pra você — diga "me lembre de bater o ponto às 14:30". Para ver, editar ou apagar seus lembretes (inclusive todos), use o módulo Meus Lembretes no Portal. Por aqui eu só crio lembretes novos.' },
+  { k: ['foto de perfil', 'mudar foto', 'trocar foto', 'imagem de perfil', 'alterar foto'],
+    a: 'Pra trocar sua foto de perfil: no Portal do Colaborador, aba Início, clique na sua foto/avatar pra abrir o editor — escolha a imagem em "Trocar imagem", ajuste o recorte e salve. Também dá pra usar um skin do Dodoco como foto no My Uniko.' },
+  { k: ['tema', 'cor do site', 'aparencia', 'modo escuro', 'modo claro', 'tema escuro', 'tema claro'],
     a: 'Dá pra trocar o tema/visual pelo botão flutuante de tema. Tem modos claro e escuro.' },
-  { k: ['foto de perfil', 'foto', 'avatar', 'mudar foto', 'trocar foto', 'imagem de perfil', 'perfil'],
-    a: 'Pra trocar sua foto de perfil: no Portal do Colaborador, aba Início, clique na sua foto/avatar pra abrir o editor — escolha a imagem em "Trocar imagem", ajuste o recorte e salve. Também dá pra usar um skin do Dodoco como foto na aba My Uniko ("Usar como foto").' },
-  { k: ['ajuda', 'o que você faz', 'o que voce faz', 'oi', 'olá', 'ola', 'ei', 'help', 'funções', 'funcoes'],
-    a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas, avisos do RH, eventos e do progresso das suas missões.' },
+  { k: ['o que e o sistema', 'o que e o uniko hub', 'o que da pra fazer', 'para que serve', 'quais modulos', 'modulos'],
+    a: 'O Uniko HUB é o portal interno da empresa: Portal do Colaborador (RH, jogos, eventos), Prisma Store (recompensas), Uniko Wave (jogo de ritmo), Central Alexa (música), Ponto Eletrônico, Oficina Estelar e Conexão Setorial.' },
+  { k: ['ajuda', 'o que voce faz', 'oi', 'ola', 'help', 'funcoes', 'o que voce pode fazer'],
+    a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas recebidos, avisos do RH, eventos e do progresso das missões.' },
 ];
 
 // Dicas rotativas (a cada 10s) — cada uma com o SPRITE do tema.
@@ -110,12 +154,14 @@ const qkeyOf = (s) => String(s || '').toLowerCase()
   .normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
-// FAQ por palavra-chave: devolve a resposta se ALGUM gatilho bateu; senão null (→ cai na IA).
+// FAQ por palavra-chave: ignora ACENTO (q e keywords normalizados) e dá mais peso a FRASES
+// (gatilho com espaço pesa 2, palavra solta pesa 1) → a entrada mais específica vence.
 function faqMatch(raw) {
-  const q = (raw || '').toLowerCase();
+  const q = qkeyOf(raw);
   let best = null, bestScore = 0;
   for (const item of KB) {
-    const score = item.k.reduce((s, kw) => s + (q.includes(kw) ? 1 : 0), 0);
+    let score = 0;
+    for (const kw of item.k) { const k = qkeyOf(kw); if (k && q.includes(k)) score += k.includes(' ') ? 2 : 1; }
     if (score > bestScore) { bestScore = score; best = item; }
   }
   return bestScore > 0 ? best.a : null;
