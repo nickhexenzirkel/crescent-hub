@@ -7871,6 +7871,8 @@ function wgRelease(kind){
 // Efeito de impacto no pé da Mizuki
 function wgHitFx(ex,laneY,perf,c){
   spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
+  if(wgChar==='venebra') wgBloodBurst(ex,laneY,perf?9:6);   // magia de sangue ao bater no minion
+
   rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:5});
   rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
   wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ffd34d':'#00ff9a'); // grande, sobre a Mizuki
@@ -8617,11 +8619,15 @@ function drawWargame(t){
     spr=wgRunSpr(); drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
   } else {
     // partida normal
-    if(holding){                 // segurando nota → Chute Lendário com explosão em movimento (3 frames)
+    if(WG.phase==='special' && wgChar==='venebra'){
+      spr=WG_SPR.hold2;          // DarkCatBot gigante → Lady Venebra na pose de segurar (cajado = venebra_segurar)
+    }
+    else if(holding){            // segurando nota → Chute Lendário com explosão em movimento (3 frames)
       const h=WG.holds.air||WG.holds.ground;
       let frac=0; if(h&&h.note&&h.note.holdDur>0) frac=Math.max(0,Math.min(1,(st-h.note.hitTime)/h.note.holdDur));
       const pick = frac<0.85 ? WG_SPR.hold2 : WG_SPR.hold3;
       spr=(pick.complete&&pick.naturalWidth)?pick:((WG_SPR.hold2.complete&&WG_SPR.hold2.naturalWidth)?WG_SPR.hold2:WG_SPR.atk);
+      if(wgChar==='venebra' && Math.random()<0.4) wgBloodBurst(WG.hitX, holdingAir?WG.airNoteY:WG.groundNoteY, 2); // magia de sangue ao segurar
     }
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
@@ -9131,6 +9137,14 @@ function spawnBurst(x,y,color,n){
   for(let i=0;i<n;i++){
     const a=Math.random()*Math.PI*2,sp=1.5+Math.random()*6;
     particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:1,decay:.025+Math.random()*.02,size:1.5+Math.random()*3,color});
+  }
+}
+// Magia de sangue (Lady Venebra): partículas vermelhas PEQUENAS que escorrem um pouco.
+const WG_BLOOD_COLS=['#c81428','#7a0010','#ff5a6e','#5a0a16'];
+function wgBloodBurst(x,y,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,sp=0.8+Math.random()*3;
+    particles.push({x:x+(Math.random()-0.5)*10,y:y+(Math.random()-0.5)*10,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.4,life:1,decay:.03+Math.random()*.025,size:1.1+Math.random()*2.2,color:WG_BLOOD_COLS[(Math.random()*WG_BLOOD_COLS.length)|0]});
   }
 }
 function addJudge(x,y,text,color){ judgments.push({x,y,vy:-1.6,text,color,life:1,decay:.022,sc:1.5}); }
