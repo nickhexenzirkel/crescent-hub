@@ -56,6 +56,8 @@ const KB = [
     a: 'Os avisos do RH chegam por mim em tempo real — os urgentes aparecem em tela cheia e os normais eu falo aqui no balão.' },
   { k: ['tema', 'cor', 'aparência', 'aparencia', 'escuro', 'claro'],
     a: 'Dá pra trocar o tema/visual pelo botão flutuante de tema. Tem modos claro e escuro.' },
+  { k: ['foto de perfil', 'foto', 'avatar', 'mudar foto', 'trocar foto', 'imagem de perfil', 'perfil'],
+    a: 'Pra trocar sua foto de perfil: no Portal do Colaborador, aba Início, clique na sua foto/avatar pra abrir o editor — escolha a imagem em "Trocar imagem", ajuste o recorte e salve. Também dá pra usar um skin do Dodoco como foto na aba My Uniko ("Usar como foto").' },
   { k: ['ajuda', 'o que você faz', 'o que voce faz', 'oi', 'olá', 'ola', 'ei', 'help', 'funções', 'funcoes'],
     a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas, avisos do RH, eventos e do progresso das suas missões.' },
 ];
