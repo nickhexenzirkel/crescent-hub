@@ -349,6 +349,7 @@ canvas{display:block}
 .char-tag.new{background:rgba(255,45,146,.15);color:#ff2d92;border:1px solid rgba(255,45,146,.3)}
 .char-tag.comum{background:rgba(160,160,160,.15);color:#ccc;border:1px solid rgba(200,200,200,.3)}
 .char-tag.epico{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.4)}
+.char-tag.lendario{background:linear-gradient(135deg,rgba(200,20,40,.22),rgba(120,0,20,.22));color:#ff5a6e;border:1px solid rgba(220,40,60,.55)}
 /* ─── LOCK OVERLAY ─── */
 .char-card.locked{opacity:1;cursor:default}
 .char-card.locked:hover{transform:none;box-shadow:none}
@@ -3633,7 +3634,7 @@ const CHAR_ICONS = {
 };
 
 function getAvatarOptions(){
-  return Object.entries(CHARACTERS).map(([id,ch])=>({
+  return Object.entries(CHARACTERS).filter(([,ch])=>!ch.wargameOnly).map(([id,ch])=>({
     id,
     name: ch.name,
     img: CHAR_ICONS[id] || ch.previewImg
@@ -6966,6 +6967,27 @@ const CHARACTERS = {
   }
 };
 
+// ── Lady Venebra — jogável na Guerra Estelar + aparece na Audição (gacha). NÃO é mascote do
+//    My Uniko (wargameOnly → filtrada da grade de mascotes/avatares). previewImg = splashart. ──
+CHARACTERS.venebra = {
+  name: 'Lady Venebra',
+  desc: 'Realeza vampírica — a vampira mais poderosa. Empunha o cajado de magia de sangue com poder absurdo.',
+  tag: 'LENDÁRIO', tagClass: 'lendario', rarity: 'lendario',
+  gwPrice: 2500, alwaysUnlocked: false, wargameOnly: true,
+  previewImg: 'images/venebra_splashart.png',
+  imgs: { wave:'images/venebra_splashart.png', animado:'images/venebra_splashart.png', dormindo:'images/venebra_splashart.png', raiva:'images/venebra_splashart.png', surpreso:'images/venebra_splashart.png', tranquilo:'images/venebra_splashart.png' },
+  filter: 'drop-shadow(0 0 16px rgba(200,20,40,.6)) drop-shadow(0 0 34px rgba(120,0,20,.4))',
+  dialogues: {
+    wave:['🩸 Curve-se.','🦇 A noite é minha','🍷 Comece.'], animado:['SANGUE!! 🩸','MAGNÍFICO!! 🦇','Ajoelhe-se! 👑'],
+    dormindo:['...zZ 🦇','A nobre repousa','hmm... 🩸'], raiva:['Insolência! 🩸','Patético... 🦇','Não me irrite! 💢'],
+    surpreso:['Oh?! 🩸','Interessante... 🦇','Inesperado! 👑'], tranquilo:['Concentre-se, mortal 🩸','A noite observa 🦇','Prossiga 🍷'],
+    combo50:['50! O sangue ferve 🩸','Continue, mortal 🦇'], combo100:['100! PODER ABSOLUTO 🩸','A realeza aprova 👑'],
+    miss:['Patético... 💔','Falhou, mortal 🦇','Decepcionante 🩸'],
+  }
+};
+// Removidas do roster (não-destrutivo: só somem do gacha/mascote; revertível): Icy, Stella, Natsumi
+delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
+
 // Personagens agora são conquistados via AUDIÇÃO (gacha). false = bloqueio normal
 // (só Dodoco + os obtidos em dw_unlocked). Mudar para true libera todos (debug).
 const TEMP_UNLOCK_ALL = false;
@@ -7150,7 +7172,7 @@ function calcGWReward(grade, stars){
 function renderCharGrid(){
   const grid = document.getElementById('charGrid');
   if(!grid) return;
-  grid.innerHTML = Object.entries(CHARACTERS).map(([id, ch])=>{
+  grid.innerHTML = Object.entries(CHARACTERS).filter(([,ch])=>!ch.wargameOnly).map(([id, ch])=>{
     const unlocked = isUnlocked(id);
     const sel = id === selectedChar;
     const canAfford = getGW() >= ch.gwPrice;
@@ -7223,6 +7245,7 @@ const BANNER_THEME = {
   linnea: 'radial-gradient(ellipse at 50% 22%,#ffc861 0%,#9c5f22 52%,#241608 100%)',
   stella: 'radial-gradient(ellipse at 50% 22%,#9a7bff 0%,#45389c 52%,#0a0a2e 100%)',
   natsumi:'radial-gradient(ellipse at 50% 22%,#ff5aa0 0%,#a83464 52%,#2a0a1c 100%)',
+  venebra:'radial-gradient(ellipse at 50% 22%,#c81428 0%,#5a0a16 52%,#0a0205 100%)',
 };
 
 function wishBanners(){
