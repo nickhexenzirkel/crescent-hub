@@ -2035,6 +2035,14 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       </div>
       <div id="wgSubHint" class="prev-hint"></div>
     </div>
+    <div class="settings-section" id="wgCharSection" style="display:none">
+      <div class="prev-diff-label">Personagem (Guerra Estelar)</div>
+      <div class="prev-mode-grid">
+        <button class="diff-btn normal sel" id="wgCharMizuki" onclick="selectWgChar('mizuki')"><i class="pxi" data-pxicon="star"></i><span>MIZUKI</span></button>
+        <button class="diff-btn insane" id="wgCharVenebra" onclick="selectWgChar('venebra')"><i class="pxi" data-pxicon="swords"></i><span>LADY VENEBRA</span></button>
+      </div>
+      <div id="wgCharHint" class="prev-hint"></div>
+    </div>
     <div class="settings-section">
       <div class="prev-diff-label">Dificuldade</div>
       <div class="prev-diff-grid">
@@ -2490,17 +2498,35 @@ let bgMode = localStorage.getItem('dw_bgmode') || 'effects';
 
 // ─── MODO DE JOGO (clássico = Teclado Estelar / wargame = Guerra Estelar) ───
 let gameMode = localStorage.getItem('dw_gamemode') || 'classic';
-// Sprites da Mizuki para o modo Guerra Estelar (só ela joga por enquanto)
-const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image() };
-WG_SPR.run.src  = 'images/PersonagemLinnea.png'; // Mizuki (base/correndo)
-WG_SPR.jump.src = 'images/MizukiPulo.png';
-WG_SPR.atk.src  = 'images/MizukiAtaque.png';
-WG_SPR.chateada.src = 'images/PersonagemLinnea_Chateada.png'; // boss atacando: flutua chateada
-WG_SPR.alegre.src   = 'images/PersonagemLinnea_Alegre.png';   // intro do começo da partida
-// Chute Lendário (segurando nota): 3 frames → explosão com movimento ao longo da nota
-WG_SPR.hold2 = new Image(); WG_SPR.hold2.src = 'images/MizukiChuteEstelar_Frame2.png'; // segurando nota: começo/meio
-WG_SPR.hold3 = new Image(); WG_SPR.hold3.src = 'images/MizukiChuteEstelar_Frame3.png'; // nota quase acabando
-WG_SPR.arrow = new Image(); WG_SPR.arrow.src = 'images/MizukiChuteLendarioFrame3.png'; // FLECHA ESTELAR (finisher): pose de lançar a flecha
+// Sprites do personagem no Guerra Estelar — Mizuki ou Lady Venebra (escolhido antes da partida).
+let wgChar = localStorage.getItem('dw_wgchar') || 'mizuki';
+const WG_CHAR_FRAMES = {
+  mizuki: {
+    run: ['images/PersonagemLinnea.png'],                          // 1 frame (base/correndo)
+    jump:'images/MizukiPulo.png', atk:'images/MizukiAtaque.png',
+    chateada:'images/PersonagemLinnea_Chateada.png', alegre:'images/PersonagemLinnea_Alegre.png',
+    hold2:'images/MizukiChuteEstelar_Frame2.png', hold3:'images/MizukiChuteEstelar_Frame3.png',
+    arrow:'images/MizukiChuteLendarioFrame3.png',                  // FLECHA ESTELAR (pose do finisher)
+  },
+  venebra: {
+    run: ['images/venebra_passo1.png','images/venebra_passo2.png'], // 2 frames → ciclo de andar (loop)
+    jump:'images/venebra_pulando.png', atk:'images/venebra_pulando.png',
+    chateada:'images/venebra_passo1.png', alegre:'images/venebra_passo1.png',
+    hold2:'images/venebra_segurar.png', hold3:'images/venebra_segurar.png',
+    arrow:'images/venebra_finalizacao.png',                        // EXPLOSÃO DE MAGIA SANGUÍNEA (pose)
+  },
+};
+const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
+function wgApplyChar(key){
+  wgChar = WG_CHAR_FRAMES[key] ? key : 'mizuki';
+  const c = WG_CHAR_FRAMES[wgChar];
+  WG_SPR.runFrames = c.run.map(src=>{ const im=new Image(); im.src=src; return im; }); // ciclo de andar
+  WG_SPR.run = WG_SPR.runFrames[0];
+  for(const k of ['jump','atk','chateada','alegre','hold2','hold3','arrow']) WG_SPR[k].src = c[k];
+}
+wgApplyChar(wgChar);
+// Frame atual do "andar": cicla os frames do personagem (Venebra=2 → anda, Mizuki=1) ~5x/s (WG.runPhase).
+function wgRunSpr(){ const f=WG_SPR.runFrames; return (f && f.length) ? f[Math.floor(WG.runPhase*0.5)%f.length] : WG_SPR.run; }
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -2530,6 +2556,19 @@ function selectWgSubmode(m){
     : 'Rítmico: notas de bater e segurar distribuídas pela música toda.';
 }
 
+// Personagem da Guerra Estelar (Mizuki ou Lady Venebra). Aplica os sprites e salva a escolha.
+function selectWgChar(key){
+  wgApplyChar(key); // normaliza wgChar e troca os sprites
+  localStorage.setItem('dw_wgchar', wgChar);
+  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra');
+  if(m) m.classList.toggle('sel', wgChar==='mizuki');
+  if(v) v.classList.toggle('sel', wgChar==='venebra');
+  const h=document.getElementById('wgCharHint');
+  if(h) h.textContent = wgChar==='venebra'
+    ? '🩸 Lady Venebra — vampira da realeza. Finisher: EXPLOSÃO DE MAGIA SANGUÍNEA.'
+    : '✦ Mizuki — fada da guilda. Finisher: FLECHA ESTELAR.';
+}
+
 function selectMode(m){
   gameMode = m;
   localStorage.setItem('dw_gamemode', m);
@@ -2538,11 +2577,13 @@ function selectMode(m){
   if(w) w.classList.toggle('sel', m==='wargame');
   const hint=document.getElementById('modeHint');
   if(hint) hint.innerHTML = m==='wargame'
-    ? (pxIcon('swords',{size:'1em'})+' Você joga como <b>Mizuki</b> (única liberada). <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o Dark CatBot!')
+    ? (pxIcon('swords',{size:'1em'})+' <b>W</b> sobe pra linha do ar, <b>S</b> bate no chão — no ritmo, pra derrotar o Dark CatBot! Escolha sua personagem abaixo.')
     : (pxIcon('keyboard',{size:'1em'})+' Modo clássico de notas em 4 lanes.');
   const ss=document.getElementById('wgSubmodeSection');
   if(ss) ss.style.display = m==='wargame' ? '' : 'none';
-  if(m==='wargame') selectWgSubmode(wgSubmode);
+  const cs=document.getElementById('wgCharSection');
+  if(cs) cs.style.display = m==='wargame' ? '' : 'none';
+  if(m==='wargame'){ selectWgSubmode(wgSubmode); selectWgChar(wgChar); }
 }
 
 function openBgPicker(){
@@ -8542,7 +8583,7 @@ function drawWargame(t){
 
   // ── Mizuki ──
   const holding = holdingAir||holdingGround;
-  let spr=WG_SPR.run, drawX, feet, mzRot=0;
+  let spr=wgRunSpr(), drawX, feet, mzRot=0;
   if(gameState==='countdown'){
     // INTRO: Mizuki alegre antes da partida começar (saltitando feliz)
     spr=WG_SPR.alegre; drawX=WG.charX; feet=WG.floorFeet - Math.abs(Math.sin(animT*4))*12;
@@ -8564,7 +8605,7 @@ function drawWargame(t){
     // chute: aparece ao redor do boss (todos os ângulos)
     spr=WG_SPR.atk; drawX=WG.kickX; feet=WG.kickY+chH*0.5; mzRot=Math.cos(WG.kickAng)*-0.22;
   } else if(WG.phase==='finisher' || WG.phase==='done'){
-    spr=WG_SPR.run; drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
+    spr=wgRunSpr(); drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
   } else {
     // partida normal
     if(holding){                 // segurando nota → Chute Lendário com explosão em movimento (3 frames)
