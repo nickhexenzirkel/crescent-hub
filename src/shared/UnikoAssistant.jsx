@@ -382,6 +382,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         @keyframes uaSpritePop{from{opacity:.3;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
         @keyframes uaTalkTop{0%,20%{opacity:1}20.01%,80%{opacity:0}80.01%,100%{opacity:1}}
         @keyframes uaTalkMid{0%,20%{opacity:0}20.01%,40%{opacity:1}40.01%,60%{opacity:0}60.01%,80%{opacity:1}80.01%,100%{opacity:0}}
+        /* Borda do balão = gradiente cônico de tons de AZUL girando ao redor */
+        @property --uaAng{syntax:'<angle>';initial-value:0deg;inherits:false}
+        .ua-bubble{position:relative}
+        .ua-bubble::before{
+          content:'';position:absolute;inset:-2px;border-radius:inherit;z-index:-1;
+          background:conic-gradient(from var(--uaAng),#1A6FB5,#2196F3,#0D47A1,#4FC3F7,#1565C0,#00B0FF,#1A6FB5);
+          animation:uaBorderSpin 3s linear infinite;
+        }
+        @keyframes uaBorderSpin{to{--uaAng:360deg}}
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
@@ -403,8 +412,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
       {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
         <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 30, bottom: 16, width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
-          <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '16px 16px 16px 5px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
-            <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
+          <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: '16px 16px 16px 5px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
+            <div style={{ fontSize: 10, color: '#2196F3', fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
               <button onClick={() => { const ok = bubble.onOk; setBubble(null); setSprite(null); ok && ok(); }}
