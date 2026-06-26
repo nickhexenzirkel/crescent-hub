@@ -14,6 +14,7 @@ import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
+import UnikoAssistant from './shared/UnikoAssistant';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -341,31 +342,8 @@ export default function CrescentHub() {
           </div>
         )}
 
-        {/* ── Lembrete — bolha Uniko canto inferior esquerdo ── */}
-        {authUser && lembreteNotif && (
-          <div style={{position:'fixed',bottom:24,left:24,zIndex:9998,display:'flex',alignItems:'flex-end',gap:10,animation:'slideUp .35s ease'}}>
-            <style>{`
-              @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-              @keyframes bluePulse{
-                0%  {border-color:#1A6FB5;box-shadow:0 8px 30px rgba(26,111,181,0.35)}
-                33% {border-color:#2196F3;box-shadow:0 8px 30px rgba(33,150,243,0.45)}
-                66% {border-color:#0D47A1;box-shadow:0 8px 30px rgba(13,71,161,0.45)}
-                100%{border-color:#1A6FB5;box-shadow:0 8px 30px rgba(26,111,181,0.35)}
-              }
-            `}</style>
-            <img src={T.unikoSrc || '/UNIKO_NEW.png'} alt="Uniko" onError={e=>{e.target.onerror=null;e.target.src='/UNIKO_NEW.png';}} style={{width:64,height:64,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 4px 12px ${T.goldLine}66)`}}/>
-            <div style={{background:'white',borderRadius:16,padding:'14px 16px',maxWidth:300,border:'2px solid #1A6FB5',animation:'bluePulse 1.8s ease-in-out infinite'}}>
-              <div style={{fontSize:10,color:'#1A6FB5',fontWeight:700,marginBottom:5,letterSpacing:'.06em'}}>UNIKO</div>
-              <div style={{fontSize:13,color:'#333',lineHeight:1.5,marginBottom:10}}>
-                Ei, você precisa lembrar de: <strong>{lembreteNotif.message}</strong>
-              </div>
-              <button onClick={()=>dismissNotif(lembreteNotif.id)}
-                style={{padding:'5px 16px',borderRadius:8,border:'none',background:'linear-gradient(135deg,#1A6FB5,#2196F3)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font-body)'}}>
-                Ok
-              </button>
-            </div>
-          </div>
-        )}
+        {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
+        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} />
       </div>
     </>
   );
