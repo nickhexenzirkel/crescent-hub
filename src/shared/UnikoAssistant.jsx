@@ -101,7 +101,7 @@ function answerQuery(raw) {
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const ICON = 104; // tamanho do robô (px)
+const ICON = 84; // tamanho do robô (px)
 
 /* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever). */
 const Typer = ({ text, speed = 16, onTick }) => {
@@ -187,7 +187,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
       if (bubbleRef.current?.dismissable) return;
       const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
       say(tip.text, { sprite: tip.sprite });
-    }, 10000);
+    }, 30000);
     return () => clearInterval(id);
   }, [authUser, say]);
 
@@ -264,10 +264,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
 
       {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 16, bottom: 18, width: `min(340px, calc(100vw - ${ICON + 52}px))`, animation: 'uaPop .3s ease' }}>
-          <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '16px 16px 16px 5px', padding: '15px 20px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
-            <div style={{ fontSize: 10.5, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 7 }}>UNIKO</div>
-            <div style={{ fontSize: 14, lineHeight: 1.6 }}><Typer text={bubble.text} /></div>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 30, bottom: 16, width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
+          <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '16px 16px 16px 5px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
+            <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} /></div>
             {bubble.dismissable && (
               <button onClick={() => { setBubble(null); setSprite(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
                 style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
