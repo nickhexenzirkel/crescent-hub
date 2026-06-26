@@ -210,7 +210,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     let alive = true;
     const load = async () => {
       try {
-        const prog = await loadMissionProgress({ userName: USER.name, cpf: getAuthUser?.()?.cpf });
+        // Baseline de reset do usuário (admin "Zerar missões") p/ o progresso bater com a Prisma Store.
+        let baseline = {};
+        try {
+          const { data: row } = await _supabase.from('mercado_state').select('data').eq('player', USER.name).maybeSingle();
+          baseline = row?.data?.missionBaseline || {};
+        } catch {}
+        const prog = await loadMissionProgress({ userName: USER.name, cpf: getAuthUser?.()?.cpf, baseline });
         if (!alive) return;
         const list = PRISMA_MISSIONS
           .filter(m => !m.maintenance)

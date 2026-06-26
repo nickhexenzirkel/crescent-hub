@@ -30,9 +30,19 @@ export const PRISMA_MISSIONS = [
 
 // Calcula o progresso AO VIVO de cada missão (mesmas fontes da Prisma Store).
 // `purchases` = nº de compras já carregado (opcional; senão consulta o histórico).
-export async function loadMissionProgress({ userName, cpf, purchases } = {}) {
+export async function loadMissionProgress({ userName, cpf, purchases, baseline } = {}) {
   const prog = {};
-  const month = _today().slice(0, 7);
+  const today = _today();
+  const month = today.slice(0, 7);
+  // Baseline de reset (admin "Zerar missões"): subtrai o valor que o usuário JÁ tinha no momento
+  // do reset, dentro do MESMO período — assim Voz ativa/Maratona voltam a 0 e exigem atividade
+  // NOVA, sem apagar dados reais (feedbacks/playtime). Fora do período (outro dia/mês) é ignorado.
+  const bl = baseline || {};
+  const baseAdj = (id, raw, period) => {
+    const b = bl[id]; if (!b) return raw;
+    const same = period === 'dia' ? b.d === today : period === 'mes' ? (b.d || '').slice(0, 7) === month : true;
+    return same ? Math.max(0, raw - (b.v || 0)) : raw;
+  };
 
   // 1ª/2ª compra
   let buys = purchases;
@@ -49,10 +59,10 @@ export async function loadMissionProgress({ userName, cpf, purchases } = {}) {
   // Maratona Uniko Wave — minutos jogados HOJE
   try {
     const { data } = await supabase.from('uniko_playtime')
-      .select('seconds').eq('player', userName).eq('day', _today()).maybeSingle();
-    const mins = Math.floor((data?.seconds || 0) / 60);
-    prog.c_uniko20 = Math.min(20, mins);
-    prog.c_uniko40 = Math.min(40, mins);
+      .select('seconds').eq('player', userName).eq('day', today).maybeSingle();
+    const rawSec = data?.seconds || 0;
+    prog.c_uniko20 = Math.min(20, Math.floor(baseAdj('c_uniko20', rawSec, 'dia') / 60));
+    prog.c_uniko40 = Math.min(40, Math.floor(baseAdj('c_uniko40', rawSec, 'dia') / 60));
   } catch {}
 
   // Presença Impecável — saldo 0 e 0 inconsistências no mês
@@ -69,7 +79,7 @@ export async function loadMissionProgress({ userName, cpf, purchases } = {}) {
   try {
     const { count } = await supabase.from('feedbacks')
       .select('id', { count: 'exact', head: true }).eq('employee_name', userName).gte('created_at', month + '-01');
-    prog.c_feedback = (count || 0) >= 1 ? 1 : 0;
+    prog.c_feedback = baseAdj('c_feedback', (count || 0), 'mes') >= 1 ? 1 : 0;
   } catch {}
 
   // Top 1/2/3 — quem mais coloca música no mês (Central Alexa)
@@ -84,4 +94,32 @@ export async function loadMissionProgress({ userName, cpf, purchases } = {}) {
   } catch {}
 
   return prog;
+}
+
+// Snapshot do baseline de reset para VÁRIOS jogadores de uma vez (admin "Zerar missões").
+// Captura o valor BRUTO atual das métricas acumulativas (Voz ativa = feedbacks do mês;
+// Maratona = segundos jogados hoje) por jogador. O progresso ao vivo passa a contar só o que
+// vier DEPOIS deste ponto (ver baseAdj em loadMissionProgress). 1 query por métrica (não por
+// usuário). Retorna { [player]: { c_feedback:{v,d}, c_uniko20:{v,d}, c_uniko40:{v,d} } }.
+export async function snapshotMissionBaseline({ players } = {}) {
+  const today = _today();
+  const month = today.slice(0, 7);
+  const list = [...new Set((players || []).map(p => (p || '').trim()).filter(Boolean))];
+  const out = {}; list.forEach(p => { out[p] = {}; });
+
+  // Feedbacks do mês por employee_name
+  try {
+    const { data } = await supabase.from('feedbacks').select('employee_name').gte('created_at', month + '-01');
+    const cnt = {}; for (const r of (data || [])) { const n = (r.employee_name || '').trim(); cnt[n] = (cnt[n] || 0) + 1; }
+    list.forEach(p => { out[p].c_feedback = { v: cnt[p] || 0, d: today }; });
+  } catch {}
+
+  // Segundos jogados HOJE por player
+  try {
+    const { data } = await supabase.from('uniko_playtime').select('player,seconds').eq('day', today);
+    const sec = {}; for (const r of (data || [])) sec[(r.player || '').trim()] = r.seconds || 0;
+    list.forEach(p => { const v = sec[p] || 0; out[p].c_uniko20 = { v, d: today }; out[p].c_uniko40 = { v, d: today }; });
+  } catch {}
+
+  return out;
 }

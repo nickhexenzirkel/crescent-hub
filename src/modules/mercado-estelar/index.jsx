@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
-import { PRISMA_MISSIONS, loadMissionProgress } from '../../shared/prismaMissions';
+import { PRISMA_MISSIONS, loadMissionProgress, snapshotMissionBaseline } from '../../shared/prismaMissions';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -158,6 +158,9 @@ const DEFAULT_STATE = {
   // DESAFIOS (period: 'dia' | 'mes' | 'unica'). Progresso é mockado por enquanto
   // (o acompanhamento real vem com o Supabase).
   missions: PRISMA_MISSIONS.map(m => ({ ...m })),
+  // Baseline de reset das missões acumulativas (admin "Zerar missões"): { [id]: { v, d } }.
+  // O progresso ao vivo (Voz ativa/Maratona) conta só o que vier DEPOIS deste ponto.
+  missionBaseline: {},
   history: [
     { id: 'h0', kind: 'checkin', desc: 'Check-in diário', premium: 50, date: '2026-06-20' },
   ],
@@ -232,7 +235,7 @@ const PrismChip = ({ type, amount }) => {
 };
 
 // ── Mapeamento estado ↔ Supabase ──
-const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], updatedAt: s.updatedAt || 0 });
+const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
 // Linha "fake" da tabela mercado_state usada só pra guardar config GLOBAL (ex.: expiração)
 const CONFIG_PLAYER = '__mercado_config__';
 const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, updated_at: new Date().toISOString() });
@@ -325,11 +328,11 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     let alive = true;
     (async () => {
       const purchases = (state.history || []).filter(h => h.kind === 'compra').length;
-      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases });
+      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline });
       if (alive) setLiveProg(prog);
     })();
     return () => { alive = false; };
-  }, [loaded, state.history, userName]); // eslint-disable-line
+  }, [loaded, state.history, userName, state.missionBaseline]); // eslint-disable-line
 
   // Missões com progresso AO VIVO + resgate que REINICIA por período (diária=por dia,
   // mensal=por mês, única=pra sempre). claimedAt guarda quando foi resgatada.
@@ -1758,7 +1761,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
       const { data: h } = await supabase.from('mercado_history').select('*').order('created_at', { ascending: false }).limit(200);
       setHist((h || []).map(histFromRow).map((r, idx) => ({ ...r, _p: (h[idx] || {}).player })));
       const { data: ws } = await supabase.from('mercado_state').select('player,data');
-      setWallets((ws || []).map(w => ({ player: w.player, comum: w.data?.comum || 0, premium: w.data?.premium || 0 })).sort((a, b) => a.player.localeCompare(b.player)));
+      setWallets((ws || []).filter(w => w.player !== CONFIG_PLAYER).map(w => ({ player: w.player, comum: w.data?.comum || 0, premium: w.data?.premium || 0 })).sort((a, b) => a.player.localeCompare(b.player)));
     } catch {}
     setBusy(false);
   };
@@ -1794,19 +1797,26 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   // Aplica uma mutação na carteira de TODOS os colaboradores que têm carteira (preserva o resto do estado).
   const bulkApply = async (mutate, descr, histEntry) => {
     setBusy(true);
-    try {
-      for (const w of wallets) {
+    // 1) Aplica PRIMEIRO no próprio admin, com updatedAt novo. Tem que vir antes do loop (e fora
+    //    do try/catch dele) p/ NUNCA ser pulado se uma gravação em massa falhar; o updatedAt novo
+    //    garante que o estado resetado vença o cache local/nuvem antigo na próxima hidratação.
+    if (ownSetState) ownSetState(s => ({ ...s, ...mutate(s, { comum: s.comum, premium: s.premium, player: adminName }), updatedAt: Date.now() }));
+    let failures = 0;
+    // 2) Aplica em cada colaborador — um erro num não pode abortar os demais (try/catch por item).
+    for (const w of wallets) {
+      if (w.player === CONFIG_PLAYER) continue; // nunca mexer na linha de config global
+      try {
         const { data: row } = await supabase.from('mercado_state').select('data').eq('player', w.player).maybeSingle();
         const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
         const data = { ...base, ...mutate(base, w), updatedAt: Date.now() };
         await supabase.from('mercado_state').upsert({ player: w.player, data, updated_at: new Date().toISOString() });
         const entry = histEntry(w);
         if (entry && Object.keys(entry).length) await supabase.from('mercado_history').insert({ player: w.player, kind: 'admin', descr, ...entry });
-      }
-      if (ownSetState) ownSetState(s => ({ ...s, ...mutate(s, { comum: s.comum, premium: s.premium }) }));
-      load();
-    } catch { flash('Falha na ação em massa'); }
+      } catch { failures++; }
+    }
+    load();
     setBusy(false);
+    if (failures) flash(`Concluído, mas ${failures} carteira(s) falharam`);
   };
 
   const bulkRemove = async () => {
@@ -1844,9 +1854,17 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   };
 
   const bulkResetMissions = async () => {
-    if (!window.confirm(`Resetar as MISSÕES de TODOS os ${wallets.length} colaboradores? Todas voltam a poder ser resgatadas.`)) return;
+    if (!window.confirm(`Resetar as MISSÕES de TODOS os ${wallets.length} colaboradores? Zera o progresso (Voz ativa/Maratona voltam a 0) e todas voltam a poder ser resgatadas.`)) return;
+    // Snapshot do baseline (valor BRUTO atual de feedbacks do mês / minutos de hoje) por jogador,
+    // incluindo o admin → o progresso ao vivo passa a contar só o que vier DEPOIS do reset.
+    const players = [...wallets.map(w => w.player), adminName];
+    let baselines = {};
+    try { baselines = await snapshotMissionBaseline({ players }); } catch {}
     await bulkApply(
-      () => ({ missions: PRISMA_MISSIONS.map(m => ({ ...m })) }),
+      (base, w) => ({
+        missions: PRISMA_MISSIONS.map(m => ({ ...m })),
+        missionBaseline: { ...(base?.missionBaseline || {}), ...(baselines[(w?.player || '').trim()] || {}) },
+      }),
       'Missões resetadas pelo administrador',
       () => ({}),
     );
