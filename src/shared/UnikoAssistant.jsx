@@ -7,7 +7,7 @@
 // reais (tabela reminders). Voca os avisos/lembretes que chegam (prop `notif`).
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
-import { supabase as _supabase } from '../contexts/user';
+import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
 
 // Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
@@ -96,16 +96,32 @@ function parseReminder(raw) {
   return { time, message };
 }
 
-// PONTO DE TROCA PRA IA: hoje é FAQ por palavra-chave; depois vira um fetch ao servidor.
-function answerQuery(raw) {
+const FAQ_FALLBACK = 'Ainda não sei responder isso 😅. Posso ajudar com: Prisma Store, missões, check-in, Uniko Wave, Ponto, Central Alexa, feedback e lembretes. Tente perguntar sobre um deles!';
+
+// FAQ por palavra-chave: devolve a resposta se ALGUM gatilho bateu; senão null (→ cai na IA).
+function faqMatch(raw) {
   const q = (raw || '').toLowerCase();
   let best = null, bestScore = 0;
   for (const item of KB) {
     const score = item.k.reduce((s, kw) => s + (q.includes(kw) ? 1 : 0), 0);
     if (score > bestScore) { bestScore = score; best = item; }
   }
-  if (best && bestScore > 0) return best.a;
-  return 'Ainda não sei responder isso 😅. Posso ajudar com: Prisma Store, missões, check-in, Uniko Wave, Ponto, Central Alexa, feedback e lembretes. Tente perguntar sobre um deles!';
+  return bestScore > 0 ? best.a : null;
+}
+
+// IA (fallback quando a FAQ não sabe): chama o endpoint do SERVIDOR (a chave fica SÓ lá).
+// Se o servidor não tiver chave/endpoint, devolve vazio e o cliente usa o FAQ_FALLBACK.
+async function askAI(question) {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/uniko/ask`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const a = (d?.answer || '').trim();
+    return a || null;
+  } catch { return null; }
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -315,9 +331,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     setInput('');
     setMessages(m => [...m, { from: 'me', text }]);
 
+    // Carinha normal (sem sprite especial) → ao responder, a BOCA mexe enquanto digita.
+    setSprite(null);
+
+    // 1) Lembrete? (tratado localmente, sem IA)
     const rem = parseReminder(text);
-    let reply;
     if (rem) {
+      let reply;
       if (!rem.time) reply = 'Claro! Só me diga o horário também, ex.: "me lembre disso às 14:30". ⏰';
       else if (!rem.message) reply = 'Beleza! E do que você quer que eu te lembre às ' + rem.time + '?';
       else {
@@ -326,12 +346,23 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
           ? `Prontinho! Vou te lembrar de "${rem.message}" às ${rem.time}. ⏰`
           : 'Ops, não consegui salvar o lembrete agora. Tenta de novo?';
       }
-    } else {
-      reply = answerQuery(text);
+      setMessages(m => [...m, { from: 'uniko', text: reply }]);
+      return;
     }
-    // Carinha normal (sem sprite especial) → ao responder, a BOCA mexe enquanto digita.
-    setSprite(null);
-    setMessages(m => [...m, { from: 'uniko', text: reply }]);
+
+    // 2) FAQ primeiro (grátis/instantânea)
+    const faq = faqMatch(text);
+    if (faq) { setMessages(m => [...m, { from: 'uniko', text: faq }]); return; }
+
+    // 3) Não bateu na FAQ → IA (com placeholder "pensando"; se falhar, usa o fallback)
+    setMessages(m => [...m, { from: 'uniko', text: '…', pending: true }]);
+    const ai = await askAI(text);
+    const reply = ai || FAQ_FALLBACK;
+    setMessages(m => {
+      const c = m.slice();
+      for (let i = c.length - 1; i >= 0; i--) { if (c[i].pending) { c[i] = { from: 'uniko', text: reply }; break; } }
+      return c;
+    });
   };
 
   if (!authUser) return null;
