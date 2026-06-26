@@ -101,6 +101,7 @@ function answerQuery(raw) {
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const ICON = 104; // tamanho do robô (px)
 
 /* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever). */
 const Typer = ({ text, speed = 16, onTick }) => {
@@ -142,25 +143,21 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
-  const [pop, setPop] = useState(false);            // pulso de "expandir ao falar"
   const [messages, setMessages] = useState([
     { from: 'uniko', text: 'Oi! Eu sou o UNIKO 🤖. Pergunte sobre o sistema ou peça um lembrete ("me lembre de X às HH:MM").' },
   ]);
   const [input, setInput] = useState('');
   const bubbleTimer = useRef(null);
-  const popTimer = useRef(null);
   const listRef = useRef(null);
   const openRef = useRef(open);   openRef.current = open;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
 
   const scrollDown = useCallback(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, []);
 
-  // "Falar": expande de leve (pop), troca o sprite e mostra o balão (com digitação).
+  // "Falar": troca o sprite e mostra o balão (com digitação). O robô fica EXPANDIDO
+  // enquanto o balão estiver visível (o scale é derivado de `bubble` no render).
   // dismissable = balão de aviso/lembrete (fica até o "Ok"); senão some sozinho.
   const say = useCallback((text, { sprite: sp = null, dismissable = false } = {}) => {
-    setPop(true);
-    clearTimeout(popTimer.current);
-    popTimer.current = setTimeout(() => setPop(false), 650);
     setSprite(sp);
     setBubble({ text, dismissable });
     clearTimeout(bubbleTimer.current);
@@ -195,7 +192,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   }, [authUser, say]);
 
   useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
-  useEffect(() => () => { clearTimeout(bubbleTimer.current); clearTimeout(popTimer.current); }, []);
+  useEffect(() => () => clearTimeout(bubbleTimer.current), []);
 
   const createReminder = async (message, time) => {
     try {
@@ -213,7 +210,6 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     if (!text) return;
     setInput('');
     setMessages(m => [...m, { from: 'me', text }]);
-    setPop(true); clearTimeout(popTimer.current); popTimer.current = setTimeout(() => setPop(false), 650);
 
     const rem = parseReminder(text);
     let reply, sp = null;
@@ -251,26 +247,27 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
-      {/* ── Robô (flutua sempre; expande de leve ao falar; sprite muda por interação) ── */}
+      {/* ── Robô (flutua sempre; fica EXPANDIDO enquanto o balão aparece; sprite muda) ── */}
       <div style={{ animation: 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
         <button
           onClick={() => setOpen(o => !o)}
           title="Falar com o UNIKO"
           style={{
             border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'block',
-            transform: pop ? 'scale(1.16)' : 'scale(1)', transition: 'transform .25s cubic-bezier(.34,1.56,.64,1)',
+            transform: (bubble && !open) ? 'scale(1.18)' : 'scale(1)', transformOrigin: 'bottom left',
+            transition: 'transform .35s cubic-bezier(.34,1.56,.64,1)',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}55)`,
           }}>
-          <UnikoFace size={72} src={sprite} />
+          <UnikoFace size={ICON} src={sprite} />
         </button>
       </div>
 
       {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', left: 84, bottom: 8, maxWidth: 290, animation: 'uaPop .3s ease' }}>
-          <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '14px 14px 14px 4px', padding: '11px 14px', boxShadow: T.shL || '0 8px 26px rgba(0,0,0,0.18)' }}>
-            <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 4 }}>UNIKO</div>
-            <div style={{ fontSize: 13, lineHeight: 1.5 }}><Typer text={bubble.text} /></div>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 16, bottom: 18, width: `min(340px, calc(100vw - ${ICON + 52}px))`, animation: 'uaPop .3s ease' }}>
+          <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '16px 16px 16px 5px', padding: '15px 20px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
+            <div style={{ fontSize: 10.5, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 7 }}>UNIKO</div>
+            <div style={{ fontSize: 14, lineHeight: 1.6 }}><Typer text={bubble.text} /></div>
             {bubble.dismissable && (
               <button onClick={() => { setBubble(null); setSprite(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
                 style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
@@ -283,7 +280,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', left: 0, bottom: 88, width: 'min(340px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 130px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', left: 0, bottom: ICON + 22, width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} /></div>
