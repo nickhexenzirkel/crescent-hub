@@ -19,6 +19,13 @@ const IMG = {
   PRISMAP: encodeURI('/UNIKO_PRISMAPREMIUM.png'),
 };
 
+// Frames da BOCA (falando): fechada (UNIKO_NEW) → meio aberta → aberta. encodeURI p/ os espaços.
+const MOUTH = {
+  CLOSED: '/UNIKO_NEW.png',
+  HALF: encodeURI('/UNIKO_FRAME_BOCA_MEIO ABERTA.png'),
+  OPEN: encodeURI('/UNIKO_FRAME_BOCA ABERTA.png'),
+};
+
 /* ──────────────────────────────────────────────────────────────────────────
    BASE DE CONHECIMENTO (FAQ curada). answerQuery() pontua por gatilhos batidos.
    É o ÚNICO ponto que troca por IA real depois (vira um fetch ao servidor).
@@ -103,30 +110,42 @@ function answerQuery(raw) {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const ICON = 84; // tamanho do robô (px)
 
-/* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever). */
-const Typer = ({ text, speed = 16, onTick }) => {
+/* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever).
+   onStart/onDone marcam quando o UNIKO está "falando" (pra mexer a boca). */
+const Typer = ({ text, speed = 16, onTick, onStart, onDone }) => {
   const [n, setN] = useState(0);
   useEffect(() => {
     setN(0);
-    if (!text) return;
+    if (!text) { onDone && onDone(); return; }
+    onStart && onStart();
     let i = 0;
     const id = setInterval(() => {
       i++; setN(i); onTick && onTick();
-      if (i >= text.length) clearInterval(id);
+      if (i >= text.length) { clearInterval(id); onDone && onDone(); }
     }, speed);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); onDone && onDone(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, speed]);
   return <>{text ? text.slice(0, n) : ''}</>;
 };
 
-/* Carinha do UNIKO. Sem `src` → carinha normal piscando (3 frames). Com `src` → sprite fixo. */
-const UnikoFace = ({ size, src }) => {
+/* Carinha do UNIKO. Com `src` → sprite fixo. Sem `src`: se `talking` → boca mexendo
+   (fechada→meio→aberta→meio), senão carinha normal piscando (3 frames). */
+const UnikoFace = ({ size, src, talking }) => {
   const img = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' };
   if (src) {
     return (
       <div style={{ position: 'relative', width: size, height: size }}>
         <img src={src} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaSpritePop .3s ease' }} />
+      </div>
+    );
+  }
+  if (talking) {
+    return (
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <img src={MOUTH.OPEN} alt="" aria-hidden="true" style={img} />
+        <img src={MOUTH.HALF} alt="" aria-hidden="true" style={{ ...img, animation: 'uaTalkMid .42s linear infinite' }} />
+        <img src={MOUTH.CLOSED} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaTalkTop .42s linear infinite' }} />
       </div>
     );
   }
@@ -143,6 +162,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
+  const [talking, setTalking] = useState(false);    // está "digitando"/falando? → boca mexe
   const [messages, setMessages] = useState([
     { from: 'uniko', text: 'Oi! Eu sou o UNIKO 🤖. Pergunte sobre o sistema ou peça um lembrete ("me lembre de X às HH:MM").' },
   ]);
@@ -179,7 +199,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     if (openRef.current) setOpen(false);
   }, [notif, say]);
 
-  // DICAS rotativas a cada 10s (só com o painel fechado e sem aviso pendente esperando "Ok").
+  // DICAS rotativas a cada 30s (só com o painel fechado e sem aviso pendente esperando "Ok").
   useEffect(() => {
     if (!authUser) return;
     const id = setInterval(() => {
@@ -212,9 +232,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     setMessages(m => [...m, { from: 'me', text }]);
 
     const rem = parseReminder(text);
-    let reply, sp = null;
+    let reply;
     if (rem) {
-      sp = IMG.ALARME;
       if (!rem.time) reply = 'Claro! Só me diga o horário também, ex.: "me lembre disso às 14:30". ⏰';
       else if (!rem.message) reply = 'Beleza! E do que você quer que eu te lembre às ' + rem.time + '?';
       else {
@@ -226,8 +245,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     } else {
       reply = answerQuery(text);
     }
-    if (sp) setSprite(sp);
-    // Mensagem do UNIKO entra "digitando" (o Typer anima ao montar).
+    // Carinha normal (sem sprite especial) → ao responder, a BOCA mexe enquanto digita.
+    setSprite(null);
     setMessages(m => [...m, { from: 'uniko', text: reply }]);
   };
 
@@ -244,6 +263,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         @keyframes uaBlinkMid{0%,93.8%{opacity:1}94.2%,96%{opacity:0}96.4%,100%{opacity:1}}
         @keyframes uaPop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes uaSpritePop{from{opacity:.3;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+        @keyframes uaTalkTop{0%,20%{opacity:1}20.01%,80%{opacity:0}80.01%,100%{opacity:1}}
+        @keyframes uaTalkMid{0%,20%{opacity:0}20.01%,40%{opacity:1}40.01%,60%{opacity:0}60.01%,80%{opacity:1}80.01%,100%{opacity:0}}
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
@@ -258,7 +279,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1)',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}55)`,
           }}>
-          <UnikoFace size={ICON} src={sprite} />
+          <UnikoFace size={ICON} src={sprite} talking={talking} />
         </button>
       </div>
 
@@ -267,7 +288,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 30, bottom: 16, width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
           <div style={{ background: panelBg, color: T.text || '#222', border: `2px solid ${accent}`, borderRadius: '16px 16px 16px 5px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
             <div style={{ fontSize: 10, color: accent, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} /></div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
               <button onClick={() => { setBubble(null); setSprite(null); if (notif && onDismissNotif) onDismissNotif(notif.id); }}
                 style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
@@ -283,7 +304,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         <div style={{ pointerEvents: 'auto', position: 'absolute', left: 0, bottom: ICON + 22, width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
-            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} /></div>
+            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
               <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>Assistente do sistema</div>
@@ -294,7 +315,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {messages.map((m, i) => (
               <div key={i} style={{ alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start', maxWidth: '84%', background: m.from === 'me' ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: m.from === 'me' ? '#3a2a05' : (T.text || '#222'), borderRadius: m.from === 'me' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
-                {m.from === 'uniko' && i === messages.length - 1 ? <Typer text={m.text} onTick={scrollDown} /> : m.text}
+                {m.from === 'uniko' && i === messages.length - 1 ? <Typer text={m.text} onTick={scrollDown} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /> : m.text}
               </div>
             ))}
           </div>
