@@ -3668,6 +3668,7 @@ const CHAR_ICONS = {
   dodoco:    'images/IconeDodoco.png',
   icy:       'images/IconeIcy.png',
   linnea:    'images/IconeLinnea.png',   // Mizuki (reusa ícone/imagens da Linnea)
+  venebra:   'images/IconeVenebra.png',  // Lady Venebra — ícone de perfil próprio
   // ⚠️ TEMP REMOVIDO — restaurar com as personagens:
   // columbina: 'images/IconeColumbina.png',
   // madoka:    'images/IconeMadoka.png',
@@ -3675,7 +3676,7 @@ const CHAR_ICONS = {
 };
 
 function getAvatarOptions(){
-  return Object.entries(CHARACTERS).filter(([,ch])=>!ch.wargameOnly).map(([id,ch])=>({
+  return Object.entries(CHARACTERS).map(([id,ch])=>({
     id,
     name: ch.name,
     img: CHAR_ICONS[id] || ch.previewImg

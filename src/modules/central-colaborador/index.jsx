@@ -12,7 +12,6 @@ import { TabHoras } from './tabs/TabHoras';
 import { TabFeedback } from './tabs/TabFeedback';
 import { TabEventos } from './tabs/TabEventos';
 import { TabGames } from './tabs/TabGames';
-import { TabConquistas } from './tabs/TabConquistas';
 import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
@@ -152,7 +151,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='colegas')    return <TabColegas/>;
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='games')      return <TabGames/>;
-    if(tab==='conquistas') return <TabConquistas/>;
     if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
@@ -581,8 +579,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
                     {[
                       {e:'🎮',t:'Games',
                         d:'4 mini-jogos com o Uniko: UnikoRun, Meteor Storm, Alien Invaders e UnikoFlap.'},
-                      {e:'🏆',t:'Conquistas',
-                        d:'Receba troféus dos gestores e acompanhe seu histórico de reconhecimentos.'},
                       {e:'📋',t:'Feed',
                         d:'Publicações e novidades internas da empresa em um feed integrado.'},
                       {e:'💰',t:'Financeiro',
