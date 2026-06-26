@@ -8602,7 +8602,7 @@ function drawWargame(t){
   } else if(WG.waving){
     // finalização: voa pro alto/longe e flutua; ao atirar usa a pose de ataque
     const p1=Math.min(1,WG.waveT/1.4), e=1-Math.pow(1-p1,3);
-    const sX=WG.charX+CW*0.30, sF=WG.floorFeet, fX=CW*0.20, fF=CH*0.34+chH*0.5;
+    const sX=WG.charX+CW*0.30, sF=WG.floorFeet, fX=CW*0.20, fF=CH*0.56+chH*0.5;
     drawX=sX+(fX-sX)*e; feet=sF+(fF-sF)*e + Math.sin(WG.waveT*3)*6*p1;
     // FLECHA ESTELAR: ao carregar/lançar (waveT>=1.2) usa o frame de lançar a flecha
     if(WG.waveT>=1.2){
@@ -8626,7 +8626,8 @@ function drawWargame(t){
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
-    drawX=WG.charX; feet=WG.feetY-bob;
+    const tremble=holding?Math.sin(animT*32)*5:0;  // segurando nota → treme pra cima/baixo
+    drawX=WG.charX; feet=WG.feetY-bob+tremble;
   }
   const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chH*mzRatio;
   ctx.save(); ctx.translate(drawX, feet); if(mzRot) ctx.rotate(mzRot);
