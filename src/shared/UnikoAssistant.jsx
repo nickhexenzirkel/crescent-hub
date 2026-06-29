@@ -185,6 +185,30 @@ async function askAI(question) {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const ICON = 84; // tamanho do robô (px)
 
+/* ── Posição arrastável (estilo AssistiveTouch) ──
+   Guarda o canto sup-esquerdo do robô em px; persiste por usuário no localStorage. */
+const POS_KEY = 'uniko_assistant_pos';
+const DRAG_MARGIN = 12;        // distância mínima das bordas
+const DRAG_THRESHOLD = 5;      // px pra considerar arraste (e não toque/clique)
+
+const clampPos = (p) => {
+  const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+  return {
+    x: Math.max(DRAG_MARGIN, Math.min(w - ICON - DRAG_MARGIN, p.x)),
+    y: Math.max(DRAG_MARGIN, Math.min(h - ICON - DRAG_MARGIN, p.y)),
+  };
+};
+const loadPos = () => {
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') return clampPos(p);
+  } catch {}
+  const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+  return { x: 18, y: h - ICON - 18 }; // default: canto inferior esquerdo (como antes)
+};
+const savePos = (p) => { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} };
+
 /* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever).
    onStart/onDone marcam quando o UNIKO está "falando" (pra mexer a boca). */
 const Typer = ({ text, speed = 16, onTick, onStart, onDone }) => {
@@ -243,10 +267,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   ]);
   const [input, setInput] = useState('');
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
+  const [pos, setPos] = useState(loadPos);          // canto sup-esq do robô (px) — arrastável
+  const [dragging, setDragging] = useState(false);  // arrastando? (desliga transição p/ seguir o dedo)
   const bubbleTimer = useRef(null);
   const listRef = useRef(null);
+  const dragRef = useRef(null);   // { sx, sy, ox, oy, moved } enquanto arrasta
   const openRef = useRef(open);   openRef.current = open;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
+  const posRef = useRef(pos);     posRef.current = pos;
 
   // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
   // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
@@ -390,6 +418,60 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
   useEffect(() => () => clearTimeout(bubbleTimer.current), []);
 
+  // ── ARRASTAR o robô (estilo AssistiveTouch) — mouse + toque. Distingue toque de arraste:
+  //    sem mover além do limiar → abre/fecha o chat; arrastou → reposiciona e gruda na borda. ──
+  const startDrag = useCallback((cx, cy) => {
+    dragRef.current = { sx: cx, sy: cy, ox: posRef.current.x, oy: posRef.current.y, moved: false };
+    setDragging(true);
+  }, []);
+  useEffect(() => {
+    const moveTo = (cx, cy) => {
+      const d = dragRef.current; if (!d) return;
+      const dx = cx - d.sx, dy = cy - d.sy;
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) d.moved = true;
+      setPos(clampPos({ x: d.ox + dx, y: d.oy + dy }));
+    };
+    const onMouseMove = (e) => moveTo(e.clientX, e.clientY);
+    const onTouchMove = (e) => {
+      if (!dragRef.current || !e.touches[0]) return;
+      e.preventDefault(); // não rola a página enquanto arrasta o robô
+      moveTo(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onUp = () => {
+      const d = dragRef.current;
+      dragRef.current = null;
+      setDragging(false);
+      if (!d) return;
+      if (!d.moved) { setOpen(o => !o); return; } // foi um toque/clique → abre o chat
+      // Arrastou: gruda na borda lateral mais próxima (vertical fica livre) e persiste.
+      setPos(p => {
+        const w = window.innerWidth;
+        const snapX = (p.x + ICON / 2) < w / 2 ? DRAG_MARGIN : w - ICON - DRAG_MARGIN;
+        const np = { x: snapX, y: p.y };
+        savePos(np);
+        return np;
+      });
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
+    };
+  }, []);
+  // Mantém o robô dentro da tela quando a janela muda de tamanho.
+  useEffect(() => {
+    const onResize = () => setPos(p => clampPos(p));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const createReminder = async (message, time) => {
     try {
       await _supabase.from('reminders').insert({
@@ -450,8 +532,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const accent = T.gold || '#E8B84B';
   const panelBg = T.surface || '#fff';
 
+  // Onde o robô está → decide pra que lado o balão/painel abrem (pra não sair da tela).
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const onLeft = (pos.x + ICON / 2) < vw / 2;
+  const onTop  = (pos.y + ICON / 2) < vh / 2;
+
   return (
-    <div className="uniko-assistant" style={{ position: 'fixed', left: 18, bottom: 18, zIndex: 9990, display: 'flex', alignItems: 'flex-end', gap: 10, pointerEvents: 'none' }}>
+    <div className="uniko-assistant" style={{ position: 'fixed', left: pos.x, top: pos.y, width: ICON, height: ICON, zIndex: 9990, pointerEvents: 'none', transition: dragging ? 'none' : 'left .28s cubic-bezier(.22,1,.36,1), top .28s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
         @keyframes uaFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes uaBlinkTop{0%,90%{opacity:1}90.6%,99%{opacity:0}99.4%,100%{opacity:1}}
@@ -472,14 +560,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
-      {/* ── Robô (flutua sempre; fica EXPANDIDO enquanto o balão aparece; sprite muda) ── */}
-      <div style={{ animation: 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
+      {/* ── Robô: flutua, fica EXPANDIDO com balão, ARRASTÁVEL (clique abre, arraste move) ── */}
+      <div style={{ animation: dragging ? 'none' : 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
         <button
-          onClick={() => setOpen(o => !o)}
-          title="Falar com o UNIKO"
+          onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
+          onTouchStart={(e) => { if (e.touches[0]) startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
+          title="Arraste pra mover · Toque pra falar com o UNIKO"
           style={{
-            border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'block',
-            transform: (bubble && !open) ? 'scale(1.18)' : 'scale(1)', transformOrigin: 'bottom left',
+            border: 'none', background: 'transparent', cursor: dragging ? 'grabbing' : 'grab', padding: 0, display: 'block',
+            touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none',
+            transform: (bubble && !open && !dragging) ? 'scale(1.18)' : 'scale(1)', transformOrigin: 'bottom left',
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1)',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}55)`,
           }}>
@@ -489,8 +579,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
 
       {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', left: ICON + 30, bottom: 16, width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
-          <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: '16px 16px 16px 5px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: ICON + 30 } : { right: ICON + 30 }), ...(onTop ? { top: 16 } : { bottom: 16 }), width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
+          <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: onLeft ? '16px 16px 16px 5px' : '16px 16px 5px 16px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
             <div style={{ fontSize: 10, color: '#2196F3', fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
@@ -505,7 +595,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', left: 0, bottom: ICON + 22, width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} /></div>
