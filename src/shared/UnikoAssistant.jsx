@@ -269,6 +269,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
   const [pos, setPos] = useState(loadPos);          // canto sup-esq do robô (px) — arrastável
   const [dragging, setDragging] = useState(false);  // arrastando? (desliga transição p/ seguir o dedo)
+  const [hovered, setHovered] = useState(false);    // mouse em cima? → expande suavemente
   const bubbleTimer = useRef(null);
   const listRef = useRef(null);
   const dragRef = useRef(null);   // { sx, sy, ox, oy, moved } enquanto arrasta
@@ -565,13 +566,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
         <button
           onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
           onTouchStart={(e) => { if (e.touches[0]) startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           title="Arraste pra mover · Toque pra falar com o UNIKO"
           style={{
             border: 'none', background: 'transparent', cursor: dragging ? 'grabbing' : 'grab', padding: 0, display: 'block',
             touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none',
-            transform: (bubble && !open && !dragging) ? 'scale(1.18)' : 'scale(1)', transformOrigin: 'bottom left',
-            transition: 'transform .35s cubic-bezier(.34,1.56,.64,1)',
-            filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}55)`,
+            transform: `scale(${dragging ? 1 : (bubble && !open) ? 1.18 : hovered ? 1.12 : 1})`, transformOrigin: 'bottom left',
+            transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s ease',
+            filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}${hovered && !dragging ? '99' : '55'})`,
           }}>
           <UnikoFace size={ICON} src={sprite} talking={talking} />
         </button>
