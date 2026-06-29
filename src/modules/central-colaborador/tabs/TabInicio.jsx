@@ -320,14 +320,15 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     img.src = tmpPhoto;
   }, [tmpPhoto]);
 
-  /* Listeners de drag no documento enquanto modal está aberto */
+  /* Listeners de drag no documento enquanto modal está aberto
+     (mouse + toque — celular/tablet usam touch) */
   useEffect(() => {
     if (!showPhoto) return;
     const PREVIEW = 180;
-    const onMove = (e) => {
+    const moveFrom = (cx, cy) => {
       if (!dragRef.current) return;
-      const dx = e.clientX - dragRef.current.sx;
-      const dy = e.clientY - dragRef.current.sy;
+      const dx = cx - dragRef.current.sx;
+      const dy = cy - dragRef.current.sy;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragRef.current.moved = true;
       const sc = dragRef.current.sc;
       const spaceX = PREVIEW * (sc / 100 - 1);
@@ -336,12 +337,24 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       const ny = spaceY > 0.5 ? dragRef.current.py - (dy / spaceY) * 100 : dragRef.current.py;
       setTmpPos({ x: Math.max(0, Math.min(100, nx)), y: Math.max(0, Math.min(100, ny)) });
     };
+    const onMove  = (e) => moveFrom(e.clientX, e.clientY);
+    const onTouch = (e) => {
+      if (!dragRef.current || !e.touches[0]) return;
+      e.preventDefault(); // impede scroll da página durante o arraste
+      moveFrom(e.touches[0].clientX, e.touches[0].clientY);
+    };
     const onUp = () => { dragRef.current = null; };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onTouch, { passive: false });
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onUp);
     return () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onTouch);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
     };
   }, [showPhoto]);
 
@@ -707,7 +720,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <div style={{background:T.surface,borderRadius:20,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,.35)',border:`1px solid ${T.border}`}}>
             <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:6}}>Editar Foto de Perfil</div>
             {tmpPhoto&&<div style={{fontSize:11,color:T.textT,marginBottom:18}}>
-              Arraste para mover · Scroll para zoom
+              Arraste para mover · Use a barra ou o scroll para zoom
             </div>}
             {!tmpPhoto&&<div style={{height:10}}/>}
 
@@ -719,6 +732,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                   if (!tmpPhoto) return;
                   e.preventDefault();
                   dragRef.current = { sx:e.clientX, sy:e.clientY, px:tmpPos.x, py:tmpPos.y, sc:tmpSc, moved:false };
+                }}
+                onTouchStart={e=>{
+                  if (!tmpPhoto || !e.touches[0]) return;
+                  const t = e.touches[0];
+                  dragRef.current = { sx:t.clientX, sy:t.clientY, px:tmpPos.x, py:tmpPos.y, sc:tmpSc, moved:false };
                 }}
                 style={{
                   width:180,height:180,borderRadius:'50%',overflow:'hidden',
@@ -740,6 +758,19 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                 )}
               </div>
             </div>
+
+            {/* Controle de zoom — funciona em toque e trackpad (scroll não basta) */}
+            {tmpPhoto&&(
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+                <button type="button" onClick={()=>setTmpSc(s=>Math.max(100,s-10))}
+                  style={{width:30,height:30,flexShrink:0,borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:18,lineHeight:1,fontFamily:'var(--font-body)'}}>−</button>
+                <input type="range" min={100} max={300} value={tmpSc}
+                  onChange={e=>setTmpSc(Number(e.target.value))}
+                  style={{flex:1,accentColor:T.gold,cursor:'pointer'}}/>
+                <button type="button" onClick={()=>setTmpSc(s=>Math.min(300,s+10))}
+                  style={{width:30,height:30,flexShrink:0,borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:18,lineHeight:1,fontFamily:'var(--font-body)'}}>+</button>
+              </div>
+            )}
 
             <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{display:'none'}}/>
             <button onClick={()=>fileRef.current?.click()} style={{width:'100%',padding:'9px',borderRadius:9,border:`1.5px dashed ${T.border}`,background:'transparent',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)',marginBottom:16}}>
