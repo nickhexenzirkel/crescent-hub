@@ -3,7 +3,7 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
-import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, getRemoteSkinFor } from '../../shared/assistantSkin';
+import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 const VAMP_CARD_CSS = `
@@ -423,13 +423,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   });
   const [mascotSkinId, setMascotSkinId] = useState(() => getActiveAssistantSkinId());
   useEffect(() => onAssistantSkinChange(id => setMascotSkinId(id)), []);
-  // songSkin = skin do DJ da música atual; lida do Supabase pra TODOS verem igual
+  // songSkin = skin do DJ da música atual; salva/lê do Supabase para TODOS verem igual
   const [songSkin, setSongSkin] = useState('default');
+
+  // Sincroniza a skin do usuário atual para o Supabase (fire-and-forget)
+  useEffect(() => {
+    if (!myName || myName === 'Colaborador') return;
+    _supabase.from('settings')
+      .upsert({ key: skinRemoteKey(myName), value: mascotSkinId }, { onConflict: 'key' })
+      .then(() => {}).catch(() => {});
+  }, [mascotSkinId, myName]); // eslint-disable-line
+
+  // Lê a skin do DJ da música atual do Supabase para todos os clientes
   useEffect(() => {
     if (!currentSong?.requested_by) { setSongSkin('default'); return; }
-    // Se for a música do próprio usuário usa a skin local (sem round-trip)
     if (currentSong.requested_by === myName) { setSongSkin(mascotSkinId); return; }
-    getRemoteSkinFor(currentSong.requested_by).then(s => setSongSkin(s || 'default'));
+    _supabase.from('settings')
+      .select('value').eq('key', skinRemoteKey(currentSong.requested_by)).maybeSingle()
+      .then(({ data }) => setSongSkin(data?.value || 'default'))
+      .catch(() => setSongSkin('default'));
   }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
   const [photoCache, setPhotoCache] = useState({});
   // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
