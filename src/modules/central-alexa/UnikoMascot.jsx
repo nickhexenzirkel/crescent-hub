@@ -56,8 +56,9 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   const isVampire = songSkin !== 'default';
   const skin      = getAssistantSkin(songSkin);
 
-  const [line,     setLine]     = useState(() => rand(DJ_LINES));
-  const [blinkImg, setBlinkImg] = useState(null);
+  const [line,       setLine]       = useState(() => rand(DJ_LINES));
+  const [showBubble, setShowBubble] = useState(true);
+  const [blinkImg,   setBlinkImg]   = useState(null);
 
   // Blink loop — só quando skin especial
   useEffect(() => {
@@ -73,13 +74,20 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
     return () => clearTimeout(t);
   }, [isVampire, songSkin]); // eslint-disable-line
 
-  // Troca de linha ao mudar modo ou música
-  useEffect(() => { setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES)); }, [isVampire]);
-  useEffect(() => { if (!track?.name) return; setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES)); }, [track?.name]); // eslint-disable-line
+  // Fala a cada 20s: mostra o balão por ~6,5s e some o resto do tempo
   useEffect(() => {
-    const id = setInterval(() => setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES)), 7000);
-    return () => clearInterval(id);
-  }, [isVampire]);
+    const SHOW_MS = 6500, CYCLE_MS = 20000;
+    let hideT;
+    const speak = () => {
+      setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES));
+      setShowBubble(true);
+      clearTimeout(hideT);
+      hideT = setTimeout(() => setShowBubble(false), SHOW_MS);
+    };
+    speak(); // fala ao montar / trocar de modo ou música
+    const id = setInterval(speak, CYCLE_MS);
+    return () => { clearInterval(id); clearTimeout(hideT); };
+  }, [isVampire, track?.name]); // eslint-disable-line
 
   // Cor do bubble via cores da capa quando não é vampire
   const c0 = colors?.[0] ?? null;
@@ -95,7 +103,13 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
       <style>{MASCOT_CSS}{albumBubbleCss}</style>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2 }}>
 
-        {/* Balão de fala */}
+        {/* Balão de fala — aparece a cada 20s */}
+        <div style={{
+          opacity: showBubble ? 1 : 0,
+          transform: showBubble ? 'translateY(0)' : 'translateY(8px)',
+          transition: 'opacity .45s ease, transform .45s ease',
+          pointerEvents: 'none',
+        }}>
         <div
           className={isVampire ? 'vamp-bubble' : 'normal-bubble'}
           style={isVampire ? {
@@ -125,6 +139,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
           }}
         >
           {line}
+        </div>
         </div>
 
         {/* Imagem flutuante — sem quadrado, sem borda */}

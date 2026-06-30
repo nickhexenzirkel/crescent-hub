@@ -9,19 +9,40 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
-@keyframes vampBatFly{0%{transform:translateX(-40px);opacity:0;}8%{opacity:.92;}90%{opacity:.92;}100%{transform:translateX(330px);opacity:0;}}
-@keyframes vampBatFlyR{0%{transform:translateX(330px) scaleX(-1);opacity:0;}8%{opacity:.92;}90%{opacity:.92;}100%{transform:translateX(-40px) scaleX(-1);opacity:0;}}
+@keyframes vampBatDiag{0%{transform:translate(0,0);opacity:0;}6%{opacity:.92;}92%{opacity:.92;}100%{transform:translate(var(--dx),var(--dy));opacity:0;}}
 @keyframes uwBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.38);}}
 @keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
 `;
 
-const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false, size=34 }) => (
+// Morcego que voa na diagonal, em posição/direção aleatória, podendo sair da grade
+const VampBat = ({ size=32 }) => {
+  const cfg = useRef(null);
+  if (!cfg.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const hdir = Math.random() < 0.5 ? 1 : -1; // direção horizontal
+    const vdir = Math.random() < 0.5 ? 1 : -1; // direção vertical
+    cfg.current = {
+      top:   rnd(-18, 112),                    // % — pode começar/terminar fora da grade
+      left:  rnd(-18, 100),
+      dx:    hdir * rnd(220, 560),             // distância: viaja pra fora do card
+      dy:    vdir * rnd(120, 380),
+      dur:   rnd(8, 15),
+      delay: rnd(0, 9),
+      sz:    Math.round(rnd(0.7, 1.3) * size),
+      tilt:  hdir * vdir * rnd(8, 26),         // inclinação acompanha a diagonal
+      flip:  hdir < 0,                         // espelha conforme o sentido do voo
+    };
+  }
+  const b = cfg.current;
+  return (
   <div style={{
-    position:'absolute', top, left: rtl ? undefined : 0, right: rtl ? 0 : undefined,
-    pointerEvents:'none', zIndex:3,
-    animation:`${rtl ? 'vampBatFlyR' : 'vampBatFly'} ${dur}s linear ${delay}s infinite`,
+    position:'absolute', top:`${b.top}%`, left:`${b.left}%`,
+    pointerEvents:'none', zIndex:4,
+    '--dx':`${b.dx}px`, '--dy':`${b.dy}px`,
+    animation:`vampBatDiag ${b.dur}s linear ${b.delay}s infinite`,
   }}>
-    <svg width={size} height={Math.round(size*0.5)} viewBox="0 0 64 32" fill="none"
+    <div style={{ transform:`rotate(${b.tilt}deg) scaleX(${b.flip ? -1 : 1})` }}>
+    <svg width={b.sz} height={Math.round(b.sz*0.5)} viewBox="0 0 64 32" fill="none"
       style={{ display:'block', animation:'uwBatFlap .38s ease-in-out infinite' }}>
       {/* Asa esquerda (com borda serrilhada típica de morcego) */}
       <path d="M32 12
@@ -55,8 +76,10 @@ const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false, size=34 }) => (
       <circle cx="30.5" cy="11" r="1.05" fill="#ff1030"/>
       <circle cx="33.5" cy="11" r="1.05" fill="#ff1030"/>
     </svg>
+    </div>
   </div>
-);
+  );
+};
 
 const VampCastle = () => (
   <svg viewBox="0 0 220 105" width="220" height="105" fill="none"
@@ -1776,7 +1799,17 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               {(() => {
                 const isVampCard = songSkin !== 'default';
                 const skin = isVampCard ? getAssistantSkin(songSkin) : null;
-                return (<>
+                return (
+                <div style={{ position:'relative' }}>
+                  {isVampCard && <style>{VAMP_CARD_CSS}</style>}
+
+                  {/* Camada de morcegos — fora do card, voam na diagonal e podem sair da grade */}
+                  {isVampCard && (
+                    <div style={{ position:'absolute', inset:-48, overflow:'visible', pointerEvents:'none', zIndex:6 }}>
+                      {Array.from({ length: 7 }).map((_, i) => <VampBat key={i} size={32} />)}
+                    </div>
+                  )}
+
                   <div style={{borderRadius:20,
                     background: isVampCard ? '#090004' : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
@@ -1788,17 +1821,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
                     transition:"background .5s, border .5s",
                   }}>
-                    {isVampCard && <style>{VAMP_CARD_CSS}</style>}
-
-                    {/* Morcegos */}
-                    {isVampCard && <>
-                      <VampBat top={22}  delay={0}    dur={6}   size={34} />
-                      <VampBat top={52}  delay={2.1}  dur={7.5} size={28} rtl />
-                      <VampBat top={78}  delay={3.8}  dur={6.8} size={38} />
-                      <VampBat top={108} delay={1.0}  dur={8.5} size={30} rtl />
-                      <VampBat top={38}  delay={5.2}  dur={7}   size={26} />
-                      <VampBat top={90}  delay={4.5}  dur={9}   size={32} rtl />
-                    </>}
 
                     {/* Lua de sangue */}
                     {isVampCard && (
@@ -1839,7 +1861,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                   {/* Descrição do Uniko especial abaixo do card */}
                   {isVampCard && currentSong?.requested_by && (
-                    <div style={{ display:'flex', justifyContent:'center', marginTop:8 }}>
+                    <div style={{ display:'flex', justifyContent:'center', marginTop:2 }}>
                       <div style={{
                         display:'inline-flex', alignItems:'center', gap:8,
                         padding:'6px 16px', borderRadius:999,
@@ -1861,7 +1883,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       </div>
                     </div>
                   )}
-                </>);
+                </div>);
               })()}
 
               {/* Player controls */}
