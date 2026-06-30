@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -131,6 +131,7 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
   const tolerance        = cfg.tolerance ?? 1;
   const jornada          = cfg.jornada ?? 480;
   const toleranciaAtraso = cfg.toleranciaAtraso ?? 10;
+  const justifs          = cfg.justifs ?? {};   // dia justificado (abonado) → saldo zerado
 
   /* ── Construir mapa de funcionários ── */
   const empMap = {};
@@ -176,9 +177,13 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
         const wknd      = isWknd_p(date);
         const expected  = wknd ? 0 : jornada;
         const rawBalance = totalMin - expected;
-        const balance   = (!wknd && rawBalance < 0 && Math.abs(rawBalance) <= toleranciaAtraso)
-          ? 0 : rawBalance;
-        return { date, times, pairs, totalMin, expected, balance, issues, wknd };
+        // Dia JUSTIFICADO (abonado pelo admin) → zera o saldo (tira horas + ou -).
+        const jv        = justifs[`${emp.cpf}_${date}`];
+        const abonado   = !!(jv && jv.abonado && (jv.text || jv.texto));
+        const balance   = abonado ? 0
+          : (!wknd && rawBalance < 0 && Math.abs(rawBalance) <= toleranciaAtraso) ? 0
+          : rawBalance;
+        return { date, times, pairs, totalMin, expected, balance, issues, wknd, abonado };
       });
       let cumBal=0;
       const daysWithCum = days.map(d=>{ cumBal+=d.balance; return {...d,cumBal}; });
@@ -262,14 +267,17 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
 
   /* ── afd: dashboard recalculado das marcações ACUMULADAS do banco ── */
   const afd = React.useMemo(
-    () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso }) : null,
-    [rawData, tolerance, jornada, toleranciaAtraso]
+    () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso, justifs }) : null,
+    [rawData, tolerance, jornada, toleranciaAtraso, justifs]
   );
 
   /* Persiste o resumo de presença por funcionário/mês (alimenta a missão "Presença Impecável") */
   React.useEffect(() => {
     if (!afd?.employees?.length) return;
-    const t = setTimeout(() => { savePontoPresenca(afd.employees).catch(() => {}); }, 1200);
+    const t = setTimeout(() => {
+      savePontoPresenca(afd.employees).catch(() => {});
+      savePontoNegativos(afd.employees).catch(() => {}); // dias negativos pro colaborador
+    }, 1200);
     return () => clearTimeout(t);
   }, [afd]);
 

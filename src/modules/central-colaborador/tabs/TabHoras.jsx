@@ -29,6 +29,10 @@ const fmtData = iso => {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
 };
 
+const onlyDigits = s => (s || '').replace(/\D/g, '');
+const fmtMin = m => { const a = Math.abs(Math.round(m)), h = Math.floor(a / 60), mm = a % 60; return `${m < 0 ? '-' : ''}${h}h${mm.toString().padStart(2, '0')}`; };
+const diaSemana = iso => { try { return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' }); } catch { return ''; } };
+
 const nowTime = () =>
   new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo', hour12: false });
 
@@ -71,6 +75,17 @@ const TabHoras = () => {
     setRegistros(data || []);
     setLoading(false);
   };
+
+  // Dias com saldo NEGATIVO no ponto eletrônico (gravados pelo RH) — exibidos abaixo.
+  const [negDays, setNegDays] = useState([]);
+  useEffect(() => {
+    const cpf = onlyDigits(authData?.cpf || USER.cpf);
+    if (!cpf) return;
+    let alive = true;
+    _supabase.from('ponto_negativos').select('data,saldo').eq('cpf', cpf).order('data', { ascending: false })
+      .then(({ data }) => { if (alive) setNegDays(data || []); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => { loadRegistros(); }, []);
 
@@ -167,6 +182,43 @@ const TabHoras = () => {
           </button>
         </div>
       </div>
+
+      {/* ── HORAS NEGATIVAS (Ponto Eletrônico) ── */}
+      {negDays.length > 0 && (
+        <Card style={{ padding: '22px 26px', marginBottom: 18, border: '1px solid rgba(192,64,80,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(192,64,80,0.12)', color: '#C04050', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Ico d={<><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>} size={16} stroke="#C04050" />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: T.text }}>Horas negativas</div>
+                <div style={{ fontSize: 12, color: T.textT }}>Dias com saldo negativo no ponto · {negDays.length}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#C04050' }}>
+              {fmtMin(negDays.reduce((a, d) => a + Number(d.saldo || 0), 0))}
+            </div>
+          </div>
+          <StarDivider my={6} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {negDays.map((d, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 15px', background: 'rgba(192,64,80,0.04)', border: '1px solid rgba(192,64,80,0.15)', borderRadius: 11 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fmtData(d.data)}</div>
+                  <div style={{ fontSize: 11.5, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.data)}</div>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#C04050', background: 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 11px' }}>
+                  {fmtMin(Number(d.saldo || 0))}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: T.textT, marginTop: 12, lineHeight: 1.5 }}>
+            Dias justificados pelo RH são abonados e deixam de contar como negativos.
+          </div>
+        </Card>
+      )}
 
       {/* ── HISTÓRICO ── */}
       <Card style={{ padding: '24px 26px' }}>

@@ -27,7 +27,7 @@ const NAV=[
   {id:'dados',      label:'Seus Dados',     icon:<I><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></I>},
   {id:'financeiro', label:'Financeiro',     icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 7v1.5M12 15.5V17M9.5 10.5c0-1.1.9-2 2.5-2s2.5.9 2.5 2-2.5 2-2.5 2-2.5.9-2.5 2 .9 2 2.5 2 2.5-.9 2.5-2"/></I>},
   {id:'horas',      label:'Banco de Horas', icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
-  {id:'ponto',      label:'Meu Ponto Eletrônico', icon:<I><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1"/><circle cx="12" cy="13" r="3.2"/><path d="M12 11.6V13l1 .8"/></I>},
+  {id:'ponto',      label:'Ponto Eletrônico', icon:<I><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1"/><circle cx="12" cy="13" r="3.2"/><path d="M12 11.6V13l1 .8"/></I>},
   {id:'lembretes',  label:'Meus Lembretes', icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
   /* Grupo 2 — Corporativo (divider antes) */
   {id:'comunicados',label:'Comunicados',    icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
@@ -200,7 +200,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 const TopBar = ({tab,onBack}) => {
   const isMobile = useIsMobile();
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
-    ponto:'Meu Ponto Eletrônico',
+    ponto:'Ponto Eletrônico',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave'};

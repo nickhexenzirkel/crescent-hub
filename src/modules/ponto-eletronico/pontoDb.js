@@ -125,6 +125,23 @@ export async function savePontoPresenca(employees) {
   if (rows.length) await upsertChunks('ponto_presenca', rows, { onConflict: 'cpf,month' });
 }
 
+/* Persiste os DIAS NEGATIVOS por funcionário (saldo < 0, em MINUTOS) — pro colaborador ver
+   no "Banco de Horas" quais dias ficou negativo. Dias abonados já vêm com saldo 0 (não entram).
+   Regrava do zero por CPF (apaga os antigos e insere os atuais). Tabela: ponto_negativos. */
+export async function savePontoNegativos(employees) {
+  if (!Array.isArray(employees) || !employees.length) return;
+  const ts = nowISO();
+  for (const emp of employees) {
+    const negs = (emp.days || [])
+      .filter(d => Number(d.balance) < 0)
+      .map(d => ({ cpf: emp.cpf, data: d.date, saldo: Math.round(Number(d.balance)), updated_at: ts }));
+    try {
+      await supabase.from('ponto_negativos').delete().eq('cpf', emp.cpf);
+      if (negs.length) await upsertChunks('ponto_negativos', negs, { onConflict: 'cpf,data' });
+    } catch {}
+  }
+}
+
 /* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga. */
 export async function saveJustificativa({ cpf, date, text }) {
   const clean = (text || '').trim();

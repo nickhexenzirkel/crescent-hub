@@ -60,7 +60,7 @@ const TabMeuPonto = () => {
         boxShadow: `0 8px 28px ${positivo ? 'rgba(26,156,112,0.25)' : 'rgba(192,64,80,0.25)'}`,
       }}>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>
-          MEU PONTO ELETRÔNICO
+          PONTO ELETRÔNICO
         </div>
         <div style={{ width: 250, margin: '0 auto 12px' }}><StarDivider /></div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,.78)', marginBottom: 4 }}>Saldo atual do banco</div>
