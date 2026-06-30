@@ -9,6 +9,7 @@ import { TabInicio } from './tabs/TabInicio';
 import { TabFinanceiro } from './tabs/TabFinanceiro';
 import { TabDados } from './tabs/TabDados';
 import { TabHoras } from './tabs/TabHoras';
+import { TabMeuPonto } from './tabs/TabMeuPonto';
 import { TabFeedback } from './tabs/TabFeedback';
 import { TabEventos } from './tabs/TabEventos';
 import { TabGames } from './tabs/TabGames';
@@ -127,6 +128,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
     if(tab==='horas')      return <TabHoras/>;
+    if(tab==='ponto')      return <TabMeuPonto/>;
     if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
     if(tab==='colegas')    return <TabColegas/>;

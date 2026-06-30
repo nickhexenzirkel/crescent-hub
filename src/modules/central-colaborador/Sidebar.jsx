@@ -27,6 +27,7 @@ const NAV=[
   {id:'dados',      label:'Seus Dados',     icon:<I><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></I>},
   {id:'financeiro', label:'Financeiro',     icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 7v1.5M12 15.5V17M9.5 10.5c0-1.1.9-2 2.5-2s2.5.9 2.5 2-2.5 2-2.5 2-2.5.9-2.5 2 .9 2 2.5 2 2.5-.9 2.5-2"/></I>},
   {id:'horas',      label:'Banco de Horas', icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
+  {id:'ponto',      label:'Meu Ponto Eletrônico', icon:<I><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1"/><circle cx="12" cy="13" r="3.2"/><path d="M12 11.6V13l1 .8"/></I>},
   {id:'lembretes',  label:'Meus Lembretes', icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
   /* Grupo 2 — Corporativo (divider antes) */
   {id:'comunicados',label:'Comunicados',    icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
@@ -105,23 +106,23 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
       </div>
 
       {/* Nav */}
-      <nav style={{flex:1,padding:'8px 12px',display:'flex',flexDirection:'column',
-        gap:2,overflowY:'auto'}}>
+      <nav style={{flex:1,padding:'6px 12px',display:'flex',flexDirection:'column',
+        gap:1,overflowY:'auto'}}>
         {!collapsed && <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',
-          textTransform:'uppercase',padding:'2px 8px 10px',fontWeight:600}}>NAVEGAÇÃO</div>}
+          textTransform:'uppercase',padding:'2px 8px 6px',fontWeight:600}}>NAVEGAÇÃO</div>}
 
         {NAV.map((n,idx)=>{
           const a=tab===n.id;
           const locked = n.id==='uniko' && !profileComplete;
-          const showDivider = idx===5 || idx===10; /* dividers between logical groups */
+          const showDivider = idx===6 || idx===11; /* dividers between logical groups */
           return(
             <div key={n.id}>
-              {showDivider && <StarDivider my={5} dim/>}
+              {showDivider && <StarDivider my={3} dim/>}
               <div
                 onClick={()=> locked ? setTab('dados') : setTab(n.id)}
                 onMouseEnter={()=>sh(n.id)} onMouseLeave={()=>sh(null)}
                 title={collapsed ? n.label : (locked ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined)}
-                style={{display:'flex',alignItems:'center',gap:11,padding:collapsed?'11px 0':'11px 13px',
+                style={{display:'flex',alignItems:'center',gap:11,padding:collapsed?'8px 0':'8px 13px',
                   justifyContent:collapsed?'center':'flex-start',
                   borderRadius:10,cursor:'pointer',
                   background:a?T.goldGl:hov===n.id?(T.surfaceSub||'rgba(0,0,0,0.03)'):'transparent',
@@ -199,6 +200,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 const TopBar = ({tab,onBack}) => {
   const isMobile = useIsMobile();
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
+    ponto:'Meu Ponto Eletrônico',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave'};
