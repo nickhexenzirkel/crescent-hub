@@ -82,6 +82,15 @@ export function markCaptureDone(cfg) {
   try { localStorage.setItem(doneKey(cfg), '1'); } catch {}
 }
 
+// Resultado da captura (quem capturou + quando) — pra mostrar no widget mesmo após recarregar.
+const resultKey = (cfg) => `capture_uniko_result_${userTag()}_${captureEventId(cfg)}`;
+export function getCaptureResult(cfg) {
+  try { const r = localStorage.getItem(resultKey(cfg)); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+export function setCaptureResult(cfg, result) {
+  try { localStorage.setItem(resultKey(cfg), JSON.stringify(result)); } catch {}
+}
+
 /* ── Pub/sub widget ⇆ assistente ─────────────────────────────────────────── */
 const STATE_EV = 'capture-uniko:state';
 let _lastState = { available: false, uniko: null };

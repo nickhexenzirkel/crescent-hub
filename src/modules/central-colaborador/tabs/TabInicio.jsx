@@ -18,6 +18,7 @@ import unikoCowboy    from '../../../assets/UnikoCowboy.png';
 import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
+import CaptureUnikoWidget from '../../../shared/CaptureUnikoWidget';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -89,7 +90,7 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 
 
 /* ══════════════════════════════════════════════════════════════════ */
-const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete }) => {
+const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete, captureCfg = null }) => {
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
   const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
@@ -539,7 +540,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         )}
       </div>
 
-      {/* ══ CAPTURE UNIKO! (função futura — só visual por enquanto) ═════ */}
+      {/* ══ CAPTURE O UNIKO — encontro temático dentro do widget (config do RH) ═════ */}
+      <CaptureUnikoWidget cfg={captureCfg} placeholder={(
       <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:T.surface,border:'1.5px solid rgba(155,107,255,.30)',boxShadow:T.sh,animation:'capBorder 2.2s ease-in-out infinite'}}>
         {/* selo "em breve" */}
         <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#9B6BFF',background:'rgba(155,107,255,.12)',border:'1px solid rgba(155,107,255,.3)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
@@ -558,6 +560,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <img src={unikoPop} alt="Uniko" style={{position:'relative',width:58,height:58,borderRadius:'50%',objectFit:'cover',opacity:.55,filter:'grayscale(.25) drop-shadow(0 4px 12px rgba(155,107,255,.5))',animation:'capFloat 3.4s ease-in-out infinite'}}/>
         </div>
       </div>
+      )}/>
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}
       {(!isPlay||!nowPlay)&&onGoAlexa&&(

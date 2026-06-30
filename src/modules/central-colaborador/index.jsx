@@ -18,7 +18,6 @@ import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import CentralLembretes from '../central-lembretes';
-import CaptureUnikoWidget from '../../shared/CaptureUnikoWidget';
 import { loadCaptureConfig } from '../../shared/captureUniko';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
@@ -148,7 +147,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     } catch {}
   };
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete} captureCfg={captureCfg}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
     if(tab==='horas')      return <TabHoras/>;
@@ -278,9 +277,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
           </div>
         </div>
       )}
-
-      {/* ── Capture o Uniko — encontro temático que surge aleatoriamente (config do RH) ── */}
-      {captureCfg && tab!=='unikowave' && <CaptureUnikoWidget cfg={captureCfg}/>}
 
       {showSettings && (
         <SettingsModal activeTheme={activeTheme}
