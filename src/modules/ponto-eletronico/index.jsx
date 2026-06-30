@@ -1234,14 +1234,8 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                       <tbody>
                         {(() => {
                           const rows = [];
-                          let weekDays = [], weekIdx = 0;
                           const pagedDays = filtDays.slice(pageBancoDays*PG_BANCO_DAYS,(pageBancoDays+1)*PG_BANCO_DAYS);
                           pagedDays.forEach((day, i) => {
-                            weekDays.push(day);
-                            const dayOfWeek = new Date(day.date+'T12:00:00').getDay();
-                            const isLast = i === pagedDays.length - 1;
-                            const nextDayOfWeek = !isLast ? new Date(pagedDays[i+1].date+'T12:00:00').getDay() : -1;
-                            const endOfWeek = isLast || nextDayOfWeek <= dayOfWeek;
                             const balColor = day.issues.length>0?'#C04050':day.balance>=0?'#1A9C70':T.gold;
                             const cumColor = day.cumBal>=0?'#1A9C70':'#C04050';
                             rows.push(
@@ -1290,23 +1284,22 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                                 </td>
                               </tr>
                             );
-                            if (endOfWeek) {
-                              const wMin = weekDays.reduce((s,d)=>s+d.totalMin,0);
-                              const wBal = weekDays.reduce((s,d)=>s+d.balance,0);
-                              weekIdx++;
-                              rows.push(
-                                <tr key={`wk-${weekIdx}`} style={{background:T.goldGl,borderTop:`2px solid ${T.goldLine}33`,borderBottom:`2px solid ${T.goldLine}33`}}>
-                                  <td colSpan={3} style={{padding:'7px 14px',fontSize:12,fontWeight:700,color:T.gold}}>★ Subtotal Semana {weekIdx} ({weekDays.length} dia{weekDays.length!==1?'s':''})</td>
-                                  <td style={{padding:'7px 14px',fontSize:13,fontWeight:700,color:T.text}}>{fmtMin(wMin)}</td>
-                                  <td style={{padding:'7px 14px',fontSize:13,color:T.textT}}>{fmtMin(jornada*weekDays.filter(d=>!d.wknd).length)}</td>
-                                  <td style={{padding:'7px 14px',fontSize:13,fontWeight:700,color:wBal>=0?'#1A9C70':'#C04050'}}>{wBal>=0?'+':''}{fmtMin(wBal)}</td>
-                                  <td style={{padding:'7px 14px',fontSize:13,fontWeight:700,color:day.cumBal>=0?'#1A9C70':'#C04050'}}>{day.cumBal>=0?'+':''}{fmtMin(day.cumBal)}</td>
-                                  <td/>
-                                </tr>
-                              );
-                              weekDays = [];
-                            }
                           });
+                          // Subtotal único de TODOS os dias do filtro (não por semana)
+                          const totMinAll = filtDays.reduce((s,d)=>s+d.totalMin,0);
+                          const totBalAll = filtDays.reduce((s,d)=>s+d.balance,0);
+                          const totExpAll = jornada*filtDays.filter(d=>!d.wknd).length;
+                          const lastCum   = filtDays.length?filtDays[filtDays.length-1].cumBal:0;
+                          rows.push(
+                            <tr key="total-all" style={{background:T.goldGl,borderTop:`2px solid ${T.goldLine}55`,borderBottom:`2px solid ${T.goldLine}55`}}>
+                              <td colSpan={3} style={{padding:'9px 14px',fontSize:12.5,fontWeight:800,color:T.gold}}>★ Subtotal — todos os dias ({filtDays.length} dia{filtDays.length!==1?'s':''})</td>
+                              <td style={{padding:'9px 14px',fontSize:13,fontWeight:700,color:T.text}}>{fmtMin(totMinAll)}</td>
+                              <td style={{padding:'9px 14px',fontSize:13,color:T.textT}}>{fmtMin(totExpAll)}</td>
+                              <td style={{padding:'9px 14px',fontSize:13,fontWeight:800,color:totBalAll>=0?'#1A9C70':'#C04050'}}>{totBalAll>=0?'+':''}{fmtMin(totBalAll)}</td>
+                              <td style={{padding:'9px 14px',fontSize:13,fontWeight:800,color:lastCum>=0?'#1A9C70':'#C04050'}}>{lastCum>=0?'+':''}{fmtMin(lastCum)}</td>
+                              <td/>
+                            </tr>
+                          );
                           return rows;
                         })()}
                       </tbody>

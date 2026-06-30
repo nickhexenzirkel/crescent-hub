@@ -538,6 +538,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(() => { if (tab === 'feedback') loadFeedbacks(); }, [tab]);
 
+  // ── Solicitações de justificativa do ponto (do colaborador) ──
+  const [solics, setSolics]       = useState([]);
+  const [solicLoading, setSolicLoading] = useState(false);
+  const [solicFilter, setSolicFilter]   = useState('pendente'); // pendente | todos
+  const loadSolics = async () => {
+    setSolicLoading(true);
+    const { data } = await _supabase.from('ponto_solicitacoes').select('*').order('created_at', { ascending: false });
+    setSolics(data || []);
+    setSolicLoading(false);
+  };
+  const setSolicStatus = async (id, status) => {
+    await _supabase.from('ponto_solicitacoes').update({ status }).eq('id', id);
+    setSolics(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+  };
+  const delSolic = async (id) => {
+    if (!window.confirm('Excluir esta solicitação?')) return;
+    await _supabase.from('ponto_solicitacoes').delete().eq('id', id);
+    setSolics(prev => prev.filter(s => s.id !== id));
+  };
+  useEffect(() => { if (tab === 'justificativas') loadSolics(); }, [tab]);
+
   // ── Contracheques: funções ────────────────────────────────
   const loadContracheques = async () => {
     setChLoading(true);
@@ -729,6 +750,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
     {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
+    {id:'justificativas', label:'Justificativas Ponto', icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
     {id:'uniko_ia',       label:'Perguntas do UNIKO',  icon:<><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></>},
@@ -1437,6 +1459,72 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}
+
+          {/* ── TAB: JUSTIFICATIVAS DE PONTO (solicitações do colaborador) ── */}
+          {tab==='justificativas'&&(()=>{
+            const list = solics.filter(s => solicFilter==='todos' ? true : (s.status||'pendente')==='pendente');
+            const pend = solics.filter(s => (s.status||'pendente')==='pendente').length;
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Justificativas de Ponto</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Solicitações dos colaboradores · {pend} pendente{pend===1?'':'s'}</div>
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {[['pendente','Pendentes'],['todos','Todas']].map(([k,l])=>(
+                    <button key={k} onClick={()=>setSolicFilter(k)}
+                      style={{padding:'7px 14px',borderRadius:9,cursor:'pointer',fontSize:12.5,fontWeight:600,fontFamily:'var(--font-body)',
+                        border:`1px solid ${solicFilter===k?T.gold:T.border}`,background:solicFilter===k?T.goldGl:'transparent',color:solicFilter===k?T.gold:T.textS}}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              {solicLoading ? (
+                <div style={{padding:48,textAlign:'center',color:T.textT}}>Carregando...</div>
+              ) : list.length===0 ? (
+                <div style={{padding:'40px 0',textAlign:'center',color:T.textT,fontSize:13}}>Nenhuma solicitação {solicFilter==='pendente'?'pendente':''}.</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  {list.map(s=>{
+                    const pendente=(s.status||'pendente')==='pendente';
+                    return (
+                    <div key={s.id} style={{padding:'16px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                      <div style={{display:'flex',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+                        <div style={{flex:1,minWidth:200}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
+                            <span style={{fontSize:15,fontWeight:700,color:T.text}}>{s.titulo}</span>
+                            <span style={{fontSize:10.5,fontWeight:700,borderRadius:5,padding:'1px 8px',color:pendente?'#D89030':'#1A9C70',background:pendente?'rgba(216,144,48,0.14)':'rgba(26,156,112,0.12)'}}>{pendente?'Pendente':'Resolvido'}</span>
+                          </div>
+                          <div style={{fontSize:12.5,color:T.textS,marginBottom:2}}>
+                            <strong style={{color:T.text}}>{s.nome||s.cpf}</strong>
+                            {s.data_ref&&<> · dia {(()=>{try{return new Date(s.data_ref+'T00:00:00').toLocaleDateString('pt-BR');}catch{return s.data_ref;}})()}</>}
+                            {s.created_at&&<> · enviado {new Date(s.created_at).toLocaleDateString('pt-BR')}</>}
+                          </div>
+                          {s.descricao&&<div style={{fontSize:13,color:T.textS,lineHeight:1.5,marginTop:4}}>{s.descricao}</div>}
+                          {s.file_url&&(
+                            <a href={s.file_url} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12.5,fontWeight:600,color:T.gold,marginTop:8,textDecoration:'none',padding:'6px 12px',borderRadius:8,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                              {s.file_name||'Ver anexo'}
+                            </a>
+                          )}
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+                          {pendente
+                            ? <button onClick={()=>setSolicStatus(s.id,'resolvido')} style={{padding:'8px 14px',borderRadius:9,border:'none',cursor:'pointer',background:'#1A9C70',color:'#fff',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)'}}>Marcar resolvido</button>
+                            : <button onClick={()=>setSolicStatus(s.id,'pendente')} style={{padding:'8px 14px',borderRadius:9,border:`1px solid ${T.border}`,cursor:'pointer',background:'transparent',color:T.textS,fontWeight:600,fontSize:12.5,fontFamily:'var(--font-body)'}}>Reabrir</button>}
+                          <button onClick={()=>delSolic(s.id)} style={{padding:'7px 14px',borderRadius:9,border:'1px solid rgba(192,64,80,0.25)',cursor:'pointer',background:'rgba(192,64,80,0.06)',color:'#C04050',fontWeight:600,fontSize:12,fontFamily:'var(--font-body)'}}>Excluir</button>
+                        </div>
+                      </div>
+                    </div>
+                  );})}
+                </div>
+              )}
+              <div style={{fontSize:11,color:T.textT,lineHeight:1.6}}>
+                ℹ️ Depois de analisar, abone o dia no módulo <strong>Ponto Eletrônico</strong> (botão “Justificar” no Banco de Horas do colaborador) — isso zera o saldo daquele dia.
+              </div>
+            </div>
+          );})()}
 
           {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
           {tab==='capture'&&(()=>{
