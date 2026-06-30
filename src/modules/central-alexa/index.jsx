@@ -85,7 +85,7 @@ const VampBat = () => {
 const VampCloud = ({ top, left, scale=1, dur=26, delay=0, op=0.45 }) => (
   <svg width={92*scale} height={38*scale} viewBox="0 0 92 38" fill="none"
     style={{ position:'absolute', top, left, opacity:op, animation:`vampCloudDrift ${dur}s ease-in-out ${delay}s infinite` }}>
-    <g fill="#240a16">
+    <g fill="#180611">
       <ellipse cx="26" cy="26" rx="22" ry="11"/>
       <ellipse cx="46" cy="19" rx="21" ry="14"/>
       <ellipse cx="65" cy="25" rx="20" ry="11"/>
@@ -146,26 +146,32 @@ const VampStorm = () => {
   );
 };
 
-// Mancha de tempestade (nuvens + relâmpagos aleatórios) p/ usar nos cantos da página
-const StormPatch = ({ pos, w = 280, h = 180, bolts = 4, clouds = 4 }) => {
+// Mancha de tempestade: nuvens GRANDES e escuras, cada uma soltando um raio
+// colado na ponta de baixo (meio) da nuvem.
+const StormPatch = ({ pos, w = 320, h = 220, clouds = 4 }) => {
   const cfg = useRef(null);
   if (!cfg.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
-    cfg.current = {
-      clouds: Array.from({ length: clouds }).map(() => ({
-        top: rnd(0, 30), left: `${rnd(0, 72)}%`, scale: rnd(0.6, 1.15),
-        dur: rnd(24, 36), delay: rnd(0, 6), op: rnd(0.28, 0.5),
-      })),
-      bolts: Array.from({ length: bolts }).map(() => ({
-        left: `${rnd(6, 82)}%`, top: rnd(24, 48), h: rnd(70, 170), delay: rnd(0, 5.5),
-      })),
-    };
+    cfg.current = Array.from({ length: clouds }).map(() => {
+      const scale = rnd(1.4, 2.6);                       // nuvens grandes
+      const cw = 92 * scale, ch = 38 * scale;
+      const x = rnd(0, Math.max(8, w - cw));             // px dentro da caixa
+      const y = rnd(0, 46);
+      const cx = x + cw / 2;                             // centro horizontal da nuvem
+      const cyBottom = y + ch * 0.84;                    // base da nuvem
+      const boltH = rnd(85, 175);
+      const boltW = Math.round(boltH * 0.3);
+      return {
+        cloud: { top: y, left: x, scale, op: rnd(0.72, 0.92), dur: rnd(24, 36), delay: rnd(0, 6) },
+        bolt:  { left: Math.round(cx - boltW / 2), top: Math.round(cyBottom - 4), h: boltH, delay: rnd(0, 5.5) },
+      };
+    });
   }
-  const c = cfg.current;
+  const items = cfg.current;
   return (
     <div style={{ position:'absolute', ...pos, width:w, height:h, pointerEvents:'none', overflow:'visible' }}>
-      {c.clouds.map((cl, i) => <VampCloud key={'c' + i} {...cl} />)}
-      {c.bolts.map((b, i)  => <VampLightning key={'b' + i} {...b} />)}
+      {items.map((it, i) => <VampCloud key={'c' + i} {...it.cloud} />)}
+      {items.map((it, i) => <VampLightning key={'b' + i} {...it.bolt} />)}
     </div>
   );
 };
@@ -177,10 +183,10 @@ const CentralStorm = () => (
       @keyframes vampCloudDrift{0%,100%{transform:translateX(0);}50%{transform:translateX(-16px);}}
       @keyframes vampLightning{0%{opacity:0;}1%{opacity:1;}3%{opacity:.15;}5%{opacity:.95;}8%{opacity:0;}100%{opacity:0;}}
     `}</style>
-    <StormPatch pos={{ top:0,     left:0  }} w={320} h={210} bolts={5} clouds={5} />
-    <StormPatch pos={{ top:0,     right:0 }} w={320} h={210} bolts={5} clouds={5} />
-    <StormPatch pos={{ top:'34%', left:0  }} w={200} h={170} bolts={3} clouds={3} />
-    <StormPatch pos={{ top:'34%', right:0 }} w={200} h={170} bolts={3} clouds={3} />
+    <StormPatch pos={{ top:0,     left:0  }} w={420} h={260} clouds={4} />
+    <StormPatch pos={{ top:0,     right:0 }} w={420} h={260} clouds={4} />
+    <StormPatch pos={{ top:'32%', left:0  }} w={300} h={210} clouds={3} />
+    <StormPatch pos={{ top:'32%', right:0 }} w={300} h={210} clouds={3} />
   </div>
 );
 
