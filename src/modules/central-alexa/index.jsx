@@ -100,12 +100,18 @@ const VampClouds = () => (
     <VampCloud top={24}  left="56%" scale={0.7}  dur={34} delay={3}   op={0.35} />
     <VampCloud top={-4}  left="66%" scale={0.85} dur={23} delay={1.5} op={0.55} />
     <VampCloud top={14}  left="30%" scale={0.6}  dur={30} delay={4.5} op={0.3} />
+    <VampCloud top={6}   left="8%"  scale={0.8}  dur={26} delay={2.2} op={0.42} />
+    <VampCloud top={20}  left="74%" scale={0.65} dur={31} delay={5}   op={0.35} />
+    <VampCloud top={-2}  left="84%" scale={0.7}  dur={27} delay={3.5} op={0.48} />
+    <VampCloud top={12}  left="-2%" scale={0.55} dur={33} delay={1}   op={0.3} />
+    <VampCloud top={28}  left="40%" scale={0.6}  dur={29} delay={6}   op={0.28} />
+    <VampCloud top={0}   left="22%" scale={0.75} dur={25} delay={3.8} op={0.4} />
   </div>
 );
 
 // Relâmpago vermelho (zig-zag) que pisca saindo das nuvens
 const VampLightning = ({ left, top = 0, h = 52, delay = 0 }) => (
-  <svg width={Math.round(h * 0.46)} height={h} viewBox="0 0 24 60" fill="none"
+  <svg width={Math.round(h * 0.3)} height={h} viewBox="0 0 24 60" fill="none" preserveAspectRatio="none"
     style={{ position:'absolute', left, top, pointerEvents:'none', opacity:0,
              animation:`vampLightning 6s linear ${delay}s infinite`,
              filter:'drop-shadow(0 0 5px #ff2d40) drop-shadow(0 0 12px #c41e3a)' }}>
@@ -114,15 +120,20 @@ const VampLightning = ({ left, top = 0, h = 52, delay = 0 }) => (
   </svg>
 );
 
-// Tempestade: relâmpagos vermelhos saindo das nuvens a cada 6s
+// Tempestade: vários relâmpagos vermelhos saindo das nuvens a cada 6s;
+// os longos descem até perto do castelo
 const VampStorm = () => (
   <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden', borderRadius:20 }}>
     <div style={{ position:'absolute', inset:0, opacity:0,
       background:'radial-gradient(ellipse at 55% 0%, #ff2d4055 0%, transparent 55%)',
       animation:'vampLightningFlash 6s linear infinite' }} />
-    <VampLightning left="50%" top={24} h={58} delay={0} />
-    <VampLightning left="38%" top={30} h={44} delay={0.12} />
-    <VampLightning left="62%" top={20} h={40} delay={0.2} />
+    <VampLightning left="50%" top={22} h={172} delay={0} />
+    <VampLightning left="38%" top={28} h={150} delay={0.1} />
+    <VampLightning left="64%" top={20} h={158} delay={0.18} />
+    <VampLightning left="28%" top={30} h={120} delay={0.28} />
+    <VampLightning left="74%" top={26} h={110} delay={0.36} />
+    <VampLightning left="46%" top={32} h={88}  delay={0.46} />
+    <VampLightning left="58%" top={30} h={64}  delay={0.55} />
   </div>
 );
 
