@@ -357,7 +357,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     });
   }, [queue, alexaConvo]); // eslint-disable-line
   const [currentSong, setCurrentSong]   = useState(null);
-  const [currentGenre, setCurrentGenre] = useState('');
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
   const [showLyrics, setShowLyrics]     = useState(false);
   const [lyrics, setLyrics]             = useState([]);       // [{time, text}]
@@ -368,7 +367,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const lyricsRef = useRef(null);
   const progressTimer = useRef(null);
   const lastSongId  = useRef(null);
-  const genreCache  = useRef({});  // spotify_id → genre string (evita re-fetch da mesma faixa)
+  const genreCache  = useRef({});  // mantido por compatibilidade, não mais utilizado
   // ── Mini janela de videoclipe (visual; áudio segue no Spotify/Echo) ──
   const [videoEnabled, setVideoEnabled] = useState(() => {
     try { return localStorage.getItem('ch_fest_video') === '1'; } catch { return false; }
@@ -1057,24 +1056,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [alexaConvo]);
 
-  // Busca genre real do Spotify quando a música muda (com cache local por sessão)
-  useEffect(() => {
-    if (!currentSong?.spotify_id) { setCurrentGenre(''); return; }
-    const id = currentSong.spotify_id;
-    if (genreCache.current[id] !== undefined) {
-      setCurrentGenre(genreCache.current[id]);
-      return;
-    }
-    fetch(`${SERVER_URL}/api/genre?track_id=${id}`)
-      .then(r => r.json())
-      .then(data => {
-        const g = (data.genres || []).join(' ');
-        genreCache.current[id] = g;
-        setCurrentGenre(g);
-      })
-      .catch(() => setCurrentGenre(''));
-  }, [currentSong?.spotify_id]);
-
   // Busca o videoclipe da música atual quando ela muda (e a janela está ligada)
   useEffect(() => {
     if (!videoEnabled) { setClipVideoId(null); return; }
@@ -1640,9 +1621,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined}}>
                 <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                 <UnikoMascot
-                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist, genre: currentGenre } : null}
+                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
                   colors={festColors}
                   size={isMobile?110:160}
+                  requestedBy={currentSong?.requested_by}
+                  myName={myName}
                 />
               </div>
 
