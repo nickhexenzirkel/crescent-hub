@@ -3,7 +3,33 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
+import { getActiveAssistantSkinId, onAssistantSkinChange } from '../../shared/assistantSkin';
 import { useIsMobile } from '../../hooks/useIsMobile';
+
+const VAMP_CARD_CSS = `
+@keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
+@keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
+@keyframes vampBatFly{0%{transform:translateX(-32px);opacity:0;}6%{opacity:.8;}92%{opacity:.8;}100%{transform:translateX(320px);opacity:0;}}
+@keyframes vampBatFlyR{0%{transform:translateX(320px) scaleX(-1);opacity:0;}6%{opacity:.8;}92%{opacity:.8;}100%{transform:translateX(-32px) scaleX(-1);opacity:0;}}
+@keyframes uwBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.45);}}
+`;
+
+const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false }) => (
+  <div style={{
+    position:'absolute', top, left: rtl ? undefined : 0, right: rtl ? 0 : undefined,
+    pointerEvents:'none', zIndex:1,
+    animation:`${rtl ? 'vampBatFlyR' : 'vampBatFly'} ${dur}s linear ${delay}s infinite`,
+  }}>
+    <svg width="20" height="12" viewBox="0 0 20 12" fill="none"
+      style={{ display:'block', animation:'uwBatFlap .38s ease-in-out infinite' }}>
+      <path d="M10 7 Q6 1 0 3 Q-1 7 0 10 Q4 11 8 8" fill="#9a0015" opacity=".82"/>
+      <path d="M10 7 Q14 1 20 3 Q21 7 20 10 Q16 11 12 8" fill="#9a0015" opacity=".82"/>
+      <ellipse cx="10" cy="7.5" rx="2.5" ry="2" fill="#3a0010"/>
+      <circle cx="8.8" cy="6.5" r=".65" fill="#ff1030" opacity=".9"/>
+      <circle cx="11.2" cy="6.5" r=".65" fill="#ff1030" opacity=".9"/>
+    </svg>
+  </div>
+);
 
 // Extrai cores dominantes da capa do álbum via Canvas
 // Usa proxy do servidor para contornar CORS da CDN do Spotify
@@ -330,6 +356,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const auth = getAuthUser();
     return auth?.name || USER.name || 'Colaborador';
   });
+  const [mascotSkinId, setMascotSkinId] = useState(() => getActiveAssistantSkinId());
+  useEffect(() => onAssistantSkinChange(id => setMascotSkinId(id)), []);
   const [photoCache, setPhotoCache] = useState({});
   // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
   const [myPhoto, setMyPhoto] = useState(userPhoto);
@@ -1617,17 +1645,67 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
             {/* Left: UnikoWave + Player */}
             <div style={{width:isMobile?"100%":280,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
-              <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"16px 16px 12px",boxShadow:T.shM,position:"relative",
-                width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined}}>
-                <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
-                <UnikoMascot
-                  track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
-                  colors={festColors}
-                  size={isMobile?110:160}
-                  requestedBy={currentSong?.requested_by}
-                  myName={myName}
-                />
-              </div>
+              {(() => {
+                const isMyMusicNow = !!currentSong && currentSong.requested_by === myName;
+                const isVampCard   = isMyMusicNow && mascotSkinId !== 'default';
+                return (
+                  <div style={{borderRadius:20,
+                    background: isVampCard ? '#090004' : cardBg,
+                    backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                    border: isVampCard ? '1px solid #c41e3a66' : `1px solid ${T.border}`,
+                    padding:"16px 16px 12px",
+                    boxShadow: isVampCard ? undefined : T.shM,
+                    animation: isVampCard ? 'vampCardGlow 3s ease-in-out infinite' : undefined,
+                    position:"relative", overflow:"hidden",
+                    width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
+                    transition:"background .5s, border .5s",
+                  }}>
+                    {isVampCard && <style>{VAMP_CARD_CSS}</style>}
+
+                    {/* Bats */}
+                    {isVampCard && <>
+                      <VampBat top={28}  delay={0}   dur={6.5} />
+                      <VampBat top={55}  delay={2.4} dur={8}   rtl />
+                      <VampBat top={80}  delay={4.1} dur={7.2} />
+                      <VampBat top={110} delay={1.2} dur={9}   rtl />
+                    </>}
+
+                    {/* Blood moon */}
+                    {isVampCard && (
+                      <div style={{
+                        position:'absolute', top:10, right:14, width:36, height:36,
+                        borderRadius:'50%', pointerEvents:'none',
+                        background:'radial-gradient(circle, #d42040 0%, #7a0010 100%)',
+                        boxShadow:'0 0 14px 5px #c41e3a55, 0 0 35px 10px #c41e3a22',
+                        animation:'vampMoonPulse 3.5s ease-in-out infinite', zIndex:0,
+                      }}/>
+                    )}
+
+                    {/* Atmospheric glow overlay */}
+                    {isVampCard && (
+                      <div style={{
+                        position:'absolute', inset:0, pointerEvents:'none', zIndex:0,
+                        background:'radial-gradient(ellipse at 70% 10%, #c41e3a1a 0%, transparent 65%)',
+                      }}/>
+                    )}
+
+                    {/* Normal blob (only when not vampire) */}
+                    {!isVampCard && (
+                      <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
+                    )}
+
+                    <div style={{ position:'relative', zIndex:2 }}>
+                      <UnikoMascot
+                        track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
+                        colors={festColors}
+                        size={isMobile?110:160}
+                        requestedBy={currentSong?.requested_by}
+                        myName={myName}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Player controls */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh,
