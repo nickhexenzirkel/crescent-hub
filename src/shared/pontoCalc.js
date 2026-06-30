@@ -7,9 +7,12 @@ import { supabase } from '../contexts/user';
 const isWknd = iso => { try { const d = new Date(iso + 'T12:00:00').getDay(); return d === 0 || d === 6; } catch { return false; } };
 
 const normName = s => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+const tok = s => normName(s).split(' ').filter(t => t.length >= 2);
+const subset = (a, b) => a.length >= 2 && a.every(t => b.includes(t)); // todos os tokens de a estão em b
 
-// Resolve os CPFs do colaborador no ponto: o do perfil (e zero-padded) + os que casarem
-// pelo NOME na ponto_funcionarios (contorna diferença de formato de CPF entre perfil e AFD).
+// Resolve o identificador do colaborador no ponto. IMPORTANTE: no AFD o número costuma ser
+// PIS/PASEP (≠ CPF do cadastro), então o vínculo confiável é pelo NOME (ponto_funcionarios).
+// Devolve: CPF do perfil (e zero-padded, caso o AFD use CPF) + o MELHOR match único por nome.
 export async function resolvePontoCpfs({ cpf, name }) {
   const cpfs = new Set();
   const c = (cpf || '').replace(/\D/g, '');
@@ -17,15 +20,20 @@ export async function resolvePontoCpfs({ cpf, name }) {
   try {
     const { data: funcs } = await supabase.from('ponto_funcionarios').select('cpf,nome');
     const my = normName(name);
-    if (my) {
-      const exact = [], partial = [];
-      for (const f of (funcs || [])) {
-        const fn = normName(f.nome);
-        if (!fn || !f.cpf) continue;
-        if (fn === my) exact.push(f.cpf);
-        else if (fn.includes(my) || my.includes(fn)) partial.push(f.cpf);
+    const myTok = tok(name);
+    if (my && (funcs || []).length) {
+      let best = null, bestScore = -1;
+      for (const f of funcs) {
+        if (!f.cpf) continue;
+        const fNorm = normName(f.nome);
+        const fTok = tok(f.nome);
+        let score = -1;
+        if (fNorm && fNorm === my) score = 1000;                       // nome idêntico
+        else if (subset(myTok, fTok) || subset(fTok, myTok))            // um nome contém todos os tokens do outro
+          score = Math.min(myTok.length, fTok.length) * 10 - Math.abs(myTok.length - fTok.length);
+        if (score > bestScore) { bestScore = score; best = f.cpf; }
       }
-      (exact.length ? exact : partial).forEach(x => cpfs.add(x));
+      if (best && bestScore >= 0) cpfs.add(best);
     }
   } catch {}
   return [...cpfs].filter(Boolean);
