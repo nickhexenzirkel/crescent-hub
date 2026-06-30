@@ -22,10 +22,12 @@ function guessGender(name) {
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
-@keyframes vampHeartBeat{0%{border-color:#5e000c;box-shadow:0 0 8px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}12%{border-color:#ff2d4c;box-shadow:0 0 26px 7px #ff2d4c66,0 8px 40px rgba(0,0,0,.45);}22%{border-color:#8a0014;box-shadow:0 0 12px 2px #c41e3a33,0 8px 40px rgba(0,0,0,.45);}34%{border-color:#ff4a63;box-shadow:0 0 34px 11px #ff4a6388,0 8px 40px rgba(0,0,0,.45);}48%{border-color:#6a000e;box-shadow:0 0 9px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}100%{border-color:#5e000c;box-shadow:0 0 8px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}}
+@keyframes vampHeartBeat{0%{border-color:#7a0c1a;box-shadow:0 0 10px 1px #7a001018,0 8px 40px rgba(0,0,0,.45);}14%{border-color:#d83a52;box-shadow:0 0 16px 3px #c41e3a3a,0 8px 40px rgba(0,0,0,.45);}28%{border-color:#8a1422;box-shadow:0 0 11px 2px #7a001022,0 8px 40px rgba(0,0,0,.45);}40%{border-color:#e24a60;box-shadow:0 0 20px 4px #c41e3a44,0 8px 40px rgba(0,0,0,.45);}58%{border-color:#7a0c1a;box-shadow:0 0 10px 1px #7a001018,0 8px 40px rgba(0,0,0,.45);}100%{border-color:#7a0c1a;box-shadow:0 0 10px 1px #7a001018,0 8px 40px rgba(0,0,0,.45);}}
 @keyframes vampBatWander{0%,100%{transform:translate(0,0);}20%{transform:translate(var(--dx),calc(var(--dy) * -.6));}40%{transform:translate(calc(var(--dx) * 1.15),calc(var(--dy) * .5));}60%{transform:translate(calc(var(--dx) * .3),var(--dy));}80%{transform:translate(calc(var(--dx) * -.7),calc(var(--dy) * -.2));}}
 @keyframes vampBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.84);}}
 @keyframes vampCloudDrift{0%,100%{transform:translateX(0);}50%{transform:translateX(-16px);}}
+@keyframes vampLightning{0%{opacity:0;}1%{opacity:1;}3%{opacity:.15;}5%{opacity:.95;}8%{opacity:0;}100%{opacity:0;}}
+@keyframes vampLightningFlash{0%{opacity:0;}1.5%{opacity:.5;}4%{opacity:.12;}6%{opacity:.42;}9%{opacity:0;}100%{opacity:0;}}
 @keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
 `;
 
@@ -101,6 +103,29 @@ const VampClouds = () => (
   </div>
 );
 
+// Relâmpago vermelho (zig-zag) que pisca saindo das nuvens
+const VampLightning = ({ left, top = 0, h = 52, delay = 0 }) => (
+  <svg width={Math.round(h * 0.46)} height={h} viewBox="0 0 24 60" fill="none"
+    style={{ position:'absolute', left, top, pointerEvents:'none', opacity:0,
+             animation:`vampLightning 6s linear ${delay}s infinite`,
+             filter:'drop-shadow(0 0 5px #ff2d40) drop-shadow(0 0 12px #c41e3a)' }}>
+    <path d="M14 0 L5 26 L12 26 L3 60 L20 22 L12 22 L19 0 Z" fill="#ff3a4e" />
+    <path d="M14 0 L5 26 L12 26 L3 60 L20 22 L12 22 L19 0 Z" fill="#fff" opacity=".3" />
+  </svg>
+);
+
+// Tempestade: relâmpagos vermelhos saindo das nuvens a cada 6s
+const VampStorm = () => (
+  <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden', borderRadius:20 }}>
+    <div style={{ position:'absolute', inset:0, opacity:0,
+      background:'radial-gradient(ellipse at 55% 0%, #ff2d4055 0%, transparent 55%)',
+      animation:'vampLightningFlash 6s linear infinite' }} />
+    <VampLightning left="50%" top={24} h={58} delay={0} />
+    <VampLightning left="38%" top={30} h={44} delay={0.12} />
+    <VampLightning left="62%" top={20} h={40} delay={0.2} />
+  </div>
+);
+
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
   const bats = useRef(null);
@@ -111,14 +136,15 @@ const BatBurstOverlay = () => {
       const [cx, cy] = CORNERS[Math.floor(Math.random() * 4)]; // mira num dos 4 cantos
       return {
         id: i,
-        x:   rnd(40, 60),                          // % posição inicial (perto do centro)
-        y:   rnd(40, 60),
-        dx:  cx * rnd(85, 150),                    // vmax → ultrapassa o canto e sai da tela
-        dy:  cy * rnd(85, 150),
-        sz:  Math.round(rnd(24, 60)),
-        dur: rnd(1.5, 2.8),
-        delay: rnd(0, 2.6),                        // escalonado ao longo dos ~5s
-        rot: rnd(-40, 40),
+        x:   rnd(36, 64),                          // % posição inicial (perto do centro)
+        y:   rnd(36, 64),
+        dx:  cx * rnd(80, 140),                    // vmax → ultrapassa o canto e sai da tela
+        dy:  cy * rnd(80, 140),
+        sz:  Math.round(rnd(26, 60)),
+        dur: rnd(4.2, 5.0),                        // lento: dá pra ver as asas batendo
+        delay: rnd(0, 0.25),                       // praticamente todos ao mesmo tempo
+        rot: rnd(-30, 30),
+        flap: rnd(0.45, 0.7),                      // velocidade do bater de asas
         flip: cx < 0 ? -1 : 1,                     // vira na direção do voo
       };
     });
@@ -126,15 +152,16 @@ const BatBurstOverlay = () => {
   return (
     <div style={{ position:'fixed', inset:0, zIndex:99998, pointerEvents:'none', overflow:'hidden' }}>
       <style>{`
-        @keyframes batBurstFlash{0%{opacity:0;}20%{opacity:.42;}80%{opacity:.3;}100%{opacity:0;}}
+        @keyframes batBurstFlash{0%{opacity:0;}20%{opacity:.4;}80%{opacity:.28;}100%{opacity:0;}}
         @keyframes batBurstFly{
-          0%{transform:translate(-50%,-50%) scale(.55) rotate(var(--brot));opacity:0;}
-          8%{opacity:1;}
-          85%{opacity:1;}
-          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.05) rotate(var(--brot));opacity:0;}
+          0%{transform:translate(-50%,-50%) scale(1) rotate(var(--brot));opacity:0;}
+          7%{opacity:1;}
+          90%{opacity:1;}
+          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(.4) rotate(var(--brot));opacity:0;}
         }
+        @keyframes batBurstFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.78);}}
       `}</style>
-      {/* Escurecimento rápido pra dar destaque */}
+      {/* Escurecimento pra dar destaque */}
       <div style={{
         position:'absolute', inset:0,
         background:'radial-gradient(ellipse at 50% 45%, rgba(40,0,8,.0) 30%, rgba(8,0,4,.85) 100%)',
@@ -144,13 +171,15 @@ const BatBurstOverlay = () => {
         <div key={b.id} style={{
           position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
           '--bdx':`${b.dx}vmax`, '--bdy':`${b.dy}vmax`, '--brot':`${b.rot}deg`,
-          animation:`batBurstFly ${b.dur}s ease-out ${b.delay}s forwards`,
+          animation:`batBurstFly ${b.dur}s ease-in ${b.delay}s both`,
         }}>
-          <img src="/morcego.png" alt="" style={{
-            display:'block', width:b.sz, height:'auto',
-            transform:`scaleX(${b.flip})`,
-            filter:'drop-shadow(0 2px 7px rgba(0,0,0,.6))',
-          }}/>
+          <div style={{ animation:`batBurstFlap ${b.flap}s ease-in-out infinite` }}>
+            <img src="/morcego.png" alt="" style={{
+              display:'block', width:b.sz, height:'auto',
+              transform:`scaleX(${b.flip})`,
+              filter:'drop-shadow(0 2px 7px rgba(0,0,0,.6))',
+            }}/>
+          </div>
         </div>
       ))}
     </div>
@@ -1913,7 +1942,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: UnikoWave + Player */}
-            <div style={{width:isMobile?"100%":320,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
+            <div style={{width:isMobile?"100%":360,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
               {(() => {
                 const isVampCard = songSkin !== 'default';
                 const skin = isVampCard ? getAssistantSkin(songSkin) : null;
@@ -1927,7 +1956,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     border: isVampCard ? '2px solid #c41e3a' : `1px solid ${T.border}`,
                     padding:"16px 16px 12px",
                     boxShadow: isVampCard ? undefined : T.shM,
-                    animation: isVampCard ? 'vampHeartBeat 1.25s ease-in-out infinite' : undefined,
+                    animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : undefined,
                     position:"relative", overflow:"hidden",
                     width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
                     transition:"background .5s, border .5s",
@@ -1946,6 +1975,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                     {/* Nuvens perto da lua */}
                     {isVampCard && <VampClouds />}
+
+                    {/* Relâmpagos vermelhos saindo das nuvens (a cada 6s) */}
+                    {isVampCard && <VampStorm />}
 
                     {/* Morcegos — só na faixa superior, atrás do ícone (zIndex 1) */}
                     {isVampCard && (
