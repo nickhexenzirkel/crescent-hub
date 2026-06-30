@@ -24,45 +24,81 @@ const VAMP_CARD_CSS = `
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
 @keyframes vampBatWander{0%,100%{transform:translate(0,0);}20%{transform:translate(var(--dx),calc(var(--dy) * -.6));}40%{transform:translate(calc(var(--dx) * 1.15),calc(var(--dy) * .5));}60%{transform:translate(calc(var(--dx) * .3),var(--dy));}80%{transform:translate(calc(var(--dx) * -.7),calc(var(--dy) * -.2));}}
 @keyframes vampBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.84);}}
+@keyframes vampCloudDrift{0%,100%{transform:translateX(0);}50%{transform:translateX(-16px);}}
 @keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
 `;
 
-// Morcego (imagem) que vagueia dentro do card: sai um pouco além da margem e volta
+const rndN = (a, b) => a + Math.random() * (b - a);
+const newBatPose = () => ({
+  top:  rndN(0, 28),                                  // % só na faixa superior, longe do ícone
+  left: rndN(2, 86),
+  dx:   (Math.random() < 0.5 ? -1 : 1) * rndN(16, 58),
+  dy:   (Math.random() < 0.5 ? -1 : 1) * rndN(10, 34),
+  dur:  rndN(4.5, 8),
+  sz:   Math.round(rndN(26, 46)),
+  flip: Math.random() < 0.5,
+  rot:  rndN(-12, 12),
+});
+
+// Morcego (imagem): voa só na faixa superior, some e reaparece em lugares diferentes
 const VampBat = () => {
-  const cfg = useRef(null);
-  if (!cfg.current) {
-    const rnd = (a, b) => a + Math.random() * (b - a);
-    cfg.current = {
-      top:   rnd(8, 74),                       // % dentro da grade
-      left:  rnd(6, 72),
-      dx:    (Math.random() < 0.5 ? -1 : 1) * rnd(34, 92),  // vai um pouco além e volta
-      dy:    (Math.random() < 0.5 ? -1 : 1) * rnd(28, 78),
-      dur:   rnd(6, 10),
-      delay: rnd(0, 5),
-      sz:    Math.round(rnd(30, 52)),
-      flip:  Math.random() < 0.5,              // metade espelhada (variedade)
-      rot:   rnd(-8, 8),
+  const [pose, setPose] = useState(newBatPose);
+  const [vis,  setVis]  = useState(false);
+  useEffect(() => {
+    let tShow, tHide, tNext;
+    const cycle = () => {
+      setPose(newBatPose());          // novo lugar/movimento a cada aparição
+      setVis(false);
+      tShow = setTimeout(() => setVis(true), 60);
+      const showMs = rndN(4000, 8000);
+      tHide = setTimeout(() => setVis(false), showMs);                 // some
+      tNext = setTimeout(cycle, showMs + rndN(1400, 4000));            // reaparece noutro lugar
     };
-  }
-  const b = cfg.current;
+    const start = setTimeout(cycle, rndN(0, 5000));
+    return () => { clearTimeout(start); clearTimeout(tShow); clearTimeout(tHide); clearTimeout(tNext); };
+  }, []);
+  const p = pose;
   return (
   <div style={{
-    position:'absolute', top:`${b.top}%`, left:`${b.left}%`,
-    pointerEvents:'none', zIndex:6,
-    '--dx':`${b.dx}px`, '--dy':`${b.dy}px`,
-    animation:`vampBatWander ${b.dur}s ease-in-out ${b.delay}s infinite`,
+    position:'absolute', top:`${p.top}%`, left:`${p.left}%`,
+    pointerEvents:'none',
+    opacity: vis ? 0.95 : 0,
+    transition:'opacity .8s ease',
+    '--dx':`${p.dx}px`, '--dy':`${p.dy}px`,
+    animation:`vampBatWander ${p.dur}s ease-in-out infinite`,
   }}>
     <div style={{ animation:'vampBatFlap .55s ease-in-out infinite' }}>
       <img src="/morcego.png" alt="" style={{
-        width:b.sz, height:'auto', display:'block',
-        transform:`scaleX(${b.flip ? -1 : 1}) rotate(${b.rot}deg)`,
+        width:p.sz, height:'auto', display:'block',
+        transform:`scaleX(${p.flip ? -1 : 1}) rotate(${p.rot}deg)`,
         filter:'drop-shadow(0 3px 5px rgba(0,0,0,.55))',
-        opacity:.95,
       }}/>
     </div>
   </div>
   );
 };
+
+// Nuvem escura (cluster de elipses) que flutua perto da lua
+const VampCloud = ({ top, left, scale=1, dur=26, delay=0, op=0.45 }) => (
+  <svg width={92*scale} height={38*scale} viewBox="0 0 92 38" fill="none"
+    style={{ position:'absolute', top, left, opacity:op, animation:`vampCloudDrift ${dur}s ease-in-out ${delay}s infinite` }}>
+    <g fill="#240a16">
+      <ellipse cx="26" cy="26" rx="22" ry="11"/>
+      <ellipse cx="46" cy="19" rx="21" ry="14"/>
+      <ellipse cx="65" cy="25" rx="20" ry="11"/>
+      <ellipse cx="46" cy="29" rx="32" ry="9"/>
+    </g>
+  </svg>
+);
+
+const VampClouds = () => (
+  <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden', borderRadius:20 }}>
+    <VampCloud top={2}   left="44%" scale={1}    dur={28} delay={0}   op={0.5} />
+    <VampCloud top={24}  left="56%" scale={0.7}  dur={34} delay={3}   op={0.35} />
+    <VampCloud top={-4}  left="66%" scale={0.85} dur={23} delay={1.5} op={0.55} />
+    <VampCloud top={14}  left="30%" scale={0.6}  dur={30} delay={4.5} op={0.3} />
+  </div>
+);
 
 const VampCastle = () => (
   <svg viewBox="0 0 220 105" width="220" height="105" fill="none"
@@ -1778,20 +1814,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: UnikoWave + Player */}
-            <div style={{width:isMobile?"100%":280,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
+            <div style={{width:isMobile?"100%":320,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
               {(() => {
                 const isVampCard = songSkin !== 'default';
                 const skin = isVampCard ? getAssistantSkin(songSkin) : null;
                 return (
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
-
-                  {/* Camada de morcegos — voam dentro do card, passam um pouco da margem e voltam */}
-                  {isVampCard && (
-                    <div style={{ position:'absolute', inset:0, overflow:'visible', pointerEvents:'none', zIndex:6 }}>
-                      {Array.from({ length: 6 }).map((_, i) => <VampBat key={i} />)}
-                    </div>
-                  )}
 
                   <div style={{borderRadius:20,
                     background: isVampCard ? '#090004' : cardBg,
@@ -1814,6 +1843,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         boxShadow:'0 0 16px 6px #c41e3a66, 0 0 40px 12px #c41e3a22',
                         animation:'vampMoonPulse 3.5s ease-in-out infinite', zIndex:0,
                       }}/>
+                    )}
+
+                    {/* Nuvens perto da lua */}
+                    {isVampCard && <VampClouds />}
+
+                    {/* Morcegos — só na faixa superior, atrás do ícone (zIndex 1) */}
+                    {isVampCard && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        {Array.from({ length: 5 }).map((_, i) => <VampBat key={i} />)}
+                      </div>
                     )}
 
                     {/* Castelo de vampiro */}
@@ -1848,20 +1887,20 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     const fem = guessGender(firstName) === 'f';
                     const title = fem ? 'da poderosa Condessa' : 'do poderoso Conde';
                     return (
-                    <div style={{ display:'flex', justifyContent:'center', marginTop:2 }}>
+                    <div style={{ display:'flex', justifyContent:'center', marginTop:2, width:'100%' }}>
                       <div style={{
-                        display:'inline-flex', alignItems:'center', gap:8,
-                        padding:'6px 16px', borderRadius:999,
+                        display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'center', gap:'2px 7px',
+                        padding:'7px 14px', borderRadius:14,
                         background:'linear-gradient(135deg,#1c0309,#3a0a14 70%,#1c0309)',
                         border:'1px solid #c41e3a66',
                         boxShadow:'0 0 16px #c41e3a30, inset 0 0 10px #c41e3a18',
-                        maxWidth:'100%',
+                        maxWidth:'100%', textAlign:'center', lineHeight:1.35,
                       }}>
                         <span style={{fontSize:13, filter:'drop-shadow(0 0 4px #c41e3a)'}}>🦇</span>
-                        <span style={{fontSize:11.5, fontWeight:800, letterSpacing:'.04em', color:'#fff', textShadow:'0 0 8px #c41e3aaa', whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:11.5, fontWeight:800, letterSpacing:'.04em', color:'#fff', textShadow:'0 0 8px #c41e3aaa'}}>
                           {(skin?.name || '').replace(/^Uniko\s*/i, '').replace(/-/g, ' ')}
                         </span>
-                        <span style={{fontSize:10.5, fontWeight:500, color:'#e0a8b6', whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:10.5, fontWeight:500, color:'#e0a8b6'}}>
                           {title}{' '}
                           <b style={{color:'#ff6b86', fontWeight:800}}>{firstName}</b>!
                         </span>
