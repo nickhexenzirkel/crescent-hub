@@ -105,18 +105,18 @@ const BatBurstOverlay = () => {
   const bats = useRef(null);
   if (!bats.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
-    bats.current = Array.from({ length: 30 }).map((_, i) => {
+    bats.current = Array.from({ length: 64 }).map((_, i) => {
       const angle = rnd(0, Math.PI * 2);
-      const mag   = rnd(75, 135);                 // distância em vmax → sai da tela
+      const mag   = rnd(75, 140);                 // distância em vmax → sai da tela
       return {
         id: i,
-        x:   rnd(38, 62),                          // % posição inicial (perto do centro)
-        y:   rnd(34, 60),
+        x:   rnd(34, 66),                          // % posição inicial (perto do centro)
+        y:   rnd(30, 62),
         dx:  Math.cos(angle) * mag,
         dy:  Math.sin(angle) * mag,
-        sz:  Math.round(rnd(26, 58)),
-        dur: rnd(1.3, 2.4),
-        delay: rnd(0, 0.55),
+        sz:  Math.round(rnd(24, 60)),
+        dur: rnd(1.6, 3.0),
+        delay: rnd(0, 2.6),                        // escalonado ao longo dos ~5s
         rot: rnd(-40, 40),
         flip: Math.random() < 0.5 ? -1 : 1,
       };
@@ -125,7 +125,7 @@ const BatBurstOverlay = () => {
   return (
     <div style={{ position:'fixed', inset:0, zIndex:99998, pointerEvents:'none', overflow:'hidden' }}>
       <style>{`
-        @keyframes batBurstFlash{0%{opacity:0;}25%{opacity:.42;}100%{opacity:0;}}
+        @keyframes batBurstFlash{0%{opacity:0;}20%{opacity:.42;}80%{opacity:.3;}100%{opacity:0;}}
         @keyframes batBurstFly{
           0%{transform:translate(-50%,-50%) scale(.2) rotate(var(--brot));opacity:0;}
           18%{opacity:1;}
@@ -136,7 +136,7 @@ const BatBurstOverlay = () => {
       <div style={{
         position:'absolute', inset:0,
         background:'radial-gradient(ellipse at 50% 45%, rgba(40,0,8,.0) 30%, rgba(8,0,4,.85) 100%)',
-        animation:'batBurstFlash 3s ease-out forwards',
+        animation:'batBurstFlash 5.25s ease-out forwards',
       }}/>
       {bats.current.map(b => (
         <div key={b.id} style={{
@@ -155,17 +155,28 @@ const BatBurstOverlay = () => {
   );
 };
 
-// Árvore pequena e seca (sem folhas) — silhueta de galhos
-const BareTree = ({ x, h = 30, s = 1 }) => (
+// Árvore pequena e seca (sem folhas) — silhueta de galhos (g = linha do chão)
+const BareTree = ({ x, h = 30, s = 1, g = 105 }) => (
   <g stroke="#34161f" strokeWidth={1.5 * s} fill="none" strokeLinecap="round">
-    <path d={`M${x} 105 L${x} ${105 - h}`} />
-    <path d={`M${x} ${105 - h * 0.5} L${x - 5 * s} ${105 - h * 0.72}`} />
-    <path d={`M${x} ${105 - h * 0.45} L${x + 5 * s} ${105 - h * 0.66}`} />
-    <path d={`M${x - 5 * s} ${105 - h * 0.72} L${x - 8 * s} ${105 - h * 0.84}`} />
-    <path d={`M${x + 5 * s} ${105 - h * 0.66} L${x + 8 * s} ${105 - h * 0.78}`} />
-    <path d={`M${x} ${105 - h * 0.78} L${x - 4 * s} ${105 - h * 0.95}`} />
-    <path d={`M${x} ${105 - h * 0.82} L${x + 4 * s} ${105 - h * 0.98}`} />
+    <path d={`M${x} ${g} L${x} ${g - h}`} />
+    <path d={`M${x} ${g - h * 0.5} L${x - 5 * s} ${g - h * 0.72}`} />
+    <path d={`M${x} ${g - h * 0.45} L${x + 5 * s} ${g - h * 0.66}`} />
+    <path d={`M${x - 5 * s} ${g - h * 0.72} L${x - 8 * s} ${g - h * 0.84}`} />
+    <path d={`M${x + 5 * s} ${g - h * 0.66} L${x + 8 * s} ${g - h * 0.78}`} />
+    <path d={`M${x} ${g - h * 0.78} L${x - 4 * s} ${g - h * 0.95}`} />
+    <path d={`M${x} ${g - h * 0.82} L${x + 4 * s} ${g - h * 0.98}`} />
   </g>
+);
+
+// Cluster de árvores secas para os cantos inferiores do card (fora do castelo)
+const SideTreeCluster = ({ side }) => (
+  <svg viewBox="0 0 58 48" width="58" height="48" fill="none"
+    style={{ position:'absolute', bottom:0, [side]:0, pointerEvents:'none', zIndex:1,
+             transform: side === 'right' ? 'scaleX(-1)' : undefined }}>
+    <BareTree x={13} h={34} s={1}    g={48} />
+    <BareTree x={31} h={21} s={0.7}  g={48} />
+    <BareTree x={46} h={27} s={0.85} g={48} />
+  </svg>
 );
 
 const VampCastle = () => (
@@ -636,7 +647,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     prevSongSkin.current = songSkin;
     if (songSkin !== 'default' && songSkin !== prev) {
       setBatBurst(true);
-      const t = setTimeout(() => setBatBurst(false), 3000);
+      const t = setTimeout(() => setBatBurst(false), 5250);
       return () => clearTimeout(t);
     }
   }, [songSkin]);
@@ -1943,6 +1954,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                     {/* Castelo de vampiro */}
                     {isVampCard && <VampCastle />}
+
+                    {/* Árvores secas nos cantos inferiores (laterais do castelo) */}
+                    {isVampCard && <SideTreeCluster side="left" />}
+                    {isVampCard && <SideTreeCluster side="right" />}
 
                     {/* Atmospheric glow */}
                     {isVampCard && (
