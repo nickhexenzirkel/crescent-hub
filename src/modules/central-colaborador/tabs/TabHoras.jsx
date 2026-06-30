@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
+import { computePontoDays } from '../../../shared/pontoCalc';
 
 const BRL = v => 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -76,14 +77,24 @@ const TabHoras = () => {
     setLoading(false);
   };
 
-  // Dias com saldo NEGATIVO no ponto eletrônico (gravados pelo RH) — exibidos abaixo.
+  // Dias com saldo NEGATIVO no ponto — calculados a partir das marcações do colaborador.
   const [negDays, setNegDays] = useState([]);
   useEffect(() => {
     const cpf = onlyDigits(authData?.cpf || USER.cpf);
     if (!cpf) return;
     let alive = true;
-    _supabase.from('ponto_negativos').select('data,saldo').eq('cpf', cpf).order('data', { ascending: false })
-      .then(({ data }) => { if (alive) setNegDays(data || []); });
+    const cpfs = Array.from(new Set([cpf, cpf.padStart(11, '0')]));
+    (async () => {
+      const [mar, just] = await Promise.all([
+        _supabase.from('ponto_marcacoes').select('data,hora').in('cpf', cpfs).limit(2000),
+        _supabase.from('ponto_justificativas').select('data,texto,abonado').in('cpf', cpfs),
+      ]);
+      if (!alive) return;
+      const abonado = new Set((just.data || []).filter(j => j.texto && j.abonado !== false).map(j => j.data));
+      const days = computePontoDays(mar.data || [], abonado);
+      const negs = days.filter(d => d.balance < 0).map(d => ({ data: d.date, saldo: d.balance })).sort((a, b) => (a.data < b.data ? 1 : -1));
+      setNegDays(negs);
+    })();
     return () => { alive = false; };
   }, []);
 

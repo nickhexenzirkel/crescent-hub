@@ -1,14 +1,15 @@
 // src/modules/central-colaborador/tabs/TabMeuPonto.jsx
 // "Ponto Eletrônico" (visão do COLABORADOR):
-//  • saldo do banco (positivas/negativas) por mês — ponto_presenca
-//  • PONTOS BATIDOS por dia — ponto_marcacoes (mostra os dias negativos)
-//  • SOLICITAR JUSTIFICATIVA — título + descrição + ANEXO; o RH recebe na Dashboard
-//    (ponto_solicitacoes + bucket ponto-anexos)
-//  • justificativas já abonadas pelo RH — ponto_justificativas
+//  • PONTOS BATIDOS por dia (ponto_marcacoes) com o saldo calculado NO CLIENTE
+//    (pontoCalc) — mostra os dias negativos sem depender do admin ter processado.
+//  • O botão "Solicitar justificativa" aparece SÓ na linha do dia com hora negativa.
+//  • Saldo do banco (positivas/negativas/total) e por mês, derivados das marcações.
+//  • Justificativas já abonadas pelo RH (ponto_justificativas) zeram o dia.
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
+import { computePontoDays } from '../../../shared/pontoCalc';
 
 const onlyDigits = s => (s || '').replace(/\D/g, '');
 const fmtMin = m => { const a = Math.abs(Math.round(m)), h = Math.floor(a / 60), mm = a % 60; return `${m < 0 ? '-' : ''}${h}h${mm.toString().padStart(2, '0')}`; };
@@ -28,9 +29,7 @@ const STATUS_S = {
 
 const TabMeuPonto = () => {
   const cpf = onlyDigits(getAuthUser()?.cpf || USER.cpf);
-  const [presenca, setPresenca]   = useState([]);
   const [marcacoes, setMarcacoes] = useState([]);
-  const [negDays, setNegDays]     = useState([]);
   const [justifs, setJustifs]     = useState([]);
   const [solics, setSolics]       = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -54,17 +53,15 @@ const TabMeuPonto = () => {
     (async () => {
       setLoading(true);
       try {
-        const [pres, mar, neg, just, sol] = await Promise.all([
-          _supabase.from('ponto_presenca').select('month,saldo,issues').eq('cpf', cpf).order('month', { ascending: false }),
-          _supabase.from('ponto_marcacoes').select('data,hora').eq('cpf', cpf).order('data', { ascending: false }).limit(1000),
-          _supabase.from('ponto_negativos').select('data,saldo').eq('cpf', cpf),
-          _supabase.from('ponto_justificativas').select('data,texto,abonado,autor').eq('cpf', cpf).order('data', { ascending: false }),
+        // tenta casar o CPF como veio e também zero-padded em 11 dígitos (AFD costuma ter zero à esquerda)
+        const cpfs = Array.from(new Set([cpf, cpf.padStart(11, '0')]));
+        const [mar, just, sol] = await Promise.all([
+          _supabase.from('ponto_marcacoes').select('cpf,data,hora').in('cpf', cpfs).order('data', { ascending: false }).limit(2000),
+          _supabase.from('ponto_justificativas').select('data,texto,abonado,autor').in('cpf', cpfs).order('data', { ascending: false }),
           _supabase.from('ponto_solicitacoes').select('*').eq('cpf', cpf).order('created_at', { ascending: false }),
         ]);
         if (!alive) return;
-        setPresenca(pres.data || []);
         setMarcacoes(mar.data || []);
-        setNegDays(neg.data || []);
         setJustifs(just.data || []);
         setSolics(sol.data || []);
       } catch {}
@@ -73,20 +70,20 @@ const TabMeuPonto = () => {
     return () => { alive = false; };
   }, [cpf]);
 
-  const totalSaldo = presenca.reduce((a, r) => a + Number(r.saldo || 0), 0);
-  const positivas  = presenca.reduce((a, r) => (Number(r.saldo) > 0 ? a + Number(r.saldo) : a), 0);
-  const negativas  = presenca.reduce((a, r) => (Number(r.saldo) < 0 ? a + Number(r.saldo) : a), 0);
+  // dias justificados (abonados) → zeram no cálculo
+  const abonadoDates = new Set(justifs.filter(j => j.texto && j.abonado !== false).map(j => j.data));
+  const days = computePontoDays(marcacoes, abonadoDates);          // ASC
+  const diasDesc = [...days].reverse();                            // mais recente primeiro
+
+  const totalSaldo = days.reduce((a, d) => a + d.balance, 0);
+  const positivas  = days.reduce((a, d) => (d.balance > 0 ? a + d.balance : a), 0);
+  const negativas  = days.reduce((a, d) => (d.balance < 0 ? a + d.balance : a), 0);
   const positivo   = totalSaldo >= 0;
 
-  // saldo negativo por dia (pra marcar no registro de ponto)
-  const negMap = {}; negDays.forEach(d => { negMap[d.data] = Number(d.saldo || 0); });
-
-  // pontos batidos agrupados por dia (mais recente primeiro)
-  const byDay = {};
-  for (const m of marcacoes) { (byDay[m.data] = byDay[m.data] || []).push(m.hora); }
-  const dias = Object.entries(byDay)
-    .map(([data, horas]) => ({ data, horas: horas.slice().sort() }))
-    .sort((a, b) => (a.data < b.data ? 1 : -1));
+  // saldo por mês (das marcações)
+  const mesMap = {};
+  for (const d of days) { const ym = d.date.slice(0, 7); mesMap[ym] = (mesMap[ym] || 0) + d.balance; }
+  const meses = Object.entries(mesMap).sort(([a], [b]) => (a < b ? 1 : -1)).map(([month, saldo]) => ({ month, saldo }));
 
   const openModal = (dataRef = '') => { setForm({ titulo: '', descricao: '', data_ref: dataRef }); setFile(null); setMsg(''); setModal(true); };
 
@@ -114,6 +111,14 @@ const TabMeuPonto = () => {
     setSaving(false);
   };
 
+  const SolicBtn = ({ dataRef }) => (
+    <button onClick={() => openModal(dataRef)} title="Solicitar justificativa deste dia"
+      style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: '#fff', background: `linear-gradient(135deg,${T.blue},${T.blueL})`, border: 'none', borderRadius: 8, padding: '6px 11px', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+      <Ico d={<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" /></>} size={13} stroke="#fff" />
+      Solicitar justificativa
+    </button>
+  );
+
   return (
     <div className="fi" style={{ fontFamily: 'var(--font-body)' }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -130,8 +135,8 @@ const TabMeuPonto = () => {
         <div style={{ fontSize: 42, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{positivo ? '+' : ''}{fmtMin(totalSaldo)}</div>
       </div>
 
-      {/* ── positivas / negativas + botão solicitar ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+      {/* ── positivas / negativas ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
         <Card style={{ padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, color: '#1A9C70' }}>
             <Ico d={<><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></>} size={15} stroke="#1A9C70" />
@@ -147,15 +152,6 @@ const TabMeuPonto = () => {
           <div style={{ fontSize: 26, fontWeight: 700, color: '#C04050' }}>{fmtMin(negativas)}</div>
         </Card>
       </div>
-
-      <button onClick={() => openModal()} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginBottom: 18,
-        padding: '12px', borderRadius: 12, border: 'none', cursor: 'pointer',
-        background: `linear-gradient(135deg,${T.blue},${T.blueL})`, color: '#fff', fontWeight: 700, fontSize: 13.5, fontFamily: 'var(--font-body)',
-      }}>
-        <Ico d={<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" /></>} size={16} stroke="white" />
-        Solicitar justificativa
-      </button>
 
       {loading ? (
         <Card style={{ padding: 44, textAlign: 'center', color: T.textT }}>
@@ -200,33 +196,32 @@ const TabMeuPonto = () => {
             </Card>
           )}
 
-          {/* ── Pontos batidos ── */}
+          {/* ── Pontos batidos (botão de justificar só nos dias negativos) ── */}
           <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Pontos batidos</div>
             <StarDivider my={4} />
-            {dias.length === 0 ? (
+            {diasDesc.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 0', color: T.textT, fontSize: 13 }}>Nenhuma marcação encontrada para o seu CPF.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
-                {dias.map((d, i) => {
-                  const neg = negMap[d.data];
+                {diasDesc.map((d, i) => {
+                  const neg = d.balance < 0;
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 15px', background: neg ? 'rgba(192,64,80,0.05)' : 'rgba(0,0,0,0.02)', border: `1px solid ${neg ? 'rgba(192,64,80,0.2)' : T.border}`, borderRadius: 11 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 15px', background: neg ? 'rgba(192,64,80,0.05)' : 'rgba(0,0,0,0.02)', border: `1px solid ${neg ? 'rgba(192,64,80,0.2)' : T.border}`, borderRadius: 11 }}>
                       <div style={{ minWidth: 92 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{fmtData(d.data)}</div>
-                        <div style={{ fontSize: 11, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.data)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{fmtData(d.date)}</div>
+                        <div style={{ fontSize: 11, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.date)}</div>
                       </div>
-                      <div style={{ flex: 1, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                        {d.horas.map((h, hi) => (
-                          <span key={hi} style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: hi % 2 === 0 ? 'rgba(26,156,112,0.12)' : 'rgba(30,112,181,0.10)', color: hi % 2 === 0 ? '#1A9C70' : '#1E70B5' }}>{(h || '').slice(0, 5)}</span>
+                      <div style={{ flex: 1, display: 'flex', gap: 5, flexWrap: 'wrap', minWidth: 120 }}>
+                        {d.times.map((h, hi) => (
+                          <span key={hi} style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: hi % 2 === 0 ? 'rgba(26,156,112,0.12)' : 'rgba(30,112,181,0.10)', color: hi % 2 === 0 ? '#1A9C70' : '#1E70B5' }}>{h}</span>
                         ))}
+                        {d.times.length === 0 && <span style={{ fontSize: 12, color: T.textD }}>—</span>}
                       </div>
-                      {neg && (
-                        <button onClick={() => openModal(d.data)} title="Justificar este dia"
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#C04050', background: 'rgba(192,64,80,0.10)', border: '1px solid rgba(192,64,80,0.25)', borderRadius: 7, padding: '4px 10px', cursor: 'pointer' }}>
-                          {fmtMin(neg)}
-                        </button>
-                      )}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: d.balance >= 0 ? '#1A9C70' : '#C04050', background: d.balance >= 0 ? 'rgba(26,156,112,0.10)' : 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 10px', minWidth: 66, textAlign: 'center' }}>
+                        {d.abonado ? 'Abonado' : `${d.balance > 0 ? '+' : ''}${fmtMin(d.balance)}`}
+                      </span>
+                      {neg && <SolicBtn dataRef={d.date} />}
                     </div>
                   );
                 })}
@@ -235,26 +230,23 @@ const TabMeuPonto = () => {
           </Card>
 
           {/* ── Saldo por mês ── */}
-          <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Saldo por mês</div>
-            <StarDivider my={4} />
-            {presenca.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: T.textT, fontSize: 13 }}>Seu ponto ainda não foi processado pelo RH.</div>
-            ) : (
+          {meses.length > 0 && (
+            <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Saldo por mês</div>
+              <StarDivider my={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {presenca.map((r, i) => {
-                  const s = Number(r.saldo || 0), pos = s >= 0;
+                {meses.map((r, i) => {
+                  const s = r.saldo, pos = s >= 0;
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T.text, textTransform: 'capitalize', flex: 1 }}>{monthLabel(r.month)}</div>
-                      {Number(r.issues) > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: '#D89030', background: 'rgba(216,144,48,0.12)', borderRadius: 6, padding: '2px 8px' }}>{r.issues} ocorr.</span>}
                       <span style={{ fontSize: 14, fontWeight: 700, color: pos ? '#1A9C70' : '#C04050', background: pos ? 'rgba(26,156,112,0.10)' : 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 11px', minWidth: 78, textAlign: 'right' }}>{pos ? '+' : ''}{fmtMin(s)}</span>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
 
           {/* ── Justificativas abonadas pelo RH ── */}
           {justifs.length > 0 && (
