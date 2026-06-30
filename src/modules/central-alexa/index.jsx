@@ -6,76 +6,59 @@ import UnikoMascot from './UnikoMascot';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
+// Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
+const FEMALE_NAMES = new Set(['beatriz','isabel','isabela','raquel','rute','ruth','ester','esther','ines','lais','lays','iris','nicole','jaqueline','jacqueline','caroline','carol','rachel','denise','eloise','heloise','karen','karin','miriam','mirian','carmen','carmem','solange','mercedes','yasmin','yasmim','jasmin','liz','mabel','isis','cris','noemi','noemy','sarah','sara','hannah','deborah','debora','judith','lilian','marylin','sharon','estefani','estefany','gabrielly','emily','kimberly','ester','agnes','dulce','flor','pilar']);
+const MALE_NAMES   = new Set(['joshua','josua','luca','juca','nicola','elias','matias','mathias','tobias','jonas','lucas','thomas','tomas','dimas','andre','andres','felipe','filipe','henrique','jorge','jaime','jose','isaque','isaac','levi','kawan','noah','dante','vicente','clemente','enrique','aristoteles','socrates']);
+function guessGender(name) {
+  const n = (name || '').toLowerCase().normalize('NFD').replace(/[^a-z]/g, '');
+  if (!n) return 'm';
+  if (MALE_NAMES.has(n))   return 'm';
+  if (FEMALE_NAMES.has(n)) return 'f';
+  if (n.endsWith('a'))     return 'f';
+  if (n.endsWith('e'))     return /(ane|ene|ine|one|ele|ete|isse|esse)$/.test(n) ? 'f' : 'm';
+  return 'm';
+}
+
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
-@keyframes vampBatDiag{0%{transform:translate(0,0);opacity:0;}6%{opacity:.92;}92%{opacity:.92;}100%{transform:translate(var(--dx),var(--dy));opacity:0;}}
-@keyframes uwBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.38);}}
+@keyframes vampBatWander{0%,100%{transform:translate(0,0);}20%{transform:translate(var(--dx),calc(var(--dy) * -.6));}40%{transform:translate(calc(var(--dx) * 1.15),calc(var(--dy) * .5));}60%{transform:translate(calc(var(--dx) * .3),var(--dy));}80%{transform:translate(calc(var(--dx) * -.7),calc(var(--dy) * -.2));}}
+@keyframes vampBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.84);}}
 @keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
 `;
 
-// Morcego que voa na diagonal, em posição/direção aleatória, podendo sair da grade
-const VampBat = ({ size=32 }) => {
+// Morcego (imagem) que vagueia dentro do card: sai um pouco além da margem e volta
+const VampBat = () => {
   const cfg = useRef(null);
   if (!cfg.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
-    const hdir = Math.random() < 0.5 ? 1 : -1; // direção horizontal
-    const vdir = Math.random() < 0.5 ? 1 : -1; // direção vertical
     cfg.current = {
-      top:   rnd(-18, 112),                    // % — pode começar/terminar fora da grade
-      left:  rnd(-18, 100),
-      dx:    hdir * rnd(220, 560),             // distância: viaja pra fora do card
-      dy:    vdir * rnd(120, 380),
-      dur:   rnd(8, 15),
-      delay: rnd(0, 9),
-      sz:    Math.round(rnd(0.7, 1.3) * size),
-      tilt:  hdir * vdir * rnd(8, 26),         // inclinação acompanha a diagonal
-      flip:  hdir < 0,                         // espelha conforme o sentido do voo
+      top:   rnd(8, 74),                       // % dentro da grade
+      left:  rnd(6, 72),
+      dx:    (Math.random() < 0.5 ? -1 : 1) * rnd(34, 92),  // vai um pouco além e volta
+      dy:    (Math.random() < 0.5 ? -1 : 1) * rnd(28, 78),
+      dur:   rnd(6, 10),
+      delay: rnd(0, 5),
+      sz:    Math.round(rnd(30, 52)),
+      flip:  Math.random() < 0.5,              // metade espelhada (variedade)
+      rot:   rnd(-8, 8),
     };
   }
   const b = cfg.current;
   return (
   <div style={{
     position:'absolute', top:`${b.top}%`, left:`${b.left}%`,
-    pointerEvents:'none', zIndex:4,
+    pointerEvents:'none', zIndex:6,
     '--dx':`${b.dx}px`, '--dy':`${b.dy}px`,
-    animation:`vampBatDiag ${b.dur}s linear ${b.delay}s infinite`,
+    animation:`vampBatWander ${b.dur}s ease-in-out ${b.delay}s infinite`,
   }}>
-    <div style={{ transform:`rotate(${b.tilt}deg) scaleX(${b.flip ? -1 : 1})` }}>
-    <svg width={b.sz} height={Math.round(b.sz*0.5)} viewBox="0 0 64 32" fill="none"
-      style={{ display:'block', animation:'uwBatFlap .38s ease-in-out infinite' }}>
-      {/* Asa esquerda (com borda serrilhada típica de morcego) */}
-      <path d="M32 12
-        C 29 8 26 9 24 12
-        C 20 7 13 8 7 12
-        C 5 13 3 13 1 13
-        C 4 15 6 16 5 19
-        C 8 16 10 17 11 20
-        C 13 16 16 17 18 20
-        C 20 16 23 17 26 18
-        C 29 16 31 16 32 14 Z" fill="#c41e3a"/>
-      {/* Asa direita (espelhada) */}
-      <path d="M32 12
-        C 35 8 38 9 40 12
-        C 44 7 51 8 57 12
-        C 59 13 61 13 63 13
-        C 60 15 58 16 59 19
-        C 56 16 54 17 53 20
-        C 51 16 48 17 46 20
-        C 44 16 41 17 38 18
-        C 35 16 33 16 32 14 Z" fill="#c41e3a"/>
-      {/* Nervuras das asas */}
-      <path d="M32 13 L11 14 M32 13 L18 15 M32 13 L26 16" stroke="#7a0010" strokeWidth=".6" opacity=".55"/>
-      <path d="M32 13 L53 14 M32 13 L46 15 M32 13 L38 16" stroke="#7a0010" strokeWidth=".6" opacity=".55"/>
-      {/* Orelhas pontudas */}
-      <path d="M29 9 L27.5 3 L31 7 Z" fill="#1a0006"/>
-      <path d="M35 9 L36.5 3 L33 7 Z" fill="#1a0006"/>
-      {/* Corpo */}
-      <ellipse cx="32" cy="13" rx="3.4" ry="5" fill="#1a0006"/>
-      {/* Olhos vermelhos brilhantes */}
-      <circle cx="30.5" cy="11" r="1.05" fill="#ff1030"/>
-      <circle cx="33.5" cy="11" r="1.05" fill="#ff1030"/>
-    </svg>
+    <div style={{ animation:'vampBatFlap .55s ease-in-out infinite' }}>
+      <img src="/morcego.png" alt="" style={{
+        width:b.sz, height:'auto', display:'block',
+        transform:`scaleX(${b.flip ? -1 : 1}) rotate(${b.rot}deg)`,
+        filter:'drop-shadow(0 3px 5px rgba(0,0,0,.55))',
+        opacity:.95,
+      }}/>
     </div>
   </div>
   );
@@ -1803,10 +1786,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
 
-                  {/* Camada de morcegos — fora do card, voam na diagonal e podem sair da grade */}
+                  {/* Camada de morcegos — voam dentro do card, passam um pouco da margem e voltam */}
                   {isVampCard && (
-                    <div style={{ position:'absolute', inset:-48, overflow:'visible', pointerEvents:'none', zIndex:6 }}>
-                      {Array.from({ length: 7 }).map((_, i) => <VampBat key={i} size={32} />)}
+                    <div style={{ position:'absolute', inset:0, overflow:'visible', pointerEvents:'none', zIndex:6 }}>
+                      {Array.from({ length: 6 }).map((_, i) => <VampBat key={i} />)}
                     </div>
                   )}
 
@@ -1860,7 +1843,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   </div>
 
                   {/* Descrição do Uniko especial abaixo do card */}
-                  {isVampCard && currentSong?.requested_by && (
+                  {isVampCard && currentSong?.requested_by && (() => {
+                    const firstName = (currentSong.requested_by || '').trim().split(/\s+/)[0];
+                    const fem = guessGender(firstName) === 'f';
+                    const title = fem ? 'da poderosa Condessa' : 'do poderoso Conde';
+                    return (
                     <div style={{ display:'flex', justifyContent:'center', marginTop:2 }}>
                       <div style={{
                         display:'inline-flex', alignItems:'center', gap:8,
@@ -1875,14 +1862,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                           {(skin?.name || '').replace(/^Uniko\s*/i, '').replace(/-/g, ' ')}
                         </span>
                         <span style={{fontSize:10.5, fontWeight:500, color:'#e0a8b6', whiteSpace:'nowrap'}}>
-                          do grandioso(a){' '}
-                          <b style={{color:'#ff6b86', fontWeight:800}}>
-                            {(currentSong.requested_by || '').trim().split(/\s+/)[0]}
-                          </b>
+                          {title}{' '}
+                          <b style={{color:'#ff6b86', fontWeight:800}}>{firstName}</b>!
                         </span>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>);
               })()}
 
