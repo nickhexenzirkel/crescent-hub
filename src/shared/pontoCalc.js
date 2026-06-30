@@ -2,7 +2,45 @@
 // Cálculo do banco de horas a partir das MARCAÇÕES de UM colaborador — mesma lógica do
 // módulo admin (jornada 8h, tolerâncias), pra o colaborador ver o saldo/dias negativos
 // direto das marcações, sem depender do admin ter processado/salvo o resumo.
+import { supabase } from '../contexts/user';
+
 const isWknd = iso => { try { const d = new Date(iso + 'T12:00:00').getDay(); return d === 0 || d === 6; } catch { return false; } };
+
+const normName = s => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+
+// Resolve os CPFs do colaborador no ponto: o do perfil (e zero-padded) + os que casarem
+// pelo NOME na ponto_funcionarios (contorna diferença de formato de CPF entre perfil e AFD).
+export async function resolvePontoCpfs({ cpf, name }) {
+  const cpfs = new Set();
+  const c = (cpf || '').replace(/\D/g, '');
+  if (c) { cpfs.add(c); cpfs.add(c.padStart(11, '0')); }
+  try {
+    const { data: funcs } = await supabase.from('ponto_funcionarios').select('cpf,nome');
+    const my = normName(name);
+    if (my) {
+      const exact = [], partial = [];
+      for (const f of (funcs || [])) {
+        const fn = normName(f.nome);
+        if (!fn || !f.cpf) continue;
+        if (fn === my) exact.push(f.cpf);
+        else if (fn.includes(my) || my.includes(fn)) partial.push(f.cpf);
+      }
+      (exact.length ? exact : partial).forEach(x => cpfs.add(x));
+    }
+  } catch {}
+  return [...cpfs].filter(Boolean);
+}
+
+// Carrega marcações + justificativas do colaborador (resolvendo o CPF por nome se preciso).
+export async function loadColaboradorPonto({ cpf, name }) {
+  const cpfs = await resolvePontoCpfs({ cpf, name });
+  if (!cpfs.length) return { marcacoes: [], justifs: [], cpfs: [] };
+  const [mar, just] = await Promise.all([
+    supabase.from('ponto_marcacoes').select('data,hora').in('cpf', cpfs).limit(3000),
+    supabase.from('ponto_justificativas').select('data,texto,abonado,autor').in('cpf', cpfs),
+  ]);
+  return { marcacoes: mar.data || [], justifs: just.data || [], cpfs };
+}
 
 export const PONTO_DEFAULTS = { jornada: 480, tolerance: 1, toleranciaAtraso: 10 };
 

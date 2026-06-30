@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
-import { computePontoDays } from '../../../shared/pontoCalc';
+import { computePontoDays, loadColaboradorPonto } from '../../../shared/pontoCalc';
 
 const onlyDigits = s => (s || '').replace(/\D/g, '');
 const fmtMin = m => { const a = Math.abs(Math.round(m)), h = Math.floor(a / 60), mm = a % 60; return `${m < 0 ? '-' : ''}${h}h${mm.toString().padStart(2, '0')}`; };
@@ -48,21 +48,18 @@ const TabMeuPonto = () => {
   };
 
   useEffect(() => {
-    if (!cpf) { setLoading(false); return; }
     let alive = true;
     (async () => {
       setLoading(true);
       try {
-        // tenta casar o CPF como veio e também zero-padded em 11 dígitos (AFD costuma ter zero à esquerda)
-        const cpfs = Array.from(new Set([cpf, cpf.padStart(11, '0')]));
-        const [mar, just, sol] = await Promise.all([
-          _supabase.from('ponto_marcacoes').select('cpf,data,hora').in('cpf', cpfs).order('data', { ascending: false }).limit(2000),
-          _supabase.from('ponto_justificativas').select('data,texto,abonado,autor').in('cpf', cpfs).order('data', { ascending: false }),
-          _supabase.from('ponto_solicitacoes').select('*').eq('cpf', cpf).order('created_at', { ascending: false }),
+        // resolve marcações/justificativas pelo CPF (e por NOME, se o CPF não bater)
+        const [pt, sol] = await Promise.all([
+          loadColaboradorPonto({ cpf, name: USER.name }),
+          cpf ? _supabase.from('ponto_solicitacoes').select('*').eq('cpf', cpf).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
         ]);
         if (!alive) return;
-        setMarcacoes(mar.data || []);
-        setJustifs(just.data || []);
+        setMarcacoes(pt.marcacoes);
+        setJustifs(pt.justifs);
         setSolics(sol.data || []);
       } catch {}
       if (alive) setLoading(false);
@@ -158,7 +155,7 @@ const TabMeuPonto = () => {
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${T.blue}`, borderTopColor: 'transparent', animation: 'spin .7s linear infinite', margin: '0 auto 10px' }} />
           Carregando seu ponto...
         </Card>
-      ) : !cpf ? (
+      ) : (!cpf && marcacoes.length === 0) ? (
         <Card style={{ padding: '32px 26px', textAlign: 'center', color: T.textT }}>
           <div style={{ fontSize: 13 }}>Preencha seu <strong>CPF</strong> em “Seus Dados” para ver seu ponto.</div>
         </Card>
@@ -201,7 +198,7 @@ const TabMeuPonto = () => {
             <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Pontos batidos</div>
             <StarDivider my={4} />
             {diasDesc.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '30px 0', color: T.textT, fontSize: 13 }}>Nenhuma marcação encontrada para o seu CPF.</div>
+              <div style={{ textAlign: 'center', padding: '30px 0', color: T.textT, fontSize: 13 }}>Nenhuma marcação encontrada para o seu CPF/nome. Confira se o RH subiu o AFD e se seu CPF no perfil bate com o do ponto.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
                 {diasDesc.map((d, i) => {
