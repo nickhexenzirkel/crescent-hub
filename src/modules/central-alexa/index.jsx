@@ -100,6 +100,74 @@ const VampClouds = () => (
   </div>
 );
 
+// Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
+const BatBurstOverlay = () => {
+  const bats = useRef(null);
+  if (!bats.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    bats.current = Array.from({ length: 30 }).map((_, i) => {
+      const angle = rnd(0, Math.PI * 2);
+      const mag   = rnd(75, 135);                 // distância em vmax → sai da tela
+      return {
+        id: i,
+        x:   rnd(38, 62),                          // % posição inicial (perto do centro)
+        y:   rnd(34, 60),
+        dx:  Math.cos(angle) * mag,
+        dy:  Math.sin(angle) * mag,
+        sz:  Math.round(rnd(26, 58)),
+        dur: rnd(1.3, 2.4),
+        delay: rnd(0, 0.55),
+        rot: rnd(-40, 40),
+        flip: Math.random() < 0.5 ? -1 : 1,
+      };
+    });
+  }
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:99998, pointerEvents:'none', overflow:'hidden' }}>
+      <style>{`
+        @keyframes batBurstFlash{0%{opacity:0;}25%{opacity:.42;}100%{opacity:0;}}
+        @keyframes batBurstFly{
+          0%{transform:translate(-50%,-50%) scale(.2) rotate(var(--brot));opacity:0;}
+          18%{opacity:1;}
+          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.1) rotate(var(--brot));opacity:0;}
+        }
+      `}</style>
+      {/* Escurecimento rápido pra dar destaque */}
+      <div style={{
+        position:'absolute', inset:0,
+        background:'radial-gradient(ellipse at 50% 45%, rgba(40,0,8,.0) 30%, rgba(8,0,4,.85) 100%)',
+        animation:'batBurstFlash 3s ease-out forwards',
+      }}/>
+      {bats.current.map(b => (
+        <div key={b.id} style={{
+          position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
+          '--bdx':`${b.dx}vmax`, '--bdy':`${b.dy}vmax`, '--brot':`${b.rot}deg`,
+          animation:`batBurstFly ${b.dur}s ease-in ${b.delay}s forwards`,
+        }}>
+          <img src="/morcego.png" alt="" style={{
+            display:'block', width:b.sz, height:'auto',
+            transform:`scaleX(${b.flip})`,
+            filter:'drop-shadow(0 2px 7px rgba(0,0,0,.6))',
+          }}/>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Árvore pequena e seca (sem folhas) — silhueta de galhos
+const BareTree = ({ x, h = 30, s = 1 }) => (
+  <g stroke="#34161f" strokeWidth={1.5 * s} fill="none" strokeLinecap="round">
+    <path d={`M${x} 105 L${x} ${105 - h}`} />
+    <path d={`M${x} ${105 - h * 0.5} L${x - 5 * s} ${105 - h * 0.72}`} />
+    <path d={`M${x} ${105 - h * 0.45} L${x + 5 * s} ${105 - h * 0.66}`} />
+    <path d={`M${x - 5 * s} ${105 - h * 0.72} L${x - 8 * s} ${105 - h * 0.84}`} />
+    <path d={`M${x + 5 * s} ${105 - h * 0.66} L${x + 8 * s} ${105 - h * 0.78}`} />
+    <path d={`M${x} ${105 - h * 0.78} L${x - 4 * s} ${105 - h * 0.95}`} />
+    <path d={`M${x} ${105 - h * 0.82} L${x + 4 * s} ${105 - h * 0.98}`} />
+  </g>
+);
+
 const VampCastle = () => (
   <svg viewBox="0 0 220 105" width="220" height="105" fill="none"
     style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', pointerEvents:'none', zIndex:1 }}>
@@ -152,6 +220,11 @@ const VampCastle = () => (
     <rect x="202" y="56" width="4" height="7" fill="#180610"/>
     <rect x="208" y="56" width="4" height="7" fill="#180610"/>
     <rect x="214" y="56" width="4" height="7" fill="#180610"/>
+    {/* Árvores secas ao lado do castelo */}
+    <BareTree x={11}  h={32} s={1} />
+    <BareTree x={28}  h={20} s={0.65} />
+    <BareTree x={209} h={34} s={1.05} />
+    <BareTree x={192} h={21} s={0.7} />
   </svg>
 );
 
@@ -554,6 +627,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .then(({ data }) => setSongSkin(data?.value || 'default'))
       .catch(() => setSongSkin('default'));
   }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
+
+  // Burst de morcegos em tela cheia ao trocar para um vampire robot
+  const [batBurst, setBatBurst] = useState(false);
+  const prevSongSkin = useRef(songSkin);
+  useEffect(() => {
+    const prev = prevSongSkin.current;
+    prevSongSkin.current = songSkin;
+    if (songSkin !== 'default' && songSkin !== prev) {
+      setBatBurst(true);
+      const t = setTimeout(() => setBatBurst(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [songSkin]);
 
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
   const [showLyrics, setShowLyrics]     = useState(false);
@@ -3088,6 +3174,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           </div>
         </div>
       )}
+
+      {/* ── Burst de morcegos (3s) ao trocar para um vampire robot ── */}
+      {batBurst && <BatBurstOverlay />}
     </div>
   );
 };
