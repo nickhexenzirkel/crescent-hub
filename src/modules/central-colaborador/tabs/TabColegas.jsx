@@ -397,7 +397,7 @@ const TabColegas = () => {
                       <img src={u.img} alt={c.uniko_name||u.name} style={{ width:78, height:78, objectFit:'contain', filter:`drop-shadow(0 0 12px ${u.theme.accent})` }}/>
                     </div>
                     <div style={{ padding:'8px 10px', textAlign:'center' }}>
-                      <div style={{ fontSize:11.5, fontWeight:700, color:T.text, lineHeight:1.2 }}>{c.uniko_name || u.name}</div>
+                      <div style={{ fontSize:11.5, fontWeight:700, color:T.text, lineHeight:1.2 }}>{u.shortName || c.uniko_name || u.name}</div>
                     </div>
                   </div>
                 );

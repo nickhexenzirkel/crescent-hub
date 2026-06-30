@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
-import { CAPTURE_UNIKOS, getCapturedCollection } from '../../../shared/captureUniko';
+import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer } from '../../../shared/captureUniko';
 import { ASSISTANT_SKINS, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
 
 /* Mantém a MESMA chave do antigo My Uniko — TabGames/TabInicio ainda a importam. */
@@ -15,6 +15,17 @@ export const DOKO_KEY = (() => {
   try { const auth = getAuthUser(); return auth?.cpf ? `uniko_doko_${auth.cpf}` : 'uniko_doko'; }
   catch { return 'uniko_doko'; }
 })();
+
+/* Ícones SVG (substituem os emojis na coleção). */
+const Svg = ({ children, size = 14, ...p }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} {...p}>{children}</svg>
+);
+const IcoCam   = (p) => <Svg {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Svg>;
+const IcoBot   = (p) => <Svg {...p}><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 2h6"/><circle cx="9" cy="14" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.4" fill="currentColor" stroke="none"/></Svg>;
+const IcoEye   = (p) => <Svg {...p}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></Svg>;
+const IcoSpark = (p) => <Svg {...p}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></Svg>;
+const IcoCheck = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
+const IcoUndo  = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></Svg>;
 
 /* UNIKO padrão (assistente do sistema) — sempre na coleção, não precisa capturar. */
 const DEFAULT_UNIKO = {
@@ -35,6 +46,8 @@ const TabMyDoko = ({ onPhotoChange }) => {
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
     window.addEventListener('uniko-collection:changed', refresh);
+    // sincroniza com o servidor ao abrir a coleção (reflete reset do admin)
+    syncCollectionFromServer().then(list => { if (Array.isArray(list)) setCaptured(list); });
     return () => window.removeEventListener('uniko-collection:changed', refresh);
   }, []);
   useEffect(() => onAssistantSkinChange((id) => setActiveAssistant(id || 'default')), []);
@@ -130,19 +143,19 @@ const TabMyDoko = ({ onPhotoChange }) => {
                 style={{ position: 'relative', height: 180, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #2a0810, #0b0204)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <img src={u.img} alt={u.name} style={{ width: 140, height: 140, objectFit: 'contain', filter: `drop-shadow(0 0 20px ${th.accent})` }}/>
                 {isActive && (
-                  <div style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px', borderRadius: 999, background: th.accent, color: '#fff', fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em' }}>ASSISTENTE ✓</div>
+                  <div style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px', borderRadius: 999, background: th.accent, color: '#fff', fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em', display: 'flex', alignItems: 'center', gap: 4 }}><IcoCheck size={11}/>ASSISTENTE</div>
                 )}
-                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 10.5, color: '#fff', opacity: .85, fontWeight: 600 }}>👁 Ver variações</div>
+                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 10.5, color: '#fff', opacity: .85, fontWeight: 600 }}><IcoEye size={13}/>Ver variações</div>
               </div>
               <div style={{ padding: '14px 16px 16px' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.name}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.shortName || u.name}</div>
                 <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>{u.tagline}</div>
 
                 {/* vantagens visuais */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 14 }}>
                   {(u.perks || []).map((p, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12, color: T.textS, lineHeight: 1.4 }}>
-                      <span style={{ color: th.accent, flexShrink: 0, fontWeight: 800 }}>✦</span>{p}
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: T.textS, lineHeight: 1.4 }}>
+                      <span style={{ color: th.accent, marginTop: 1 }}><IcoSpark size={13}/></span>{p}
                     </div>
                   ))}
                 </div>
@@ -150,15 +163,15 @@ const TabMyDoko = ({ onPhotoChange }) => {
                 {/* ações */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button onClick={() => setAsPhoto(u.img, u.id)}
-                    style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
-                    {okPhoto ? '✓ Foto salva!' : '📷 Usar como foto'}
+                    style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {okPhoto ? <><IcoCheck/>Foto salva!</> : <><IcoCam/>Usar como foto</>}
                   </button>
                   {canAssist && (
                     <button onClick={() => { if (!(isActive && u.id === 'default')) setActiveAssistantSkin(isActive ? 'default' : u.id); }}
-                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         background: isActive ? (T.surfaceSub || 'rgba(0,0,0,.06)') : `linear-gradient(135deg,${th.accent2},${th.accent})`,
                         color: isActive ? T.textS : '#fff' }}>
-                      {isActive ? (u.id === 'default' ? 'Assistente ativo ✓' : '↩ Remover assistente') : '🤖 Usar como assistente'}
+                      {isActive ? (u.id === 'default' ? <><IcoCheck/>Assistente ativo</> : <><IcoUndo/>Remover assistente</>) : <><IcoBot/>Usar como assistente</>}
                     </button>
                   )}
                 </div>
@@ -178,7 +191,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
               <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(135deg,${th.accent}22,transparent)` }}>
                 <img src={detail.img} alt={detail.name} style={{ width: 42, height: 42, objectFit: 'contain' }}/>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{detail.name}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{detail.shortName || detail.name}</div>
                   <div style={{ fontSize: 11.5, color: T.textT }}>Variações da carinha</div>
                 </div>
                 <button onClick={() => setDetail(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 22, lineHeight: 1 }}>×</button>

@@ -19,6 +19,7 @@ export const CAPTURE_UNIKOS = {
   'vampire-robot': {
     id: 'vampire-robot',
     name: 'Uniko Vampire-Robot',
+    shortName: 'Vampire Robot',   // título exibido na coleção
     img: '/UNIKO_VAMPROBOT.png',
     tagline: 'Robô-vampiro cibernético das sombras',
     // Vantagens visuais de ter essa skin (mostradas na Coleção).
