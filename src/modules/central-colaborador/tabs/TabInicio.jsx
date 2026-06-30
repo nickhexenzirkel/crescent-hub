@@ -97,7 +97,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [missoes,   setMissoes]   = useState([]); // missões em andamento (mais próximas de concluir)
   const [evts,      setEvts]      = useState([]);
   /* Capture Uniko! (função futura) — posição de spawn aleatória só pro visual por enquanto */
-  const [captureSpot] = useState(() => ({ left: 14 + Math.random() * 60, top: 24 + Math.random() * 38 }));
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {
@@ -383,9 +382,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         @keyframes moonP{0%,100%{opacity:.72}50%{opacity:1}}
         @keyframes shootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:0.45;transform:translate(82px,82px)}72%,100%{opacity:0;transform:translate(108px,108px)}}
         @keyframes nowP{0%,100%{box-shadow:0 0 0 0 rgba(212,168,67,.16)}50%{box-shadow:0 0 0 5px rgba(212,168,67,.05)}}
-        @keyframes capFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-        @keyframes capPulse{0%,100%{opacity:.55;transform:translate(-50%,-50%)scale(.92)}50%{opacity:1;transform:translate(-50%,-50%)scale(1.12)}}
-        @keyframes capBorder{0%,100%{border-color:rgba(155,107,255,.30);box-shadow:0 0 0 0 rgba(155,107,255,.16)}50%{border-color:rgba(155,107,255,.85);box-shadow:0 0 0 4px rgba(155,107,255,.10)}}
         .fi .home-card{transition:transform .25s cubic-bezier(.16,1,.3,1),box-shadow .25s ease}
         .fi .home-card:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 16px 40px rgba(0,0,0,.13);z-index:3}
       `}</style>
@@ -542,22 +538,19 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ CAPTURE O UNIKO — encontro temático dentro do widget (config do RH) ═════ */}
       <CaptureUnikoWidget cfg={captureCfg} placeholder={(
-      <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:T.surface,border:'1.5px solid rgba(155,107,255,.30)',boxShadow:T.sh,animation:'capBorder 2.2s ease-in-out infinite'}}>
-        {/* selo "em breve" */}
-        <div style={{position:'absolute',top:10,right:12,fontSize:9.5,fontWeight:700,letterSpacing:'.08em',color:'#9B6BFF',background:'rgba(155,107,255,.12)',border:'1px solid rgba(155,107,255,.3)',padding:'3px 9px',borderRadius:999,zIndex:2}}>EM BREVE</div>
-
-        {/* texto */}
-        <div style={{position:'absolute',left:20,top:'50%',transform:'translateY(-50%)',zIndex:2,maxWidth:'58%'}}>
-          <div style={{fontSize:11,color:'#9B6BFF',fontWeight:700,letterSpacing:'.08em',marginBottom:3}}>✦ MINIGAME</div>
-          <div style={{fontSize:19,fontWeight:800,color:T.text,lineHeight:1.05,marginBottom:4}}>Capture o Uniko!</div>
-          <div style={{fontSize:11.5,color:T.textT,lineHeight:1.4}}>De vez em quando um Uniko vai aparecer aqui — clique pra capturar e ganhar prismas.</div>
-        </div>
-
-        {/* Uniko que vai spawnar (posição aleatória; aqui só fantasma/placeholder) */}
-        <div title="Em breve você vai capturar o Uniko aqui!" style={{position:'absolute',left:`${captureSpot.left}%`,top:`${captureSpot.top}%`,zIndex:1,pointerEvents:'none'}}>
-          {/* halo do ponto de spawn */}
-          <div style={{position:'absolute',left:'50%',top:'50%',width:74,height:74,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'1.5px dashed rgba(192,168,255,.45)',animation:'capPulse 2.6s ease-in-out infinite'}}/>
-          <img src={unikoPop} alt="Uniko" style={{position:'relative',width:58,height:58,borderRadius:'50%',objectFit:'cover',opacity:.55,filter:'grayscale(.25) drop-shadow(0 4px 12px rgba(155,107,255,.5))',animation:'capFloat 3.4s ease-in-out infinite'}}/>
+      <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',border:`1px solid ${T.border}`,boxShadow:T.sh,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <style>{`@keyframes capStarTwinkle{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}`}</style>
+        {/* estrelas cintilantes espalhadas */}
+        {[{l:'8%',t:'24%',s:3,d:0},{l:'18%',t:'68%',s:2,d:.6},{l:'30%',t:'34%',s:2.5,d:1.2},{l:'42%',t:'74%',s:2,d:.3},
+          {l:'58%',t:'28%',s:2,d:.9},{l:'70%',t:'62%',s:3,d:1.5},{l:'82%',t:'30%',s:2.5,d:.4},{l:'90%',t:'70%',s:2,d:1.1},
+          {l:'14%',t:'48%',s:2,d:1.8},{l:'50%',t:'18%',s:2,d:.7},{l:'64%',t:'80%',s:2,d:1.3},{l:'86%',t:'50%',s:3,d:.2}].map((st,i)=>(
+          <span key={i} style={{position:'absolute',left:st.l,top:st.t,width:st.s,height:st.s,borderRadius:'50%',
+            background:T.textT,boxShadow:`0 0 6px ${T.textS||T.textT}`,animation:`capStarTwinkle ${2.4+st.d}s ease-in-out ${st.d}s infinite`}}/>
+        ))}
+        {/* mensagem central */}
+        <div style={{position:'relative',zIndex:1,textAlign:'center'}}>
+          <div style={{fontSize:18,marginBottom:4,opacity:.5,letterSpacing:'.3em'}}>✦ ✧ ✦</div>
+          <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
         </div>
       </div>
       )}/>
