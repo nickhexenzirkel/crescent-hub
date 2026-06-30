@@ -21,22 +21,39 @@ const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false, size=34 }) => (
     pointerEvents:'none', zIndex:3,
     animation:`${rtl ? 'vampBatFlyR' : 'vampBatFly'} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={Math.round(size*0.6)} viewBox="0 0 34 20" fill="none"
+    <svg width={size} height={Math.round(size*0.5)} viewBox="0 0 64 32" fill="none"
       style={{ display:'block', animation:'uwBatFlap .38s ease-in-out infinite' }}>
-      {/* Wings */}
-      <path d="M17 11 Q11 2 1 4 Q-1 11 1 16 Q7 18 13 12" fill="#c41e3a" opacity=".9"/>
-      <path d="M17 11 Q23 2 33 4 Q35 11 33 16 Q27 18 21 12" fill="#c41e3a" opacity=".9"/>
-      {/* Wing membrane detail */}
-      <path d="M17 11 Q10 6 2 7" stroke="#7a0010" strokeWidth=".7" opacity=".5" fill="none"/>
-      <path d="M17 11 Q24 6 32 7" stroke="#7a0010" strokeWidth=".7" opacity=".5" fill="none"/>
-      {/* Body */}
-      <ellipse cx="17" cy="12" rx="4" ry="3" fill="#2a0008"/>
-      {/* Eyes */}
-      <circle cx="15.2" cy="10.5" r="1.1" fill="#ff1030"/>
-      <circle cx="18.8" cy="10.5" r="1.1" fill="#ff1030"/>
-      {/* Ears */}
-      <path d="M14 8 L12.5 5.5 L15.5 6.5Z" fill="#2a0008"/>
-      <path d="M20 8 L21.5 5.5 L18.5 6.5Z" fill="#2a0008"/>
+      {/* Asa esquerda (com borda serrilhada típica de morcego) */}
+      <path d="M32 12
+        C 29 8 26 9 24 12
+        C 20 7 13 8 7 12
+        C 5 13 3 13 1 13
+        C 4 15 6 16 5 19
+        C 8 16 10 17 11 20
+        C 13 16 16 17 18 20
+        C 20 16 23 17 26 18
+        C 29 16 31 16 32 14 Z" fill="#c41e3a"/>
+      {/* Asa direita (espelhada) */}
+      <path d="M32 12
+        C 35 8 38 9 40 12
+        C 44 7 51 8 57 12
+        C 59 13 61 13 63 13
+        C 60 15 58 16 59 19
+        C 56 16 54 17 53 20
+        C 51 16 48 17 46 20
+        C 44 16 41 17 38 18
+        C 35 16 33 16 32 14 Z" fill="#c41e3a"/>
+      {/* Nervuras das asas */}
+      <path d="M32 13 L11 14 M32 13 L18 15 M32 13 L26 16" stroke="#7a0010" strokeWidth=".6" opacity=".55"/>
+      <path d="M32 13 L53 14 M32 13 L46 15 M32 13 L38 16" stroke="#7a0010" strokeWidth=".6" opacity=".55"/>
+      {/* Orelhas pontudas */}
+      <path d="M29 9 L27.5 3 L31 7 Z" fill="#1a0006"/>
+      <path d="M35 9 L36.5 3 L33 7 Z" fill="#1a0006"/>
+      {/* Corpo */}
+      <ellipse cx="32" cy="13" rx="3.4" ry="5" fill="#1a0006"/>
+      {/* Olhos vermelhos brilhantes */}
+      <circle cx="30.5" cy="11" r="1.05" fill="#ff1030"/>
+      <circle cx="33.5" cy="11" r="1.05" fill="#ff1030"/>
     </svg>
   </div>
 );
@@ -95,6 +112,30 @@ const VampCastle = () => (
     <rect x="214" y="56" width="4" height="7" fill="#180610"/>
   </svg>
 );
+
+// Avatar da fila: zoom leve no hover; se tiver foto, clica para expandir
+const QueueAvatar = ({ name, photo, onExpand }) => {
+  const [hover, setHover] = useState(false);
+  const clickable = !!photo;
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={clickable ? (e) => { e.stopPropagation(); onExpand({ photo, name }); } : undefined}
+      title={clickable ? `Ver foto de ${name}` : undefined}
+      style={{
+        flexShrink: 0, lineHeight: 0, borderRadius: '8px',
+        cursor: clickable ? 'zoom-in' : 'default',
+        transition: 'transform .18s ease, box-shadow .18s ease',
+        transform: hover && clickable ? 'scale(1.22)' : 'scale(1)',
+        boxShadow: hover && clickable ? '0 4px 16px rgba(0,0,0,.45)' : 'none',
+        position: 'relative', zIndex: hover && clickable ? 5 : 1,
+      }}
+    >
+      <AvatarCircle name={name} photo={photo} size={30} fontSize={12} rounded="8px" />
+    </div>
+  );
+};
 
 // Extrai cores dominantes da capa do álbum via Canvas
 // Usa proxy do servidor para contornar CORS da CDN do Spotify
@@ -434,6 +475,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .then(() => {}).catch(() => {});
   }, [mascotSkinId, myName]); // eslint-disable-line
   const [photoCache, setPhotoCache] = useState({});
+  const [expandedPhoto, setExpandedPhoto] = useState(null); // {photo, name} ao clicar numa foto da fila
   // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
   const [myPhoto, setMyPhoto] = useState(userPhoto);
   useEffect(() => { if (userPhoto) setMyPhoto(userPhoto); }, [userPhoto]);
@@ -1797,14 +1839,26 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                   {/* Descrição do Uniko especial abaixo do card */}
                   {isVampCard && currentSong?.requested_by && (
-                    <div style={{ textAlign:'center', marginTop:5 }}>
-                      <span style={{fontSize:10,fontWeight:800,letterSpacing:'.14em',textTransform:'uppercase',color:'#c41e3a'}}>
-                        {(skin?.name || '').replace(/^Uniko\s*/i, '')}
-                      </span>
-                      <span style={{color:'#c41e3a55',margin:'0 6px',fontSize:10}}>·</span>
-                      <span style={{fontSize:10,fontWeight:600,letterSpacing:'.09em',textTransform:'uppercase',color:'#d090a0',opacity:.8}}>
-                        {currentSong.requested_by}
-                      </span>
+                    <div style={{ display:'flex', justifyContent:'center', marginTop:8 }}>
+                      <div style={{
+                        display:'inline-flex', alignItems:'center', gap:8,
+                        padding:'6px 16px', borderRadius:999,
+                        background:'linear-gradient(135deg,#1c0309,#3a0a14 70%,#1c0309)',
+                        border:'1px solid #c41e3a66',
+                        boxShadow:'0 0 16px #c41e3a30, inset 0 0 10px #c41e3a18',
+                        maxWidth:'100%',
+                      }}>
+                        <span style={{fontSize:13, filter:'drop-shadow(0 0 4px #c41e3a)'}}>🦇</span>
+                        <span style={{fontSize:11.5, fontWeight:800, letterSpacing:'.04em', color:'#fff', textShadow:'0 0 8px #c41e3aaa', whiteSpace:'nowrap'}}>
+                          {(skin?.name || '').replace(/^Uniko\s*/i, '').replace(/-/g, ' ')}
+                        </span>
+                        <span style={{fontSize:10.5, fontWeight:500, color:'#e0a8b6', whiteSpace:'nowrap'}}>
+                          do grandioso(a){' '}
+                          <b style={{color:'#ff6b86', fontWeight:800}}>
+                            {(currentSong.requested_by || '').trim().split(/\s+/)[0]}
+                          </b>
+                        </span>
+                      </div>
                     </div>
                   )}
                 </>);
@@ -2168,10 +2222,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                 <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
                                   {isSystem
                                     ? <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                                    : <AvatarCircle
+                                    : <QueueAvatar
                                         name={s.requested_by}
                                         photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
-                                        size={30} fontSize={12} rounded="8px"
+                                        onExpand={setExpandedPhoto}
                                       />
                                   }
                                   <span style={{fontSize:11,color:T.textT,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -2948,6 +3002,45 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           Criado por <span style={{fontFamily:"var(--font-brand)",fontSize:11,fontWeight:600,color:T.gold}}>Nicolas Andrade</span>
         </span>
       </div>
+
+      {/* ── Modal de foto expandida (clique numa foto da fila) ── */}
+      {expandedPhoto && (
+        <div onClick={() => setExpandedPhoto(null)}
+          style={{
+            position:'fixed', inset:0, zIndex:99999,
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            background:'rgba(0,0,0,.55)', cursor:'zoom-out',
+            backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)',
+            animation:'fadeIn .2s ease',
+          }}>
+          {/* Fundo borrado com a própria foto */}
+          <img src={expandedPhoto.photo} alt="" aria-hidden
+            style={{
+              position:'absolute', inset:0, width:'100%', height:'100%',
+              objectFit:'cover', filter:'blur(48px) brightness(.45)', opacity:.6,
+              pointerEvents:'none', transform:'scale(1.2)',
+            }}/>
+          {/* Foto inteira */}
+          <img src={expandedPhoto.photo} alt={expandedPhoto.name}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position:'relative', maxWidth:'90vw', maxHeight:'80vh',
+              objectFit:'contain', borderRadius:18,
+              border:'2px solid rgba(255,255,255,.18)',
+              boxShadow:'0 24px 90px rgba(0,0,0,.75)',
+              animation:'bubblePop .25s ease',
+            }}/>
+          <div style={{
+            position:'relative', marginTop:16, fontSize:17, fontWeight:700, color:'#fff',
+            textShadow:'0 2px 14px rgba(0,0,0,.85)', textAlign:'center', maxWidth:'90vw',
+          }}>
+            {expandedPhoto.name}
+          </div>
+          <div style={{ position:'relative', marginTop:6, fontSize:12, color:'rgba(255,255,255,.6)' }}>
+            Toque para fechar
+          </div>
+        </div>
+      )}
     </div>
   );
 };
