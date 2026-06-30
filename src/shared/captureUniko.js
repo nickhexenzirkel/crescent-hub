@@ -20,6 +20,13 @@ export const CAPTURE_UNIKOS = {
     name: 'Uniko Vampire-Robot',
     img: '/UNIKO_VAMPROBOT.png',
     tagline: 'Robô-vampiro cibernético das sombras',
+    // Vantagens visuais de ter essa skin (mostradas na Coleção).
+    perks: [
+      'Assistente flutuante exclusivo — pisca, dá dicas e avisa com a carinha do Vampire-Robot',
+      'Foto de perfil temática vermelho-sangue',
+      'Visual cibernético-vampírico de coleção',
+    ],
+    canBeAssistant: true,
     // Tema: vermelho sangue / carmesim, corpo escuro, estética cibernética + vampírica.
     // Cenário: lua de sangue, castelo grande no canto sup. direito, morcegos voando
     // nas diagonais batendo as asas, partículas carmesim.
@@ -178,6 +185,15 @@ const COLLECTION_KEY = () => `uniko_captured_${userTag()}`;
 export function getCapturedCollection() {
   try { return JSON.parse(localStorage.getItem(COLLECTION_KEY()) || '[]'); } catch { return []; }
 }
+// Busca a coleção de capturas de um colega (Supabase) — pra Colegas mostrar a coleção dele.
+export async function fetchCapturesFor(player) {
+  try {
+    const { data } = await _supabase.from('capture_uniko_captures')
+      .select('uniko_id,uniko_name,captured_at').eq('player', player).order('captured_at', { ascending: false });
+    return data || [];
+  } catch { return []; }
+}
+
 export function addToMyUnikoCollection(uniko) {
   try {
     const list = getCapturedCollection();

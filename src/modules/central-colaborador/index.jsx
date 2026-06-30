@@ -109,30 +109,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     .finally(() => { setProfileReady(true); setProfileComplete(checkProfileComplete()); });
   }, []);
 
-  /* Ticker de fundo para o My Uniko — mantém stats atualizados em outros tabs */
-  useEffect(() => {
-    const key = (() => { try { const a = getAuthUser(); return a?.cpf ? `uniko_doko_${a.cpf}` : 'uniko_doko'; } catch { return 'uniko_doko'; } })();
-    const id = setInterval(() => {
-      if (tabRef.current === 'uniko') return; // TabMyDoko cuida quando ativo
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return;
-        const data = JSON.parse(raw);
-        let { fome = 75, energia = 70, sono = 70, dormindo = false } = data;
-        if (dormindo) {
-          fome = Math.max(0,   fome - 0.008);
-          sono = Math.min(100, sono + 2.5);
-        } else {
-          fome    = Math.max(0, fome    - 0.025);
-          energia = Math.max(0, energia - 0.025);
-          sono    = Math.max(0, sono    - 0.016);
-        }
-        localStorage.setItem(key, JSON.stringify({ ...data, fome, energia, sono, lastUpdated: Date.now() }));
-      } catch {}
-    }, 8000);
-    return () => clearInterval(id);
-  }, []);
-
   // Carrega a config do "Capture o Uniko" (evento do RH) ao abrir o Portal
   useEffect(() => { loadCaptureConfig().then(c => { if (c?.enabled) setCaptureCfg(c); }); }, []);
 

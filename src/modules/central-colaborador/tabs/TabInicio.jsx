@@ -19,6 +19,7 @@ import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
 import CaptureUnikoWidget from '../../../shared/CaptureUnikoWidget';
+import { getCapturedCollection, getUniko } from '../../../shared/captureUniko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -119,6 +120,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
     } catch { return {}; }
   };
   const [uniko, setUniko] = useState(readDoko);
+  const [captured, setCaptured] = useState(() => getCapturedCollection()); // coleção de Unikos
+  useEffect(() => { const r = () => setCaptured(getCapturedCollection()); window.addEventListener('uniko-collection:changed', r); return () => window.removeEventListener('uniko-collection:changed', r); }, []);
   const [nowPlay,   setNowPlay]   = useState(null);
   const [isPlay,    setIsPlay]    = useState(false);
   const [photo,     setPhoto]     = useState(() => userPhotoProp || localStorage.getItem(PHK) || null);
@@ -573,36 +576,30 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       {/* ══ WIDGETS — 4 numa linha (My Uniko · Eventos · Lembretes · Avisos) ═══ */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
 
-        {/* My Uniko */}
-        <Card className="home-card" style={{padding:'12px'}}>
+        {/* Coleção de Unikos */}
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
-            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>My Uniko</span>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Coleção</span>
             <BtnVer tab="uniko"/>
           </div>
-          <div style={{display:'flex',gap:9,alignItems:'center',marginBottom:9}}>
-            <div style={{width:38,height:38,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:`2px solid ${uS.c}55`,boxShadow:`0 0 0 3px ${uS.c}18`}}>
-              <img src={SKINS[skin]||SKINS.tecnico} alt="Uniko" style={{width:'100%',height:'100%',objectFit:'cover',filter:dormindo?'brightness(.7) saturate(.5)':'none',transition:'filter .4s'}}/>
-            </div>
-            <div style={{minWidth:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
-                <span style={{fontSize:13}}>{uS.e}</span>
-                <span style={{fontSize:11.5,fontWeight:700,color:uS.c}}>{uS.l}</span>
+          {captured.length>0 ? (
+            <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,textAlign:'center'}}>
+              <div style={{display:'flex',marginLeft:8}}>
+                {captured.slice(0,3).map((c,i)=>(
+                  <div key={c.id} style={{width:40,height:40,borderRadius:'50%',overflow:'hidden',marginLeft:-8,border:`2px solid ${T.surface}`,background:(getUniko(c.id).theme.deep)||'#1a0408',boxShadow:T.sh}}>
+                    <img src={c.img} alt={c.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+                  </div>
+                ))}
               </div>
-              <div style={{fontSize:10,color:T.textT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{uS.s}</div>
+              <div style={{fontSize:12,fontWeight:700,color:T.text}}>{captured.length} Uniko{captured.length===1?'':'s'}</div>
+              <div style={{fontSize:10.5,color:T.textT}}>na sua coleção</div>
             </div>
-          </div>
-          <StarDivider my={6} dim/>
-          {[{l:'Fome',v:fome},{l:'Energia',v:energia},{l:'Sono',v:sono}].map(({l,v})=>(
-            <div key={l} style={{marginBottom:5}}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
-                <span style={{fontSize:10,color:T.textS}}>{l}</span>
-                <span style={{fontSize:10,fontWeight:700,color:barCol(v)}}>{Math.round(v)}%</span>
-              </div>
-              <div style={{height:4,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${v}%`,borderRadius:999,background:`linear-gradient(90deg,${barCol(v)},${barCol(v)}88)`,transition:'width .4s ease'}}/>
-              </div>
+          ) : (
+            <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,textAlign:'center'}}>
+              <div style={{fontSize:16,opacity:.5,letterSpacing:'.25em'}}>✦ ✧ ✦</div>
+              <div style={{fontSize:11.5,color:T.textT,lineHeight:1.4}}>Nenhum Uniko ainda.<br/>Capture um no Portal!</div>
             </div>
-          ))}
+          )}
         </Card>
 
         {/* Eventos Hoje */}

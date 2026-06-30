@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, SERVER_URL, getAuthUser, fetchPhotoByName } from '../../../contexts/user';
 import { Card, StarDivider, SHead, AvatarCircle } from '../../../shared/components';
+import { fetchCapturesFor, getUniko } from '../../../shared/captureUniko';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
@@ -234,6 +235,14 @@ const TabColegas = () => {
   const [trophies,    setTrophies]   = useState({});
   const [dokoStates,  setDokoStates] = useState({});
   const [selected,    setSelected]   = useState(null);
+  const [colCollection, setColCollection] = useState(null); // coleção de Unikos do colega selecionado
+  useEffect(() => {
+    if (!selected?.name) { setColCollection(null); return; }
+    let alive = true;
+    setColCollection(null);
+    fetchCapturesFor(selected.name).then(list => { if (alive) setColCollection(list); });
+    return () => { alive = false; };
+  }, [selected]);
   const [search,      setSearch]     = useState('');
 
   /* gift state */
@@ -401,34 +410,39 @@ const TabColegas = () => {
           )}
         </Card>
 
-        {/* My Uniko */}
+        {/* Coleção de Unikos do colega */}
         <Card style={{ padding:'22px 24px' }} elevated>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-            <span style={{ fontSize:17 }}>🐾</span>
-            <div style={{ fontSize:15, fontWeight:700, color:T.text }}>My Uniko</div>
+            <span style={{ fontSize:17 }}>🦇</span>
+            <div>
+              <div style={{ fontSize:15, fontWeight:700, color:T.text }}>Coleção de Unikos</div>
+              <div style={{ fontSize:12, color:T.textT, marginTop:1 }}>
+                {colCollection == null ? 'Carregando...' : `${colCollection.length} capturado${colCollection.length===1?'':'s'}`}
+              </div>
+            </div>
           </div>
           <StarDivider my={10}/>
-          {!doko ? (
+          {colCollection == null ? (
+            <div style={{ textAlign:'center', padding:'20px 0', color:T.textT, fontSize:13 }}>Carregando...</div>
+          ) : colCollection.length === 0 ? (
             <div style={{ textAlign:'center', padding:'20px 0', color:T.textT, fontSize:13 }}>
-              {emp.name.split(' ')[0]} ainda não abriu o My Uniko.
+              {emp.name.split(' ')[0]} ainda não capturou nenhum Uniko.
             </div>
           ) : (
-            <div style={{ display:'flex', gap:20, alignItems:'center', flexWrap:'wrap' }}>
-              <div style={{ position:'relative', flexShrink:0 }}>
-                <img src={DOKO_IMG[skin] || DOKO_IMG.tecnico} alt="Uniko"
-                  style={{ width:88, height:88, borderRadius:16, objectFit:'cover',
-                    border:`2px solid ${T.border}`, boxShadow:T.sh }}/>
-                {doko.dormindo && <div style={{ position:'absolute', top:-6, right:-6, fontSize:16 }}>😴</div>}
-              </div>
-              <div style={{ flex:1, minWidth:160 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:T.text, marginBottom:12 }}>
-                  {DOKO_LABEL[skin] || skin}
-                  {doko.dormindo && <span style={{ marginLeft:8, fontSize:11, color:T.textT }}>· Dormindo</span>}
-                </div>
-                <StatBar label="Fome"    value={doko.fome    ?? 0} color="#E05030"/>
-                <StatBar label="Energia" value={doko.energia ?? 0} color="#2A82D2"/>
-                <StatBar label="Sono"    value={doko.sono    ?? 0} color="#8B5FE8"/>
-              </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:12 }}>
+              {colCollection.map((c, i) => {
+                const u = getUniko(c.uniko_id);
+                return (
+                  <div key={i} style={{ borderRadius:14, overflow:'hidden', border:`1px solid ${u.theme.accent}55` }}>
+                    <div style={{ height:100, background:u.theme.scene||'#1a0408', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <img src={u.img} alt={c.uniko_name||u.name} style={{ width:78, height:78, objectFit:'contain', filter:`drop-shadow(0 0 12px ${u.theme.accent})` }}/>
+                    </div>
+                    <div style={{ padding:'8px 10px', textAlign:'center' }}>
+                      <div style={{ fontSize:11.5, fontWeight:700, color:T.text, lineHeight:1.2 }}>{c.uniko_name || u.name}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

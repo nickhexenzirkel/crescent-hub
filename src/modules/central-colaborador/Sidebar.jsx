@@ -35,7 +35,7 @@ const NAV=[
   {id:'feedback',   label:'Feedback',       icon:<I><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></I>},
   /* Grupo 3 — Entretenimento (divider antes) */
   {id:'feed',       label:'Feed',           icon:<I><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="11" y2="18"/></I>},
-  {id:'uniko',      label:'My Uniko',       icon:<I><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></I>},
+  {id:'uniko',      label:'Coleção',        icon:<I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>},
   {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
   {id:'unikowave',  label:'Uniko Wave',     icon:<I><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></I>},
 ];
@@ -201,7 +201,7 @@ const TopBar = ({tab,onBack}) => {
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',feed:'Feed',comunicados:'Comunicados',simulador:'Simulação',
-    uniko:'My Uniko',colegas:'Colegas',unikowave:'Uniko Wave'};
+    uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
