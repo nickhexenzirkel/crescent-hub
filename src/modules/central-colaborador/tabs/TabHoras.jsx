@@ -77,9 +77,9 @@ const TabHoras = () => {
     setLoading(false);
   };
 
-  // Dias com saldo NEGATIVO no ponto — calculados a partir das marcações do colaborador
-  // (CPF resolvido por nome se o do perfil não bater com o do AFD).
+  // Saldo do ponto (negativas) — calculado das marcações do colaborador (vínculo/nome).
   const [negDays, setNegDays] = useState([]);
+  const [pontoBalanceMin, setPontoBalanceMin] = useState(0); // saldo líquido do ponto (min)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -89,6 +89,7 @@ const TabHoras = () => {
       const days = computePontoDays(marcacoes, abonado);
       const negs = days.filter(d => d.balance < 0).map(d => ({ data: d.date, saldo: d.balance })).sort((a, b) => (a.data < b.data ? 1 : -1));
       setNegDays(negs);
+      setPontoBalanceMin(days.reduce((a, d) => a + d.balance, 0));
     })();
     return () => { alive = false; };
   }, []);
@@ -103,6 +104,11 @@ const TabHoras = () => {
 
   const totalHorasCalc = registros.reduce((a, r) => a + Number(r.horas_calculadas || 0), 0);
   const totalValor     = registros.reduce((a, r) => a + Number(r.valor_total || 0), 0);
+
+  // Banco LÍQUIDO = horas extras (não rejeitadas) − horas negativas do ponto.
+  const extraMin   = registros.filter(r => r.status !== 'rejeitado').reduce((a, r) => a + Number(r.horas_calculadas || 0) * 60, 0);
+  const netMin     = extraMin + pontoBalanceMin;       // pontoBalanceMin é negativo se devendo horas
+  const netPos     = netMin >= 0;
 
   const previewTotal = calcHoras(form.hora_inicio, form.hora_fim);
   const previewCalc  = previewTotal * (form.feriado_domingo ? 2 : 1);
@@ -153,11 +159,11 @@ const TabHoras = () => {
     <div className="fi" style={{ fontFamily: 'var(--font-body)' }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* ── BANNER ── */}
+      {/* ── BANNER (saldo LÍQUIDO: extras − negativas do ponto) ── */}
       <div style={{
-        background: `linear-gradient(135deg,${T.blue},${T.blueL})`,
+        background: netPos ? `linear-gradient(135deg,${T.blue},${T.blueL})` : 'linear-gradient(135deg,#C04050,#E0697A)',
         borderRadius: 18, padding: '28px 30px', marginBottom: 22,
-        textAlign: 'center', boxShadow: `0 8px 28px rgba(78,143,168,0.25)`,
+        textAlign: 'center', boxShadow: `0 8px 28px ${netPos ? 'rgba(78,143,168,0.25)' : 'rgba(192,64,80,0.25)'}`,
         position: 'relative', overflow: 'hidden',
       }}>
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -166,15 +172,18 @@ const TabHoras = () => {
           </div>
           <div style={{ width: 250, margin: '0 auto 12px' }}><StarDivider /></div>
           <div style={{ fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: '-.02em', lineHeight: 1, marginBottom: 6 }}>
-            {fmtHoras(totalHorasCalc)}
+            {netPos ? '+' : ''}{fmtMin(netMin)}
+          </div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginBottom: 8 }}>
+            Extras {fmtMin(extraMin)}{pontoBalanceMin < 0 ? ` · Negativas ${fmtMin(pontoBalanceMin)}` : (pontoBalanceMin > 0 ? ` · Ponto +${fmtMin(pontoBalanceMin)}` : '')}
           </div>
           {valorHora > 0 && totalValor > 0 && (
-            <div style={{ fontSize: 18, fontWeight: 600, color: 'rgba(255,255,255,.85)', marginBottom: 8 }}>
-              ≈ {BRL(totalValor)}
+            <div style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,.85)', marginBottom: 8 }}>
+              Extras ≈ {BRL(totalValor)}
             </div>
           )}
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,.7)', marginBottom: 16 }}>
-            Total acumulado · {registros.length} registro{registros.length !== 1 ? 's' : ''}
+            {registros.length} registro{registros.length !== 1 ? 's' : ''} de extra · {netPos ? 'saldo positivo' : 'saldo devendo'}
           </div>
           <button onClick={openModal} style={{
             display: 'inline-flex', alignItems: 'center', gap: 7,

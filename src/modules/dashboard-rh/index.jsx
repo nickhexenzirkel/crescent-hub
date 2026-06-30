@@ -552,12 +552,60 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     await _supabase.from('ponto_solicitacoes').update({ status }).eq('id', id);
     setSolics(prev => prev.map(s => s.id === id ? { ...s, status } : s));
   };
+  // ACEITAR: abona o dia no ponto (cria a justificativa) e marca resolvido → a hora
+  // negativa some no banco do colaborador e a solicitação some pra ele.
+  const aceitarSolic = async (s) => {
+    const dia = s.data_ref;
+    const pid = s.ponto_cpf || s.cpf;
+    if (!dia || !pid) { setSolicStatus(s.id, 'resolvido'); return; }
+    try {
+      await _supabase.from('ponto_justificativas').upsert({
+        cpf: pid, data: dia, texto: s.titulo + (s.descricao ? ' — ' + s.descricao : ''),
+        abonado: true, autor: adminName, updated_at: new Date().toISOString(),
+      }, { onConflict: 'cpf,data' });
+    } catch {}
+    await _supabase.from('ponto_solicitacoes').update({ status: 'resolvido' }).eq('id', s.id);
+    setSolics(prev => prev.map(x => x.id === s.id ? { ...x, status: 'resolvido' } : x));
+  };
   const delSolic = async (id) => {
     if (!window.confirm('Excluir esta solicitação?')) return;
     await _supabase.from('ponto_solicitacoes').delete().eq('id', id);
     setSolics(prev => prev.filter(s => s.id !== id));
   };
   useEffect(() => { if (tab === 'justificativas') loadSolics(); }, [tab]);
+
+  // ── Vínculo Portal ↔ Ponto (PIS) ──
+  const [vincFuncs, setVincFuncs] = useState([]);   // ponto_funcionarios (nome + PIS)
+  const [vincMap, setVincMap]     = useState({});    // portal_cpf → ponto_id
+  const [vincLoading, setVincLoading] = useState(false);
+  const [vincSearch, setVincSearch]   = useState('');
+  const loadVinculo = async () => {
+    setVincLoading(true);
+    try {
+      if (empList.length === 0) await loadEmployees();
+      const [{ data: funcs }, { data: vinc }] = await Promise.all([
+        _supabase.from('ponto_funcionarios').select('cpf,nome,excluido'),
+        _supabase.from('ponto_vinculo').select('portal_cpf,ponto_id'),
+      ]);
+      setVincFuncs((funcs || []).filter(f => !f.excluido && f.cpf));
+      const m = {}; (vinc || []).forEach(v => { m[v.portal_cpf] = v.ponto_id; });
+      setVincMap(m);
+    } catch {}
+    setVincLoading(false);
+  };
+  const saveVinculo = async (emp, pontoId) => {
+    const portal_cpf = (emp.cpf || '').replace(/\D/g, '');
+    if (!portal_cpf) return;
+    if (!pontoId) {
+      await _supabase.from('ponto_vinculo').delete().eq('portal_cpf', portal_cpf);
+      setVincMap(prev => { const n = { ...prev }; delete n[portal_cpf]; return n; });
+      return;
+    }
+    const nome = vincFuncs.find(f => f.cpf === pontoId)?.nome || '';
+    await _supabase.from('ponto_vinculo').upsert({ portal_cpf, ponto_id: pontoId, ponto_nome: nome, updated_at: new Date().toISOString() }, { onConflict: 'portal_cpf' });
+    setVincMap(prev => ({ ...prev, [portal_cpf]: pontoId }));
+  };
+  useEffect(() => { if (tab === 'vinculo') loadVinculo(); }, [tab]);
 
   // ── Contracheques: funções ────────────────────────────────
   const loadContracheques = async () => {
@@ -751,6 +799,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
     {id:'justificativas', label:'Justificativas Ponto', icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></>},
+    {id:'vinculo',        label:'Vínculo Ponto',       icon:<><path d="M10 13a5 5 0 007.07 0l1.41-1.41a5 5 0 00-7.07-7.07L10 6"/><path d="M14 11a5 5 0 00-7.07 0L5.5 12.4a5 5 0 007.07 7.07L14 18"/></>},
     {id:'calendario',     label:'Calendário',         icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>},
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
     {id:'uniko_ia',       label:'Perguntas do UNIKO',  icon:<><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></>},
@@ -1511,7 +1560,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         </div>
                         <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
                           {pendente
-                            ? <button onClick={()=>setSolicStatus(s.id,'resolvido')} style={{padding:'8px 14px',borderRadius:9,border:'none',cursor:'pointer',background:'#1A9C70',color:'#fff',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)'}}>Marcar resolvido</button>
+                            ? <button onClick={()=>aceitarSolic(s)} title="Abona o dia no ponto e zera a hora negativa" style={{padding:'8px 14px',borderRadius:9,border:'none',cursor:'pointer',background:'#1A9C70',color:'#fff',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)'}}>Aceitar e abonar</button>
                             : <button onClick={()=>setSolicStatus(s.id,'pendente')} style={{padding:'8px 14px',borderRadius:9,border:`1px solid ${T.border}`,cursor:'pointer',background:'transparent',color:T.textS,fontWeight:600,fontSize:12.5,fontFamily:'var(--font-body)'}}>Reabrir</button>}
                           <button onClick={()=>delSolic(s.id)} style={{padding:'7px 14px',borderRadius:9,border:'1px solid rgba(192,64,80,0.25)',cursor:'pointer',background:'rgba(192,64,80,0.06)',color:'#C04050',fontWeight:600,fontSize:12,fontFamily:'var(--font-body)'}}>Excluir</button>
                         </div>
@@ -1521,7 +1570,51 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
               )}
               <div style={{fontSize:11,color:T.textT,lineHeight:1.6}}>
-                ℹ️ Depois de analisar, abone o dia no módulo <strong>Ponto Eletrônico</strong> (botão “Justificar” no Banco de Horas do colaborador) — isso zera o saldo daquele dia.
+                ℹ️ “Aceitar e abonar” já zera o saldo daquele dia automaticamente (cria a justificativa no ponto). O dia precisa estar preenchido na solicitação e o colaborador precisa estar vinculado (aba Vínculo Ponto).
+              </div>
+            </div>
+          );})()}
+
+          {/* ── TAB: VÍNCULO PONTO (Portal ↔ PIS) ── */}
+          {tab==='vinculo'&&(()=>{
+            const q = vincSearch.trim().toLowerCase();
+            const emps = empList.filter(e => !q || (e.name||'').toLowerCase().includes(q));
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Vínculo Ponto</div>
+                <div style={{fontSize:13,color:T.textS,marginTop:2}}>Ligue cada colaborador do Portal ao seu registro no ponto (o AFD usa PIS/PASEP, não CPF). Sem o vínculo, o colaborador não vê o próprio banco de horas.</div>
+              </div>
+
+              <div style={{padding:'14px 18px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <input value={vincSearch} onChange={e=>setVincSearch(e.target.value)} placeholder="Buscar colaborador..."
+                  style={{width:'100%',maxWidth:320,padding:'9px 12px',borderRadius:9,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',marginBottom:12,boxSizing:'border-box'}}/>
+                {vincLoading ? <div style={{padding:32,textAlign:'center',color:T.textT}}>Carregando...</div> : emps.length===0 ? (
+                  <div style={{padding:'28px 0',textAlign:'center',color:T.textT,fontSize:13}}>Nenhum colaborador.</div>
+                ) : (
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {emps.map(e=>{
+                      const pcpf=(e.cpf||'').replace(/\D/g,'');
+                      const sel=vincMap[pcpf]||'';
+                      return (
+                        <div key={e.id||pcpf} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'10px 14px',background:'rgba(0,0,0,0.02)',border:`1px solid ${T.border}`,borderRadius:10}}>
+                          <div style={{flex:1,minWidth:160}}>
+                            <div style={{fontSize:14,fontWeight:600,color:T.text}}>{e.name}</div>
+                            <div style={{fontSize:11,color:T.textT}}>CPF {e.cpf||'—'}{sel?'':' · sem vínculo'}</div>
+                          </div>
+                          <select value={sel} onChange={ev=>saveVinculo(e, ev.target.value)}
+                            style={{minWidth:240,padding:'8px 10px',borderRadius:9,border:`1px solid ${sel?'#1A9C70':T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)'}}>
+                            <option value="">— selecionar registro do ponto —</option>
+                            {vincFuncs.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'')).map(f=>(
+                              <option key={f.cpf} value={f.cpf}>{f.nome||'(sem nome)'} · {f.cpf}</option>
+                            ))}
+                          </select>
+                          {sel && <span style={{fontSize:11,fontWeight:700,color:'#1A9C70',background:'rgba(26,156,112,0.12)',borderRadius:6,padding:'3px 9px'}}>✓ vinculado</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );})()}

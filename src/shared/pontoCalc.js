@@ -16,6 +16,13 @@ const subset = (a, b) => a.length >= 2 && a.every(t => b.includes(t)); // todos 
 export async function resolvePontoCpfs({ cpf, name }) {
   const cpfs = new Set();
   const c = (cpf || '').replace(/\D/g, '');
+  // 1) VÍNCULO explícito (RH ligou Portal ↔ ponto) — fonte da verdade
+  if (c) {
+    try {
+      const { data: v } = await supabase.from('ponto_vinculo').select('ponto_id').eq('portal_cpf', c).maybeSingle();
+      if (v?.ponto_id) cpfs.add(v.ponto_id);
+    } catch {}
+  }
   if (c) { cpfs.add(c); cpfs.add(c.padStart(11, '0')); }
   try {
     const { data: funcs } = await supabase.from('ponto_funcionarios').select('cpf,nome');
@@ -39,15 +46,21 @@ export async function resolvePontoCpfs({ cpf, name }) {
   return [...cpfs].filter(Boolean);
 }
 
-// Carrega marcações + justificativas do colaborador (resolvendo o CPF por nome se preciso).
+// Carrega marcações + justificativas do colaborador (resolvendo o id por vínculo/nome).
+// pontoCpf = o identificador (PIS) que de fato tem marcações — usado pra abonar o dia certo.
 export async function loadColaboradorPonto({ cpf, name }) {
   const cpfs = await resolvePontoCpfs({ cpf, name });
-  if (!cpfs.length) return { marcacoes: [], justifs: [], cpfs: [] };
+  if (!cpfs.length) return { marcacoes: [], justifs: [], cpfs: [], pontoCpf: '' };
   const [mar, just] = await Promise.all([
-    supabase.from('ponto_marcacoes').select('data,hora').in('cpf', cpfs).limit(3000),
-    supabase.from('ponto_justificativas').select('data,texto,abonado,autor').in('cpf', cpfs),
+    supabase.from('ponto_marcacoes').select('cpf,data,hora').in('cpf', cpfs).limit(3000),
+    supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor').in('cpf', cpfs),
   ]);
-  return { marcacoes: mar.data || [], justifs: just.data || [], cpfs };
+  const marcacoes = mar.data || [];
+  // id do ponto = cpf mais frequente nas marcações
+  const freq = {};
+  for (const m of marcacoes) if (m.cpf) freq[m.cpf] = (freq[m.cpf] || 0) + 1;
+  const pontoCpf = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || cpfs[0] || '';
+  return { marcacoes, justifs: just.data || [], cpfs, pontoCpf };
 }
 
 export const PONTO_DEFAULTS = { jornada: 480, tolerance: 1, toleranciaAtraso: 10 };
@@ -80,9 +93,8 @@ export function computePontoDays(marcacoes, abonadoDates = new Set(), cfg = {}) 
     const expected = wknd ? 0 : jornada;
     const rawBal   = totalMin - expected;
     const abonado  = abonadoDates.has(date);
-    const balance  = abonado ? 0
-      : (!wknd && rawBal < 0 && Math.abs(rawBal) <= tolAtraso) ? 0
-      : rawBal;
-    return { date, times, totalMin, expected, balance, wknd, abonado };
+    const baseBal  = (!wknd && rawBal < 0 && Math.abs(rawBal) <= tolAtraso) ? 0 : rawBal; // antes do abono
+    const balance  = abonado ? 0 : baseBal;
+    return { date, times, totalMin, expected, balance, rawBalance: baseBal, wknd, abonado };
   });
 }

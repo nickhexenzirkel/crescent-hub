@@ -32,6 +32,7 @@ const TabMeuPonto = () => {
   const [marcacoes, setMarcacoes] = useState([]);
   const [justifs, setJustifs]     = useState([]);
   const [solics, setSolics]       = useState([]);
+  const [pontoCpf, setPontoCpf]   = useState('');   // id do colaborador no ponto (PIS)
   const [loading, setLoading]     = useState(true);
 
   // modal de solicitação
@@ -60,6 +61,7 @@ const TabMeuPonto = () => {
         if (!alive) return;
         setMarcacoes(pt.marcacoes);
         setJustifs(pt.justifs);
+        setPontoCpf(pt.pontoCpf || '');
         setSolics(sol.data || []);
       } catch {}
       if (alive) setLoading(false);
@@ -82,6 +84,8 @@ const TabMeuPonto = () => {
   for (const d of days) { const ym = d.date.slice(0, 7); mesMap[ym] = (mesMap[ym] || 0) + d.balance; }
   const meses = Object.entries(mesMap).sort(([a], [b]) => (a < b ? 1 : -1)).map(([month, saldo]) => ({ month, saldo }));
 
+  const solicsAtivas = solics.filter(s => (s.status || 'pendente') !== 'resolvido'); // aprovadas somem
+
   const openModal = (dataRef = '') => { setForm({ titulo: '', descricao: '', data_ref: dataRef }); setFile(null); setMsg(''); setModal(true); };
 
   const submitSolic = async () => {
@@ -98,7 +102,7 @@ const TabMeuPonto = () => {
         file_url = data.publicUrl; file_name = file.name;
       }
       const { error } = await _supabase.from('ponto_solicitacoes').insert({
-        cpf, nome: USER.name, titulo: form.titulo.trim(), descricao: form.descricao.trim() || null,
+        cpf, ponto_cpf: pontoCpf || null, nome: USER.name, titulo: form.titulo.trim(), descricao: form.descricao.trim() || null,
         data_ref: form.data_ref || null, file_url, file_name, status: 'pendente',
       });
       if (error) throw new Error(error.message);
@@ -161,13 +165,13 @@ const TabMeuPonto = () => {
         </Card>
       ) : (
         <>
-          {/* ── Minhas solicitações ── */}
-          {solics.length > 0 && (
+          {/* ── Minhas solicitações (as aprovadas somem) ── */}
+          {solicsAtivas.length > 0 && (
             <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Minhas solicitações</div>
               <StarDivider my={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {solics.map(s => {
+                {solicsAtivas.map(s => {
                   const st = STATUS_S[s.status] || STATUS_S.pendente;
                   return (
                     <div key={s.id} style={{ display: 'flex', gap: 12, padding: '12px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
@@ -203,20 +207,28 @@ const TabMeuPonto = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
                 {diasDesc.map((d, i) => {
                   const neg = d.balance < 0;
+                  const justified = d.abonado && d.rawBalance < 0; // era negativo e foi justificado/aceito
+                  const bg = justified ? 'rgba(26,156,112,0.07)' : neg ? 'rgba(192,64,80,0.05)' : 'rgba(0,0,0,0.02)';
+                  const bd = justified ? 'rgba(26,156,112,0.35)' : neg ? 'rgba(192,64,80,0.2)' : T.border;
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 15px', background: neg ? 'rgba(192,64,80,0.05)' : 'rgba(0,0,0,0.02)', border: `1px solid ${neg ? 'rgba(192,64,80,0.2)' : T.border}`, borderRadius: 11 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 15px', background: bg, border: `1px solid ${bd}`, borderRadius: 11 }}>
                       <div style={{ minWidth: 92 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{fmtData(d.date)}</div>
                         <div style={{ fontSize: 11, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.date)}</div>
                       </div>
-                      <div style={{ flex: 1, display: 'flex', gap: 5, flexWrap: 'wrap', minWidth: 120 }}>
+                      <div style={{ flex: 1, display: 'flex', gap: 5, flexWrap: 'wrap', minWidth: 120, alignItems: 'center' }}>
                         {d.times.map((h, hi) => (
                           <span key={hi} style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: hi % 2 === 0 ? 'rgba(26,156,112,0.12)' : 'rgba(30,112,181,0.10)', color: hi % 2 === 0 ? '#1A9C70' : '#1E70B5' }}>{h}</span>
                         ))}
                         {d.times.length === 0 && <span style={{ fontSize: 12, color: T.textD }}>—</span>}
+                        {justified && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1A9C70', background: 'rgba(26,156,112,0.12)', border: '1px solid rgba(26,156,112,0.3)', borderRadius: 6, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Ico d={<polyline points="20 6 9 17 4 12" />} size={11} stroke="#1A9C70" />Justificada e aceita
+                          </span>
+                        )}
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: d.balance >= 0 ? '#1A9C70' : '#C04050', background: d.balance >= 0 ? 'rgba(26,156,112,0.10)' : 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 10px', minWidth: 66, textAlign: 'center' }}>
-                        {d.abonado ? 'Abonado' : `${d.balance > 0 ? '+' : ''}${fmtMin(d.balance)}`}
+                        {justified ? 'Abonado' : `${d.balance > 0 ? '+' : ''}${fmtMin(d.balance)}`}
                       </span>
                       {neg && <SolicBtn dataRef={d.date} />}
                     </div>
