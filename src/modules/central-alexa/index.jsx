@@ -22,6 +22,7 @@ function guessGender(name) {
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
+@keyframes vampHeartBeat{0%{border-color:#5e000c;box-shadow:0 0 8px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}12%{border-color:#ff2d4c;box-shadow:0 0 26px 7px #ff2d4c66,0 8px 40px rgba(0,0,0,.45);}22%{border-color:#8a0014;box-shadow:0 0 12px 2px #c41e3a33,0 8px 40px rgba(0,0,0,.45);}34%{border-color:#ff4a63;box-shadow:0 0 34px 11px #ff4a6388,0 8px 40px rgba(0,0,0,.45);}48%{border-color:#6a000e;box-shadow:0 0 9px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}100%{border-color:#5e000c;box-shadow:0 0 8px 1px #7a001022,0 8px 40px rgba(0,0,0,.45);}}
 @keyframes vampBatWander{0%,100%{transform:translate(0,0);}20%{transform:translate(var(--dx),calc(var(--dy) * -.6));}40%{transform:translate(calc(var(--dx) * 1.15),calc(var(--dy) * .5));}60%{transform:translate(calc(var(--dx) * .3),var(--dy));}80%{transform:translate(calc(var(--dx) * -.7),calc(var(--dy) * -.2));}}
 @keyframes vampBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.84);}}
 @keyframes vampCloudDrift{0%,100%{transform:translateX(0);}50%{transform:translateX(-16px);}}
@@ -105,20 +106,20 @@ const BatBurstOverlay = () => {
   const bats = useRef(null);
   if (!bats.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
+    const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]]; // TL, TR, BL, BR
     bats.current = Array.from({ length: 64 }).map((_, i) => {
-      const angle = rnd(0, Math.PI * 2);
-      const mag   = rnd(75, 140);                 // distância em vmax → sai da tela
+      const [cx, cy] = CORNERS[Math.floor(Math.random() * 4)]; // mira num dos 4 cantos
       return {
         id: i,
-        x:   rnd(34, 66),                          // % posição inicial (perto do centro)
-        y:   rnd(30, 62),
-        dx:  Math.cos(angle) * mag,
-        dy:  Math.sin(angle) * mag,
+        x:   rnd(40, 60),                          // % posição inicial (perto do centro)
+        y:   rnd(40, 60),
+        dx:  cx * rnd(85, 150),                    // vmax → ultrapassa o canto e sai da tela
+        dy:  cy * rnd(85, 150),
         sz:  Math.round(rnd(24, 60)),
-        dur: rnd(1.6, 3.0),
+        dur: rnd(1.5, 2.8),
         delay: rnd(0, 2.6),                        // escalonado ao longo dos ~5s
         rot: rnd(-40, 40),
-        flip: Math.random() < 0.5 ? -1 : 1,
+        flip: cx < 0 ? -1 : 1,                     // vira na direção do voo
       };
     });
   }
@@ -127,9 +128,10 @@ const BatBurstOverlay = () => {
       <style>{`
         @keyframes batBurstFlash{0%{opacity:0;}20%{opacity:.42;}80%{opacity:.3;}100%{opacity:0;}}
         @keyframes batBurstFly{
-          0%{transform:translate(-50%,-50%) scale(.2) rotate(var(--brot));opacity:0;}
-          18%{opacity:1;}
-          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.1) rotate(var(--brot));opacity:0;}
+          0%{transform:translate(-50%,-50%) scale(.55) rotate(var(--brot));opacity:0;}
+          8%{opacity:1;}
+          85%{opacity:1;}
+          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.05) rotate(var(--brot));opacity:0;}
         }
       `}</style>
       {/* Escurecimento rápido pra dar destaque */}
@@ -142,7 +144,7 @@ const BatBurstOverlay = () => {
         <div key={b.id} style={{
           position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
           '--bdx':`${b.dx}vmax`, '--bdy':`${b.dy}vmax`, '--brot':`${b.rot}deg`,
-          animation:`batBurstFly ${b.dur}s ease-in ${b.delay}s forwards`,
+          animation:`batBurstFly ${b.dur}s ease-out ${b.delay}s forwards`,
         }}>
           <img src="/morcego.png" alt="" style={{
             display:'block', width:b.sz, height:'auto',
@@ -1922,10 +1924,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   <div style={{borderRadius:20,
                     background: isVampCard ? '#090004' : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                    border: isVampCard ? '1px solid #c41e3a66' : `1px solid ${T.border}`,
+                    border: isVampCard ? '2px solid #c41e3a' : `1px solid ${T.border}`,
                     padding:"16px 16px 12px",
                     boxShadow: isVampCard ? undefined : T.shM,
-                    animation: isVampCard ? 'vampCardGlow 3s ease-in-out infinite' : undefined,
+                    animation: isVampCard ? 'vampHeartBeat 1.25s ease-in-out infinite' : undefined,
                     position:"relative", overflow:"hidden",
                     width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
                     transition:"background .5s, border .5s",
