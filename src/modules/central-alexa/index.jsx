@@ -120,20 +120,67 @@ const VampLightning = ({ left, top = 0, h = 52, delay = 0 }) => (
   </svg>
 );
 
-// Tempestade: vários relâmpagos vermelhos saindo das nuvens a cada 6s;
-// os longos descem até perto do castelo
-const VampStorm = () => (
-  <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden', borderRadius:20 }}>
-    <div style={{ position:'absolute', inset:0, opacity:0,
-      background:'radial-gradient(ellipse at 55% 0%, #ff2d4055 0%, transparent 55%)',
-      animation:'vampLightningFlash 6s linear infinite' }} />
-    <VampLightning left="50%" top={22} h={172} delay={0} />
-    <VampLightning left="38%" top={28} h={150} delay={0.1} />
-    <VampLightning left="64%" top={20} h={158} delay={0.18} />
-    <VampLightning left="28%" top={30} h={120} delay={0.28} />
-    <VampLightning left="74%" top={26} h={110} delay={0.36} />
-    <VampLightning left="46%" top={32} h={88}  delay={0.46} />
-    <VampLightning left="58%" top={30} h={64}  delay={0.55} />
+// Tempestade do card: relâmpagos vermelhos em tamanhos e posições aleatórias,
+// alguns longos descendo até perto do castelo
+const VampStorm = () => {
+  const bolts = useRef(null);
+  if (!bolts.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    bolts.current = Array.from({ length: 7 }).map((_, i) => ({
+      id: i,
+      left: `${rnd(6, 88)}%`,
+      top:  rnd(16, 36),
+      h:    rnd(55, 185),                 // tamanhos bem diferentes
+      delay: rnd(0, 0.7),
+    }));
+  }
+  return (
+    <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden', borderRadius:20 }}>
+      <div style={{ position:'absolute', inset:0, opacity:0,
+        background:'radial-gradient(ellipse at 55% 0%, #ff2d4055 0%, transparent 55%)',
+        animation:'vampLightningFlash 6s linear infinite' }} />
+      {bolts.current.map(b => (
+        <VampLightning key={b.id} left={b.left} top={b.top} h={b.h} delay={b.delay} />
+      ))}
+    </div>
+  );
+};
+
+// Mancha de tempestade (nuvens + relâmpagos aleatórios) p/ usar nos cantos da página
+const StormPatch = ({ pos, w = 280, h = 180, bolts = 4, clouds = 4 }) => {
+  const cfg = useRef(null);
+  if (!cfg.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    cfg.current = {
+      clouds: Array.from({ length: clouds }).map(() => ({
+        top: rnd(0, 30), left: `${rnd(0, 72)}%`, scale: rnd(0.6, 1.15),
+        dur: rnd(24, 36), delay: rnd(0, 6), op: rnd(0.28, 0.5),
+      })),
+      bolts: Array.from({ length: bolts }).map(() => ({
+        left: `${rnd(6, 82)}%`, top: rnd(24, 48), h: rnd(70, 170), delay: rnd(0, 5.5),
+      })),
+    };
+  }
+  const c = cfg.current;
+  return (
+    <div style={{ position:'absolute', ...pos, width:w, height:h, pointerEvents:'none', overflow:'visible' }}>
+      {c.clouds.map((cl, i) => <VampCloud key={'c' + i} {...cl} />)}
+      {c.bolts.map((b, i)  => <VampLightning key={'b' + i} {...b} />)}
+    </div>
+  );
+};
+
+// Tempestade da PÁGINA: nuvens e raios nos cantos/laterais da Central Alexa (fora do card)
+const CentralStorm = () => (
+  <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, overflow:'hidden' }}>
+    <style>{`
+      @keyframes vampCloudDrift{0%,100%{transform:translateX(0);}50%{transform:translateX(-16px);}}
+      @keyframes vampLightning{0%{opacity:0;}1%{opacity:1;}3%{opacity:.15;}5%{opacity:.95;}8%{opacity:0;}100%{opacity:0;}}
+    `}</style>
+    <StormPatch pos={{ top:0,     left:0  }} w={320} h={210} bolts={5} clouds={5} />
+    <StormPatch pos={{ top:0,     right:0 }} w={320} h={210} bolts={5} clouds={5} />
+    <StormPatch pos={{ top:'34%', left:0  }} w={200} h={170} bolts={3} clouds={3} />
+    <StormPatch pos={{ top:'34%', right:0 }} w={200} h={170} bolts={3} clouds={3} />
   </div>
 );
 
@@ -1858,7 +1905,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           {/* Blob 10 — médio esquerda */}
           <div style={{position:"absolute",width:"32vw",height:"32vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[9]}75 0%,transparent 60%)`,top:"40%",left:"2%",filter:"blur(65px)",animation:"festBlob5 18s ease-in-out infinite reverse"}}/>
         </div>
-      )}      <style>{`
+      )}
+
+      {/* ── Tempestade vampírica de fundo nos cantos da tela (festival + vampire robot) ── */}
+      {tab==="festival" && songSkin !== 'default' && <CentralStorm />}
+
+      <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
         @keyframes alexaEq2{0%{height:14px}100%{height:6px}}
         @keyframes alexaEq3{0%{height:4px}100%{height:20px}}

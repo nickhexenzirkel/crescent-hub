@@ -584,6 +584,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const accent = T.gold || '#E8B84B';
   const panelBg = T.surface || '#fff';
 
+  // Skin vampire → borda do balão e label em vermelho-sangue (em vez do azul padrão)
+  const isVampSkin = skinId !== 'default';
+  const bubbleConic = isVampSkin
+    ? '#7a0010,#c41e3a,#ff2d4c,#8a0014,#ff4a63,#c41e3a,#7a0010'
+    : '#1A6FB5,#2196F3,#0D47A1,#4FC3F7,#1565C0,#00B0FF,#1A6FB5';
+  const bubbleLabelColor = isVampSkin ? '#ff3a4e' : '#2196F3';
+
   // Onde o robô está → decide pra que lado o balão/painel abrem (pra não sair da tela).
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
@@ -605,7 +612,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         .ua-bubble{position:relative}
         .ua-bubble::before{
           content:'';position:absolute;inset:-2px;border-radius:inherit;z-index:-1;
-          background:conic-gradient(from var(--uaAng),#1A6FB5,#2196F3,#0D47A1,#4FC3F7,#1565C0,#00B0FF,#1A6FB5);
+          background:conic-gradient(from var(--uaAng),${bubbleConic});
           animation:uaBorderSpin 3s linear infinite;
         }
         @keyframes uaBorderSpin{to{--uaAng:360deg}}
@@ -636,7 +643,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       {bubble && !open && (
         <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: ICON + 30 } : { right: ICON + 30 }), ...(onTop ? { top: 16 } : { bottom: 16 }), width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
           <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: onLeft ? '16px 16px 16px 5px' : '16px 16px 5px 16px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
-            <div style={{ fontSize: 10, color: '#2196F3', fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
+            <div style={{ fontSize: 10, color: bubbleLabelColor, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
               <button onClick={() => { const ok = bubble.onOk; setBubble(null); setSprite(null); ok && ok(); }}
