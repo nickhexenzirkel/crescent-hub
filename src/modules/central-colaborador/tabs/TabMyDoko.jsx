@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, SERVER_URL, supabase as _supabase, saveUserPhoto, getAuthUser } from '../../../contexts/user';
 import { Card, StarDivider, SHead } from '../../../shared/components';
+import { getCapturedCollection } from '../../../shared/captureUniko';
 import dokoTecnico      from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro   from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico       from '../../../assets/DodocoMedico.jpg';
@@ -2302,6 +2303,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [fala,       setFala]       = useState('Olá! Que bom te ver por aqui!');
   const [skin,       setSkin]       = useState(() => _dokoLoad().skin    || 'tecnico');
   const [showColecao,setShowColecao]= useState(false);
+  const [capturados, setCapturados] = useState(() => getCapturedCollection()); // Unikos capturados (Capture o Uniko)
   const [showComidas,setShowComidas]= useState(false);
   const [dormindo,   setDormindo]   = useState(() => _dokoLoad().dormindo ?? false);
   const [sono,       setSono]       = useState(() => _dokoLoad().sono    ?? 70);
@@ -2329,6 +2331,13 @@ const TabMyDoko = ({ onPhotoChange }) => {
   useEffect(()=>{
     localStorage.setItem(DOKO_KEY, JSON.stringify({ skin, fome, energia, sono, dormindo, xp, lastUpdated: Date.now() }));
   }, [skin, fome, energia, sono, dormindo, xp]);
+
+  /* Atualiza a coleção quando um Uniko é capturado (Capture o Uniko) */
+  useEffect(() => {
+    const refresh = () => setCapturados(getCapturedCollection());
+    window.addEventListener('uniko-collection:changed', refresh);
+    return () => window.removeEventListener('uniko-collection:changed', refresh);
+  }, []);
 
   /* Sync Doko state to Supabase so colegas can see it */
   const _dokoSyncRef = useRef(null);
@@ -2441,7 +2450,10 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const pers       = DOKO_PERSONALIDADES[skin] || DOKO_PERSONALIDADES['tecnico'];
   const activeSkin = DOKO_SKINS.find(s=>s.id===skin) || (() => {
     const u = UNIKO_COMMON.find(u=>u.key===skin);
-    return u ? { id:u.key, label:u.name, img:u.img, imgCansado:null, color:'#C9A000' } : DOKO_SKINS[0];
+    if (u) return { id:u.key, label:u.name, img:u.img, imgCansado:null, color:'#C9A000' };
+    const c = capturados.find(c=>`cap_${c.id}`===skin);
+    if (c) return { id:`cap_${c.id}`, label:c.name, img:c.img, imgCansado:null, color:'#9B6BFF' };
+    return DOKO_SKINS[0];
   })();
   const mood       = (fome+energia)/2>=70?'feliz':(fome+energia)/2>=35?'neutro':'triste';
   /* Estado cansado: fome E energia ambos críticos (abaixo de 25) */
@@ -2832,6 +2844,58 @@ const TabMyDoko = ({ onPhotoChange }) => {
               );
             })}
           </div>
+
+          {/* Capturados — Unikos do "Capture o Uniko" */}
+          {capturados.length>0&&(<>
+            <div style={{fontSize:10,fontWeight:700,color:T.textT,letterSpacing:'.08em',
+              textTransform:'uppercase',margin:'16px 0 8px',opacity:.7}}>Capturados</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10}}>
+              {capturados.map(c=>{
+                const sid = `cap_${c.id}`;
+                const ativo = skin===sid;
+                const hov = photoHov===sid;
+                const ok = photoOk===sid;
+                const col = '#9B6BFF';
+                return(
+                  <div key={sid}
+                    onMouseEnter={()=>setPhotoHov(sid)} onMouseLeave={()=>setPhotoHov(null)}
+                    style={{cursor:'pointer',borderRadius:14,overflow:'hidden',
+                      border:`2.5px solid ${ativo?col:col+'44'}`,
+                      background:ativo?`${col}14`:`${col}07`,transition:'all .18s',
+                      boxShadow:ativo?`0 4px 16px ${col}44`:'none',
+                      transform:ativo?'scale(1.04)':'scale(1)'}}>
+                    <div style={{position:'relative',aspectRatio:'1',overflow:'hidden'}}
+                      onClick={()=>{
+                        setSkin(sid);setShowComidas(false);setConversa(null);
+                        setSessaoAtiva(false);setSessaoFim(false);setFila([]);setFilaTotal(0);setPergAtual('');
+                        setTimeout(()=>dizer(`${c.name} entrando em cena! 🦇`),100);
+                      }}>
+                      <img src={c.img} alt={c.name} style={{width:'100%',height:'100%',objectFit:'contain',display:'block',background:'#1a0b2e'}}/>
+                      {ativo&&(
+                        <div style={{position:'absolute',top:5,right:5,width:18,height:18,borderRadius:'50%',
+                          background:col,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'white',fontWeight:700}}>✓</div>
+                      )}
+                      {(hov||ok)&&(
+                        <div onClick={e=>{e.stopPropagation();setAsPhoto(c.img,sid);}}
+                          style={{position:'absolute',bottom:0,left:0,right:0,
+                            background:ok?'rgba(40,200,112,0.92)':'rgba(0,0,0,0.60)',backdropFilter:'blur(2px)',
+                            padding:'6px 4px',display:'flex',alignItems:'center',justifyContent:'center',gap:4,cursor:'pointer'}}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+                            {ok?<polyline points="20 6 9 17 4 12"/>:<><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></>}
+                          </svg>
+                          <span style={{fontSize:9,fontWeight:700,color:'white',whiteSpace:'nowrap'}}>{ok?'Salvo!':'Usar como foto'}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{padding:'7px 8px',textAlign:'center'}}>
+                      <div style={{fontSize:11,fontWeight:ativo?700:500,color:ativo?col:T.text,lineHeight:1.3}}>{c.name}</div>
+                      <div style={{fontSize:10,color:col,marginTop:1}}>Capturado</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>)}
         </Card>
       )}
 

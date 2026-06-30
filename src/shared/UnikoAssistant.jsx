@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
-import { onCaptureState } from './captureUniko';
+import { onCaptureState, getCaptureTargetRect, emitCaptureThrow } from './captureUniko';
 
 // Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
 const IMG = {
@@ -333,7 +333,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const off = onCaptureState((s) => {
       if (s?.captured) {            // capturou! parabeniza e limpa o alerta
         setCaptureAlert(null);
-        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'}! 🎉`, { sprite: IMG.CAPTURE, dismissable: true });
+        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na coleção do My Uniko. 🎉`, { sprite: IMG.CAPTURE, dismissable: true });
         return;
       }
       setCaptureAlert(s?.available && inPortalRef.current ? s.uniko : null);
@@ -477,6 +477,22 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       setDragging(false);
       if (!d) return;
       if (!d.moved) { setOpen(o => !o); return; } // foi um toque/clique → abre o chat
+
+      // ── ARREMESSO: soltou o assistente em cima do Uniko do widget? → captura ──
+      if (captureRef.current) {
+        const rect = getCaptureTargetRect();
+        const cx = posRef.current.x + ICON / 2, cy = posRef.current.y + ICON / 2;
+        const M = 46; // margem de tolerância (mira generosa)
+        if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
+          emitCaptureThrow();
+          // voa até o alvo e volta pra borda (sensação de arremesso)
+          const dock = { x: (posRef.current.x + ICON / 2) < window.innerWidth / 2 ? DRAG_MARGIN : window.innerWidth - ICON - DRAG_MARGIN, y: posRef.current.y };
+          setPos(clampPos({ x: rect.left + rect.width / 2 - ICON / 2, y: rect.top + rect.height / 2 - ICON / 2 }));
+          setTimeout(() => { setPos(dock); savePos(dock); }, 420);
+          return;
+        }
+      }
+
       // Arrastou: gruda na borda lateral mais próxima (vertical fica livre) e persiste.
       setPos(p => {
         const w = window.innerWidth;
