@@ -26,25 +26,54 @@ const fmtWhen = (iso) => {
 };
 
 /* ── Cenário de pixels ── */
-const PixelBat = ({ color, style }) => (
-  <svg width="22" height="14" viewBox="0 0 11 7" shapeRendering="crispEdges" style={style} aria-hidden="true">
-    <rect x="0" y="2" width="1" height="1" fill={color}/><rect x="1" y="1" width="1" height="2" fill={color}/>
-    <rect x="2" y="2" width="1" height="2" fill={color}/><rect x="3" y="3" width="1" height="1" fill={color}/>
-    <rect x="4" y="2" width="3" height="3" fill={color}/><rect x="5" y="1" width="1" height="1" fill={color}/>
-    <rect x="7" y="3" width="1" height="1" fill={color}/><rect x="8" y="2" width="1" height="2" fill={color}/>
-    <rect x="9" y="1" width="1" height="2" fill={color}/><rect x="10" y="2" width="1" height="1" fill={color}/>
+// Morcego de pixel com asas separadas (pra "bater" via animação de cada asa).
+const PixelBat = ({ color, size = 1 }) => (
+  <svg width={26 * size} height={16 * size} viewBox="0 0 13 8" shapeRendering="crispEdges" aria-hidden="true" style={{ overflow: 'visible' }}>
+    {/* corpo + cabeça */}
+    <g fill={color}>
+      <rect x="5" y="2" width="3" height="4"/><rect x="6" y="1" width="1" height="1"/>
+    </g>
+    {/* asa esquerda (gira no canto interno) */}
+    <g fill={color} className="cuWingL" style={{ transformBox: 'fill-box', transformOrigin: '100% 50%' }}>
+      <rect x="0" y="2" width="1" height="2"/><rect x="1" y="1" width="1" height="3"/>
+      <rect x="2" y="2" width="1" height="3"/><rect x="3" y="3" width="1" height="2"/><rect x="4" y="2" width="1" height="3"/>
+    </g>
+    {/* asa direita */}
+    <g fill={color} className="cuWingR" style={{ transformBox: 'fill-box', transformOrigin: '0% 50%' }}>
+      <rect x="8" y="2" width="1" height="3"/><rect x="9" y="3" width="1" height="2"/>
+      <rect x="10" y="2" width="1" height="3"/><rect x="11" y="1" width="1" height="3"/><rect x="12" y="2" width="1" height="2"/>
+    </g>
   </svg>
 );
+// Castelo GRANDE no canto superior direito do widget.
 const PixelCastle = ({ color, glow }) => (
-  <svg width="100%" height="64" viewBox="0 0 64 24" preserveAspectRatio="xMidYMax meet" shapeRendering="crispEdges" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, opacity: 0.9 }} aria-hidden="true">
+  <svg width="190" height="150" viewBox="0 0 38 30" shapeRendering="crispEdges" style={{ position: 'absolute', top: 0, right: 0, opacity: 0.92 }} aria-hidden="true">
     <g fill={color}>
-      <rect x="4" y="8" width="8" height="16"/><rect x="4" y="6" width="2" height="2"/><rect x="8" y="6" width="2" height="2"/>
-      <rect x="52" y="8" width="8" height="16"/><rect x="52" y="6" width="2" height="2"/><rect x="56" y="6" width="2" height="2"/>
-      <rect x="12" y="12" width="40" height="12"/><rect x="14" y="10" width="3" height="2"/><rect x="20" y="10" width="3" height="2"/><rect x="26" y="10" width="3" height="2"/><rect x="35" y="10" width="3" height="2"/><rect x="41" y="10" width="3" height="2"/><rect x="47" y="10" width="3" height="2"/>
-      <rect x="28" y="4" width="8" height="20"/><rect x="28" y="2" width="2" height="2"/><rect x="34" y="2" width="2" height="2"/>
+      {/* torre direita alta (na borda) */}
+      <rect x="28" y="2" width="9" height="28"/><rect x="28" y="0" width="2" height="2"/><rect x="32" y="0" width="2" height="2"/><rect x="36" y="0" width="2" height="2"/>
+      {/* corpo central */}
+      <rect x="14" y="9" width="16" height="21"/><rect x="14" y="7" width="2" height="2"/><rect x="18" y="7" width="2" height="2"/><rect x="22" y="7" width="2" height="2"/><rect x="26" y="7" width="2" height="2"/>
+      {/* torre esquerda menor */}
+      <rect x="6" y="14" width="8" height="16"/><rect x="6" y="12" width="2" height="2"/><rect x="10" y="12" width="2" height="2"/>
+      {/* torre fininha extra */}
+      <rect x="0" y="18" width="6" height="12"/><rect x="0" y="16" width="2" height="2"/><rect x="4" y="16" width="2" height="2"/>
     </g>
-    <rect x="30" y="8" width="2" height="3" fill={glow}/><rect x="6" y="12" width="2" height="2" fill={glow}/><rect x="54" y="12" width="2" height="2" fill={glow}/>
+    {/* janelas acesas (glow) */}
+    <rect x="31" y="6" width="2" height="3" fill={glow}/><rect x="31" y="13" width="2" height="3" fill={glow}/>
+    <rect x="20" y="13" width="2" height="3" fill={glow}/><rect x="20" y="20" width="2" height="3" fill={glow}/>
+    <rect x="9" y="18" width="2" height="2" fill={glow}/><rect x="2" y="22" width="2" height="2" fill={glow}/>
   </svg>
+);
+// Lua de sangue no fundo do cenário.
+const BloodMoon = ({ color, glow }) => (
+  <div style={{ position: 'absolute', top: 16, left: '14%', width: 78, height: 78, borderRadius: '50%', zIndex: 0,
+    background: `radial-gradient(circle at 38% 34%, ${glow} 0%, ${color} 46%, #4a060e 100%)`,
+    boxShadow: `0 0 36px 8px ${color}aa, inset -6px -6px 18px rgba(0,0,0,.55)` }} aria-hidden="true">
+    {/* crateras */}
+    <span style={{ position: 'absolute', top: '30%', left: '54%', width: 12, height: 12, borderRadius: '50%', background: 'rgba(0,0,0,.18)' }}/>
+    <span style={{ position: 'absolute', top: '58%', left: '32%', width: 16, height: 16, borderRadius: '50%', background: 'rgba(0,0,0,.16)' }}/>
+    <span style={{ position: 'absolute', top: '20%', left: '24%', width: 8, height: 8, borderRadius: '50%', background: 'rgba(0,0,0,.14)' }}/>
+  </div>
 );
 
 const CaptureUnikoWidget = ({ cfg, placeholder = null }) => {
@@ -200,10 +229,17 @@ const CaptureUnikoWidget = ({ cfg, placeholder = null }) => {
           @keyframes cuIdle{0%,100%{transform:translateX(-50%) translateY(0) rotate(-1deg)}50%{transform:translateX(-50%) translateY(-9px) rotate(1deg)}}
           @keyframes cuDodge{0%{transform:translateX(-50%)}25%{transform:translateX(-50%) translate(-46px,-6px) scale(.92)}55%{transform:translateX(-50%) translate(42px,6px) scale(.95)}100%{transform:translateX(-50%)}}
           @keyframes cuHit{0%,100%{transform:translateX(-50%)}20%{transform:translateX(-50%) translateX(-8px) scale(1.06)}40%{transform:translateX(-50%) translateX(8px) scale(.96)}60%{transform:translateX(-50%) translateX(-5px)}80%{transform:translateX(-50%) translateX(5px)}}
-          @keyframes cuBatFly{from{transform:translateX(-30px)}to{transform:translateX(520px)}}
           @keyframes cuPixUp{0%{transform:translateY(16px);opacity:0}20%{opacity:1}100%{transform:translateY(-90px);opacity:0}}
           @keyframes cuRing{0%{transform:translate(-50%,-50%) scale(.4);opacity:.9}100%{transform:translate(-50%,-50%) scale(2.2);opacity:0}}
           @keyframes cuPulse{0%,100%{opacity:.5}50%{opacity:1}}
+          /* morcegos voando nas diagonais (direções variadas) */
+          @keyframes cuFly0{from{transform:translate(-40px,46px)}to{transform:translate(440px,-140px)}}
+          @keyframes cuFly1{from{transform:translate(-40px,-24px)}to{transform:translate(460px,156px)}}
+          @keyframes cuFly2{from{transform:translate(460px,20px)}to{transform:translate(-60px,-130px)}}
+          @keyframes cuFly3{from{transform:translate(470px,96px)}to{transform:translate(-60px,-40px)}}
+          /* bater de asas */
+          @keyframes cuFlap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.18)}}
+          .cuWingL,.cuWingR{animation:cuFlap .26s ease-in-out infinite}
         `}</style>
         {/* borda cônica girando */}
         <div style={{ position: 'absolute', inset: 0, borderRadius: 16, padding: 3, background: `conic-gradient(from var(--cuAng), ${th.border.join(',')})`, animation: 'cuBorder 4s linear infinite', WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', pointerEvents: 'none' }}/>
@@ -215,15 +251,19 @@ const CaptureUnikoWidget = ({ cfg, placeholder = null }) => {
             <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2, fontFamily: 'var(--font-brand)', letterSpacing: '.03em', textShadow: `0 2px 12px ${th.accent2}` }}>{uniko.name}</div>
           </div>
 
+          {/* lua de sangue + castelo grande (canto sup. direito) */}
+          <BloodMoon color={th.moon || th.accent} glow={th.moonGlow || th.glow}/>
+          <PixelCastle color={th.castle} glow={th.glow}/>
+
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} style={{ position: 'absolute', bottom: 40, left: `${(i * 8 + 5) % 96}%`, width: 4, height: 4, background: th.pixel, opacity: .7, boxShadow: `0 0 6px ${th.glow}`, animation: `cuPixUp ${rand(3.5, 7).toFixed(2)}s linear ${(i * 0.4).toFixed(2)}s infinite` }}/>
+            <div key={i} style={{ position: 'absolute', bottom: 40, left: `${(i * 8 + 5) % 96}%`, width: 4, height: 4, background: th.pixel, opacity: .7, boxShadow: `0 0 6px ${th.glow}`, animation: `cuPixUp ${rand(3.5, 7).toFixed(2)}s linear ${(i * 0.4).toFixed(2)}s infinite`, zIndex: 1 }}/>
           ))}
-          {[{ t: 56, d: 7, dl: 0 }, { t: 92, d: 9, dl: 1.5 }, { t: 74, d: 6, dl: 3 }].map((b, i) => (
-            <div key={i} style={{ position: 'absolute', top: b.t, left: -30, animation: `cuBatFly ${b.d}s linear ${b.dl}s infinite`, opacity: .85 }}>
-              <PixelBat color={th.bat} style={{ filter: `drop-shadow(0 0 3px ${th.accent})` }}/>
+          {/* morcegos voando nas diagonais batendo as asas */}
+          {[{ fly: 0, d: 8, dl: 0, s: 1.1 }, { fly: 1, d: 10, dl: 1.2, s: .85 }, { fly: 2, d: 7, dl: 2.4, s: 1 }, { fly: 3, d: 9, dl: 3.6, s: .7 }, { fly: 0, d: 11, dl: 5, s: .9 }].map((b, i) => (
+            <div key={i} style={{ position: 'absolute', top: 0, left: 0, zIndex: 2, animation: `cuFly${b.fly} ${b.d}s linear ${b.dl}s infinite` }}>
+              <div style={{ filter: `drop-shadow(0 0 3px ${th.accent})` }}><PixelBat color={th.bat} size={b.s}/></div>
             </div>
           ))}
-          <PixelCastle color={th.castle} glow={th.glow}/>
 
           {/* anel de mira */}
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none' }}/>

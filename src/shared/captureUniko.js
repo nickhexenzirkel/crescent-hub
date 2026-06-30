@@ -18,23 +18,26 @@ export const CAPTURE_UNIKOS = {
   'vampire-robot': {
     id: 'vampire-robot',
     name: 'Uniko Vampire-Robot',
-    img: '/DarkCatBotMinions.png',
+    img: '/UNIKO_VAMPROBOT.png',
     tagline: 'Robô-vampiro cibernético das sombras',
-    // Tema: preto / roxo / cinza, estética cibernética + vampírica, cenário pixel
-    // (morcegos de pixel, castelo de pixel, partículas roxas).
+    // Tema: vermelho sangue / carmesim, corpo escuro, estética cibernética + vampírica.
+    // Cenário: lua de sangue, castelo grande no canto sup. direito, morcegos voando
+    // nas diagonais batendo as asas, partículas carmesim.
     theme: {
-      accent:  '#a855f7',   // roxo principal
-      accent2: '#7c3aed',
-      glow:    '#c084fc',
-      deep:    '#120821',
-      ink:     '#e9d5ff',
+      accent:  '#c41e3a',   // carmesim principal
+      accent2: '#7a0a18',
+      glow:    '#ff3a4a',
+      deep:    '#150306',
+      ink:     '#ffd0d6',
       // cores que giram na borda cônica animada do widget
-      border: ['#3b1063', '#7c3aed', '#a855f7', '#c084fc', '#4b5563', '#6b21a8', '#3b1063'],
+      border: ['#3a0510', '#7a0a18', '#c41e3a', '#ff2d4a', '#5c1018', '#a01028', '#3a0510'],
       // fundo do cenário interno
-      scene: 'radial-gradient(120% 90% at 50% 0%, #2a1147 0%, #1a0b2e 45%, #0b0512 100%)',
-      castle: '#2a164d',
-      bat:    '#1c0d33',
-      pixel:  '#a855f7',
+      scene: 'radial-gradient(120% 90% at 50% 0%, #3a0712 0%, #1a0408 45%, #0b0204 100%)',
+      castle: '#2a0810',
+      bat:    '#1a0306',
+      pixel:  '#c41e3a',
+      moon:   '#b01020',    // lua de sangue
+      moonGlow: '#ff3a4a',
     },
   },
 };

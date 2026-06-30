@@ -10,24 +10,7 @@ import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow } from './captureUniko';
-
-// Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
-const IMG = {
-  ALARME:  encodeURI('/UNIKO_ALARME.png'),
-  ATENCAO: encodeURI('/UNIKO_ATENÇÃO.png'),
-  ALEXA:   encodeURI('/UNIKO_ALEXA.png'),
-  WAVE:    encodeURI('/UNIKO_WAVESIGN.png'),
-  PRISMAC: encodeURI('/UNIKO_PRISMACOMUM.png'),
-  PRISMAP: encodeURI('/UNIKO_PRISMAPREMIUM.png'),
-  CAPTURE: encodeURI('/UNIKO_CAPTURAR.png'),
-};
-
-// Frames da BOCA (falando): fechada (UNIKO_NEW) → meio aberta → aberta. encodeURI p/ os espaços.
-const MOUTH = {
-  CLOSED: '/UNIKO_NEW.png',
-  HALF: encodeURI('/UNIKO_FRAME_BOCA_MEIO ABERTA.png'),
-  OPEN: encodeURI('/UNIKO_FRAME_BOCA ABERTA.png'),
-};
+import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange } from './assistantSkin';
 
 /* ──────────────────────────────────────────────────────────────────────────
    BASE DE CONHECIMENTO (FAQ curada). answerQuery() pontua por gatilhos batidos.
@@ -108,24 +91,24 @@ const KB = [
     a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas recebidos, avisos do RH, eventos e do progresso das missões.' },
 ];
 
-// Dicas rotativas (a cada 10s) — cada uma com o SPRITE do tema.
+// Dicas rotativas (a cada 10s) — cada uma com a CHAVE do sprite (resolvida pela skin ativa).
 const TIPS = [
-  { text: 'Dica: jogue Uniko Wave todo dia pra completar a Maratona e ganhar prismas! 🎮', sprite: IMG.WAVE },
-  { text: 'Dica: a aba Audição do Uniko Wave é o gacha — gire pra liberar personagens! 🎰', sprite: IMG.WAVE },
-  { text: 'Dica: faça check-in todos os dias pra manter a sequência e ganhar prismas Premium! ✨', sprite: IMG.PRISMAP },
-  { text: 'Dica: prismas Premium valem os prêmios mais raros da Prisma Store! 💎', sprite: IMG.PRISMAP },
-  { text: 'Dica: troque seus prismas por prêmios reais lá na Prisma Store! 🎁', sprite: IMG.PRISMAC },
-  { text: 'Dica: coloque música na Central Alexa e dispute o Top do mês! 🎵', sprite: IMG.ALEXA },
-  { text: 'Dica: dê um feedback no sistema pra completar a missão Voz ativa! 💬', sprite: IMG.ATENCAO },
-  { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: IMG.ALARME },
+  { text: 'Dica: jogue Uniko Wave todo dia pra completar a Maratona e ganhar prismas! 🎮', sprite: 'WAVE' },
+  { text: 'Dica: a aba Audição do Uniko Wave é o gacha — gire pra liberar personagens! 🎰', sprite: 'WAVE' },
+  { text: 'Dica: faça check-in todos os dias pra manter a sequência e ganhar prismas Premium! ✨', sprite: 'PRISMAP' },
+  { text: 'Dica: prismas Premium valem os prêmios mais raros da Prisma Store! 💎', sprite: 'PRISMAP' },
+  { text: 'Dica: troque seus prismas por prêmios reais lá na Prisma Store! 🎁', sprite: 'PRISMAC' },
+  { text: 'Dica: coloque música na Central Alexa e dispute o Top do mês! 🎵', sprite: 'ALEXA' },
+  { text: 'Dica: dê um feedback no sistema pra completar a missão Voz ativa! 💬', sprite: 'ATENCAO' },
+  { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: 'ALARME' },
 ];
 
-// Sprite do aviso/lembrete que chega pelo App.
+// CHAVE do sprite do aviso/lembrete que chega pelo App (resolvida pela skin ativa).
 function notifSprite(n) {
   const t = n?.type, title = (n?.title || '').toLowerCase();
-  if (t === 'alexa') return IMG.ALEXA;
-  if (t === 'aviso_urgente' || /aviso|aten|urgente|important/.test(title)) return IMG.ATENCAO;
-  return IMG.ALARME; // lembrete / alarme
+  if (t === 'alexa') return 'ALEXA';
+  if (t === 'aviso_urgente' || /aviso|aten|urgente|important/.test(title)) return 'ATENCAO';
+  return 'ALARME'; // lembrete / alarme
 }
 
 // Detecta intenção de criar lembrete e extrai mensagem + horário (HH:MM). null se não for.
@@ -230,37 +213,49 @@ const Typer = ({ text, speed = 16, onTick, onStart, onDone }) => {
   return <>{text ? text.slice(0, n) : ''}</>;
 };
 
-/* Carinha do UNIKO. Com `src` → sprite fixo. Sem `src`: se `talking` → boca mexendo
-   (fechada→meio→aberta→meio), senão carinha normal piscando (3 frames). */
-const UnikoFace = ({ size, src, talking }) => {
+/* Carinha do UNIKO (skin-aware). Com `src` → sprite fixo. Sem `src`: se `talking` → boca
+   mexendo (se a skin tiver frames de boca), senão carinha normal piscando (3 frames). */
+const UnikoFace = ({ size, src, talking, skin }) => {
   const img = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' };
+  const fallback = skin.blink.open;
   if (src) {
     return (
       <div style={{ position: 'relative', width: size, height: size }}>
-        <img src={src} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaSpritePop .3s ease' }} />
+        <img src={src} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = fallback; }} style={{ ...img, animation: 'uaSpritePop .3s ease' }} />
       </div>
     );
   }
-  if (talking) {
+  if (talking && skin.mouth) {
     return (
       <div style={{ position: 'relative', width: size, height: size }}>
-        <img src={MOUTH.OPEN} alt="" aria-hidden="true" style={img} />
-        <img src={MOUTH.HALF} alt="" aria-hidden="true" style={{ ...img, animation: 'uaTalkMid .42s linear infinite' }} />
-        <img src={MOUTH.CLOSED} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaTalkTop .42s linear infinite' }} />
+        <img src={skin.mouth.open} alt="" aria-hidden="true" style={img} />
+        <img src={skin.mouth.half} alt="" aria-hidden="true" style={{ ...img, animation: 'uaTalkMid .42s linear infinite' }} />
+        <img src={skin.mouth.closed} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = fallback; }} style={{ ...img, animation: 'uaTalkTop .42s linear infinite' }} />
+      </div>
+    );
+  }
+  if (talking) { // skin sem frames de boca → mostra a base
+    return (
+      <div style={{ position: 'relative', width: size, height: size }}>
+        <img src={fallback} alt="Uniko" style={img} />
       </div>
     );
   }
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
-      <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true" style={img} />
-      <img src="/UNIKO_PISCA_FRAME_2.png" alt="" aria-hidden="true" style={{ ...img, animation: 'uaBlinkMid 3s linear infinite' }} />
-      <img src="/UNIKO_NEW.png" alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = '/UNIKO_NEW.png'; }} style={{ ...img, animation: 'uaBlinkTop 3s linear infinite' }} />
+      <img src={skin.blink.closed} alt="" aria-hidden="true" style={img} />
+      <img src={skin.blink.mid} alt="" aria-hidden="true" style={{ ...img, animation: 'uaBlinkMid 3s linear infinite' }} />
+      <img src={skin.blink.open} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = fallback; }} style={{ ...img, animation: 'uaBlinkTop 3s linear infinite' }} />
     </div>
   );
 };
 
 const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
+  const [skinId, setSkinId] = useState(getActiveAssistantSkinId); // skin do assistente (default | uniko capturado)
+  const skin = getAssistantSkin(skinId);
+  const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
+  const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
   const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
@@ -322,9 +317,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const txt = notif.title && notif.title !== 'Lembrete'
       ? `${notif.title}: ${notif.message}`
       : `Ei, lembra de: ${notif.message}`;
-    say(txt, { sprite: notifSprite(notif), dismissable: true, onOk: () => onDismissNotif && onDismissNotif(notif.id) });
+    say(txt, { sprite: imgRef.current[notifSprite(notif)], dismissable: true, onOk: () => onDismissNotif && onDismissNotif(notif.id) });
     if (openRef.current) setOpen(false);
   }, [notif, say]);
+
+  // Skin do assistente pode mudar (quando o usuário "usa como assistente" um Uniko capturado).
+  useEffect(() => onAssistantSkinChange((id) => setSkinId(id || 'default')), []);
 
   // ── CAPTURE O UNIKO: avisa SÓ quando está no Portal do Colaborador e há um Uniko disponível.
   // Ouve o estado emitido pelo widget (captureUniko pub/sub). Heartbeat + sprite + fala.
@@ -333,7 +331,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const off = onCaptureState((s) => {
       if (s?.captured) {            // capturou! parabeniza e limpa o alerta
         setCaptureAlert(null);
-        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na coleção do My Uniko. 🎉`, { sprite: IMG.CAPTURE, dismissable: true });
+        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na coleção do My Uniko. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
         return;
       }
       setCaptureAlert(s?.available && inPortalRef.current ? s.uniko : null);
@@ -348,7 +346,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   useEffect(() => {
     if (captureAlert && captureAlert.id !== lastCaptureId.current) {
       lastCaptureId.current = captureAlert.id;
-      say(`Tem um ${captureAlert.name} pra capturar — Capture o Uniko! ✨`, { sprite: IMG.CAPTURE, dismissable: true });
+      say(`Tem um ${captureAlert.name} pra capturar — Capture o Uniko! ✨`, { sprite: imgRef.current.CAPTURE, dismissable: true });
     }
     if (!captureAlert) lastCaptureId.current = null;
   }, [captureAlert, say]);
@@ -361,7 +359,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (bubbleRef.current?.dismissable) return;
       if (captureRef.current) return; // não interrompe o alerta de captura
       const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
-      say(tip.text, { sprite: tip.sprite });
+      say(tip.text, { sprite: imgRef.current[tip.sprite] });
     }, 30000);
     return () => clearInterval(id);
   }, [authUser, say]);
@@ -390,7 +388,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         if (premium <= 0 && comum <= 0) continue;
         const isPrem = premium > 0, amt = isPrem ? premium : comum;
         say(`Você recebeu ${amt} ${isPrem ? 'Prisma Premium' : 'Prisma Comum'}! 🎉`,
-          { sprite: isPrem ? IMG.PRISMAP : IMG.PRISMAC, dismissable: true });
+          { sprite: isPrem ? imgRef.current.PRISMAP : imgRef.current.PRISMAC, dismissable: true });
       }
       first = false;
     };
@@ -414,7 +412,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         if (seen.has(r.id)) continue;
         seen.add(r.id);
         const when = r.event_date ? ` (${String(r.event_date).split('-').reverse().join('/')})` : '';
-        say(`Novo evento na agenda: ${r.title}${when}! 📅`, { sprite: IMG.ATENCAO });
+        say(`Novo evento na agenda: ${r.title}${when}! 📅`, { sprite: imgRef.current.ATENCAO });
       }
     };
     poll();
@@ -442,7 +440,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       let msg = '';
       if (m20 > 0 && m20 < 20) msg = `Você já jogou ${m20}/20 min no Uniko Wave hoje — falta pouco pra Maratona (100 Prismas Comuns)! 🎮`;
       else if (m20 >= 20 && m40 > 0 && m40 < 40) msg = `Mandou bem! ${m40}/40 min hoje — jogue mais um pouco pra fechar a Maratona de 40 min (10 Prismas Premium)! 🎮`;
-      if (msg && msg !== last) { last = msg; say(msg, { sprite: IMG.WAVE }); }
+      if (msg && msg !== last) { last = msg; say(msg, { sprite: imgRef.current.WAVE }); }
     };
     const t = setTimeout(check, 45000);
     const id = setInterval(check, 300000); // a cada 5 min
@@ -626,7 +624,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s ease',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}${hovered && !dragging ? '99' : '55'})`,
           }}>
-          <UnikoFace size={ICON} src={captureAlert && !open ? IMG.CAPTURE : sprite} talking={talking} />
+          <UnikoFace size={ICON} src={captureAlert && !open ? IMG.CAPTURE : sprite} talking={talking} skin={skin} />
         </button>
       </div>
 
@@ -651,7 +649,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
-            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} /></div>
+            <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} skin={skin} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
               <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>Assistente do sistema</div>
