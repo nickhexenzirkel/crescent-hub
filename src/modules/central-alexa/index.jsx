@@ -433,16 +433,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .upsert({ key: skinRemoteKey(myName), value: mascotSkinId }, { onConflict: 'key' })
       .then(() => {}).catch(() => {});
   }, [mascotSkinId, myName]); // eslint-disable-line
-
-  // Lê a skin do DJ da música atual do Supabase para todos os clientes
-  useEffect(() => {
-    if (!currentSong?.requested_by) { setSongSkin('default'); return; }
-    if (currentSong.requested_by === myName) { setSongSkin(mascotSkinId); return; }
-    _supabase.from('settings')
-      .select('value').eq('key', skinRemoteKey(currentSong.requested_by)).maybeSingle()
-      .then(({ data }) => setSongSkin(data?.value || 'default'))
-      .catch(() => setSongSkin('default'));
-  }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
   const [photoCache, setPhotoCache] = useState({});
   // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
   const [myPhoto, setMyPhoto] = useState(userPhoto);
@@ -470,6 +460,17 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     });
   }, [queue, alexaConvo]); // eslint-disable-line
   const [currentSong, setCurrentSong]   = useState(null);
+
+  // Lê a skin do DJ da música atual do Supabase para todos os clientes
+  useEffect(() => {
+    if (!currentSong?.requested_by) { setSongSkin('default'); return; }
+    if (currentSong.requested_by === myName) { setSongSkin(mascotSkinId); return; }
+    _supabase.from('settings')
+      .select('value').eq('key', skinRemoteKey(currentSong.requested_by)).maybeSingle()
+      .then(({ data }) => setSongSkin(data?.value || 'default'))
+      .catch(() => setSongSkin('default'));
+  }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
+
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
   const [showLyrics, setShowLyrics]     = useState(false);
   const [lyrics, setLyrics]             = useState([]);       // [{time, text}]
