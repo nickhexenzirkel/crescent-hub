@@ -15,15 +15,20 @@ import MercadoEstelar from './modules/mercado-estelar';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
+import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
+import { loadCaptureConfig } from './shared/captureUniko';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
   const [authUser, setAuthUser] = useState(null);
+  const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   const [confettiTheme, setConfettiTheme] = useState(null);
   const isMobile = useIsMobile();
   const [activeTheme, setActiveTheme]     = useState(() => localStorage.getItem('ch_theme') || 'vozBrasil');
+  // Config do "Capture o Uniko" — carregada ao logar; o widget é GLOBAL (qualquer tela).
+  useEffect(() => { if (authUser) loadCaptureConfig().then(c => setCaptureCfg(c?.enabled ? c : null)); }, [authUser]);
   useEffect(() => {
     const h = (e) => setActiveTheme(e.detail);
     window.addEventListener('ch_themechange', h);
@@ -344,6 +349,9 @@ export default function CrescentHub() {
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
+
+        {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
+        {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} />}
       </div>
     </>
   );

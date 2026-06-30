@@ -334,16 +334,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const off = onCaptureState((s) => {
       if (s?.captured) {            // capturou! parabeniza e limpa o alerta
         setCaptureAlert(null);
-        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na coleção do My Uniko. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
+        say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na sua Coleção. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
         return;
       }
-      setCaptureAlert(s?.available && inPortalRef.current ? s.uniko : null);
+      // alerta GLOBAL: avisa em qualquer tela quando há um Uniko disponível
+      setCaptureAlert(s?.available ? s.uniko : null);
     });
     return off;
   }, [say]);
-
-  // Some com o alerta se sair do Portal.
-  useEffect(() => { if (!inPortal) setCaptureAlert(null); }, [inPortal]);
 
   // Ao surgir um Uniko disponível, fala "Capture o Uniko!" uma vez (heartbeat é contínuo).
   useEffect(() => {

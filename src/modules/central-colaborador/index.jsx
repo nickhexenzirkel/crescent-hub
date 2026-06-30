@@ -18,7 +18,7 @@ import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import CentralLembretes from '../central-lembretes';
-import { loadCaptureConfig, syncCollectionFromServer } from '../../shared/captureUniko';
+import { syncCollectionFromServer } from '../../shared/captureUniko';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const isMobile = useIsMobile();
@@ -28,7 +28,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [profileReady, setProfileReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [captureCfg, setCaptureCfg] = useState(null); // config do "Capture o Uniko" (RH)
   const tabRef = useRef(tab);
   useEffect(() => {
     tabRef.current = tab;
@@ -110,7 +109,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   }, []);
 
   // Carrega a config do "Capture o Uniko" (evento do RH) ao abrir o Portal
-  useEffect(() => { loadCaptureConfig().then(c => { if (c?.enabled) setCaptureCfg(c); }); }, []);
   // Sincroniza a coleção com o servidor (reflete reset do admin / outros devices)
   useEffect(() => { syncCollectionFromServer(); }, []);
 
@@ -125,7 +123,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     } catch {}
   };
   const render=()=>{
-    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete} captureCfg={captureCfg}/>;
+    if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
     if(tab==='horas')      return <TabHoras/>;

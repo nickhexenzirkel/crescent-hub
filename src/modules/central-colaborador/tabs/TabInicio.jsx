@@ -18,7 +18,6 @@ import unikoCowboy    from '../../../assets/UnikoCowboy.png';
 import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
-import CaptureUnikoWidget from '../../../shared/CaptureUnikoWidget';
 import { getCapturedCollection, getUniko } from '../../../shared/captureUniko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
@@ -540,7 +539,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       </div>
 
       {/* ══ CAPTURE O UNIKO — encontro temático dentro do widget (config do RH) ═════ */}
-      <CaptureUnikoWidget cfg={captureCfg} placeholder={(
       <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',border:`1px solid ${T.border}`,boxShadow:T.sh,display:'flex',alignItems:'center',justifyContent:'center'}}>
         <style>{`@keyframes capStarTwinkle{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}`}</style>
         {/* estrelas cintilantes espalhadas */}
@@ -556,7 +554,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
         </div>
       </div>
-      )}/>
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}
       {(!isPlay||!nowPlay)&&onGoAlexa&&(
@@ -582,24 +579,23 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Coleção</span>
             <BtnVer tab="uniko"/>
           </div>
-          {captured.length>0 ? (
-            <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,textAlign:'center'}}>
-              <div style={{display:'flex',marginLeft:8}}>
-                {captured.slice(0,3).map((c,i)=>(
-                  <div key={c.id} style={{width:40,height:40,borderRadius:'50%',overflow:'hidden',marginLeft:-8,border:`2px solid ${T.surface}`,background:(getUniko(c.id).theme.deep)||'#1a0408',boxShadow:T.sh}}>
-                    <img src={c.img} alt={c.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
-                  </div>
-                ))}
+          {(() => {
+            // Todo mundo tem o UNIKO padrão na coleção + os capturados.
+            const all = [{ id:'default', name:'UNIKO', img:'/UNIKO_NEW.png', deep:'#0c1c2e' }, ...captured.map(c=>({ ...c, deep:getUniko(c.id).theme.deep }))];
+            return (
+              <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,textAlign:'center'}}>
+                <div style={{display:'flex',marginLeft:8}}>
+                  {all.slice(0,3).map((c)=>(
+                    <div key={c.id} style={{width:40,height:40,borderRadius:'50%',overflow:'hidden',marginLeft:-8,border:`2px solid ${T.surface}`,background:c.deep||'#1a0408',boxShadow:T.sh}}>
+                      <img src={c.img} alt={c.name} style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:12,fontWeight:700,color:T.text}}>{all.length} Uniko{all.length===1?'':'s'}</div>
+                <div style={{fontSize:10.5,color:T.textT}}>na sua coleção</div>
               </div>
-              <div style={{fontSize:12,fontWeight:700,color:T.text}}>{captured.length} Uniko{captured.length===1?'':'s'}</div>
-              <div style={{fontSize:10.5,color:T.textT}}>na sua coleção</div>
-            </div>
-          ) : (
-            <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,textAlign:'center'}}>
-              <div style={{fontSize:16,opacity:.5,letterSpacing:'.25em'}}>✦ ✧ ✦</div>
-              <div style={{fontSize:11.5,color:T.textT,lineHeight:1.4}}>Nenhum Uniko ainda.<br/>Capture um no Portal!</div>
-            </div>
-          )}
+            );
+          })()}
         </Card>
 
         {/* Eventos Hoje */}
