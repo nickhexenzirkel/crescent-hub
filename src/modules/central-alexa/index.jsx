@@ -1913,8 +1913,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         </div>
       )}
 
-      {/* ── Tempestade vampírica de fundo nos cantos da tela (festival + vampire robot) ── */}
-      {tab==="festival" && songSkin !== 'default' && <CentralStorm />}
+      {/* ── Tempestade vampírica de fundo nos cantos da tela ──
+           só no modo escuro (Nebula), no festival e com vampire robot ativo ── */}
+      {T.dark && tab==="festival" && songSkin !== 'default' && <CentralStorm />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
