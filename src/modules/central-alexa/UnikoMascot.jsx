@@ -1,6 +1,6 @@
 // src/modules/central-alexa/UnikoMascot.jsx
 import React, { useState, useEffect } from 'react';
-import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange } from '../../shared/assistantSkin';
+import { getAssistantSkin } from '../../shared/assistantSkin';
 
 const DEFAULT_IMG = '/UNIKO_ALEXACENTRAL.png';
 
@@ -28,7 +28,6 @@ const VAMPIRE_LINES = [
   'Os mortos-vivos têm gosto musical impecável 🩸',
 ];
 
-// Sequência de blink: open longo → meio-olho → fechado → meio-olho → ...
 const BLINK_SEQ = [
   { key: 'open',   ms: 2600 },
   { key: 'mid',    ms: 80   },
@@ -38,35 +37,29 @@ const BLINK_SEQ = [
 
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 
-const VAMP_CSS = `
+const MASCOT_CSS = `
+@keyframes unikoFloat { 0%,100%{transform:translateY(0px);} 50%{transform:translateY(-8px);} }
 @keyframes vampBubblePulse {
   0%,100% { border-color:#c41e3a55; box-shadow:0 2px 8px #c41e3a22; }
   50%      { border-color:#c41e3a99; box-shadow:0 2px 22px #c41e3a55; }
 }
-.vamp-bubble { animation: vampBubblePulse 2.5s ease-in-out infinite; }
-@keyframes vampImgGlow {
-  0%,100% { box-shadow: 0 0 0 0 #c41e3a00, 0 4px 20px rgba(0,0,0,.4); }
-  50%      { box-shadow: 0 0 18px 5px #c41e3a55, 0 4px 20px rgba(0,0,0,.4); }
+@keyframes normalBubble {
+  0%,100% { border-color:rgba(255,255,255,.16); }
+  50%      { border-color:rgba(255,255,255,.38); }
 }
+.vamp-bubble  { animation: vampBubblePulse 2.5s ease-in-out infinite; }
+.normal-bubble{ animation: normalBubble 3s ease-in-out infinite; }
 `;
 
-const NORMAL_CSS = (c0, c1) => c0
-  ? `@keyframes bubbleBorder{0%,100%{border-color:${c0}55;box-shadow:0 2px 14px ${c0}33;}50%{border-color:${c1}cc;box-shadow:0 2px 28px ${c1}66;}}.uniko-bubble{animation:bubbleBorder 3s ease-in-out infinite;}`
-  : `@keyframes bubbleBorder{0%,100%{border-color:rgba(255,255,255,.16);}50%{border-color:rgba(255,255,255,.38);}}.uniko-bubble{animation:bubbleBorder 3s ease-in-out infinite;}`;
+// songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
+const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' }) => {
+  const isVampire = songSkin !== 'default';
+  const skin      = getAssistantSkin(songSkin);
 
-const UnikoMascot = ({ track, colors = null, size = 160, requestedBy, myName }) => {
-  const [skinId,   setSkinId]   = useState(() => getActiveAssistantSkinId());
   const [line,     setLine]     = useState(() => rand(DJ_LINES));
   const [blinkImg, setBlinkImg] = useState(null);
 
-  const isMyMusic = !!(requestedBy && myName && requestedBy === myName);
-  const isVampire = isMyMusic && skinId !== 'default';
-  const skin      = getAssistantSkin(skinId);
-
-  // Sincroniza skin ativa
-  useEffect(() => onAssistantSkinChange(id => setSkinId(id)), []);
-
-  // Blink loop — só quando vampiro está ativo
+  // Blink loop — só quando skin especial
   useEffect(() => {
     if (!isVampire) { setBlinkImg(null); return; }
     let i = 0, t;
@@ -78,7 +71,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, requestedBy, myName }) 
     setBlinkImg(skin.blink.open);
     t = setTimeout(tick, BLINK_SEQ[0].ms);
     return () => clearTimeout(t);
-  }, [isVampire, skinId]); // eslint-disable-line
+  }, [isVampire, songSkin]); // eslint-disable-line
 
   // Troca de linha ao mudar modo ou música
   useEffect(() => { setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES)); }, [isVampire]);
@@ -88,18 +81,23 @@ const UnikoMascot = ({ track, colors = null, size = 160, requestedBy, myName }) 
     return () => clearInterval(id);
   }, [isVampire]);
 
+  // Cor do bubble via cores da capa quando não é vampire
+  const c0 = colors?.[0] ?? null;
+  const c1 = colors?.[1] ?? colors?.[0] ?? null;
+  const albumBubbleCss = (!isVampire && c0)
+    ? `@keyframes albumBubble{0%,100%{border-color:${c0}55;box-shadow:0 2px 14px ${c0}33;}50%{border-color:${c1}cc;box-shadow:0 2px 28px ${c1}66;}}.normal-bubble{animation:albumBubble 3s ease-in-out infinite;}`
+    : '';
+
   const img = isVampire ? (blinkImg || skin.blink.open) : DEFAULT_IMG;
-  const c0  = colors?.[0] ?? null;
-  const c1  = colors?.[1] ?? colors?.[0] ?? null;
 
   return (
     <>
-      <style>{isVampire ? VAMP_CSS : NORMAL_CSS(c0, c1)}</style>
+      <style>{MASCOT_CSS}{albumBubbleCss}</style>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2 }}>
 
         {/* Balão de fala */}
         <div
-          className={isVampire ? 'vamp-bubble' : 'uniko-bubble'}
+          className={isVampire ? 'vamp-bubble' : 'normal-bubble'}
           style={isVampire ? {
             background:           'rgba(8,0,4,0.88)',
             backdropFilter:       'blur(10px)',
@@ -129,27 +127,22 @@ const UnikoMascot = ({ track, colors = null, size = 160, requestedBy, myName }) 
           {line}
         </div>
 
-        {/* Avatar — sem borda branca; glow vermelho no modo vampiro */}
-        <div style={{
-          width:        size,
-          height:       size,
-          borderRadius: isVampire ? '18px' : '50%',
-          overflow:     'hidden',
-          flexShrink:   0,
-          animation:    isVampire ? 'vampImgGlow 2.5s ease-in-out infinite' : undefined,
-          transition:   'border-radius .35s',
-        }}>
-          <img
-            src={img}
-            alt="UNIKO"
-            style={{
-              width:     '100%',
-              height:    '100%',
-              objectFit: isVampire ? 'contain' : 'cover',
-              background: isVampire ? 'transparent' : undefined,
-            }}
-          />
-        </div>
+        {/* Imagem flutuante — sem quadrado, sem borda */}
+        <img
+          src={img}
+          alt="UNIKO"
+          style={{
+            width:      size,
+            height:     size,
+            objectFit:  'contain',
+            flexShrink: 0,
+            animation:  'unikoFloat 3s ease-in-out infinite',
+            filter: isVampire
+              ? 'drop-shadow(0 0 10px #c41e3a88) drop-shadow(0 4px 12px rgba(0,0,0,.5))'
+              : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))',
+            transition: 'filter .4s',
+          }}
+        />
 
       </div>
     </>

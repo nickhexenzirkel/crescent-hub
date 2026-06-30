@@ -2,7 +2,7 @@
 // Skins do ASSISTENTE flutuante. O padrão é o UNIKO; ao capturar e "usar como assistente"
 // um Uniko da coleção, o robô do canto vira aquele Uniko (mesmos comportamentos: piscar,
 // dicas, avisos...). Cada skin mapeia seus sprites (piscar/boca/humor). Persiste por usuário.
-import { getAuthUser } from '../contexts/user';
+import { getAuthUser, supabase } from '../contexts/user';
 
 const enc = encodeURI; // alguns nomes têm acento (ATENÇÃO)
 
@@ -70,18 +70,61 @@ export function getSkinVariations(id) {
 }
 
 const userTag = () => { try { return getAuthUser()?.cpf || getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
-const KEY = () => `uniko_assistant_skin_${userTag()}`;
-const EV = 'uniko-assistant-skin:changed';
+const KEY    = () => `uniko_assistant_skin_${userTag()}`;
+const EV     = 'uniko-assistant-skin:changed';
+
+// Chave no Supabase para a skin de um usuário (pelo nome normalizado)
+const remoteKey = (name) => `user_skin_${(name || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`;
+
+// Persiste a skin no Supabase (fire-and-forget) para todos os clientes verem
+function syncSkinRemote(name, id) {
+  const k = remoteKey(name);
+  if (!k || k === 'user_skin_') return;
+  supabase.from('settings')
+    .upsert({ key: k, value: id || 'default' }, { onConflict: 'key' })
+    .then(() => {}).catch(() => {});
+}
 
 export function getActiveAssistantSkinId() {
-  try { return localStorage.getItem(KEY()) || 'default'; } catch { return 'default'; }
+  const id = localStorage.getItem(KEY()) || 'default';
+  // Sincroniza com Supabase uma vez por sessão se a skin for especial
+  if (id !== 'default') {
+    const tag = userTag();
+    const syncFlagKey = `skin_remote_synced_${tag}`;
+    if (!sessionStorage.getItem(syncFlagKey)) {
+      sessionStorage.setItem(syncFlagKey, '1');
+      syncSkinRemote(tag, id);
+    }
+  }
+  return id;
 }
+
 export function setActiveAssistantSkin(id) {
   try { localStorage.setItem(KEY(), id || 'default'); } catch {}
   try { window.dispatchEvent(new CustomEvent(EV, { detail: id || 'default' })); } catch {}
+  // Persiste no Supabase para que outros usuários vejam a skin correta
+  const tag = userTag();
+  if (tag && tag !== 'anon') {
+    sessionStorage.setItem(`skin_remote_synced_${tag}`, '1');
+    syncSkinRemote(tag, id || 'default');
+  }
 }
+
 export function onAssistantSkinChange(cb) {
   const h = (e) => cb(e.detail);
   window.addEventListener(EV, h);
   return () => window.removeEventListener(EV, h);
+}
+
+// Busca no Supabase a skin ativa de outro usuário (por nome)
+export async function getRemoteSkinFor(name) {
+  if (!name) return 'default';
+  try {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', remoteKey(name))
+      .maybeSingle();
+    return data?.value || 'default';
+  } catch { return 'default'; }
 }

@@ -3,32 +3,97 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
-import { getActiveAssistantSkinId, onAssistantSkinChange } from '../../shared/assistantSkin';
+import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, getRemoteSkinFor } from '../../shared/assistantSkin';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
-@keyframes vampBatFly{0%{transform:translateX(-32px);opacity:0;}6%{opacity:.8;}92%{opacity:.8;}100%{transform:translateX(320px);opacity:0;}}
-@keyframes vampBatFlyR{0%{transform:translateX(320px) scaleX(-1);opacity:0;}6%{opacity:.8;}92%{opacity:.8;}100%{transform:translateX(-32px) scaleX(-1);opacity:0;}}
-@keyframes uwBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.45);}}
+@keyframes vampBatFly{0%{transform:translateX(-40px);opacity:0;}8%{opacity:.92;}90%{opacity:.92;}100%{transform:translateX(330px);opacity:0;}}
+@keyframes vampBatFlyR{0%{transform:translateX(330px) scaleX(-1);opacity:0;}8%{opacity:.92;}90%{opacity:.92;}100%{transform:translateX(-40px) scaleX(-1);opacity:0;}}
+@keyframes uwBatFlap{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.38);}}
+@keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
 `;
 
-const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false }) => (
+const VampBat = ({ top=30, delay=0, dur=6.5, rtl=false, size=34 }) => (
   <div style={{
     position:'absolute', top, left: rtl ? undefined : 0, right: rtl ? 0 : undefined,
-    pointerEvents:'none', zIndex:1,
+    pointerEvents:'none', zIndex:3,
     animation:`${rtl ? 'vampBatFlyR' : 'vampBatFly'} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width="20" height="12" viewBox="0 0 20 12" fill="none"
+    <svg width={size} height={Math.round(size*0.6)} viewBox="0 0 34 20" fill="none"
       style={{ display:'block', animation:'uwBatFlap .38s ease-in-out infinite' }}>
-      <path d="M10 7 Q6 1 0 3 Q-1 7 0 10 Q4 11 8 8" fill="#9a0015" opacity=".82"/>
-      <path d="M10 7 Q14 1 20 3 Q21 7 20 10 Q16 11 12 8" fill="#9a0015" opacity=".82"/>
-      <ellipse cx="10" cy="7.5" rx="2.5" ry="2" fill="#3a0010"/>
-      <circle cx="8.8" cy="6.5" r=".65" fill="#ff1030" opacity=".9"/>
-      <circle cx="11.2" cy="6.5" r=".65" fill="#ff1030" opacity=".9"/>
+      {/* Wings */}
+      <path d="M17 11 Q11 2 1 4 Q-1 11 1 16 Q7 18 13 12" fill="#c41e3a" opacity=".9"/>
+      <path d="M17 11 Q23 2 33 4 Q35 11 33 16 Q27 18 21 12" fill="#c41e3a" opacity=".9"/>
+      {/* Wing membrane detail */}
+      <path d="M17 11 Q10 6 2 7" stroke="#7a0010" strokeWidth=".7" opacity=".5" fill="none"/>
+      <path d="M17 11 Q24 6 32 7" stroke="#7a0010" strokeWidth=".7" opacity=".5" fill="none"/>
+      {/* Body */}
+      <ellipse cx="17" cy="12" rx="4" ry="3" fill="#2a0008"/>
+      {/* Eyes */}
+      <circle cx="15.2" cy="10.5" r="1.1" fill="#ff1030"/>
+      <circle cx="18.8" cy="10.5" r="1.1" fill="#ff1030"/>
+      {/* Ears */}
+      <path d="M14 8 L12.5 5.5 L15.5 6.5Z" fill="#2a0008"/>
+      <path d="M20 8 L21.5 5.5 L18.5 6.5Z" fill="#2a0008"/>
     </svg>
   </div>
+);
+
+const VampCastle = () => (
+  <svg viewBox="0 0 220 105" width="220" height="105" fill="none"
+    style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', pointerEvents:'none', zIndex:1 }}>
+    {/* Far left turret */}
+    <rect x="2" y="62" width="22" height="43" fill="#180610"/>
+    <rect x="2"  y="56" width="4" height="7" fill="#180610"/>
+    <rect x="8"  y="56" width="4" height="7" fill="#180610"/>
+    <rect x="14" y="56" width="4" height="7" fill="#180610"/>
+    <rect x="20" y="56" width="4" height="7" fill="#180610"/>
+    {/* Left tower */}
+    <rect x="22" y="48" width="36" height="57" fill="#140410"/>
+    <rect x="22" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="29" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="36" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="43" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="50" y="42" width="7" height="8" fill="#140410"/>
+    {/* Left tower window */}
+    <rect x="31" y="60" width="16" height="22" fill="#0c0008"/>
+    <rect x="33" y="62" width="12" height="18" fill="#c41e3a" opacity=".1" style={{ animation:'castleWinGlow 3s ease-in-out infinite' }}/>
+    {/* Centre tower (tallest) */}
+    <rect x="64" y="22" width="92" height="83" fill="#100308"/>
+    <rect x="62"  y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="72"  y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="82"  y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="92"  y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="102" y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="112" y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="122" y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="132" y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="142" y="14" width="8"  height="10" fill="#100308"/>
+    <rect x="152" y="14" width="10" height="10" fill="#100308"/>
+    {/* Centre large window */}
+    <rect x="82" y="36" width="56" height="50" fill="#0a0006"/>
+    <rect x="84" y="38" width="52" height="46" fill="#c41e3a" opacity=".12" style={{ animation:'castleWinGlow 3.5s ease-in-out 1s infinite' }}/>
+    {/* Centre gate arch */}
+    <path d="M96 105 L96 72 Q110 56 124 72 L124 105" fill="#0a0006"/>
+    {/* Right tower */}
+    <rect x="162" y="48" width="36" height="57" fill="#140410"/>
+    <rect x="162" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="169" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="176" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="183" y="42" width="5" height="8" fill="#140410"/>
+    <rect x="190" y="42" width="7" height="8" fill="#140410"/>
+    {/* Right tower window */}
+    <rect x="173" y="60" width="16" height="22" fill="#0c0008"/>
+    <rect x="175" y="62" width="12" height="18" fill="#c41e3a" opacity=".1" style={{ animation:'castleWinGlow 2.8s ease-in-out .5s infinite' }}/>
+    {/* Far right turret */}
+    <rect x="196" y="62" width="22" height="43" fill="#180610"/>
+    <rect x="196" y="56" width="4" height="7" fill="#180610"/>
+    <rect x="202" y="56" width="4" height="7" fill="#180610"/>
+    <rect x="208" y="56" width="4" height="7" fill="#180610"/>
+    <rect x="214" y="56" width="4" height="7" fill="#180610"/>
+  </svg>
 );
 
 // Extrai cores dominantes da capa do álbum via Canvas
@@ -358,6 +423,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   });
   const [mascotSkinId, setMascotSkinId] = useState(() => getActiveAssistantSkinId());
   useEffect(() => onAssistantSkinChange(id => setMascotSkinId(id)), []);
+  // songSkin = skin do DJ da música atual; lida do Supabase pra TODOS verem igual
+  const [songSkin, setSongSkin] = useState('default');
+  useEffect(() => {
+    if (!currentSong?.requested_by) { setSongSkin('default'); return; }
+    // Se for a música do próprio usuário usa a skin local (sem round-trip)
+    if (currentSong.requested_by === myName) { setSongSkin(mascotSkinId); return; }
+    getRemoteSkinFor(currentSong.requested_by).then(s => setSongSkin(s || 'default'));
+  }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
   const [photoCache, setPhotoCache] = useState({});
   // Foto do próprio usuário — usa a prop quando disponível, senão busca diretamente
   const [myPhoto, setMyPhoto] = useState(userPhoto);
@@ -1646,9 +1719,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {/* Left: UnikoWave + Player */}
             <div style={{width:isMobile?"100%":280,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
               {(() => {
-                const isMyMusicNow = !!currentSong && currentSong.requested_by === myName;
-                const isVampCard   = isMyMusicNow && mascotSkinId !== 'default';
-                return (
+                const isVampCard = songSkin !== 'default';
+                const skin = isVampCard ? getAssistantSkin(songSkin) : null;
+                return (<>
                   <div style={{borderRadius:20,
                     background: isVampCard ? '#090004' : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
@@ -1662,34 +1735,39 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   }}>
                     {isVampCard && <style>{VAMP_CARD_CSS}</style>}
 
-                    {/* Bats */}
+                    {/* Morcegos */}
                     {isVampCard && <>
-                      <VampBat top={28}  delay={0}   dur={6.5} />
-                      <VampBat top={55}  delay={2.4} dur={8}   rtl />
-                      <VampBat top={80}  delay={4.1} dur={7.2} />
-                      <VampBat top={110} delay={1.2} dur={9}   rtl />
+                      <VampBat top={22}  delay={0}    dur={6}   size={34} />
+                      <VampBat top={52}  delay={2.1}  dur={7.5} size={28} rtl />
+                      <VampBat top={78}  delay={3.8}  dur={6.8} size={38} />
+                      <VampBat top={108} delay={1.0}  dur={8.5} size={30} rtl />
+                      <VampBat top={38}  delay={5.2}  dur={7}   size={26} />
+                      <VampBat top={90}  delay={4.5}  dur={9}   size={32} rtl />
                     </>}
 
-                    {/* Blood moon */}
+                    {/* Lua de sangue */}
                     {isVampCard && (
                       <div style={{
-                        position:'absolute', top:10, right:14, width:36, height:36,
+                        position:'absolute', top:10, right:14, width:40, height:40,
                         borderRadius:'50%', pointerEvents:'none',
-                        background:'radial-gradient(circle, #d42040 0%, #7a0010 100%)',
-                        boxShadow:'0 0 14px 5px #c41e3a55, 0 0 35px 10px #c41e3a22',
+                        background:'radial-gradient(circle, #e02848 0%, #7a0010 100%)',
+                        boxShadow:'0 0 16px 6px #c41e3a66, 0 0 40px 12px #c41e3a22',
                         animation:'vampMoonPulse 3.5s ease-in-out infinite', zIndex:0,
                       }}/>
                     )}
 
-                    {/* Atmospheric glow overlay */}
+                    {/* Castelo de vampiro */}
+                    {isVampCard && <VampCastle />}
+
+                    {/* Atmospheric glow */}
                     {isVampCard && (
                       <div style={{
                         position:'absolute', inset:0, pointerEvents:'none', zIndex:0,
-                        background:'radial-gradient(ellipse at 70% 10%, #c41e3a1a 0%, transparent 65%)',
+                        background:'radial-gradient(ellipse at 65% 5%, #c41e3a1c 0%, transparent 60%)',
                       }}/>
                     )}
 
-                    {/* Normal blob (only when not vampire) */}
+                    {/* Normal blob */}
                     {!isVampCard && (
                       <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                     )}
@@ -1699,12 +1777,24 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
                         colors={festColors}
                         size={isMobile?110:160}
-                        requestedBy={currentSong?.requested_by}
-                        myName={myName}
+                        songSkin={songSkin}
                       />
                     </div>
                   </div>
-                );
+
+                  {/* Descrição do Uniko especial abaixo do card */}
+                  {isVampCard && currentSong?.requested_by && (
+                    <div style={{ textAlign:'center', marginTop:5 }}>
+                      <span style={{fontSize:10,fontWeight:800,letterSpacing:'.14em',textTransform:'uppercase',color:'#c41e3a'}}>
+                        {(skin?.name || '').replace(/^Uniko\s*/i, '')}
+                      </span>
+                      <span style={{color:'#c41e3a55',margin:'0 6px',fontSize:10}}>·</span>
+                      <span style={{fontSize:10,fontWeight:600,letterSpacing:'.09em',textTransform:'uppercase',color:'#d090a0',opacity:.8}}>
+                        {currentSong.requested_by}
+                      </span>
+                    </div>
+                  )}
+                </>);
               })()}
 
               {/* Player controls */}
