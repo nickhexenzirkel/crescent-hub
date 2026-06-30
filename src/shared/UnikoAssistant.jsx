@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
+import { onCaptureState } from './captureUniko';
 
 // Sprites por humor/interação. encodeURI garante a URL certa (UNIKO_ATENÇÃO tem acento).
 const IMG = {
@@ -18,6 +19,7 @@ const IMG = {
   WAVE:    encodeURI('/UNIKO_WAVESIGN.png'),
   PRISMAC: encodeURI('/UNIKO_PRISMACOMUM.png'),
   PRISMAP: encodeURI('/UNIKO_PRISMAPREMIUM.png'),
+  CAPTURE: encodeURI('/UNIKO_CAPTURAR.png'),
 };
 
 // Frames da BOCA (falando): fechada (UNIKO_NEW) → meio aberta → aberta. encodeURI p/ os espaços.
@@ -257,8 +259,9 @@ const UnikoFace = ({ size, src, talking }) => {
   );
 };
 
-const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
+const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
+  const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
   const [talking, setTalking] = useState(false);    // está "digitando"/falando? → boca mexe
@@ -274,6 +277,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
   const listRef = useRef(null);
   const dragRef = useRef(null);   // { sx, sy, ox, oy, moved } enquanto arrasta
   const openRef = useRef(open);   openRef.current = open;
+  const inPortalRef = useRef(inPortal); inPortalRef.current = inPortal;
+  const captureRef = useRef(captureAlert); captureRef.current = captureAlert;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
   const posRef = useRef(pos);     posRef.current = pos;
 
@@ -321,12 +326,40 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
     if (openRef.current) setOpen(false);
   }, [notif, say]);
 
+  // ── CAPTURE O UNIKO: avisa SÓ quando está no Portal do Colaborador e há um Uniko disponível.
+  // Ouve o estado emitido pelo widget (captureUniko pub/sub). Heartbeat + sprite + fala.
+  const lastCaptureId = useRef(null);
+  useEffect(() => {
+    const off = onCaptureState((s) => {
+      if (s?.captured) {            // capturou! parabeniza e limpa o alerta
+        setCaptureAlert(null);
+        if (inPortalRef.current) say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'}! 🎉`, { sprite: IMG.CAPTURE, dismissable: true });
+        return;
+      }
+      setCaptureAlert(s?.available && inPortalRef.current ? s.uniko : null);
+    });
+    return off;
+  }, [say]);
+
+  // Some com o alerta se sair do Portal.
+  useEffect(() => { if (!inPortal) setCaptureAlert(null); }, [inPortal]);
+
+  // Ao surgir um Uniko disponível, fala "Capture o Uniko!" uma vez (heartbeat é contínuo).
+  useEffect(() => {
+    if (captureAlert && captureAlert.id !== lastCaptureId.current) {
+      lastCaptureId.current = captureAlert.id;
+      say(`Tem um ${captureAlert.name} pra capturar — Capture o Uniko! ✨`, { sprite: IMG.CAPTURE, dismissable: true });
+    }
+    if (!captureAlert) lastCaptureId.current = null;
+  }, [captureAlert, say]);
+
   // DICAS rotativas a cada 30s (só com o painel fechado e sem aviso pendente esperando "Ok").
   useEffect(() => {
     if (!authUser) return;
     const id = setInterval(() => {
       if (openRef.current) return;
       if (bubbleRef.current?.dismissable) return;
+      if (captureRef.current) return; // não interrompe o alerta de captura
       const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
       say(tip.text, { sprite: tip.sprite });
     }, 30000);
@@ -558,11 +591,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
           animation:uaBorderSpin 3s linear infinite;
         }
         @keyframes uaBorderSpin{to{--uaAng:360deg}}
+        @keyframes uaHeartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1.02)}45%{transform:scale(1.22)}60%{transform:scale(1)}}
         body.uw-active .uniko-assistant{display:none!important}
       `}</style>
 
       {/* ── Robô: flutua, fica EXPANDIDO com balão, ARRASTÁVEL (clique abre, arraste move) ── */}
-      <div style={{ animation: dragging ? 'none' : 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
+      <div style={{ animation: dragging ? 'none' : captureAlert && !open ? 'uaHeartbeat .85s ease-in-out infinite' : 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
         <button
           onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
           onTouchStart={(e) => { if (e.touches[0]) startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
@@ -576,7 +610,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif }) => {
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s ease',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}${hovered && !dragging ? '99' : '55'})`,
           }}>
-          <UnikoFace size={ICON} src={sprite} talking={talking} />
+          <UnikoFace size={ICON} src={captureAlert && !open ? IMG.CAPTURE : sprite} talking={talking} />
         </button>
       </div>
 

@@ -4,6 +4,7 @@ import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/u
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
+import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -375,6 +376,31 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(() => { if (tab === 'comunicados') loadComunicados(); }, [tab]);
 
+  // ── Capture o Uniko (evento) ────────────────────────────
+  // datetime-local <-> ISO. O input usa horário LOCAL; guardamos ISO no settings.
+  const isoToLocal = (iso) => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const localToIso = (loc) => { if(!loc) return ''; const d=new Date(loc); return isNaN(d)?'':d.toISOString(); };
+  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot' });
+  const [capMsg, setCapMsg]       = useState('');
+  const [capSaving, setCapSaving] = useState(false);
+
+  const loadCapCfg = async () => {
+    const c = await loadCaptureConfig();
+    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot' });
+  };
+  const saveCapCfg = async () => {
+    if (capCfg.enabled && (!capCfg.startAt || !capCfg.endAt)) { setCapMsg('⚠️ Defina início e fim da janela'); return; }
+    if (capCfg.enabled && localToIso(capCfg.endAt) <= localToIso(capCfg.startAt)) { setCapMsg('⚠️ O fim deve ser depois do início'); return; }
+    setCapSaving(true); setCapMsg('');
+    try {
+      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:localToIso(capCfg.startAt), endAt:localToIso(capCfg.endAt), unikoId:capCfg.unikoId });
+      setCapMsg('✅ Configuração salva!');
+    } catch(e) { setCapMsg('❌ ' + (e.message||'Erro ao salvar')); }
+    setCapSaving(false);
+    setTimeout(()=>setCapMsg(''), 4000);
+  };
+  useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
+
   // ── Lembretes & Alexa programada ────────────────────────
   const [lembretes, setLembretes]       = useState([]);
   const [lembLoading, setLembLoading]   = useState(false);
@@ -689,6 +715,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
     {id:'uniko_ia',       label:'Perguntas do UNIKO',  icon:<><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></>},
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
+    {id:'capture',        label:'Capture o Uniko',     icon:<><circle cx="11" cy="11" r="8"/><line x1="11" y1="3" x2="11" y2="19"/><line x1="3" y1="11" x2="19" y2="11"/><circle cx="11" cy="11" r="2.5" fill="currentColor"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
@@ -1392,6 +1419,92 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}
+
+          {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
+          {tab==='capture'&&(()=>{
+            const uni = CAPTURE_UNIKOS[capCfg.unikoId] || CAPTURE_UNIKOS['vampire-robot'];
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Uniko</div>
+                <div style={{fontSize:13,color:T.textS,marginTop:2}}>Defina a janela em que um Uniko pode surgir aleatoriamente no Portal do Colaborador para os funcionários capturarem.</div>
+              </div>
+
+              {/* Card de configuração */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+
+                {/* Ativar */}
+                <label style={{display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+                  <span onClick={()=>setCapCfg(c=>({...c,enabled:!c.enabled}))} style={{position:'relative',width:46,height:26,borderRadius:99,background:capCfg.enabled?T.gold:T.border,transition:'background .2s',flexShrink:0}}>
+                    <span style={{position:'absolute',top:3,left:capCfg.enabled?23:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
+                  </span>
+                  <span>
+                    <div style={{fontSize:14,fontWeight:600,color:T.text}}>Evento ativo</div>
+                    <div style={{fontSize:12,color:T.textT}}>Quando ligado, o Uniko pode surgir dentro da janela abaixo.</div>
+                  </span>
+                </label>
+
+                {/* Janela */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Início da janela</label>
+                    <input type="datetime-local" value={capCfg.startAt} onChange={e=>setCapCfg(c=>({...c,startAt:e.target.value}))}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Fim da janela</label>
+                    <input type="datetime-local" value={capCfg.endAt} onChange={e=>setCapCfg(c=>({...c,endAt:e.target.value}))}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                </div>
+
+                {/* Escolha do Uniko */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko disponível</label>
+                  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                    {Object.values(CAPTURE_UNIKOS).map(u=>(
+                      <button key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
+                        style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
+                          border:`2px solid ${capCfg.unikoId===u.id?u.theme.accent:T.border}`,
+                          background:capCfg.unikoId===u.id?`${u.theme.accent}18`:'transparent',transition:'all .15s'}}>
+                        <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
+                          <div style={{fontSize:11,color:T.textT}}>{u.tagline}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview do tema */}
+                <div style={{borderRadius:14,padding:3,background:`conic-gradient(${uni.theme.border.join(',')})`}}>
+                  <div style={{borderRadius:12,background:uni.theme.scene,padding:'18px 16px',display:'flex',alignItems:'center',gap:14}}>
+                    <img src={uni.img} alt="" style={{width:70,height:70,objectFit:'contain',filter:`drop-shadow(0 0 14px ${uni.theme.accent})`}}/>
+                    <div>
+                      <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:uni.theme.glow}}>★ CAPTURE O UNIKO ★</div>
+                      <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{uni.name}</div>
+                      <div style={{fontSize:11,color:uni.theme.ink,opacity:.85}}>Prévia da borda e cenário temático no Portal</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Salvar */}
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <button onClick={saveCapCfg} disabled={capSaving}
+                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:capSaving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:capSaving?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                    {capSaving?'Salvando...':'Salvar configuração'}
+                  </button>
+                  {capMsg&&<span style={{fontSize:13,color:capMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{capMsg}</span>}
+                </div>
+
+                <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. São 2 tentativas de captura — na 1ª o Uniko pode escapar, na 2ª é garantido.
+                </div>
+              </div>
+            </div>
+          );})()}
 
           {/* ── TAB: LEMBRETES & ALEXA PROGRAMADA ── */}
           {tab==='lembretes'&&(

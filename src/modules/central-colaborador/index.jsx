@@ -18,6 +18,8 @@ import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import CentralLembretes from '../central-lembretes';
+import CaptureUnikoWidget from '../../shared/CaptureUnikoWidget';
+import { loadCaptureConfig } from '../../shared/captureUniko';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const isMobile = useIsMobile();
@@ -27,6 +29,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [profileReady, setProfileReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [captureCfg, setCaptureCfg] = useState(null); // config do "Capture o Uniko" (RH)
   const tabRef = useRef(tab);
   useEffect(() => {
     tabRef.current = tab;
@@ -130,6 +133,9 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     }, 8000);
     return () => clearInterval(id);
   }, []);
+
+  // Carrega a config do "Capture o Uniko" (evento do RH) ao abrir o Portal
+  useEffect(() => { loadCaptureConfig().then(c => { if (c?.enabled) setCaptureCfg(c); }); }, []);
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);window.dispatchEvent(new CustomEvent('ch_themechange',{detail:key}));};
   const handleProfileSaved = () => setProfileComplete(checkProfileComplete());
@@ -272,6 +278,9 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
           </div>
         </div>
       )}
+
+      {/* ── Capture o Uniko — encontro temático que surge aleatoriamente (config do RH) ── */}
+      {captureCfg && tab!=='unikowave' && <CaptureUnikoWidget cfg={captureCfg}/>}
 
       {showSettings && (
         <SettingsModal activeTheme={activeTheme}

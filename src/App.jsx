@@ -343,7 +343,7 @@ export default function CrescentHub() {
         )}
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
-        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} />
+        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
       </div>
     </>
   );
