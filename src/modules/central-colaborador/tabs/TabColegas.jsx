@@ -349,16 +349,6 @@ const TabColegas = () => {
 
     return (
       <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
-        <GiftModal
-          show={showGift} onClose={() => setShowGift(false)}
-          selected={selected} photos={photos} isAdmin={isAdmin}
-          availTrophies={availTrophies} remaining={remaining}
-          giftType={giftType} setGiftType={setGiftType}
-          giftDesc={giftDesc} setGiftDesc={setGiftDesc}
-          giftMsg={giftMsg} setGiftMsg={setGiftMsg}
-          gifting={gifting} giftResult={giftResult} onSend={sendTrophy}
-        />
-
         {/* Back */}
         <button onClick={() => { setSelected(null); setShowGift(false); }}
           style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none',
@@ -376,38 +366,7 @@ const TabColegas = () => {
               <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
               {emp.admission && <div style={{ fontSize:11, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
             </div>
-            <button onClick={openGift} style={{
-              display:'flex', alignItems:'center', gap:8, padding:'10px 20px',
-              borderRadius:11, border:'none', cursor:'pointer',
-              background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-              color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)',
-              boxShadow:`0 4px 16px ${T.goldLine}44`, flexShrink:0 }}>
-              🎁 Presentear Troféu
-            </button>
           </div>
-        </Card>
-
-        {/* Troféus recebidos — grid de cards */}
-        <Card style={{ padding:'22px 24px', marginBottom:14 }} elevated>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-            <span style={{ fontSize:17 }}>🏆</span>
-            <div>
-              <div style={{ fontSize:15, fontWeight:700, color:T.text }}>Troféus Conquistados</div>
-              <div style={{ fontSize:12, color:T.textT, marginTop:1 }}>{emTrophy.length} troféu{emTrophy.length!==1?'s':''}</div>
-            </div>
-          </div>
-          <StarDivider my={10}/>
-          {emTrophy.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'24px 0', color:T.textT, fontSize:13 }}>
-              Nenhum troféu ainda.
-            </div>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
-              {emTrophy.map((t, i) => (
-                <TrophyMiniCard key={i} trophy={t} highlighted={i === 0}/>
-              ))}
-            </div>
-          )}
         </Card>
 
         {/* Coleção de Unikos do colega */}
@@ -513,29 +472,10 @@ const TabColegas = () => {
                 {/* Nome */}
                 <div style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:3,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.name}</div>
-                <div style={{ fontSize:11, color:T.textT, marginBottom:10,
+                <div style={{ fontSize:11, color:T.textT,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {emp.cargo || emp.role || 'Colaborador'}
                 </div>
-                {/* Troféus */}
-                {empTrop.length > 0 && (
-                  <div style={{ display:'flex', justifyContent:'center', gap:4, flexWrap:'wrap' }}>
-                    {['nebula','estelar','supernova'].map(type => {
-                      const count = empTrop.filter(t => t.type === type).length;
-                      if (!count) return null;
-                      const def = TROPHY_TYPES.find(x => x.id === type);
-                      return (
-                        <span key={type} style={{ display:'flex', alignItems:'center', gap:3,
-                          fontSize:10, fontWeight:600, color:def.color,
-                          background:`${def.color}12`, border:`1px solid ${def.color}25`,
-                          borderRadius:6, padding:'2px 7px' }}>
-                          <img src={def.img} alt="" onError={e=>{e.target.style.display='none'}}
-                            style={{ width:12, height:12, objectFit:'contain' }}/>{count}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             );
           })}

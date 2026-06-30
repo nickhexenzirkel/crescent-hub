@@ -168,29 +168,28 @@ async function askAI(question) {
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const ICON = 84; // tamanho do robô (px)
 
 /* ── Posição arrastável (estilo AssistiveTouch) ──
-   Guarda o canto sup-esquerdo do robô em px; persiste por usuário no localStorage. */
+   Guarda o canto sup-esquerdo do robô em px; persiste por usuário no localStorage.
+   icon/margin variam por SKIN (o Vampire-Robot é maior e mais afastado da borda). */
 const POS_KEY = 'uniko_assistant_pos';
-const DRAG_MARGIN = 12;        // distância mínima das bordas
 const DRAG_THRESHOLD = 5;      // px pra considerar arraste (e não toque/clique)
 
-const clampPos = (p) => {
+const clampPos = (p, icon = 84, margin = 12) => {
   const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
   return {
-    x: Math.max(DRAG_MARGIN, Math.min(w - ICON - DRAG_MARGIN, p.x)),
-    y: Math.max(DRAG_MARGIN, Math.min(h - ICON - DRAG_MARGIN, p.y)),
+    x: Math.max(margin, Math.min(w - icon - margin, p.x)),
+    y: Math.max(margin, Math.min(h - icon - margin, p.y)),
   };
 };
-const loadPos = () => {
+const loadPos = (icon = 84, margin = 12) => {
   try {
     const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-    if (p && typeof p.x === 'number' && typeof p.y === 'number') return clampPos(p);
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') return clampPos(p, icon, margin);
   } catch {}
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-  return { x: 18, y: h - ICON - 18 }; // default: canto inferior esquerdo (como antes)
+  return { x: margin + 6, y: h - icon - margin - 6 }; // default: canto inferior esquerdo
 };
 const savePos = (p) => { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} };
 
@@ -256,6 +255,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const skin = getAssistantSkin(skinId);
   const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
   const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
+  const ICON = skin.iconSize || 84;                  // tamanho do robô (varia por skin)
+  const MARGIN = skin.edgeMargin ?? 12;              // distância das bordas (varia por skin)
+  const iconRef = useRef(ICON); iconRef.current = ICON;
+  const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
   const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
@@ -265,7 +268,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   ]);
   const [input, setInput] = useState('');
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
-  const [pos, setPos] = useState(loadPos);          // canto sup-esq do robô (px) — arrastável
+  const [pos, setPos] = useState(() => loadPos(getAssistantSkin(getActiveAssistantSkinId()).iconSize || 84, getAssistantSkin(getActiveAssistantSkinId()).edgeMargin ?? 12)); // canto sup-esq do robô (px) — arrastável
   const [dragging, setDragging] = useState(false);  // arrastando? (desliga transição p/ seguir o dedo)
   const [hovered, setHovered] = useState(false);    // mouse em cima? → expande suavemente
   const bubbleTimer = useRef(null);
@@ -461,7 +464,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       const d = dragRef.current; if (!d) return;
       const dx = cx - d.sx, dy = cy - d.sy;
       if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) d.moved = true;
-      setPos(clampPos({ x: d.ox + dx, y: d.oy + dy }));
+      setPos(clampPos({ x: d.ox + dx, y: d.oy + dy }, iconRef.current, marginRef.current));
     };
     const onMouseMove = (e) => moveTo(e.clientX, e.clientY);
     const onTouchMove = (e) => {
@@ -477,15 +480,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (!d.moved) { setOpen(o => !o); return; } // foi um toque/clique → abre o chat
 
       // ── ARREMESSO: soltou o assistente em cima do Uniko do widget? → captura ──
+      const icon = iconRef.current, margin = marginRef.current;
       if (captureRef.current) {
         const rect = getCaptureTargetRect();
-        const cx = posRef.current.x + ICON / 2, cy = posRef.current.y + ICON / 2;
+        const cx = posRef.current.x + icon / 2, cy = posRef.current.y + icon / 2;
         const M = 46; // margem de tolerância (mira generosa)
         if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
           emitCaptureThrow();
           // voa até o alvo e volta pra borda (sensação de arremesso)
-          const dock = { x: (posRef.current.x + ICON / 2) < window.innerWidth / 2 ? DRAG_MARGIN : window.innerWidth - ICON - DRAG_MARGIN, y: posRef.current.y };
-          setPos(clampPos({ x: rect.left + rect.width / 2 - ICON / 2, y: rect.top + rect.height / 2 - ICON / 2 }));
+          const dock = { x: (posRef.current.x + icon / 2) < window.innerWidth / 2 ? margin : window.innerWidth - icon - margin, y: posRef.current.y };
+          setPos(clampPos({ x: rect.left + rect.width / 2 - icon / 2, y: rect.top + rect.height / 2 - icon / 2 }, icon, margin));
           setTimeout(() => { setPos(dock); savePos(dock); }, 420);
           return;
         }
@@ -494,7 +498,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       // Arrastou: gruda na borda lateral mais próxima (vertical fica livre) e persiste.
       setPos(p => {
         const w = window.innerWidth;
-        const snapX = (p.x + ICON / 2) < w / 2 ? DRAG_MARGIN : w - ICON - DRAG_MARGIN;
+        const snapX = (p.x + icon / 2) < w / 2 ? margin : w - icon - margin;
         const np = { x: snapX, y: p.y };
         savePos(np);
         return np;
@@ -513,9 +517,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       document.removeEventListener('touchcancel', onUp);
     };
   }, []);
+  // Re-encaixa na tela quando o tamanho do robô muda (troca de skin: ex. Vampire-Robot é maior).
+  useEffect(() => { setPos(p => clampPos(p, ICON, MARGIN)); }, [ICON, MARGIN]);
   // Mantém o robô dentro da tela quando a janela muda de tamanho.
   useEffect(() => {
-    const onResize = () => setPos(p => clampPos(p));
+    const onResize = () => setPos(p => clampPos(p, iconRef.current, marginRef.current));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);

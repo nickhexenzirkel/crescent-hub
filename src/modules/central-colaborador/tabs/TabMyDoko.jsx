@@ -8,7 +8,7 @@ import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection } from '../../../shared/captureUniko';
-import { ASSISTANT_SKINS, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange } from '../../../shared/assistantSkin';
+import { ASSISTANT_SKINS, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
 
 /* Mantém a MESMA chave do antigo My Uniko — TabGames/TabInicio ainda a importam. */
 export const DOKO_KEY = (() => {
@@ -16,10 +16,21 @@ export const DOKO_KEY = (() => {
   catch { return 'uniko_doko'; }
 })();
 
+/* UNIKO padrão (assistente do sistema) — sempre na coleção, não precisa capturar. */
+const DEFAULT_UNIKO = {
+  id: 'default', name: 'UNIKO', img: '/UNIKO_NEW.png',
+  tagline: 'Assistente padrão do sistema',
+  perks: ['Assistente padrão (pisca, dá dicas e avisa)', 'Foto de perfil clássica do UNIKO'],
+  canBeAssistant: true, alwaysOwned: true,
+  theme: { accent: '#2196F3', accent2: '#1565C0', deep: '#0c1c2e',
+    scene: 'radial-gradient(120% 90% at 50% 0%, #16314d 0%, #0c1c2e 45%, #060d16 100%)' },
+};
+
 const TabMyDoko = ({ onPhotoChange }) => {
   const [captured, setCaptured] = useState(() => getCapturedCollection());
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
   const [photoOk, setPhotoOk] = useState(null); // id com feedback "Salvo!"
+  const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
 
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
@@ -51,8 +62,9 @@ const TabMyDoko = ({ onPhotoChange }) => {
     img.src = imgUrl;
   };
 
-  const roster = Object.values(CAPTURE_UNIKOS);
-  const capturedCount = roster.filter(u => isCaptured(u.id)).length;
+  const owns = (u) => u.alwaysOwned || isCaptured(u.id);
+  const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS)];
+  const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
 
   return (
@@ -63,7 +75,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '.02em' }}>Coleção de Unikos</div>
         <div style={{ fontSize: 13, color: T.textT, marginTop: 3 }}>
-          Capture Unikos no Portal e use as vantagens visuais aqui — {capturedCount}/{roster.length} desbloqueado{capturedCount === 1 ? '' : 's'}.
+          Capture Unikos no Portal e use as vantagens visuais aqui — {ownedCount}/{roster.length} desbloqueado{ownedCount === 1 ? '' : 's'}.
         </div>
       </div>
 
@@ -87,7 +99,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
       {/* Grade da coleção */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
         {roster.map(u => {
-          const owned = isCaptured(u.id);
+          const owned = owns(u);
           const th = u.theme;
           const canAssist = u.canBeAssistant && ASSISTANT_SKINS[u.id];
           const isActive = activeAssistant === u.id;
@@ -114,11 +126,13 @@ const TabMyDoko = ({ onPhotoChange }) => {
           // ── Capturado (card completo) ──
           return (
             <Card key={u.id} style={{ padding: 0, overflow: 'hidden', animation: 'colIn .35s ease', border: `1px solid ${th.accent}55` }}>
-              <div style={{ position: 'relative', height: 180, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #2a0810, #0b0204)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div onClick={() => setDetail(u)} title="Ver variações"
+                style={{ position: 'relative', height: 180, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #2a0810, #0b0204)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <img src={u.img} alt={u.name} style={{ width: 140, height: 140, objectFit: 'contain', filter: `drop-shadow(0 0 20px ${th.accent})` }}/>
                 {isActive && (
                   <div style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px', borderRadius: 999, background: th.accent, color: '#fff', fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em' }}>ASSISTENTE ✓</div>
                 )}
+                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 10.5, color: '#fff', opacity: .85, fontWeight: 600 }}>👁 Ver variações</div>
               </div>
               <div style={{ padding: '14px 16px 16px' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.name}</div>
@@ -140,11 +154,11 @@ const TabMyDoko = ({ onPhotoChange }) => {
                     {okPhoto ? '✓ Foto salva!' : '📷 Usar como foto'}
                   </button>
                   {canAssist && (
-                    <button onClick={() => setActiveAssistantSkin(isActive ? 'default' : u.id)}
-                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    <button onClick={() => { if (!(isActive && u.id === 'default')) setActiveAssistantSkin(isActive ? 'default' : u.id); }}
+                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
                         background: isActive ? (T.surfaceSub || 'rgba(0,0,0,.06)') : `linear-gradient(135deg,${th.accent2},${th.accent})`,
                         color: isActive ? T.textS : '#fff' }}>
-                      {isActive ? '↩ Remover assistente' : '🤖 Usar como assistente'}
+                      {isActive ? (u.id === 'default' ? 'Assistente ativo ✓' : '↩ Remover assistente') : '🤖 Usar como assistente'}
                     </button>
                   )}
                 </div>
@@ -153,6 +167,36 @@ const TabMyDoko = ({ onPhotoChange }) => {
           );
         })}
       </div>
+
+      {/* ── Modal de VARIAÇÕES (carinhas/sprites do Uniko) ── */}
+      {detail && (() => {
+        const vars = getSkinVariations(detail.id);
+        const th = detail.theme || {};
+        return (
+          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, width: 'min(560px,94vw)', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.5)' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(135deg,${th.accent}22,transparent)` }}>
+                <img src={detail.img} alt={detail.name} style={{ width: 42, height: 42, objectFit: 'contain' }}/>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{detail.name}</div>
+                  <div style={{ fontSize: 11.5, color: T.textT }}>Variações da carinha</div>
+                </div>
+                <button onClick={() => setDetail(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 22, lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ padding: 18, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 12 }}>
+                {vars.map((v, i) => (
+                  <div key={i} style={{ borderRadius: 14, overflow: 'hidden', border: `1px solid ${T.border}`, background: th.scene || (T.surfaceSub || 'rgba(0,0,0,.04)') }}>
+                    <div style={{ height: 92, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={v.img} alt={v.label} style={{ width: 72, height: 72, objectFit: 'contain', filter: th.accent ? `drop-shadow(0 0 8px ${th.accent}aa)` : 'none' }}/>
+                    </div>
+                    <div style={{ padding: '7px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: T.text, background: T.surface }}>{v.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

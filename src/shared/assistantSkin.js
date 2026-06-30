@@ -11,6 +11,8 @@ export const ASSISTANT_SKINS = {
     id: 'default',
     name: 'UNIKO',
     accent: '#2196F3',
+    iconSize: 84,    // tamanho do robô no canto (px)
+    edgeMargin: 12,  // distância das bordas da tela
     blink: { open: '/UNIKO_NEW.png', mid: '/UNIKO_PISCA_FRAME_2.png', closed: '/UNIKO_PISCA.png' },
     // frames de boca (falando). Se a skin não tiver, usa só a base.
     mouth: { closed: '/UNIKO_NEW.png', half: enc('/UNIKO_FRAME_BOCA_MEIO ABERTA.png'), open: enc('/UNIKO_FRAME_BOCA ABERTA.png') },
@@ -28,6 +30,8 @@ export const ASSISTANT_SKINS = {
     id: 'vampire-robot',
     name: 'Uniko Vampire-Robot',
     accent: '#c41e3a',
+    iconSize: 116,   // maior que o padrão (a arte tem mais detalhes/asas)
+    edgeMargin: 26,  // afastado um pouco mais da borda
     blink: { open: '/UNIKO_VAMPROBOT.png', mid: '/UNIKO_VAMPROBOT_PISCAFRAME2.png', closed: '/UNIKO_VAMPROBOT_PISCAFRAME3.png' },
     mouth: null, // sem frames de boca → mostra a base ao "falar"
     sprites: {
@@ -43,6 +47,27 @@ export const ASSISTANT_SKINS = {
 };
 
 export const getAssistantSkin = (id) => ASSISTANT_SKINS[id] || ASSISTANT_SKINS.default;
+
+// Lista as VARIAÇÕES visuais de uma skin (carinhas/sprites) — usada na Coleção pra
+// mostrar as "fotos" do Uniko (normal, piscando, alarme, alexa, etc.). Dedupe por imagem.
+export function getSkinVariations(id) {
+  const s = ASSISTANT_SKINS[id];
+  if (!s) return [];
+  const out = [];
+  const push = (label, img) => { if (img && !out.some(o => o.img === img)) out.push({ label, img }); };
+  push('Normal', s.blink.open);
+  push('Piscando', s.blink.mid);
+  push('Olhos fechados', s.blink.closed);
+  if (s.mouth) push('Falando', s.mouth.open);
+  push('Alarme', s.sprites.ALARME);
+  push('Atenção', s.sprites.ATENCAO);
+  push('Alexa', s.sprites.ALEXA);
+  push('Uniko Wave', s.sprites.WAVE);
+  push('Prisma Comum', s.sprites.PRISMAC);
+  push('Prisma Premium', s.sprites.PRISMAP);
+  push('Capturar', s.sprites.CAPTURE);
+  return out;
+}
 
 const userTag = () => { try { return getAuthUser()?.cpf || getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
 const KEY = () => `uniko_assistant_skin_${userTag()}`;

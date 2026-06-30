@@ -9,6 +9,7 @@
 // • O estado por evento (já capturado?) fica no localStorage por usuário+evento.
 // • Pub/sub via window event liga o widget ⇆ assistente sem acoplar os componentes.
 import { supabase as _supabase, getAuthUser } from '../contexts/user';
+import { getActiveAssistantSkinId, setActiveAssistantSkin } from './assistantSkin';
 
 /* ──────────────────────────────────────────────────────────────────────────
    ROSTER — cada Uniko capturável traz sua arte + tema (borda/cenário do widget).
@@ -138,14 +139,21 @@ export const CAPTURE_REWARD = { comum: 100, premium: 100 };
 /* ── Lock GLOBAL: só UM colaborador captura por evento ──────────────────────
    `capture_uniko_event` tem event_id como chave única → o 1º insert vence.
    Se der conflito (já capturado), devolve quem capturou. ─────────────────── */
+// Devolve o vencedor; null = sem vencedor (ok); undefined = erro de rede (estado desconhecido).
 export async function fetchCaptureWinner(cfg) {
   try {
-    const { data } = await _supabase.from('capture_uniko_event')
+    const { data, error } = await _supabase.from('capture_uniko_event')
       .select('*').eq('event_id', captureEventId(cfg)).maybeSingle();
+    if (error) return undefined;
     if (!data) return null;
     return { player: data.player, unikoId: data.uniko_id, unikoName: data.uniko_name,
              comum: data.comum || 0, premium: data.premium || 0, at: data.captured_at };
-  } catch { return null; }
+  } catch { return undefined; }
+}
+
+// Limpa o estado LOCAL de captura de um evento (usado quando o servidor diz que não há vencedor).
+export function clearCaptureLocal(cfg) {
+  try { localStorage.removeItem(doneKey(cfg)); localStorage.removeItem(resultKey(cfg)); } catch {}
 }
 
 export async function claimCapture(cfg, uniko) {
@@ -202,6 +210,44 @@ export function addToMyUnikoCollection(uniko) {
     localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
   } catch {}
+}
+
+// Sincroniza a coleção LOCAL com o servidor (fonte da verdade). Usada ao abrir o Portal:
+// se o admin resetou (apagou no Supabase), a coleção local some também. Reconcilia o
+// assistente: se a skin ativa não é mais possuída, volta ao UNIKO padrão.
+export async function syncCollectionFromServer() {
+  try {
+    const a = getAuthUser();
+    if (!a?.name) return getCapturedCollection();
+    const rows = await fetchCapturesFor(a.name);
+    const seen = new Set();
+    const list = [];
+    for (const r of rows) {
+      if (seen.has(r.uniko_id)) continue;
+      seen.add(r.uniko_id);
+      const u = getUniko(r.uniko_id);
+      list.push({ id: r.uniko_id, name: r.uniko_name || u.name, img: u.img, at: r.captured_at });
+    }
+    localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
+    const active = getActiveAssistantSkinId();
+    if (active && active !== 'default' && !list.some(x => x.id === active)) setActiveAssistantSkin('default');
+    return list;
+  } catch { return getCapturedCollection(); }
+}
+
+// ADMIN: reseta a coleção "Capture o Uniko" — de TODOS ou de um jogador específico.
+// Apaga as capturas (coleção) e o lock do evento (libera nova captura).
+export async function resetCaptures({ player } = {}) {
+  const wipe = async (table, col) => {
+    let q = _supabase.from(table).delete();
+    q = player ? q.eq('player', player) : q.neq(col, '__none__'); // sem player → apaga tudo
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+  };
+  // capturas (coleção) por player; evento (lock) por player também (libera quem ele ganhou)
+  await wipe('capture_uniko_captures', 'uniko_id');
+  await wipe('capture_uniko_event', 'event_id');
 }
 
 /* ── Registro do ALVO + pub/sub do ARREMESSO do assistente ──────────────────

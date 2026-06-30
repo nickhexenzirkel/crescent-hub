@@ -12,7 +12,7 @@ import {
   getUniko, isWithinWindow, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, getCaptureResult, setCaptureResult,
   CAPTURE_REWARD, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
-  registerCaptureTarget, onCaptureThrow,
+  registerCaptureTarget, onCaptureThrow, clearCaptureLocal,
 } from './captureUniko';
 
 const SPAWN_MIN = 6000;     // 6s
@@ -94,18 +94,25 @@ const CaptureUnikoWidget = ({ cfg, placeholder = null }) => {
 
   const captured = phase === 'caught' || !!result;
 
-  /* ── Já capturado globalmente? (1 por evento) ── */
+  /* ── Já capturado globalmente? (1 por evento) — SERVIDOR é a fonte da verdade,
+     pra um reset do admin refletir aqui (limpa o cache local). ── */
   useEffect(() => {
     let alive = true;
     if (!cfg) { setChecked(true); return; }
-    if (getCaptureResult(cfg)) { setChecked(true); return; }
     (async () => {
       const w = await fetchCaptureWinner(cfg);
       if (!alive) return;
-      if (w) { // outra pessoa (ou eu, noutro device) já capturou
+      if (w === undefined) {                 // erro de rede → confia no cache local
+        const cached = getCaptureResult(cfg);
+        if (cached) setResult(cached);
+        setChecked(true); return;
+      }
+      if (w) {                               // alguém capturou (eu ou outro)
         const me = getAuthUser()?.name;
         const res = { player: w.player, at: w.at, comum: w.comum, premium: w.premium, mine: w.player === me };
         setResult(res); setCaptureResult(cfg, res); markCaptureDone(cfg);
+      } else {                               // sem vencedor (ou resetado) → libera
+        setResult(null); clearCaptureLocal(cfg);
       }
       setChecked(true);
     })();

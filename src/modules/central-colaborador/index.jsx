@@ -18,7 +18,7 @@ import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import CentralLembretes from '../central-lembretes';
-import { loadCaptureConfig } from '../../shared/captureUniko';
+import { loadCaptureConfig, syncCollectionFromServer } from '../../shared/captureUniko';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const isMobile = useIsMobile();
@@ -111,6 +111,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
 
   // Carrega a config do "Capture o Uniko" (evento do RH) ao abrir o Portal
   useEffect(() => { loadCaptureConfig().then(c => { if (c?.enabled) setCaptureCfg(c); }); }, []);
+  // Sincroniza a coleção com o servidor (reflete reset do admin / outros devices)
+  useEffect(() => { syncCollectionFromServer(); }, []);
 
   const handleTheme=(key)=>{applyTheme(key);setActiveTheme(key);localStorage.setItem('ch_theme',key);window.dispatchEvent(new CustomEvent('ch_themechange',{detail:key}));};
   const handleProfileSaved = () => setProfileComplete(checkProfileComplete());

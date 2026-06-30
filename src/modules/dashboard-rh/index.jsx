@@ -4,7 +4,7 @@ import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/u
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
-import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS } from '../../shared/captureUniko';
+import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -400,6 +400,24 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setTimeout(()=>setCapMsg(''), 4000);
   };
   useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
+
+  // ── Reset da coleção "Capture o Uniko" ──
+  const [resetPlayer, setResetPlayer] = useState('');
+  const [resetMsg, setResetMsg]       = useState('');
+  const [resetting, setResetting]     = useState(false);
+  const doReset = async (all) => {
+    const who = all ? 'TODOS os usuários' : `"${resetPlayer.trim()}"`;
+    if (!all && !resetPlayer.trim()) { setResetMsg('⚠️ Digite o nome do usuário'); return; }
+    if (!window.confirm(`Resetar a coleção do Capture o Uniko de ${who}? Eles poderão capturar novamente. Esta ação não pode ser desfeita.`)) return;
+    setResetting(true); setResetMsg('');
+    try {
+      await resetCaptures(all ? {} : { player: resetPlayer.trim() });
+      setResetMsg(`✅ Coleção resetada de ${who}.`);
+      if (!all) setResetPlayer('');
+    } catch (e) { setResetMsg('❌ ' + (e.message || 'Erro ao resetar')); }
+    setResetting(false);
+    setTimeout(() => setResetMsg(''), 6000);
+  };
 
   // ── Lembretes & Alexa programada ────────────────────────
   const [lembretes, setLembretes]       = useState([]);
@@ -1501,6 +1519,31 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
                   ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. São 2 tentativas de captura — na 1ª o Uniko pode escapar, na 2ª é garantido.
+                </div>
+              </div>
+
+              {/* Resetar coleção */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text,marginBottom:3}}>Resetar coleção</div>
+                <div style={{fontSize:12,color:T.textS,marginBottom:16}}>Apaga os Unikos capturados e libera o evento para nova captura. Use para começar um novo Capture o Uniko.</div>
+
+                {/* Um usuário */}
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+                  <input value={resetPlayer} onChange={e=>setResetPlayer(e.target.value)} placeholder="Nome do usuário (ex.: Maria Silva)"
+                    style={{flex:1,minWidth:220,padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  <button onClick={()=>doReset(false)} disabled={resetting}
+                    style={{padding:'10px 18px',borderRadius:10,border:`1px solid ${T.danger||'#C04050'}55`,cursor:resetting?'default':'pointer',background:'transparent',color:T.danger||'#C04050',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:resetting?.6:1}}>
+                    Resetar deste usuário
+                  </button>
+                </div>
+
+                {/* Todos */}
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={()=>doReset(true)} disabled={resetting}
+                    style={{padding:'10px 20px',borderRadius:10,border:'none',cursor:resetting?'default':'pointer',background:`linear-gradient(135deg,${T.danger||'#C04050'},#8b2030)`,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:resetting?.6:1}}>
+                    {resetting?'Resetando...':'⚠️ Resetar de TODOS os usuários'}
+                  </button>
+                  {resetMsg&&<span style={{fontSize:13,color:resetMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{resetMsg}</span>}
                 </div>
               </div>
             </div>
