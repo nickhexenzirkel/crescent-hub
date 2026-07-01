@@ -19,6 +19,35 @@ function guessGender(name) {
   return 'm';
 }
 
+// Busca a foto do artista (música) pela API pública do Deezer via JSONP (sem backend/CORS).
+// Cacheado em memória; resolve com a URL da imagem ou null.
+const _artistImgCache = {};
+function fetchArtistImage(name) {
+  return new Promise((resolve) => {
+    const key = (name || '').trim();
+    if (!key) return resolve(null);
+    if (_artistImgCache[key] !== undefined) return resolve(_artistImgCache[key]);
+    if (typeof document === 'undefined') return resolve(null);
+    const cb = `dzCb_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const done = (url) => {
+      _artistImgCache[key] = url || null;
+      try { delete window[cb]; } catch { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+      resolve(_artistImgCache[key]);
+    };
+    const timer = setTimeout(() => done(null), 6000);
+    window[cb] = (data) => {
+      const a = data?.data?.[0];
+      done(a?.picture_medium || a?.picture_big || a?.picture || null);
+    };
+    script.onerror = () => done(null);
+    script.src = `https://api.deezer.com/search/artist?q=${encodeURIComponent(key)}&limit=1&output=jsonp&callback=${cb}`;
+    document.body.appendChild(script);
+  });
+}
+
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
 @keyframes vampCardGlow{0%,100%{box-shadow:0 0 18px 6px #c41e3a14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #c41e3a28,0 8px 40px rgba(0,0,0,.45);}}
@@ -959,6 +988,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   // ── Máquina do Tempo ─────────────────────────────────────
   const [maquinaData, setMaquinaData]   = useState(null);
+  const [artistPhotos, setArtistPhotos] = useState({}); // {nomeArtista: urlFoto} via Deezer
   const [maquinaLoading, setMaquinaLoading] = useState(false);
   const [maquinaView, setMaquinaView]   = useState('geral'); // geral | mensal | djs | semaninha
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
@@ -1321,9 +1351,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           : d.topArtists.map(([artist,count],i)=>(
           <div key={artist} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
             <div style={{width:22,textAlign:"center",fontSize:12,fontWeight:700,color:i<3?T.gold:T.textD}}>#{i+1}</div>
-            <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.gold}44,${T.gold}22)`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.gold}}>
-              {artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
-            </div>
+            {artistPhotos[artist]
+              ? <img src={artistPhotos[artist]} alt={artist} style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
+              : <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.gold}44,${T.gold}22)`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.gold}}>
+                  {artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
+                </div>
+            }
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
             </div>
@@ -1364,6 +1397,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   useEffect(() => {
     if (tab==='maquina' && maquinaView==='semaninha' && collageData?.period!==collagePeriod) loadCollage(collagePeriod);
   }, [tab, maquinaView, collagePeriod]); // eslint-disable-line
+
+  // Busca fotos dos artistas (Deezer) — geral + todos os meses; só os que faltam
+  useEffect(() => {
+    if (!maquinaData) return;
+    const names = new Set();
+    (maquinaData.topArtists || []).forEach(([a]) => a && names.add(a));
+    (maquinaData.months || []).forEach(m => (m.topArtists || []).forEach(([a]) => a && names.add(a)));
+    const missing = [...names].filter(n => artistPhotos[n] === undefined);
+    if (!missing.length) return;
+    let alive = true;
+    (async () => {
+      for (const name of missing) {
+        const url = await fetchArtistImage(name);
+        if (!alive) return;
+        setArtistPhotos(prev => ({ ...prev, [name]: url || null }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [maquinaData]); // eslint-disable-line
   useEffect(() => { if (tab==='biblioteca') loadSpPlaylists(); }, [tab]);
 
   // ── Supabase realtime ────────────────────────────────────
