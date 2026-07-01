@@ -3005,15 +3005,19 @@ function startVideoBg(videoId, muted){
   };
 
   if(_ytApiReady && window.YT && window.YT.Player){ build(); return; }
-  // Espera a API ficar pronta; se demorar demais, cai p/ iframe simples (com loop)
+  // Espera a API ficar pronta; ela é pré-carregada bem antes (ver _loadYTApi), então
+  // só demora em rede fria (1ª partida do dia) — damos bastante folga (20s) antes de
+  // cair no fallback abaixo, que NÃO tem sincronia/loop e por isso é bem pior.
   let waited=0;
   const iv=setInterval(()=>{
     if(_ytApiReady && window.YT && window.YT.Player){ clearInterval(iv); build(); }
-    else if((waited+=120)>=6000){ clearInterval(iv); _startVideoBgRaw(videoId); }
+    else if((waited+=120)>=20000){ clearInterval(iv); _startVideoBgRaw(videoId); }
   },120);
 }
 
-// Fallback raro (API não carregou): iframe simples com loop p/ evitar recomendações
+// Fallback raro (API não carregou): iframe simples, sem controle/sincronia com o
+// jogo. SEM loop — se o vídeo real for mais curto que a música, ele apenas some no
+// final em vez de reiniciar sozinho repetidas vezes durante a partida.
 function _startVideoBgRaw(videoId){
   const wrap=document.getElementById('videoBgWrap');
   if(!wrap) return;
@@ -3023,7 +3027,7 @@ function _startVideoBgRaw(videoId){
   f.setAttribute('allow','autoplay; encrypted-media'); f.setAttribute('frameborder','0');
   f.src=`https://www.youtube.com/embed/${videoId}`
     +`?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3`
-    +`&disablekb=1&fs=0&playsinline=1&enablejsapi=0&loop=1&playlist=${videoId}`;
+    +`&disablekb=1&fs=0&playsinline=1&enablejsapi=0`;
   wrap.appendChild(f);
 }
 
