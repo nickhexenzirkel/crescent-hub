@@ -3011,7 +3011,12 @@ function startVideoBg(videoId, muted){
   let waited=0;
   const iv=setInterval(()=>{
     if(_ytApiReady && window.YT && window.YT.Player){ clearInterval(iv); build(); }
-    else if((waited+=120)>=20000){ clearInterval(iv); _startVideoBgRaw(videoId); }
+    else if((waited+=120)>=20000){
+      clearInterval(iv); _startVideoBgRaw(videoId);
+      // O iframe cru não dispara onStateChange — sem isso a partida ficaria presa
+      // pra sempre na pausa de "carregando vídeo" (ver runCountdown). Libera na hora.
+      if(_bufferPaused) _bufferResume();
+    }
   },120);
 }
 
@@ -5039,7 +5044,27 @@ function runCountdown(){
         _videoStartPending=false;
         try{ if(_vbPlayer&&_vbPlayer.playVideo) _vbPlayer.playVideo(); audioIframeCmd('playVideo'); }catch(_){}
       }
-      setTimeout(()=>{overlay.classList.add('off');overlay.innerHTML='';gameState='playing';},700);
+      setTimeout(()=>{
+        overlay.classList.add('off');overlay.innerHTML='';
+        // Modo vídeo: só libera a partida (minions/notas) quando o vídeo do YouTube
+        // já estiver REALMENTE tocando — sem isso, em rede lenta (1ª partida do dia)
+        // o jogo começava "no escuro" enquanto o player ainda carregava/bufferizava.
+        let videoPlaying=true;
+        if(bgMode==='video'&&lastVideoUrl){
+          videoPlaying=false;
+          try{ if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState) videoPlaying=(_vbPlayer.getPlayerState()===YT.PlayerState.PLAYING); }catch(_){}
+        }
+        if(videoPlaying){ gameState='playing'; return; }
+        // Reaproveita o mecanismo de auto-pausa de buffering: fica "carregando…" até
+        // o player disparar PLAYING (ver onStateChange em startVideoBg), que chama
+        // _bufferResume() e libera a partida sincronizada com o vídeo de verdade.
+        _bufferPaused=true; _bufferPrevState='playing'; gameState='paused';
+        pauseStartWallMs=performance.now();
+        _bufferOverlayEl().style.display='flex';
+        // Trava de segurança: se o vídeo nunca confirmar PLAYING (fallback de iframe
+        // cru sem eventos, ou rede realmente indisponível), não deixa a partida presa.
+        setTimeout(()=>{ if(_bufferPaused) _bufferResume(); },25000);
+      },700);
     }
   }
   setTimeout(showNum,300);
