@@ -4,7 +4,7 @@
 // Alexa, Editor...) e NÃO some ao navegar. Toca um SOM de alerta ao surgir.
 // MECÂNICA: arraste o assistente UNIKO (canto) e solte em cima do Uniko pra arremessar.
 // • SÓ UM colaborador captura por evento (lock global no Supabase).
-// • Quem captura ganha 100 Prismas Comuns + 100 Premium e o Uniko vai pra coleção.
+// • Quem captura ganha os Prismas do Uniko (uniko.reward) e o Uniko vai pra coleção.
 // • Duas tentativas: na 1ª ele pode escapar; na 2ª a captura é garantida.
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -13,7 +13,7 @@ import VampireScene from './vampireScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
-  CAPTURE_REWARD, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
+  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal,
 } from './captureUniko';
 
@@ -187,10 +187,11 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     setPhase('caught');
     setAvailable(false);
     if (won) {
-      awardPrismas(me, CAPTURE_REWARD.comum, CAPTURE_REWARD.premium);
+      const reward = getCaptureReward(uniko);
+      awardPrismas(me, reward.comum, reward.premium);
       addToMyUnikoCollection(uniko);
       saveCaptureToCollection(uniko);
-      const res = { player: me, at: new Date().toISOString(), comum: CAPTURE_REWARD.comum, premium: CAPTURE_REWARD.premium };
+      const res = { player: me, at: new Date().toISOString(), comum: reward.comum, premium: reward.premium };
       setResult(res); setCaptureResult(cfg, res);
       emitCaptureState({ available: false, uniko, captured: true });
     } else {

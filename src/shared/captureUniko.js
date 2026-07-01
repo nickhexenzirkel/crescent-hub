@@ -29,6 +29,7 @@ export const CAPTURE_UNIKOS = {
       'Visual cibernético-vampírico de coleção',
     ],
     canBeAssistant: true,
+    reward: { comum: 100, premium: 100 },
     // Tema: vermelho sangue / carmesim, corpo escuro, estética cibernética + vampírica.
     // Cenário: lua de sangue, castelo grande no canto sup. direito, morcegos voando
     // nas diagonais batendo as asas, partículas carmesim.
@@ -47,6 +48,34 @@ export const CAPTURE_UNIKOS = {
       pixel:  '#c41e3a',
       moon:   '#b01020',    // lua de sangue
       moonGlow: '#ff3a4a',
+    },
+  },
+  'uniko-comum': {
+    id: 'uniko-comum',
+    name: 'UNIKO Comum',
+    shortName: 'UNIKO Comum',   // título exibido na coleção
+    img: '/UNIKO_NEW.png',
+    tagline: 'O Uniko clássico, sempre por perto',
+    perks: [
+      'Assistente flutuante clássico do UNIKO',
+      'Visual azul original de coleção',
+    ],
+    canBeAssistant: true,
+    reward: { comum: 50, premium: 50 },
+    // Tema: azul clássico do UNIKO — versão "comum" (recompensa menor que a Vampire-Robot).
+    theme: {
+      accent:  '#2196F3',
+      accent2: '#0d47a1',
+      glow:    '#4fc3f7',
+      deep:    '#04101f',
+      ink:     '#d6ecff',
+      border: ['#0d3a66', '#155a9c', '#2196F3', '#4fc3f7', '#1878c2', '#0d3a66'],
+      scene: 'radial-gradient(120% 90% at 50% 0%, #123a63 0%, #0d1626 45%, #06090f 100%)',
+      castle: '#123a63',
+      bat:    '#0d1626',
+      pixel:  '#2196F3',
+      moon:   '#4fc3f7',
+      moonGlow: '#8fd8ff',
     },
   },
 };
@@ -165,8 +194,12 @@ export async function saveCaptureToCollection(uniko) {
   } catch {}
 }
 
-/* ── Recompensa fixa do evento ───────────────────────────────────────────── */
+/* ── Recompensa padrão — usada quando o Uniko não define a própria (uniko.reward) ── */
 export const CAPTURE_REWARD = { comum: 100, premium: 100 };
+export const getCaptureReward = (uniko) => ({
+  comum: uniko?.reward?.comum ?? CAPTURE_REWARD.comum,
+  premium: uniko?.reward?.premium ?? CAPTURE_REWARD.premium,
+});
 
 /* ── Lock GLOBAL: só UM colaborador captura por evento ──────────────────────
    `capture_uniko_event` tem event_id como chave única → o 1º insert vence.
@@ -190,10 +223,11 @@ export function clearCaptureLocal(cfg) {
 
 export async function claimCapture(cfg, uniko) {
   const me = getAuthUser()?.name || 'Você';
+  const reward = getCaptureReward(uniko);
   const row = {
     event_id: captureEventId(cfg), player: me,
     uniko_id: uniko.id, uniko_name: uniko.name,
-    comum: CAPTURE_REWARD.comum, premium: CAPTURE_REWARD.premium,
+    comum: reward.comum, premium: reward.premium,
     captured_at: new Date().toISOString(),
   };
   try {

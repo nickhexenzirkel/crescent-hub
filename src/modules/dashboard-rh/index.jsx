@@ -4,7 +4,7 @@ import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/u
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
-import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures } from '../../shared/captureUniko';
+import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -1685,7 +1685,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko disponível</label>
                   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                    {Object.values(CAPTURE_UNIKOS).map(u=>(
+                    {Object.values(CAPTURE_UNIKOS).map(u=>{
+                      const rw = getCaptureReward(u);
+                      return (
                       <button key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
                         style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
                           border:`2px solid ${capCfg.unikoId===u.id?u.theme.accent:T.border}`,
@@ -1694,9 +1696,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         <div>
                           <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
                           <div style={{fontSize:11,color:T.textT}}>{u.tagline}</div>
+                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium</div>
                         </div>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
