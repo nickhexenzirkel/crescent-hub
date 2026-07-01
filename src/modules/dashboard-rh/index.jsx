@@ -399,6 +399,21 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setCapSaving(false);
     setTimeout(()=>setCapMsg(''), 4000);
   };
+  // Spawna AGORA: abre uma janela imediata (agora → +30min) com o uniko selecionado,
+  // gerando um evento novo. O widget faz o Uniko surgir em segundos para quem está no Portal.
+  const spawnNow = async () => {
+    setCapSaving(true); setCapMsg('');
+    try {
+      const now = new Date();
+      const end = new Date(now.getTime() + 30 * 60 * 1000); // janela de 30 min
+      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot' };
+      await saveCaptureConfig(cfg);
+      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId });
+      setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal.');
+    } catch (e) { setCapMsg('❌ ' + (e.message || 'Erro ao spawnar')); }
+    setCapSaving(false);
+    setTimeout(() => setCapMsg(''), 6000);
+  };
   useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
 
   // ── Reset da coleção "Capture o Uniko" ──
@@ -1689,11 +1704,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </div>
                 </div>
 
-                {/* Salvar */}
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                {/* Salvar + Spawnar agora */}
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                   <button onClick={saveCapCfg} disabled={capSaving}
                     style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:capSaving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:capSaving?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
                     {capSaving?'Salvando...':'Salvar configuração'}
+                  </button>
+                  <button onClick={spawnNow} disabled={capSaving}
+                    title={`Libera o ${uni.name} agora para todos que estiverem no Portal (surge em segundos).`}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'11px 22px',borderRadius:10,border:`2px solid ${uni.theme.accent}`,cursor:capSaving?'default':'pointer',background:`${uni.theme.accent}22`,color:uni.theme.accent,fontWeight:800,fontSize:14,fontFamily:'var(--font-body)',opacity:capSaving?.6:1}}>
+                    <span style={{fontSize:15}}>⚡</span> Spawnar agora
                   </button>
                   {capMsg&&<span style={{fontSize:13,color:capMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{capMsg}</span>}
                 </div>
