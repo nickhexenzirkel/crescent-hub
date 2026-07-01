@@ -555,7 +555,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <span key={i} style={{position:'absolute',left:st.l,top:st.t,width:st.s,height:st.s,borderRadius:'50%',
               background:T.textT,boxShadow:`0 0 6px ${T.textS||T.textT}`,animation:`capStarTwinkle ${2.4+st.d}s ease-in-out ${st.d}s infinite`}}/>
           ))}
-          <div style={{position:'relative',zIndex:1,textAlign:'center'}}>
+          <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
             <div style={{fontSize:18,marginBottom:4,opacity:.5,letterSpacing:'.3em'}}>✦ ✧ ✦</div>
             <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
           </div>

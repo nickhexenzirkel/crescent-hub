@@ -368,6 +368,42 @@ export const PdfEditor = ({ onDoc }) => {
     } finally { setBusy(false); }
   };
 
+  /* ── excluir uma página específica ── */
+  const deletePage = async (idx) => {
+    if (!srcRef.current || busy) return;
+    if (pages.length <= 1) { deleteAllPages(); return; }
+    if (!window.confirm(`Excluir a página ${idx + 1}? Esta ação não pode ser desfeita.`)) return;
+    setError(''); setBusy(true);
+    try {
+      const doc = await PDFDocument.load(srcRef.current.slice());
+      doc.removePage(idx);
+      const newSrc = new Uint8Array(await doc.save());
+      const newPdf = await pdfjsLib.getDocument({ data: newSrc.slice() }).promise;
+      srcRef.current = newSrc;
+      setPdf(newPdf);
+      setPages(p => p.filter((_, i) => i !== idx));
+      setAnnos(prev => prev
+        .filter(a => a.page !== idx)
+        .map(a => a.page > idx ? { ...a, page: a.page - 1 } : a));
+      setSelId(null); setFocusId(null);
+      setActivePage(ap => clamp(ap > idx ? ap - 1 : ap, 0, pages.length - 2));
+      histRef.current = []; setCanUndo(false);
+    } catch (e) {
+      setError('Não foi possível excluir a página: ' + (e?.message || 'erro'));
+    } finally { setBusy(false); }
+  };
+
+  /* ── excluir todas as páginas (fecha o documento atual) ── */
+  const deleteAllPages = () => {
+    if (!srcRef.current) return;
+    if (!window.confirm('Excluir todas as páginas? O documento atual será fechado.')) return;
+    srcRef.current = null;
+    editorCache.src = null; editorCache.pages = null; editorCache.annos = null; editorCache.fileName = '';
+    setPdf(null); setPages([]); setAnnos([]); setFileName('');
+    setSelId(null); setFocusId(null);
+    histRef.current = []; setCanUndo(false); setActivePage(0);
+  };
+
   /* ── adicionar outro PDF (anexa as páginas ao documento atual) ── */
   const addPdf = async (file) => {
     if (!file) return;
@@ -639,6 +675,9 @@ export const PdfEditor = ({ onDoc }) => {
         <button style={tbBtn(false)} onClick={undo} disabled={!canUndo}>
           <I><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></I> Desfazer
         </button>
+        <button style={{...tbBtn(false),color:T.danger,borderColor:`${T.danger}55`}} onClick={deleteAllPages} disabled={busy}>
+          <I><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></I> Excluir todas as páginas
+        </button>
         <div style={{flex:1}}/>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.max(0.5,+(s-0.1).toFixed(2)))}>−</button>
@@ -660,6 +699,8 @@ export const PdfEditor = ({ onDoc }) => {
               style={{cursor:'pointer',border:`2px solid ${activePage===i?T.gold:T.border}`,borderRadius:8,overflow:'hidden',background:'#fff',position:'relative'}}>
               <PdfCanvas pdf={pdf} index={i} scale={0.16}/>
               <div style={{position:'absolute',bottom:2,right:4,fontSize:10,color:T.textT,background:'rgba(255,255,255,.8)',borderRadius:4,padding:'0 4px'}}>{i+1}</div>
+              <button title="Excluir página" onClick={e=>{ e.stopPropagation(); deletePage(i); }} disabled={busy}
+                style={{position:'absolute',top:2,right:2,width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,.85)',border:`1px solid ${T.border}`,borderRadius:5,color:T.danger,fontSize:10.5,cursor:busy?'default':'pointer',padding:0}}>🗑</button>
             </div>
           ))}
         </div>
