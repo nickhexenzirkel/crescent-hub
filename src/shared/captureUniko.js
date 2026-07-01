@@ -84,6 +84,19 @@ export function isWithinWindow(cfg, now = Date.now()) {
   return true;
 }
 
+// Momento EXATO em que o Uniko surge (compartilhado por todos → aparece pra todos juntos).
+// spawnAt é gravado na config; sem ele, cai no início da janela.
+export function spawnMoment(cfg) {
+  const sp = cfg?.spawnAt ? Date.parse(cfg.spawnAt) : (cfg?.startAt ? Date.parse(cfg.startAt) : null);
+  return (sp != null && !Number.isNaN(sp)) ? sp : null;
+}
+export function isSpawned(cfg, now = Date.now()) {
+  if (!isWithinWindow(cfg, now)) return false;
+  const sp = spawnMoment(cfg);
+  if (sp != null && now < sp) return false;
+  return true;
+}
+
 const userTag = () => { try { return getAuthUser()?.cpf || getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
 const doneKey = (cfg) => `capture_uniko_done_${userTag()}_${captureEventId(cfg)}`;
 

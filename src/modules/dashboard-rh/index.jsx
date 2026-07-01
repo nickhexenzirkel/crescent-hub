@@ -393,7 +393,14 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     if (capCfg.enabled && localToIso(capCfg.endAt) <= localToIso(capCfg.startAt)) { setCapMsg('⚠️ O fim deve ser depois do início'); return; }
     setCapSaving(true); setCapMsg('');
     try {
-      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:localToIso(capCfg.startAt), endAt:localToIso(capCfg.endAt), unikoId:capCfg.unikoId });
+      const startIso = localToIso(capCfg.startAt), endIso = localToIso(capCfg.endAt);
+      // Momento aleatório DENTRO da janela, fixado agora → todos veem surgir no mesmo instante
+      let spawnAt = startIso;
+      if (capCfg.enabled && startIso && endIso) {
+        const s = Date.parse(startIso), e = Date.parse(endIso);
+        spawnAt = new Date(s + Math.random() * Math.max(0, e - s)).toISOString();
+      }
+      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId });
       setCapMsg('✅ Configuração salva!');
     } catch(e) { setCapMsg('❌ ' + (e.message||'Erro ao salvar')); }
     setCapSaving(false);
@@ -405,8 +412,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setCapSaving(true); setCapMsg('');
     try {
       const now = new Date();
-      const end = new Date(now.getTime() + 30 * 60 * 1000); // janela de 30 min
-      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot' };
+      const end = new Date(now.getTime() + 30 * 60 * 1000);      // janela de 30 min
+      const spawnAt = new Date(now.getTime() + 6 * 1000);        // +6s: dá tempo de todos receberem e revelarem juntos
+      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot' };
       await saveCaptureConfig(cfg);
       setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId });
       setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal.');

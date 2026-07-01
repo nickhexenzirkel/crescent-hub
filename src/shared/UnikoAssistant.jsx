@@ -343,13 +343,19 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     return off;
   }, [say]);
 
-  // Ao surgir um Uniko disponível, fala "Capture o Uniko!" uma vez (heartbeat é contínuo).
+  // Ao surgir um Uniko disponível, avisa (e fica reforçando a cada ~22s) — em QUALQUER tela.
+  // Fora do Portal, manda o colaborador ir olhar lá; dentro do Portal, aponta pro card.
   useEffect(() => {
-    if (captureAlert && captureAlert.id !== lastCaptureId.current) {
-      lastCaptureId.current = captureAlert.id;
-      say(`Tem um ${captureAlert.name} pra capturar — Capture o Uniko! ✨`, { sprite: imgRef.current.CAPTURE, dismissable: true });
-    }
-    if (!captureAlert) lastCaptureId.current = null;
+    if (!captureAlert) { lastCaptureId.current = null; return; }
+    const announce = () => {
+      const msg = inPortalRef.current
+        ? `Olha ali! Um ${captureAlert.name} apareceu pra capturar — me arraste até ele! ✨`
+        : `Corre olhar no Portal do Colaborador — apareceu uma coisa surpreendente lá! 👀✨`;
+      say(msg, { sprite: imgRef.current.CAPTURE, dismissable: true });
+    };
+    if (captureAlert.id !== lastCaptureId.current) { lastCaptureId.current = captureAlert.id; announce(); }
+    const id = setInterval(() => { if (captureRef.current) announce(); }, 22000);
+    return () => clearInterval(id);
   }, [captureAlert, say]);
 
   // DICAS rotativas a cada 30s (só com o painel fechado e sem aviso pendente esperando "Ok").

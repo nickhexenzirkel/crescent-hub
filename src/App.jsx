@@ -16,7 +16,7 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
-import { loadCaptureConfig } from './shared/captureUniko';
+import { loadCaptureConfig, CONFIG_KEY } from './shared/captureUniko';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -27,8 +27,23 @@ export default function CrescentHub() {
   const [confettiTheme, setConfettiTheme] = useState(null);
   const isMobile = useIsMobile();
   const [activeTheme, setActiveTheme]     = useState(() => localStorage.getItem('ch_theme') || 'vozBrasil');
-  // Config do "Capture o Uniko" — carregada ao logar; o widget é GLOBAL (qualquer tela).
-  useEffect(() => { if (authUser) loadCaptureConfig().then(c => setCaptureCfg(c?.enabled ? c : null)); }, [authUser]);
+  // Config do "Capture o Uniko" — o aviso (som + assistente) é GLOBAL; o card só no Portal.
+  // Atualiza em tempo real (realtime + poll) pra o spawn chegar a todos ~ao mesmo tempo.
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true;
+    const refresh = () => loadCaptureConfig().then(c => {
+      if (!alive) return;
+      const next = c?.enabled ? c : null;
+      setCaptureCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(next) ? prev : next));
+    });
+    refresh();
+    const ch = _supabase.channel('capture-cfg')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${CONFIG_KEY}` }, refresh)
+      .subscribe();
+    const poll = setInterval(refresh, 5000); // fallback caso realtime não esteja habilitado
+    return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
+  }, [authUser]);
   useEffect(() => {
     const h = (e) => setActiveTheme(e.detail);
     window.addEventListener('ch_themechange', h);
@@ -351,7 +366,7 @@ export default function CrescentHub() {
         <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
-        {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} />}
+        {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
       </div>
     </>
   );

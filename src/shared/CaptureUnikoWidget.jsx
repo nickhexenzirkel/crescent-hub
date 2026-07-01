@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAuthUser } from '../contexts/user';
 import {
-  getUniko, isWithinWindow, isCaptureDone, markCaptureDone,
+  getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, getCaptureResult, setCaptureResult,
   CAPTURE_REWARD, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal,
@@ -90,7 +90,7 @@ const Overlay = ({ children }) => (
   </div>
 );
 
-const CaptureUnikoWidget = ({ cfg }) => {
+const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const uniko = getUniko(cfg?.unikoId);
   const th = uniko.theme;
 
@@ -132,26 +132,45 @@ const CaptureUnikoWidget = ({ cfg }) => {
     return () => { alive = false; };
   }, [cfg]);
 
-  /* ── Surgimento aleatório dentro da janela (global; persiste na navegação) ── */
+  /* ── Surgimento SINCRONIZADO: todos veem no mesmo momento (spawnAt do config) ── */
   useEffect(() => {
     if (!cfg || !checked || result || isCaptureDone(cfg)) return;
-    let spawnT, scheduled = false;
-    const schedule = () => {
-      if (scheduled || isCaptureDone(cfg) || !isWithinWindow(cfg)) return;
-      scheduled = true;
-      spawnT = setTimeout(() => {
-        if (isCaptureDone(cfg) || !isWithinWindow(cfg)) { scheduled = false; return; }
-        setAvailable(true);
-      }, rand(SPAWN_MIN, SPAWN_MAX));
+    let revealT;
+    const evaluate = () => {
+      if (isCaptureDone(cfg)) { setAvailable(false); return; }
+      if (isSpawned(cfg))     { setAvailable(true);  return; }
+      setAvailable(false);
+      // ainda não chegou o spawnAt → agenda a revelação exata (mesmo instante p/ todos)
+      const sp = spawnMoment(cfg);
+      if (sp != null && Date.now() < sp && isWithinWindow(cfg)) {
+        clearTimeout(revealT);
+        revealT = setTimeout(evaluate, Math.max(0, sp - Date.now()) + 40);
+      }
     };
-    schedule();
-    const tick = setInterval(() => {
-      if (isCaptureDone(cfg)) return;
-      if (isWithinWindow(cfg)) schedule();
-      else setAvailable(false);
-    }, 20000);
-    return () => { clearTimeout(spawnT); clearInterval(tick); };
+    evaluate();
+    const tick = setInterval(evaluate, 3000);
+    return () => { clearTimeout(revealT); clearInterval(tick); };
   }, [cfg, checked, result]);
+
+  /* ── Alguém capturou? → some pra TODOS ao mesmo tempo (poll do vencedor global) ── */
+  useEffect(() => {
+    if (!cfg || result || !available) return;
+    const id = setInterval(async () => {
+      const w = await fetchCaptureWinner(cfg);
+      if (!w) return;
+      markCaptureDone(cfg); setCaptureResult(cfg, w); setAvailable(false);
+      const me = getAuthUser()?.name;
+      if (w.player && w.player !== me) {
+        const res = { player: w.player, at: w.at, comum: w.comum || 0, premium: w.premium || 0, mine: false };
+        setResult(res); setJustCaught(res);
+        emitCaptureState({ available: false, uniko: null });
+        setTimeout(() => setJustCaught(null), 7000);
+      } else {
+        setResult({ player: w.player || me, at: w.at });
+      }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [available, cfg, result]); // eslint-disable-line
 
   /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ── */
   useEffect(() => {
@@ -207,6 +226,10 @@ const CaptureUnikoWidget = ({ cfg }) => {
   };
 
   /* ════════ RENDER ════════ */
+
+  // O CARD só aparece no Portal do Colaborador. O aviso (som + assistente) é global e
+  // acontece nos effects acima, independente da tela em que o colaborador estiver.
+  if (!inPortal) return null;
 
   // Toast de captura (logo após pegar/perder) — flutuante, some sozinho
   if (justCaught) {
