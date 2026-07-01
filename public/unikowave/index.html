@@ -5000,12 +5000,17 @@ function _beginPlaybackNow(startDelay){
     srcNode.onended=()=>{if(gameState==='playing') setTimeout(showResult,1500);};
   } else {
     gameStartWallTime=performance.now()+startDelay*1000;
-    // Coincide com o fim do countdown. No modo vídeo, o iframe visível é a
-    // própria fonte de áudio; no modo efeitos, usa o iframe offscreen só p/ som.
-    _audioIframeTimer=setTimeout(()=>{
-      if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl);
-      else startAudioIframe(lastVideoUrl);
-    }, startDelay*1000);
+    if(bgMode==='video'&&lastVideoUrl){
+      // Cria o player JÁ (mudo) em vez de esperar o fim da contagem — dá à conexão
+      // toda a duração da contagem pra bufferizar antes da partida precisar do vídeo
+      // de verdade. Mesmo truque do celular (_mobileTapStart): "aquece" mudo e, no
+      // GO (ver runCountdown), volta pro início e libera o som de verdade.
+      startVideoBg(lastVideoUrl, true);
+      _videoStartPending=true;
+    } else {
+      // Modo efeitos: iframe offscreen só p/ som, coincide com o fim do countdown.
+      _audioIframeTimer=setTimeout(()=>{ startAudioIframe(lastVideoUrl); }, startDelay*1000);
+    }
   }
   initColorMoments(songDuration);
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
@@ -5059,10 +5064,20 @@ function runCountdown(){
       n--; setTimeout(showNum,1000);
     } else {
       overlay.innerHTML=`<div class="countdown-go">GO!</div>`;
-      // No "GO" o vídeo/som finalmente toca (celular: liberado pelo gesto do toque).
+      // No "GO" o vídeo/som finalmente toca. O player já vinha "aquecendo" mudo
+      // desde o início da contagem (desktop) ou do toque (celular) — volta pro
+      // início (descartando o progresso mudo) e libera o som de verdade agora.
       if(_videoStartPending){
         _videoStartPending=false;
-        try{ if(_vbPlayer&&_vbPlayer.playVideo) _vbPlayer.playVideo(); audioIframeCmd('playVideo'); }catch(_){}
+        try{
+          if(_vbPlayer){
+            if(_vbPlayer.unMute)    _vbPlayer.unMute();
+            if(_vbPlayer.setVolume) _vbPlayer.setVolume(100);
+            if(_vbPlayer.seekTo)    _vbPlayer.seekTo(0, true);
+            if(_vbPlayer.playVideo) _vbPlayer.playVideo();
+          }
+          audioIframeCmd('playVideo');
+        }catch(_){}
       }
       setTimeout(()=>{
         overlay.classList.add('off');overlay.innerHTML='';
