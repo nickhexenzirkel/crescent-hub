@@ -2058,8 +2058,55 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               })()}
 
               {/* Ver Letra */}
-              <div style={{width:"100%",display:"flex",flexDirection:"column",gap:12}}>
-              {/* Toggle Letra */}
+              <div style={{width:"100%",display:"flex",flexDirection:"column",gap:10}}>
+              {/* Prévia da letra — linha sincronizada, sempre visível */}
+              <div style={{
+                borderRadius:16, overflow:"hidden", position:"relative", height:150,
+                boxShadow:`0 6px 24px ${festColors?.[0]||T.gold}33, 0 0 0 1px ${festColors?.[0]||T.gold}33`,
+                border:`1px solid ${festColors?.[0]||T.gold}44`,
+              }}>
+                <div style={{position:"absolute",inset:0,zIndex:0,overflow:"hidden"}}>
+                  <div style={{position:"absolute",inset:0,background:isDark
+                    ? `linear-gradient(160deg,${festColors?.[0]||"#1a0533"}cc,${festColors?.[1]||"#0a1a40"}cc,${festColors?.[2]||"#001a20"}cc)`
+                    : `linear-gradient(160deg,${festColors?.[0]||"#6600cc"}33,${festColors?.[1]||"#003399"}22,${festColors?.[2]||"#003322"}22)`}}/>
+                  <div style={{position:"absolute",width:160,height:160,borderRadius:"50%",
+                    background:festColors?.[0]||"#ff6b6b",filter:"blur(50px)",opacity:0.6,
+                    top:"-40px",left:"-30px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
+                  <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",
+                    background:festColors?.[1]||"#4ecdc4",filter:"blur(45px)",opacity:0.55,
+                    bottom:"-30px",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
+                  <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.3) 0%,transparent 40%,transparent 60%,rgba(0,0,0,0.35) 100%)"}}/>
+                </div>
+                <div style={{position:"relative",zIndex:1,height:"100%",display:"flex",flexDirection:"column",padding:"10px 14px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span style={{fontSize:9.5,fontWeight:700,color:"rgba(255,255,255,0.85)",textTransform:"uppercase",letterSpacing:".1em"}}>Letra</span>
+                  </div>
+                  <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,textAlign:"center",overflow:"hidden"}}>
+                    {lyricsLoading ? (
+                      <span style={{fontSize:11.5,color:"rgba(255,255,255,0.6)"}}>Buscando letra...</span>
+                    ) : lyricsError || !lyrics.length ? (
+                      <span style={{fontSize:11.5,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
+                    ) : (
+                      <>
+                        {lyrics[activeLine-1] && (
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{lyrics[activeLine-1].text}</div>
+                        )}
+                        <div style={{fontSize:16,fontWeight:800,color:"#fff",lineHeight:1.3,
+                          textShadow:`0 0 24px rgba(255,255,255,0.85), 0 0 10px ${festColors?.[0]||"#fff"}cc`,
+                          display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",maxWidth:"100%"}}>
+                          {lyrics[activeLine]?.text || "♪"}
+                        </div>
+                        {lyrics[activeLine+1] && (
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{lyrics[activeLine+1].text}</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ver letra inteira — expande o painel completo */}
               <button onClick={()=>setShowLyrics(v=>!v)}
                 style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px 0",borderRadius:12,
                   border:`1.5px solid ${showLyrics ? T.gold : (isDark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.18)")}`,
@@ -2070,11 +2117,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   cursor:"pointer",fontSize:12,fontWeight:700,outline:"none",transition:"all .2s",width:"100%",
                   boxShadow:showLyrics?`0 4px 16px ${T.goldLine}55`:"none",
                   letterSpacing:".02em"}}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                {showLyrics ? "Fechar Letra" : "Ver Letra"}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">{showLyrics
+                  ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+                  : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>}</svg>
+                {showLyrics ? "Fechar letra inteira" : "Ver letra inteira"}
               </button>
 
-              {/* Painel de Letra */}
+              {/* Painel de Letra completo */}
               {showLyrics && (
                 <div style={{
                   borderRadius:20,
