@@ -7,6 +7,7 @@
 // • Quem captura ganha 100 Prismas Comuns + 100 Premium e o Uniko vai pra coleção.
 // • Duas tentativas: na 1ª ele pode escapar; na 2ª a captura é garantida.
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
@@ -163,7 +164,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       if (w.player && w.player !== me) {
         const res = { player: w.player, at: w.at, comum: w.comum || 0, premium: w.premium || 0, mine: false };
         setResult(res); setJustCaught(res);
-        emitCaptureState({ available: false, uniko: null });
+        emitCaptureState({ available: false, uniko: null, captured: true });
         setTimeout(() => setJustCaught(null), 7000);
       } else {
         setResult({ player: w.player || me, at: w.at });
@@ -171,6 +172,18 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     }, 4000);
     return () => clearInterval(id);
   }, [available, cfg, result]); // eslint-disable-line
+
+  /* ── Alvo do encontro: o slot #capture-uniko-slot no Portal (Início). Reencontra ao
+       navegar entre abas; se não existir (outra aba/tela), não renderiza nada visual. ── */
+  const [slotEl, setSlotEl] = useState(null);
+  useEffect(() => {
+    const active = inPortal && (available || justCaught);
+    if (!active) { setSlotEl(null); return; }
+    const find = () => setSlotEl(document.getElementById('capture-uniko-slot'));
+    find();
+    const id = setInterval(find, 800);
+    return () => clearInterval(id);
+  }, [inPortal, available, justCaught]);
 
   /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ── */
   useEffect(() => {
@@ -219,7 +232,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     } else {
       const res = { player: winner?.player || '—', at: winner?.at, comum: winner?.comum || 0, premium: winner?.premium || 0, mine: false };
       setResult(res); setCaptureResult(cfg, res); setJustCaught(res);
-      emitCaptureState({ available: false, uniko: null });
+      emitCaptureState({ available: false, uniko: null, captured: true });
     }
     resolvingRef.current = false;
     setTimeout(() => setJustCaught(null), 7000); // some o toast
@@ -227,15 +240,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
 
   /* ════════ RENDER ════════ */
 
-  // O CARD só aparece no Portal do Colaborador. O aviso (som + assistente) é global e
-  // acontece nos effects acima, independente da tela em que o colaborador estiver.
-  if (!inPortal) return null;
+  // O encontro é injetado no widget #capture-uniko-slot do Portal (Início), NÃO flutua.
+  // O aviso (som + assistente) é global e acontece nos effects acima, em qualquer tela.
+  if (!inPortal || !slotEl) return null;
+  const wrap = (node) => createPortal(
+    <div className="capture-uniko-slot-inner" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <style>{`body.uw-active .capture-uniko-slot-inner{display:none!important}`}</style>
+      {node}
+    </div>, slotEl);
 
-  // Toast de captura (logo após pegar/perder) — flutuante, some sozinho
+  // Toast de captura (logo após pegar/perder) — some sozinho
   if (justCaught) {
     const r = justCaught;
-    return (
-      <Overlay>
+    return wrap(
         <div style={{ pointerEvents: 'auto', width: 'min(380px,94vw)', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
           <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
@@ -255,15 +272,13 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
             <button onClick={() => setJustCaught(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: th.ink, fontSize: 20, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
         </div>
-      </Overlay>
     );
   }
 
   if (!checked || !available) return null;
 
-  // DISPONÍVEL — encontro flutuante (arraste o assistente até aqui)
-  return (
-    <Overlay>
+  // DISPONÍVEL — encontro dentro do widget (arraste o assistente até aqui)
+  return wrap(
       <div style={{ pointerEvents: 'auto', position: 'relative', width: 'min(380px,94vw)', borderRadius: 18, padding: 3, background: th.deep, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
         <style>{`
           @property --cuAng{syntax:'<angle>';initial-value:0deg;inherits:false}
@@ -325,7 +340,6 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           </div>
         </div>
       </div>
-    </Overlay>
   );
 };
 

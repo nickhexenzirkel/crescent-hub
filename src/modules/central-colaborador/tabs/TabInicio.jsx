@@ -18,7 +18,7 @@ import unikoCowboy    from '../../../assets/UnikoCowboy.png';
 import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
-import { getCapturedCollection, getUniko } from '../../../shared/captureUniko';
+import { getCapturedCollection, getUniko, onCaptureState } from '../../../shared/captureUniko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -96,7 +96,14 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
   const [missoes,   setMissoes]   = useState([]); // missões em andamento (mais próximas de concluir)
   const [evts,      setEvts]      = useState([]);
-  /* Capture Uniko! (função futura) — posição de spawn aleatória só pro visual por enquanto */
+  /* Capture o Uniko — o encontro renderiza DENTRO deste widget (#capture-uniko-slot).
+     capBusy = há Uniko disponível ou resultado recém-capturado ocupando o slot. */
+  const [capBusy,   setCapBusy]   = useState(false);
+  useEffect(() => onCaptureState(s => {
+    if (s?.available) setCapBusy(true);
+    else if (s?.captured) { setCapBusy(true); setTimeout(() => setCapBusy(false), 7200); }
+    else setCapBusy(false);
+  }), []);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {
@@ -538,21 +545,24 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         )}
       </div>
 
-      {/* ══ CAPTURE O UNIKO — encontro temático dentro do widget (config do RH) ═════ */}
-      <div className="home-card" style={{position:'relative',height:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',border:`1px solid ${T.border}`,boxShadow:T.sh,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      {/* ══ CAPTURE O UNIKO — o encontro renderiza DENTRO deste widget (config do RH) ═════ */}
+      <div className="home-card" style={{position:'relative',minHeight:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',border:`1px solid ${T.border}`,boxShadow:T.sh,display:'flex',alignItems:'center',justifyContent:'center',padding:capBusy?12:0}}>
         <style>{`@keyframes capStarTwinkle{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}`}</style>
-        {/* estrelas cintilantes espalhadas */}
-        {[{l:'8%',t:'24%',s:3,d:0},{l:'18%',t:'68%',s:2,d:.6},{l:'30%',t:'34%',s:2.5,d:1.2},{l:'42%',t:'74%',s:2,d:.3},
-          {l:'58%',t:'28%',s:2,d:.9},{l:'70%',t:'62%',s:3,d:1.5},{l:'82%',t:'30%',s:2.5,d:.4},{l:'90%',t:'70%',s:2,d:1.1},
-          {l:'14%',t:'48%',s:2,d:1.8},{l:'50%',t:'18%',s:2,d:.7},{l:'64%',t:'80%',s:2,d:1.3},{l:'86%',t:'50%',s:3,d:.2}].map((st,i)=>(
-          <span key={i} style={{position:'absolute',left:st.l,top:st.t,width:st.s,height:st.s,borderRadius:'50%',
-            background:T.textT,boxShadow:`0 0 6px ${T.textS||T.textT}`,animation:`capStarTwinkle ${2.4+st.d}s ease-in-out ${st.d}s infinite`}}/>
-        ))}
-        {/* mensagem central */}
-        <div style={{position:'relative',zIndex:1,textAlign:'center'}}>
-          <div style={{fontSize:18,marginBottom:4,opacity:.5,letterSpacing:'.3em'}}>✦ ✧ ✦</div>
-          <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
-        </div>
+        {/* placeholder (só quando não há Uniko no slot) */}
+        {!capBusy && <>
+          {[{l:'8%',t:'24%',s:3,d:0},{l:'18%',t:'68%',s:2,d:.6},{l:'30%',t:'34%',s:2.5,d:1.2},{l:'42%',t:'74%',s:2,d:.3},
+            {l:'58%',t:'28%',s:2,d:.9},{l:'70%',t:'62%',s:3,d:1.5},{l:'82%',t:'30%',s:2.5,d:.4},{l:'90%',t:'70%',s:2,d:1.1},
+            {l:'14%',t:'48%',s:2,d:1.8},{l:'50%',t:'18%',s:2,d:.7},{l:'64%',t:'80%',s:2,d:1.3},{l:'86%',t:'50%',s:3,d:.2}].map((st,i)=>(
+            <span key={i} style={{position:'absolute',left:st.l,top:st.t,width:st.s,height:st.s,borderRadius:'50%',
+              background:T.textT,boxShadow:`0 0 6px ${T.textS||T.textT}`,animation:`capStarTwinkle ${2.4+st.d}s ease-in-out ${st.d}s infinite`}}/>
+          ))}
+          <div style={{position:'relative',zIndex:1,textAlign:'center'}}>
+            <div style={{fontSize:18,marginBottom:4,opacity:.5,letterSpacing:'.3em'}}>✦ ✧ ✦</div>
+            <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
+          </div>
+        </>}
+        {/* alvo do encontro — o CaptureUnikoWidget injeta o card aqui via portal */}
+        <div id="capture-uniko-slot" style={{width:'100%',display:'flex',justifyContent:'center'}}/>
       </div>
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}
