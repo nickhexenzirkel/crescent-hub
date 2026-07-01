@@ -490,16 +490,24 @@ const TabColegas = () => {
             const doko    = dokoStates[emp.name];
             const activeSkinId = activeSkins[emp.name];
             const activeSkin   = activeSkinId ? getAssistantSkin(activeSkinId) : null;
+            const equipped     = activeSkinId ? getUniko(activeSkinId) : DEFAULT_UNIKO_CARD;
             return (
               <div key={emp.id || emp.name}
                 onClick={() => openProfile(emp)}
-                style={{ padding:'20px 16px', borderRadius:16,
+                style={{ padding:'14px 16px 20px', borderRadius:16,
                   border: activeSkin ? `1.5px solid ${activeSkin.accent}66` : `1px solid ${T.border}`,
                   background: T.dark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)'),
                   boxShadow: activeSkin ? `0 0 20px ${activeSkin.accent}22` : 'none',
                   cursor:'pointer', transition:'all .15s', textAlign:'center' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = activeSkin ? activeSkin.accent : `${T.goldLine}55`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = T.shM; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = activeSkin ? `${activeSkin.accent}66` : T.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = activeSkin ? `0 0 20px ${activeSkin.accent}22` : 'none'; }}>
+                {/* Uniko habilitado */}
+                <div style={{ height:84, borderRadius:12, overflow:'hidden', marginBottom:14,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  background: equipped.theme.scene || '#1a0408' }}>
+                  <img src={equipped.img} alt={equipped.shortName || equipped.name}
+                    style={{ width:58, height:58, objectFit:'contain', filter:`drop-shadow(0 0 10px ${equipped.theme.accent})` }}/>
+                </div>
                 {/* Avatar */}
                 <div style={{ display:'flex', justifyContent:'center', marginBottom:12, position:'relative' }}>
                   <AvatarCircle name={emp.name} photo={photo} size={64} fontSize={22}
@@ -508,12 +516,6 @@ const TabColegas = () => {
                     <span style={{ position:'absolute', bottom:0, right:'calc(50% - 40px)', fontSize:14 }}>😴</span>
                   )}
                 </div>
-                {/* Assistente UNIKO ativo */}
-                {activeSkin && (
-                  <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
-                    <Tag color={activeSkin.accent}>🦇 {activeSkin.name.replace(/^Uniko\s*/i, '')}</Tag>
-                  </div>
-                )}
                 {/* Nome */}
                 <div style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:3,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.name}</div>
