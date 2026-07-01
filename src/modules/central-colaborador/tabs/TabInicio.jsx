@@ -542,7 +542,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       </div>
 
       {/* ══ CAPTURE O UNIKO — o encontro renderiza DENTRO deste widget (config do RH) ═════ */}
-      <div className="home-card" style={{position:'relative',minHeight:118,borderRadius:16,overflow:'hidden',marginBottom:14,background:'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',border:`1px solid ${T.border}`,boxShadow:T.sh,display:'flex',alignItems:'center',justifyContent:'center',padding:capBusy?12:0}}>
+      <div className="home-card" style={{position:'relative',minHeight:capBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
+        background:capBusy?'transparent':'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
+        border:capBusy?'none':`1px solid ${T.border}`,boxShadow:capBusy?'none':T.sh,
+        display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
         <style>{`@keyframes capStarTwinkle{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}`}</style>
         {/* placeholder (só quando não há Uniko no slot) */}
         {!capBusy && <>
