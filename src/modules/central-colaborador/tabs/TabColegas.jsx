@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, SERVER_URL, getAuthUser, fetchPhotoByName } from '../../../contexts/user';
-import { Card, StarDivider, SHead, AvatarCircle } from '../../../shared/components';
+import { Card, StarDivider, SHead, AvatarCircle, Tag } from '../../../shared/components';
 import { fetchCapturesFor, getUniko } from '../../../shared/captureUniko';
+import { getAssistantSkin, skinRemoteKey } from '../../../shared/assistantSkin';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
@@ -11,6 +12,13 @@ import dokoContador   from '../../../assets/DodocoContador.jpg';
 
 const DOKO_IMG = { tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMedico, ambiental:dokoAmbiental, contador:dokoContador };
 const DOKO_LABEL = { tecnico:'Técnico', cozinheiro:'Cozinheiro', medico:'Médico', ambiental:'Ambientalista', contador:'Contador' };
+
+// Todo colaborador começa com este UNIKO — não vem de captura, por isso não está em CAPTURE_UNIKOS.
+const DEFAULT_UNIKO_CARD = {
+  name: 'UNIKO', shortName: 'UNIKO padrão',
+  img: '/UNIKO_NEW.png',
+  theme: { accent: '#2196F3', scene: 'radial-gradient(120% 90% at 50% 0%, #16294a 0%, #0d1626 45%, #06090f 100%)' },
+};
 
 const TROPHY_TYPES = [
   { id:'nebula',    label:'Troféu Nebula',    img:'/TroféuNebula.png',    color:'#4A9FE8', adminOnly:false },
@@ -234,6 +242,7 @@ const TabColegas = () => {
   const [photos,      setPhotos]     = useState({});
   const [trophies,    setTrophies]   = useState({});
   const [dokoStates,  setDokoStates] = useState({});
+  const [activeSkins, setActiveSkins] = useState({}); // { [nome]: skinId } — assistente UNIKO ativo de cada colega
   const [selected,    setSelected]   = useState(null);
   const [colCollection, setColCollection] = useState(null); // coleção de Unikos do colega selecionado
   useEffect(() => {
@@ -267,10 +276,11 @@ const TabColegas = () => {
       const names = list.map(e => e.name);
       if (!names.length) { setLoading(false); return; }
 
-      const [photoRes, trophyRes, dokoRes] = await Promise.all([
+      const [photoRes, trophyRes, dokoRes, skinRes] = await Promise.all([
         Promise.all(names.map(async n => [n, await fetchPhotoByName(n)])),
         _supabase.from('trophies').select('*').in('to_name', names).order('created_at', { ascending:false }),
         _supabase.from('doko_states').select('*').in('employee_name', names),
+        _supabase.from('settings').select('key,value').in('key', names.map(skinRemoteKey)),
       ]);
 
       setPhotos(Object.fromEntries(photoRes.filter(([,p]) => p)));
@@ -282,6 +292,13 @@ const TabColegas = () => {
       const dmap = {};
       (dokoRes.data || []).forEach(d => { dmap[d.employee_name] = d; });
       setDokoStates(dmap);
+
+      const smap = {};
+      (skinRes.data || []).forEach(row => {
+        const name = names.find(n => skinRemoteKey(n) === row.key);
+        if (name && row.value && row.value !== 'default') smap[name] = row.value;
+      });
+      setActiveSkins(smap);
     } catch {}
     setLoading(false);
   };
@@ -346,6 +363,8 @@ const TabColegas = () => {
     const emTrophy = trophies[emp.name] || [];
     const doko     = dokoStates[emp.name];
     const skin     = doko?.skin || 'tecnico';
+    const activeSkinId = activeSkins[emp.name];
+    const activeSkin   = activeSkinId ? getAssistantSkin(activeSkinId) : null;
 
     return (
       <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
@@ -358,11 +377,19 @@ const TabColegas = () => {
         </button>
 
         {/* Header card */}
-        <Card style={{ padding:'22px 24px', marginBottom:14 }} elevated>
+        <Card style={{ padding:'22px 24px', marginBottom:14,
+          border: activeSkin ? `1.5px solid ${activeSkin.accent}55` : undefined,
+          boxShadow: activeSkin ? `0 0 0 1px ${activeSkin.accent}22, 0 8px 28px ${activeSkin.accent}22` : undefined }} elevated>
           <div style={{ display:'flex', alignItems:'center', gap:18, flexWrap:'wrap' }}>
-            <AvatarCircle name={emp.name} photo={photo} size={70} fontSize={24} style={{ boxShadow:`0 0 0 4px rgba(0,0,0,0.10)` }}/>
+            <AvatarCircle name={emp.name} photo={photo} size={70} fontSize={24}
+              style={{ boxShadow: activeSkin ? `0 0 0 4px ${activeSkin.accent}55` : `0 0 0 4px rgba(0,0,0,0.10)` }}/>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:19, fontWeight:700, color:T.text }}>{emp.name}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                <div style={{ fontSize:19, fontWeight:700, color:T.text }}>{emp.name}</div>
+                {activeSkin && (
+                  <Tag color={activeSkin.accent}>🦇 {activeSkin.name.replace(/^Uniko\s*/i, '')}</Tag>
+                )}
+              </div>
               <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
               {emp.admission && <div style={{ fontSize:11, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
             </div>
@@ -376,19 +403,26 @@ const TabColegas = () => {
             <div>
               <div style={{ fontSize:15, fontWeight:700, color:T.text }}>Coleção de Unikos</div>
               <div style={{ fontSize:12, color:T.textT, marginTop:1 }}>
-                {colCollection == null ? 'Carregando...' : `${colCollection.length} capturado${colCollection.length===1?'':'s'}`}
+                {colCollection == null ? 'Carregando...' : colCollection.length === 0
+                  ? 'UNIKO padrão'
+                  : `UNIKO padrão + ${colCollection.length} capturado${colCollection.length===1?'':'s'}`}
               </div>
             </div>
           </div>
           <StarDivider my={10}/>
           {colCollection == null ? (
             <div style={{ textAlign:'center', padding:'20px 0', color:T.textT, fontSize:13 }}>Carregando...</div>
-          ) : colCollection.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'20px 0', color:T.textT, fontSize:13 }}>
-              {emp.name.split(' ')[0]} ainda não capturou nenhum Uniko.
-            </div>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:12 }}>
+              {/* Todo colaborador tem o UNIKO padrão desde o início */}
+              <div style={{ borderRadius:14, overflow:'hidden', border:`1px solid ${DEFAULT_UNIKO_CARD.theme.accent}55` }}>
+                <div style={{ height:100, background:DEFAULT_UNIKO_CARD.theme.scene, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <img src={DEFAULT_UNIKO_CARD.img} alt={DEFAULT_UNIKO_CARD.name} style={{ width:78, height:78, objectFit:'contain', filter:`drop-shadow(0 0 12px ${DEFAULT_UNIKO_CARD.theme.accent})` }}/>
+                </div>
+                <div style={{ padding:'8px 10px', textAlign:'center' }}>
+                  <div style={{ fontSize:11.5, fontWeight:700, color:T.text, lineHeight:1.2 }}>{DEFAULT_UNIKO_CARD.shortName}</div>
+                </div>
+              </div>
               {colCollection.map((c, i) => {
                 const u = getUniko(c.uniko_id);
                 return (
@@ -454,21 +488,32 @@ const TabColegas = () => {
             const photo   = photos[emp.name];
             const empTrop = trophies[emp.name] || [];
             const doko    = dokoStates[emp.name];
+            const activeSkinId = activeSkins[emp.name];
+            const activeSkin   = activeSkinId ? getAssistantSkin(activeSkinId) : null;
             return (
               <div key={emp.id || emp.name}
                 onClick={() => openProfile(emp)}
-                style={{ padding:'20px 16px', borderRadius:16, border:`1px solid ${T.border}`,
+                style={{ padding:'20px 16px', borderRadius:16,
+                  border: activeSkin ? `1.5px solid ${activeSkin.accent}66` : `1px solid ${T.border}`,
                   background: T.dark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)'),
+                  boxShadow: activeSkin ? `0 0 20px ${activeSkin.accent}22` : 'none',
                   cursor:'pointer', transition:'all .15s', textAlign:'center' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = `${T.goldLine}55`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = T.shM; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
+                onMouseEnter={e => { e.currentTarget.style.borderColor = activeSkin ? activeSkin.accent : `${T.goldLine}55`; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = T.shM; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = activeSkin ? `${activeSkin.accent}66` : T.border; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = activeSkin ? `0 0 20px ${activeSkin.accent}22` : 'none'; }}>
                 {/* Avatar */}
                 <div style={{ display:'flex', justifyContent:'center', marginBottom:12, position:'relative' }}>
-                  <AvatarCircle name={emp.name} photo={photo} size={64} fontSize={22} style={{ boxShadow:`0 0 0 3px rgba(0,0,0,0.10)` }}/>
+                  <AvatarCircle name={emp.name} photo={photo} size={64} fontSize={22}
+                    style={{ boxShadow: activeSkin ? `0 0 0 3px ${activeSkin.accent}66` : `0 0 0 3px rgba(0,0,0,0.10)` }}/>
                   {doko?.dormindo && (
                     <span style={{ position:'absolute', bottom:0, right:'calc(50% - 40px)', fontSize:14 }}>😴</span>
                   )}
                 </div>
+                {/* Assistente UNIKO ativo */}
+                {activeSkin && (
+                  <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
+                    <Tag color={activeSkin.accent}>🦇 {activeSkin.name.replace(/^Uniko\s*/i, '')}</Tag>
+                  </div>
+                )}
                 {/* Nome */}
                 <div style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:3,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.name}</div>
