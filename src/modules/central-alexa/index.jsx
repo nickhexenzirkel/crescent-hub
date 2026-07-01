@@ -2144,7 +2144,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     const fem = guessGender(firstName) === 'f';
                     const title = fem ? 'da poderosa Condessa' : 'do poderoso Conde';
                     return (
-                    <div style={{ display:'flex', justifyContent:'center', marginTop:2, width:'100%' }}>
+                    <div style={{ display:'flex', justifyContent:'center', marginTop:10, width:'100%' }}>
                       <div style={{
                         display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'center', gap:'2px 7px',
                         padding:'7px 14px', borderRadius:14,
