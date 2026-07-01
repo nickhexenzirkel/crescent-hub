@@ -2936,6 +2936,25 @@ function _syncClockToVideo(p){
 // forma limpa e retomamos sozinhos quando o vídeo volta a tocar (re-snap suave).
 // É distinto da pausa MANUAL (pauseGame): não mostra o menu, só um "carregando…".
 let _bufferPaused=false, _bufferPrevState='playing', _bufferOverlayTimer=null;
+let _bufPollTimer=null, _bufSafetyTimer=null;
+// Sondagem + trava de segurança pra qualquer pausa "aguardando o vídeo" (início OU
+// meio da partida): o widget do YouTube tem um bug conhecido de postMessage com
+// origin errado ("Failed to execute postMessage... target origin youtube.com") que
+// às vezes DERRUBA o evento PLAYING sem entregar pro nosso onStateChange — sem
+// isso a partida ficaria presa pra sempre (o vídeo já voltou a tocar, mas a gente
+// nunca fica sabendo). Sonda getPlayerState() direto como plano B do evento.
+function _armBufferWatchdog(){
+  clearInterval(_bufPollTimer); clearTimeout(_bufSafetyTimer);
+  _bufPollTimer=setInterval(()=>{
+    if(!_bufferPaused){ clearInterval(_bufPollTimer); return; }
+    try{
+      if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState&&_vbPlayer.getPlayerState()===YT.PlayerState.PLAYING){
+        clearInterval(_bufPollTimer); _bufferResume();
+      }
+    }catch(_){}
+  },400);
+  _bufSafetyTimer=setTimeout(()=>{ clearInterval(_bufPollTimer); if(_bufferPaused) _bufferResume(); },25000);
+}
 function _bufferOverlayEl(){
   let el=document.getElementById('bufferOverlay');
   if(!el){
@@ -2958,9 +2977,10 @@ function _bufferPause(){
   // Mostra o "carregando…" só se o engasgo persistir (>220ms) p/ não piscar em micro-buffers.
   clearTimeout(_bufferOverlayTimer);
   _bufferOverlayTimer=setTimeout(()=>{ if(_bufferPaused) _bufferOverlayEl().style.display='flex'; },220);
+  _armBufferWatchdog();
 }
 function _bufferResume(){
-  clearTimeout(_bufferOverlayTimer);
+  clearTimeout(_bufferOverlayTimer); clearInterval(_bufPollTimer); clearTimeout(_bufSafetyTimer);
   if(!_bufferPaused) return;
   _bufferPaused=false;
   _bufferOverlayEl().style.display='none';
@@ -5056,14 +5076,12 @@ function runCountdown(){
         }
         if(videoPlaying){ gameState='playing'; return; }
         // Reaproveita o mecanismo de auto-pausa de buffering: fica "carregando…" até
-        // o player disparar PLAYING (ver onStateChange em startVideoBg), que chama
-        // _bufferResume() e libera a partida sincronizada com o vídeo de verdade.
+        // o player disparar PLAYING (ver onStateChange em startVideoBg) ou a sondagem
+        // do watchdog detectar (ver _armBufferWatchdog) — o que vier primeiro.
         _bufferPaused=true; _bufferPrevState='playing'; gameState='paused';
         pauseStartWallMs=performance.now();
         _bufferOverlayEl().style.display='flex';
-        // Trava de segurança: se o vídeo nunca confirmar PLAYING (fallback de iframe
-        // cru sem eventos, ou rede realmente indisponível), não deixa a partida presa.
-        setTimeout(()=>{ if(_bufferPaused) _bufferResume(); },25000);
+        _armBufferWatchdog();
       },700);
     }
   }
