@@ -253,7 +253,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   if (justCaught) {
     const r = justCaught;
     return wrap(
-        <div style={{ pointerEvents: 'auto', width: 'min(380px,94vw)', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
+        <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
           <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
             <img src={uniko.img} alt={uniko.name} style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 14px ${th.accent})` }}/>
@@ -277,9 +277,9 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
 
   if (!checked || !available) return null;
 
-  // DISPONÍVEL — encontro dentro do widget (arraste o assistente até aqui)
+  // DISPONÍVEL — encontro dentro do widget (arraste o assistente até aqui) — ocupa a área toda
   return wrap(
-      <div style={{ pointerEvents: 'auto', position: 'relative', width: 'min(380px,94vw)', borderRadius: 18, padding: 3, background: th.deep, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
+      <div style={{ pointerEvents: 'auto', position: 'relative', width: '100%', borderRadius: 18, padding: 3, background: th.deep, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
         <style>{`
           @property --cuAng{syntax:'<angle>';initial-value:0deg;inherits:false}
           @keyframes cuBorder{to{--cuAng:360deg}}
