@@ -12,8 +12,8 @@ import { getAuthUser } from '../contexts/user';
 import VampireScene from './vampireScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
-  saveCaptureToCollection, emitCaptureState, getCaptureResult, setCaptureResult,
-  CAPTURE_REWARD, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
+  saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
+  CAPTURE_REWARD, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal,
 } from './captureUniko';
 
@@ -50,11 +50,16 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const th = uniko.theme;
 
   const [available, setAvailable] = useState(false);
-  const [result, setResult]       = useState(null); // gating: já capturado (alguém)
-  const [justCaught, setJustCaught] = useState(null); // {mine,player,...} → toast flutuante
+  const [result, setResult]       = useState(null); // vencedor: {player, at, comum, premium}
   const [attempts, setAttempts]   = useState(0);
   const [phase, setPhase]         = useState('idle'); // idle | thrown | escaped | caught
   const [checked, setChecked]     = useState(false);
+  const [nowTs, setNowTs]         = useState(Date.now());
+
+  // Painel "resgatado" fica visível por 30 min após a captura; depois volta ao placeholder.
+  const winnerAt = result?.at ? Date.parse(result.at) : null;
+  const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
+  const winnerMine = !!result?.player && result.player === getAuthUser()?.name;
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
@@ -80,7 +85,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
         if (getCaptureResult(cfg)) setResult(getCaptureResult(cfg));
         setChecked(true); return;
       }
-      if (w) { setResult({ player: w.player, at: w.at }); setCaptureResult(cfg, w); markCaptureDone(cfg); }
+      if (w) { setResult(w); setCaptureResult(cfg, w); markCaptureDone(cfg); }
       else  { setResult(null); clearCaptureLocal(cfg); }
       setChecked(true);
     })();
@@ -114,30 +119,35 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       const w = await fetchCaptureWinner(cfg);
       if (!w) return;
       markCaptureDone(cfg); setCaptureResult(cfg, w); setAvailable(false);
-      const me = getAuthUser()?.name;
-      if (w.player && w.player !== me) {
-        const res = { player: w.player, at: w.at, comum: w.comum || 0, premium: w.premium || 0, mine: false };
-        setResult(res); setJustCaught(res);
-        emitCaptureState({ available: false, uniko: null, captured: true });
-        setTimeout(() => setJustCaught(null), 7000);
-      } else {
-        setResult({ player: w.player || me, at: w.at });
-      }
+      setResult(w);                                        // mostra o painel de resgatado (30 min)
+      emitCaptureState({ available: false, uniko: null, captured: true });
     }, 4000);
     return () => clearInterval(id);
   }, [available, cfg, result]); // eslint-disable-line
+
+  /* ── Expira o painel de "resgatado" após 30 min → volta ao placeholder ── */
+  useEffect(() => {
+    if (winnerAt == null || Number.isNaN(winnerAt)) return;
+    const remaining = winnerAt + WINNER_PANEL_MS - Date.now();
+    if (remaining <= 0) { setNowTs(Date.now()); return; }
+    const t = setTimeout(() => setNowTs(Date.now()), remaining + 250);
+    return () => clearTimeout(t);
+  }, [winnerAt]);
+
+  /* ── Avisa o Portal se o slot está ocupado (encontro OU painel de resgatado) ── */
+  useEffect(() => { emitCaptureSlotBusy(available || winnerActive); }, [available, winnerActive]);
 
   /* ── Alvo do encontro: o slot #capture-uniko-slot no Portal (Início). Reencontra ao
        navegar entre abas; se não existir (outra aba/tela), não renderiza nada visual. ── */
   const [slotEl, setSlotEl] = useState(null);
   useEffect(() => {
-    const active = inPortal && (available || justCaught);
+    const active = inPortal && (available || winnerActive);
     if (!active) { setSlotEl(null); return; }
     const find = () => setSlotEl(document.getElementById('capture-uniko-slot'));
     find();
     const id = setInterval(find, 800);
     return () => clearInterval(id);
-  }, [inPortal, available, justCaught]);
+  }, [inPortal, available, winnerActive]);
 
   /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ── */
   useEffect(() => {
@@ -180,16 +190,15 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       awardPrismas(me, CAPTURE_REWARD.comum, CAPTURE_REWARD.premium);
       addToMyUnikoCollection(uniko);
       saveCaptureToCollection(uniko);
-      const res = { player: me, at: new Date().toISOString(), comum: CAPTURE_REWARD.comum, premium: CAPTURE_REWARD.premium, mine: true };
-      setResult(res); setCaptureResult(cfg, res); setJustCaught(res);
+      const res = { player: me, at: new Date().toISOString(), comum: CAPTURE_REWARD.comum, premium: CAPTURE_REWARD.premium };
+      setResult(res); setCaptureResult(cfg, res);
       emitCaptureState({ available: false, uniko, captured: true });
     } else {
-      const res = { player: winner?.player || '—', at: winner?.at, comum: winner?.comum || 0, premium: winner?.premium || 0, mine: false };
-      setResult(res); setCaptureResult(cfg, res); setJustCaught(res);
+      const res = { player: winner?.player || '—', at: winner?.at || new Date().toISOString(), comum: winner?.comum || 0, premium: winner?.premium || 0 };
+      setResult(res); setCaptureResult(cfg, res);
       emitCaptureState({ available: false, uniko: null, captured: true });
     }
     resolvingRef.current = false;
-    setTimeout(() => setJustCaught(null), 7000); // some o toast
   };
 
   /* ════════ RENDER ════════ */
@@ -203,27 +212,27 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       {node}
     </div>, slotEl);
 
-  // Toast de captura (logo após pegar/perder) — some sozinho
-  if (justCaught) {
-    const r = justCaught;
+  // Painel de "resgatado" — quem pegou, quando e quantas prismas (fica 30 min)
+  if (winnerActive && result && !available) {
     return wrap(
         <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-          <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
-            <img src={uniko.img} alt={uniko.name} style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 14px ${th.accent})` }}/>
+          <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
+            <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 16px ${th.accent})` }}/>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)' }}>{r.mine ? `Gotcha! ${uniko.shortName || uniko.name}` : 'Que pena!'}</div>
-              <div style={{ fontSize: 11.5, color: th.ink, marginTop: 2 }}>
-                {r.mine ? 'Capturado! Está na sua coleção.' : <>Capturado por <strong style={{ color: '#fff' }}>{r.player}</strong>.</>}
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>★ UNIKO RESGATADO ★</div>
+              <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {winnerMine ? 'Você resgatou!' : result.player}
               </div>
-              {r.mine && (r.comum > 0 || r.premium > 0) && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{r.comum}</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(155,107,255,.2)', border: '1px solid rgba(155,107,255,.55)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaPremium.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{r.premium}</span>
-                </div>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
+                <span style={{ fontSize: 11.5, color: th.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={th.ink} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
+                  {fmtWhen(result.at)}
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{result.comum || 0}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(155,107,255,.2)', border: '1px solid rgba(155,107,255,.55)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaPremium.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{result.premium || 0}</span>
+              </div>
             </div>
-            <button onClick={() => setJustCaught(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: th.ink, fontSize: 20, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
         </div>
     );

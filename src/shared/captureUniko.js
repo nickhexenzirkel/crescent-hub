@@ -133,6 +133,24 @@ export function onCaptureState(cb) {
   return () => window.removeEventListener(STATE_EV, h);
 }
 
+/* ── Slot do widget ocupado? (encontro OU painel de "resgatado" ativo) ──
+   O widget é a fonte da verdade; o placeholder "nada aqui" no Portal escuta isto. */
+const SLOT_EV = 'capture-uniko:slot';
+let _lastSlot = false;
+export function emitCaptureSlotBusy(busy) {
+  _lastSlot = !!busy;
+  try { window.dispatchEvent(new CustomEvent(SLOT_EV, { detail: _lastSlot })); } catch {}
+}
+export function onCaptureSlotBusy(cb) {
+  const h = (e) => cb(e.detail);
+  window.addEventListener(SLOT_EV, h);
+  cb(_lastSlot);
+  return () => window.removeEventListener(SLOT_EV, h);
+}
+
+// Janela de tempo que o painel de "resgatado" fica visível após a captura.
+export const WINNER_PANEL_MS = 30 * 60 * 1000; // 30 min
+
 /* ── Coleção de capturas (Supabase, best-effort) ─────────────────────────── */
 export async function saveCaptureToCollection(uniko) {
   try {

@@ -18,7 +18,7 @@ import unikoCowboy    from '../../../assets/UnikoCowboy.png';
 import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
-import { getCapturedCollection, getUniko, onCaptureState } from '../../../shared/captureUniko';
+import { getCapturedCollection, getUniko, onCaptureSlotBusy } from '../../../shared/captureUniko';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -96,14 +96,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
   const [missoes,   setMissoes]   = useState([]); // missões em andamento (mais próximas de concluir)
   const [evts,      setEvts]      = useState([]);
-  /* Capture o Uniko — o encontro renderiza DENTRO deste widget (#capture-uniko-slot).
-     capBusy = há Uniko disponível ou resultado recém-capturado ocupando o slot. */
+  /* Capture o Uniko — o encontro/painel renderiza DENTRO deste widget (#capture-uniko-slot).
+     capBusy vem do próprio widget (encontro disponível OU painel de "resgatado" ativo). */
   const [capBusy,   setCapBusy]   = useState(false);
-  useEffect(() => onCaptureState(s => {
-    if (s?.available) setCapBusy(true);
-    else if (s?.captured) { setCapBusy(true); setTimeout(() => setCapBusy(false), 7200); }
-    else setCapBusy(false);
-  }), []);
+  useEffect(() => onCaptureSlotBusy(setCapBusy), []);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {

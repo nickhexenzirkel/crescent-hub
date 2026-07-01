@@ -117,76 +117,85 @@ const VampStorm = () => {
   );
 };
 
-// Árvore seca (silhueta de galhos)
+// Árvore seca e PRETA (silhueta de galhos retorcidos)
 const BareTree = ({ x, h = 30, s = 1, g = 105 }) => (
-  <g stroke="#34161f" strokeWidth={1.5 * s} fill="none" strokeLinecap="round">
+  <g stroke="#080106" strokeWidth={1.6 * s} fill="none" strokeLinecap="round">
     <path d={`M${x} ${g} L${x} ${g - h}`} />
-    <path d={`M${x} ${g - h * 0.5} L${x - 5 * s} ${g - h * 0.72}`} />
-    <path d={`M${x} ${g - h * 0.45} L${x + 5 * s} ${g - h * 0.66}`} />
-    <path d={`M${x - 5 * s} ${g - h * 0.72} L${x - 8 * s} ${g - h * 0.84}`} />
-    <path d={`M${x + 5 * s} ${g - h * 0.66} L${x + 8 * s} ${g - h * 0.78}`} />
-    <path d={`M${x} ${g - h * 0.78} L${x - 4 * s} ${g - h * 0.95}`} />
-    <path d={`M${x} ${g - h * 0.82} L${x + 4 * s} ${g - h * 0.98}`} />
+    <path d={`M${x} ${g - h * 0.48} L${x - 5 * s} ${g - h * 0.72}`} />
+    <path d={`M${x} ${g - h * 0.42} L${x + 5 * s} ${g - h * 0.64}`} />
+    <path d={`M${x - 5 * s} ${g - h * 0.72} L${x - 8 * s} ${g - h * 0.86}`} />
+    <path d={`M${x + 5 * s} ${g - h * 0.64} L${x + 8 * s} ${g - h * 0.78}`} />
+    <path d={`M${x} ${g - h * 0.74} L${x - 4 * s} ${g - h * 0.94}`} />
+    <path d={`M${x} ${g - h * 0.80} L${x + 4 * s} ${g - h * 0.98}`} />
+    <path d={`M${x - 4 * s} ${g - h * 0.94} L${x - 6 * s} ${g - h * 1.02}`} />
+    <path d={`M${x + 4 * s} ${g - h * 0.98} L${x + 6 * s} ${g - h * 1.05}`} />
   </g>
 );
 
-const SideTreeCluster = ({ side }) => (
-  <svg viewBox="0 0 58 48" width="58" height="48" fill="none"
-    style={{ position:'absolute', bottom:0, [side]:0, pointerEvents:'none', zIndex:1,
-             transform: side === 'right' ? 'scaleX(-1)' : undefined }}>
-    <BareTree x={13} h={34} s={1}    g={48} />
-    <BareTree x={31} h={21} s={0.7}  g={48} />
-    <BareTree x={46} h={27} s={0.85} g={48} />
+// Grupo de árvores secas (3 troncos); posicionável e espelhável
+const TreeCluster = ({ style, flip }) => (
+  <svg viewBox="0 0 58 50" width="58" height="50" fill="none"
+    style={{ position:'absolute', bottom:0, pointerEvents:'none', zIndex:1,
+             transform: flip ? 'scaleX(-1)' : undefined, ...style }}>
+    <BareTree x={13} h={36} s={1}    g={50} />
+    <BareTree x={31} h={22} s={0.7}  g={50} />
+    <BareTree x={46} h={28} s={0.85} g={50} />
   </svg>
 );
 
+// Janela lanceta (arco gótico pontudo) com brilho vermelho fraco
+const Lancet = ({ x, y, w, h, d = 0 }) => (
+  <>
+    <path d={`M${x} ${y + h} L${x} ${y + 5} Q${x + w / 2} ${y - 5} ${x + w} ${y + 5} L${x + w} ${y + h} Z`} fill="#080005" />
+    <path d={`M${x + 1} ${y + h} L${x + 1} ${y + 5} Q${x + w / 2} ${y - 2} ${x + w - 1} ${y + 5} L${x + w - 1} ${y + h} Z`}
+      fill="#c41e3a" opacity=".14" style={{ animation:`vsWinGlow ${3 + d}s ease-in-out ${d}s infinite` }} />
+  </>
+);
+
+// Catedral gótica (igreja antiga) — silhueta escura com torres/agulhas e rosácea
 const VampCastle = () => (
-  <svg viewBox="0 0 220 105" width="240" height="115" fill="none"
+  <svg viewBox="0 0 220 120" width="256" height="140" fill="none"
     style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', pointerEvents:'none', zIndex:1 }}>
-    <rect x="2" y="62" width="22" height="43" fill="#180610"/>
-    <rect x="2"  y="56" width="4" height="7" fill="#180610"/>
-    <rect x="8"  y="56" width="4" height="7" fill="#180610"/>
-    <rect x="14" y="56" width="4" height="7" fill="#180610"/>
-    <rect x="20" y="56" width="4" height="7" fill="#180610"/>
-    <rect x="22" y="48" width="36" height="57" fill="#140410"/>
-    <rect x="22" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="29" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="36" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="43" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="50" y="42" width="7" height="8" fill="#140410"/>
-    <rect x="31" y="60" width="16" height="22" fill="#0c0008"/>
-    <rect x="33" y="62" width="12" height="18" fill="#c41e3a" opacity=".1" style={{ animation:'vsWinGlow 3s ease-in-out infinite' }}/>
-    <rect x="64" y="22" width="92" height="83" fill="#100308"/>
-    <rect x="62"  y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="72"  y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="82"  y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="92"  y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="102" y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="112" y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="122" y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="132" y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="142" y="14" width="8"  height="10" fill="#100308"/>
-    <rect x="152" y="14" width="10" height="10" fill="#100308"/>
-    <rect x="82" y="36" width="56" height="50" fill="#0a0006"/>
-    <rect x="84" y="38" width="52" height="46" fill="#c41e3a" opacity=".12" style={{ animation:'vsWinGlow 3.5s ease-in-out 1s infinite' }}/>
-    <path d="M96 105 L96 72 Q110 56 124 72 L124 105" fill="#0a0006"/>
-    <rect x="162" y="48" width="36" height="57" fill="#140410"/>
-    <rect x="162" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="169" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="176" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="183" y="42" width="5" height="8" fill="#140410"/>
-    <rect x="190" y="42" width="7" height="8" fill="#140410"/>
-    <rect x="173" y="60" width="16" height="22" fill="#0c0008"/>
-    <rect x="175" y="62" width="12" height="18" fill="#c41e3a" opacity=".1" style={{ animation:'vsWinGlow 2.8s ease-in-out .5s infinite' }}/>
-    <rect x="196" y="62" width="22" height="43" fill="#180610"/>
-    <rect x="196" y="56" width="4" height="7" fill="#180610"/>
-    <rect x="202" y="56" width="4" height="7" fill="#180610"/>
-    <rect x="208" y="56" width="4" height="7" fill="#180610"/>
-    <rect x="214" y="56" width="4" height="7" fill="#180610"/>
-    <BareTree x={11}  h={32} s={1} />
-    <BareTree x={28}  h={20} s={0.65} />
-    <BareTree x={209} h={34} s={1.05} />
-    <BareTree x={192} h={21} s={0.7} />
+    <g fill="#0d0208">
+      {/* Torre esquerda + agulha */}
+      <rect x="26" y="46" width="34" height="74"/>
+      <polygon points="26,46 60,46 43,6"/>
+      <polygon points="24,48 34,48 29,32"/>
+      <polygon points="52,48 62,48 57,32"/>
+      {/* Torre direita + agulha */}
+      <rect x="160" y="46" width="34" height="74"/>
+      <polygon points="160,46 194,46 177,6"/>
+      <polygon points="158,48 168,48 163,32"/>
+      <polygon points="186,48 196,48 191,32"/>
+      {/* Nave central + empena (frontão triangular) */}
+      <rect x="60" y="60" width="100" height="60"/>
+      <polygon points="60,60 160,60 110,30"/>
+      {/* Fleche central (agulha fina e alta) */}
+      <polygon points="105,34 115,34 110,0"/>
+      <rect x="108" y="30" width="4" height="8"/>
+    </g>
+
+    {/* Rosácea */}
+    <circle cx="110" cy="74" r="13" fill="#080005"/>
+    <circle cx="110" cy="74" r="10" fill="#c41e3a" opacity=".16" style={{ animation:'vsWinGlow 3.6s ease-in-out infinite' }}/>
+    <g stroke="#080005" strokeWidth="1.3">
+      <line x1="110" y1="63" x2="110" y2="85"/><line x1="99" y1="74" x2="121" y2="74"/>
+      <line x1="102.5" y1="66.5" x2="117.5" y2="81.5"/><line x1="117.5" y1="66.5" x2="102.5" y2="81.5"/>
+    </g>
+
+    {/* Portal (arco pontudo da entrada) */}
+    <path d="M97 120 L97 96 Q110 78 123 96 L123 120 Z" fill="#060004"/>
+    <path d="M100 120 L100 98 Q110 84 120 98 L120 120 Z" fill="#c41e3a" opacity=".10" style={{ animation:'vsWinGlow 4s ease-in-out .6s infinite' }}/>
+
+    {/* Janelas lanceta — nave e torres */}
+    <Lancet x={70}  y={74} w={8} h={26} d={0.2} />
+    <Lancet x={86}  y={92} w={7} h={16} d={1.1} />
+    <Lancet x={127} y={92} w={7} h={16} d={0.7} />
+    <Lancet x={142} y={74} w={8} h={26} d={1.4} />
+    <Lancet x={35}  y={60} w={8} h={22} d={0.5} />
+    <Lancet x={169} y={60} w={8} h={22} d={1.0} />
+    <Lancet x={35}  y={92} w={7} h={16} d={1.7} />
+    <Lancet x={170} y={92} w={7} h={16} d={0.9} />
   </svg>
 );
 
@@ -209,8 +218,14 @@ export default function VampireScene({ bats = 5, moon = true }) {
       <VampClouds />
       <VampStorm />
       <VampCastle />
-      <SideTreeCluster side="left" />
-      <SideTreeCluster side="right" />
+
+      {/* Floresta seca e preta espalhada na base */}
+      <TreeCluster style={{ left: 0 }} />
+      <TreeCluster style={{ left: '14%' }} />
+      <TreeCluster style={{ left: '28%' }} />
+      <TreeCluster style={{ right: '28%' }} flip />
+      <TreeCluster style={{ right: '14%' }} flip />
+      <TreeCluster style={{ right: 0 }} flip />
 
       {Array.from({ length: bats }).map((_, i) => <VampBat key={i} />)}
 
