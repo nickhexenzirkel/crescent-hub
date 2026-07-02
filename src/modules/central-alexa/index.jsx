@@ -313,17 +313,30 @@ const SeaMidCoral = () => (
 );
 
 // Concha aberta com pérola dentro — nos dois cantos do chão.
+// Leque rendilhado (vieira de verdade, não duas linhas finas — isso parecia "olho com
+// pálpebra"), pérola branca no meio. Mesmo desenho do PearlShell em oceanScene.jsx.
 const PearlShellBig = ({ side }) => (
-  <svg viewBox="0 0 60 34" width="72" height="41" fill="none"
+  <svg viewBox="-2 24 64 42" width="78" height="51" fill="none"
     style={{ position: 'absolute', bottom: 4, [side]: '15%', pointerEvents: 'none', transform: side === 'right' ? 'scaleX(-1)' : undefined }}>
-    <path d="M2 30 Q30 34 58 30 Q54 14 30 12 Q6 14 2 30 Z" fill="#ffd9ea" stroke="#f2a3c6" strokeWidth="1.2" />
-    <g stroke="#f2a3c6" strokeWidth="1" opacity=".65">
-      <path d="M12 28 Q15 19 20 13" /><path d="M30 29 L30 12" /><path d="M48 28 Q45 19 40 13" />
+    <path d="M3 56 Q-0.4 51.2 4.3 47.7 Q2.6 42 8.2 40.1 Q8.2 34.2 14.1 34.2 Q16 28.6 21.7 30.3 Q25.2 25.6 30 29 Q34.8 25.6 38.3 30.3 Q44 28.6 45.9 34.2 Q51.8 34.2 51.8 40.1 Q57.4 42 55.7 47.7 Q60.4 51.2 57 56 Q30 63 3 56 Z"
+      fill="#fdf3fb" stroke="#f3b6d8" strokeWidth="1.1" />
+    <path d="M14.1 34.2 Q30 26 45.9 34.2 Q38.3 30.3 30 29 Q21.7 30.3 14.1 34.2 Z" fill="#ffcbe8" opacity=".6" />
+    <path d="M3 56 Q30 63 57 56 Q30 59.5 3 56 Z" fill="#bfe0fb" opacity=".55" />
+    <ellipse cx="30" cy="30" rx="3.2" ry="2.4" fill="#ffb0d6" opacity=".7" />
+    <g strokeWidth="1" opacity=".65" strokeLinecap="round">
+      <path d="M30 57 L4.3 47.7" stroke="#f5abd4" />
+      <path d="M30 57 L8.2 40.1" stroke="#a9d4f0" />
+      <path d="M30 57 L14.1 34.2" stroke="#f5abd4" />
+      <path d="M30 57 L21.7 30.3" stroke="#a9d4f0" />
+      <path d="M30 57 L30 29" stroke="#f5abd4" />
+      <path d="M30 57 L38.3 30.3" stroke="#a9d4f0" />
+      <path d="M30 57 L45.9 34.2" stroke="#f5abd4" />
+      <path d="M30 57 L51.8 40.1" stroke="#a9d4f0" />
+      <path d="M30 57 L55.7 47.7" stroke="#f5abd4" />
     </g>
-    <path d="M6 14 Q30 -5 54 14" stroke="#ffc2dd" strokeWidth="3" strokeLinecap="round" opacity=".85" />
-    <circle cx="31" cy="23" r="6.5" fill="#d9c6f0" opacity=".4" />
-    <circle cx="30" cy="21" r="6.5" fill="#f6efff" />
-    <circle cx="27.3" cy="18.4" r="2.1" fill="#fff" opacity=".95" />
+    <circle cx="31.4" cy="48" r="7.2" fill="#cfe0f7" opacity=".4" />
+    <circle cx="30" cy="46" r="7.2" fill="#fbf6ff" stroke="#e8d9f5" strokeWidth=".5" opacity=".97" />
+    <circle cx="26.9" cy="42.8" r="2.2" fill="#fff" opacity=".95" />
   </svg>
 );
 
@@ -365,10 +378,16 @@ const CentralOcean = () => {
         @keyframes seaBubbleRiseBig{0%{transform:translateY(0) scale(.7);opacity:0;}8%{opacity:.8;}92%{opacity:.4;}100%{transform:translateY(-70vh) scale(1);opacity:0;}}
       `}</style>
 
-      {/* Areia no rodapé da tela */}
+      {/* Areia no rodapé da tela — duas dunas sólidas (a versão antiga era só um gradiente
+          quase invisível, o chão ficava sem areia de verdade aparecendo) */}
+      <svg viewBox="0 0 400 90" preserveAspectRatio="none" width="100%" height="90"
+        style={{ position: 'absolute', left: 0, right: 0, bottom: -2, pointerEvents: 'none' }}>
+        <path d="M0 90 L0 46 Q50 26 110 36 Q180 48 240 32 Q300 16 360 38 Q385 48 400 36 L400 90 Z" fill="#e0be80" opacity=".88" />
+        <path d="M0 90 L0 58 Q80 44 160 56 Q240 68 320 52 Q365 42 400 58 L400 90 Z" fill="#cfa863" opacity=".88" />
+      </svg>
       <div style={{
-        position: 'absolute', left: 0, right: 0, bottom: 0, height: 64,
-        background: 'linear-gradient(180deg, transparent 0%, #d9c07a22 30%, #d9c07a3a 100%)',
+        position: 'absolute', left: 0, right: 0, bottom: 0, height: 90, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, transparent 45%, #fff2c422 70%, transparent 100%)',
         animation: 'seaSandGlow 5s ease-in-out infinite',
       }} />
 
