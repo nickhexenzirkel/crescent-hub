@@ -286,6 +286,23 @@ export async function saveCaptureConfig(cfg) {
 /* ── Janela / evento ─────────────────────────────────────────────────────── */
 export const captureEventId = (cfg) => (cfg?.startAt ? `evt_${cfg.startAt}` : 'evt_default');
 
+// Escolhe o instante de spawn DENTRO da janela — mas não uniforme de propósito: uma
+// janela curta (ex.: 12:10-12:20) pesa a chance pro COMEÇO, já que não sobra muito tempo
+// pra esperar; uma janela longa (ex.: 12:00-16:00) pesa pro MEIO/FIM, pra não correr o
+// azar de cair nos primeiros minutos de uma janela de horas (era exatamente essa a
+// reclamação: "definir 4h e spawnar 5 min depois"). Curva: t = random()^p, onde p > 1
+// puxa pro início (janela curta) e p < 1 puxa pro fim (janela longa) — 30min é o ponto
+// "neutro" (~uniforme).
+export function pickSpawnAt(startIso, endIso) {
+  const s = Date.parse(startIso), e = Date.parse(endIso);
+  if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return startIso;
+  const durationMin = (e - s) / 60000;
+  const REF_MIN = 30;
+  const p = Math.min(6, Math.max(0.15, REF_MIN / durationMin));
+  const t = Math.pow(Math.random(), p);
+  return new Date(s + t * (e - s)).toISOString();
+}
+
 export function isWithinWindow(cfg, now = nowMs()) {
   if (!cfg?.enabled) return false;
   const s = cfg.startAt ? Date.parse(cfg.startAt) : null;

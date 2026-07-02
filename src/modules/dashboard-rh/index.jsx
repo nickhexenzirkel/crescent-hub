@@ -6,7 +6,7 @@ import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit
 import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
-  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
+  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -424,11 +424,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setCapSaving(true); setCapMsg('');
     try {
       const startIso = localToIso(capCfg.startAt), endIso = localToIso(capCfg.endAt);
-      // Momento aleatório DENTRO da janela, fixado agora → todos veem surgir no mesmo instante
+      // Momento DENTRO da janela, fixado agora → todos veem surgir no mesmo instante.
+      // Não é uniforme: janela curta pesa a chance pro início, janela longa pesa pro
+      // meio/fim (evita o azar de spawnar 5min depois de uma janela de horas).
       let spawnAt = startIso;
       if (capCfg.enabled && startIso && endIso) {
-        const s = Date.parse(startIso), e = Date.parse(endIso);
-        spawnAt = new Date(s + Math.random() * Math.max(0, e - s)).toISOString();
+        spawnAt = pickSpawnAt(startIso, endIso);
       }
       await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId });
       setCapMsg('✅ Configuração salva!');
