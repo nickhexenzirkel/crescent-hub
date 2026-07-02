@@ -37,12 +37,16 @@ const DEFAULT_UNIKO = {
     scene: 'radial-gradient(120% 90% at 50% 0%, #16314d 0%, #0c1c2e 45%, #060d16 100%)' },
 };
 
+// Compara nomes ignorando maiúscula/minúscula e acento (ex.: "sereia" acha "Sereia").
+const normSearch = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+
 const TabMyDoko = ({ onPhotoChange }) => {
   const [captured, setCaptured] = useState(() => getCapturedCollection());
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
   const [photoOk, setPhotoOk] = useState(null); // id com feedback "Salvo!"
   const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
+  const [search, setSearch] = useState(''); // busca por nome na coleção
 
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
@@ -86,6 +90,8 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS).filter(u => u.id !== 'uniko-comum'), ...customUnikos];
   const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
+  const q = normSearch(search);
+  const visibleRoster = q ? roster.filter(u => normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q)) : roster;
 
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
@@ -116,9 +122,27 @@ const TabMyDoko = ({ onPhotoChange }) => {
         )}
       </Card>
 
+      {/* Busca por nome */}
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar Uniko pelo nome..."
+          style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', fontSize: 13, color: T.text, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}/>
+        {search && (
+          <button onClick={() => setSearch('')} title="Limpar busca"
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', color: T.textT, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}>×</button>
+        )}
+      </div>
+
       {/* Grade da coleção */}
+      {visibleRoster.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: T.textT }}>
+          Nenhum Uniko encontrado pra "{search}".
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
-        {roster.map(u => {
+        {visibleRoster.map(u => {
           const owned = owns(u);
           const th = u.theme;
           const canAssist = u.canBeAssistant && ASSISTANT_SKINS[u.id];
