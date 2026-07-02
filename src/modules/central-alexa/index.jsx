@@ -270,54 +270,55 @@ const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
   </div>
 );
 
-// Baleia — rara (1-2 por página), atravessa devagar. Pose de humpback: corpo grosso
-// arqueado, barriga pregueada clara, nadadeiras peitorais penduradas, cauda em leque na
-// ponta — baseada em referência de baleia real. Reusa os keyframes seaFishDrift/Rev.
+// Baleia — rara (1-2 por página), atravessa devagar. Pose HORIZONTAL/nivelada (a versão
+// em "salto" ficava torta/diagonal na tela — corrigido). Corpo oval gordo, barriga
+// pregueada clara, nadadeira peitoral, barbatana pequena e cauda em leque, sem torção.
 const WHALE_BELLY = '#eaf7f8';
 const DriftWhale = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '112%' : '-18%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .64} viewBox="-4 -32 90 58" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
-      <path d="M2 14 Q8 -6 34 -16 Q52 -22 68 -18 Q78 -14 74 -6" stroke={color} strokeWidth="15" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6 18 Q14 4 32 -8" stroke={WHALE_BELLY} strokeWidth="6" fill="none" strokeLinecap="round" />
+    <svg width={size} height={size * .4} viewBox="-2 -8 100 40" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
+      <ellipse cx="32" cy="16" rx="28" ry="13" fill={color} />
+      <path d="M2 10 Q-2 16 2 22 Q5 25 10 23 Q5 19 5 15 Q4 12 2 10 Z" fill={color} />
+      <ellipse cx="28" cy="25" rx="19" ry="5" fill={WHALE_BELLY} opacity=".8" />
       <g stroke={WHALE_BELLY} strokeWidth="1" opacity=".7" fill="none">
-        <path d="M8 16 Q12 8 16 2" />
-        <path d="M12 15 Q16 7 20 1" />
-        <path d="M16 14 Q20 6 24 0" />
+        <path d="M8 20 Q10 24 8 28" />
+        <path d="M12 19 Q14 24 12 29" />
+        <path d="M16 19 Q18 24 16 29" />
       </g>
-      <ellipse cx="1" cy="14" rx="7" ry="6" fill={color} />
-      <path d="M18 10 Q14 24 8 30 Q20 26 24 12 Z" fill={color} />
-      <path d="M26 4 Q24 16 20 22 Q28 18 30 6 Z" fill={color} opacity=".9" />
-      <path d="M56 -22 Q58 -30 63 -21 Q59 -20 56 -22 Z" fill={color} />
-      <path d="M68 -18 Q80 -26 87 -18 Q80 -13 76 -10 Q82 -3 85 6 Q74 1 69 -9 Z" fill={color} />
-      <path d="M71 -17 Q78 -22 82 -19" stroke={WHALE_BELLY} strokeWidth="1.5" fill="none" opacity=".7" />
-      <circle cx="-2" cy="12" r="1.7" fill="#0b1a20" />
+      <path d="M20 24 Q16 34 10 38 Q20 34 24 26 Z" fill={color} />
+      <path d="M56 4 Q60 -4 63 4 Q59 5 56 4 Z" fill={color} />
+      <path d="M58 10 Q72 2 84 8 Q74 11 68 12 Q75 16 80 24 Q66 19 59 13 Z" fill={color} />
+      <circle cx="10" cy="12" r="1.8" fill="#0b1a20" />
+      <g opacity=".6">
+        <circle cx="6" cy="-2" r="1.5" fill="#d8f2ff" />
+        <circle cx="9" cy="-6" r="1" fill="#d8f2ff" />
+      </g>
     </svg>
   </div>
 );
 
-// Golfinho — rara (1-2 por página), pose arqueada de "salto": corpo em curva completa,
-// focinho arredondado com sorriso, olho grande estilo cartoon, barbatanas e cauda em
-// leque na ponta — baseada em referência real.
+// Golfinho — rara (1-2 por página), pose HORIZONTAL/nivelada: corpo oval, focinho com
+// sorriso, olho grande estilo cartoon, barbatanas e cauda em leque — nível, sem torção.
 const DOLPHIN_BELLY = '#eef4f7';
 const DriftDolphin = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '108%' : '-8%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .68} viewBox="-6 -26 74 50" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
-      <path d="M2 18 Q10 -8 28 -18 Q42 -25 56 -14 Q62 -9 60 0" stroke={color} strokeWidth="11" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 19 Q12 -2 26 -13" stroke={DOLPHIN_BELLY} strokeWidth="4" fill="none" strokeLinecap="round" />
-      <ellipse cx="1" cy="17" rx="6.2" ry="5.2" fill={color} />
-      <path d="M14 10 Q10 21 4 25 Q15 22 19 12 Z" fill={color} />
-      <path d="M27 -19 Q29 -28 34 -18 Q30 -17 27 -19 Z" fill={color} />
-      <path d="M54 -12 Q64 -20 71 -13 Q65 -9 61 -6 Q66 -1 68 8 Q59 3 55 -5 Z" fill={color} />
-      <circle cx="-1" cy="14" r="2.7" fill="#fff" />
-      <circle cx="-0.6" cy="14" r="1.7" fill="#1a3a5c" />
-      <circle cx="0.1" cy="13.2" r=".7" fill="#fff" />
-      <path d="M-5 18 Q0 22.5 6.5 19" stroke="#33465a" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+    <svg width={size} height={size * .4} viewBox="-6 -14 84 34" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
+      <ellipse cx="24" cy="10" rx="20" ry="8" fill={color} />
+      <path d="M2 8 Q-4 9 -2 13 Q0 16 6 14 Q2 12 2 8 Z" fill={color} />
+      <ellipse cx="22" cy="15" rx="15" ry="3.5" fill={DOLPHIN_BELLY} opacity=".85" />
+      <path d="M14 14 Q11 22 6 26 Q15 23 18 15 Z" fill={color} />
+      <path d="M22 -1 Q24 -10 28 -1 Q25 0 22 -1 Z" fill={color} />
+      <path d="M42 6 Q56 -2 66 5 Q58 8 53 9 Q59 13 63 20 Q50 15 43 9 Z" fill={color} />
+      <circle cx="0" cy="6" r="2.4" fill="#fff" />
+      <circle cx="0.4" cy="6" r="1.5" fill="#1a3a5c" />
+      <circle cx="1" cy="5.3" r=".6" fill="#fff" />
+      <path d="M-4 10 Q1 14 8 11.5" stroke="#33465a" strokeWidth="1.2" fill="none" strokeLinecap="round" />
     </svg>
   </div>
 );
@@ -418,7 +419,7 @@ const CentralOcean = () => {
   if (!whales.current) {
     const n = 1 + Math.round(Math.random());
     whales.current = Array.from({ length: n }).map((_, i) => ({
-      id: i, top: rndSea(10, 42), size: Math.round(rndSea(74, 104)), dur: rndSea(28, 42),
+      id: i, top: rndSea(10, 42), size: Math.round(rndSea(100, 140)), dur: rndSea(28, 42),
       delay: rndSea(0, 20), color: '#2f8f9e', reverse: i % 2 === 1,
     }));
   }
@@ -426,7 +427,7 @@ const CentralOcean = () => {
   if (!dolphins.current) {
     const n = 1 + Math.round(Math.random());
     dolphins.current = Array.from({ length: n }).map((_, i) => ({
-      id: i, top: rndSea(20, 58), size: Math.round(rndSea(46, 68)), dur: rndSea(18, 28),
+      id: i, top: rndSea(20, 58), size: Math.round(rndSea(62, 88)), dur: rndSea(18, 28),
       delay: rndSea(0, 14), color: '#7fa0b8', reverse: i % 2 === 0,
     }));
   }
@@ -2315,7 +2316,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Recife de corais — raios de luz, bolhas, água-vivas, peixinhos e corais */}
                     {isSeaCard && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
-                        <OceanScene jellies={3} fish={4} bubbles={7} />
+                        <OceanScene jellies={3} fish={4} bubbles={7} whales={false} dolphins={false} />
                       </div>
                     )}
 

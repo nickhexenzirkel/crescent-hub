@@ -300,7 +300,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           </div>
 
           {/* Cenário (igual ao card da Central Alexa) — escolhido pelo tema do Uniko */}
-          {th.sceneType === 'ocean' ? <OceanScene jellies={4} fish={5} bubbles={8} />
+          {th.sceneType === 'ocean' ? <OceanScene jellies={4} fish={5} bubbles={8} whales={false} dolphins={false} />
             : th.sceneType === 'vampire' ? <VampireScene bats={6} />
             : null /* Unikos sem cenário artesanal (comuns/Oficina) usam só o fundo (th.scene) */}
 
