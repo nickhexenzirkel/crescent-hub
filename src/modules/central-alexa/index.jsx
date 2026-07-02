@@ -300,6 +300,33 @@ const SeaFloorDecor = ({ side }) => (
   </svg>
 );
 
+// Coral solto, sem anêmona — pro meio do chão (os cantos já têm o SeaFloorDecor completo).
+const SeaMidCoral = () => (
+  <svg viewBox="0 0 60 40" width="76" height="50" fill="none"
+    style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+    <g style={{ animation: 'seaCoralSwayBig 5.6s ease-in-out infinite', transformOrigin: '30px 40px' }}>
+      <path d="M30 40 L30 12 M30 22 L20 10 M30 16 L40 6" stroke="#ff8a76" strokeWidth="6" fill="none" strokeLinecap="round" />
+      <circle cx="30" cy="12" r="4" fill="#ff8a76" /><circle cx="20" cy="10" r="3.4" fill="#ff8a76" /><circle cx="40" cy="6" r="3.4" fill="#ff8a76" />
+    </g>
+    <ellipse cx="30" cy="37" rx="18" ry="6" fill="#ffd76e" opacity=".85" />
+  </svg>
+);
+
+// Concha aberta com pérola dentro — nos dois cantos do chão.
+const PearlShellBig = ({ side }) => (
+  <svg viewBox="0 0 60 34" width="72" height="41" fill="none"
+    style={{ position: 'absolute', bottom: 4, [side]: '15%', pointerEvents: 'none', transform: side === 'right' ? 'scaleX(-1)' : undefined }}>
+    <path d="M2 30 Q30 34 58 30 Q54 14 30 12 Q6 14 2 30 Z" fill="#ffd9ea" stroke="#f2a3c6" strokeWidth="1.2" />
+    <g stroke="#f2a3c6" strokeWidth="1" opacity=".65">
+      <path d="M12 28 Q15 19 20 13" /><path d="M30 29 L30 12" /><path d="M48 28 Q45 19 40 13" />
+    </g>
+    <path d="M6 14 Q30 -5 54 14" stroke="#ffc2dd" strokeWidth="3" strokeLinecap="round" opacity=".85" />
+    <circle cx="31" cy="23" r="6.5" fill="#d9c6f0" opacity=".4" />
+    <circle cx="30" cy="21" r="6.5" fill="#f6efff" />
+    <circle cx="27.3" cy="18.4" r="2.1" fill="#fff" opacity=".95" />
+  </svg>
+);
+
 const CentralOcean = () => {
   const jellies = useRef(null);
   if (!jellies.current) {
@@ -347,6 +374,9 @@ const CentralOcean = () => {
 
       <SeaFloorDecor side="left" />
       <SeaFloorDecor side="right" />
+      <SeaMidCoral />
+      <PearlShellBig side="left" />
+      <PearlShellBig side="right" />
 
       {jellies.current.map(j => <GiantJelly key={j.id} {...j} />)}
       {fish.current.map(f => <DriftFish key={f.id} {...f} />)}

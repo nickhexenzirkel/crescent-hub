@@ -140,6 +140,35 @@ const CoralCluster = ({ style, flip }) => (
   </svg>
 );
 
+/* ── Faixa de areia no chão (duas camadas de dunas, preenche a largura toda) ── */
+const SandFloor = () => (
+  <svg viewBox="0 0 400 46" preserveAspectRatio="none" width="100%" height="15%"
+    style={{ position: 'absolute', left: 0, right: 0, bottom: -2, pointerEvents: 'none', zIndex: 0 }}>
+    <path d="M0 46 L0 24 Q40 10 90 18 Q150 28 200 16 Q260 6 320 20 Q365 30 400 18 L400 46 Z" fill="#e8c98a" opacity=".92" />
+    <path d="M0 46 L0 32 Q60 22 120 30 Q200 40 280 28 Q340 20 400 32 L400 46 Z" fill="#d9b571" opacity=".9" />
+  </svg>
+);
+
+/* ── Concha aberta com pérola dentro (cantos do chão) ── */
+const PearlShell = ({ style, flip }) => (
+  <svg viewBox="0 0 60 34" width="54" height="31" fill="none"
+    style={{ position: 'absolute', bottom: 3, pointerEvents: 'none', zIndex: 1, transform: flip ? 'scaleX(-1)' : undefined, ...style }}>
+    {/* concha de baixo */}
+    <path d="M2 30 Q30 34 58 30 Q54 14 30 12 Q6 14 2 30 Z" fill="#ffd9ea" stroke="#f2a3c6" strokeWidth="1.2" />
+    <g stroke="#f2a3c6" strokeWidth="1" opacity=".65">
+      <path d="M12 28 Q15 19 20 13" />
+      <path d="M30 29 L30 12" />
+      <path d="M48 28 Q45 19 40 13" />
+    </g>
+    {/* concha de cima, aberta atrás */}
+    <path d="M6 14 Q30 -5 54 14" stroke="#ffc2dd" strokeWidth="3" strokeLinecap="round" opacity=".85" />
+    {/* pérola (sem gradiente pra não colidir id entre instâncias) */}
+    <circle cx="31" cy="23" r="6.5" fill="#d9c6f0" opacity=".4" />
+    <circle cx="30" cy="21" r="6.5" fill="#f6efff" />
+    <circle cx="27.3" cy="18.4" r="2.1" fill="#fff" opacity=".95" />
+  </svg>
+);
+
 /* ── Raios de luz suaves vindos de cima ── */
 const SunRays = () => (
   <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
@@ -172,11 +201,17 @@ export default function OceanScene({ jellies = 4, fish = 5, bubbles = 8 }) {
       {Array.from({ length: fish }).map((_, i) => <Fish key={i} />)}
       {Array.from({ length: bubbles }).map((_, i) => <SeaBubble key={i} />)}
 
-      {/* Corais no fundo, espalhados */}
-      <CoralCluster style={{ left: 0 }} />
-      <CoralCluster style={{ left: '16%' }} flip />
-      <CoralCluster style={{ right: '18%' }} />
-      <CoralCluster style={{ right: 0 }} flip />
+      {/* Areia cobrindo o chão inteiro (atrás dos corais/conchas) */}
+      <SandFloor />
+
+      {/* Conchas abertas com pérola, bem nos dois cantos do chão */}
+      <PearlShell style={{ left: '1%' }} />
+      <PearlShell style={{ right: '1%' }} flip />
+
+      {/* Corais espalhados entre as conchas — inclusive um centralizado no meio */}
+      <CoralCluster style={{ left: '19%' }} flip />
+      <CoralCluster style={{ left: '50%', transform: 'translateX(-50%) scale(.85)' }} />
+      <CoralCluster style={{ right: '19%' }} />
 
       {/* Brilho atmosférico azul-turquesa */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
