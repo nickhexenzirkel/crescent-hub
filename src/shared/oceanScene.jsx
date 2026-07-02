@@ -100,6 +100,72 @@ const Fish = () => {
   );
 };
 
+/* ── Baleia (SVG): corpo grande, cauda em V, jato d'água — rara, no fundo da cena ── */
+const WHALE_PALETTE = ['#6ea8d8', '#8fb8e0', '#5c93c4'];
+const newWhalePose = () => {
+  const fdx = (Math.random() < 0.5 ? -1 : 1) * rndN(90, 170);
+  return {
+    top: rndN(15, 45), left: rndN(0, 55), sz: Math.round(rndN(46, 66)),
+    fdx, dur: rndN(17, 26), delay: rndN(0, 10), flip: fdx > 0,
+    color: WHALE_PALETTE[Math.floor(rndN(0, WHALE_PALETTE.length))],
+  };
+};
+const Whale = () => {
+  const [pose] = useState(newWhalePose);
+  const c = pose.color;
+  return (
+    <div style={{
+      position: 'absolute', top: `${pose.top}%`, left: `${pose.left}%`, pointerEvents: 'none',
+      '--fdx': `${pose.fdx}px`, opacity: .85, zIndex: 0,
+      animation: `osFishSwim ${pose.dur}s ease-in-out ${pose.delay}s infinite`,
+      transform: pose.flip ? 'scaleX(-1)' : undefined,
+    }}>
+      <svg width={pose.sz} height={pose.sz * .65} viewBox="0 -8 60 42" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
+        <path d="M4 18 Q4 8 20 7 Q40 6 50 14 Q58 17 58 19 Q50 24 38 25 Q20 27 8 22 Q4 20 4 18 Z" fill={c} />
+        <path d="M10 20 Q22 25 38 24 Q26 26.5 14 23 Q10 22 10 20 Z" fill="#fff" opacity=".3" />
+        <path d="M50 14 L60 6 L56 17 L60 27 L48 20 Z" fill={c} />
+        <path d="M26 8 L30 0 L34 8 Z" fill={c} />
+        <circle cx="12" cy="14" r="1.6" fill="#0b1a20" />
+        <g opacity=".65">
+          <circle cx="19" cy="0" r="1.3" fill="#d8f2ff" />
+          <circle cx="22" cy="-4" r="1" fill="#d8f2ff" />
+          <circle cx="17" cy="-4" r=".8" fill="#d8f2ff" />
+        </g>
+      </svg>
+    </div>
+  );
+};
+
+/* ── Golfinho (SVG): corpo esguio arqueado, nadadeira dorsal, cauda bifurcada ── */
+const DOLPHIN_PALETTE = ['#7fa8c9', '#9fc3de', '#6b93b8'];
+const newDolphinPose = () => {
+  const fdx = (Math.random() < 0.5 ? -1 : 1) * rndN(110, 200);
+  return {
+    top: rndN(20, 55), left: rndN(0, 55), sz: Math.round(rndN(32, 46)),
+    fdx, dur: rndN(10, 17), delay: rndN(0, 8), flip: fdx > 0,
+    color: DOLPHIN_PALETTE[Math.floor(rndN(0, DOLPHIN_PALETTE.length))],
+  };
+};
+const Dolphin = () => {
+  const [pose] = useState(newDolphinPose);
+  const c = pose.color;
+  return (
+    <div style={{
+      position: 'absolute', top: `${pose.top}%`, left: `${pose.left}%`, pointerEvents: 'none',
+      '--fdx': `${pose.fdx}px`, opacity: .9, zIndex: 0,
+      animation: `osFishSwim ${pose.dur}s ease-in-out ${pose.delay}s infinite`,
+      transform: pose.flip ? 'scaleX(-1)' : undefined,
+    }}>
+      <svg width={pose.sz} height={pose.sz * .6} viewBox="0 0 56 32" style={{ display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.2))' }}>
+        <path d="M2 17 Q5 11 15 9 Q17 5 21 7 Q19 10 21 12 Q33 10 44 15 Q39 17.5 33 17 Q39 20 43 25 Q32 23 25 19 Q14 23 4 20 Q1 19 2 17 Z" fill={c} />
+        <path d="M6 18 Q14 21 24 19" stroke="#fff" strokeWidth="1.4" opacity=".4" fill="none" />
+        <path d="M44 15 L54 11 L50 17 L54 23 L42 19 Z" fill={c} />
+        <circle cx="13" cy="10.5" r="1.3" fill="#0b1a20" />
+      </svg>
+    </div>
+  );
+};
+
 /* ── Coral ramificado (galhos arredondados, coloridos) ── */
 const BranchCoral = ({ x, h = 32, s = 1, g = 118, color = '#ff8a76' }) => (
   <g style={{ animation: 'osCoralSway 5s ease-in-out infinite', transformOrigin: `${x}px ${g}px` }}>
@@ -195,7 +261,11 @@ const SunRays = () => (
 );
 
 // Cenário completo — preenche o elemento pai (que deve ser position:relative/absolute).
-export default function OceanScene({ jellies = 4, fish = 5, bubbles = 8 }) {
+export default function OceanScene({ jellies = 4, fish = 5, bubbles = 8, whales = true, dolphins = true }) {
+  // Baleia/golfinho são raros de propósito — no máximo 1 ou 2 de cada, sorteado uma
+  // vez só (não a cada render, senão trocaria de bicho o tempo todo).
+  const [whaleCount] = useState(() => (whales ? 1 + Math.round(Math.random()) : 0));
+  const [dolphinCount] = useState(() => (dolphins ? 1 + Math.round(Math.random()) : 0));
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
       <style>{OCEAN_SCENE_CSS}</style>
@@ -209,6 +279,8 @@ export default function OceanScene({ jellies = 4, fish = 5, bubbles = 8 }) {
         animation: 'osCaustic 4.5s ease-in-out infinite',
       }} />
 
+      {Array.from({ length: whaleCount }).map((_, i) => <Whale key={i} />)}
+      {Array.from({ length: dolphinCount }).map((_, i) => <Dolphin key={i} />)}
       {Array.from({ length: jellies }).map((_, i) => <Jellyfish key={i} />)}
       {Array.from({ length: fish }).map((_, i) => <Fish key={i} />)}
       {Array.from({ length: bubbles }).map((_, i) => <SeaBubble key={i} />)}
