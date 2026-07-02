@@ -1,6 +1,7 @@
 // src/modules/central-alexa/UnikoMascot.jsx
 import React, { useState, useEffect } from 'react';
 import { getAssistantSkin } from '../../shared/assistantSkin';
+import { getUniko } from '../../shared/captureUniko';
 
 const DEFAULT_IMG = '/UNIKO_ALEXACENTRAL.png';
 
@@ -80,9 +81,14 @@ const GLOW_BY_SKIN  = {
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
 const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' }) => {
   const isSpecial = songSkin !== 'default';
+  const isVamp = songSkin === 'vampire-robot', isSea = songSkin === 'uniko-sereia';
   const skin      = getAssistantSkin(songSkin);
+  // Unikos da Oficina (ou 'uniko-comum') não têm balão/brilho artesanal — usa a cor que
+  // o admin escolheu (getUniko cobre fixos E os criados na Oficina) como tema genérico.
+  const uni       = (isSpecial && !isVamp && !isSea) ? getUniko(songSkin) : null;
+  const customAccent = uni?.theme?.accent || null;
   const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
-  const bubbleClass = songSkin === 'vampire-robot' ? 'vamp-bubble' : songSkin === 'uniko-sereia' ? 'sea-bubble' : 'normal-bubble';
+  const bubbleClass = isVamp ? 'vamp-bubble' : isSea ? 'sea-bubble' : 'normal-bubble';
 
   const [line,       setLine]       = useState(() => rand(lines));
   const [showBubble, setShowBubble] = useState(true);
@@ -164,6 +170,18 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             maxWidth:             size + 48,
             textAlign:            'center',
             lineHeight:           1.45,
+          } : customAccent ? {
+            background:           'rgba(6,6,10,0.85)',
+            backdropFilter:       'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border:               `1px solid ${customAccent}55`,
+            borderRadius:         '14px 14px 14px 4px',
+            padding:              '9px 14px',
+            fontSize:             13,
+            color:                '#fff',
+            maxWidth:             size + 48,
+            textAlign:            'center',
+            lineHeight:           1.45,
           } : {
             background:           'rgba(255,255,255,0.09)',
             backdropFilter:       'blur(10px)',
@@ -192,7 +210,8 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             objectFit:  'contain',
             flexShrink: 0,
             animation:  'unikoFloat 3s ease-in-out infinite',
-            filter: GLOW_BY_SKIN[songSkin] || 'drop-shadow(0 4px 12px rgba(0,0,0,.25))',
+            filter: GLOW_BY_SKIN[songSkin]
+              || (customAccent ? `drop-shadow(0 0 10px ${customAccent}88) drop-shadow(0 4px 12px rgba(0,0,0,.3))` : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))'),
             transition: 'filter .4s',
           }}
         />

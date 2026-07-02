@@ -5,6 +5,7 @@ import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../.
 import UnikoMascot from './UnikoMascot';
 import OceanScene from '../../shared/oceanScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
+import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
@@ -2106,17 +2107,22 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               {(() => {
                 const isVampCard = songSkin === 'vampire-robot';
                 const isSeaCard  = songSkin === 'uniko-sereia';
-                const isThemedCard = isVampCard || isSeaCard;
+                // Qualquer outra skin não-padrão (UNIKO Comum ou um Uniko da Oficina) ganha
+                // borda/glow na cor que o admin escolheu ao criar (getUniko cobre os dois).
+                const isCustomCard = songSkin !== 'default' && !isVampCard && !isSeaCard;
+                const isThemedCard = isVampCard || isSeaCard || isCustomCard;
                 const skin = isThemedCard ? getAssistantSkin(songSkin) : null;
+                const uni  = isCustomCard ? getUniko(songSkin) : null;
+                const customAccent = uni?.theme?.accent || T.gold;
                 return (
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
                   {isSeaCard && <style>{SEA_CARD_CSS}</style>}
 
                   <div style={{borderRadius:20,
-                    background: isVampCard ? '#090004' : isSeaCard ? '#03141a' : cardBg,
+                    background: isVampCard ? '#090004' : isSeaCard ? '#03141a' : isCustomCard ? (uni?.theme?.deep || '#0a0a12') : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                    border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : `1px solid ${T.border}`,
+                    border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : isCustomCard ? `2px solid ${customAccent}` : `1px solid ${T.border}`,
                     padding:"16px 16px 12px",
                     boxShadow: isThemedCard ? undefined : T.shM,
                     animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : isSeaCard ? 'seaCardBreathe 4s ease-in-out infinite' : undefined,
@@ -2174,6 +2180,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Normal blob */}
                     {!isThemedCard && (
                       <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
+                    )}
+
+                    {/* Glow na cor do Uniko personalizado (Oficina/Comum) — sem cenário artesanal próprio */}
+                    {isCustomCard && (
+                      <div style={{position:"absolute",width:110,height:110,borderRadius:"50%",background:customAccent,filter:"blur(40px)",opacity:0.18,top:-10,left:"18%"}}/>
                     )}
 
                     <div style={{ position:'relative', zIndex:2 }}>

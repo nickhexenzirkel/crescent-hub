@@ -341,9 +341,17 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const lastCaptureId = useRef(null);
   useEffect(() => {
     const off = onCaptureState((s) => {
-      if (s?.captured) {            // capturou! parabeniza e limpa o alerta
+      if (s?.captured) {
+        // Este evento chega pra QUALQUER cliente vendo o mesmo Uniko (o widget avisa todo
+        // mundo que "alguém capturou" pra sumir o encontro em todas as telas ao mesmo
+        // tempo) — só o VENCEDOR de verdade recebe o `uniko` no payload (ver resolveAttempt
+        // em CaptureUnikoWidget.jsx); nos outros clientes `uniko` vem null. Sem esse check,
+        // TODO MUNDO via a mensagem "Você capturou", inclusive quem não capturou nada.
         setCaptureAlert(null);
-        say(`Boa! Você capturou o ${s.uniko?.name || 'Uniko'} e ganhou 100 Prismas Comuns + 100 Premium! Ele já está na sua Coleção. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
+        if (s.uniko) {
+          const rw = s.uniko.reward || {};
+          say(`Boa! Você capturou o ${s.uniko.name || 'Uniko'} e ganhou ${rw.comum ?? 100} Prismas Comuns + ${rw.premium ?? 100} Premium! Ele já está na sua Coleção. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
+        }
         return;
       }
       // alerta GLOBAL: avisa em qualquer tela quando há um Uniko disponível
