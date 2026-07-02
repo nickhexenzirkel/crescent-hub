@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
-import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer } from '../../../shared/captureUniko';
+import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
 import { ASSISTANT_SKINS, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
 
 /* Mantém a MESMA chave do antigo My Uniko — TabGames/TabInicio ainda a importam. */
@@ -42,12 +42,16 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
   const [photoOk, setPhotoOk] = useState(null); // id com feedback "Salvo!"
   const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
+  const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
 
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
     window.addEventListener('uniko-collection:changed', refresh);
     // sincroniza com o servidor ao abrir a coleção (reflete reset do admin)
     syncCollectionFromServer().then(list => { if (Array.isArray(list)) setCaptured(list); });
+    // Unikos da Oficina já são carregados no login (App.jsx); recarrega aqui de novo pra
+    // pegar os que foram criados DEPOIS do login, sem precisar dar F5.
+    loadCustomUnikos().then(list => { if (Array.isArray(list)) setCustomUnikos(list); });
     return () => window.removeEventListener('uniko-collection:changed', refresh);
   }, []);
   useEffect(() => onAssistantSkinChange((id) => setActiveAssistant(id || 'default')), []);
@@ -79,7 +83,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
   // 'uniko-comum' é o mesmo UNIKO clássico do DEFAULT_UNIKO (mesma arte) — existe só como
   // opção de recompensa "menor" pro admin escolher no evento (Dashboard RH), NÃO deve
   // aparecer aqui como um "???" bloqueado duplicado do padrão que todo mundo já tem.
-  const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS).filter(u => u.id !== 'uniko-comum')];
+  const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS).filter(u => u.id !== 'uniko-comum'), ...customUnikos];
   const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
 

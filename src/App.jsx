@@ -16,7 +16,7 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
-import { loadCaptureConfig, CONFIG_KEY } from './shared/captureUniko';
+import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos } from './shared/captureUniko';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -44,6 +44,9 @@ export default function CrescentHub() {
     const poll = setInterval(refresh, 5000); // fallback caso realtime não esteja habilitado
     return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
   }, [authUser]);
+  // Unikos criados na Oficina (Dashboard RH) — carrega o roster + skins de assistente
+  // uma vez no login, pra getUniko/getAssistantSkin já encontrarem os customizados.
+  useEffect(() => { if (authUser) loadCustomUnikos(); }, [authUser]);
   useEffect(() => {
     const h = (e) => setActiveTheme(e.detail);
     window.addEventListener('ch_themechange', h);

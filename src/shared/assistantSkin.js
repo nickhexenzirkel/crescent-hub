@@ -88,10 +88,15 @@ export const ASSISTANT_SKINS = {
   },
 };
 
-export const getAssistantSkin = (id) => ASSISTANT_SKINS[id] || ASSISTANT_SKINS.default;
+// Skins da OFICINA DE UNIKO (criadas pelo admin, fora do código) — populadas em runtime
+// por captureUniko.js (loadCustomUnikos), que lê a tabela custom_unikos do Supabase.
+let _customSkins = {};
+export function registerCustomSkin(id, skin) { _customSkins[id] = skin; }
+
+export const getAssistantSkin = (id) => ASSISTANT_SKINS[id] || _customSkins[id] || ASSISTANT_SKINS.default;
 
 export function getSkinVariations(id) {
-  const s = ASSISTANT_SKINS[id];
+  const s = ASSISTANT_SKINS[id] || _customSkins[id];
   if (!s) return [];
   const out = [];
   const push = (label, img) => { if (img && !out.some(o => o.img === img)) out.push({ label, img }); };

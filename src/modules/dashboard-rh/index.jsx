@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
-import { loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward } from '../../shared/captureUniko';
+import {
+  loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
+  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme,
+} from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -84,6 +87,33 @@ const AdminLoginModal = ({onSuccess, onCancel}) => {
           Cancelar
         </button>
       </div>
+    </div>
+  );
+};
+
+// Slot de upload de UM frame da Oficina de Uniko — mostra o preview (ou um "+" vazio),
+// deixa anexar/trocar/remover. Só o frame "principal" é obrigatório; os outros ficam
+// em branco à vontade (o Uniko cai no frame principal pra essa ação).
+const FrameUploadSlot = ({ label, hint, value, onFile, onClear, required }) => {
+  const inputId = useId();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 100 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.textD, textAlign: 'center' }}>
+        {label}{required && <span style={{ color: '#C04050' }}> *</span>}
+      </div>
+      <label htmlFor={inputId} style={{
+        width: 84, height: 84, borderRadius: 14, border: `2px dashed ${T.border}`, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+        background: value ? 'rgba(0,0,0,.15)' : 'transparent',
+      }}>
+        {value
+          ? <img src={value} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          : <span style={{ fontSize: 22, color: T.textT, opacity: .6 }}>+</span>}
+      </label>
+      <input id={inputId} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; onFile(f); e.target.value = ''; }} />
+      {value && <button onClick={onClear} style={{ fontSize: 10, color: '#C04050', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>remover</button>}
+      <div style={{ fontSize: 9.5, color: T.textT, textAlign: 'center', lineHeight: 1.3 }}>{hint}</div>
     </div>
   );
 };
@@ -423,6 +453,74 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setTimeout(() => setCapMsg(''), 6000);
   };
   useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
+
+  // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
+  const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
+  const [oficinaForm, setOficinaForm]       = useState({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100 });
+  const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null });
+  const [oficinaSaving, setOficinaSaving]   = useState(false);
+  const [oficinaMsg, setOficinaMsg]         = useState('');
+  const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
+
+  const loadOficinaLib = async () => { const list = await loadCustomUnikos(); setOficinaLib(list); };
+  useEffect(() => { if (tab === 'capture') loadOficinaLib(); }, [tab]);
+  // Preview piscando — só pra dar uma ideia de como fica animado (aberto/fechado a cada 2s).
+  useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
+
+  // Lê um arquivo de imagem, redimensiona (máx. 320px no lado maior, mantém transparência) e
+  // devolve um dataURL PNG — mesma ideia do canvas 300x300 já usado pra foto de perfil.
+  const frameFromFile = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 320;
+        let { width, height } = img;
+        if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
+        else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+        const c = document.createElement('canvas'); c.width = width; c.height = height;
+        c.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const handleFrameFile = async (key, file) => {
+    if (!file) return;
+    try { setOficinaFrames(f => ({ ...f, [key]: null })); const dataUrl = await frameFromFile(file); setOficinaFrames(f => ({ ...f, [key]: dataUrl })); }
+    catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
+  };
+  const resetOficinaForm = () => {
+    setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100 });
+    setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null });
+  };
+  const saveOficina = async () => {
+    if (!oficinaForm.name.trim()) { setOficinaMsg('⚠️ Dê um nome pro Uniko'); return; }
+    if (!oficinaFrames.main) { setOficinaMsg('⚠️ O frame principal (estático) é obrigatório'); return; }
+    setOficinaSaving(true); setOficinaMsg('');
+    try {
+      await saveCustomUniko({
+        name: oficinaForm.name.trim(), tagline: oficinaForm.tagline.trim(), accent: oficinaForm.accent,
+        rewardComum: Number(oficinaForm.rewardComum) || 0, rewardPremium: Number(oficinaForm.rewardPremium) || 0,
+        imgMain: oficinaFrames.main, imgNotif: oficinaFrames.notif, imgAlert: oficinaFrames.alert,
+        imgClosed: oficinaFrames.closed, imgCapture: oficinaFrames.capture,
+        createdBy: getAuthUser()?.name,
+      });
+      setOficinaMsg('✅ Uniko adicionado à Biblioteca!');
+      resetOficinaForm();
+      await loadOficinaLib();
+    } catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao salvar')); }
+    setOficinaSaving(false);
+    setTimeout(() => setOficinaMsg(''), 5000);
+  };
+  const removeOficina = async (id, name) => {
+    if (!window.confirm(`Remover "${name}" da Biblioteca? Isso não afeta quem já capturou esse Uniko antes.`)) return;
+    try { await deleteCustomUniko(id); await loadOficinaLib(); if (capCfg.unikoId === id) setCapCfg(c => ({ ...c, unikoId: 'vampire-robot' })); }
+    catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao remover')); }
+  };
 
   // ── Reset da coleção "Capture o Uniko" ──
   const [resetPlayer, setResetPlayer] = useState('');
@@ -1644,7 +1742,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
           {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
           {tab==='capture'&&(()=>{
-            const uni = CAPTURE_UNIKOS[capCfg.unikoId] || CAPTURE_UNIKOS['vampire-robot'];
+            const uni = getUniko(capCfg.unikoId);
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
@@ -1685,7 +1783,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko disponível</label>
                   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                    {Object.values(CAPTURE_UNIKOS).map(u=>{
+                    {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
                       const rw = getCaptureReward(u);
                       return (
                       <button key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
@@ -1732,6 +1830,123 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
                   ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. São 2 tentativas de captura — na 1ª o Uniko pode escapar, na 2ª é garantido.
+                </div>
+              </div>
+
+              {/* Oficina de Uniko — criar Unikos personalizados */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Oficina de Uniko</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Crie um Uniko novo anexando as imagens dele. Só o frame <b>principal</b> é obrigatório — os que faltarem usam o principal no lugar (fica um ícone parado, sem animação, se você quiser assim).</div>
+                </div>
+
+                {/* Nome / tagline */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Nome do Uniko</label>
+                    <input value={oficinaForm.name} onChange={e=>setOficinaForm(f=>({...f,name:e.target.value}))} placeholder="Ex.: Uniko Fênix"
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Frase (tagline)</label>
+                    <input value={oficinaForm.tagline} onChange={e=>setOficinaForm(f=>({...f,tagline:e.target.value}))} placeholder="Ex.: Renasce das cinzas"
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                </div>
+
+                {/* Cor + recompensa */}
+                <div style={{display:'flex',gap:14,flexWrap:'wrap',alignItems:'end'}}>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Cor principal</label>
+                    <input type="color" value={oficinaForm.accent} onChange={e=>setOficinaForm(f=>({...f,accent:e.target.value}))}
+                      style={{width:52,height:40,border:`1px solid ${T.border}`,borderRadius:8,cursor:'pointer',padding:2,background:'transparent'}}/>
+                  </div>
+                  <div style={{width:150}}>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Recompensa comum</label>
+                    <input type="number" min="0" value={oficinaForm.rewardComum} onChange={e=>setOficinaForm(f=>({...f,rewardComum:e.target.value}))}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                  <div style={{width:150}}>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Recompensa premium</label>
+                    <input type="number" min="0" value={oficinaForm.rewardPremium} onChange={e=>setOficinaForm(f=>({...f,rewardPremium:e.target.value}))}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                </div>
+
+                {/* Frames */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:10}}>Frames</label>
+                  <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+                    <FrameUploadSlot label="Principal" required hint="Rosto parado — base de tudo" value={oficinaFrames.main}
+                      onFile={f=>handleFrameFile('main',f)} onClear={()=>setOficinaFrames(fr=>({...fr,main:null}))}/>
+                    <FrameUploadSlot label="Notificação" hint="Lembretes e avisos gerais" value={oficinaFrames.notif}
+                      onFile={f=>handleFrameFile('notif',f)} onClear={()=>setOficinaFrames(fr=>({...fr,notif:null}))}/>
+                    <FrameUploadSlot label="Aviso" hint="Avisos importantes do RH" value={oficinaFrames.alert}
+                      onFile={f=>handleFrameFile('alert',f)} onClear={()=>setOficinaFrames(fr=>({...fr,alert:null}))}/>
+                    <FrameUploadSlot label="Olhos fechados" hint="Frame de piscar" value={oficinaFrames.closed}
+                      onFile={f=>handleFrameFile('closed',f)} onClear={()=>setOficinaFrames(fr=>({...fr,closed:null}))}/>
+                    <FrameUploadSlot label="Capturar" hint="Quando alguém captura" value={oficinaFrames.capture}
+                      onFile={f=>handleFrameFile('capture',f)} onClear={()=>setOficinaFrames(fr=>({...fr,capture:null}))}/>
+                  </div>
+                </div>
+
+                {/* Teste — prévia ao vivo de como fica cada ação */}
+                {oficinaFrames.main && (()=>{ const pt = deriveUnikoTheme(oficinaForm.accent); return (
+                  <div style={{borderRadius:14,padding:3,background:`conic-gradient(${pt.border.join(',')})`}}>
+                    <div style={{borderRadius:12,background:pt.scene,padding:'16px',display:'flex',flexDirection:'column',gap:14}}>
+                      <div style={{display:'flex',alignItems:'center',gap:14}}>
+                        <img src={(oficinaBlinkPreview && oficinaFrames.closed) ? oficinaFrames.closed : oficinaFrames.main} alt=""
+                          style={{width:64,height:64,objectFit:'contain',filter:`drop-shadow(0 0 12px ${pt.accent})`}}/>
+                        <div>
+                          <div style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:pt.glow}}>TESTE — PRÉVIA AO VIVO</div>
+                          <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{oficinaForm.name||'Nome do Uniko'}</div>
+                          <div style={{fontSize:11,color:pt.ink,opacity:.85}}>{oficinaForm.tagline||'Pisca sozinho a cada 2s'}</div>
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                        {[{k:'notif',label:'Notificação'},{k:'alert',label:'Aviso'},{k:'capture',label:'Capturar'}].map(({k,label})=>(
+                          <div key={k} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                            <img src={oficinaFrames[k]||oficinaFrames.main} alt={label} style={{width:42,height:42,objectFit:'contain',borderRadius:8,background:'rgba(0,0,0,.25)',padding:4}}/>
+                            <span style={{fontSize:9.5,color:'rgba(255,255,255,.75)'}}>{label}{!oficinaFrames[k]&&' (padrão)'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );})()}
+
+                {/* Salvar */}
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={saveOficina} disabled={oficinaSaving}
+                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:oficinaSaving?'default':'pointer',background:`linear-gradient(135deg,${oficinaForm.accent},${oficinaForm.accent}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:oficinaSaving?.6:1}}>
+                    {oficinaSaving?'Salvando...':'+ Adicionar à Biblioteca'}
+                  </button>
+                  <button onClick={resetOficinaForm}
+                    style={{padding:'11px 18px',borderRadius:10,border:`1px solid ${T.border}`,cursor:'pointer',background:'transparent',color:T.textS,fontWeight:600,fontSize:13,fontFamily:'var(--font-body)'}}>
+                    Limpar
+                  </button>
+                  {oficinaMsg&&<span style={{fontSize:13,color:oficinaMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{oficinaMsg}</span>}
+                </div>
+
+                {/* Biblioteca de Unikos */}
+                <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>Biblioteca de Unikos ({oficinaLib.length})</div>
+                  {oficinaLib.length===0
+                    ? <div style={{fontSize:12,color:T.textT}}>Nenhum Uniko criado ainda. Preencha o formulário acima pra adicionar o primeiro.</div>
+                    : (
+                    <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                      {oficinaLib.map(u=>(
+                        <div key={u.id} style={{width:148,borderRadius:12,border:`1.5px solid ${u.theme.accent}55`,background:`${u.theme.accent}0d`,padding:'12px 10px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                          <img src={u.img} alt={u.name} style={{width:54,height:54,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                          <div style={{fontSize:12,fontWeight:700,color:T.text,textAlign:'center'}}>{u.name}</div>
+                          <div style={{fontSize:10,color:T.textT,textAlign:'center',lineHeight:1.3}}>{u.tagline}</div>
+                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent}}>{u.reward.comum}·{u.reward.premium}</div>
+                          <button onClick={()=>removeOficina(u.id,u.name)}
+                            style={{marginTop:2,fontSize:10,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>Remover</button>
+                        </div>
+                      ))}
+                    </div>
+                    )}
                 </div>
               </div>
 

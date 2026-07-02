@@ -9,7 +9,7 @@
 // • O estado por evento (já capturado?) fica no localStorage por usuário+evento.
 // • Pub/sub via window event liga o widget ⇆ assistente sem acoplar os componentes.
 import { supabase as _supabase, getAuthUser } from '../contexts/user';
-import { getActiveAssistantSkinId, setActiveAssistantSkin } from './assistantSkin';
+import { getActiveAssistantSkinId, setActiveAssistantSkin, registerCustomSkin } from './assistantSkin';
 
 /* ──────────────────────────────────────────────────────────────────────────
    ROSTER — cada Uniko capturável traz sua arte + tema (borda/cenário do widget).
@@ -48,6 +48,7 @@ export const CAPTURE_UNIKOS = {
       pixel:  '#c41e3a',
       moon:   '#b01020',    // lua de sangue
       moonGlow: '#ff3a4a',
+      sceneType: 'vampire',
     },
   },
   'uniko-comum': {
@@ -111,7 +112,124 @@ export const CAPTURE_UNIKOS = {
 };
 
 export const DEFAULT_UNIKO_ID = 'vampire-robot';
-export const getUniko = (id) => CAPTURE_UNIKOS[id] || CAPTURE_UNIKOS[DEFAULT_UNIKO_ID];
+export const getUniko = (id) => CAPTURE_UNIKOS[id] || _customUnikoCache[id] || CAPTURE_UNIKOS[DEFAULT_UNIKO_ID];
+
+/* ══════════════════════════════════════════════════════════════════════════
+   OFICINA DE UNIKO — Unikos criados pelo admin (Dashboard RH → Capture o Uniko),
+   fora do roster fixo acima. Tabela `custom_unikos` (rodar supabase_custom_unikos.sql).
+   Cada um vira: (1) uma entrada aqui no formato do CAPTURE_UNIKOS (pro widget/coleção/
+   evento) e (2) uma skin de assistente registrada em assistantSkin.js (pro "usar como
+   assistente" funcionar). Só o frame PRINCIPAL é obrigatório — os outros caem nele.
+   ══════════════════════════════════════════════════════════════════════════ */
+let _customUnikoCache = {}; // id -> objeto no formato de CAPTURE_UNIKOS
+
+// #RRGGBB -> {r,g,b}. Aceita formatos meio tortos sem quebrar (fallback pra roxo).
+function _hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return { r: 108, g: 92, b: 231 };
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+const _mix = (a, b, t) => Math.round(a + (b - a) * t);
+const _rgbStr = (r, g, b) => `rgb(${r},${g},${b})`;
+
+// Deriva um tema completo (cores da borda/cenário) a partir de UMA cor escolhida pelo
+// admin — mesma "forma" do theme dos Unikos fixos, só que gerado em vez de artesanal.
+// Sem `sceneType` → o widget usa o cenário neutro (sem castelo de vampiro nem recife).
+export function deriveUnikoTheme(accentHex) {
+  const { r, g, b } = _hexToRgb(accentHex);
+  const dark  = (f) => _rgbStr(_mix(r, 0, f), _mix(g, 0, f), _mix(b, 0, f));   // em direção ao preto
+  const light = (f) => _rgbStr(_mix(r, 255, f), _mix(g, 255, f), _mix(b, 255, f)); // em direção ao branco
+  const accent = `rgb(${r},${g},${b})`;
+  return {
+    accent,
+    accent2: dark(0.55),
+    glow: light(0.35),
+    deep: dark(0.85),
+    ink: light(0.82),
+    border: [dark(0.55), accent, light(0.3), light(0.5), accent, dark(0.55)],
+    scene: `radial-gradient(120% 90% at 50% 0%, ${dark(0.55)} 0%, ${dark(0.78)} 45%, ${dark(0.92)} 100%)`,
+    pixel: accent,
+  };
+}
+
+const _slugify = (s) => (s || '')
+  .toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'uniko';
+
+// Monta a entrada no formato CAPTURE_UNIKOS a partir de uma linha da tabela custom_unikos.
+function _buildCustomCaptureUniko(row) {
+  return {
+    id: row.id, name: row.name, shortName: row.name, img: row.img_main,
+    tagline: row.tagline || 'Uniko criado na Oficina',
+    perks: ['Uniko personalizado — feito na Oficina de Uniko', 'Assistente flutuante e foto de perfil próprios'],
+    canBeAssistant: true,
+    reward: { comum: row.reward_comum ?? 100, premium: row.reward_premium ?? 100 },
+    theme: deriveUnikoTheme(row.accent),
+    isCustom: true,
+  };
+}
+
+// Monta a skin de assistente (blink/mouth/sprites) a partir dos frames — frames que
+// faltarem caem no frame principal (fica um ícone parado, sem animação, como pedido).
+function _buildCustomSkin(row) {
+  const main = row.img_main;
+  return {
+    id: row.id, name: row.name, accent: row.accent, iconSize: 84, edgeMargin: 12,
+    blink: { open: main, mid: main, closed: row.img_closed || main },
+    mouth: null, // sem frame de "falando" dedicado — mostra a carinha base enquanto fala
+    sprites: {
+      ALARME:  row.img_notif || main,
+      ATENCAO: row.img_alert || main,
+      ALEXA:   row.img_notif || main,
+      WAVE:    row.img_notif || main,
+      PRISMAC: row.img_notif || main,
+      PRISMAP: row.img_notif || main,
+      CAPTURE: row.img_capture || main,
+    },
+  };
+}
+
+// Carrega TODOS os Unikos da Oficina do Supabase e popula os caches (roster + skins).
+// Chamado uma vez no login (App.jsx) e sempre que a Oficina salva/apaga um Uniko.
+export async function loadCustomUnikos() {
+  try {
+    const { data, error } = await _supabase.from('custom_unikos').select('*').order('created_at', { ascending: true });
+    if (error || !data) return [];
+    const next = {};
+    for (const row of data) next[row.id] = _buildCustomCaptureUniko(row);
+    _customUnikoCache = next;
+    // Skins do assistente ficam num módulo separado (assistantSkin.js) — registra lá.
+    for (const row of data) registerCustomSkin(row.id, _buildCustomSkin(row));
+    return Object.values(_customUnikoCache);
+  } catch { return Object.values(_customUnikoCache); }
+}
+
+export const getCustomUnikos = () => Object.values(_customUnikoCache);
+// Roster completo (fixos + Oficina) — usado pelos seletores/vitrines.
+export const getAllUnikos = () => [...Object.values(CAPTURE_UNIKOS), ...Object.values(_customUnikoCache)];
+
+// Salva um novo Uniko da Oficina (name/tagline/accent/reward_*/img_*) e recarrega o cache.
+export async function saveCustomUniko(fields) {
+  const id = `${_slugify(fields.name)}-${Math.random().toString(36).slice(2, 6)}`;
+  const row = {
+    id, name: fields.name, tagline: fields.tagline || null, accent: fields.accent || '#6C5CE7',
+    reward_comum: fields.rewardComum ?? 100, reward_premium: fields.rewardPremium ?? 100,
+    img_main: fields.imgMain, img_notif: fields.imgNotif || null, img_alert: fields.imgAlert || null,
+    img_closed: fields.imgClosed || null, img_capture: fields.imgCapture || null,
+    created_by: fields.createdBy || null,
+  };
+  const { error } = await _supabase.from('custom_unikos').insert(row);
+  if (error) throw error;
+  await loadCustomUnikos();
+  return id;
+}
+
+export async function deleteCustomUniko(id) {
+  const { error } = await _supabase.from('custom_unikos').delete().eq('id', id);
+  if (error) throw error;
+  delete _customUnikoCache[id];
+}
 
 /* ── Config global (tabela settings) ─────────────────────────────────────── */
 export const CONFIG_KEY = 'capture_uniko_config';
