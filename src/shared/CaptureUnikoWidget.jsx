@@ -76,6 +76,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const attemptsRef = useRef(0); attemptsRef.current = attempts;
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const resolvingRef = useRef(false);
+  const resolveAttemptRef = useRef(null); // sempre a versão mais recente de resolveAttempt (ver onCaptureThrow abaixo)
 
   /* ── Desbloqueia o áudio no 1º clique (autoplay policy do navegador) ── */
   useEffect(() => {
@@ -165,7 +166,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     return () => clearInterval(id);
   }, [inPortal, available, winnerActive]);
 
-  /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ── */
+  /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ──
+       `uniko` entra nas deps (além de `available`) pra não ficar preso num Uniko velho
+       se o cache da Oficina ainda não tinha carregado no momento do spawn — sem isso o
+       assistente anunciava/mostrava o Uniko errado (mesma família do bug do resolveAttempt). ── */
   useEffect(() => {
     if (available && phase !== 'caught') {
       playCaptureAlert();
@@ -174,14 +178,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     }
     return () => { emitCaptureState({ available: false, uniko: null }); registerCaptureTarget(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [available]);
+  }, [available, uniko]);
 
   /* ── Recebe o ARREMESSO do assistente ── */
   useEffect(() => {
     const off = onCaptureThrow(() => {
       if (phaseRef.current !== 'idle' || resolvingRef.current) return;
       setPhase('thrown');
-      setTimeout(resolveAttempt, 520);
+      // Chama sempre a versão MAIS RECENTE (via ref) — este effect só roda uma vez (deps
+      // vazias) e, sem o ref, ficaria preso na closure do 1º render pra sempre. Isso é
+      // o bug real da captura indo pro Uniko errado: `uniko` (e portanto `resolveAttempt`)
+      // no 1º render ainda é o fallback Vampire-Robot, antes do cache da Oficina carregar
+      // (loadCustomUnikos é assíncrono) — sem o ref, TODA captura usava esse uniko velho.
+      setTimeout(() => resolveAttemptRef.current(), 520);
     });
     return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -226,6 +235,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     }
     resolvingRef.current = false;
   };
+  resolveAttemptRef.current = resolveAttempt; // atualiza a CADA render, pra fechar sobre o `uniko` atual
 
   /* ════════ RENDER ════════ */
 
