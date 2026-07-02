@@ -215,13 +215,17 @@ export async function saveCaptureToCollection(uniko) {
   try {
     const a = getAuthUser();
     if (!a?.name) return;
-    await _supabase.from('capture_uniko_captures').insert({
+    const { error } = await _supabase.from('capture_uniko_captures').insert({
       player: a.name,
       uniko_id: uniko.id,
       uniko_name: uniko.name,
       captured_at: new Date().toISOString(),
     });
-  } catch {}
+    // Não é mais silencioso: se isso falhar (RLS, coluna faltando etc.), o Uniko fica
+    // "capturado" (lock em capture_uniko_event) mas não aparece na Coleção — melhor
+    // logar pra dar pra investigar do que engolir o erro sem deixar rastro.
+    if (error) console.error('[capture-uniko] falha ao salvar na coleção:', error);
+  } catch (e) { console.error('[capture-uniko] falha ao salvar na coleção:', e); }
 }
 
 /* ── Recompensa padrão — usada quando o Uniko não define a própria (uniko.reward) ── */
@@ -249,6 +253,30 @@ export async function fetchCaptureWinner(cfg) {
 // Limpa o estado LOCAL de captura de um evento (usado quando o servidor diz que não há vencedor).
 export function clearCaptureLocal(cfg) {
   try { localStorage.removeItem(doneKey(cfg)); localStorage.removeItem(resultKey(cfg)); } catch {}
+}
+
+// ── Realtime: avisa TODOS os clientes ~na hora quando alguém captura (insert em
+// capture_uniko_event), em vez de esperar o próximo poll (até 4s de atraso, e é durante
+// essa janela que dois jogadores podem achar que "os dois conseguiram"). Precisa do
+// supabase_capture_uniko_realtime.sql rodado; sem ele, o app cai só no poll (fallback
+// já existente no widget) — não quebra nada, só demora mais.
+export function subscribeCaptureWinner(cfg, onWinner) {
+  if (!cfg) return () => {};
+  let ch;
+  try {
+    ch = _supabase.channel(`capture-event-${captureEventId(cfg)}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'capture_uniko_event',
+        filter: `event_id=eq.${captureEventId(cfg)}`,
+      }, (payload) => {
+        const row = payload?.new;
+        if (!row) return;
+        onWinner({ player: row.player, unikoId: row.uniko_id, unikoName: row.uniko_name,
+                   comum: row.comum || 0, premium: row.premium || 0, at: row.captured_at });
+      })
+      .subscribe();
+  } catch { return () => {}; }
+  return () => { try { _supabase.removeChannel(ch); } catch {} };
 }
 
 export async function claimCapture(cfg, uniko) {

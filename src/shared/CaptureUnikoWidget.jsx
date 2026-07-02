@@ -15,7 +15,7 @@ import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
-  registerCaptureTarget, onCaptureThrow, clearCaptureLocal,
+  registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
 } from './captureUniko';
 
 const ESCAPE_CHANCE = 0.6;  // chance de escapar na 1ª tentativa (2ª é garantida)
@@ -113,17 +113,23 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     return () => { clearTimeout(revealT); clearInterval(tick); };
   }, [cfg, checked, result]);
 
-  /* ── Alguém capturou? → some pra TODOS ao mesmo tempo (poll do vencedor global) ── */
+  /* ── Alguém capturou? → some pra TODOS ao mesmo tempo. Realtime (quase instantâneo,
+       requer supabase_capture_uniko_realtime.sql) + poll de 4s como fallback caso o
+       realtime não esteja habilitado no projeto Supabase. ── */
   useEffect(() => {
     if (!cfg || result || !available) return;
-    const id = setInterval(async () => {
-      const w = await fetchCaptureWinner(cfg);
-      if (!w) return;
+    const onWinner = (w) => {
       markCaptureDone(cfg); setCaptureResult(cfg, w); setAvailable(false);
       setResult(w);                                        // mostra o painel de resgatado (30 min)
       emitCaptureState({ available: false, uniko: null, captured: true });
+    };
+    const unsub = subscribeCaptureWinner(cfg, onWinner);
+    const id = setInterval(async () => {
+      const w = await fetchCaptureWinner(cfg);
+      if (!w) return;
+      onWinner(w);
     }, 4000);
-    return () => clearInterval(id);
+    return () => { unsub(); clearInterval(id); };
   }, [available, cfg, result]); // eslint-disable-line
 
   /* ── Expira o painel de "resgatado" após 30 min → volta ao placeholder ── */
@@ -190,8 +196,9 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     if (won) {
       const reward = getCaptureReward(uniko);
       awardPrismas(me, reward.comum, reward.premium);
-      addToMyUnikoCollection(uniko);
-      saveCaptureToCollection(uniko);
+      addToMyUnikoCollection(uniko);                 // otimista: já aparece na Coleção local na hora
+      await saveCaptureToCollection(uniko);           // grava no servidor (agora loga erro se falhar)
+      syncCollectionFromServer();                     // reconcilia com o servidor (fire-and-forget)
       const res = { player: me, at: new Date().toISOString(), comum: reward.comum, premium: reward.premium };
       setResult(res); setCaptureResult(cfg, res);
       emitCaptureState({ available: false, uniko, captured: true });
