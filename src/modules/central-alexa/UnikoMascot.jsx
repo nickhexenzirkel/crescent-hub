@@ -28,6 +28,21 @@ const VAMPIRE_LINES = [
   'Os mortos-vivos têm gosto musical impecável 🩸',
 ];
 
+const SEREIA_LINES = [
+  'Até os peixinhos do recife pararam pra ouvir essa! 🐠',
+  'Essa batida balança mais suave que a maré 🌊',
+  'Canto pros corais e eles brilham mais colorido 🪸',
+  'As água-vivas estão dançando com essa melodia 🎐',
+  'Trago essa música lá do fundo do oceano pra vocês 🐚',
+  'Minha voz e essa canção... combinação perfeita 🎶',
+  'O recife inteiro vira uma festa com esse som 🐟',
+  'Essa melodia é mais calma que as águas do recife 💙',
+  'As pérolas do meu colar brilham ao ritmo disso ✨',
+  'Todo bom canto de sereia merece uma trilha assim 🎵',
+  'Deixa a maré te levar... assim como essa música 🌊',
+  'Lá no fundo do mar, essa faixa também faz sucesso 🐬',
+];
+
 const BLINK_SEQ = [
   { key: 'open',   ms: 2600 },
   { key: 'mid',    ms: 80   },
@@ -43,26 +58,39 @@ const MASCOT_CSS = `
   0%,100% { border-color:#c41e3a55; box-shadow:0 2px 8px #c41e3a22; }
   50%      { border-color:#c41e3a99; box-shadow:0 2px 22px #c41e3a55; }
 }
+@keyframes seaBubblePulse {
+  0%,100% { border-color:#2dd4bf55; box-shadow:0 2px 8px #2dd4bf22; }
+  50%      { border-color:#7ee8fa99; box-shadow:0 2px 22px #2dd4bf55; }
+}
 @keyframes normalBubble {
   0%,100% { border-color:rgba(255,255,255,.16); }
   50%      { border-color:rgba(255,255,255,.38); }
 }
 .vamp-bubble  { animation: vampBubblePulse 2.5s ease-in-out infinite; }
+.sea-bubble   { animation: seaBubblePulse 3s ease-in-out infinite; }
 .normal-bubble{ animation: normalBubble 3s ease-in-out infinite; }
 `;
 
+const LINES_BY_SKIN = { 'vampire-robot': VAMPIRE_LINES, 'uniko-sereia': SEREIA_LINES };
+const GLOW_BY_SKIN  = {
+  'vampire-robot': 'drop-shadow(0 0 10px #c41e3a88) drop-shadow(0 4px 12px rgba(0,0,0,.5))',
+  'uniko-sereia':  'drop-shadow(0 0 10px #2dd4bf88) drop-shadow(0 4px 12px rgba(0,0,0,.35))',
+};
+
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
 const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' }) => {
-  const isVampire = songSkin !== 'default';
+  const isSpecial = songSkin !== 'default';
   const skin      = getAssistantSkin(songSkin);
+  const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
+  const bubbleClass = songSkin === 'vampire-robot' ? 'vamp-bubble' : songSkin === 'uniko-sereia' ? 'sea-bubble' : 'normal-bubble';
 
-  const [line,       setLine]       = useState(() => rand(DJ_LINES));
+  const [line,       setLine]       = useState(() => rand(lines));
   const [showBubble, setShowBubble] = useState(true);
   const [blinkImg,   setBlinkImg]   = useState(null);
 
   // Blink loop — só quando skin especial
   useEffect(() => {
-    if (!isVampire) { setBlinkImg(null); return; }
+    if (!isSpecial) { setBlinkImg(null); return; }
     let i = 0, t;
     const tick = () => {
       i = (i + 1) % BLINK_SEQ.length;
@@ -72,14 +100,14 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
     setBlinkImg(skin.blink.open);
     t = setTimeout(tick, BLINK_SEQ[0].ms);
     return () => clearTimeout(t);
-  }, [isVampire, songSkin]); // eslint-disable-line
+  }, [isSpecial, songSkin]); // eslint-disable-line
 
   // Fala a cada 20s: mostra o balão por ~6,5s e some o resto do tempo
   useEffect(() => {
     const SHOW_MS = 6500, CYCLE_MS = 20000;
     let hideT;
     const speak = () => {
-      setLine(rand(isVampire ? VAMPIRE_LINES : DJ_LINES));
+      setLine(rand(lines));
       setShowBubble(true);
       clearTimeout(hideT);
       hideT = setTimeout(() => setShowBubble(false), SHOW_MS);
@@ -87,16 +115,16 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
     speak(); // fala ao montar / trocar de modo ou música
     const id = setInterval(speak, CYCLE_MS);
     return () => { clearInterval(id); clearTimeout(hideT); };
-  }, [isVampire, track?.name]); // eslint-disable-line
+  }, [songSkin, track?.name]); // eslint-disable-line
 
-  // Cor do bubble via cores da capa quando não é vampire
+  // Cor do bubble via cores da capa quando não é uma skin especial
   const c0 = colors?.[0] ?? null;
   const c1 = colors?.[1] ?? colors?.[0] ?? null;
-  const albumBubbleCss = (!isVampire && c0)
+  const albumBubbleCss = (!isSpecial && c0)
     ? `@keyframes albumBubble{0%,100%{border-color:${c0}55;box-shadow:0 2px 14px ${c0}33;}50%{border-color:${c1}cc;box-shadow:0 2px 28px ${c1}66;}}.normal-bubble{animation:albumBubble 3s ease-in-out infinite;}`
     : '';
 
-  const img = isVampire ? (blinkImg || skin.blink.open) : DEFAULT_IMG;
+  const img = isSpecial ? (blinkImg || skin.blink.open) : DEFAULT_IMG;
 
   return (
     <>
@@ -111,8 +139,8 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
           pointerEvents: 'none',
         }}>
         <div
-          className={isVampire ? 'vamp-bubble' : 'normal-bubble'}
-          style={isVampire ? {
+          className={bubbleClass}
+          style={songSkin === 'vampire-robot' ? {
             background:           'rgba(8,0,4,0.88)',
             backdropFilter:       'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
@@ -121,6 +149,18 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             padding:              '9px 14px',
             fontSize:             13,
             color:                '#eab8c4',
+            maxWidth:             size + 48,
+            textAlign:            'center',
+            lineHeight:           1.45,
+          } : songSkin === 'uniko-sereia' ? {
+            background:           'rgba(3,20,26,0.85)',
+            backdropFilter:       'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border:               '1px solid #2dd4bf55',
+            borderRadius:         '14px 14px 14px 4px',
+            padding:              '9px 14px',
+            fontSize:             13,
+            color:                '#c9fbff',
             maxWidth:             size + 48,
             textAlign:            'center',
             lineHeight:           1.45,
@@ -152,9 +192,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             objectFit:  'contain',
             flexShrink: 0,
             animation:  'unikoFloat 3s ease-in-out infinite',
-            filter: isVampire
-              ? 'drop-shadow(0 0 10px #c41e3a88) drop-shadow(0 4px 12px rgba(0,0,0,.5))'
-              : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))',
+            filter: GLOW_BY_SKIN[songSkin] || 'drop-shadow(0 4px 12px rgba(0,0,0,.25))',
             transition: 'filter .4s',
           }}
         />

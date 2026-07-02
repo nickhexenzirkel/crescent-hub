@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
 import VampireScene from './vampireScene';
+import OceanScene from './oceanScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
@@ -262,8 +263,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
             <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2, fontFamily: 'var(--font-brand)', letterSpacing: '.03em', textShadow: `0 2px 12px ${th.accent2}` }}>{uniko.shortName || uniko.name}</div>
           </div>
 
-          {/* Cenário vampírico (igual ao card da Central Alexa) */}
-          <VampireScene bats={6} />
+          {/* Cenário (igual ao card da Central Alexa) — escolhido pelo tema do Uniko */}
+          {th.sceneType === 'ocean' ? <OceanScene jellies={4} fish={5} bubbles={8} /> : <VampireScene bats={6} />}
 
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none', zIndex: 2 }}/>
 

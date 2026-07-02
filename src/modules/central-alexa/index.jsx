@@ -3,6 +3,7 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
+import OceanScene from '../../shared/oceanScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -58,6 +59,11 @@ const VAMP_CARD_CSS = `
 @keyframes vampLightning{0%{opacity:0;}1%{opacity:1;}3%{opacity:.15;}5%{opacity:.95;}8%{opacity:0;}100%{opacity:0;}}
 @keyframes vampLightningFlash{0%{opacity:0;}1.5%{opacity:.5;}4%{opacity:.12;}6%{opacity:.42;}9%{opacity:0;}100%{opacity:0;}}
 @keyframes castleWinGlow{0%,100%{opacity:.12;}50%{opacity:.28;}}
+`;
+
+const SEA_CARD_CSS = `
+@keyframes seaCardGlow{0%,100%{box-shadow:0 0 18px 6px #2dd4bf14,0 8px 40px rgba(0,0,0,.45);}50%{box-shadow:0 0 36px 14px #2dd4bf28,0 8px 40px rgba(0,0,0,.45);}}
+@keyframes seaCardBreathe{0%,100%{border-color:#0e8f9e;box-shadow:0 0 10px 1px #0e8f9e18,0 8px 40px rgba(0,0,0,.45);}50%{border-color:#7ee8fa;box-shadow:0 0 22px 5px #2dd4bf3a,0 8px 40px rgba(0,0,0,.45);}100%{border-color:#0e8f9e;box-shadow:0 0 10px 1px #0e8f9e18,0 8px 40px rgba(0,0,0,.45);}}
 `;
 
 const rndN = (a, b) => a + Math.random() * (b - a);
@@ -763,13 +769,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .catch(() => setSongSkin('default'));
   }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
 
-  // Burst de morcegos em tela cheia ao trocar para um vampire robot
+  // Burst de morcegos em tela cheia ao trocar para um vampire robot (só esse skin —
+  // outros Unikos especiais, como a Sereia, têm cenário calmo, sem esse efeito assustador).
   const [batBurst, setBatBurst] = useState(false);
   const prevSongSkin = useRef(songSkin);
   useEffect(() => {
     const prev = prevSongSkin.current;
     prevSongSkin.current = songSkin;
-    if (songSkin !== 'default' && songSkin !== prev) {
+    if (songSkin === 'vampire-robot' && songSkin !== prev) {
       setBatBurst(true);
       const t = setTimeout(() => setBatBurst(false), 5250);
       return () => clearTimeout(t);
@@ -1857,7 +1864,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
       {/* ── Tempestade vampírica de fundo nos cantos da tela ──
            só no modo escuro (Nebula), no festival e com vampire robot ativo ── */}
-      {T.dark && tab==="festival" && songSkin !== 'default' && <CentralStorm />}
+      {T.dark && tab==="festival" && songSkin === 'vampire-robot' && <CentralStorm />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
@@ -1955,19 +1962,22 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {/* Left: UnikoWave + Player */}
             <div style={{width:isMobile?"100%":360,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
               {(() => {
-                const isVampCard = songSkin !== 'default';
-                const skin = isVampCard ? getAssistantSkin(songSkin) : null;
+                const isVampCard = songSkin === 'vampire-robot';
+                const isSeaCard  = songSkin === 'uniko-sereia';
+                const isThemedCard = isVampCard || isSeaCard;
+                const skin = isThemedCard ? getAssistantSkin(songSkin) : null;
                 return (
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
+                  {isSeaCard && <style>{SEA_CARD_CSS}</style>}
 
                   <div style={{borderRadius:20,
-                    background: isVampCard ? '#090004' : cardBg,
+                    background: isVampCard ? '#090004' : isSeaCard ? '#03141a' : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                    border: isVampCard ? '2px solid #c41e3a' : `1px solid ${T.border}`,
+                    border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : `1px solid ${T.border}`,
                     padding:"16px 16px 12px",
-                    boxShadow: isVampCard ? undefined : T.shM,
-                    animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : undefined,
+                    boxShadow: isThemedCard ? undefined : T.shM,
+                    animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : isSeaCard ? 'seaCardBreathe 4s ease-in-out infinite' : undefined,
                     position:"relative", overflow:"hidden",
                     width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
                     transition:"background .5s, border .5s",
@@ -2012,8 +2022,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       }}/>
                     )}
 
+                    {/* Recife de corais — raios de luz, bolhas, água-vivas, peixinhos e corais */}
+                    {isSeaCard && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        <OceanScene jellies={3} fish={4} bubbles={7} />
+                      </div>
+                    )}
+
                     {/* Normal blob */}
-                    {!isVampCard && (
+                    {!isThemedCard && (
                       <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                     )}
 
@@ -2049,6 +2066,33 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         <span style={{fontSize:10.5, fontWeight:500, color:'#e0a8b6'}}>
                           {title}{' '}
                           <b style={{color:'#ff6b86', fontWeight:800}}>{firstName}</b>!
+                        </span>
+                      </div>
+                    </div>
+                    );
+                  })()}
+
+                  {isSeaCard && currentSong?.requested_by && (() => {
+                    const firstName = (currentSong.requested_by || '').trim().split(/\s+/)[0];
+                    const fem = guessGender(firstName) === 'f';
+                    const title = fem ? 'da encantadora Sereia' : 'do encantador Tritão';
+                    return (
+                    <div style={{ display:'flex', justifyContent:'center', marginTop:10, width:'100%' }}>
+                      <div style={{
+                        display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'center', gap:'2px 7px',
+                        padding:'7px 14px', borderRadius:14,
+                        background:'linear-gradient(135deg,#031c22,#0a3742 70%,#031c22)',
+                        border:'1px solid #2dd4bf66',
+                        boxShadow:'0 0 16px #2dd4bf30, inset 0 0 10px #2dd4bf18',
+                        maxWidth:'100%', textAlign:'center', lineHeight:1.35,
+                      }}>
+                        <span style={{fontSize:13, filter:'drop-shadow(0 0 4px #2dd4bf)'}}>🧜‍♀️</span>
+                        <span style={{fontSize:11.5, fontWeight:800, letterSpacing:'.04em', color:'#fff', textShadow:'0 0 8px #2dd4bfaa'}}>
+                          {(skin?.name || '').replace(/^Uniko\s*/i, '').replace(/-/g, ' ')}
+                        </span>
+                        <span style={{fontSize:10.5, fontWeight:500, color:'#a8e6e0'}}>
+                          {title}{' '}
+                          <b style={{color:'#7ee8fa', fontWeight:800}}>{firstName}</b>!
                         </span>
                       </div>
                     </div>

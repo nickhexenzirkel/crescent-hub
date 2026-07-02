@@ -78,6 +78,36 @@ export const CAPTURE_UNIKOS = {
       moonGlow: '#8fd8ff',
     },
   },
+  'uniko-sereia': {
+    id: 'uniko-sereia',
+    name: 'Uniko Sereia',
+    shortName: 'Sereia',   // título exibido na coleção
+    img: '/uniko_sereia.png',
+    tagline: 'Guardiã encantada dos recifes de coral',
+    perks: [
+      'Assistente flutuante exclusivo — canta, dá dicas com um coração e avisa com um sininho',
+      'Foto de perfil temática de recife de coral',
+      'Visual sereia/oceano de coleção',
+    ],
+    canBeAssistant: true,
+    reward: { comum: 100, premium: 100 },
+    // Tema: recife de corais colorido, água turquesa, tudo suave e calmo (oposto do
+    // Vampire-Robot). Cenário: raios de sol na água, bolhas subindo, água-vivas
+    // flutuando, peixinhos coloridos nadando e corais no fundo (ver oceanScene.jsx).
+    theme: {
+      accent:  '#2dd4bf',   // turquesa principal
+      accent2: '#0e8f9e',
+      glow:    '#7ee8fa',
+      deep:    '#031b24',
+      ink:     '#c9fbff',
+      // cores que giram na borda cônica animada do widget
+      border: ['#0e3b45', '#0e8f9e', '#2dd4bf', '#7ee8fa', '#b28dff', '#ff9ad5', '#0e3b45'],
+      // fundo do cenário interno
+      scene: 'radial-gradient(120% 90% at 50% 0%, #0c4a52 0%, #062832 45%, #031218 100%)',
+      pixel:  '#2dd4bf',
+      sceneType: 'ocean', // escolhe o OceanScene em vez do VampireScene padrão
+    },
+  },
 };
 
 export const DEFAULT_UNIKO_ID = 'vampire-robot';

@@ -255,6 +255,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const skin = getAssistantSkin(skinId);
   const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
   const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
+  const tipSpriteRef = useRef(skin.tipSprite); tipSpriteRef.current = skin.tipSprite; // override das DICAS (se a skin tiver um ícone próprio de dica)
   const ICON = skin.iconSize || 84;                  // tamanho do robô (varia por skin)
   const MARGIN = skin.edgeMargin ?? 12;              // distância das bordas (varia por skin)
   const iconRef = useRef(ICON); iconRef.current = ICON;
@@ -366,7 +367,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (bubbleRef.current?.dismissable) return;
       if (captureRef.current) return; // não interrompe o alerta de captura
       const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
-      say(tip.text, { sprite: imgRef.current[tip.sprite] });
+      say(tip.text, { sprite: tipSpriteRef.current || imgRef.current[tip.sprite] });
     }, 30000);
     return () => clearInterval(id);
   }, [authUser, say]);

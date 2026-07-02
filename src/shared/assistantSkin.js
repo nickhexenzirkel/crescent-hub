@@ -61,6 +61,31 @@ export const ASSISTANT_SKINS = {
       CAPTURE: '/UNIKO_VAMPROBOT_CAPTURAR.png',
     },
   },
+  'uniko-sereia': {
+    id: 'uniko-sereia',
+    name: 'Uniko Sereia',
+    accent: '#2dd4bf',
+    iconSize: 92,
+    edgeMargin: 14,
+    // Só 2 frames de arte (aberto/fechado) — o "mid" reusa o aberto (pisca rápido em vez de 3 estágios).
+    blink: { open: '/uniko_sereia.png', mid: '/uniko_sereia.png', closed: '/uniko_sereia_olhosfechados.png' },
+    // Enquanto fala (respondendo pergunta), alterna pro sprite "cantando".
+    mouth: { closed: '/uniko_sereia.png', half: '/uniko_sereia_cantando.png', open: '/uniko_sereia_cantando.png' },
+    // Sem arte própria por categoria (alarme/atenção/alexa/wave/prisma) → todo AVISO usa o
+    // sininho de notificação; `tipSprite` (abaixo) cobre as DICAS com o coração.
+    sprites: {
+      ALARME:  enc('/uniko_sereia_notificação.png'),
+      ATENCAO: enc('/uniko_sereia_notificação.png'),
+      ALEXA:   enc('/uniko_sereia_notificação.png'),
+      WAVE:    enc('/uniko_sereia_notificação.png'),
+      PRISMAC: enc('/uniko_sereia_notificação.png'),
+      PRISMAP: enc('/uniko_sereia_notificação.png'),
+      CAPTURE: enc('/uniko_sereia_notificação.png'),
+    },
+    // Override usado pelas DICAS rotativas (TIPS) do UnikoAssistant — se ausente, cada skin
+    // usa o ícone da própria categoria (comportamento padrão do UNIKO clássico/Vampire-Robot).
+    tipSprite: enc('/uniko_sereia_coração.png'),
+  },
 };
 
 export const getAssistantSkin = (id) => ASSISTANT_SKINS[id] || ASSISTANT_SKINS.default;
@@ -81,6 +106,7 @@ export function getSkinVariations(id) {
   push('Prisma Comum', s.sprites.PRISMAC);
   push('Prisma Premium', s.sprites.PRISMAP);
   push('Capturar', s.sprites.CAPTURE);
+  if (s.tipSprite) push('Dica', s.tipSprite);
   return out;
 }
 
