@@ -26,8 +26,10 @@ alter table public.custom_unikos enable row level security;
 -- App usa a chave anônima → políticas permissivas (o Dashboard RH já é área restrita no app).
 drop policy if exists custom_unikos_read   on public.custom_unikos;
 drop policy if exists custom_unikos_insert on public.custom_unikos;
+drop policy if exists custom_unikos_update on public.custom_unikos;
 drop policy if exists custom_unikos_delete on public.custom_unikos;
 
 create policy custom_unikos_read   on public.custom_unikos for select using (true);
 create policy custom_unikos_insert on public.custom_unikos for insert with check (true);
+create policy custom_unikos_update on public.custom_unikos for update using (true) with check (true);
 create policy custom_unikos_delete on public.custom_unikos for delete using (true);
