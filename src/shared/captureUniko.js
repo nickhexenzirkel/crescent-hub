@@ -8,8 +8,29 @@
 //   (cada usuário, ao entrar no Portal durante a janela, "sorteia" o momento — ver o widget).
 // • O estado por evento (já capturado?) fica no localStorage por usuário+evento.
 // • Pub/sub via window event liga o widget ⇆ assistente sem acoplar os componentes.
-import { supabase as _supabase, getAuthUser } from '../contexts/user';
+import { supabase as _supabase, getAuthUser, SUPABASE_URL, SUPABASE_ANON_KEY } from '../contexts/user';
 import { getActiveAssistantSkinId, setActiveAssistantSkin, registerCustomSkin } from './assistantSkin';
+
+/* ── Relógio sincronizado com o SERVIDOR ─────────────────────────────────────
+   O spawn é um instante ABSOLUTO (spawnAt) comparado com Date.now() de cada
+   cliente — se o relógio do PC estiver alguns segundos errado (comum!), o
+   Uniko aparece adiantado ou atrasado NAQUELE computador, mesmo com o config
+   chegando via realtime ao mesmo tempo pra todo mundo. `nowMs()` corrige isso
+   somando o desvio medido contra o header Date da resposta do Supabase. ── */
+let _clockOffsetMs = 0;
+export const nowMs = () => Date.now() + _clockOffsetMs;
+export async function syncServerClock() {
+  try {
+    const t0 = Date.now();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=key&limit=1`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    const t1 = Date.now();
+    const serverMs = Date.parse(res.headers.get('date'));
+    if (Number.isNaN(serverMs)) return;
+    _clockOffsetMs = (serverMs + (t1 - t0) / 2) - t1; // meio do round-trip ≈ instante t1 no servidor
+  } catch {}
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    ROSTER — cada Uniko capturável traz sua arte + tema (borda/cenário do widget).
@@ -252,7 +273,7 @@ export async function saveCaptureConfig(cfg) {
 /* ── Janela / evento ─────────────────────────────────────────────────────── */
 export const captureEventId = (cfg) => (cfg?.startAt ? `evt_${cfg.startAt}` : 'evt_default');
 
-export function isWithinWindow(cfg, now = Date.now()) {
+export function isWithinWindow(cfg, now = nowMs()) {
   if (!cfg?.enabled) return false;
   const s = cfg.startAt ? Date.parse(cfg.startAt) : null;
   const e = cfg.endAt ? Date.parse(cfg.endAt) : null;
@@ -267,7 +288,7 @@ export function spawnMoment(cfg) {
   const sp = cfg?.spawnAt ? Date.parse(cfg.spawnAt) : (cfg?.startAt ? Date.parse(cfg.startAt) : null);
   return (sp != null && !Number.isNaN(sp)) ? sp : null;
 }
-export function isSpawned(cfg, now = Date.now()) {
+export function isSpawned(cfg, now = nowMs()) {
   if (!isWithinWindow(cfg, now)) return false;
   const sp = spawnMoment(cfg);
   if (sp != null && now < sp) return false;

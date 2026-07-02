@@ -126,18 +126,34 @@ const TabMyDoko = ({ onPhotoChange }) => {
           const okPhoto = photoOk === u.id;
 
           if (!owned) {
-            // ── Bloqueado (silhueta) ──
+            // ── Bloqueado — mostra a arte e as informações normalmente (não é mais um
+            // "???" misterioso), só o NOME vira um aviso de bloqueio. ──
             return (
-              <Card key={u.id} style={{ padding: 0, overflow: 'hidden', opacity: .96 }}>
-                <div style={{ position: 'relative', height: 168, background: 'radial-gradient(120% 90% at 50% 0%, #20242c, #0d0f13)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src={u.img} alt="???" style={{ width: 118, height: 118, objectFit: 'contain', filter: 'grayscale(1) brightness(.18)' }}/>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              <Card key={u.id} style={{ padding: 0, overflow: 'hidden', opacity: .85 }}>
+                <div style={{ position: 'relative', height: 168, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #20242c, #0d0f13)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img src={u.img} alt={u.name} style={{ width: 128, height: 128, objectFit: 'contain', filter: `grayscale(.55) drop-shadow(0 0 14px ${th.accent || '#888'}55)` }}/>
+                  <div style={{ position: 'absolute', top: 10, right: 10, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,.25)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                   </div>
                 </div>
-                <div style={{ padding: '12px 16px 16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: T.textS }}>???</div>
-                  <div style={{ fontSize: 11.5, color: T.textT, marginTop: 4 }}>Capture no Portal para desbloquear</div>
+                <div style={{ padding: '14px 16px 16px' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: T.textT, fontFamily: 'var(--font-brand)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    Você ainda não tem
+                  </div>
+                  <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>{u.tagline}</div>
+
+                  {(u.perks || []).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                      {u.perks.map((p, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: T.textT, lineHeight: 1.4 }}>
+                          <span style={{ color: T.textT, marginTop: 1, opacity: .7 }}><IcoSpark size={13}/></span>{p}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 11.5, color: T.textT, fontStyle: 'italic' }}>Capture no Portal para desbloquear</div>
                 </div>
               </Card>
             );

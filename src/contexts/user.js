@@ -2,10 +2,9 @@ import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 
 // ─── FESTIVAL INTEGRATION ────────────────────────────────────────────────────
 const SERVER_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'http://localhost:3001';
-const _supabase  = _createSupabaseClient(
-  'https://iqsufxvuufkaswellisy.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c'
-);
+const SUPABASE_URL = 'https://iqsufxvuufkaswellisy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c';
+const _supabase  = _createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Decodifica o payload (base64url) do JWT preservando UTF-8.
 // `atob` devolve uma string binária (latin1); ler os bytes como UTF-8 evita
@@ -111,6 +110,8 @@ const isProfileComplete = () => {
 
 export {
   SERVER_URL,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
   _supabase as supabase,
   getAuthUser,
   USER,

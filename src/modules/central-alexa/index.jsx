@@ -2003,8 +2003,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {T.dark && tab==="festival" && songSkin === 'vampire-robot' && <CentralStorm />}
 
       {/* ── Recife de fundo da página (Uniko Sereia): água-vivas gigantes cruzando a tela,
-           cardume de peixinhos, areia e corais/anêmonas nos cantos ── */}
-      {T.dark && tab==="festival" && songSkin === 'uniko-sereia' && <CentralOcean />}
+           cardume de peixinhos, areia e corais/anêmonas nos cantos. Sem gate de tema —
+           diferente da tempestade do vampiro, o recife é suave/colorido e fica bem em
+           qualquer tema (claro ou escuro). ── */}
+      {tab==="festival" && songSkin === 'uniko-sereia' && <CentralOcean />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}

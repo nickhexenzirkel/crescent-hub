@@ -16,7 +16,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos,
+  loadCustomUnikos, nowMs, syncServerClock,
 } from './captureUniko';
 
 const ESCAPE_CHANCE = 0.6;  // chance de escapar na 1ª tentativa (2ª é garantida)
@@ -111,11 +111,13 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       if (isCaptureDone(cfg)) { setAvailable(false); return; }
       if (isSpawned(cfg))     { setAvailable(true);  return; }
       setAvailable(false);
-      // ainda não chegou o spawnAt → agenda a revelação exata (mesmo instante p/ todos)
+      // ainda não chegou o spawnAt → agenda a revelação exata (mesmo instante p/ todos,
+      // usando o relógio corrigido pelo servidor — nowMs() — em vez do Date.now() cru,
+      // que pode estar alguns segundos errado dependendo do PC)
       const sp = spawnMoment(cfg);
-      if (sp != null && Date.now() < sp && isWithinWindow(cfg)) {
+      if (sp != null && nowMs() < sp && isWithinWindow(cfg)) {
         clearTimeout(revealT);
-        revealT = setTimeout(evaluate, Math.max(0, sp - Date.now()) + 40);
+        revealT = setTimeout(evaluate, Math.max(0, sp - nowMs()) + 40);
       }
     };
     evaluate();
