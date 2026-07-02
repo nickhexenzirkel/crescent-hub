@@ -195,8 +195,12 @@ function _buildCustomCaptureUniko(row) {
 // faltarem caem no frame principal (fica um ícone parado, sem animação, como pedido).
 function _buildCustomSkin(row) {
   const main = row.img_main;
+  const iconSize = row.icon_size || 84;
+  // Margem da borda escala junto (mesma proporção do Vampire-Robot/Sereia — ~22-26% do
+  // ícone), senão um Uniko configurado bem grande ficaria colado na borda da tela.
+  const edgeMargin = Math.max(14, Math.round(iconSize * 0.22));
   return {
-    id: row.id, name: row.name, accent: row.accent, iconSize: 84, edgeMargin: 18,
+    id: row.id, name: row.name, accent: row.accent, iconSize, edgeMargin,
     blink: { open: main, mid: main, closed: row.img_closed || main },
     mouth: null, // sem frame de "falando" dedicado — mostra a carinha base enquanto fala
     sprites: {
@@ -213,13 +217,15 @@ function _buildCustomSkin(row) {
 
 // Carrega TODOS os Unikos da Oficina do Supabase e popula os caches (roster + skins).
 // Chamado uma vez no login (App.jsx) e sempre que a Oficina salva/apaga um Uniko.
+let _customUnikoRawCache = {}; // linha crua da tabela (todos os frames) — usado pra EDITAR na Oficina
 export async function loadCustomUnikos() {
   try {
     const { data, error } = await _supabase.from('custom_unikos').select('*').order('created_at', { ascending: true });
     if (error || !data) return [];
-    const next = {};
-    for (const row of data) next[row.id] = _buildCustomCaptureUniko(row);
+    const next = {}, rawNext = {};
+    for (const row of data) { next[row.id] = _buildCustomCaptureUniko(row); rawNext[row.id] = row; }
     _customUnikoCache = next;
+    _customUnikoRawCache = rawNext;
     // Skins do assistente ficam num módulo separado (assistantSkin.js) — registra lá.
     for (const row of data) registerCustomSkin(row.id, _buildCustomSkin(row));
     return Object.values(_customUnikoCache);
@@ -227,20 +233,24 @@ export async function loadCustomUnikos() {
 }
 
 export const getCustomUnikos = () => Object.values(_customUnikoCache);
+// Linha crua (name/tagline/accent/reward_*/icon_size/img_* sem fallback nenhum) — a Oficina
+// usa isso pra preencher o formulário de EDIÇÃO exatamente como foi salvo.
+export const getCustomUnikoRaw = (id) => _customUnikoRawCache[id] || null;
 // Roster completo (fixos + Oficina) — usado pelos seletores/vitrines.
 export const getAllUnikos = () => [...Object.values(CAPTURE_UNIKOS), ...Object.values(_customUnikoCache)];
 
-// Salva um novo Uniko da Oficina (name/tagline/accent/reward_*/img_*) e recarrega o cache.
+// Cria (sem fields.id) OU edita (com fields.id) um Uniko da Oficina e recarrega o cache.
 export async function saveCustomUniko(fields) {
-  const id = `${_slugify(fields.name)}-${Math.random().toString(36).slice(2, 6)}`;
+  const id = fields.id || `${_slugify(fields.name)}-${Math.random().toString(36).slice(2, 6)}`;
   const row = {
     id, name: fields.name, tagline: fields.tagline || null, accent: fields.accent || '#6C5CE7',
     reward_comum: fields.rewardComum ?? 100, reward_premium: fields.rewardPremium ?? 100,
+    icon_size: fields.iconSize || 84,
     img_main: fields.imgMain, img_notif: fields.imgNotif || null, img_alert: fields.imgAlert || null,
     img_closed: fields.imgClosed || null, img_capture: fields.imgCapture || null,
     created_by: fields.createdBy || null,
   };
-  const { error } = await _supabase.from('custom_unikos').insert(row);
+  const { error } = await _supabase.from('custom_unikos').upsert(row, { onConflict: 'id' });
   if (error) throw error;
   await loadCustomUnikos();
   return id;
@@ -250,6 +260,7 @@ export async function deleteCustomUniko(id) {
   const { error } = await _supabase.from('custom_unikos').delete().eq('id', id);
   if (error) throw error;
   delete _customUnikoCache[id];
+  delete _customUnikoRawCache[id];
 }
 
 /* ── Config global (tabela settings) ─────────────────────────────────────── */

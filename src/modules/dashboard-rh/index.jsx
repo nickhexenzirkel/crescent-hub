@@ -6,7 +6,7 @@ import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit
 import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
-  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme,
+  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -456,11 +456,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
   const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
-  const [oficinaForm, setOficinaForm]       = useState({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100 });
+  const [oficinaForm, setOficinaForm]       = useState({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
   const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null });
   const [oficinaSaving, setOficinaSaving]   = useState(false);
   const [oficinaMsg, setOficinaMsg]         = useState('');
   const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
+  const [oficinaEditingId, setOficinaEditingId] = useState(null); // null = criando novo; id = editando um já existente
 
   const loadOficinaLib = async () => { const list = await loadCustomUnikos(); setOficinaLib(list); };
   useEffect(() => { if (tab === 'capture') loadOficinaLib(); }, [tab]);
@@ -494,22 +495,39 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
   };
   const resetOficinaForm = () => {
-    setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100 });
+    setOficinaEditingId(null);
+    setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
     setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null });
+  };
+  // Carrega um Uniko já criado de volta no formulário — os frames vêm exatamente como
+  // foram salvos (sem cair no principal), pra não "perder" um frame vazio ao reeditar.
+  const editOficina = (id) => {
+    const row = getCustomUnikoRaw(id);
+    if (!row) return;
+    setOficinaEditingId(id);
+    setOficinaForm({
+      name: row.name, tagline: row.tagline || '', accent: row.accent,
+      rewardComum: row.reward_comum, rewardPremium: row.reward_premium, iconSize: row.icon_size || 84,
+    });
+    setOficinaFrames({ main: row.img_main, notif: row.img_notif, alert: row.img_alert, closed: row.img_closed, capture: row.img_capture });
+    setOficinaMsg('');
   };
   const saveOficina = async () => {
     if (!oficinaForm.name.trim()) { setOficinaMsg('⚠️ Dê um nome pro Uniko'); return; }
     if (!oficinaFrames.main) { setOficinaMsg('⚠️ O frame principal (estático) é obrigatório'); return; }
     setOficinaSaving(true); setOficinaMsg('');
     try {
+      const raw = oficinaEditingId ? getCustomUnikoRaw(oficinaEditingId) : null;
       await saveCustomUniko({
+        id: oficinaEditingId || undefined,
         name: oficinaForm.name.trim(), tagline: oficinaForm.tagline.trim(), accent: oficinaForm.accent,
         rewardComum: Number(oficinaForm.rewardComum) || 0, rewardPremium: Number(oficinaForm.rewardPremium) || 0,
+        iconSize: Number(oficinaForm.iconSize) || 84,
         imgMain: oficinaFrames.main, imgNotif: oficinaFrames.notif, imgAlert: oficinaFrames.alert,
         imgClosed: oficinaFrames.closed, imgCapture: oficinaFrames.capture,
-        createdBy: getAuthUser()?.name,
+        createdBy: raw?.created_by || getAuthUser()?.name, // edição mantém o criador original
       });
-      setOficinaMsg('✅ Uniko adicionado à Biblioteca!');
+      setOficinaMsg(oficinaEditingId ? '✅ Alterações salvas!' : '✅ Uniko adicionado à Biblioteca!');
       resetOficinaForm();
       await loadOficinaLib();
     } catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao salvar')); }
@@ -518,7 +536,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   };
   const removeOficina = async (id, name) => {
     if (!window.confirm(`Remover "${name}" da Biblioteca? Isso não afeta quem já capturou esse Uniko antes.`)) return;
-    try { await deleteCustomUniko(id); await loadOficinaLib(); if (capCfg.unikoId === id) setCapCfg(c => ({ ...c, unikoId: 'vampire-robot' })); }
+    try {
+      await deleteCustomUniko(id); await loadOficinaLib();
+      if (capCfg.unikoId === id) setCapCfg(c => ({ ...c, unikoId: 'vampire-robot' }));
+      if (oficinaEditingId === id) resetOficinaForm();
+    }
     catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao remover')); }
   };
 
@@ -1835,9 +1857,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
               {/* Oficina de Uniko — criar Unikos personalizados */}
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
-                <div>
-                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Oficina de Uniko</div>
-                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Crie um Uniko novo anexando as imagens dele. Só o frame <b>principal</b> é obrigatório — os que faltarem usam o principal no lugar (fica um ícone parado, sem animação, se você quiser assim).</div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+                  <div>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Oficina de Uniko</div>
+                    <div style={{fontSize:12,color:T.textS,marginTop:3}}>Crie um Uniko novo anexando as imagens dele. Só o frame <b>principal</b> é obrigatório — os que faltarem usam o principal no lugar (fica um ícone parado, sem animação, se você quiser assim).</div>
+                  </div>
+                  {oficinaEditingId && (
+                    <div style={{padding:'6px 12px',borderRadius:999,background:`${oficinaForm.accent}22`,border:`1px solid ${oficinaForm.accent}55`,color:oficinaForm.accent,fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>
+                      ✏️ Editando "{oficinaForm.name || oficinaEditingId}"
+                    </div>
+                  )}
                 </div>
 
                 {/* Nome / tagline */}
@@ -1871,6 +1900,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <input type="number" min="0" value={oficinaForm.rewardPremium} onChange={e=>setOficinaForm(f=>({...f,rewardPremium:e.target.value}))}
                       style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
                   </div>
+                  <div style={{width:220}}>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Tamanho do assistente ({oficinaForm.iconSize}px)</label>
+                    <input type="range" min="50" max="160" step="2" value={oficinaForm.iconSize}
+                      onChange={e=>setOficinaForm(f=>({...f,iconSize:e.target.value}))}
+                      style={{width:'100%',accentColor:oficinaForm.accent,cursor:'pointer'}}/>
+                  </div>
                 </div>
 
                 {/* Frames */}
@@ -1896,9 +1931,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div style={{borderRadius:12,background:pt.scene,padding:'16px',display:'flex',flexDirection:'column',gap:14}}>
                       <div style={{display:'flex',alignItems:'center',gap:14}}>
                         <img src={(oficinaBlinkPreview && oficinaFrames.closed) ? oficinaFrames.closed : oficinaFrames.main} alt=""
-                          style={{width:64,height:64,objectFit:'contain',filter:`drop-shadow(0 0 12px ${pt.accent})`}}/>
+                          style={{width:Math.min(100,Math.max(40,Number(oficinaForm.iconSize)||84)),height:Math.min(100,Math.max(40,Number(oficinaForm.iconSize)||84)),objectFit:'contain',filter:`drop-shadow(0 0 12px ${pt.accent})`,transition:'width .2s,height .2s'}}/>
                         <div>
-                          <div style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:pt.glow}}>TESTE — PRÉVIA AO VIVO</div>
+                          <div style={{fontSize:11,fontWeight:800,letterSpacing:'.14em',color:pt.glow}}>TESTE — PRÉVIA AO VIVO (tamanho real: {oficinaForm.iconSize}px)</div>
                           <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{oficinaForm.name||'Nome do Uniko'}</div>
                           <div style={{fontSize:11,color:pt.ink,opacity:.85}}>{oficinaForm.tagline||'Pisca sozinho a cada 2s'}</div>
                         </div>
@@ -1919,11 +1954,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
                   <button onClick={saveOficina} disabled={oficinaSaving}
                     style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:oficinaSaving?'default':'pointer',background:`linear-gradient(135deg,${oficinaForm.accent},${oficinaForm.accent}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:oficinaSaving?.6:1}}>
-                    {oficinaSaving?'Salvando...':'+ Adicionar à Biblioteca'}
+                    {oficinaSaving?'Salvando...':(oficinaEditingId?'💾 Salvar alterações':'+ Adicionar à Biblioteca')}
                   </button>
                   <button onClick={resetOficinaForm}
                     style={{padding:'11px 18px',borderRadius:10,border:`1px solid ${T.border}`,cursor:'pointer',background:'transparent',color:T.textS,fontWeight:600,fontSize:13,fontFamily:'var(--font-body)'}}>
-                    Limpar
+                    {oficinaEditingId?'Cancelar edição':'Limpar'}
                   </button>
                   {oficinaMsg&&<span style={{fontSize:13,color:oficinaMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{oficinaMsg}</span>}
                 </div>
@@ -1935,16 +1970,20 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     ? <div style={{fontSize:12,color:T.textT}}>Nenhum Uniko criado ainda. Preencha o formulário acima pra adicionar o primeiro.</div>
                     : (
                     <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                      {oficinaLib.map(u=>(
-                        <div key={u.id} style={{width:148,borderRadius:12,border:`1.5px solid ${u.theme.accent}55`,background:`${u.theme.accent}0d`,padding:'12px 10px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                      {oficinaLib.map(u=>{ const raw = getCustomUnikoRaw(u.id); return (
+                        <div key={u.id} style={{width:148,borderRadius:12,border:oficinaEditingId===u.id?`1.5px solid ${u.theme.accent}`:`1.5px solid ${u.theme.accent}55`,background:`${u.theme.accent}0d`,padding:'12px 10px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
                           <img src={u.img} alt={u.name} style={{width:54,height:54,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
                           <div style={{fontSize:12,fontWeight:700,color:T.text,textAlign:'center'}}>{u.name}</div>
                           <div style={{fontSize:10,color:T.textT,textAlign:'center',lineHeight:1.3}}>{u.tagline}</div>
-                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent}}>{u.reward.comum}·{u.reward.premium}</div>
-                          <button onClick={()=>removeOficina(u.id,u.name)}
-                            style={{marginTop:2,fontSize:10,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>Remover</button>
+                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent}}>{u.reward.comum}·{u.reward.premium} · {raw?.icon_size||84}px</div>
+                          <div style={{display:'flex',gap:10,marginTop:2}}>
+                            <button onClick={()=>editOficina(u.id)}
+                              style={{fontSize:10,color:u.theme.accent,background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:700}}>Editar</button>
+                            <button onClick={()=>removeOficina(u.id,u.name)}
+                              style={{fontSize:10,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>Remover</button>
+                          </div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                     )}
                 </div>
