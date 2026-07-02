@@ -251,10 +251,12 @@ const GiantJelly = ({ top, size, dur, delay, color, reverse }) => (
 );
 
 // Peixinho do cardume — nada devagar de um lado a outro da tela.
+// O SVG (corpo em x=14, cauda em x=26-30, olho em x=6) fica de "cara" pra ESQUERDA por
+// padrão — então só o peixe que nada pra DIREITA (não-reverso) precisa ser espelhado;
+// o reverso (nada pra esquerda) já usa a orientação natural do desenho.
 const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '108%' : '-8%', pointerEvents: 'none',
-    transform: reverse ? 'scaleX(-1)' : undefined,
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
     <svg width={size} height={size * .7} viewBox="0 0 30 20" style={{ display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.2))' }}>
@@ -265,6 +267,17 @@ const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
       <circle cx="6" cy="8" r="1.6" fill="#0b1a20" />
     </svg>
   </div>
+);
+
+// Bolha subindo (poucas, igual ao card do mascote).
+const SeaBubbleBig = ({ left, sz, dur, delay }) => (
+  <div style={{
+    position: 'absolute', bottom: 6, left: `${left}%`, width: sz, height: sz,
+    borderRadius: '50%', pointerEvents: 'none',
+    background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,.85), rgba(180,240,255,.2) 60%, transparent 75%)',
+    border: '1px solid rgba(220,250,255,.45)',
+    animation: `seaBubbleRiseBig ${dur}s ease-in ${delay}s infinite`,
+  }} />
 );
 
 // Coral + anêmona no rodapé (canto), parado (só balança de leve).
@@ -301,6 +314,12 @@ const CentralOcean = () => {
       delay: rndSea(0, 16), color: SEA_PALETTE[(i + 2) % SEA_PALETTE.length], reverse: i % 2 === 0,
     }));
   }
+  const bubbles = useRef(null);
+  if (!bubbles.current) {
+    bubbles.current = Array.from({ length: 5 }).map((_, i) => ({
+      id: i, left: rndSea(4, 96), sz: rndSea(5, 13), dur: rndSea(9, 16), delay: rndSea(0, 10),
+    }));
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
       <style>{`
@@ -308,13 +327,14 @@ const CentralOcean = () => {
         @keyframes seaJellyDriftRev{0%{transform:translateX(0);}100%{transform:translateX(-132vw);}}
         @keyframes seaJellyBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-22px);}}
         @keyframes seaJellyPulseBig{0%,100%{transform:scaleY(1) scaleX(1);}50%{transform:scaleY(.8) scaleX(1.1);}}
-        @keyframes seaFishDrift{0%{transform:translateX(0);}100%{transform:translateX(118vw);}}
-        @keyframes seaFishDriftRev{0%{transform:translateX(0) scaleX(-1);}100%{transform:translateX(-118vw) scaleX(-1);}}
+        @keyframes seaFishDrift{0%{transform:translateX(0) scaleX(-1);}100%{transform:translateX(118vw) scaleX(-1);}}
+        @keyframes seaFishDriftRev{0%{transform:translateX(0);}100%{transform:translateX(-118vw);}}
         @keyframes seaFishTailBig{0%,100%{transform:rotate(-14deg);}50%{transform:rotate(14deg);}}
         @keyframes seaAnemoneSway{0%,100%{transform:rotate(-3deg);}50%{transform:rotate(3deg);}}
         @keyframes seaCoralSwayBig{0%,100%{transform:rotate(-2deg);}50%{transform:rotate(2deg);}}
         @keyframes seaSandGlow{0%,100%{opacity:.7;}50%{opacity:1;}}
-        @keyframes seaCausticDrift{0%,100%{opacity:.08;transform:translateX(0);}50%{opacity:.18;transform:translateX(24px);}}
+        @keyframes seaCausticDrift{0%,100%{opacity:.10;}50%{opacity:.2;}}
+        @keyframes seaBubbleRiseBig{0%{transform:translateY(0) scale(.7);opacity:0;}8%{opacity:.8;}92%{opacity:.4;}100%{transform:translateY(-70vh) scale(1);opacity:0;}}
       `}</style>
 
       {/* Areia no rodapé da tela */}
@@ -329,12 +349,13 @@ const CentralOcean = () => {
 
       {jellies.current.map(j => <GiantJelly key={j.id} {...j} />)}
       {fish.current.map(f => <DriftFish key={f.id} {...f} />)}
+      {bubbles.current.map(b => <SeaBubbleBig key={b.id} {...b} />)}
 
-      {/* Brilho/reflexo de luz da água (caustics), varrendo suavemente */}
+      {/* Brilho/reflexo de luz da água (caustics) — listras GROSSAS e poucas, igual ao card */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'repeating-linear-gradient(115deg, rgba(126,232,250,.5) 0 8px, transparent 8px 26px)',
-        animation: 'seaCausticDrift 6s ease-in-out infinite',
+        background: 'repeating-linear-gradient(120deg, rgba(255,255,255,.14) 0 34px, transparent 34px 180px)',
+        animation: 'seaCausticDrift 4.5s ease-in-out infinite',
       }} />
     </div>
   );

@@ -68,12 +68,16 @@ const Jellyfish = () => {
 
 /* ── Peixinho (SVG): corpo + cauda balançando, nada de um lado a outro ── */
 const FISH_PALETTE = ['#ff8a65', '#ffd54f', '#4fd1c5', '#f472b6', '#60a5fa'];
-const newFishPose = () => ({
-  top: rndN(38, 78), left: rndN(0, 70), sz: Math.round(rndN(16, 26)),
-  fdx: (Math.random() < 0.5 ? -1 : 1) * rndN(60, 140),
-  dur: rndN(6, 11), delay: rndN(0, 5), flip: Math.random() < 0.5,
-  color: FISH_PALETTE[Math.floor(rndN(0, FISH_PALETTE.length))],
-});
+const newFishPose = () => {
+  const fdx = (Math.random() < 0.5 ? -1 : 1) * rndN(60, 140);
+  // O SVG (olho/cabeça em x=6, cauda em x=26-30) fica de cara pra ESQUERDA por padrão —
+  // só espelha (scaleX(-1)) quando o trajeto (fdx) vai pra DIREITA, senão nada de costas.
+  return {
+    top: rndN(38, 78), left: rndN(0, 70), sz: Math.round(rndN(16, 26)),
+    fdx, dur: rndN(6, 11), delay: rndN(0, 5), flip: fdx > 0,
+    color: FISH_PALETTE[Math.floor(rndN(0, FISH_PALETTE.length))],
+  };
+};
 const Fish = () => {
   const [pose] = useState(newFishPose);
   const c = pose.color;
