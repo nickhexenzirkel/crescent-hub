@@ -12,7 +12,7 @@ export const ASSISTANT_SKINS = {
     name: 'UNIKO',
     accent: '#2196F3',
     iconSize: 84,    // tamanho do robô no canto (px)
-    edgeMargin: 12,  // distância das bordas da tela
+    edgeMargin: 18,  // distância das bordas da tela (um pouco mais folgado — não fica embaixo da barra de rolagem)
     blink: { open: '/UNIKO_NEW.png', mid: '/UNIKO_PISCA_FRAME_2.png', closed: '/UNIKO_PISCA.png' },
     mouth: { closed: '/UNIKO_NEW.png', half: enc('/UNIKO_FRAME_BOCA_MEIO ABERTA.png'), open: enc('/UNIKO_FRAME_BOCA ABERTA.png') },
     sprites: {
@@ -30,7 +30,7 @@ export const ASSISTANT_SKINS = {
     name: 'UNIKO Comum',
     accent: '#2196F3',
     iconSize: 84,
-    edgeMargin: 12,
+    edgeMargin: 18,
     blink: { open: '/UNIKO_NEW.png', mid: '/UNIKO_PISCA_FRAME_2.png', closed: '/UNIKO_PISCA.png' },
     mouth: { closed: '/UNIKO_NEW.png', half: enc('/UNIKO_FRAME_BOCA_MEIO ABERTA.png'), open: enc('/UNIKO_FRAME_BOCA ABERTA.png') },
     sprites: {
@@ -48,7 +48,7 @@ export const ASSISTANT_SKINS = {
     name: 'Uniko Vampire-Robot',
     accent: '#c41e3a',
     iconSize: 116,
-    edgeMargin: 26,
+    edgeMargin: 30,
     blink: { open: '/UNIKO_VAMPROBOT.png', mid: '/UNIKO_VAMPROBOT_PISCAFRAME2.png', closed: '/UNIKO_VAMPROBOT_PISCAFRAME3.png' },
     mouth: null,
     sprites: {
@@ -66,7 +66,7 @@ export const ASSISTANT_SKINS = {
     name: 'Uniko Sereia',
     accent: '#2dd4bf',
     iconSize: 92,
-    edgeMargin: 14,
+    edgeMargin: 18,
     // Só 2 frames de arte (aberto/fechado) — o "mid" reusa o aberto (pisca rápido em vez de 3 estágios).
     blink: { open: '/uniko_sereia.png', mid: '/uniko_sereia.png', closed: '/uniko_sereia_olhosfechados.png' },
     // Enquanto fala (respondendo pergunta), alterna pro sprite "cantando".

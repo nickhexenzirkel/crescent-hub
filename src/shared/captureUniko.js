@@ -196,7 +196,7 @@ function _buildCustomCaptureUniko(row) {
 function _buildCustomSkin(row) {
   const main = row.img_main;
   return {
-    id: row.id, name: row.name, accent: row.accent, iconSize: 84, edgeMargin: 12,
+    id: row.id, name: row.name, accent: row.accent, iconSize: 84, edgeMargin: 18,
     blink: { open: main, mid: main, closed: row.img_closed || main },
     mouth: null, // sem frame de "falando" dedicado — mostra a carinha base enquanto fala
     sprites: {

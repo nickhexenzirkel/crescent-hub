@@ -178,28 +178,57 @@ async function askAI(question) {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 /* ── Posição arrastável (estilo AssistiveTouch) ──
-   Guarda o canto sup-esquerdo do robô em px; persiste por usuário no localStorage.
-   icon/margin variam por SKIN (o Vampire-Robot é maior e mais afastado da borda). */
-const POS_KEY = 'uniko_assistant_pos';
+   Persiste um "dock" RELATIVO ({side:'left'|'right', yPct:0..1}) em vez de pixels
+   absolutos — assim a posição sempre recalcula em cima do tamanho ATUAL da tela.
+   Guardar só pixels era o bug de "fica preso no ar" ao redimensionar/dar zoom: o
+   resize só limitava (clamp) a posição velha, sem voltar pro canto escolhido de
+   verdade. icon/margin variam por SKIN (o Vampire-Robot é maior e mais afastado). */
+const POS_KEY = 'uniko_assistant_dock';
 const DRAG_THRESHOLD = 5;      // px pra considerar arraste (e não toque/clique)
+// Reserva extra na borda DIREITA pra não ficar embaixo da barra de rolagem vertical
+// da página (que "come" ~14-17px de window.innerWidth em navegadores no Windows).
+const SCROLLBAR_BUFFER = 16;
 
-const clampPos = (p, icon = 84, margin = 12) => {
-  const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const h = typeof window !== 'undefined' ? window.innerHeight : 800;
+const winSize = () => ({
+  w: typeof window !== 'undefined' ? window.innerWidth : 1200,
+  h: typeof window !== 'undefined' ? window.innerHeight : 800,
+});
+
+// Só limita pra não sair da tela — usado durante o ARRASTE (posição livre, ainda não
+// "docada"). NÃO usar pra reposicionar depois de resize (ver dockToPixels).
+const clampPixels = (p, icon = 84, margin = 12) => {
+  const { w, h } = winSize();
   return {
     x: Math.max(margin, Math.min(w - icon - margin, p.x)),
     y: Math.max(margin, Math.min(h - icon - margin, p.y)),
   };
 };
-const loadPos = (icon = 84, margin = 12) => {
-  try {
-    const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-    if (p && typeof p.x === 'number' && typeof p.y === 'number') return clampPos(p, icon, margin);
-  } catch {}
-  const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-  return { x: margin + 6, y: h - icon - margin - 6 }; // default: canto inferior esquerdo
+// Dock relativo → pixels absolutos, sempre a partir do tamanho ATUAL da janela.
+const dockToPixels = (dock, icon = 84, margin = 12) => {
+  const { w, h } = winSize();
+  const rightMargin = margin + SCROLLBAR_BUFFER;
+  const x = dock.side === 'right' ? Math.max(margin, w - icon - rightMargin) : margin;
+  const usable = Math.max(1, h - icon - margin * 2);
+  const yPct = Math.max(0, Math.min(1, dock.yPct ?? 1));
+  const y = margin + yPct * usable;
+  return { x, y };
 };
-const savePos = (p) => { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {} };
+// Pixels (ex.: onde soltou o arraste) → dock relativo, pra persistir.
+const pixelsToDock = (p, icon = 84, margin = 12) => {
+  const { w, h } = winSize();
+  const side = (p.x + icon / 2) < w / 2 ? 'left' : 'right';
+  const usable = Math.max(1, h - icon - margin * 2);
+  const yPct = Math.max(0, Math.min(1, (p.y - margin) / usable));
+  return { side, yPct };
+};
+const loadDock = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+    if (d && (d.side === 'left' || d.side === 'right') && typeof d.yPct === 'number') return d;
+  } catch {}
+  return { side: 'left', yPct: 1 }; // default: canto inferior esquerdo
+};
+const saveDock = (d) => { try { localStorage.setItem(POS_KEY, JSON.stringify(d)); } catch {} };
 
 /* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever).
    onStart/onDone marcam quando o UNIKO está "falando" (pra mexer a boca). */
@@ -277,7 +306,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   ]);
   const [input, setInput] = useState('');
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
-  const [pos, setPos] = useState(() => loadPos(getAssistantSkin(getActiveAssistantSkinId()).iconSize || 84, getAssistantSkin(getActiveAssistantSkinId()).edgeMargin ?? 12)); // canto sup-esq do robô (px) — arrastável
+  const [pos, setPos] = useState(() => dockToPixels(loadDock(), getAssistantSkin(getActiveAssistantSkinId()).iconSize || 84, getAssistantSkin(getActiveAssistantSkinId()).edgeMargin ?? 12)); // canto sup-esq do robô (px) — arrastável
   const [dragging, setDragging] = useState(false);  // arrastando? (desliga transição p/ seguir o dedo)
   const [hovered, setHovered] = useState(false);    // mouse em cima? → expande suavemente
   const bubbleTimer = useRef(null);
@@ -487,7 +516,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       const d = dragRef.current; if (!d) return;
       const dx = cx - d.sx, dy = cy - d.sy;
       if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) d.moved = true;
-      setPos(clampPos({ x: d.ox + dx, y: d.oy + dy }, iconRef.current, marginRef.current));
+      setPos(clampPixels({ x: d.ox + dx, y: d.oy + dy }, iconRef.current, marginRef.current));
     };
     const onMouseMove = (e) => moveTo(e.clientX, e.clientY);
     const onTouchMove = (e) => {
@@ -510,22 +539,20 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         const M = 46; // margem de tolerância (mira generosa)
         if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
           emitCaptureThrow();
-          // voa até o alvo e volta pra borda (sensação de arremesso)
-          const dock = { x: (posRef.current.x + icon / 2) < window.innerWidth / 2 ? margin : window.innerWidth - icon - margin, y: posRef.current.y };
-          setPos(clampPos({ x: rect.left + rect.width / 2 - icon / 2, y: rect.top + rect.height / 2 - icon / 2 }, icon, margin));
-          setTimeout(() => { setPos(dock); savePos(dock); }, 420);
+          // voa até o alvo e volta pro dock atual (sensação de arremesso)
+          const homeDock = pixelsToDock(posRef.current, icon, margin);
+          const home = dockToPixels(homeDock, icon, margin);
+          setPos(clampPixels({ x: rect.left + rect.width / 2 - icon / 2, y: rect.top + rect.height / 2 - icon / 2 }, icon, margin));
+          setTimeout(() => { setPos(home); saveDock(homeDock); }, 420);
           return;
         }
       }
 
-      // Arrastou: gruda na borda lateral mais próxima (vertical fica livre) e persiste.
-      setPos(p => {
-        const w = window.innerWidth;
-        const snapX = (p.x + icon / 2) < w / 2 ? margin : w - icon - margin;
-        const np = { x: snapX, y: p.y };
-        savePos(np);
-        return np;
-      });
+      // Arrastou: converte a posição solta pro dock relativo (lado + % de altura) e
+      // persiste ESSE formato — é o que resolve o "preso no ar" ao redimensionar depois.
+      const dock = pixelsToDock(posRef.current, icon, margin);
+      saveDock(dock);
+      setPos(dockToPixels(dock, icon, margin));
     };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onUp);
@@ -540,11 +567,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       document.removeEventListener('touchcancel', onUp);
     };
   }, []);
-  // Re-encaixa na tela quando o tamanho do robô muda (troca de skin: ex. Vampire-Robot é maior).
-  useEffect(() => { setPos(p => clampPos(p, ICON, MARGIN)); }, [ICON, MARGIN]);
-  // Mantém o robô dentro da tela quando a janela muda de tamanho.
+  // Re-encaixa na tela quando o tamanho do robô muda (troca de skin: ex. Vampire-Robot é maior)
+  // — sempre a partir do dock RELATIVO salvo, não da posição em pixels que já estava na tela.
+  useEffect(() => { setPos(dockToPixels(loadDock(), ICON, MARGIN)); }, [ICON, MARGIN]);
+  // Mantém o robô no canto/altura relativa escolhida quando a janela muda de tamanho (resize
+  // OU zoom do navegador) — recalcula do dock salvo em vez de só limitar a posição antiga
+  // (isso é o que fazia o robô "flutuar" no meio da tela ao encolher a janela pela metade).
   useEffect(() => {
-    const onResize = () => setPos(p => clampPos(p, iconRef.current, marginRef.current));
+    const onResize = () => setPos(dockToPixels(loadDock(), iconRef.current, marginRef.current));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
