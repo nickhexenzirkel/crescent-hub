@@ -16,6 +16,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
+  loadCustomUnikos,
 } from './captureUniko';
 
 const ESCAPE_CHANCE = 0.6;  // chance de escapar na 1ª tentativa (2ª é garantida)
@@ -53,9 +54,17 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const [available, setAvailable] = useState(false);
   const [result, setResult]       = useState(null); // vencedor: {player, at, comum, premium}
   const [attempts, setAttempts]   = useState(0);
-  const [phase, setPhase]         = useState('idle'); // idle | thrown | escaped | caught
+  const [phase, setPhase]         = useState('idle'); // idle | thrown | escaped | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
+  const [, forceRefresh]          = useState(0);
+
+  // Garante que os Unikos da Oficina estejam carregados ANTES de precisar deles aqui —
+  // App.jsx já carrega no login, mas se o admin criar um Uniko novo e "Spawnar agora"
+  // na sequência, uma aba já aberta no Portal pode ainda estar com o cache velho
+  // (getUniko cairia no Vampire-Robot por engano). Recarrega ao montar e força um
+  // re-render pra `getUniko` (que roda a cada render, sem estado próprio) already achar.
+  useEffect(() => { loadCustomUnikos().then(() => forceRefresh(n => n + 1)); }, []);
 
   // Painel "resgatado" fica visível por 30 min após a captura; depois volta ao placeholder.
   const winnerAt = result?.at ? Date.parse(result.at) : null;
@@ -188,7 +197,15 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1200);
       return;
     }
-    const { won, winner } = await claimCapture(cfg, uniko);
+    const { won, winner, networkError } = await claimCapture(cfg, uniko);
+    if (networkError) {
+      // erro de verdade (não é "alguém já pegou") — NÃO marca como feito nem gasta a
+      // tentativa; deixa tentar de novo em vez de fingir sucesso sem nada gravado.
+      setAttempts(n - 1);
+      setPhase('error');
+      setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1800);
+      return;
+    }
     const me = getAuthUser()?.name || 'Você';
     markCaptureDone(cfg);
     setPhase('caught');
@@ -278,11 +295,16 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none', zIndex: 2 }}/>
 
           <img ref={unikoRef} src={uniko.img} alt={uniko.name} draggable="false"
-            style={{ position: 'absolute', left: '50%', top: 76, transform: 'translateX(-50%)', width: 132, height: 132, objectFit: 'contain', zIndex: 3, filter: `drop-shadow(0 0 22px ${th.accent}) drop-shadow(0 8px 16px rgba(0,0,0,.6))`, animation: phase === 'escaped' ? 'cuDodge .9s ease-in-out' : phase === 'thrown' ? 'cuHit .5s ease-in-out' : 'cuIdle 3.5s ease-in-out infinite' }}/>
+            style={{ position: 'absolute', left: '50%', top: 76, transform: 'translateX(-50%)', width: 132, height: 132, objectFit: 'contain', zIndex: 3, filter: `drop-shadow(0 0 22px ${th.accent}) drop-shadow(0 8px 16px rgba(0,0,0,.6))`, animation: (phase === 'escaped' || phase === 'error') ? 'cuDodge .9s ease-in-out' : phase === 'thrown' ? 'cuHit .5s ease-in-out' : 'cuIdle 3.5s ease-in-out infinite' }}/>
 
           {phase === 'escaped' && (
             <div style={{ position: 'absolute', left: 0, right: 0, top: 62, textAlign: 'center', zIndex: 7, pointerEvents: 'none' }}>
               <div style={{ display: 'inline-block', padding: '5px 14px', borderRadius: 12, background: 'rgba(0,0,0,.55)', color: '#ffd9a0', fontWeight: 800, fontSize: 13, border: '1px solid rgba(255,180,80,.4)' }}>Escapou! Joga o UNIKO de novo</div>
+            </div>
+          )}
+          {phase === 'error' && (
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 62, textAlign: 'center', zIndex: 7, pointerEvents: 'none' }}>
+              <div style={{ display: 'inline-block', padding: '5px 14px', borderRadius: 12, background: 'rgba(0,0,0,.55)', color: '#ffb0b0', fontWeight: 800, fontSize: 13, border: '1px solid rgba(255,80,80,.4)' }}>Erro de conexão — tenta de novo</div>
             </div>
           )}
 

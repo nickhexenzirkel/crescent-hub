@@ -409,12 +409,20 @@ export async function claimCapture(cfg, uniko) {
   try {
     const { error } = await _supabase.from('capture_uniko_event').insert(row);
     if (!error) return { won: true, winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: row.comum, premium: row.premium, at: row.captured_at } };
-    // conflito (23505) ou outro → busca o vencedor real
-    const winner = await fetchCaptureWinner(cfg);
-    return { won: false, winner: winner || { player: '—', comum: 0, premium: 0 } };
-  } catch {
-    // sem tabela/offline → deixa capturar localmente (fail-safe)
-    return { won: true, winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: row.comum, premium: row.premium, at: row.captured_at } };
+    if (error.code === '23505') {
+      // conflito de verdade (chave duplicada) → alguém já capturou, busca quem foi
+      const winner = await fetchCaptureWinner(cfg);
+      return { won: false, winner: winner || { player: '—', comum: 0, premium: 0 } };
+    }
+    // erro que NÃO é conflito (RLS, coluna faltando, etc.) — NÃO finge que capturou
+    // (bug corrigido: antes isso caía no fail-safe e o cliente achava que tinha
+    // ganhado sem NADA gravado no servidor → sumia da Coleção). Loga pra investigar.
+    console.error('[capture-uniko] claimCapture falhou (não é conflito):', error);
+    return { won: false, winner: null, networkError: true };
+  } catch (e) {
+    // erro de rede de verdade (offline etc.) — mesma lógica: não finge sucesso.
+    console.error('[capture-uniko] claimCapture lançou exceção:', e);
+    return { won: false, winner: null, networkError: true };
   }
 }
 
