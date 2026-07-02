@@ -225,6 +225,121 @@ const CentralStorm = () => (
   </div>
 );
 
+/* ── Cenário oceânico de FUNDO da página (análogo ao CentralStorm, mas pro Uniko Sereia):
+     água-vivas GIGANTES cruzando a tela em loop, cardume de peixinhos, areia + corais/anêmonas
+     nos cantos inferiores e brilho de luz da água (caustics). Tudo suave/calmo. ── */
+const SEA_PALETTE = ['#ff9ad5', '#7ee8fa', '#b28dff', '#ffd166', '#8affc1'];
+const rndSea = (a, b) => a + Math.random() * (b - a);
+
+// Água-viva gigante: atravessa a tela toda (esquerda→direita ou o contrário) em loop lento,
+// bóia (sobe/desce) e o sino pulsa como se estivesse nadando.
+const GiantJelly = ({ top, size, dur, delay, color, reverse }) => (
+  <div style={{
+    position: 'absolute', top: `${top}%`, left: reverse ? '110%' : '-16%', pointerEvents: 'none',
+    animation: `seaJellyDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
+  }}>
+    <div style={{ animation: `seaJellyBob ${6 + delay % 4}s ease-in-out infinite` }}>
+      <svg width={size} height={size * 1.55} viewBox="0 0 40 62" style={{ display: 'block', animation: 'seaJellyPulseBig 3s ease-in-out infinite', transformOrigin: '50% 22%', filter: `drop-shadow(0 6px 14px rgba(0,0,0,.25))` }}>
+        <path d="M4 22 Q4 2 20 2 Q36 2 36 22 Q36 28 20 28 Q4 28 4 22 Z" fill={color} opacity=".7" />
+        <path d="M8 20 Q20 26 32 20" stroke="rgba(255,255,255,.55)" strokeWidth="1.4" fill="none" />
+        {[6, 13, 20, 27, 34].map((x, i) => (
+          <path key={i} d={`M${x} 27 Q${x + (i % 2 ? 5 : -5)} 44 ${x} 60`} stroke={color} strokeWidth="2.2" fill="none" opacity=".5" strokeLinecap="round" />
+        ))}
+      </svg>
+    </div>
+  </div>
+);
+
+// Peixinho do cardume — nada devagar de um lado a outro da tela.
+const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
+  <div style={{
+    position: 'absolute', top: `${top}%`, left: reverse ? '108%' : '-8%', pointerEvents: 'none',
+    transform: reverse ? 'scaleX(-1)' : undefined,
+    animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
+  }}>
+    <svg width={size} height={size * .7} viewBox="0 0 30 20" style={{ display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.2))' }}>
+      <g style={{ animation: 'seaFishTailBig .9s ease-in-out infinite', transformOrigin: '26px 10px' }}>
+        <polygon points="26,10 30,3 30,17" fill={color} opacity=".85" />
+      </g>
+      <ellipse cx="14" cy="10" rx="12" ry="7" fill={color} />
+      <circle cx="6" cy="8" r="1.6" fill="#0b1a20" />
+    </svg>
+  </div>
+);
+
+// Coral + anêmona no rodapé (canto), parado (só balança de leve).
+const SeaFloorDecor = ({ side }) => (
+  <svg viewBox="0 0 120 70" width="150" height="88" fill="none"
+    style={{ position: 'absolute', bottom: 0, [side]: 0, pointerEvents: 'none', transform: side === 'right' ? 'scaleX(-1)' : undefined }}>
+    {/* anêmona (tentáculos ondulando) */}
+    <g style={{ animation: 'seaAnemoneSway 4s ease-in-out infinite', transformOrigin: '30px 70px' }}>
+      {[0, 1, 2, 3, 4, 5, 6].map(i => (
+        <path key={i} d={`M${16 + i * 5} 70 Q${13 + i * 5} 50 ${18 + i * 5} 30`} stroke={i % 2 ? '#ff8fd6' : '#ff6fb0'} strokeWidth="4" fill="none" strokeLinecap="round" opacity=".85" />
+      ))}
+    </g>
+    {/* corais */}
+    <g style={{ animation: 'seaCoralSwayBig 5s ease-in-out infinite', transformOrigin: '90px 70px' }}>
+      <path d="M90 70 L90 40 M90 52 L80 38 M90 46 L100 34" stroke="#ff8a76" strokeWidth="6" fill="none" strokeLinecap="round" />
+      <circle cx="90" cy="40" r="4" fill="#ff8a76" /><circle cx="80" cy="38" r="3.4" fill="#ff8a76" /><circle cx="100" cy="34" r="3.4" fill="#ff8a76" />
+    </g>
+    <ellipse cx="60" cy="66" rx="26" ry="9" fill="#ffd76e" opacity=".9" />
+  </svg>
+);
+
+const CentralOcean = () => {
+  const jellies = useRef(null);
+  if (!jellies.current) {
+    jellies.current = Array.from({ length: 4 }).map((_, i) => ({
+      id: i, top: rndSea(2, 46), size: Math.round(rndSea(70, 150)), dur: rndSea(30, 52),
+      delay: rndSea(0, 24), color: SEA_PALETTE[i % SEA_PALETTE.length], reverse: i % 2 === 1,
+    }));
+  }
+  const fish = useRef(null);
+  if (!fish.current) {
+    fish.current = Array.from({ length: 9 }).map((_, i) => ({
+      id: i, top: rndSea(55, 92), size: Math.round(rndSea(18, 32)), dur: rndSea(14, 26),
+      delay: rndSea(0, 16), color: SEA_PALETTE[(i + 2) % SEA_PALETTE.length], reverse: i % 2 === 0,
+    }));
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes seaJellyDrift{0%{transform:translateX(0);}100%{transform:translateX(132vw);}}
+        @keyframes seaJellyDriftRev{0%{transform:translateX(0);}100%{transform:translateX(-132vw);}}
+        @keyframes seaJellyBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-22px);}}
+        @keyframes seaJellyPulseBig{0%,100%{transform:scaleY(1) scaleX(1);}50%{transform:scaleY(.8) scaleX(1.1);}}
+        @keyframes seaFishDrift{0%{transform:translateX(0);}100%{transform:translateX(118vw);}}
+        @keyframes seaFishDriftRev{0%{transform:translateX(0) scaleX(-1);}100%{transform:translateX(-118vw) scaleX(-1);}}
+        @keyframes seaFishTailBig{0%,100%{transform:rotate(-14deg);}50%{transform:rotate(14deg);}}
+        @keyframes seaAnemoneSway{0%,100%{transform:rotate(-3deg);}50%{transform:rotate(3deg);}}
+        @keyframes seaCoralSwayBig{0%,100%{transform:rotate(-2deg);}50%{transform:rotate(2deg);}}
+        @keyframes seaSandGlow{0%,100%{opacity:.7;}50%{opacity:1;}}
+        @keyframes seaCausticDrift{0%,100%{opacity:.08;transform:translateX(0);}50%{opacity:.18;transform:translateX(24px);}}
+      `}</style>
+
+      {/* Areia no rodapé da tela */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, height: 64,
+        background: 'linear-gradient(180deg, transparent 0%, #d9c07a22 30%, #d9c07a3a 100%)',
+        animation: 'seaSandGlow 5s ease-in-out infinite',
+      }} />
+
+      <SeaFloorDecor side="left" />
+      <SeaFloorDecor side="right" />
+
+      {jellies.current.map(j => <GiantJelly key={j.id} {...j} />)}
+      {fish.current.map(f => <DriftFish key={f.id} {...f} />)}
+
+      {/* Brilho/reflexo de luz da água (caustics), varrendo suavemente */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'repeating-linear-gradient(115deg, rgba(126,232,250,.5) 0 8px, transparent 8px 26px)',
+        animation: 'seaCausticDrift 6s ease-in-out infinite',
+      }} />
+    </div>
+  );
+};
+
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
   const bats = useRef(null);
@@ -1865,6 +1980,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Tempestade vampírica de fundo nos cantos da tela ──
            só no modo escuro (Nebula), no festival e com vampire robot ativo ── */}
       {T.dark && tab==="festival" && songSkin === 'vampire-robot' && <CentralStorm />}
+
+      {/* ── Recife de fundo da página (Uniko Sereia): água-vivas gigantes cruzando a tela,
+           cardume de peixinhos, areia e corais/anêmonas nos cantos ── */}
+      {T.dark && tab==="festival" && songSkin === 'uniko-sereia' && <CentralOcean />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}

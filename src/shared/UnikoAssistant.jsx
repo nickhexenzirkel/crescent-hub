@@ -12,6 +12,14 @@ import { loadMissionProgress } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow } from './captureUniko';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange } from './assistantSkin';
 
+// Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
+// Sem entrada aqui → cai no `default` (azul clássico).
+const BUBBLE_THEME_BY_SKIN = {
+  default: { conic: '#1A6FB5,#2196F3,#0D47A1,#4FC3F7,#1565C0,#00B0FF,#1A6FB5', label: '#2196F3' },
+  'vampire-robot': { conic: '#7a0010,#c41e3a,#ff2d4c,#8a0014,#ff4a63,#c41e3a,#7a0010', label: '#ff3a4e' },
+  'uniko-sereia': { conic: '#ff8fd6,#8f7bff,#4be8ff,#2dd4bf,#8f7bff,#ff8fd6,#ff8fd6', label: '#2dd4bf' },
+};
+
 /* ──────────────────────────────────────────────────────────────────────────
    BASE DE CONHECIMENTO (FAQ curada). answerQuery() pontua por gatilhos batidos.
    É o ÚNICO ponto que troca por IA real depois (vira um fetch ao servidor).
@@ -591,12 +599,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const accent = T.gold || '#E8B84B';
   const panelBg = T.surface || '#fff';
 
-  // Skin vampire → borda do balão e label em vermelho-sangue (em vez do azul padrão)
-  const isVampSkin = skinId !== 'default';
-  const bubbleConic = isVampSkin
-    ? '#7a0010,#c41e3a,#ff2d4c,#8a0014,#ff4a63,#c41e3a,#7a0010'
-    : '#1A6FB5,#2196F3,#0D47A1,#4FC3F7,#1565C0,#00B0FF,#1A6FB5';
-  const bubbleLabelColor = isVampSkin ? '#ff3a4e' : '#2196F3';
+  // Borda do balão (gradiente cônico) e cor do label "UNIKO" — variam por SKIN.
+  const bubbleTheme = BUBBLE_THEME_BY_SKIN[skinId] || BUBBLE_THEME_BY_SKIN.default;
+  const bubbleConic = bubbleTheme.conic;
+  const bubbleLabelColor = bubbleTheme.label;
 
   // Onde o robô está → decide pra que lado o balão/painel abrem (pra não sair da tela).
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;

@@ -76,7 +76,10 @@ const TabMyDoko = ({ onPhotoChange }) => {
   };
 
   const owns = (u) => u.alwaysOwned || isCaptured(u.id);
-  const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS)];
+  // 'uniko-comum' é o mesmo UNIKO clássico do DEFAULT_UNIKO (mesma arte) — existe só como
+  // opção de recompensa "menor" pro admin escolher no evento (Dashboard RH), NÃO deve
+  // aparecer aqui como um "???" bloqueado duplicado do padrão que todo mundo já tem.
+  const roster = [DEFAULT_UNIKO, ...Object.values(CAPTURE_UNIKOS).filter(u => u.id !== 'uniko-comum')];
   const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
 
