@@ -1202,6 +1202,28 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     { id:'tudo',   label:'Tudo',    days:null, sub:'desde sempre' },
   ];
 
+  // Apaga de verdade o histórico de UM mês (ou de tudo) — diferente de "Zerar contador",
+  // que só move o marco d'água da Visão Geral sem tocar nas linhas da fila. Isso faz um
+  // DELETE permanente em `queue` (só status played/skipped — nunca mexe na fila ativa).
+  // Admin-only (checado no botão, ver JSX).
+  const deleteMaquinaMonth = async (key, label) => {
+    if (!window.confirm(`Excluir PERMANENTEMENTE o histórico de "${label}" da Máquina do Tempo?\n\nIsso apaga as músicas tocadas/puladas registradas nesse mês (não mexe na fila atual). Não tem como desfazer.`)) return;
+    const [y, m] = key.split('-').map(Number);
+    const start = new Date(y, m - 1, 1).toISOString();
+    const end   = new Date(y, m, 1).toISOString();
+    const { error } = await _supabase.from('queue').delete()
+      .in('status', ['played', 'skipped']).gte('created_at', start).lt('created_at', end);
+    if (error) { alert('Erro ao excluir: ' + error.message); return; }
+    await loadMaquinaData();
+  };
+  const deleteMaquinaAll = async () => {
+    if (!window.confirm('Excluir PERMANENTEMENTE TODO o histórico da Máquina do Tempo (todos os meses)?\n\nIsso apaga todas as músicas tocadas/puladas registradas até agora (não mexe na fila atual). Não tem como desfazer.')) return;
+    if (!window.confirm('Confirma de novo — isso não pode ser desfeito. Excluir tudo mesmo?')) return;
+    const { error } = await _supabase.from('queue').delete().in('status', ['played', 'skipped']);
+    if (error) { alert('Erro ao excluir: ' + error.message); return; }
+    await loadMaquinaData();
+  };
+
   const loadMaquinaData = async () => {
     setMaquinaLoading(true);
 
@@ -2901,23 +2923,38 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
               </div>
               {isAdmin && (
-                <button
-                  onClick={async () => {
-                    if (!window.confirm('Zerar o histórico da Máquina do Tempo? Músicas tocadas a partir de agora serão contadas do zero.')) return;
-                    await _supabase.from('settings').upsert({key:'maquina_reset_at', value: new Date().toISOString()}, {onConflict:'key'});
-                    loadMaquinaData();
-                  }}
-                  style={{flexShrink:0,padding:'7px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,
-                    background:'transparent',cursor:'pointer',fontFamily:'var(--font-body)',
-                    fontSize:12,fontWeight:600,color:T.textS,display:'flex',alignItems:'center',gap:6,
-                    transition:'all .15s'}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold;}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textS;}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
-                  </svg>
-                  Zerar contador
-                </button>
+                <div style={{display:'flex',gap:8,flexShrink:0}}>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm('Zerar o histórico da Máquina do Tempo? Músicas tocadas a partir de agora serão contadas do zero.')) return;
+                      await _supabase.from('settings').upsert({key:'maquina_reset_at', value: new Date().toISOString()}, {onConflict:'key'});
+                      loadMaquinaData();
+                    }}
+                    title="Só move o marco d'água da Visão Geral — não apaga nada, os meses continuam no histórico"
+                    style={{padding:'7px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,
+                      background:'transparent',cursor:'pointer',fontFamily:'var(--font-body)',
+                      fontSize:12,fontWeight:600,color:T.textS,display:'flex',alignItems:'center',gap:6,
+                      transition:'all .15s'}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textS;}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                    </svg>
+                    Zerar contador
+                  </button>
+                  <button
+                    onClick={deleteMaquinaAll}
+                    title="Apaga PERMANENTEMENTE o histórico de todos os meses"
+                    style={{padding:'7px 14px',borderRadius:9,border:`1.5px solid ${T.danger||'#C04050'}55`,
+                      background:'transparent',cursor:'pointer',fontFamily:'var(--font-body)',
+                      fontSize:12,fontWeight:600,color:T.danger||'#C04050',display:'flex',alignItems:'center',gap:6,
+                      transition:'all .15s'}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                    </svg>
+                    Excluir tudo
+                  </button>
+                </div>
               )}
             </div>
             {/* Seletor de visões */}
@@ -2973,14 +3010,28 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                               {maquinaData.months.map((m,i)=>{
                                 const on = i===selMonthIdx;
                                 return (
-                                  <button key={m.key} onClick={()=>setSelMonthIdx(i)}
-                                    style={{flexShrink:0,padding:'8px 14px',borderRadius:11,cursor:'pointer',fontFamily:'var(--font-body)',
-                                      fontSize:12.5,fontWeight:700,transition:'all .15s',textAlign:'left',
-                                      border:`1.5px solid ${on?T.gold:T.border}`,
-                                      background:on?T.goldGl:cardBg,color:on?T.gold:T.textS}}>
-                                    <div>{m.label}{i===0 && <span style={{marginLeft:6,fontSize:9,opacity:.85,fontWeight:800,letterSpacing:'.06em'}}>· ATUAL</span>}</div>
-                                    <div style={{fontSize:10,fontWeight:600,opacity:.7,marginTop:1}}>{m.total} plays</div>
-                                  </button>
+                                  <div key={m.key} style={{position:'relative',flexShrink:0}}>
+                                    <button onClick={()=>setSelMonthIdx(i)}
+                                      style={{padding:isAdmin?'8px 24px 8px 14px':'8px 14px',borderRadius:11,cursor:'pointer',fontFamily:'var(--font-body)',
+                                        fontSize:12.5,fontWeight:700,transition:'all .15s',textAlign:'left',
+                                        border:`1.5px solid ${on?T.gold:T.border}`,
+                                        background:on?T.goldGl:cardBg,color:on?T.gold:T.textS}}>
+                                      <div>{m.label}{i===0 && <span style={{marginLeft:6,fontSize:9,opacity:.85,fontWeight:800,letterSpacing:'.06em'}}>· ATUAL</span>}</div>
+                                      <div style={{fontSize:10,fontWeight:600,opacity:.7,marginTop:1}}>{m.total} plays</div>
+                                    </button>
+                                    {isAdmin && (
+                                      <button onClick={(e)=>{e.stopPropagation();deleteMaquinaMonth(m.key,m.label);}}
+                                        title={`Excluir "${m.label}" permanentemente`}
+                                        style={{position:'absolute',top:5,right:5,width:16,height:16,padding:0,border:'none',background:'transparent',
+                                          cursor:'pointer',color:T.danger||'#C04050',opacity:.6,display:'flex',alignItems:'center',justifyContent:'center'}}
+                                        onMouseEnter={e=>{e.currentTarget.style.opacity=1;}}
+                                        onMouseLeave={e=>{e.currentTarget.style.opacity=.6;}}>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
                                 );
                               })}
                             </div>
