@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
-import { onCaptureState, getCaptureTargetRect, emitCaptureThrow } from './captureUniko';
+import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange } from './assistantSkin';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
@@ -609,8 +609,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const accent = T.gold || '#E8B84B';
   const panelBg = T.surface || '#fff';
 
-  // Borda do balão (gradiente cônico) e cor do label "UNIKO" — variam por SKIN.
-  const bubbleTheme = BUBBLE_THEME_BY_SKIN[skinId] || BUBBLE_THEME_BY_SKIN.default;
+  // Borda do balão (gradiente cônico) e cor do label "UNIKO" — variam por SKIN. Pras skins
+  // sem tema artesanal aqui (UNIKO Comum ou Unikos da Oficina), reaproveita o `theme.border`
+  // já derivado da cor escolhida na criação (deriveUnikoTheme, mesma fonte usada na Central
+  // Alexa) em vez de cair no azul padrão.
+  let bubbleTheme = BUBBLE_THEME_BY_SKIN[skinId];
+  if (!bubbleTheme && skinId !== 'default') {
+    const uni = getUniko(skinId);
+    if (uni?.theme?.border) bubbleTheme = { conic: uni.theme.border.join(','), label: uni.theme.accent };
+  }
+  bubbleTheme = bubbleTheme || BUBBLE_THEME_BY_SKIN.default;
   const bubbleConic = bubbleTheme.conic;
   const bubbleLabelColor = bubbleTheme.label;
 
