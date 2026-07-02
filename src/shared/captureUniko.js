@@ -206,10 +206,10 @@ function _buildCustomSkin(row) {
     sprites: {
       ALARME:  row.img_notif || main,
       ATENCAO: row.img_alert || main,
-      ALEXA:   row.img_notif || main,
-      WAVE:    row.img_notif || main,
-      PRISMAC: row.img_notif || main,
-      PRISMAP: row.img_notif || main,
+      ALEXA:   row.img_alexa || row.img_notif || main,
+      WAVE:    row.img_wave || row.img_notif || main,
+      PRISMAC: row.img_prisma_comum || main,
+      PRISMAP: row.img_prisma_premium || main,
       CAPTURE: row.img_capture || main,
     },
   };
@@ -248,6 +248,8 @@ export async function saveCustomUniko(fields) {
     icon_size: fields.iconSize || 84,
     img_main: fields.imgMain, img_notif: fields.imgNotif || null, img_alert: fields.imgAlert || null,
     img_closed: fields.imgClosed || null, img_capture: fields.imgCapture || null,
+    img_prisma_comum: fields.imgPrismaComum || null, img_prisma_premium: fields.imgPrismaPremium || null,
+    img_alexa: fields.imgAlexa || null, img_wave: fields.imgWave || null,
     created_by: fields.createdBy || null,
   };
   const { error } = await _supabase.from('custom_unikos').upsert(row, { onConflict: 'id' });

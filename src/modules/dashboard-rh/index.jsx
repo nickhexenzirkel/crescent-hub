@@ -457,7 +457,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
   const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
   const [oficinaForm, setOficinaForm]       = useState({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
-  const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null });
+  const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null });
   const [oficinaSaving, setOficinaSaving]   = useState(false);
   const [oficinaMsg, setOficinaMsg]         = useState('');
   const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
@@ -497,7 +497,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const resetOficinaForm = () => {
     setOficinaEditingId(null);
     setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
-    setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null });
+    setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null });
   };
   // Carrega um Uniko já criado de volta no formulário — os frames vêm exatamente como
   // foram salvos (sem cair no principal), pra não "perder" um frame vazio ao reeditar.
@@ -509,7 +509,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       name: row.name, tagline: row.tagline || '', accent: row.accent,
       rewardComum: row.reward_comum, rewardPremium: row.reward_premium, iconSize: row.icon_size || 84,
     });
-    setOficinaFrames({ main: row.img_main, notif: row.img_notif, alert: row.img_alert, closed: row.img_closed, capture: row.img_capture });
+    setOficinaFrames({
+      main: row.img_main, notif: row.img_notif, alert: row.img_alert, closed: row.img_closed, capture: row.img_capture,
+      prismaComum: row.img_prisma_comum, prismaPremium: row.img_prisma_premium, alexa: row.img_alexa, wave: row.img_wave,
+    });
     setOficinaMsg('');
   };
   const saveOficina = async () => {
@@ -525,6 +528,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
         iconSize: Number(oficinaForm.iconSize) || 84,
         imgMain: oficinaFrames.main, imgNotif: oficinaFrames.notif, imgAlert: oficinaFrames.alert,
         imgClosed: oficinaFrames.closed, imgCapture: oficinaFrames.capture,
+        imgPrismaComum: oficinaFrames.prismaComum, imgPrismaPremium: oficinaFrames.prismaPremium,
+        imgAlexa: oficinaFrames.alexa, imgWave: oficinaFrames.wave,
         createdBy: raw?.created_by || getAuthUser()?.name, // edição mantém o criador original
       });
       setOficinaMsg(oficinaEditingId ? '✅ Alterações salvas!' : '✅ Uniko adicionado à Biblioteca!');
@@ -1922,6 +1927,14 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       onFile={f=>handleFrameFile('closed',f)} onClear={()=>setOficinaFrames(fr=>({...fr,closed:null}))}/>
                     <FrameUploadSlot label="Capturar" hint="Quando alguém captura" value={oficinaFrames.capture}
                       onFile={f=>handleFrameFile('capture',f)} onClear={()=>setOficinaFrames(fr=>({...fr,capture:null}))}/>
+                    <FrameUploadSlot label="Prisma Comum" hint="Ganhou Prisma comum" value={oficinaFrames.prismaComum}
+                      onFile={f=>handleFrameFile('prismaComum',f)} onClear={()=>setOficinaFrames(fr=>({...fr,prismaComum:null}))}/>
+                    <FrameUploadSlot label="Prisma Premium" hint="Ganhou Prisma premium" value={oficinaFrames.prismaPremium}
+                      onFile={f=>handleFrameFile('prismaPremium',f)} onClear={()=>setOficinaFrames(fr=>({...fr,prismaPremium:null}))}/>
+                    <FrameUploadSlot label="Alexa" hint="Avisos da Central Alexa" value={oficinaFrames.alexa}
+                      onFile={f=>handleFrameFile('alexa',f)} onClear={()=>setOficinaFrames(fr=>({...fr,alexa:null}))}/>
+                    <FrameUploadSlot label="Uniko Wave" hint="Avisos do Uniko Wave" value={oficinaFrames.wave}
+                      onFile={f=>handleFrameFile('wave',f)} onClear={()=>setOficinaFrames(fr=>({...fr,wave:null}))}/>
                   </div>
                 </div>
 
@@ -1939,7 +1952,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         </div>
                       </div>
                       <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                        {[{k:'notif',label:'Notificação'},{k:'alert',label:'Aviso'},{k:'capture',label:'Capturar'}].map(({k,label})=>(
+                        {[{k:'notif',label:'Notificação'},{k:'alert',label:'Aviso'},{k:'capture',label:'Capturar'},{k:'prismaComum',label:'Prisma Comum'},{k:'prismaPremium',label:'Prisma Premium'},{k:'alexa',label:'Alexa'},{k:'wave',label:'Uniko Wave'}].map(({k,label})=>(
                           <div key={k} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
                             <img src={oficinaFrames[k]||oficinaFrames.main} alt={label} style={{width:42,height:42,objectFit:'contain',borderRadius:8,background:'rgba(0,0,0,.25)',padding:4}}/>
                             <span style={{fontSize:9.5,color:'rgba(255,255,255,.75)'}}>{label}{!oficinaFrames[k]&&' (padrão)'}</span>
