@@ -8,7 +8,10 @@ import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
-import { hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
+import {
+  hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations,
+  getAssistantScale, setAssistantScale, ASSISTANT_SCALE_MIN, ASSISTANT_SCALE_MAX, ASSISTANT_SCALE_STEP,
+} from '../../../shared/assistantSkin';
 
 /* Mantém a MESMA chave do antigo My Uniko — TabGames/TabInicio ainda a importam. */
 export const DOKO_KEY = (() => {
@@ -47,6 +50,10 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
   const [search, setSearch] = useState(''); // busca por nome na coleção
+  const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
+  // Atualização funcional — clique duplo/rápido não deve usar um `assistantScale` da
+  // closure já desatualizado (senão dois cliques em sequência "empatam" no mesmo valor).
+  const bumpAssistantScale = (delta) => setAssistantScaleState(prev => setAssistantScale(prev + delta));
 
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
@@ -114,6 +121,17 @@ const TabMyDoko = ({ onPhotoChange }) => {
           <div style={{ fontSize: 11, color: T.textT, fontWeight: 600, letterSpacing: '.04em' }}>ASSISTENTE ATUAL</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{activeSkin.name}</div>
         </div>
+
+        {/* Tamanho do assistente — preferência pessoal (só nesse dispositivo), qualquer usuário pode ajustar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)' }}
+          title="Tamanho do assistente flutuante">
+          <button onClick={() => bumpAssistantScale(-ASSISTANT_SCALE_STEP)} disabled={assistantScale <= ASSISTANT_SCALE_MIN}
+            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale <= ASSISTANT_SCALE_MIN ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale <= ASSISTANT_SCALE_MIN ? .4 : 1 }}>−</button>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textS, width: 38, textAlign: 'center' }}>{Math.round(assistantScale * 100)}%</span>
+          <button onClick={() => bumpAssistantScale(ASSISTANT_SCALE_STEP)} disabled={assistantScale >= ASSISTANT_SCALE_MAX}
+            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale >= ASSISTANT_SCALE_MAX ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale >= ASSISTANT_SCALE_MAX ? .4 : 1 }}>+</button>
+        </div>
+
         {activeAssistant !== 'default' && (
           <button onClick={() => setActiveAssistantSkin('default')}
             style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--font-body)' }}>

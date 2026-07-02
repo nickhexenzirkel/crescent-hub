@@ -10,7 +10,7 @@ import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
-import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange } from './assistantSkin';
+import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange } from './assistantSkin';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
 // Sem entrada aqui → cai no `default` (azul clássico).
@@ -289,12 +289,13 @@ const UnikoFace = ({ size, src, talking, skin }) => {
 const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) => {
   const [open, setOpen] = useState(false);          // painel de chat aberto?
   const [skinId, setSkinId] = useState(getActiveAssistantSkinId); // skin do assistente (default | uniko capturado)
+  const [scale, setScale] = useState(getAssistantScale); // preferência pessoal de tamanho (Coleção)
   const skin = getAssistantSkin(skinId);
   const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
   const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
   const tipSpriteRef = useRef(skin.tipSprite); tipSpriteRef.current = skin.tipSprite; // override das DICAS (se a skin tiver um ícone próprio de dica)
-  const ICON = skin.iconSize || 84;                  // tamanho do robô (varia por skin)
-  const MARGIN = skin.edgeMargin ?? 12;              // distância das bordas (varia por skin)
+  const ICON = Math.round((skin.iconSize || 84) * scale);     // tamanho do robô (skin × preferência pessoal)
+  const MARGIN = Math.round((skin.edgeMargin ?? 12) * scale); // distância das bordas (escala junto)
   const iconRef = useRef(ICON); iconRef.current = ICON;
   const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
   const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
@@ -306,7 +307,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   ]);
   const [input, setInput] = useState('');
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
-  const [pos, setPos] = useState(() => dockToPixels(loadDock(), getAssistantSkin(getActiveAssistantSkinId()).iconSize || 84, getAssistantSkin(getActiveAssistantSkinId()).edgeMargin ?? 12)); // canto sup-esq do robô (px) — arrastável
+  const [pos, setPos] = useState(() => {
+    const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
+    return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
+  }); // canto sup-esq do robô (px) — arrastável
   const [dragging, setDragging] = useState(false);  // arrastando? (desliga transição p/ seguir o dedo)
   const [hovered, setHovered] = useState(false);    // mouse em cima? → expande suavemente
   const bubbleTimer = useRef(null);
@@ -364,6 +368,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
   // Skin do assistente pode mudar (quando o usuário "usa como assistente" um Uniko capturado).
   useEffect(() => onAssistantSkinChange((id) => setSkinId(id || 'default')), []);
+  useEffect(() => onAssistantScaleChange((v) => setScale(v || 1)), []);
 
   // ── CAPTURE O UNIKO: avisa SÓ quando está no Portal do Colaborador e há um Uniko disponível.
   // Ouve o estado emitido pelo widget (captureUniko pub/sub). Heartbeat + sprite + fala.

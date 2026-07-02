@@ -141,3 +141,35 @@ export function onAssistantSkinChange(cb) {
   window.addEventListener(EV, h);
   return () => window.removeEventListener(EV, h);
 }
+
+/* ── Tamanho do assistente ativo — QUALQUER usuário pode aumentar/diminuir o robô
+   flutuante (Coleção → card "Assistente ativo"). Multiplicador local por usuário (não
+   sincroniza entre dispositivos, igual à posição/dock), aplicado em cima do iconSize/
+   edgeMargin da skin (fixo ou da Oficina) — não mexe no tamanho "de fábrica" do Uniko,
+   só na preferência pessoal de exibição. ── */
+export const ASSISTANT_SCALE_MIN = 0.6;
+export const ASSISTANT_SCALE_MAX = 1.8;
+export const ASSISTANT_SCALE_STEP = 0.1;
+const SCALE_KEY = () => `uniko_assistant_scale_${userTag()}`;
+const SCALE_EV  = 'uniko-assistant-scale:changed';
+
+export function getAssistantScale() {
+  try {
+    const v = parseFloat(localStorage.getItem(SCALE_KEY()));
+    if (!Number.isNaN(v) && v >= ASSISTANT_SCALE_MIN && v <= ASSISTANT_SCALE_MAX) return v;
+  } catch {}
+  return 1;
+}
+
+export function setAssistantScale(v) {
+  const clamped = Math.max(ASSISTANT_SCALE_MIN, Math.min(ASSISTANT_SCALE_MAX, Math.round(v * 10) / 10));
+  try { localStorage.setItem(SCALE_KEY(), String(clamped)); } catch {}
+  try { window.dispatchEvent(new CustomEvent(SCALE_EV, { detail: clamped })); } catch {}
+  return clamped;
+}
+
+export function onAssistantScaleChange(cb) {
+  const h = (e) => cb(e.detail);
+  window.addEventListener(SCALE_EV, h);
+  return () => window.removeEventListener(SCALE_EV, h);
+}
