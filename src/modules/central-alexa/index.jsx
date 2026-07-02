@@ -270,43 +270,54 @@ const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
   </div>
 );
 
-// Baleia — rara (1-2 por página), atravessa devagar. Corpo bem redondo/gordinho, SEM
-// barbatana dorsal e cauda achatada/horizontal (não vertical) — antes lembrava tubarão
-// (barbatana pontuda + cauda vertical eram exatamente o problema). Reusa os keyframes
-// seaFishDrift/Rev (só translação horizontal).
+// Baleia — rara (1-2 por página), atravessa devagar. Pose de humpback: corpo grosso
+// arqueado, barriga pregueada clara, nadadeiras peitorais penduradas, cauda em leque na
+// ponta — baseada em referência de baleia real. Reusa os keyframes seaFishDrift/Rev.
+const WHALE_BELLY = '#eaf7f8';
 const DriftWhale = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '112%' : '-18%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .35} viewBox="-2 -4 62 22" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
-      <ellipse cx="22" cy="10" rx="20" ry="9" fill={color} />
-      <path d="M2 6 Q-2 10 2 15 Q4 17 8 16 Q4 12 4 8 Q3 6 2 6 Z" fill={color} />
-      <ellipse cx="20" cy="15" rx="14" ry="4" fill="#fff" opacity=".25" />
-      <path d="M40 7 Q52 0 60 4 Q52 8 48 8 Q52 9 60 15 Q52 16 40 9 Q38 8 40 7 Z" fill={color} />
-      <circle cx="8" cy="6" r="1.8" fill="#0b1a20" />
-      <path d="M2 12 Q7 15 12 13" stroke="#0b1a20" strokeWidth="1.2" fill="none" opacity=".4" strokeLinecap="round" />
-      <g opacity=".6">
-        <circle cx="14" cy="-2" r="1.6" fill="#d8f2ff" />
-        <circle cx="17" cy="-6" r="1.1" fill="#d8f2ff" />
+    <svg width={size} height={size * .64} viewBox="-4 -32 90 58" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
+      <path d="M2 14 Q8 -6 34 -16 Q52 -22 68 -18 Q78 -14 74 -6" stroke={color} strokeWidth="15" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 18 Q14 4 32 -8" stroke={WHALE_BELLY} strokeWidth="6" fill="none" strokeLinecap="round" />
+      <g stroke={WHALE_BELLY} strokeWidth="1" opacity=".7" fill="none">
+        <path d="M8 16 Q12 8 16 2" />
+        <path d="M12 15 Q16 7 20 1" />
+        <path d="M16 14 Q20 6 24 0" />
       </g>
+      <ellipse cx="1" cy="14" rx="7" ry="6" fill={color} />
+      <path d="M18 10 Q14 24 8 30 Q20 26 24 12 Z" fill={color} />
+      <path d="M26 4 Q24 16 20 22 Q28 18 30 6 Z" fill={color} opacity=".9" />
+      <path d="M56 -22 Q58 -30 63 -21 Q59 -20 56 -22 Z" fill={color} />
+      <path d="M68 -18 Q80 -26 87 -18 Q80 -13 76 -10 Q82 -3 85 6 Q74 1 69 -9 Z" fill={color} />
+      <path d="M71 -17 Q78 -22 82 -19" stroke={WHALE_BELLY} strokeWidth="1.5" fill="none" opacity=".7" />
+      <circle cx="-2" cy="12" r="1.7" fill="#0b1a20" />
     </svg>
   </div>
 );
 
-// Golfinho — rara (1-2 por página), pose arqueada de "salto" (bem diferente do perfil
-// reto de tubarão, que nunca é desenhado arqueado).
+// Golfinho — rara (1-2 por página), pose arqueada de "salto": corpo em curva completa,
+// focinho arredondado com sorriso, olho grande estilo cartoon, barbatanas e cauda em
+// leque na ponta — baseada em referência real.
+const DOLPHIN_BELLY = '#eef4f7';
 const DriftDolphin = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '108%' : '-8%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .8} viewBox="-4 -20 50 40" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
-      <path d="M2 14 Q6 -4 22 -10 Q34 -14 42 -6" stroke={color} strokeWidth="9" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="2" cy="14" r="4.5" fill={color} />
-      <path d="M20 -13 Q23 -20 26 -12 Q23 -11 20 -13 Z" fill={color} />
-      <path d="M40 -10 Q46 -14 49 -9 Q45 -8 43 -6 Q46 -3 48 2 Q43 0 40 -6 Z" fill={color} />
-      <circle cx="1" cy="12" r="1.4" fill="#0b1a20" />
+    <svg width={size} height={size * .68} viewBox="-6 -26 74 50" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
+      <path d="M2 18 Q10 -8 28 -18 Q42 -25 56 -14 Q62 -9 60 0" stroke={color} strokeWidth="11" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 19 Q12 -2 26 -13" stroke={DOLPHIN_BELLY} strokeWidth="4" fill="none" strokeLinecap="round" />
+      <ellipse cx="1" cy="17" rx="6.2" ry="5.2" fill={color} />
+      <path d="M14 10 Q10 21 4 25 Q15 22 19 12 Z" fill={color} />
+      <path d="M27 -19 Q29 -28 34 -18 Q30 -17 27 -19 Z" fill={color} />
+      <path d="M54 -12 Q64 -20 71 -13 Q65 -9 61 -6 Q66 -1 68 8 Q59 3 55 -5 Z" fill={color} />
+      <circle cx="-1" cy="14" r="2.7" fill="#fff" />
+      <circle cx="-0.6" cy="14" r="1.7" fill="#1a3a5c" />
+      <circle cx="0.1" cy="13.2" r=".7" fill="#fff" />
+      <path d="M-5 18 Q0 22.5 6.5 19" stroke="#33465a" strokeWidth="1.3" fill="none" strokeLinecap="round" />
     </svg>
   </div>
 );
@@ -407,16 +418,16 @@ const CentralOcean = () => {
   if (!whales.current) {
     const n = 1 + Math.round(Math.random());
     whales.current = Array.from({ length: n }).map((_, i) => ({
-      id: i, top: rndSea(10, 42), size: Math.round(rndSea(90, 130)), dur: rndSea(28, 42),
-      delay: rndSea(0, 20), color: '#6ea8d8', reverse: i % 2 === 1,
+      id: i, top: rndSea(10, 42), size: Math.round(rndSea(74, 104)), dur: rndSea(28, 42),
+      delay: rndSea(0, 20), color: '#2f8f9e', reverse: i % 2 === 1,
     }));
   }
   const dolphins = useRef(null);
   if (!dolphins.current) {
     const n = 1 + Math.round(Math.random());
     dolphins.current = Array.from({ length: n }).map((_, i) => ({
-      id: i, top: rndSea(20, 58), size: Math.round(rndSea(56, 84)), dur: rndSea(18, 28),
-      delay: rndSea(0, 14), color: '#7fa8c9', reverse: i % 2 === 0,
+      id: i, top: rndSea(20, 58), size: Math.round(rndSea(46, 68)), dur: rndSea(18, 28),
+      delay: rndSea(0, 14), color: '#7fa0b8', reverse: i % 2 === 0,
     }));
   }
   return (
