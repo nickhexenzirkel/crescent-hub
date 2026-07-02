@@ -368,7 +368,9 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       const msg = inPortalRef.current
         ? `Olha ali! Um ${captureAlert.name} apareceu pra capturar — me arraste até ele! ✨`
         : `Corre olhar no Portal do Colaborador — apareceu uma coisa surpreendente lá! 👀✨`;
-      say(msg, { sprite: imgRef.current.CAPTURE, dismissable: true });
+      // dismissable:false — some sozinho depois de alguns segundos, sem precisar clicar
+      // "Ok" (o aviso já se repete a cada 22s enquanto o Uniko estiver disponível).
+      say(msg, { sprite: imgRef.current.CAPTURE, dismissable: false });
     };
     if (captureAlert.id !== lastCaptureId.current) { lastCaptureId.current = captureAlert.id; announce(); }
     const id = setInterval(() => { if (captureRef.current) announce(); }, 22000);

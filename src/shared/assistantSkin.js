@@ -94,6 +94,10 @@ let _customSkins = {};
 export function registerCustomSkin(id, skin) { _customSkins[id] = skin; }
 
 export const getAssistantSkin = (id) => ASSISTANT_SKINS[id] || _customSkins[id] || ASSISTANT_SKINS.default;
+// Existe skin de assistente pra esse id (fixa OU da Oficina)? Usado pra decidir se mostra
+// o botão "Usar como assistente" — checar só `ASSISTANT_SKINS[id]` (como antes) ignorava
+// os Unikos custom, que ficam num cache separado (_customSkins).
+export const hasAssistantSkin = (id) => !!(ASSISTANT_SKINS[id] || _customSkins[id]);
 
 export function getSkinVariations(id) {
   const s = ASSISTANT_SKINS[id] || _customSkins[id];

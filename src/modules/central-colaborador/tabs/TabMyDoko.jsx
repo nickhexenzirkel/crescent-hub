@@ -8,7 +8,7 @@ import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
-import { ASSISTANT_SKINS, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
+import { hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations } from '../../../shared/assistantSkin';
 
 /* Mantém a MESMA chave do antigo My Uniko — TabGames/TabInicio ainda a importam. */
 export const DOKO_KEY = (() => {
@@ -145,7 +145,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
         {visibleRoster.map(u => {
           const owned = owns(u);
           const th = u.theme;
-          const canAssist = u.canBeAssistant && ASSISTANT_SKINS[u.id];
+          const canAssist = u.canBeAssistant && hasAssistantSkin(u.id);
           const isActive = activeAssistant === u.id;
           const okPhoto = photoOk === u.id;
 
