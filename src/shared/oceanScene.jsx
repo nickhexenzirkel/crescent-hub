@@ -100,7 +100,9 @@ const Fish = () => {
   );
 };
 
-/* ── Baleia (SVG): corpo grande, cauda em V, jato d'água — rara, no fundo da cena ── */
+/* ── Baleia (SVG): corpo bem gordinho/redondo, jato d'água, sorriso — SEM barbatana
+   dorsal e com cauda achatada/horizontal (não vertical) de propósito, pra não lembrar
+   tubarão (era exatamente essa a queixa: barbatana pontuda + cauda vertical = tubarão). ── */
 const WHALE_PALETTE = ['#6ea8d8', '#8fb8e0', '#5c93c4'];
 const newWhalePose = () => {
   const fdx = (Math.random() < 0.5 ? -1 : 1) * rndN(90, 170);
@@ -116,32 +118,34 @@ const Whale = () => {
   return (
     <div style={{
       position: 'absolute', top: `${pose.top}%`, left: `${pose.left}%`, pointerEvents: 'none',
-      '--fdx': `${pose.fdx}px`, opacity: .85, zIndex: 0,
+      '--fdx': `${pose.fdx}px`, opacity: .88, zIndex: 0,
       animation: `osFishSwim ${pose.dur}s ease-in-out ${pose.delay}s infinite`,
       transform: pose.flip ? 'scaleX(-1)' : undefined,
     }}>
-      <svg width={pose.sz} height={pose.sz * .65} viewBox="0 -8 60 42" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
-        <path d="M4 18 Q4 8 20 7 Q40 6 50 14 Q58 17 58 19 Q50 24 38 25 Q20 27 8 22 Q4 20 4 18 Z" fill={c} />
-        <path d="M10 20 Q22 25 38 24 Q26 26.5 14 23 Q10 22 10 20 Z" fill="#fff" opacity=".3" />
-        <path d="M50 14 L60 6 L56 17 L60 27 L48 20 Z" fill={c} />
-        <path d="M26 8 L30 0 L34 8 Z" fill={c} />
-        <circle cx="12" cy="14" r="1.6" fill="#0b1a20" />
-        <g opacity=".65">
-          <circle cx="19" cy="0" r="1.3" fill="#d8f2ff" />
-          <circle cx="22" cy="-4" r="1" fill="#d8f2ff" />
-          <circle cx="17" cy="-4" r=".8" fill="#d8f2ff" />
+      <svg width={pose.sz} height={pose.sz * .35} viewBox="-2 -4 62 22" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
+        <ellipse cx="22" cy="10" rx="20" ry="9" fill={c} />
+        <path d="M2 6 Q-2 10 2 15 Q4 17 8 16 Q4 12 4 8 Q3 6 2 6 Z" fill={c} />
+        <ellipse cx="20" cy="15" rx="14" ry="4" fill="#fff" opacity=".25" />
+        <path d="M40 7 Q52 0 60 4 Q52 8 48 8 Q52 9 60 15 Q52 16 40 9 Q38 8 40 7 Z" fill={c} />
+        <circle cx="8" cy="6" r="1.6" fill="#0b1a20" />
+        <path d="M2 12 Q7 15 12 13" stroke="#0b1a20" strokeWidth="1" fill="none" opacity=".4" strokeLinecap="round" />
+        <g opacity=".6">
+          <circle cx="14" cy="-2" r="1.4" fill="#d8f2ff" />
+          <circle cx="17" cy="-6" r="1" fill="#d8f2ff" />
         </g>
       </svg>
     </div>
   );
 };
 
-/* ── Golfinho (SVG): corpo esguio arqueado, nadadeira dorsal, cauda bifurcada ── */
+/* ── Golfinho (SVG): pose arqueada de "salto" (corpo em curva, focinho arredondado,
+   barbatana em gancho no topo do arco, cauda pequena) — bem diferente do perfil reto
+   de tubarão, que nunca é desenhado arqueado. ── */
 const DOLPHIN_PALETTE = ['#7fa8c9', '#9fc3de', '#6b93b8'];
 const newDolphinPose = () => {
   const fdx = (Math.random() < 0.5 ? -1 : 1) * rndN(110, 200);
   return {
-    top: rndN(20, 55), left: rndN(0, 55), sz: Math.round(rndN(32, 46)),
+    top: rndN(20, 55), left: rndN(0, 55), sz: Math.round(rndN(30, 42)),
     fdx, dur: rndN(10, 17), delay: rndN(0, 8), flip: fdx > 0,
     color: DOLPHIN_PALETTE[Math.floor(rndN(0, DOLPHIN_PALETTE.length))],
   };
@@ -156,11 +160,12 @@ const Dolphin = () => {
       animation: `osFishSwim ${pose.dur}s ease-in-out ${pose.delay}s infinite`,
       transform: pose.flip ? 'scaleX(-1)' : undefined,
     }}>
-      <svg width={pose.sz} height={pose.sz * .6} viewBox="0 0 56 32" style={{ display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.2))' }}>
-        <path d="M2 17 Q5 11 15 9 Q17 5 21 7 Q19 10 21 12 Q33 10 44 15 Q39 17.5 33 17 Q39 20 43 25 Q32 23 25 19 Q14 23 4 20 Q1 19 2 17 Z" fill={c} />
-        <path d="M6 18 Q14 21 24 19" stroke="#fff" strokeWidth="1.4" opacity=".4" fill="none" />
-        <path d="M44 15 L54 11 L50 17 L54 23 L42 19 Z" fill={c} />
-        <circle cx="13" cy="10.5" r="1.3" fill="#0b1a20" />
+      <svg width={pose.sz} height={pose.sz * .8} viewBox="-4 -20 50 40" style={{ display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.2))' }}>
+        <path d="M2 14 Q6 -4 22 -10 Q34 -14 42 -6" stroke={c} strokeWidth="9" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="2" cy="14" r="4.5" fill={c} />
+        <path d="M20 -13 Q23 -20 26 -12 Q23 -11 20 -13 Z" fill={c} />
+        <path d="M40 -10 Q46 -14 49 -9 Q45 -8 43 -6 Q46 -3 48 2 Q43 0 40 -6 Z" fill={c} />
+        <circle cx="1" cy="12" r="1.1" fill="#0b1a20" />
       </svg>
     </div>
   );

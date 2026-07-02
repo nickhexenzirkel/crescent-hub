@@ -270,38 +270,43 @@ const DriftFish = ({ top, size, dur, delay, color, reverse }) => (
   </div>
 );
 
-// Baleia — rara (1-2 por página), atravessa devagar. Mesma orientação-padrão do peixe
-// (olho à esquerda), reusa os keyframes seaFishDrift/Rev (só translação horizontal).
+// Baleia — rara (1-2 por página), atravessa devagar. Corpo bem redondo/gordinho, SEM
+// barbatana dorsal e cauda achatada/horizontal (não vertical) — antes lembrava tubarão
+// (barbatana pontuda + cauda vertical eram exatamente o problema). Reusa os keyframes
+// seaFishDrift/Rev (só translação horizontal).
 const DriftWhale = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '112%' : '-18%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .7} viewBox="0 -8 60 42" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
-      <path d="M4 18 Q4 8 20 7 Q40 6 50 14 Q58 17 58 19 Q50 24 38 25 Q20 27 8 22 Q4 20 4 18 Z" fill={color} />
-      <path d="M10 20 Q22 25 38 24 Q26 26.5 14 23 Q10 22 10 20 Z" fill="#fff" opacity=".3" />
-      <path d="M50 14 L60 6 L56 17 L60 27 L48 20 Z" fill={color} />
-      <path d="M26 8 L30 0 L34 8 Z" fill={color} />
-      <circle cx="12" cy="14" r="1.8" fill="#0b1a20" />
-      <g opacity=".65">
-        <circle cx="19" cy="0" r="1.6" fill="#d8f2ff" />
-        <circle cx="22" cy="-4" r="1.2" fill="#d8f2ff" />
+    <svg width={size} height={size * .35} viewBox="-2 -4 62 22" style={{ display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,.25))' }}>
+      <ellipse cx="22" cy="10" rx="20" ry="9" fill={color} />
+      <path d="M2 6 Q-2 10 2 15 Q4 17 8 16 Q4 12 4 8 Q3 6 2 6 Z" fill={color} />
+      <ellipse cx="20" cy="15" rx="14" ry="4" fill="#fff" opacity=".25" />
+      <path d="M40 7 Q52 0 60 4 Q52 8 48 8 Q52 9 60 15 Q52 16 40 9 Q38 8 40 7 Z" fill={color} />
+      <circle cx="8" cy="6" r="1.8" fill="#0b1a20" />
+      <path d="M2 12 Q7 15 12 13" stroke="#0b1a20" strokeWidth="1.2" fill="none" opacity=".4" strokeLinecap="round" />
+      <g opacity=".6">
+        <circle cx="14" cy="-2" r="1.6" fill="#d8f2ff" />
+        <circle cx="17" cy="-6" r="1.1" fill="#d8f2ff" />
       </g>
     </svg>
   </div>
 );
 
-// Golfinho — rara (1-2 por página), corpo esguio arqueado + cauda bifurcada.
+// Golfinho — rara (1-2 por página), pose arqueada de "salto" (bem diferente do perfil
+// reto de tubarão, que nunca é desenhado arqueado).
 const DriftDolphin = ({ top, size, dur, delay, color, reverse }) => (
   <div style={{
     position: 'absolute', top: `${top}%`, left: reverse ? '108%' : '-8%', pointerEvents: 'none',
     animation: `seaFishDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
   }}>
-    <svg width={size} height={size * .58} viewBox="0 0 56 32" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
-      <path d="M2 17 Q5 11 15 9 Q17 5 21 7 Q19 10 21 12 Q33 10 44 15 Q39 17.5 33 17 Q39 20 43 25 Q32 23 25 19 Q14 23 4 20 Q1 19 2 17 Z" fill={color} />
-      <path d="M6 18 Q14 21 24 19" stroke="#fff" strokeWidth="1.4" opacity=".4" fill="none" />
-      <path d="M44 15 L54 11 L50 17 L54 23 L42 19 Z" fill={color} />
-      <circle cx="13" cy="10.5" r="1.5" fill="#0b1a20" />
+    <svg width={size} height={size * .8} viewBox="-4 -20 50 40" style={{ display: 'block', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,.22))' }}>
+      <path d="M2 14 Q6 -4 22 -10 Q34 -14 42 -6" stroke={color} strokeWidth="9" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="2" cy="14" r="4.5" fill={color} />
+      <path d="M20 -13 Q23 -20 26 -12 Q23 -11 20 -13 Z" fill={color} />
+      <path d="M40 -10 Q46 -14 49 -9 Q45 -8 43 -6 Q46 -3 48 2 Q43 0 40 -6 Z" fill={color} />
+      <circle cx="1" cy="12" r="1.4" fill="#0b1a20" />
     </svg>
   </div>
 );
