@@ -1315,6 +1315,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     return !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
   };
 
+  // Visão Geral só mostra ranking depois de N dias acumulando plays no período atual
+  const MAQUINA_MIN_DAYS = 3;
+
   // Períodos do collage da Semaninha
   const COLLAGE_PERIODS = [
     { id:'semana', label:'7 dias',  days:7,   sub:'últimos 7 dias' },
@@ -1354,13 +1357,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const resetAt = resetSetting?.value || null;
 
     // Tudo agregado no servidor (escala sem baixar linhas brutas da fila)
-    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes] = await Promise.all([
+    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes, periodStartRes] = await Promise.all([
       _supabase.rpc('maquina_song_stats',   { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_artist_stats', { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_dj_stats',     { p_since: resetAt }),
       _supabase.from('maquina_monthly_songs').select('month,spotify_id,title,artist,album_art,plays'),
       _supabase.from('maquina_monthly_djs').select('month,requested_by,plays'),
       _supabase.rpc('maquina_play_count',   { p_since: resetAt }),
+      _supabase.rpc('maquina_period_start', { p_since: resetAt }),
     ]);
 
     if (songsRes.error) {
@@ -1369,6 +1373,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       setMaquinaLoading(false);
       return;
     }
+
+    // Desde quando o período atual (Visão Geral) vem acumulando plays — usado
+    // pra segurar o ranking até ter pelo menos MAQUINA_MIN_DAYS de dados.
+    const periodStart = periodStartRes.data || null;
 
     // Visão Geral (período atual)
     const topSongs = (songsRes.data||[]).map(s => ({
@@ -1412,7 +1420,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     });
 
     setSelMonthIdx(0);
-    setMaquinaData({ topSongs, topArtists, total, resetAt, djs, djTotal, months });
+    setMaquinaData({ topSongs, topArtists, total, resetAt, periodStart, djs, djTotal, months });
     setMaquinaLoading(false);
 
     // Carrega fotos dos DJs (ranking geral + de todos os meses)
@@ -1485,6 +1493,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       </div>
     </div>
   );
+
+  // Enquanto o período atual tem menos de MAQUINA_MIN_DAYS de plays, mostra
+  // um aviso de "acumulando dados" no lugar do ranking da Visão Geral.
+  const renderMaquinaAccumulating = (periodStart) => {
+    const elapsedDays = (Date.now() - new Date(periodStart).getTime()) / 86400000;
+    const daysLeft = Math.max(1, Math.ceil(MAQUINA_MIN_DAYS - elapsedDays));
+    return (
+      <div style={{textAlign:"center",padding:60,color:T.textT}}>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style={{fontSize:14,color:T.text}}>Acumulando dados pro ranking...</div>
+        <div style={{fontSize:12,marginTop:4,opacity:.7}}>
+          A Visão Geral mostra o primeiro resultado depois de {MAQUINA_MIN_DAYS} dias de músicas tocadas
+          {daysLeft>0 && ` · falta${daysLeft>1?'m':''} ${daysLeft} dia${daysLeft>1?'s':''}`}
+        </div>
+      </div>
+    );
+  };
 
   // Renderiza os cards (músicas + artistas + DJs) de um conjunto agregado
   const renderTopCards = (d) => (
@@ -3120,7 +3145,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 : (
                   <>
                     {/* ── VISÃO GERAL ── */}
-                    {maquinaView==='geral' && renderTopCards(maquinaData)}
+                    {maquinaView==='geral' && (
+                      maquinaData.periodStart && (Date.now() - new Date(maquinaData.periodStart).getTime()) < MAQUINA_MIN_DAYS*86400000
+                        ? renderMaquinaAccumulating(maquinaData.periodStart)
+                        : renderTopCards(maquinaData)
+                    )}
 
                     {/* ── POR MÊS / RETROSPECTIVA ── */}
                     {maquinaView==='mensal' && (
