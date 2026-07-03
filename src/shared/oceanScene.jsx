@@ -20,9 +20,9 @@ const rndN = (a, b) => a + Math.random() * (b - a);
 
 /* ── Bolhas subindo ── */
 const SeaBubble = () => {
-  const [pose, setPose] = useState(() => ({ left: rndN(4, 96), sz: rndN(5, 18), dur: rndN(5, 11), bx: rndN(-14, 14) }));
+  const [pose, setPose] = useState(() => ({ left: rndN(4, 96), sz: rndN(4, 12), dur: rndN(6, 12), bx: rndN(-14, 14) }));
   useEffect(() => {
-    const cycle = () => setPose({ left: rndN(4, 96), sz: rndN(5, 18), dur: rndN(5, 11), bx: rndN(-14, 14) });
+    const cycle = () => setPose({ left: rndN(4, 96), sz: rndN(4, 12), dur: rndN(6, 12), bx: rndN(-14, 14) });
     const id = setInterval(cycle, pose.dur * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,15 +127,9 @@ const Whale = () => {
         <ellipse cx="32" cy="16" rx="28" ry="13" fill={c} />
         <path d="M2 10 Q-2 16 2 22 Q5 25 10 23 Q5 19 5 15 Q4 12 2 10 Z" fill={c} />
         <ellipse cx="28" cy="25" rx="19" ry="5" fill={WHALE_BELLY} opacity=".8" />
-        <g stroke={WHALE_BELLY} strokeWidth="1" opacity=".7" fill="none">
-          <path d="M8 20 Q10 24 8 28" />
-          <path d="M12 19 Q14 24 12 29" />
-          <path d="M16 19 Q18 24 16 29" />
-        </g>
         <path d="M20 24 Q16 34 10 38 Q20 34 24 26 Z" fill={c} />
         <path d="M56 4 Q60 -4 63 4 Q59 5 56 4 Z" fill={c} />
         <path d="M58 10 Q72 2 84 8 Q74 11 68 12 Q75 16 80 24 Q66 19 59 13 Z" fill={c} />
-        <circle cx="10" cy="12" r="1.8" fill="#0b1a20" />
         <g opacity=".6">
           <circle cx="6" cy="-2" r="1.5" fill="#d8f2ff" />
           <circle cx="9" cy="-6" r="1" fill="#d8f2ff" />
@@ -175,9 +169,6 @@ const Dolphin = () => {
         <path d="M14 14 Q11 22 6 26 Q15 23 18 15 Z" fill={c} />
         <path d="M22 -1 Q24 -10 28 -1 Q25 0 22 -1 Z" fill={c} />
         <path d="M42 6 Q56 -2 66 5 Q58 8 53 9 Q59 13 63 20 Q50 15 43 9 Z" fill={c} />
-        <circle cx="0" cy="6" r="2.4" fill="#fff" />
-        <circle cx="0.4" cy="6" r="1.5" fill="#1a3a5c" />
-        <circle cx="1" cy="5.3" r=".6" fill="#fff" />
         <path d="M-4 10 Q1 14 8 11.5" stroke="#33465a" strokeWidth="1.2" fill="none" strokeLinecap="round" />
       </svg>
     </div>

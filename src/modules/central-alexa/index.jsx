@@ -283,15 +283,9 @@ const DriftWhale = ({ top, size, dur, delay, color, reverse }) => (
       <ellipse cx="32" cy="16" rx="28" ry="13" fill={color} />
       <path d="M2 10 Q-2 16 2 22 Q5 25 10 23 Q5 19 5 15 Q4 12 2 10 Z" fill={color} />
       <ellipse cx="28" cy="25" rx="19" ry="5" fill={WHALE_BELLY} opacity=".8" />
-      <g stroke={WHALE_BELLY} strokeWidth="1" opacity=".7" fill="none">
-        <path d="M8 20 Q10 24 8 28" />
-        <path d="M12 19 Q14 24 12 29" />
-        <path d="M16 19 Q18 24 16 29" />
-      </g>
       <path d="M20 24 Q16 34 10 38 Q20 34 24 26 Z" fill={color} />
       <path d="M56 4 Q60 -4 63 4 Q59 5 56 4 Z" fill={color} />
       <path d="M58 10 Q72 2 84 8 Q74 11 68 12 Q75 16 80 24 Q66 19 59 13 Z" fill={color} />
-      <circle cx="10" cy="12" r="1.8" fill="#0b1a20" />
       <g opacity=".6">
         <circle cx="6" cy="-2" r="1.5" fill="#d8f2ff" />
         <circle cx="9" cy="-6" r="1" fill="#d8f2ff" />
@@ -315,9 +309,6 @@ const DriftDolphin = ({ top, size, dur, delay, color, reverse }) => (
       <path d="M14 14 Q11 22 6 26 Q15 23 18 15 Z" fill={color} />
       <path d="M22 -1 Q24 -10 28 -1 Q25 0 22 -1 Z" fill={color} />
       <path d="M42 6 Q56 -2 66 5 Q58 8 53 9 Q59 13 63 20 Q50 15 43 9 Z" fill={color} />
-      <circle cx="0" cy="6" r="2.4" fill="#fff" />
-      <circle cx="0.4" cy="6" r="1.5" fill="#1a3a5c" />
-      <circle cx="1" cy="5.3" r=".6" fill="#fff" />
       <path d="M-4 10 Q1 14 8 11.5" stroke="#33465a" strokeWidth="1.2" fill="none" strokeLinecap="round" />
     </svg>
   </div>
@@ -410,8 +401,8 @@ const CentralOcean = () => {
   }
   const bubbles = useRef(null);
   if (!bubbles.current) {
-    bubbles.current = Array.from({ length: 14 }).map((_, i) => ({
-      id: i, left: rndSea(4, 96), sz: rndSea(6, 22), dur: rndSea(7, 15), delay: rndSea(0, 10),
+    bubbles.current = Array.from({ length: 5 }).map((_, i) => ({
+      id: i, left: rndSea(4, 96), sz: rndSea(5, 13), dur: rndSea(9, 16), delay: rndSea(0, 10),
     }));
   }
   // Baleia/golfinho são raros de propósito — no máximo 1 ou 2 de cada.
@@ -537,6 +528,66 @@ const BatBurstOverlay = () => {
               filter:'drop-shadow(0 2px 7px rgba(0,0,0,.6))',
             }}/>
           </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Animação rápida (~5s): explosão de bolhas surge do centro e sobe/voa em diagonal
+// pra longe, em direção aos 4 cantos da tela, sumindo de vez — equivalente calmo
+// (turquesa, sem susto) do burst de morcegos do Vampire-Robot, pra Uniko Sereia.
+const BubbleBurstOverlay = () => {
+  const bubbles = useRef(null);
+  if (!bubbles.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]]; // TL, TR, BL, BR
+    bubbles.current = Array.from({ length: 60 }).map((_, i) => {
+      const [cx, cy] = CORNERS[Math.floor(Math.random() * 4)]; // mira num dos 4 cantos
+      return {
+        id: i,
+        x:   rnd(36, 64),                          // % posição inicial (perto do centro)
+        y:   rnd(36, 64),
+        dx:  cx * rnd(80, 140),                    // vmax → ultrapassa o canto e sai da tela
+        dy:  cy * rnd(80, 140),
+        sz:  Math.round(rnd(8, 28)),
+        dur: rnd(4.2, 5.0),                        // lento: dá pra ver elas subindo/afastando
+        delay: rnd(0, 0.3),                        // praticamente todas ao mesmo tempo
+        wob: rnd(0.6, 1.1),                        // velocidade do bambolear
+      };
+    });
+  }
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:99998, pointerEvents:'none', overflow:'hidden' }}>
+      <style>{`
+        @keyframes bubbleBurstFlash{0%{opacity:0;}20%{opacity:.4;}80%{opacity:.28;}100%{opacity:0;}}
+        @keyframes bubbleBurstFly{
+          0%{transform:translate(-50%,-50%) scale(.4);opacity:0;}
+          7%{opacity:1;}
+          90%{opacity:.85;}
+          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.15);opacity:0;}
+        }
+        @keyframes bubbleBurstWobble{0%,100%{margin-left:0;}50%{margin-left:6px;}}
+      `}</style>
+      {/* Clareamento turquesa suave pra dar destaque (sem o susto do vermelho do vampiro) */}
+      <div style={{
+        position:'absolute', inset:0,
+        background:'radial-gradient(ellipse at 50% 45%, rgba(126,232,250,.0) 30%, rgba(3,20,26,.55) 100%)',
+        animation:'bubbleBurstFlash 5.25s ease-out forwards',
+      }}/>
+      {bubbles.current.map(b => (
+        <div key={b.id} style={{
+          position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
+          '--bdx':`${b.dx}vmax`, '--bdy':`${b.dy}vmax`,
+          animation:`bubbleBurstFly ${b.dur}s ease-in ${b.delay}s both`,
+        }}>
+          <div style={{
+            width:b.sz, height:b.sz, borderRadius:'50%',
+            background:'radial-gradient(circle at 32% 28%, rgba(255,255,255,.92), rgba(180,240,255,.3) 60%, transparent 75%)',
+            border:'1px solid rgba(220,250,255,.55)',
+            boxShadow:'0 0 8px rgba(126,232,250,.4)',
+            animation:`bubbleBurstWobble ${b.wob}s ease-in-out infinite`,
+          }}/>
         </div>
       ))}
     </div>
@@ -1027,16 +1078,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .catch(() => setSongSkin('default'));
   }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
 
-  // Burst de morcegos em tela cheia ao trocar para um vampire robot (só esse skin —
-  // outros Unikos especiais, como a Sereia, têm cenário calmo, sem esse efeito assustador).
+  // Burst em tela cheia ao trocar de skin especial: morcegos pro Vampire-Robot (assustador)
+  // e uma explosão de bolhas turquesa pra Uniko Sereia (calma) — mesmo gatilho (troca de
+  // songSkin), cada um com seu overlay. Dispara tanto quando a música da pessoa toca quanto
+  // ao entrar na Central Alexa já com a skin dela ativa (songSkin sai de 'default' pra ela).
   const [batBurst, setBatBurst] = useState(false);
+  const [bubbleBurst, setBubbleBurst] = useState(false);
   const prevSongSkin = useRef(songSkin);
   useEffect(() => {
     const prev = prevSongSkin.current;
     prevSongSkin.current = songSkin;
-    if (songSkin === 'vampire-robot' && songSkin !== prev) {
+    if (songSkin === prev) return;
+    if (songSkin === 'vampire-robot') {
       setBatBurst(true);
       const t = setTimeout(() => setBatBurst(false), 5250);
+      return () => clearTimeout(t);
+    }
+    if (songSkin === 'uniko-sereia') {
+      setBubbleBurst(true);
+      const t = setTimeout(() => setBubbleBurst(false), 5250);
       return () => clearTimeout(t);
     }
   }, [songSkin]);
@@ -2341,7 +2401,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Recife de corais — raios de luz, bolhas, água-vivas, peixinhos e corais */}
                     {isSeaCard && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
-                        <OceanScene jellies={3} fish={4} bubbles={16} whales={false} dolphins={false} />
+                        <OceanScene jellies={3} fish={4} bubbles={7} whales={false} dolphins={false} />
                       </div>
                     )}
 
@@ -3508,6 +3568,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
       {/* ── Burst de morcegos (3s) ao trocar para um vampire robot ── */}
       {batBurst && <BatBurstOverlay />}
+      {/* ── Explosão de bolhas (3s) ao trocar para a Uniko Sereia ── */}
+      {bubbleBurst && <BubbleBurstOverlay />}
     </div>
   );
 };
