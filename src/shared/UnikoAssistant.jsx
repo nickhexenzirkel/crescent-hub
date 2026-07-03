@@ -175,6 +175,25 @@ const qkeyOf = (s) => String(s || '').toLowerCase()
   .normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
+/* ── Moderação do Blog Secreto: bloqueia racismo antes de mandar. Checagem por FRASE
+   (não palavra solta) normalizada igual a FAQ (sem acento/pontuação, minúsculo) — pega
+   variações de escrita/espaçamento. Backup no servidor (trigger, ver
+   supabase_uniko_blog_secreto_moderacao.sql) pra não dar pra burlar chamando a API
+   direto — esse aqui é só a barreira do lado do cliente, mais rápida e com aviso na
+   hora. Lista curada: só o que foi pedido + variações óbvias de grafia, de propósito
+   (não é um dicionário geral de ofensas — escopo é racismo, não profanidade em geral). ── */
+const BLOCKED_RACIST_TERMS = [
+  'cabelo de bombril', 'cabelo bombril',
+  'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim',
+  'preto feio', 'preta feia',
+  'preto nojento', 'preta nojenta',
+];
+function containsRacistContent(raw) {
+  const q = qkeyOf(raw);
+  if (!q) return false;
+  return BLOCKED_RACIST_TERMS.some(term => q.includes(qkeyOf(term)));
+}
+
 // FAQ por palavra-chave: ignora ACENTO (q e keywords normalizados) e dá mais peso a FRASES
 // (gatilho com espaço pesa 2, palavra solta pesa 1) → a entrada mais específica vence.
 function faqMatch(raw) {
@@ -450,6 +469,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const blogFileRef = useRef(null);      // <input type=file> escondido (imagem/gif/vídeo)
   const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
   const [blogAttachErr, setBlogAttachErr] = useState('');
+  const [blogModerationErr, setBlogModerationErr] = useState(''); // aviso de conteúdo bloqueado (racismo)
   const [showEmoji, setShowEmoji] = useState(false);
   const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
   const [editingText, setEditingText] = useState('');
@@ -821,9 +841,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const sendBlogMessage = async () => {
     const text = blogInput.trim().slice(0, 500);
     if ((!text && !blogAttach) || blogSending.current) return;
+    if (containsRacistContent(text)) {
+      setBlogModerationErr('🚫 Essa mensagem não pode ser enviada — tem conteúdo racista/discriminatório. Revise o texto antes de mandar de novo.');
+      return;
+    }
     blogSending.current = true;
     const attach = blogAttach;
-    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setShowEmoji(false);
+    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setBlogModerationErr(''); setShowEmoji(false);
     try {
       const { data, error } = await _supabase.from('uniko_blog_secreto')
         .insert({
@@ -855,6 +879,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const text = editingText.trim().slice(0, 500);
     const target = blogMessages.find(x => x.id === id);
     if (!text && !target?.media_url) return; // não deixa esvaziar uma mensagem só-texto
+    if (containsRacistContent(text)) {
+      setBlogModerationErr('🚫 Essa edição não pode ser salva — tem conteúdo racista/discriminatório. Revise o texto antes de salvar de novo.');
+      return;
+    }
     setEditingBlogId(null);
     try {
       await _supabase.from('uniko_blog_secreto').update({ text: text || null, edited: true }).eq('id', id);
@@ -1191,7 +1219,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                     )}
                     {editing ? (
                       <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>
-                        <textarea value={editingText} onChange={e => setEditingText(e.target.value)} maxLength={500} rows={2} autoFocus
+                        <textarea value={editingText} onChange={e => { setEditingText(e.target.value); if (blogModerationErr) setBlogModerationErr(''); }} maxLength={500} rows={2} autoFocus
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditBlogMessage(m.id); } if (e.key === 'Escape') cancelEditBlogMessage(); }}
                           style={{ width: '100%', resize: 'none', border: `1px solid ${mine ? 'rgba(58,42,5,.3)' : (T.border || 'rgba(0,0,0,.2)')}`, borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'var(--font-body)', background: mine ? 'rgba(255,255,255,.4)' : (T.surface || '#fff'), color: 'inherit', boxSizing: 'border-box' }} />
                         <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
@@ -1225,6 +1253,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               );
             })}
           </div>
+
+          {/* Aviso de conteúdo bloqueado (racismo/discriminação) — barra o envio */}
+          {blogModerationErr && (
+            <div style={{ margin: '0 10px 8px', padding: '9px 12px', borderRadius: 10, background: '#C0405022', border: '1.5px solid #C0405066', color: '#C04050', fontSize: 12, fontWeight: 700, lineHeight: 1.45 }}>
+              {blogModerationErr}
+            </div>
+          )}
 
           {/* prévia do anexo pendente + erro */}
           {(blogAttach || blogAttachErr) && (
@@ -1269,7 +1304,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: showEmoji ? `${accent}33` : (T.surfaceSub || 'rgba(0,0,0,0.03)'), borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
               😀
             </button>
-            <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
+            <input value={blogInput} onChange={e => { setBlogInput(e.target.value); if (blogModerationErr) setBlogModerationErr(''); }} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
               maxLength={500} placeholder="Escreva algo anônimo... (Ctrl+V cola imagem)"
               style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
             <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
