@@ -384,6 +384,25 @@ const PearlShellBig = ({ side }) => (
   </svg>
 );
 
+// Alga marinha: folhas onduladas saindo da areia, balançando suavemente de um lado pro
+// outro (sway maior que o coral, que é rígido). Só no cenário de FUNDO (tela cheia) —
+// o card pequeno do mascote já tem elementos suficientes (pedido do usuário).
+const SEAWEED_PALETTE = ['#1b7a5c', '#2f9e73', '#4cbf8f'];
+const SeaweedBlade = ({ x, h, g, color, dur, delay }) => (
+  <g style={{ animation: `seaweedSway ${dur}s ease-in-out ${delay}s infinite`, transformOrigin: `${x}px ${g}px` }}>
+    <path d={`M${x} ${g} Q${x - 5} ${g - h * 0.4} ${x + 3} ${g - h * 0.72} Q${x + 7} ${g - h * 0.9} ${x} ${g - h}`}
+      stroke={color} strokeWidth="4.5" strokeLinecap="round" fill="none" />
+  </g>
+);
+const SeaweedCluster = ({ style }) => (
+  <svg viewBox="0 0 70 96" width="86" height="118" style={{ position: 'absolute', bottom: -6, pointerEvents: 'none', zIndex: 1, ...style }}>
+    <SeaweedBlade x={16} h={54} g={92} color={SEAWEED_PALETTE[0]} dur={4.4} delay={0} />
+    <SeaweedBlade x={28} h={70} g={92} color={SEAWEED_PALETTE[1]} dur={5.2} delay={0.5} />
+    <SeaweedBlade x={40} h={60} g={92} color={SEAWEED_PALETTE[2]} dur={4.8} delay={0.2} />
+    <SeaweedBlade x={52} h={46} g={92} color={SEAWEED_PALETTE[0]} dur={3.9} delay={0.7} />
+  </svg>
+);
+
 const CentralOcean = () => {
   const jellies = useRef(null);
   if (!jellies.current) {
@@ -437,6 +456,7 @@ const CentralOcean = () => {
         @keyframes seaSandGlow{0%,100%{opacity:.7;}50%{opacity:1;}}
         @keyframes seaCausticDrift{0%,100%{opacity:.10;}50%{opacity:.2;}}
         @keyframes seaBubbleRiseBig{0%{transform:translateY(0) scale(.7);opacity:0;}8%{opacity:.8;}92%{opacity:.4;}100%{transform:translateY(-70vh) scale(1);opacity:0;}}
+        @keyframes seaweedSway{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
       `}</style>
 
       {/* Areia no rodapé da tela — duas dunas sólidas (a versão antiga era só um gradiente
@@ -457,6 +477,8 @@ const CentralOcean = () => {
       <SeaMidCoral />
       <PearlShellBig side="left" />
       <PearlShellBig side="right" />
+      <SeaweedCluster style={{ left: '26%' }} />
+      <SeaweedCluster style={{ left: '62%' }} />
 
       {whales.current.map(w => <DriftWhale key={w.id} {...w} />)}
       {dolphins.current.map(d => <DriftDolphin key={d.id} {...d} />)}
