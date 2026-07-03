@@ -111,6 +111,11 @@ const TIPS = [
   { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: 'ALARME' },
 ];
 
+// Kill-switch do Blog Secreto — desativado a pedido do usuário (jul/2026), até segunda
+// ordem. Com isso em `true`: painel mostra um aviso no lugar do chat, e os polls
+// (mensagens + notificação proativa) nem rodam. Pra reativar, só voltar pra `false`.
+const BLOG_SECRETO_DISABLED = true;
+
 // Emojis do picker do Blog Secreto — grade curada fixa (sem dependência/API externa).
 const EMOJI_LIST = [
   '😀','😂','🤣','😅','😊','😉','😍','🥰','😘','😜','🤪','🤔','🙄','😏','😴','🤯',
@@ -708,7 +713,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // tem gente nova comentando). Poll próprio (não reaproveita o do painel, que só roda
   // com o painel aberto NESSE modo) — sempre com SELECT explícito sem `author`. ──
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || BLOG_SECRETO_DISABLED) return;
     let alive = true; const seen = new Set(); let first = true;
     const poll = async () => {
       let data;
@@ -754,7 +759,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // explícito garante que `author` nunca trafega pro cliente de ninguém). Só busca
   // enquanto o painel está aberto NESSE modo. ──
   useEffect(() => {
-    if (!open || chatMode !== 'blog') return;
+    if (!open || chatMode !== 'blog' || BLOG_SECRETO_DISABLED) return;
     let alive = true;
     const load = async () => {
       try {
@@ -847,6 +852,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   };
 
   const sendBlogMessage = async () => {
+    if (BLOG_SECRETO_DISABLED) return;
     const text = blogInput.trim().slice(0, 500);
     if ((!text && !blogAttach) || blogSending.current) return;
     if (containsBlockedContent(text)) {
@@ -884,6 +890,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const startEditBlogMessage = (m) => { setEditingBlogId(m.id); setEditingText(m.text || ''); };
   const cancelEditBlogMessage = () => { setEditingBlogId(null); setEditingText(''); };
   const saveEditBlogMessage = async (id) => {
+    if (BLOG_SECRETO_DISABLED) return;
     const text = editingText.trim().slice(0, 500);
     const target = blogMessages.find(x => x.id === id);
     if (!text && !target?.media_url) return; // não deixa esvaziar uma mensagem só-texto
@@ -1174,7 +1181,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           </div>
           </>)}
 
-          {chatMode === 'blog' && (<>
+          {chatMode === 'blog' && BLOG_SECRETO_DISABLED && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', gap: 8 }}>
+              <div style={{ fontSize: 34 }}>🚫</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>Blog Secreto desativado</div>
+              <div style={{ fontSize: 12, color: T.textT || '#8a8', lineHeight: 1.5, maxWidth: 260 }}>
+                Este recurso está desativado até segunda ordem. Volte pra aba Perguntas por enquanto.
+              </div>
+            </div>
+          )}
+          {chatMode === 'blog' && !BLOG_SECRETO_DISABLED && (<>
           {/* mensagens anônimas — ninguém (nem o UNIKO) sabe quem escreveu o quê, exceto
               as SUAS próprias (rastreadas só no seu navegador, nunca no servidor) */}
           <div ref={blogListRef} onScroll={onBlogScroll}
