@@ -2291,7 +2291,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     background: isVampCard ? '#090004' : isSeaCard ? '#03141a' : isCustomCard ? (uni?.theme?.deep || '#0a0a12') : cardBg,
                     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
                     border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : isCustomCard ? `2px solid ${customAccent}` : `1px solid ${T.border}`,
-                    padding:"22px 16px 20px",
+                    padding:"14px 16px 22px",
                     boxShadow: isThemedCard ? undefined : T.shM,
                     animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : isSeaCard ? 'seaCardBreathe 4s ease-in-out infinite' : undefined,
                     position:"relative", overflow:"hidden",

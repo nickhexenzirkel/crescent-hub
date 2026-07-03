@@ -147,13 +147,18 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   return (
     <>
       <style>{MASCOT_CSS}{albumBubbleCss}</style>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2 }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', userSelect:'none', position:'relative', zIndex:2 }}>
 
-        {/* Balão de fala — aparece a cada 20s */}
+        {/* Balão de fala — colapsado (altura 0) quando não está falando, pra o Uniko
+            descansar mais alto no card; ao falar, expande e empurra a imagem um
+            pouco pra baixo (é o "desce e volta" pedido — some pelo reflow, não por
+            um deslocamento fixo arbitrário) */}
         <div style={{
-          opacity: showBubble ? 1 : 0,
-          transform: showBubble ? 'translateY(0)' : 'translateY(8px)',
-          transition: 'opacity .45s ease, transform .45s ease',
+          maxHeight:    showBubble ? 90 : 0,
+          marginBottom: showBubble ? 10 : 0,
+          opacity:      showBubble ? 1 : 0,
+          overflow:     'hidden',
+          transition:   'max-height .45s ease, margin-bottom .45s ease, opacity .35s ease',
           pointerEvents: 'none',
         }}>
         <div
@@ -212,31 +217,25 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
         </div>
         </div>
 
-        {/* Desce um pouco enquanto fala (balão visível) e volta ao terminar */}
-        <div style={{
-          transform:  showBubble ? 'translateY(10px)' : 'translateY(0)',
-          transition: 'transform .45s ease',
-        }}>
-          {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
-          <div style={contentOffset ? {
-            transform: `translate(${contentOffset.dxFrac * size}px, ${contentOffset.dyFrac * size}px)`,
-          } : undefined}>
-            {/* Imagem flutuante — sem quadrado, sem borda */}
-            <img
-              src={img}
-              alt="UNIKO"
-              style={{
-                width:      size,
-                height:     size,
-                objectFit:  'contain',
-                flexShrink: 0,
-                animation:  'unikoFloat 3s ease-in-out infinite',
-                filter: GLOW_BY_SKIN[songSkin]
-                  || (customAccent ? `drop-shadow(0 0 10px ${customAccent}88) drop-shadow(0 4px 12px rgba(0,0,0,.3))` : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))'),
-                transition: 'filter .4s',
-              }}
-            />
-          </div>
+        {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
+        <div style={contentOffset ? {
+          transform: `translate(${contentOffset.dxFrac * size}px, ${contentOffset.dyFrac * size}px)`,
+        } : undefined}>
+          {/* Imagem flutuante — sem quadrado, sem borda */}
+          <img
+            src={img}
+            alt="UNIKO"
+            style={{
+              width:      size,
+              height:     size,
+              objectFit:  'contain',
+              flexShrink: 0,
+              animation:  'unikoFloat 3s ease-in-out infinite',
+              filter: GLOW_BY_SKIN[songSkin]
+                || (customAccent ? `drop-shadow(0 0 10px ${customAccent}88) drop-shadow(0 4px 12px rgba(0,0,0,.3))` : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))'),
+              transition: 'filter .4s',
+            }}
+          />
         </div>
 
       </div>
