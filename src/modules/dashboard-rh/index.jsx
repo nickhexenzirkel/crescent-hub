@@ -413,6 +413,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot' });
   const [capMsg, setCapMsg]       = useState('');
   const [capSaving, setCapSaving] = useState(false);
+  // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação)
+  const [captureSubTab, setCaptureSubTab] = useState('evento');
 
   const loadCapCfg = async () => {
     const c = await loadCaptureConfig();
@@ -1776,10 +1778,35 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               {/* Header */}
               <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Uniko</div>
-                <div style={{fontSize:13,color:T.textS,marginTop:2}}>Defina a janela em que um Uniko pode surgir aleatoriamente no Portal do Colaborador para os funcionários capturarem.</div>
+                <div style={{fontSize:13,color:T.textS,marginTop:2}}>
+                  {captureSubTab==='evento'
+                    ? 'Defina a janela em que um Uniko pode surgir aleatoriamente no Portal do Colaborador para os funcionários capturarem.'
+                    : 'Crie Unikos personalizados, fora do roster fixo, pra disponibilizar no evento.'}
+                </div>
+              </div>
+
+              {/* Sub-abas: evento/spawn vs. Oficina de Uniko */}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {[
+                  {id:'evento',  label:'⚡ Evento & Spawn'},
+                  {id:'oficina', label:'🛠️ Oficina de Uniko'},
+                ].map(v=>{
+                  const on = captureSubTab===v.id;
+                  return (
+                    <button key={v.id} onClick={()=>setCaptureSubTab(v.id)}
+                      style={{padding:'9px 18px',borderRadius:999,cursor:'pointer',fontFamily:'var(--font-body)',
+                        fontSize:13,fontWeight:700,letterSpacing:'.01em',transition:'all .15s',
+                        border:`1.5px solid ${on?T.gold:T.border}`,
+                        background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS}}>
+                      {v.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Card de configuração */}
+              {captureSubTab==='evento' && (<>
+
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
 
                 {/* Ativar */}
@@ -1860,8 +1887,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. São 2 tentativas de captura — na 1ª o Uniko pode escapar, na 2ª é garantido.
                 </div>
               </div>
+              </>)}
 
               {/* Oficina de Uniko — criar Unikos personalizados */}
+              {captureSubTab==='oficina' && (<>
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                   <div>
@@ -2002,8 +2031,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     )}
                 </div>
               </div>
+              </>)}
 
               {/* Resetar coleção */}
+              {captureSubTab==='evento' && (<>
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text,marginBottom:3}}>Resetar coleção</div>
                 <div style={{fontSize:12,color:T.textS,marginBottom:16}}>Apaga os Unikos capturados e libera o evento para nova captura. Use para começar um novo Capture o Uniko.</div>
@@ -2027,6 +2058,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   {resetMsg&&<span style={{fontSize:13,color:resetMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{resetMsg}</span>}
                 </div>
               </div>
+              </>)}
             </div>
           );})()}
 
