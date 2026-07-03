@@ -247,8 +247,10 @@ let _baseDocTitle = null;
 function setDocTitleUnread(count) {
   if (typeof document === 'undefined') return;
   if (_baseDocTitle === null) _baseDocTitle = document.title;
+  // Com não lida: título vira SÓ "N Mensagens Não Lidas" (sem nome do site, de propósito
+  // — chama mais atenção na aba). Ao ler, volta pro título original de verdade.
   document.title = count > 0
-    ? `${_baseDocTitle} (${count} Mensage${count > 1 ? 'ns' : 'm'} Não Lida${count > 1 ? 's' : ''})`
+    ? `${count} Mensage${count > 1 ? 'ns' : 'm'} Não Lida${count > 1 ? 's' : ''}`
     : _baseDocTitle;
 }
 
