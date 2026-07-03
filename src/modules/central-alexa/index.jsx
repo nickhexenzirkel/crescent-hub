@@ -1884,12 +1884,22 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const addToQueue = async (track, confirmed = false) => {
     if (isAdding) return;
 
-    // Bloqueia adicionar nos últimos 15s da música atual — só libera quando passar pra próxima da fila.
+    // Bloqueia adicionar nos últimos 10s da música atual (quase acabando) E nos
+    // primeiros 10s da música seguinte (acabou de começar) — só libera adicionar
+    // entre 0:10 e (duração-0:10) do que estiver tocando no momento.
+    const EDGE_MS = 10000;
     const playingNow = currentSong || queue.find(s => s.status === 'playing') || queue[0];
     if (playingNow?.duration_ms > 0) {
       const remaining = playingNow.duration_ms - progressMs;
-      if (remaining > 0 && remaining <= 15000) {
+      if (remaining > 0 && remaining <= EDGE_MS) {
         setServerMsg('A música está quase acabando! Espere a próxima começar pra adicionar uma nova. ⏭️');
+        setTimeout(() => setServerMsg(''), 5000);
+        setSearchResults([]);
+        setVoiceVal('');
+        return;
+      }
+      if (progressMs >= 0 && progressMs < EDGE_MS) {
+        setServerMsg('A música acabou de começar! Espere os primeiros 10 segundos pra adicionar uma nova. ⏭️');
         setTimeout(() => setServerMsg(''), 5000);
         setSearchResults([]);
         setVoiceVal('');
