@@ -1,5 +1,5 @@
 // src/modules/central-alexa/UnikoMascot.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAssistantSkin } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { getContentOffset } from '../../shared/imageContentOffset';
@@ -95,6 +95,14 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   const [showBubble,    setShowBubble]    = useState(true);
   const [blinkImg,      setBlinkImg]      = useState(null);
   const [contentOffset, setContentOffset] = useState(null);
+  const [bubbleH,       setBubbleH]       = useState(46); // altura medida do balão — até medir, usa um chute razoável
+  const bubbleRef = useRef(null);
+
+  // Mede a altura real do balão (varia com o texto) — usada pra saber o quanto o
+  // ícone precisa subir quando ele descansa (ver wrapper de reposicionamento abaixo).
+  useEffect(() => {
+    if (bubbleRef.current) setBubbleH(bubbleRef.current.offsetHeight);
+  }, [line, songSkin]);
 
   // Unikos da Oficina às vezes têm o desenho fora do centro do PNG (padding transparente
   // assimétrico) — recalcula a correção de centro sempre que o Uniko personalizado muda.
@@ -147,21 +155,18 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   return (
     <>
       <style>{MASCOT_CSS}{albumBubbleCss}</style>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', userSelect:'none', position:'relative', zIndex:2 }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2 }}>
 
-        {/* Balão de fala — colapsado (altura 0) quando não está falando, pra o Uniko
-            descansar mais alto no card; ao falar, expande e empurra a imagem um
-            pouco pra baixo (é o "desce e volta" pedido — some pelo reflow, não por
-            um deslocamento fixo arbitrário) */}
+        {/* Balão de fala — SEMPRE reserva o próprio espaço (o card nunca muda de
+            tamanho, só o opacity desliga o balão); quem se reposiciona é o ícone
+            logo abaixo, subindo pro vão do balão quando ele está invisível. */}
         <div style={{
-          maxHeight:    showBubble ? 90 : 0,
-          marginBottom: showBubble ? 10 : 0,
-          opacity:      showBubble ? 1 : 0,
-          overflow:     'hidden',
-          transition:   'max-height .45s ease, margin-bottom .45s ease, opacity .35s ease',
+          opacity: showBubble ? 1 : 0,
+          transition: 'opacity .35s ease',
           pointerEvents: 'none',
         }}>
         <div
+          ref={bubbleRef}
           className={bubbleClass}
           style={songSkin === 'vampire-robot' ? {
             background:           'rgba(8,0,4,0.88)',
@@ -217,6 +222,13 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
         </div>
         </div>
 
+        {/* Reposiciona o ícone: sobe pro vão do balão (invisível) quando quieto,
+            desce de volta quando o balão aparece — o card não muda de tamanho,
+            só o ícone se move. */}
+        <div style={{
+          transform:  showBubble ? 'translateY(0)' : `translateY(-${bubbleH + 10}px)`,
+          transition: 'transform .45s ease',
+        }}>
         {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
         <div style={contentOffset ? {
           transform: `translate(${contentOffset.dxFrac * size}px, ${contentOffset.dyFrac * size}px)`,
@@ -236,6 +248,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
               transition: 'filter .4s',
             }}
           />
+        </div>
         </div>
 
       </div>
