@@ -410,8 +410,8 @@ const CentralOcean = () => {
   }
   const bubbles = useRef(null);
   if (!bubbles.current) {
-    bubbles.current = Array.from({ length: 5 }).map((_, i) => ({
-      id: i, left: rndSea(4, 96), sz: rndSea(5, 13), dur: rndSea(9, 16), delay: rndSea(0, 10),
+    bubbles.current = Array.from({ length: 14 }).map((_, i) => ({
+      id: i, left: rndSea(4, 96), sz: rndSea(6, 22), dur: rndSea(7, 15), delay: rndSea(0, 10),
     }));
   }
   // Baleia/golfinho são raros de propósito — no máximo 1 ou 2 de cada.
@@ -2341,7 +2341,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Recife de corais — raios de luz, bolhas, água-vivas, peixinhos e corais */}
                     {isSeaCard && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
-                        <OceanScene jellies={3} fish={4} bubbles={7} whales={false} dolphins={false} />
+                        <OceanScene jellies={3} fish={4} bubbles={16} whales={false} dolphins={false} />
                       </div>
                     )}
 

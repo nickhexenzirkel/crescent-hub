@@ -20,9 +20,9 @@ const rndN = (a, b) => a + Math.random() * (b - a);
 
 /* ── Bolhas subindo ── */
 const SeaBubble = () => {
-  const [pose, setPose] = useState(() => ({ left: rndN(4, 96), sz: rndN(4, 12), dur: rndN(6, 12), bx: rndN(-14, 14) }));
+  const [pose, setPose] = useState(() => ({ left: rndN(4, 96), sz: rndN(5, 18), dur: rndN(5, 11), bx: rndN(-14, 14) }));
   useEffect(() => {
-    const cycle = () => setPose({ left: rndN(4, 96), sz: rndN(4, 12), dur: rndN(6, 12), bx: rndN(-14, 14) });
+    const cycle = () => setPose({ left: rndN(4, 96), sz: rndN(5, 18), dur: rndN(5, 11), bx: rndN(-14, 14) });
     const id = setInterval(cycle, pose.dur * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
