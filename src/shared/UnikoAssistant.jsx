@@ -407,6 +407,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
   const [editingText, setEditingText] = useState('');
   const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
+  const [blogDragOver, setBlogDragOver] = useState(false); // arrastando um arquivo por cima da lista de mensagens?
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -1051,7 +1052,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           {chatMode === 'blog' && (<>
           {/* mensagens anônimas — ninguém (nem o UNIKO) sabe quem escreveu o quê, exceto
               as SUAS próprias (rastreadas só no seu navegador, nunca no servidor) */}
-          <div ref={blogListRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div ref={blogListRef}
+            onDragOver={e => { e.preventDefault(); if (!blogDragOver) setBlogDragOver(true); }}
+            onDragLeave={e => { if (e.currentTarget === e.target) setBlogDragOver(false); }}
+            onDrop={e => { e.preventDefault(); setBlogDragOver(false); const file = e.dataTransfer?.files?.[0]; if (file) handleBlogFile(file); }}
+            style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', outline: blogDragOver ? `2px dashed ${accent}` : 'none', outlineOffset: -4, background: blogDragOver ? `${accent}0d` : undefined }}>
+            {blogDragOver && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: panelBg + 'ee', fontSize: 13, fontWeight: 700, color: accent }}>
+                📎 Solte aqui pra anexar
+              </div>
+            )}
             <div style={{ fontSize: 11, color: T.textT || '#8a8', textAlign: 'center', padding: '2px 8px 10px', lineHeight: 1.5 }}>
               🤫 Chat anônimo e global — todo mundo vê, ninguém sabe quem escreveu. Seja gente boa 💛
             </div>
@@ -1085,7 +1095,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                   )}
                   <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
                     {m.media_url && m.media_type === 'video' && (
-                      <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
+                      <video src={m.media_url} controls autoPlay muted loop playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
                     {m.media_url && (m.media_type === 'image' || m.media_type === 'gif') && (
                       <img src={m.media_url} alt="" onClick={() => setBlogLightbox(m.media_url)} title="Clique pra ampliar"
