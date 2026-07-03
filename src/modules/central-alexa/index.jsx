@@ -1440,8 +1440,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .from('settings').select('value').eq('key','maquina_reset_at').maybeSingle();
     const resetAt = resetSetting?.value || null;
 
+    // Início do mês corrente (pra saber se o mês "ATUAL" da aba Por Mês já tem
+    // MAQUINA_MIN_DAYS de dados — sem isso dava pra ver o ranking do mês na hora,
+    // sem esperar, mesmo com a Visão Geral segurando o resultado).
+    const now = new Date();
+    const curMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
     // Tudo agregado no servidor (escala sem baixar linhas brutas da fila)
-    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes, periodStartRes] = await Promise.all([
+    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes, periodStartRes, monthPeriodStartRes] = await Promise.all([
       _supabase.rpc('maquina_song_stats',   { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_artist_stats', { p_since: resetAt, p_limit: 10 }),
       _supabase.rpc('maquina_dj_stats',     { p_since: resetAt }),
@@ -1449,6 +1456,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       _supabase.from('maquina_monthly_djs').select('month,requested_by,plays'),
       _supabase.rpc('maquina_play_count',   { p_since: resetAt }),
       _supabase.rpc('maquina_period_start', { p_since: resetAt }),
+      _supabase.rpc('maquina_period_start', { p_since: monthStartIso }),
     ]);
 
     if (songsRes.error) {
@@ -1500,6 +1508,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         djs: mDjs.slice(0,10),
         djTotal: mDjs.reduce((a,d)=>a+d.count,0),
         total: rows.reduce((a,r)=>a+r.plays,0),
+        // Só o mês CORRENTE (em andamento) precisa da checagem dos 3 dias — meses
+        // passados já estão fechados, sempre têm dado de sobra.
+        periodStart: key === curMonthKey ? (monthPeriodStartRes.data || null) : null,
       };
     });
 
@@ -1588,7 +1599,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.2" strokeLinecap="round" style={{margin:"0 auto 12px",display:"block"}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <div style={{fontSize:14,color:T.text}}>Acumulando dados pro ranking...</div>
         <div style={{fontSize:12,marginTop:4,opacity:.7}}>
-          A Visão Geral mostra o primeiro resultado depois de {MAQUINA_MIN_DAYS} dias de músicas tocadas
+          O ranking aparece depois de {MAQUINA_MIN_DAYS} dias de músicas tocadas
           {daysLeft>0 && ` · falta${daysLeft>1?'m':''} ${daysLeft} dia${daysLeft>1?'s':''}`}
         </div>
       </div>
@@ -3269,7 +3280,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                                 );
                               })}
                             </div>
-                            {renderTopCards(maquinaData.months[selMonthIdx])}
+                            {(() => {
+                              const selMonth = maquinaData.months[selMonthIdx];
+                              return selMonth.periodStart && (Date.now() - new Date(selMonth.periodStart).getTime()) < MAQUINA_MIN_DAYS*86400000
+                                ? renderMaquinaAccumulating(selMonth.periodStart)
+                                : renderTopCards(selMonth);
+                            })()}
                           </>
                     )}
 
