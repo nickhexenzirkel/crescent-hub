@@ -330,6 +330,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const captureRef = useRef(captureAlert); captureRef.current = captureAlert;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
   const posRef = useRef(pos);     posRef.current = pos;
+  const chatModeRef = useRef(chatMode); chatModeRef.current = chatMode;
 
   // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
   // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
@@ -514,6 +515,40 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const t = setTimeout(check, 45000);
     const id = setInterval(check, 300000); // a cada 5 min
     return () => { alive = false; clearTimeout(t); clearInterval(id); };
+  }, [authUser, say]);
+
+  // ── PROATIVO 4: mensagens novas no Blog Secreto — avisa com prévia, MAS sem dizer quem
+  // escreveu (é anônimo pra valer: nem a notificação sabe quem é "Fulano de tal", só que
+  // tem gente nova comentando). Poll próprio (não reaproveita o do painel, que só roda
+  // com o painel aberto NESSE modo) — sempre com SELECT explícito sem `author`. ──
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true; const seen = new Set(); let first = true;
+    const poll = async () => {
+      let data;
+      try {
+        ({ data } = await _supabase.from('uniko_blog_secreto')
+          .select('id,text,created_at').order('created_at', { ascending: true }).limit(50));
+      } catch { return; }
+      if (!alive) return;
+      const rows = data || [];
+      if (first) { rows.forEach(r => seen.add(r.id)); first = false; return; }
+      let latestNew = null;
+      for (const r of rows) {
+        if (seen.has(r.id)) continue;
+        seen.add(r.id);
+        if (myBlogIds.current.has(r.id)) continue; // não avisa da própria mensagem
+        latestNew = r;
+      }
+      if (!latestNew) return;
+      // Não interrompe quem já está de olho no Blog Secreto aberto agora.
+      if (openRef.current && chatModeRef.current === 'blog') return;
+      const preview = latestNew.text.length > 60 ? latestNew.text.slice(0, 60) + '…' : latestNew.text;
+      say(`Mensagens novas no Blog Secreto: Fulano de tal falou que "${preview}"`, { sprite: imgRef.current.ATENCAO });
+    };
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => { alive = false; clearInterval(id); };
   }, [authUser, say]);
 
   useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
