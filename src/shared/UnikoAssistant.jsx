@@ -119,6 +119,19 @@ const EMOJI_LIST = [
   '🎉','🎊','💯','😴','☕','🍕','🍺','🎮','🎵','🐱','🐶','🤫','🕵️','🚀','⚡','🌈',
 ];
 
+// Ícones das ações de mensagem do Blog Secreto (apagar/editar) — mesmo traço usado em
+// outros botões de excluir do app (Central Alexa: "Excluir tudo"/mês da Máquina do Tempo).
+const TrashIcon = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+  </svg>
+);
+const PencilIcon = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
+);
+
 // CHAVE do sprite do aviso/lembrete que chega pelo App (resolvida pela skin ativa).
 function notifSprite(n) {
   const t = n?.type, title = (n?.title || '').toLowerCase();
@@ -362,6 +375,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
   const [blogAttachErr, setBlogAttachErr] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
+  const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
+  const [editingText, setEditingText] = useState('');
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -613,7 +628,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const load = async () => {
       try {
         const { data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,media_url,media_type,created_at').order('created_at', { ascending: true }).limit(200);
+          .select('id,text,media_url,media_type,edited,created_at').order('created_at', { ascending: true }).limit(200);
         if (alive && data) setBlogMessages(data);
       } catch {}
     };
@@ -678,6 +693,19 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const deleteBlogMessage = async (id) => {
     try { await _supabase.from('uniko_blog_secreto').delete().eq('id', id); } catch {}
     setBlogMessages(m => m.filter(x => x.id !== id));
+  };
+
+  const startEditBlogMessage = (m) => { setEditingBlogId(m.id); setEditingText(m.text || ''); };
+  const cancelEditBlogMessage = () => { setEditingBlogId(null); setEditingText(''); };
+  const saveEditBlogMessage = async (id) => {
+    const text = editingText.trim().slice(0, 500);
+    const target = blogMessages.find(x => x.id === id);
+    if (!text && !target?.media_url) return; // não deixa esvaziar uma mensagem só-texto
+    setEditingBlogId(null);
+    try {
+      await _supabase.from('uniko_blog_secreto').update({ text: text || null, edited: true }).eq('id', id);
+      setBlogMessages(m => m.map(x => x.id === id ? { ...x, text, edited: true } : x));
+    } catch {}
   };
 
   // ── ARRASTAR o robô (estilo AssistiveTouch) — mouse + toque. Distingue toque de arraste:
@@ -859,6 +887,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
            passar o mouse em cima DELE, sinalizando a ação destrutiva só na hora certa. */
         .ua-del{transition:background .15s,opacity .15s}
         .ua-del:hover{background:#C04050!important;opacity:1!important}
+        .ua-edit:hover{background:${accent}!important}
       `}</style>
 
       {/* ── Robô: flutua, fica EXPANDIDO com balão, ARRASTÁVEL (clique abre, arraste move) ── */}
@@ -898,7 +927,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: 'min(360px, calc(100vw - 36px))', height: 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'uaPop .25s ease' }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: chatMode === 'blog' ? 'min(460px, calc(100vw - 36px))' : 'min(360px, calc(100vw - 36px))', height: chatMode === 'blog' ? 560 : 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width .22s ease, height .22s ease', animation: 'uaPop .25s ease' }}>
           {/* header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} skin={skin} /></div>
@@ -964,6 +993,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             {blogMessages.map(m => {
               const mine = myBlogIds.current.has(m.id);
               const canDelete = mine || authUser?.role === 'admin';
+              const canEdit = mine; // só o autor edita — admin pode apagar, mas nunca reescrever mensagem alheia
+              const editing = editingBlogId === m.id;
               return (
                 <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative' }}>
                   <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
@@ -971,18 +1002,42 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                   </div>
                   <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
                     {m.media_url && m.media_type === 'video' && (
-                      <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: m.text ? 6 : 0 }} />
+                      <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
                     {m.media_url && (m.media_type === 'image' || m.media_type === 'gif') && (
-                      <img src={m.media_url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: m.text ? 6 : 0 }} />
+                      <img src={m.media_url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
-                    {m.text && <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>{m.text}</div>}
+                    {editing ? (
+                      <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>
+                        <textarea value={editingText} onChange={e => setEditingText(e.target.value)} maxLength={500} rows={2} autoFocus
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditBlogMessage(m.id); } if (e.key === 'Escape') cancelEditBlogMessage(); }}
+                          style={{ width: '100%', resize: 'none', border: `1px solid ${mine ? 'rgba(58,42,5,.3)' : (T.border || 'rgba(0,0,0,.2)')}`, borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'var(--font-body)', background: mine ? 'rgba(255,255,255,.4)' : (T.surface || '#fff'), color: 'inherit', boxSizing: 'border-box' }} />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                          <button onClick={cancelEditBlogMessage} style={{ border: 'none', borderRadius: 7, padding: '3px 9px', background: 'rgba(0,0,0,.12)', color: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Cancelar</button>
+                          <button onClick={() => saveEditBlogMessage(m.id)} style={{ border: 'none', borderRadius: 7, padding: '3px 9px', background: mine ? 'rgba(0,0,0,.28)' : accent, color: mine ? '#fff' : '#3a2a05', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Salvar</button>
+                        </div>
+                      </div>
+                    ) : m.text && (
+                      <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>
+                        {m.text}{m.edited && <span style={{ fontSize: 9, opacity: .65, marginLeft: 5, fontStyle: 'italic' }}>(editado)</span>}
+                      </div>
+                    )}
                   </div>
-                  {canDelete && (
-                    <button onClick={() => deleteBlogMessage(m.id)} title="Apagar mensagem" className="ua-del"
-                      style={{ position: 'absolute', top: -6, [mine ? 'left' : 'right']: -6, width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${panelBg}`, background: T.textD || '#999', color: '#fff', fontSize: 10, lineHeight: '16px', textAlign: 'center', padding: 0, cursor: 'pointer' }}>
-                      ×
-                    </button>
+                  {!editing && (canEdit || canDelete) && (
+                    <div style={{ position: 'absolute', top: -6, [mine ? 'left' : 'right']: -6, display: 'flex', gap: 3 }}>
+                      {canEdit && (
+                        <button onClick={() => startEditBlogMessage(m)} title="Editar mensagem" className="ua-del ua-edit"
+                          style={{ width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${panelBg}`, background: T.textD || '#999', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
+                          <PencilIcon />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => deleteBlogMessage(m.id)} title="Apagar mensagem" className="ua-del"
+                          style={{ width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${panelBg}`, background: T.textD || '#999', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
+                          <TrashIcon />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
