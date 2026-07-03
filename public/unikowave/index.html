@@ -1118,24 +1118,29 @@ canvas{display:block}
 .lib-close{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;color:rgba(255,255,255,.6);font-family:var(--font-pixel);font-size:10px;padding:10px 18px;cursor:pointer;letter-spacing:1px;transition:all .2s}
 .lib-close:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.1)}
 .lib-empty{color:#2a3560;font-size:13px;letter-spacing:2px;text-align:center;margin-top:80px;font-family:var(--font-pixel)}
-.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;width:100%;max-width:820px;margin:0 auto}
-.lib-card{background:rgba(10,10,34,.85);border:1.5px solid rgba(0,240,255,.14);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s,transform .15s,box-shadow .2s;cursor:default}
+.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;width:100%;max-width:820px;margin:0 auto}
+.lib-card{background:rgba(10,10,34,.85);border:1.5px solid rgba(0,240,255,.14);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s,transform .15s,box-shadow .2s;cursor:default}
 .lib-card:hover{border-color:rgba(0,240,255,.45);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,240,255,.12)}
 .lib-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:linear-gradient(135deg,#0a0a22,#12093a)}
-.lib-thumb-fb{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a22,#180840);font-size:36px;flex-shrink:0}
-.lib-body{padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;flex:1}
-.lib-song{font-family:var(--font-pixel);font-size:11px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.lib-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px}
-.lib-grade{font-family:var(--font-pixel);font-size:22px;font-weight:900;line-height:1}
-.lib-score{font-family:var(--font-pixel);font-size:10px;color:var(--Y);letter-spacing:1px}
-.lib-diff{font-size:9px;color:#3a4870;letter-spacing:1px;text-transform:uppercase}
-.lib-stars{display:flex;gap:2px;font-size:12px}
+.lib-thumb-fb{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a22,#180840);font-size:28px;flex-shrink:0}
+.lib-body{padding:9px 9px 8px;display:flex;flex-direction:column;gap:5px;flex:1}
+.lib-song{font-family:var(--font-pixel);font-size:9.5px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lib-meta{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:1px}
+.lib-grade{font-family:var(--font-pixel);font-size:16px;font-weight:900;line-height:1}
+.lib-score{font-family:var(--font-pixel);font-size:8.5px;color:var(--Y);letter-spacing:1px}
+.lib-diff{font-size:8px;color:#3a4870;letter-spacing:1px;text-transform:uppercase}
+.lib-stars{display:flex;gap:1px;font-size:10px}
 .lib-star-lit{color:#fff000;filter:drop-shadow(0 0 4px #fff000)}
 .lib-star-dim{color:#1a2040}
-.lib-play-btn{background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:10px;color:#000;font-family:var(--font-pixel);font-size:10px;font-weight:900;padding:10px;cursor:pointer;letter-spacing:1px;transition:opacity .15s,transform .1s;margin-top:4px}
+.lib-play-btn{background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:8px;color:#000;font-family:var(--font-pixel);font-size:8.5px;font-weight:900;padding:7px;cursor:pointer;letter-spacing:.5px;transition:opacity .15s,transform .1s;margin-top:2px}
 .lib-play-btn:hover{opacity:.85;transform:scale(1.02)}
 .lib-play-btn:active{transform:scale(.96)}
 .lib-count{font-size:10px;color:#2a3860;letter-spacing:1px;font-family:var(--font-pixel)}
+/* Linha compacta com scroll horizontal (visão "todas" da biblioteca) */
+.lib-row-wrap{grid-column:1/-1;display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
+.lib-row-wrap .lib-card{flex:0 0 132px;width:132px}
+.lib-row-wrap::-webkit-scrollbar{height:6px}
+.lib-row-wrap::-webkit-scrollbar-thumb{background:rgba(0,240,255,.25);border-radius:3px}
 /* ─── RANKING GLOBAL ─── */
 .rank-section{width:100%;max-width:820px;margin:32px auto 0;border-top:1px solid rgba(255,255,255,.1);padding-top:24px}
 .rank-title{font-family:var(--font-pixel);font-size:15px;font-weight:900;color:var(--Y);letter-spacing:3px;text-align:center}
@@ -1713,15 +1718,16 @@ canvas{display:block}
     </div>
 
     <!-- LIBRARY PANEL -->
-    <div class="menu-panel off" id="panelLib" style="justify-content:flex-start;padding-top:28px">
+    <div class="menu-panel off" id="panelLib" style="justify-content:flex-start;padding-top:14px">
       <div class="panel-title"><span class="panel-title-icon">♪</span>BIBLIOTECA</div>
-      <div class="panel-subtitle" id="libCount">0 músicas salvas</div>
+      <div class="panel-subtitle" id="libCount" style="margin-bottom:10px">0 músicas salvas</div>
       <!-- Search bar -->
       <div class="lib-search-wrap">
         <span class="lib-search-icon">🔍</span>
         <input class="lib-search" id="libSearch" type="text" placeholder="Buscar música..." oninput="filterLibrary(this.value)" autocomplete="off">
       </div>
       <style>
+        #panelLib .lib-search-wrap{margin-bottom:10px}
         .lib-filters{display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:700px;margin:2px auto 4px;justify-content:center}
         .lib-fsel{background:rgba(10,16,40,.9);color:#cfe3ff;border:1px solid #2a3a66;border-radius:8px;padding:6px 8px;font-size:11px;font-family:inherit;outline:none;cursor:pointer}
         .lib-fsel:focus{border-color:#00f0ff}
@@ -1731,7 +1737,6 @@ canvas{display:block}
           <option value="todas">📚 Todas</option>
           <option value="recentes">🕒 Recentes</option>
           <option value="inicial">🎮 Iniciais</option>
-          <option value="descobrir">🔭 Descobrir</option>
           <option value="sua">★ Suas</option>
         </select>
         <select class="lib-fsel" id="libFDiff" onchange="setLibFilter('diff',this.value)" title="Dificuldade">
@@ -4139,13 +4144,6 @@ const STARTER_SONGS = [
   { vid:'pzPElFdxMCM', title:'Shinigami Eyes' },
   { vid:'5sT20edl02I', title:'Woke Up' },
 ];
-// Músicas para DESCOBRIR — também fixas pra todos ("Descubra novas músicas").
-const DISCOVER_SONGS = [
-  { vid:'Dst9gZkq1a8', title:'Travis Scott' },
-  { vid:'7CF5qbw8zec', title:'Jetski' },
-  { vid:'WSDSWdIt3jY', title:'Side Quest King' },
-];
-
 // Filtros da biblioteca (categoria, dificuldade, modo, estrelas mín., pontuação mín.)
 let libFilters = { cat:'todas', diff:'todas', mode:'todos', stars:0, score:0 };
 function setLibFilter(key, val){
@@ -4166,8 +4164,7 @@ function renderLibraryPanel(){
   const mkFixed=(s)=>({ ytUrl:`https://www.youtube.com/watch?v=${s.vid}`, title:s.title, diff:'normal', dur:0,
     thumbUrl:`https://img.youtube.com/vi/${s.vid}/hqdefault.jpg`, starter:true });
   const starters=STARTER_SONGS.map(mkFixed);
-  const discover=DISCOVER_SONGS.map(mkFixed);
-  _libCache=[...starters, ...discover, ...saved];   // índice usado pelo libReplay
+  _libCache=[...starters, ...saved];   // índice usado pelo libReplay
 
   if(libCount) libCount.textContent=saved.length===1?'1 música salva':`${saved.length} músicas salvas`;
   if(libEmpty) libEmpty.style.display='none';
@@ -4176,8 +4173,7 @@ function renderLibraryPanel(){
   // Lista unificada com categoria + índice no _libCache
   const all=[];
   starters.forEach((s,i)=>all.push({...s, category:'inicial', _idx:i}));
-  discover.forEach((s,i)=>all.push({...s, category:'descobrir', _idx:starters.length+i}));
-  saved.forEach((s,i)=>all.push({...s, category:'sua', _idx:starters.length+discover.length+i}));
+  saved.forEach((s,i)=>all.push({...s, category:'sua', _idx:starters.length+i}));
 
   const F=libFilters;
   const pass=(s)=>{
@@ -4189,7 +4185,7 @@ function renderLibraryPanel(){
   };
   const esc=(t)=>(t||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='lib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
-  const card=(s)=>{
+  const card=(s, container)=>{
     const c=document.createElement('div'); c.className='lib-card';
     const thumb = s.thumbUrl ? `<img class="lib-thumb" src="${s.thumbUrl}" alt="" onerror="this.style.display='none'">` : `<div class="lib-thumb-fb">🎵</div>`;
     let body;
@@ -4199,28 +4195,33 @@ function renderLibraryPanel(){
       const modeTag = s.mode==='wargame' ? '<span style="color:#ff5a6e">⚔ Guerra</span>' : (s.mode==='classic' ? '<span style="color:#00f0ff">🎹 Clássico</span>' : '');
       body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${s.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(s.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between;font-size:10px"><div class="lib-diff" style="color:${_LIB_DIFF_COLORS[s.diff]||'#00f0ff'}">${_LIB_DIFF_LABELS[s.diff]||s.diff||''}</div><div>${modeTag}</div></div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR NOVAMENTE</button></div>`;
     } else {
-      const label = s.category==='inicial' ? 'Música inicial' : 'Nova música';
-      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-diff" style="color:#00f0ff">${label}</div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR</button></div>`;
+      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-diff" style="color:#00f0ff">Música inicial</div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR</button></div>`;
     }
     c.innerHTML=`${thumb}${body}`;
     c.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(s._idx));
-    libGrid.appendChild(c);
+    (container||libGrid).appendChild(c);
   };
-  const section=(title,list)=>{ if(list.length){ addTitle(title); list.forEach(card); } };
+  const section=(title,list)=>{ if(list.length){ addTitle(title); list.forEach(s=>card(s)); } };
+  // Linha compacta com scroll horizontal (visão "todas" — evita empilhar tudo pra baixo)
+  const rowSection=(title,list)=>{
+    if(!list.length) return;
+    addTitle(title);
+    const wrap=document.createElement('div'); wrap.className='lib-row-wrap';
+    list.forEach(s=>card(s, wrap));
+    libGrid.appendChild(wrap);
+  };
 
   const recents=()=>all.filter(s=>s.category==='sua'&&s.playedAt).filter(pass).sort((a,b)=>(b.playedAt||0)-(a.playedAt||0)).slice(0,10);
   const ofCat=(c)=>all.filter(s=>s.category===c).filter(pass);
   const suas=()=>ofCat('sua').sort((a,b)=>(b.playedAt||0)-(a.playedAt||0));
 
   if(F.cat==='recentes')      section('🕒 Tocadas recentemente', recents());
-  else if(F.cat==='inicial')  section('🎮 Jogue pela primeira vez!', ofCat('inicial'));
-  else if(F.cat==='descobrir')section('🔭 Descubra novas músicas', ofCat('descobrir'));
+  else if(F.cat==='inicial')  section('🎮 Músicas iniciais', ofCat('inicial'));
   else if(F.cat==='sua')      section('★ Suas músicas', suas());
-  else { // todas
-    section('🕒 Tocadas recentemente', recents());
-    section('🎮 Jogue pela primeira vez!', ofCat('inicial'));
-    section('🔭 Descubra novas músicas', ofCat('descobrir'));
-    section('★ Suas músicas', suas());
+  else { // todas — 3 linhas compactas com scroll horizontal, sem empilhar tudo verticalmente
+    rowSection('🕒 Tocadas recentemente', recents());
+    rowSection('🎮 Músicas iniciais', ofCat('inicial'));
+    rowSection('★ Suas músicas', suas());
   }
 
   if(!libGrid.children.length){
