@@ -119,6 +119,15 @@ const EMOJI_LIST = [
   '🎉','🎊','💯','😴','☕','🍕','🍺','🎮','🎵','🐱','🐶','🤫','🕵️','🚀','⚡','🌈',
 ];
 
+// "Rosto" anônimo por `pseudo_tag` (atribuído no servidor, ver supabase_uniko_blog_
+// secreto_pseudonimo.sql — NUNCA é o autor de verdade, só um número sequencial sem
+// relação com o nome). Cada pessoa diferente pega sempre o mesmo bicho/cor — dá pra
+// diferenciar "várias pessoas anônimas" sem revelar quem ninguém é.
+const ANON_AVATARS = ['🦊','🐱','🐶','🐻','🐼','🐨','🐰','🦁','🐯','🐸','🐵','🦄','🐙','🦉','🐧','🐺','🐹','🦝','🐔','🐢'];
+const ANON_COLORS  = ['#e67e22','#3498db','#9b59b6','#1abc9c','#e74c3c','#2ecc71','#f39c12','#16a085','#8e44ad','#d35400'];
+const anonAvatar = (tag) => ANON_AVATARS[((tag ?? 0) % ANON_AVATARS.length + ANON_AVATARS.length) % ANON_AVATARS.length];
+const anonColor  = (tag) => ANON_COLORS[((tag ?? 0) % ANON_COLORS.length + ANON_COLORS.length) % ANON_COLORS.length];
+
 // Ícones das ações de mensagem do Blog Secreto (apagar/editar) — mesmo traço usado em
 // outros botões de excluir do app (Central Alexa: "Excluir tudo"/mês da Máquina do Tempo).
 const TrashIcon = () => (
@@ -230,6 +239,26 @@ function resizeImageFile(file, maxSide = 640, quality = 0.82) {
       img.src = dataUrl;
     }).catch(reject);
   });
+}
+
+/* ── Som de notificação de mensagem nova no Blog Secreto (Web Audio, sem asset) — mesmo
+   espírito do bipe do Capture o Uniko, mas um "pop" curto de 1 nota só (não é tão
+   chamativo quanto o alerta de captura, é só uma notificação de chat). ── */
+let _blogAudioCtx = null;
+function playBlogNotifSound() {
+  try {
+    _blogAudioCtx = _blogAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _blogAudioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(920, now); o.frequency.exponentialRampToValueAtTime(1300, now + 0.09);
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    o.start(now); o.stop(now + 0.23);
+  } catch {}
 }
 
 /* ── Posição arrastável (estilo AssistiveTouch) ──
@@ -377,6 +406,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [showEmoji, setShowEmoji] = useState(false);
   const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
   const [editingText, setEditingText] = useState('');
+  const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -392,6 +422,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
   const posRef = useRef(pos);     posRef.current = pos;
   const chatModeRef = useRef(chatMode); chatModeRef.current = chatMode;
+
+  // Desbloqueia o áudio do som de notificação do Blog Secreto no 1º clique/toque na
+  // página (autoplay policy do navegador — sem isso o primeiro som fica mudo).
+  useEffect(() => {
+    const unlock = () => { try { _blogAudioCtx = _blogAudioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (_blogAudioCtx.state === 'suspended') _blogAudioCtx.resume(); } catch {} };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, []);
 
   // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
   // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
@@ -602,8 +640,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         latestNew = r;
       }
       if (!latestNew) return;
-      // Não interrompe quem já está de olho no Blog Secreto aberto agora.
+      // Não interrompe quem já está de olho no Blog Secreto aberto agora — nesse caso
+      // quem toca o som é o poll do próprio painel (mais rápido, 4s em vez de 15s).
       if (openRef.current && chatModeRef.current === 'blog') return;
+      playBlogNotifSound();
       const mediaWord = { image: 'uma imagem 🖼️', gif: 'um gif 🎞️', video: 'um vídeo 🎥' }[latestNew.media_type];
       const msg = latestNew.text
         ? `Mensagens novas no Blog Secreto: Fulano de tal falou que "${latestNew.text.length > 60 ? latestNew.text.slice(0, 60) + '…' : latestNew.text}"`
@@ -628,8 +668,17 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const load = async () => {
       try {
         const { data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,media_url,media_type,edited,created_at').order('created_at', { ascending: true }).limit(200);
-        if (alive && data) setBlogMessages(data);
+          .select('id,text,media_url,media_type,edited,pseudo_tag,created_at').order('created_at', { ascending: true }).limit(200);
+        if (!alive || !data) return;
+        setBlogMessages(prev => {
+          // Toca o som só se já tinha carregado antes (não no 1º load do painel) e tem
+          // mensagem nova de ALGUÉM QUE NÃO SOU EU.
+          if (prev.length > 0) {
+            const prevIds = new Set(prev.map(x => x.id));
+            if (data.some(r => !prevIds.has(r.id) && !myBlogIds.current.has(r.id))) playBlogNotifSound();
+          }
+          return data;
+        });
       } catch {}
     };
     setBlogLoading(true);
@@ -642,12 +691,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (open && chatMode === 'blog' && blogListRef.current) blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
   }, [blogMessages, open, chatMode]);
 
-  // Anexo (imagem/gif/vídeo) — escolhe o arquivo, valida tipo/tamanho e prepara o
-  // dataURL. Fica "pendente" (preview acima do input) até enviar junto com o texto.
-  const pickBlogFile = () => blogFileRef.current?.click();
-  const onBlogFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // permite escolher o MESMO arquivo de novo depois
+  // Anexo (imagem/gif/vídeo) — valida tipo/tamanho e prepara o dataURL. Fica "pendente"
+  // (preview acima do input) até enviar junto com o texto. Usado tanto pelo seletor de
+  // arquivo quanto pelo Ctrl+V (colar imagem copiada) — mesma validação pros dois.
+  const handleBlogFile = async (file) => {
     if (!file) return;
     setBlogAttachErr('');
     try {
@@ -664,6 +711,23 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         setBlogAttachErr('Tipo de arquivo não suportado.');
       }
     } catch { setBlogAttachErr('Não consegui ler esse arquivo.'); }
+  };
+  const pickBlogFile = () => blogFileRef.current?.click();
+  const onBlogFileChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite escolher o MESMO arquivo de novo depois
+    handleBlogFile(file);
+  };
+  // Ctrl+V com uma imagem copiada (print/recorte, imagem de outra página etc.) vira anexo.
+  const onBlogInputPaste = (e) => {
+    const items = e.clipboardData?.items || [];
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        e.preventDefault();
+        handleBlogFile(item.getAsFile());
+        return;
+      }
+    }
   };
 
   const sendBlogMessage = async () => {
@@ -998,31 +1062,34 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               const canDelete = mine || authUser?.role === 'admin';
               const canEdit = mine; // só o autor edita — admin pode apagar, mas nunca reescrever mensagem alheia
               const editing = editingBlogId === m.id;
-              // Agrupa com a mensagem anterior tipo WhatsApp: mesma "categoria" (VOCÊ ou
-              // ANÔNIMO) em sequência não repete o rótulo nem abre o espaçamento grande —
-              // é uma aproximação por adjacência (não dá pra saber se são o MESMO anônimo
-              // de verdade, só que estão "juntos" na conversa), mas já resolve a bagunça
-              // visual de cada mensagem parecer uma pessoa diferente.
-              const prevMine = i > 0 ? myBlogIds.current.has(blogMessages[i - 1].id) : null;
-              const grouped = i > 0 && prevMine === mine;
-              const nextMine = i < blogMessages.length - 1 ? myBlogIds.current.has(blogMessages[i + 1].id) : null;
-              const groupedWithNext = nextMine === mine;
+              // Agrupa com a mensagem anterior tipo WhatsApp: mesma pessoa em sequência não
+              // repete o rótulo nem abre o espaçamento grande. Pras minhas é `mine`; pras dos
+              // outros agora usa `pseudo_tag` (número fixo por autor, atribuído no servidor —
+              // ver supabase_uniko_blog_secreto_pseudonimo.sql) em vez de tratar "qualquer
+              // anônimo" como a mesma pessoa: cada um tem seu bicho/cor fixos.
+              const sameSender = (a, b) => (myBlogIds.current.has(a.id) === myBlogIds.current.has(b.id))
+                && (myBlogIds.current.has(a.id) || a.pseudo_tag === b.pseudo_tag);
+              const grouped = i > 0 && sameSender(m, blogMessages[i - 1]);
+              const groupedWithNext = i < blogMessages.length - 1 && sameSender(m, blogMessages[i + 1]);
               const bubbleRadius = mine
                 ? `14px ${grouped ? 6 : 14}px ${groupedWithNext ? 14 : 4}px 14px`
                 : `${grouped ? 6 : 14}px 14px 14px ${groupedWithNext ? 14 : 4}px`;
+              const avatar = anonAvatar(m.pseudo_tag);
+              const color = anonColor(m.pseudo_tag);
               return (
                 <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative', marginTop: grouped ? 0 : 10 }}>
                   {!grouped && (
-                    <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
-                      {mine ? 'VOCÊ' : 'ANÔNIMO'}
+                    <div style={{ fontSize: 9.5, color: mine ? (T.textD || '#aaa') : color, marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
+                      {mine ? 'VOCÊ' : `${avatar} ANÔNIMO`}
                     </div>
                   )}
-                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
                     {m.media_url && m.media_type === 'video' && (
                       <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
                     {m.media_url && (m.media_type === 'image' || m.media_type === 'gif') && (
-                      <img src={m.media_url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
+                      <img src={m.media_url} alt="" onClick={() => setBlogLightbox(m.media_url)} title="Clique pra ampliar"
+                        style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0, cursor: 'zoom-in' }} />
                     )}
                     {editing ? (
                       <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>
@@ -1104,14 +1171,26 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: showEmoji ? `${accent}33` : (T.surfaceSub || 'rgba(0,0,0,0.03)'), borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
               😀
             </button>
-            <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }}
-              maxLength={500} placeholder="Escreva algo anônimo..."
+            <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
+              maxLength={500} placeholder="Escreva algo anônimo... (Ctrl+V cola imagem)"
               style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
             <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
               Enviar
             </button>
           </div>
           </>)}
+        </div>
+      )}
+
+      {/* ── Lightbox: abre a imagem/gif do Blog Secreto em tela cheia ── */}
+      {blogLightbox && (
+        <div onClick={() => setBlogLightbox(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,.86)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', pointerEvents: 'auto', animation: 'uaPop .2s ease' }}>
+          <img src={blogLightbox} alt="" style={{ maxWidth: '92vw', maxHeight: '92vh', borderRadius: 10, boxShadow: '0 10px 50px rgba(0,0,0,.6)' }} />
+          <button onClick={() => setBlogLightbox(null)} title="Fechar"
+            style={{ position: 'absolute', top: 16, right: 16, width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.15)', color: '#fff', fontSize: 18, cursor: 'pointer' }}>
+            ×
+          </button>
         </div>
       )}
     </div>
