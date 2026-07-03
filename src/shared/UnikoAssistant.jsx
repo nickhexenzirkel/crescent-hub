@@ -239,6 +239,19 @@ function resizeImageFile(file, maxSide = 640, quality = 0.82) {
   });
 }
 
+/* ── Título da aba com contador de não lidas do Blog Secreto — "U∩IKO (2 Mensagens Não
+   Lidas)". Guarda o título ORIGINAL só na 1ª vez (nunca mais mexe nele) e sempre
+   reconstrói a partir dele — não mexe/hardcoda o título do site, só acrescenta o sufixo
+   quando tem não lida e tira quando não tem. ── */
+let _baseDocTitle = null;
+function setDocTitleUnread(count) {
+  if (typeof document === 'undefined') return;
+  if (_baseDocTitle === null) _baseDocTitle = document.title;
+  document.title = count > 0
+    ? `${_baseDocTitle} (${count} Mensage${count > 1 ? 'ns' : 'm'} Não Lida${count > 1 ? 's' : ''})`
+    : _baseDocTitle;
+}
+
 /* ── Som de notificação de mensagem nova no Blog Secreto (Web Audio, sem asset) —
    badalada de 3 notas subindo (tipo "ding-ding-DING"), bem mais alta e encorpada que
    a 1ª versão (era 1 nota só, gain baixo — usuário achou "muito baixo e simples").
@@ -426,6 +439,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [editingText, setEditingText] = useState('');
   const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
   const [blogDragOver, setBlogDragOver] = useState(false); // arrastando um arquivo por cima da lista de mensagens?
+  const [blogUnread, setBlogUnread] = useState(0); // mensagens novas de outras pessoas ainda não vistas
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -654,17 +668,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (!alive) return;
       const rows = (data || []).slice().reverse();
       if (first) { rows.forEach(r => seen.add(r.id)); first = false; return; }
-      let latestNew = null;
+      let latestNew = null, newCount = 0;
       for (const r of rows) {
         if (seen.has(r.id)) continue;
         seen.add(r.id);
         if (myBlogIds.current.has(r.id)) continue; // não avisa da própria mensagem
-        latestNew = r;
+        latestNew = r; newCount++;
       }
       if (!latestNew) return;
       // Não interrompe quem já está de olho no Blog Secreto aberto agora — nesse caso
-      // quem toca o som é o poll do próprio painel (mais rápido, 4s em vez de 15s).
+      // quem toca o som (e zera o não-lidas) é o poll do próprio painel (4s).
       if (openRef.current && chatModeRef.current === 'blog') return;
+      setBlogUnread(c => c + newCount);
       playBlogNotifSound();
       const mediaWord = { image: 'uma imagem 🖼️', gif: 'um gif 🎞️', video: 'um vídeo 🎥' }[latestNew.media_type];
       const msg = latestNew.text
@@ -727,8 +742,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
     }
   }, [blogMessages, open, chatMode]);
-  // Sempre que o painel abre no modo Blog Secreto, começa lá embaixo (mais recente).
-  useEffect(() => { if (open && chatMode === 'blog') blogNearBottomRef.current = true; }, [open, chatMode]);
+  // Sempre que o painel abre no modo Blog Secreto, começa lá embaixo (mais recente) e
+  // zera o contador de não lidas (título da aba) — "ler" é abrir e ver o Blog Secreto.
+  useEffect(() => {
+    if (open && chatMode === 'blog') { blogNearBottomRef.current = true; setBlogUnread(0); }
+  }, [open, chatMode]);
+
+  // Título da aba: "U∩IKO (N Mensagens Não Lidas)" enquanto tiver não lida, some sozinho
+  // quando zera. Nunca mexe/hardcoda o título de verdade, só acrescenta/tira o sufixo.
+  useEffect(() => { setDocTitleUnread(blogUnread); }, [blogUnread]);
+  useEffect(() => () => setDocTitleUnread(0), []); // restaura ao desmontar (fecha a aba/recarrega)
 
   // Anexo (imagem/gif/vídeo) — valida tipo/tamanho e prepara o dataURL. Fica "pendente"
   // (preview acima do input) até enviar junto com o texto. Usado tanto pelo seletor de
