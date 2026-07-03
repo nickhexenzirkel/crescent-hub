@@ -18,8 +18,11 @@ declare
   v_terms text[] := array[
     'cabelo de bombril', 'cabelo bombril',
     'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim',
+    'pixaim', 'pichain', 'pichaim',
+    'cabelo duro', 'cabelo feio',
     'preto feio', 'preta feia',
-    'preto nojento', 'preta nojenta'
+    'preto nojento', 'preta nojenta',
+    'pessoa escura'
   ];
   v_term text;
 begin

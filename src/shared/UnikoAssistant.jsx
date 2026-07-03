@@ -185,8 +185,11 @@ const qkeyOf = (s) => String(s || '').toLowerCase()
 const BLOCKED_RACIST_TERMS = [
   'cabelo de bombril', 'cabelo bombril',
   'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim',
+  'pixaim', 'pichain', 'pichaim',
+  'cabelo duro', 'cabelo feio',
   'preto feio', 'preta feia',
   'preto nojento', 'preta nojenta',
+  'pessoa escura',
 ];
 function containsRacistContent(raw) {
   const q = qkeyOf(raw);
