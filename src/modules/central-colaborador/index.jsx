@@ -13,7 +13,6 @@ import { TabMeuPonto } from './tabs/TabMeuPonto';
 import { TabFeedback } from './tabs/TabFeedback';
 import { TabEventos } from './tabs/TabEventos';
 import { TabGames } from './tabs/TabGames';
-import { TabFeed } from './tabs/TabFeed';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
@@ -134,7 +133,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='colegas')    return <TabColegas/>;
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='games')      return <TabGames/>;
-    if(tab==='feed')        return <TabFeed/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     if(tab==='unikowave')   return <TabUnikoWave/>;
