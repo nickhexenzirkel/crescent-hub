@@ -53,6 +53,8 @@ const BLINK_SEQ = [
 ];
 
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+// Quanto o ícone deixa de subir em repouso, pra não ficar colado na borda de cima do card.
+const REST_GAP = 26;
 
 const MASCOT_CSS = `
 @keyframes unikoFloat { 0%,100%{transform:translateY(0px);} 50%{transform:translateY(-8px);} }
@@ -224,9 +226,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
 
         {/* Reposiciona o ícone: sobe pro vão do balão (invisível) quando quieto,
             desce de volta quando o balão aparece — o card não muda de tamanho,
-            só o ícone se move. */}
+            só o ícone se move. Não sobe até encostar no topo — sobra uma margem
+            (REST_GAP) pra não ficar colado na borda do card. */}
         <div style={{
-          transform:  showBubble ? 'translateY(0)' : `translateY(-${bubbleH + 10}px)`,
+          transform:  showBubble ? 'translateY(0)' : `translateY(-${Math.max(0, bubbleH + 10 - REST_GAP)}px)`,
           transition: 'transform .45s ease',
         }}>
         {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
