@@ -239,9 +239,11 @@ function resizeImageFile(file, maxSide = 640, quality = 0.82) {
   });
 }
 
-/* ── Som de notificação de mensagem nova no Blog Secreto (Web Audio, sem asset) — mesmo
-   espírito do bipe do Capture o Uniko, mas um "pop" curto de 1 nota só (não é tão
-   chamativo quanto o alerta de captura, é só uma notificação de chat). ── */
+/* ── Som de notificação de mensagem nova no Blog Secreto (Web Audio, sem asset) —
+   badalada de 3 notas subindo (tipo "ding-ding-DING"), bem mais alta e encorpada que
+   a 1ª versão (era 1 nota só, gain baixo — usuário achou "muito baixo e simples").
+   Onda triangle (mais harmônicos que sine) + uma camada uma oitava acima em cada nota
+   pra dar corpo sem ficar estridente. ── */
 let _blogAudioCtx = null;
 function playBlogNotifSound() {
   try {
@@ -249,13 +251,25 @@ function playBlogNotifSound() {
     const ctx = _blogAudioCtx;
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'sine'; o.frequency.setValueAtTime(920, now); o.frequency.exponentialRampToValueAtTime(1300, now + 0.09);
-    o.connect(g); g.connect(ctx.destination);
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-    o.start(now); o.stop(now + 0.23);
+    [[880, 0], [1174.66, 0.11], [1567.98, 0.22]].forEach(([freq, t], i) => {
+      const peak = i === 2 ? 0.55 : 0.42; // última nota é o "acento", mais forte
+
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.exponentialRampToValueAtTime(peak, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.34);
+      o.start(now + t); o.stop(now + t + 0.35);
+
+      const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+      o2.type = 'sine'; o2.frequency.value = freq * 2;
+      o2.connect(g2); g2.connect(ctx.destination);
+      g2.gain.setValueAtTime(0.0001, now + t);
+      g2.gain.exponentialRampToValueAtTime(peak * 0.35, now + t + 0.02);
+      g2.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.3);
+      o2.start(now + t); o2.stop(now + t + 0.31);
+    });
   } catch {}
 }
 
