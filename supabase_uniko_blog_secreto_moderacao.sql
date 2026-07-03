@@ -4,8 +4,11 @@
 -- o INSERT/UPDATE de verdade, então nem chamando a API na unha passa.
 --
 -- Lista curada: só o que foi pedido + variações óbvias de grafia — não é um dicionário
--- geral de ofensas, o escopo é racismo mesmo. Pra adicionar mais termos, só incluir no
--- array `v_terms` abaixo e rodar o CREATE OR REPLACE de novo.
+-- geral de ofensas, o escopo é racismo e discriminação religiosa. Pra adicionar mais
+-- termos, só incluir no array `v_terms` abaixo e rodar o CREATE OR REPLACE de novo.
+-- "crente" é bloqueada como PALAVRA SOLTA (as outras são por frase) mesmo tendo uso
+-- neutro/autodescritivo ("sou crente") — decisão explícita do usuário, prefere barrar
+-- sempre a arriscar deixar passar um uso pejorativo.
 --
 -- Rode depois de supabase_uniko_blog_secreto_pseudonimo.sql.
 
@@ -22,7 +25,8 @@ declare
     'cabelo duro', 'cabelo feio',
     'preto feio', 'preta feia',
     'preto nojento', 'preta nojenta',
-    'pessoa escura'
+    'pessoa escura',
+    'crente'
   ];
   v_term text;
 begin
@@ -30,7 +34,7 @@ begin
     v_norm := lower(new.text);
     foreach v_term in array v_terms loop
       if v_norm like '%' || v_term || '%' then
-        raise exception 'Conteúdo racista/discriminatório não é permitido no Blog Secreto.'
+        raise exception 'Conteúdo racista ou discriminatório (inclusive religioso) não é permitido no Blog Secreto.'
           using errcode = 'P0001';
       end if;
     end loop;

@@ -175,14 +175,18 @@ const qkeyOf = (s) => String(s || '').toLowerCase()
   .normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
-/* ── Moderação do Blog Secreto: bloqueia racismo antes de mandar. Checagem por FRASE
-   (não palavra solta) normalizada igual a FAQ (sem acento/pontuação, minúsculo) — pega
-   variações de escrita/espaçamento. Backup no servidor (trigger, ver
-   supabase_uniko_blog_secreto_moderacao.sql) pra não dar pra burlar chamando a API
-   direto — esse aqui é só a barreira do lado do cliente, mais rápida e com aviso na
-   hora. Lista curada: só o que foi pedido + variações óbvias de grafia, de propósito
-   (não é um dicionário geral de ofensas — escopo é racismo, não profanidade em geral). ── */
-const BLOCKED_RACIST_TERMS = [
+/* ── Moderação do Blog Secreto: bloqueia racismo e discriminação religiosa antes de
+   mandar. A maioria é checagem por FRASE (não palavra solta) pra não falso-positivar
+   em uso inocente ("café preto") — normalizada igual a FAQ (sem acento/pontuação,
+   minúsculo), pega variações de escrita/espaçamento. "crente" é EXCEÇÃO: bloqueada
+   como palavra solta mesmo sendo usada às vezes de forma neutra/autodescritiva ("sou
+   crente") — decisão explícita do usuário depois de eu avisar desse trade-off, prefere
+   barrar sempre a arriscar deixar passar um uso pejorativo. Backup no servidor
+   (trigger, ver supabase_uniko_blog_secreto_moderacao.sql) pra não dar pra burlar
+   chamando a API direto — esse aqui é só a barreira do lado do cliente, mais rápida e
+   com aviso na hora. Lista curada: só o que foi pedido + variações óbvias de grafia,
+   de propósito (não é um dicionário geral de ofensas). ── */
+const BLOCKED_CHAT_TERMS = [
   'cabelo de bombril', 'cabelo bombril',
   'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim',
   'pixaim', 'pichain', 'pichaim',
@@ -190,11 +194,12 @@ const BLOCKED_RACIST_TERMS = [
   'preto feio', 'preta feia',
   'preto nojento', 'preta nojenta',
   'pessoa escura',
+  'crente',
 ];
-function containsRacistContent(raw) {
+function containsBlockedContent(raw) {
   const q = qkeyOf(raw);
   if (!q) return false;
-  return BLOCKED_RACIST_TERMS.some(term => q.includes(qkeyOf(term)));
+  return BLOCKED_CHAT_TERMS.some(term => q.includes(qkeyOf(term)));
 }
 
 // FAQ por palavra-chave: ignora ACENTO (q e keywords normalizados) e dá mais peso a FRASES
@@ -844,7 +849,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const sendBlogMessage = async () => {
     const text = blogInput.trim().slice(0, 500);
     if ((!text && !blogAttach) || blogSending.current) return;
-    if (containsRacistContent(text)) {
+    if (containsBlockedContent(text)) {
       setBlogModerationErr('🚫 Essa mensagem não pode ser enviada — tem conteúdo racista/discriminatório. Revise o texto antes de mandar de novo.');
       return;
     }
@@ -882,7 +887,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const text = editingText.trim().slice(0, 500);
     const target = blogMessages.find(x => x.id === id);
     if (!text && !target?.media_url) return; // não deixa esvaziar uma mensagem só-texto
-    if (containsRacistContent(text)) {
+    if (containsBlockedContent(text)) {
       setBlogModerationErr('🚫 Essa edição não pode ser salva — tem conteúdo racista/discriminatório. Revise o texto antes de salvar de novo.');
       return;
     }
