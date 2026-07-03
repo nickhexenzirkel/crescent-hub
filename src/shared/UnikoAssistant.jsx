@@ -121,12 +121,10 @@ const EMOJI_LIST = [
 
 // "Rosto" anônimo por `pseudo_tag` (atribuído no servidor, ver supabase_uniko_blog_
 // secreto_pseudonimo.sql — NUNCA é o autor de verdade, só um número sequencial sem
-// relação com o nome). Cada pessoa diferente pega sempre o mesmo bicho/cor — dá pra
+// relação com o nome). Cada pessoa diferente pega sempre a mesma cor — dá pra
 // diferenciar "várias pessoas anônimas" sem revelar quem ninguém é.
-const ANON_AVATARS = ['🦊','🐱','🐶','🐻','🐼','🐨','🐰','🦁','🐯','🐸','🐵','🦄','🐙','🦉','🐧','🐺','🐹','🦝','🐔','🐢'];
-const ANON_COLORS  = ['#e67e22','#3498db','#9b59b6','#1abc9c','#e74c3c','#2ecc71','#f39c12','#16a085','#8e44ad','#d35400'];
-const anonAvatar = (tag) => ANON_AVATARS[((tag ?? 0) % ANON_AVATARS.length + ANON_AVATARS.length) % ANON_AVATARS.length];
-const anonColor  = (tag) => ANON_COLORS[((tag ?? 0) % ANON_COLORS.length + ANON_COLORS.length) % ANON_COLORS.length];
+const ANON_COLORS = ['#e67e22','#3498db','#9b59b6','#1abc9c','#e74c3c','#2ecc71','#f39c12','#16a085','#8e44ad','#d35400'];
+const anonColor = (tag) => ANON_COLORS[((tag ?? 0) % ANON_COLORS.length + ANON_COLORS.length) % ANON_COLORS.length];
 
 // Ícones das ações de mensagem do Blog Secreto (apagar/editar) — mesmo traço usado em
 // outros botões de excluir do app (Central Alexa: "Excluir tudo"/mês da Máquina do Tempo).
@@ -1111,13 +1109,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               const bubbleRadius = mine
                 ? `14px ${grouped ? 6 : 14}px ${groupedWithNext ? 14 : 4}px 14px`
                 : `${grouped ? 6 : 14}px 14px 14px ${groupedWithNext ? 14 : 4}px`;
-              const avatar = anonAvatar(m.pseudo_tag);
               const color = anonColor(m.pseudo_tag);
               return (
                 <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative', marginTop: grouped ? 0 : 10 }}>
                   {!grouped && (
                     <div style={{ fontSize: 9.5, color: mine ? (T.textD || '#aaa') : color, marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
-                      {mine ? 'VOCÊ' : `${avatar} ANÔNIMO`}
+                      {mine ? 'VOCÊ' : 'ANÔNIMO'}
                     </div>
                   )}
                   <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
