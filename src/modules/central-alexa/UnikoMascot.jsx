@@ -54,7 +54,7 @@ const BLINK_SEQ = [
 
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 // Quanto o ícone deixa de subir em repouso, pra não ficar colado na borda de cima do card.
-const REST_GAP = 26;
+const REST_GAP = 40;
 
 const MASCOT_CSS = `
 @keyframes unikoFloat { 0%,100%{transform:translateY(0px);} 50%{transform:translateY(-8px);} }
