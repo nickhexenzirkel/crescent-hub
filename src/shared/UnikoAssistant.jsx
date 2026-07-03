@@ -341,6 +341,19 @@ const loadDock = () => {
 };
 const saveDock = (d) => { try { localStorage.setItem(POS_KEY, JSON.stringify(d)); } catch {} };
 
+/* ── "Minhas mensagens" do Blog Secreto — persistido em localStorage POR USUÁRIO, senão
+   um F5 esquecia quais mensagens eram suas (voltavam mostrando como "ANÔNIMO" mesmo sendo
+   sua). Guarda só os IDs que o PRÓPRIO navegador de quem mandou já sabia (devolvidos no
+   insert) — não muda a anonimidade em nada pros outros, é local e só sobre mensagens que
+   você mesmo já sabia que eram suas. Mantém só os últimos 500 ids (não cresce pra sempre). ── */
+const blogMineKey = (userName) => `uniko_blog_mine_${(userName || 'anon').toLowerCase()}`;
+const loadBlogMineIds = (userName) => {
+  try { return JSON.parse(localStorage.getItem(blogMineKey(userName)) || '[]'); } catch { return []; }
+};
+const saveBlogMineIds = (userName, ids) => {
+  try { localStorage.setItem(blogMineKey(userName), JSON.stringify(ids.slice(-500))); } catch {}
+};
+
 /* Texto que aparece "sendo digitado" rapidamente (efeito máquina de escrever).
    onStart/onDone marcam quando o UNIKO está "falando" (pra mexer a boca). */
 const Typer = ({ text, speed = 16, onTick, onStart, onDone }) => {
@@ -431,6 +444,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [blogLoading, setBlogLoading] = useState(false);
   const myBlogIds = useRef(new Set());   // ids das MINHAS mensagens (só no navegador — o servidor
   const blogSending = useRef(false);     // nunca devolve `author` pro cliente, nem pra mim mesmo)
+  const [, forceBlogMineReload] = useState(0); // força re-render depois de carregar myBlogIds do localStorage
   const blogListRef = useRef(null);
   const blogNearBottomRef = useRef(true); // estava perto do fim da lista ANTES da atualização atual?
   const blogFileRef = useRef(null);      // <input type=file> escondido (imagem/gif/vídeo)
@@ -465,6 +479,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     window.addEventListener('pointerdown', unlock, { once: true });
     return () => window.removeEventListener('pointerdown', unlock);
   }, []);
+
+  // Recarrega quais mensagens do Blog Secreto são MINHAS (persistido por usuário) — sem
+  // isso, um F5 fazia até as suas próprias mensagens antigas voltarem mostrando como
+  // "ANÔNIMO". `forceBlogMineReload` só existe pra re-renderizar na hora (senão só
+  // atualizaria visualmente no próximo poll, alguns segundos depois).
+  useEffect(() => {
+    if (!authUser?.name) return;
+    loadBlogMineIds(authUser.name).forEach(id => myBlogIds.current.add(id));
+    forceBlogMineReload(n => n + 1);
+  }, [authUser?.name]);
 
   // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
   // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
@@ -809,6 +833,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         .select('id').single();
       if (!error && data?.id) {
         myBlogIds.current.add(data.id);
+        saveBlogMineIds(authUser?.name, [...myBlogIds.current]); // sobrevive a um F5
         blogNearBottomRef.current = true; // mandei uma mensagem → sempre desce até ela
         setBlogMessages(m => [...m, {
           id: data.id, text, media_url: attach?.url || null, media_type: attach?.type || null,
