@@ -3,7 +3,7 @@ import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
-import OceanScene from '../../shared/oceanScene';
+import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -479,6 +479,8 @@ const CentralOcean = () => {
       <PearlShellBig side="right" />
       <SeaweedCluster style={{ left: '26%' }} />
       <SeaweedCluster style={{ left: '62%' }} />
+      <TubeCoral style={{ left: '38%' }} scale={1.8} />
+      <MushroomCoral style={{ left: '74%' }} scale={1.7} />
 
       {whales.current.map(w => <DriftWhale key={w.id} {...w} />)}
       {dolphins.current.map(d => <DriftDolphin key={d.id} {...d} />)}

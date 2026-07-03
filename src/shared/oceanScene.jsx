@@ -215,6 +215,57 @@ const CoralCluster = ({ style, flip }) => (
   </svg>
 );
 
+/* ── Coral cogumelo/mesa: caule fino + capa achatada arredondada (leitura de coral bem
+   diferente do coral-galho/coral-cérebro que já existiam — baseado em referências de
+   coral-mesa/cogumelo). Balança de leve, igual ao coral-galho. ── */
+export const MushroomCoral = ({ style, capColor = '#8bc34a', stemColor = '#c9a3e0', scale = 1 }) => (
+  <svg viewBox="0 0 36 50" width={36 * scale} height={50 * scale} fill="none"
+    style={{ position: 'absolute', bottom: -2, pointerEvents: 'none', zIndex: 1, ...style }}>
+    <g style={{ animation: 'osCoralSway 5.4s ease-in-out infinite', transformOrigin: '18px 46px' }}>
+      <rect x="16" y="22" width="4" height="24" rx="2" fill={stemColor} />
+      <ellipse cx="18" cy="18" rx="16" ry="8" fill={capColor} />
+      <ellipse cx="18" cy="15" rx="11" ry="4" fill="#fff" opacity=".22" />
+      <ellipse cx="18" cy="22.5" rx="14" ry="2.6" fill="#000" opacity=".08" />
+    </g>
+  </svg>
+);
+
+/* ── Coral tubo: fileira de tubinhos com "boca" escura no topo (tipo coral-órgão). ── */
+export const TubeCoral = ({ style, color = '#ff8a3d', scale = 1 }) => {
+  const heights = [13, 19, 15, 22, 12];
+  const w = heights.length * 9 + 4;
+  return (
+    <svg viewBox={`0 0 ${w} 28`} width={w * scale} height={28 * scale} fill="none"
+      style={{ position: 'absolute', bottom: -2, pointerEvents: 'none', zIndex: 1, ...style }}>
+      {heights.map((h, i) => {
+        const x = i * 9 + 6, y = 26 - h;
+        return (
+          <g key={i}>
+            <rect x={x - 3.4} y={y} width="6.8" height={h} rx="3" fill={color} />
+            <ellipse cx={x} cy={y + 1.4} rx="2.4" ry="1.5" fill="#7a1c00" opacity=".85" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+/* ── Coral bolha/uva: cacho de bolhas redondas sobrepostas — textura bem diferente do
+   coral-cérebro liso e do coral-galho ramificado que já existiam. ── */
+export const BubbleCoral = ({ style, color = '#c77dff', scale = 1 }) => {
+  const bubbles = [
+    { x: 8, y: 23, r: 7 }, { x: 19, y: 18, r: 9 }, { x: 30, y: 23, r: 7 },
+    { x: 13.5, y: 12, r: 6 }, { x: 24.5, y: 11.5, r: 6.5 }, { x: 19, y: 27, r: 6 },
+  ];
+  return (
+    <svg viewBox="0 0 38 34" width={38 * scale} height={34 * scale} fill="none"
+      style={{ position: 'absolute', bottom: -2, pointerEvents: 'none', zIndex: 1, ...style }}>
+      {bubbles.map((b, i) => <circle key={i} cx={b.x} cy={b.y} r={b.r} fill={color} opacity=".92" />)}
+      {bubbles.map((b, i) => <circle key={'h' + i} cx={b.x - b.r * .3} cy={b.y - b.r * .35} r={b.r * .32} fill="#fff" opacity=".28" />)}
+    </svg>
+  );
+};
+
 /* ── Faixa de areia no chão (duas camadas de dunas, preenche a largura toda) ── */
 const SandFloor = () => (
   <svg viewBox="0 0 400 46" preserveAspectRatio="none" width="100%" height="15%"
@@ -305,6 +356,10 @@ export default function OceanScene({ jellies = 4, fish = 5, bubbles = 8, whales 
       <CoralCluster style={{ left: '19%' }} flip />
       <CoralCluster style={{ left: '50%', transform: 'translateX(-50%) scale(.85)' }} />
       <CoralCluster style={{ right: '19%' }} />
+
+      {/* Mais tipos de coral (cogumelo/mesa + bolha) nos vãos entre concha e coral */}
+      <MushroomCoral style={{ left: '8%' }} scale={.7} />
+      <BubbleCoral style={{ right: '9%' }} scale={.7} />
 
       {/* Brilho atmosférico azul-turquesa */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
