@@ -307,6 +307,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   ]);
   const [input, setInput] = useState('');
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
+
+  // ── Modo "Blog Secreto" (chat global anônimo) — ver [[uniko-assistant]] ──
+  const [chatMode, setChatMode] = useState('perguntas'); // 'perguntas' | 'blog'
+  const [blogMessages, setBlogMessages] = useState([]);
+  const [blogInput, setBlogInput] = useState('');
+  const [blogLoading, setBlogLoading] = useState(false);
+  const myBlogIds = useRef(new Set());   // ids das MINHAS mensagens (só no navegador — o servidor
+  const blogSending = useRef(false);     // nunca devolve `author` pro cliente, nem pra mim mesmo)
+  const blogListRef = useRef(null);
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -509,6 +518,52 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
   useEffect(() => { if (open) scrollDown(); }, [messages, open, scrollDown]);
   useEffect(() => () => clearTimeout(bubbleTimer.current), []);
+
+  // ── Blog Secreto: poll (sem realtime de propósito — o payload do realtime do Supabase
+  // manda a linha INTEIRA, inclusive `author`, pra todo mundo inscrito; poll com SELECT
+  // explícito garante que `author` nunca trafega pro cliente de ninguém). Só busca
+  // enquanto o painel está aberto NESSE modo. ──
+  useEffect(() => {
+    if (!open || chatMode !== 'blog') return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const { data } = await _supabase.from('uniko_blog_secreto')
+          .select('id,text,created_at').order('created_at', { ascending: true }).limit(200);
+        if (alive && data) setBlogMessages(data);
+      } catch {}
+    };
+    setBlogLoading(true);
+    load().finally(() => { if (alive) setBlogLoading(false); });
+    const id = setInterval(load, 4000);
+    return () => { alive = false; clearInterval(id); };
+  }, [open, chatMode]);
+
+  useEffect(() => {
+    if (open && chatMode === 'blog' && blogListRef.current) blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
+  }, [blogMessages, open, chatMode]);
+
+  const sendBlogMessage = async () => {
+    const text = blogInput.trim().slice(0, 500);
+    if (!text || blogSending.current) return;
+    blogSending.current = true;
+    setBlogInput('');
+    try {
+      const { data, error } = await _supabase.from('uniko_blog_secreto')
+        .insert({ text, author: authUser?.name || 'anon' })
+        .select('id').single();
+      if (!error && data?.id) {
+        myBlogIds.current.add(data.id);
+        setBlogMessages(m => [...m, { id: data.id, text, created_at: new Date().toISOString() }]);
+      }
+    } catch {}
+    blogSending.current = false;
+  };
+
+  const deleteBlogMessage = async (id) => {
+    try { await _supabase.from('uniko_blog_secreto').delete().eq('id', id); } catch {}
+    setBlogMessages(m => m.filter(x => x.id !== id));
+  };
 
   // ── ARRASTAR o robô (estilo AssistiveTouch) — mouse + toque. Distingue toque de arraste:
   //    sem mover além do limiar → abre/fecha o chat; arrastou → reposiciona e gruda na borda. ──
@@ -729,10 +784,35 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} skin={skin} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
-              <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>Assistente do sistema</div>
+              <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>{chatMode === 'blog' ? 'Chat anônimo' : 'Assistente do sistema'}</div>
             </div>
             <button onClick={() => setOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS || '#888', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
           </div>
+
+          {/* sub-abas: Perguntas vs Blog Secreto */}
+          <div style={{ display: 'flex', gap: 4, padding: '8px 10px 0', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+            {[
+              { id: 'perguntas', label: '💬 Perguntas' },
+              { id: 'blog', label: '🤫 Blog Secreto' },
+            ].map(v => {
+              const on = chatMode === v.id;
+              return (
+                <button key={v.id} onClick={() => setChatMode(v.id)}
+                  style={{
+                    padding: '7px 12px', borderRadius: '10px 10px 0 0', cursor: 'pointer', border: 'none',
+                    background: on ? (T.surfaceSub || 'rgba(0,0,0,0.05)') : 'transparent',
+                    color: on ? T.text : (T.textT || '#8a8'),
+                    fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)',
+                    borderBottom: on ? `2px solid ${accent}` : '2px solid transparent',
+                    marginBottom: -1, transition: 'all .15s',
+                  }}>
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {chatMode === 'perguntas' && (<>
           {/* mensagens */}
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {messages.map((m, i) => (
@@ -750,6 +830,48 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               Enviar
             </button>
           </div>
+          </>)}
+
+          {chatMode === 'blog' && (<>
+          {/* mensagens anônimas — ninguém (nem o UNIKO) sabe quem escreveu o quê, exceto
+              as SUAS próprias (rastreadas só no seu navegador, nunca no servidor) */}
+          <div ref={blogListRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11, color: T.textT || '#8a8', textAlign: 'center', padding: '2px 8px 10px', lineHeight: 1.5 }}>
+              🤫 Chat anônimo e global — todo mundo vê, ninguém sabe quem escreveu. Seja gente boa 💛
+            </div>
+            {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
+            {!blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Ninguém escreveu nada ainda. Seja o primeiro! 👀</div>}
+            {blogMessages.map(m => {
+              const mine = myBlogIds.current.has(m.id);
+              const canDelete = mine || authUser?.role === 'admin';
+              return (
+                <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative' }}>
+                  <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
+                    {mine ? 'VOCÊ' : 'ANÔNIMO'}
+                  </div>
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                    {m.text}
+                  </div>
+                  {canDelete && (
+                    <button onClick={() => deleteBlogMessage(m.id)} title="Apagar"
+                      style={{ position: 'absolute', top: -6, [mine ? 'left' : 'right']: -6, width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#C04050', color: '#fff', fontSize: 11, lineHeight: '18px', textAlign: 'center', padding: 0, cursor: 'pointer', opacity: .85 }}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* input */}
+          <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+            <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }}
+              maxLength={500} placeholder="Escreva algo anônimo..."
+              style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+              Enviar
+            </button>
+          </div>
+          </>)}
         </div>
       )}
     </div>
