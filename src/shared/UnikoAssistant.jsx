@@ -854,6 +854,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         @keyframes uaBorderSpin{to{--uaAng:360deg}}
         @keyframes uaHeartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1.02)}45%{transform:scale(1.22)}60%{transform:scale(1)}}
         body.uw-active .uniko-assistant{display:none!important}
+        /* Botão de apagar mensagem do Blog Secreto — cinza neutro (não vermelho o tempo
+           todo, senão parece um "X de erro" grudado na mensagem); só fica vermelho ao
+           passar o mouse em cima DELE, sinalizando a ação destrutiva só na hora certa. */
+        .ua-del{transition:background .15s,opacity .15s}
+        .ua-del:hover{background:#C04050!important;opacity:1!important}
       `}</style>
 
       {/* ── Robô: flutua, fica EXPANDIDO com balão, ARRASTÁVEL (clique abre, arraste move) ── */}
@@ -960,7 +965,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               const mine = myBlogIds.current.has(m.id);
               const canDelete = mine || authUser?.role === 'admin';
               return (
-                <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative' }}>
+                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative' }}>
                   <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
                     {mine ? 'VOCÊ' : 'ANÔNIMO'}
                   </div>
@@ -974,8 +979,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                     {m.text && <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>{m.text}</div>}
                   </div>
                   {canDelete && (
-                    <button onClick={() => deleteBlogMessage(m.id)} title="Apagar"
-                      style={{ position: 'absolute', top: -6, [mine ? 'left' : 'right']: -6, width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#C04050', color: '#fff', fontSize: 11, lineHeight: '18px', textAlign: 'center', padding: 0, cursor: 'pointer', opacity: .85 }}>
+                    <button onClick={() => deleteBlogMessage(m.id)} title="Apagar mensagem" className="ua-del"
+                      style={{ position: 'absolute', top: -6, [mine ? 'left' : 'right']: -6, width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${panelBg}`, background: T.textD || '#999', color: '#fff', fontSize: 10, lineHeight: '16px', textAlign: 'center', padding: 0, cursor: 'pointer' }}>
                       ×
                     </button>
                   )}
