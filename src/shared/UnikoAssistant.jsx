@@ -111,6 +111,14 @@ const TIPS = [
   { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: 'ALARME' },
 ];
 
+// Emojis do picker do Blog Secreto — grade curada fixa (sem dependência/API externa).
+const EMOJI_LIST = [
+  '😀','😂','🤣','😅','😊','😉','😍','🥰','😘','😜','🤪','🤔','🙄','😏','😴','🤯',
+  '😱','😭','😢','😡','🤬','🥳','😎','🤠','🤗','🫡','🙃','😬','😇','🤡','👻','💀',
+  '👍','👎','👏','🙌','🤝','🙏','💪','✌️','🤞','👀','🫶','❤️','💔','🔥','✨','⭐',
+  '🎉','🎊','💯','😴','☕','🍕','🍺','🎮','🎵','🐱','🐶','🤫','🕵️','🚀','⚡','🌈',
+];
+
 // CHAVE do sprite do aviso/lembrete que chega pelo App (resolvida pela skin ativa).
 function notifSprite(n) {
   const t = n?.type, title = (n?.title || '').toLowerCase();
@@ -176,6 +184,40 @@ async function askAI(question) {
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+/* ── Anexos do Blog Secreto (imagem/gif/vídeo) — base64 direto na coluna, mesmo padrão
+   já usado na Oficina de Uniko (sem Supabase Storage). Imagem estática é redimensionada
+   no cliente (perde qualidade mas fica leve); gif/vídeo vão como estão (reprocessar um
+   gif via canvas mataria a animação) — só limita o tamanho do arquivo. ── */
+const MAX_IMG_BYTES = 4 * 1024 * 1024;
+const MAX_GIF_BYTES = 4 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 6 * 1024 * 1024;
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read'));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+function resizeImageFile(file, maxSide = 640, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    readFileAsDataURL(file).then((dataUrl) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode'));
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale) || 1, h = Math.round(img.height * scale) || 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = dataUrl;
+    }).catch(reject);
+  });
+}
 
 /* ── Posição arrastável (estilo AssistiveTouch) ──
    Persiste um "dock" RELATIVO ({side:'left'|'right', yPct:0..1}) em vez de pixels
@@ -316,6 +358,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const myBlogIds = useRef(new Set());   // ids das MINHAS mensagens (só no navegador — o servidor
   const blogSending = useRef(false);     // nunca devolve `author` pro cliente, nem pra mim mesmo)
   const blogListRef = useRef(null);
+  const blogFileRef = useRef(null);      // <input type=file> escondido (imagem/gif/vídeo)
+  const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
+  const [blogAttachErr, setBlogAttachErr] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -528,7 +574,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       let data;
       try {
         ({ data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,created_at').order('created_at', { ascending: true }).limit(50));
+          .select('id,text,media_type,created_at').order('created_at', { ascending: true }).limit(50));
       } catch { return; }
       if (!alive) return;
       const rows = data || [];
@@ -543,8 +589,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (!latestNew) return;
       // Não interrompe quem já está de olho no Blog Secreto aberto agora.
       if (openRef.current && chatModeRef.current === 'blog') return;
-      const preview = latestNew.text.length > 60 ? latestNew.text.slice(0, 60) + '…' : latestNew.text;
-      say(`Mensagens novas no Blog Secreto: Fulano de tal falou que "${preview}"`, { sprite: imgRef.current.ATENCAO });
+      const mediaWord = { image: 'uma imagem 🖼️', gif: 'um gif 🎞️', video: 'um vídeo 🎥' }[latestNew.media_type];
+      const msg = latestNew.text
+        ? `Mensagens novas no Blog Secreto: Fulano de tal falou que "${latestNew.text.length > 60 ? latestNew.text.slice(0, 60) + '…' : latestNew.text}"`
+        : `Mensagens novas no Blog Secreto: Fulano de tal mandou ${mediaWord || 'algo'}`;
+      say(msg, { sprite: imgRef.current.ATENCAO });
     };
     poll();
     const id = setInterval(poll, 15000);
@@ -564,7 +613,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const load = async () => {
       try {
         const { data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,created_at').order('created_at', { ascending: true }).limit(200);
+          .select('id,text,media_url,media_type,created_at').order('created_at', { ascending: true }).limit(200);
         if (alive && data) setBlogMessages(data);
       } catch {}
     };
@@ -578,18 +627,49 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (open && chatMode === 'blog' && blogListRef.current) blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
   }, [blogMessages, open, chatMode]);
 
+  // Anexo (imagem/gif/vídeo) — escolhe o arquivo, valida tipo/tamanho e prepara o
+  // dataURL. Fica "pendente" (preview acima do input) até enviar junto com o texto.
+  const pickBlogFile = () => blogFileRef.current?.click();
+  const onBlogFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite escolher o MESMO arquivo de novo depois
+    if (!file) return;
+    setBlogAttachErr('');
+    try {
+      if (file.type === 'image/gif') {
+        if (file.size > MAX_GIF_BYTES) { setBlogAttachErr('Gif muito grande (máx 4MB).'); return; }
+        setBlogAttach({ url: await readFileAsDataURL(file), type: 'gif' });
+      } else if (file.type.startsWith('image/')) {
+        if (file.size > MAX_IMG_BYTES) { setBlogAttachErr('Imagem muito grande (máx 4MB).'); return; }
+        setBlogAttach({ url: await resizeImageFile(file), type: 'image' });
+      } else if (file.type.startsWith('video/')) {
+        if (file.size > MAX_VIDEO_BYTES) { setBlogAttachErr('Vídeo muito grande (máx 6MB).'); return; }
+        setBlogAttach({ url: await readFileAsDataURL(file), type: 'video' });
+      } else {
+        setBlogAttachErr('Tipo de arquivo não suportado.');
+      }
+    } catch { setBlogAttachErr('Não consegui ler esse arquivo.'); }
+  };
+
   const sendBlogMessage = async () => {
     const text = blogInput.trim().slice(0, 500);
-    if (!text || blogSending.current) return;
+    if ((!text && !blogAttach) || blogSending.current) return;
     blogSending.current = true;
-    setBlogInput('');
+    const attach = blogAttach;
+    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setShowEmoji(false);
     try {
       const { data, error } = await _supabase.from('uniko_blog_secreto')
-        .insert({ text, author: authUser?.name || 'anon' })
+        .insert({
+          text: text || null, media_url: attach?.url || null, media_type: attach?.type || null,
+          author: authUser?.name || 'anon',
+        })
         .select('id').single();
       if (!error && data?.id) {
         myBlogIds.current.add(data.id);
-        setBlogMessages(m => [...m, { id: data.id, text, created_at: new Date().toISOString() }]);
+        setBlogMessages(m => [...m, {
+          id: data.id, text, media_url: attach?.url || null, media_type: attach?.type || null,
+          created_at: new Date().toISOString(),
+        }]);
       }
     } catch {}
     blogSending.current = false;
@@ -884,8 +964,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                   <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
                     {mine ? 'VOCÊ' : 'ANÔNIMO'}
                   </div>
-                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
-                    {m.text}
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                    {m.media_url && m.media_type === 'video' && (
+                      <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: m.text ? 6 : 0 }} />
+                    )}
+                    {m.media_url && (m.media_type === 'image' || m.media_type === 'gif') && (
+                      <img src={m.media_url} alt="" style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: m.text ? 6 : 0 }} />
+                    )}
+                    {m.text && <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>{m.text}</div>}
                   </div>
                   {canDelete && (
                     <button onClick={() => deleteBlogMessage(m.id)} title="Apagar"
@@ -897,12 +983,54 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               );
             })}
           </div>
+
+          {/* prévia do anexo pendente + erro */}
+          {(blogAttach || blogAttachErr) && (
+            <div style={{ padding: '0 10px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {blogAttach && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  {blogAttach.type === 'video'
+                    ? <video src={blogAttach.url} style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 8 }} />
+                    : <img src={blogAttach.url} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 8 }} />}
+                  <button onClick={() => setBlogAttach(null)} title="Remover anexo"
+                    style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: 'none', background: '#C04050', color: '#fff', fontSize: 10, lineHeight: '16px', textAlign: 'center', padding: 0, cursor: 'pointer' }}>
+                    ×
+                  </button>
+                </div>
+              )}
+              {blogAttachErr && <span style={{ fontSize: 11, color: '#C04050' }}>{blogAttachErr}</span>}
+            </div>
+          )}
+
+          {/* picker de emoji */}
+          {showEmoji && (
+            <div style={{ padding: '0 10px 8px', display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, maxHeight: 120, overflowY: 'auto' }}>
+              {EMOJI_LIST.map((em, i) => (
+                <button key={i} onClick={() => setBlogInput(v => (v + em).slice(0, 500))}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, padding: 3, borderRadius: 6, lineHeight: 1 }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  {em}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* input */}
-          <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+          <input ref={blogFileRef} type="file" accept="image/*,video/*" onChange={onBlogFileChange} style={{ display: 'none' }} />
+          <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+            <button onClick={pickBlogFile} title="Anexar imagem/gif/vídeo"
+              style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
+              📎
+            </button>
+            <button onClick={() => setShowEmoji(v => !v)} title="Emoji"
+              style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: showEmoji ? `${accent}33` : (T.surfaceSub || 'rgba(0,0,0,0.03)'), borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
+              😀
+            </button>
             <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }}
               maxLength={500} placeholder="Escreva algo anônimo..."
-              style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
-            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+              style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
               Enviar
             </button>
           </div>
