@@ -19,6 +19,7 @@ import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
 import { getCapturedCollection, getUniko, onCaptureSlotBusy } from '../../../shared/captureUniko';
+import { getMyVacationDeadline, monthsDaysUntil } from '../../../shared/vacationDeadlines';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -145,6 +146,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const hhmm  = now.toTimeString().slice(0,5);
   const greeting = hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite';
   const todayFmt = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+
+  // Contagem de férias — só existe pra quem está na lista seleta (ver
+  // shared/vacationDeadlines.js); cada um vê só a própria data-limite.
+  const myVacation = getMyVacationDeadline(USER.name);
+  const vacationCountdown = myVacation ? monthsDaysUntil(myVacation.date) : null;
 
   /* ── Fetch helpers ── */
   const fetchEvts   = () => _supabase.from('calendar_events').select('*').order('event_date',{ascending:true}).then(({data})=>setEvts(data||[]));
@@ -459,6 +465,25 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <StarDivider my={0} dim/>
         </div>
       </div>
+
+      {/* ══ CONTAGEM DE FÉRIAS — só aparece pra quem está na lista seleta ══ */}
+      {myVacation && vacationCountdown && (
+        <Card className="home-card" style={{padding:'16px 20px',marginBottom:14,display:'flex',alignItems:'center',gap:18,flexWrap:'wrap'}}>
+          <div style={{width:46,height:46,borderRadius:12,background:T.goldGl,border:`1px solid ${T.goldLine}44`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🏖️</div>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:10,color:T.gold,fontWeight:700,letterSpacing:'.08em'}}>CONTAGEM DE FÉRIAS</div>
+            <div style={{fontSize:14,fontWeight:700,color:T.text,marginTop:2}}>
+              {vacationCountdown.expired
+                ? 'Data-limite alcançada'
+                : <>Faltam <b style={{color:T.gold}}>{vacationCountdown.months}</b> {vacationCountdown.months===1?'mês':'meses'} e <b style={{color:T.gold}}>{vacationCountdown.days}</b> {vacationCountdown.days===1?'dia':'dias'}</>}
+            </div>
+            <div style={{fontSize:11,color:T.textT,marginTop:2}}>
+              Data-limite: {new Date(myVacation.date+'T12:00:00').toLocaleDateString('pt-BR')}
+              {!vacationCountdown.expired && ` · ${vacationCountdown.totalDays} dias corridos`}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* ══ TIRA: UNIKO WAVE · MISSÕES · PRISMA STORE · NOW PLAYING ══ */}
       <div style={{display:'grid',gridTemplateColumns:(isPlay&&nowPlay)?'1fr 1fr 1fr 1.4fr':'1fr 1fr 1fr',gap:12,marginBottom:14}}>
