@@ -393,13 +393,19 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [overrides, setOverrides] = useState({}); // perguntas registradas pelo admin (in_faq) → resposta
 
   // ── Modo "Blog Secreto" (chat global anônimo) — ver [[uniko-assistant]] ──
-  const [chatMode, setChatMode] = useState('perguntas'); // 'perguntas' | 'blog'
+  // Lembra o modo escolhido entre sessões (localStorage) — sem isso, atualizar a página
+  // sempre voltava pra aba "Perguntas" e parecia que o Blog Secreto tinha sido "limpo".
+  const [chatMode, setChatModeRaw] = useState(() => {
+    try { return localStorage.getItem('uniko_assistant_chat_mode') || 'perguntas'; } catch { return 'perguntas'; }
+  });
+  const setChatMode = (m) => { setChatModeRaw(m); try { localStorage.setItem('uniko_assistant_chat_mode', m); } catch {} };
   const [blogMessages, setBlogMessages] = useState([]);
   const [blogInput, setBlogInput] = useState('');
   const [blogLoading, setBlogLoading] = useState(false);
   const myBlogIds = useRef(new Set());   // ids das MINHAS mensagens (só no navegador — o servidor
   const blogSending = useRef(false);     // nunca devolve `author` pro cliente, nem pra mim mesmo)
   const blogListRef = useRef(null);
+  const blogNearBottomRef = useRef(true); // estava perto do fim da lista ANTES da atualização atual?
   const blogFileRef = useRef(null);      // <input type=file> escondido (imagem/gif/vídeo)
   const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
   const [blogAttachErr, setBlogAttachErr] = useState('');
@@ -627,11 +633,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const poll = async () => {
       let data;
       try {
+        // DESC + limit pra pegar as mais RECENTES (não as mais antigas!), depois inverte
+        // pra ordem cronológica — com mais de 50 mensagens no total, `ascending:true` com
+        // limit ficava preso pra sempre nas primeiras 50 e nunca via nada novo de novo.
         ({ data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,media_type,created_at').order('created_at', { ascending: true }).limit(50));
+          .select('id,text,media_type,created_at').order('created_at', { ascending: false }).limit(50));
       } catch { return; }
       if (!alive) return;
-      const rows = data || [];
+      const rows = (data || []).slice().reverse();
       if (first) { rows.forEach(r => seen.add(r.id)); first = false; return; }
       let latestNew = null;
       for (const r of rows) {
@@ -668,9 +677,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     let alive = true;
     const load = async () => {
       try {
-        const { data } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,media_url,media_type,edited,pseudo_tag,created_at').order('created_at', { ascending: true }).limit(200);
-        if (!alive || !data) return;
+        // DESC + limit pra pegar as 200 mais RECENTES, depois inverte pra ordem
+        // cronológica — igual o PROATIVO 4, `ascending:true` com limit ficava travado
+        // nas 200 primeiras mensagens de sempre assim que passava desse total.
+        const { data: raw } = await _supabase.from('uniko_blog_secreto')
+          .select('id,text,media_url,media_type,edited,pseudo_tag,created_at').order('created_at', { ascending: false }).limit(200);
+        if (!alive || !raw) return;
+        const data = raw.slice().reverse();
         setBlogMessages(prev => {
           // Toca o som só se já tinha carregado antes (não no 1º load do painel) e tem
           // mensagem nova de ALGUÉM QUE NÃO SOU EU.
@@ -688,9 +701,22 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     return () => { alive = false; clearInterval(id); };
   }, [open, chatMode]);
 
+  // Só acompanha o fim da lista se o usuário JÁ ESTAVA perto do fim antes dessa
+  // atualização — senão, toda mensagem de outra pessoa puxava o scroll de volta pro
+  // fundo mesmo com alguém lendo mensagens antigas lá em cima. `blogNearBottomRef` é
+  // atualizado a cada scroll manual (ver onScroll no container) e forçado a `true` só
+  // quando o próprio painel abre ou EU mando uma mensagem (aí sim deve ir pro fim).
+  const onBlogScroll = () => {
+    const el = blogListRef.current; if (!el) return;
+    blogNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  };
   useEffect(() => {
-    if (open && chatMode === 'blog' && blogListRef.current) blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
+    if (open && chatMode === 'blog' && blogListRef.current && blogNearBottomRef.current) {
+      blogListRef.current.scrollTop = blogListRef.current.scrollHeight;
+    }
   }, [blogMessages, open, chatMode]);
+  // Sempre que o painel abre no modo Blog Secreto, começa lá embaixo (mais recente).
+  useEffect(() => { if (open && chatMode === 'blog') blogNearBottomRef.current = true; }, [open, chatMode]);
 
   // Anexo (imagem/gif/vídeo) — valida tipo/tamanho e prepara o dataURL. Fica "pendente"
   // (preview acima do input) até enviar junto com o texto. Usado tanto pelo seletor de
@@ -746,6 +772,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         .select('id').single();
       if (!error && data?.id) {
         myBlogIds.current.add(data.id);
+        blogNearBottomRef.current = true; // mandei uma mensagem → sempre desce até ela
         setBlogMessages(m => [...m, {
           id: data.id, text, media_url: attach?.url || null, media_type: attach?.type || null,
           created_at: new Date().toISOString(),
@@ -1052,7 +1079,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           {chatMode === 'blog' && (<>
           {/* mensagens anônimas — ninguém (nem o UNIKO) sabe quem escreveu o quê, exceto
               as SUAS próprias (rastreadas só no seu navegador, nunca no servidor) */}
-          <div ref={blogListRef}
+          <div ref={blogListRef} onScroll={onBlogScroll}
             onDragOver={e => { e.preventDefault(); if (!blogDragOver) setBlogDragOver(true); }}
             onDragLeave={e => { if (e.currentTarget === e.target) setBlogDragOver(false); }}
             onDrop={e => { e.preventDefault(); setBlogDragOver(false); const file = e.dataTransfer?.files?.[0]; if (file) handleBlogFile(file); }}
