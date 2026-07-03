@@ -882,11 +882,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         @keyframes uaBorderSpin{to{--uaAng:360deg}}
         @keyframes uaHeartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1.02)}45%{transform:scale(1.22)}60%{transform:scale(1)}}
         body.uw-active .uniko-assistant{display:none!important}
-        /* Botão de apagar mensagem do Blog Secreto — cinza neutro (não vermelho o tempo
-           todo, senão parece um "X de erro" grudado na mensagem); só fica vermelho ao
-           passar o mouse em cima DELE, sinalizando a ação destrutiva só na hora certa. */
-        .ua-del{transition:background .15s,opacity .15s}
-        .ua-del:hover{background:#C04050!important;opacity:1!important}
+        /* Botões de apagar/editar mensagem do Blog Secreto — cinza neutro (não vermelho o
+           tempo todo, senão parece um "X de erro" grudado na mensagem); só ficam vermelho/
+           dourado ao passar o mouse NELES. Escondidos até passar o mouse na mensagem —
+           com as bolhas agrupadas coladas (estilo WhatsApp) eles ficariam se sobrepondo
+           se sempre visíveis. */
+        .ua-blogmsg .ua-del{opacity:0;transition:opacity .15s,background .15s}
+        .ua-blogmsg:hover .ua-del{opacity:1}
+        .ua-del:hover{background:#C04050!important}
         .ua-edit:hover{background:${accent}!important}
       `}</style>
 
@@ -984,23 +987,37 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           {chatMode === 'blog' && (<>
           {/* mensagens anônimas — ninguém (nem o UNIKO) sabe quem escreveu o quê, exceto
               as SUAS próprias (rastreadas só no seu navegador, nunca no servidor) */}
-          <div ref={blogListRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div ref={blogListRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <div style={{ fontSize: 11, color: T.textT || '#8a8', textAlign: 'center', padding: '2px 8px 10px', lineHeight: 1.5 }}>
               🤫 Chat anônimo e global — todo mundo vê, ninguém sabe quem escreveu. Seja gente boa 💛
             </div>
             {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
             {!blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Ninguém escreveu nada ainda. Seja o primeiro! 👀</div>}
-            {blogMessages.map(m => {
+            {blogMessages.map((m, i) => {
               const mine = myBlogIds.current.has(m.id);
               const canDelete = mine || authUser?.role === 'admin';
               const canEdit = mine; // só o autor edita — admin pode apagar, mas nunca reescrever mensagem alheia
               const editing = editingBlogId === m.id;
+              // Agrupa com a mensagem anterior tipo WhatsApp: mesma "categoria" (VOCÊ ou
+              // ANÔNIMO) em sequência não repete o rótulo nem abre o espaçamento grande —
+              // é uma aproximação por adjacência (não dá pra saber se são o MESMO anônimo
+              // de verdade, só que estão "juntos" na conversa), mas já resolve a bagunça
+              // visual de cada mensagem parecer uma pessoa diferente.
+              const prevMine = i > 0 ? myBlogIds.current.has(blogMessages[i - 1].id) : null;
+              const grouped = i > 0 && prevMine === mine;
+              const nextMine = i < blogMessages.length - 1 ? myBlogIds.current.has(blogMessages[i + 1].id) : null;
+              const groupedWithNext = nextMine === mine;
+              const bubbleRadius = mine
+                ? `14px ${grouped ? 6 : 14}px ${groupedWithNext ? 14 : 4}px 14px`
+                : `${grouped ? 6 : 14}px 14px 14px ${groupedWithNext ? 14 : 4}px`;
               return (
-                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative' }}>
-                  <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
-                    {mine ? 'VOCÊ' : 'ANÔNIMO'}
-                  </div>
-                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative', marginTop: grouped ? 0 : 10 }}>
+                  {!grouped && (
+                    <div style={{ fontSize: 9.5, color: T.textD || '#aaa', marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
+                      {mine ? 'VOCÊ' : 'ANÔNIMO'}
+                    </div>
+                  )}
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
                     {m.media_url && m.media_type === 'video' && (
                       <video src={m.media_url} controls style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
