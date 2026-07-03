@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAssistantSkin } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
+import { getContentOffset } from '../../shared/imageContentOffset';
 
 const DEFAULT_IMG = '/UNIKO_ALEXACENTRAL.png';
 
@@ -90,9 +91,20 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
   const bubbleClass = isVamp ? 'vamp-bubble' : isSea ? 'sea-bubble' : 'normal-bubble';
 
-  const [line,       setLine]       = useState(() => rand(lines));
-  const [showBubble, setShowBubble] = useState(true);
-  const [blinkImg,   setBlinkImg]   = useState(null);
+  const [line,          setLine]          = useState(() => rand(lines));
+  const [showBubble,    setShowBubble]    = useState(true);
+  const [blinkImg,      setBlinkImg]      = useState(null);
+  const [contentOffset, setContentOffset] = useState(null);
+
+  // Unikos da Oficina às vezes têm o desenho fora do centro do PNG (padding transparente
+  // assimétrico) — recalcula a correção de centro sempre que o Uniko personalizado muda.
+  // Só se aplica a skins da Oficina (uni truthy); Vampire-Robot/Sereia/padrão já vêm centrados.
+  useEffect(() => {
+    if (!uni) { setContentOffset(null); return; }
+    let alive = true;
+    getContentOffset(skin.blink.open).then(off => { if (alive) setContentOffset(off); });
+    return () => { alive = false; };
+  }, [uni, skin.blink.open]); // eslint-disable-line
 
   // Blink loop — só quando skin especial
   useEffect(() => {
@@ -200,21 +212,32 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
         </div>
         </div>
 
-        {/* Imagem flutuante — sem quadrado, sem borda */}
-        <img
-          src={img}
-          alt="UNIKO"
-          style={{
-            width:      size,
-            height:     size,
-            objectFit:  'contain',
-            flexShrink: 0,
-            animation:  'unikoFloat 3s ease-in-out infinite',
-            filter: GLOW_BY_SKIN[songSkin]
-              || (customAccent ? `drop-shadow(0 0 10px ${customAccent}88) drop-shadow(0 4px 12px rgba(0,0,0,.3))` : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))'),
-            transition: 'filter .4s',
-          }}
-        />
+        {/* Desce um pouco enquanto fala (balão visível) e volta ao terminar */}
+        <div style={{
+          transform:  showBubble ? 'translateY(10px)' : 'translateY(0)',
+          transition: 'transform .45s ease',
+        }}>
+          {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
+          <div style={contentOffset ? {
+            transform: `translate(${contentOffset.dxFrac * size}px, ${contentOffset.dyFrac * size}px)`,
+          } : undefined}>
+            {/* Imagem flutuante — sem quadrado, sem borda */}
+            <img
+              src={img}
+              alt="UNIKO"
+              style={{
+                width:      size,
+                height:     size,
+                objectFit:  'contain',
+                flexShrink: 0,
+                animation:  'unikoFloat 3s ease-in-out infinite',
+                filter: GLOW_BY_SKIN[songSkin]
+                  || (customAccent ? `drop-shadow(0 0 10px ${customAccent}88) drop-shadow(0 4px 12px rgba(0,0,0,.3))` : 'drop-shadow(0 4px 12px rgba(0,0,0,.25))'),
+                transition: 'filter .4s',
+              }}
+            />
+          </div>
+        </div>
 
       </div>
     </>
