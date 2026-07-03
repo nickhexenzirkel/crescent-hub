@@ -542,7 +542,7 @@ const BubbleBurstOverlay = () => {
   if (!bubbles.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
     const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]]; // TL, TR, BL, BR
-    bubbles.current = Array.from({ length: 60 }).map((_, i) => {
+    bubbles.current = Array.from({ length: 100 }).map((_, i) => {
       const [cx, cy] = CORNERS[Math.floor(Math.random() * 4)]; // mira num dos 4 cantos
       return {
         id: i,
@@ -550,7 +550,7 @@ const BubbleBurstOverlay = () => {
         y:   rnd(36, 64),
         dx:  cx * rnd(80, 140),                    // vmax → ultrapassa o canto e sai da tela
         dy:  cy * rnd(80, 140),
-        sz:  Math.round(rnd(8, 28)),
+        sz:  Math.round(rnd(14, 46)),
         dur: rnd(4.2, 5.0),                        // lento: dá pra ver elas subindo/afastando
         delay: rnd(0, 0.3),                        // praticamente todas ao mesmo tempo
         wob: rnd(0.6, 1.1),                        // velocidade do bambolear
