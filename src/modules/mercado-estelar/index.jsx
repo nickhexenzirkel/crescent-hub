@@ -4,6 +4,10 @@ import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
 import { PRISMA_MISSIONS, loadMissionProgress, snapshotMissionBaseline } from '../../shared/prismaMissions';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import {
+  getAllUnikos, loadUnikoStorePrices, saveCaptureToCollection, addToMyUnikoCollection,
+  syncCollectionFromServer, fetchCapturesFor, loadCustomUnikos,
+} from '../../shared/captureUniko';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MERCADO ESTELAR — parte VISUAL (protótipo front-end).
@@ -45,28 +49,36 @@ const buyBtn = (type, sold, radius) => sold
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 500;
 
-// ── CHECK-IN: ciclo de 7 dias, ganhos crescentes que INTERCALAM a moeda ──
-// O dia do ciclo vem do "streak" (dias seguidos). Errar 1 dia zera → volta ao dia 1.
-// Como os valores crescem, não vale a pena ficar só no dia 1.
+// ── CHECK-IN: ciclo de 5 dias (SEGUNDA A SEXTA), ganhos crescentes que INTERCALAM a moeda ──
+// O dia do ciclo vem do "streak" (dias ÚTEIS seguidos). Errar 1 dia útil zera → volta ao dia 1.
+// Sábado/domingo não contam pra sequência nem pro ciclo (não tem check-in nesses dias).
+// Os valores da semana somam EXATAMENTE o mesmo total do ciclo antigo de 7 dias (390 Premium +
+// 250 Comum) — só redistribuídos nos 5 dias úteis pra compensar os 2 dias de fim de semana
+// que deixaram de contar.
 const CHECKIN_CYCLE = [
-  { amount: 50,  cur: 'premium' }, // dia 1
-  { amount: 80,  cur: 'comum'   }, // dia 2
-  { amount: 100, cur: 'premium' }, // dia 3
-  { amount: 50,  cur: 'comum'   }, // dia 4
-  { amount: 90,  cur: 'premium' }, // dia 5
-  { amount: 120, cur: 'comum'   }, // dia 6
-  { amount: 150, cur: 'premium' }, // dia 7 (bônus de semana)
+  { amount: 70,  cur: 'premium' }, // dia 1 (segunda)
+  { amount: 90,  cur: 'comum'   }, // dia 2 (terça)
+  { amount: 120, cur: 'premium' }, // dia 3 (quarta)
+  { amount: 160, cur: 'comum'   }, // dia 4 (quinta)
+  { amount: 200, cur: 'premium' }, // dia 5 (sexta — bônus da semana)
 ];
 // Teto MENSAL de ganho do check-in por moeda (mesmo intercalando)
 const MONTHLY_CAP = { premium: 300, comum: 200 };
 const cycleReward = (streak) => CHECKIN_CYCLE[((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length];
+const WEEKDAY_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
 
-// Quantos dias seguidos (contando o de hoje) terá o próximo check-in.
-// Conta dias anteriores consecutivos presentes na lista; se faltou um, recomeça em 1.
+const isWeekend = (d) => { const wd = d.getDay(); return wd === 0 || wd === 6; };
+// Dia útil anterior a `d` (pula sábado/domingo) — usado tanto pra saber se hoje é dia
+// de check-in quanto pra contar a sequência sem que o fim de semana aparente "falta".
+const prevWeekday = (d) => { const p = new Date(d); do { p.setDate(p.getDate() - 1); } while (isWeekend(p)); return p; };
+
+// Quantos dias ÚTEIS seguidos (contando hoje) terá o próximo check-in.
+// Anda pra trás só por dias de SEMANA (fins de semana nunca contam como "falta");
+// se o dia útil anterior não tem check-in, a sequência recomeça em 1.
 const computeStreak = (checkins) => {
   const set = new Set(checkins || []);
-  let streak = 1; const d = new Date(); d.setDate(d.getDate() - 1);
-  while (set.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1); }
+  let streak = 1; let d = prevWeekday(new Date());
+  while (set.has(d.toISOString().slice(0, 10))) { streak++; d = prevWeekday(d); }
   return streak;
 };
 
@@ -297,6 +309,21 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => { alive = false; };
   }, []); // eslint-disable-line
 
+  // ── Loja de Unikos: preços definidos pelo admin (uniko_store_prices) + quais o
+  // usuário já possui (capture_uniko_captures) — pra saber o que exibir/bloquear ──
+  const [unikoPrices, setUnikoPrices] = useState({});
+  const [ownedUnikoIds, setOwnedUnikoIds] = useState(new Set());
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [prices, rows] = await Promise.all([loadUnikoStorePrices(), fetchCapturesFor(userName), loadCustomUnikos()]);
+      if (!alive) return;
+      setUnikoPrices(prices);
+      setOwnedUnikoIds(new Set(rows.map(r => r.uniko_id)));
+    })();
+    return () => { alive = false; };
+  }, [userName]);
+
   // Persiste o estado do usuário (saldos/check-in/coleção/desafios)
   useEffect(() => {
     if (!loaded) return;
@@ -384,10 +411,29 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     flash(`Você resgatou: ${item.name}`);
   };
 
-  // ── Check-in (streak + ciclo de 7 dias + teto mensal por moeda) ──
+  // ── Compra de Uniko (preço em Prisma Comum definido pelo admin) ──
+  // Ganhar ownership funciona igual a capturar: grava em capture_uniko_captures (fonte
+  // de verdade) + reflete na Coleção local na hora — reaproveita as mesmas funções do
+  // Capture o Uniko em vez de inventar um caminho novo pra "possuir" um Uniko.
+  const buyUniko = async (uniko) => {
+    const price = unikoPrices[uniko.id];
+    if (!price) return;
+    if (ownedUnikoIds.has(uniko.id)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
+    if (state.comum < price) { flash(`Saldo de ${COMUM.name} insuficiente`); return; }
+    setState(s => ({ ...s, comum: s.comum - price, updatedAt: Date.now() }));
+    setOwnedUnikoIds(prev => new Set([...prev, uniko.id]));
+    addHistory({ kind: 'compra_uniko', desc: `Comprou o Uniko “${uniko.name}”`, comum: -price });
+    await saveCaptureToCollection(uniko);
+    addToMyUnikoCollection(uniko);
+    syncCollectionFromServer();
+    flash(`Uniko “${uniko.name}” adicionado à sua Coleção! 🎉`);
+  };
+
+  // ── Check-in (streak + ciclo de 5 dias úteis + teto mensal por moeda) ──
   const today = todayStr();
   const monthKey = today.slice(0, 7);
-  const canCheckin = !(state.checkins || []).includes(today);
+  const todayIsWeekend = isWeekend(new Date());
+  const canCheckin = !todayIsWeekend && !(state.checkins || []).includes(today);
   const streak = computeStreak(state.checkins);                 // dia do ciclo que o check-in de hoje terá
   const nextReward = cycleReward(streak);
   // Ganhos do check-in já obtidos neste mês (reinicia quando o mês muda)
@@ -495,11 +541,12 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           </div>
         )}
 
-        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg}
+          unikoPrices={unikoPrices} ownedUnikoIds={ownedUnikoIds} onBuyUniko={buyUniko} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
-        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayIsWeekend={todayIsWeekend} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
       </div>
@@ -589,8 +636,52 @@ const fileToDataUrl = (file, maxDim = 760) => new Promise((res, rej) => {
   fr.onerror = rej; fr.readAsDataURL(file);
 });
 
+// Grade de Unikos com preço definido pelo admin (uniko_store_prices) — compra vira
+// posse na Coleção na hora (mesmo caminho de uma captura). Some se nenhum tiver preço.
+const UnikoShopSection = ({ unikoPrices, ownedUnikoIds, onBuyUniko, comumBalance, isMobile, cardBg }) => {
+  const priced = getAllUnikos().filter(u => unikoPrices[u.id] > 0);
+  if (!priced.length) return null;
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 3 }}>🧬 Unikos à venda</div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 12 }}>Compre um Uniko com Prisma Comum — ele vai direto pra sua Coleção.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
+        {priced.map(u => {
+          const price = unikoPrices[u.id];
+          const owned = ownedUnikoIds.has(u.id);
+          const afford = comumBalance >= price;
+          return (
+            <div key={u.id} style={{
+              background: cardBg, border: `1.5px solid ${(u.theme?.accent || T.border)}55`, borderRadius: 16,
+              padding: '14px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            }}>
+              <img src={u.img} alt={u.name} style={{
+                width: 64, height: 64, objectFit: 'contain', opacity: owned ? 0.55 : 1,
+                filter: owned ? 'grayscale(.5)' : `drop-shadow(0 4px 12px ${(u.theme?.accent || '#8886')}66)`,
+              }} />
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, lineHeight: 1.25 }}>{u.name}</div>
+              <div style={{ fontSize: 11, color: T.textT, minHeight: 28 }}>{u.tagline}</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 800, fontSize: 15 }}>
+                <PrismIcon type="comum" size={18} /><span style={prismText('comum')}>{fmt(price)}</span>
+              </div>
+              <button disabled={owned || !afford} onClick={() => onBuyUniko(u)} style={{
+                width: '100%', padding: '9px', borderRadius: 10, border: 'none', cursor: (owned || !afford) ? 'not-allowed' : 'pointer',
+                background: owned ? (T.surfaceSub || 'rgba(0,0,0,0.06)') : `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`,
+                color: owned ? T.textT : '#fff', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)',
+                opacity: (!owned && !afford) ? 0.5 : 1,
+              }}>
+                {owned ? 'Já possui' : afford ? 'Comprar' : 'Sem saldo'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════ LOJA ═══════════════════════
-const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg }) => {
+const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg, unikoPrices, ownedUnikoIds, onBuyUniko }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | premium | comum
   const [viewId, setViewId] = useState(null);  // item em tela cheia (lightbox)
@@ -649,6 +740,9 @@ const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg }) => {
           })}
         </div>
       </div>
+
+      <UnikoShopSection unikoPrices={unikoPrices} ownedUnikoIds={ownedUnikoIds} onBuyUniko={onBuyUniko}
+        comumBalance={balances.comum} isMobile={isMobile} cardBg={cardBg} />
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
@@ -1250,29 +1344,36 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) 
 };
 
 // ═══════════════════════════════════════════ CHECK-IN ═══════════════════════
-const Checkin = ({ canCheckin, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
-  // Posição do dia de hoje dentro do ciclo de 7 (0-based)
+const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
+  // Posição do dia de hoje dentro do ciclo de 5 (0-based)
   const todayIdx = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length;
   const cap = MONTHLY_CAP;
   const capBar = (cur) => {
     const e = Math.min(earned[cur], cap[cur]); const pct = Math.round((e / cap[cur]) * 100);
     return { e, pct };
   };
+  const alreadyDoneToday = !canCheckin && !todayIsWeekend;
 
   return (
     <div>
-      <SectionHead title="Check-in Diário" sub="Entre todo dia: os ganhos crescem ao longo da sequência e a moeda intercala. Faltou um dia? A sequência volta pro dia 1." />
+      <SectionHead title="Check-in Diário" sub="De segunda a sexta: os ganhos crescem ao longo da semana e a moeda intercala. Faltou um dia útil? A sequência volta pro dia 1. Sábado e domingo não contam (nem quebram a sequência)." />
 
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 0% 0%, ${T.goldGl}, transparent 55%)`, pointerEvents: 'none' }} />
-        <div style={{ position: 'relative', color: canCheckin ? T.gold : '#16a34a' }}>{canCheckin ? <IcoGift size={30} /> : <IcoCheck size={30} />}</div>
+        <div style={{ position: 'relative', color: canCheckin ? T.gold : todayIsWeekend ? T.textT : '#16a34a' }}>
+          {canCheckin ? <IcoGift size={30} /> : todayIsWeekend ? <IcoCalendar size={30} /> : <IcoCheck size={30} />}
+        </div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
-            {canCheckin ? `Dia ${streak} de sequência — recompensa pronta!` : `Você já resgatou hoje (dia ${streak - 1})`}
+            {canCheckin ? `Dia ${streak} de sequência — recompensa pronta!`
+              : todayIsWeekend ? 'Fim de semana — sem check-in hoje'
+              : `Você já resgatou hoje (dia ${streak - 1})`}
           </div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {canCheckin ? 'Recompensa de hoje:' : 'Volte amanhã para manter a sequência. Próxima:'}
+            {canCheckin ? 'Recompensa de hoje:'
+              : todayIsWeekend ? 'Sua sequência continua intacta — volte na segunda. Próxima:'
+              : 'Volte amanhã para manter a sequência. Próxima:'}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <PrismIcon type={nextReward.cur} size={nextReward.cur === 'premium' ? 18 : 14} />
               <span style={prismText(nextReward.cur)}>+{nextReward.amount}</span>
@@ -1286,14 +1387,14 @@ const Checkin = ({ canCheckin, onCheckin, checkins, streak, nextReward, earned, 
           boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none',
           display: 'inline-flex', alignItems: 'center', gap: 7,
         }}>
-          {canCheckin ? <><IcoStar size={16} />Resgatar</> : <><IcoCheck size={16} />Resgatado</>}
+          {canCheckin ? <><IcoStar size={16} />Resgatar</> : alreadyDoneToday ? <><IcoCheck size={16} />Resgatado</> : <><IcoCalendar size={16} />Fim de semana</>}
         </button>
       </div>
 
-      {/* Ciclo de 7 dias */}
+      {/* Ciclo de 5 dias (seg-sex) */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 7 dias</div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 8 : 11 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 5 dias (segunda a sexta)</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: isMobile ? 6 : 11 }}>
           {CHECKIN_CYCLE.map((r, i) => {
             const dayNum = i + 1;
             const isNext = i === todayIdx && canCheckin;
@@ -1335,7 +1436,7 @@ const Checkin = ({ canCheckin, onCheckin, checkins, streak, nextReward, earned, 
                   )}
                   {isNext && <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: '50%', background: '#e23b3b', boxShadow: `0 0 0 3px ${bg}` }} />}
                 </div>
-                <span style={{ fontSize: 11.5, fontWeight: isNext ? 800 : 600, color: isNext ? T.gold : T.textT }}>Dia {dayNum}</span>
+                <span style={{ fontSize: 11.5, fontWeight: isNext ? 800 : 600, color: isNext ? T.gold : T.textT }}>{WEEKDAY_LABELS[i] || `Dia ${dayNum}`}</span>
               </div>
             );
           })}
@@ -1369,12 +1470,14 @@ const Checkin = ({ canCheckin, onCheckin, checkins, streak, nextReward, earned, 
 
 // ═══════════════════════════════════════════ HISTÓRICO ══════════════════════
 const KIND_META = {
-  compra:  { Icon: IcoCart,    label: 'Compra' },
-  checkin: { Icon: IcoCalendar,label: 'Check-in' },
-  envio:   { Icon: IcoSend,    label: 'Envio' },
-  troca:   { Icon: IcoSwap,    label: 'Troca' },
-  missao:  { Icon: IcoTarget,  label: 'Missão' },
-  admin:   { Icon: IcoShield,  label: 'Administrador' },
+  compra:       { Icon: IcoCart,    label: 'Compra' },
+  compra_uniko: { Icon: IcoCart,    label: 'Compra de Uniko' },
+  checkin:      { Icon: IcoCalendar,label: 'Check-in' },
+  envio:        { Icon: IcoSend,    label: 'Envio' },
+  troca:        { Icon: IcoSwap,    label: 'Troca' },
+  missao:       { Icon: IcoTarget,  label: 'Missão' },
+  captura:      { Icon: IcoTarget,  label: 'Capture o Uniko' },
+  admin:        { Icon: IcoShield,  label: 'Administrador' },
 };
 
 const Historico = ({ history, isMobile, cardBg }) => {
@@ -1753,6 +1856,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   const [dir, setDir] = useState('add'); // add | remove (de um colaborador específico)
   const [bulkCur, setBulkCur] = useState('premium');
   const [bulkAmt, setBulkAmt] = useState('');
+  const [kindFilter, setKindFilter] = useState('all'); // all | compra | compra_uniko | checkin | ...
   const allPlayers = useAllPlayers();
 
   const load = async () => {
@@ -1981,17 +2085,32 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
 
       {/* Histórico de todos */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Transações de todos</div>
           <button onClick={load} title="Atualizar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" /></svg>Atualizar
           </button>
         </div>
-        {busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
-          : hist.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma transação ainda.</div>
+        {/* Filtro por tipo — deixa fácil isolar só "Compra" (prêmio da loja) ou "Compra de Uniko" */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          {[{ id: 'all', label: 'Todos' }, ...Object.entries(KIND_META).map(([id, m]) => ({ id, label: m.label }))].map(f => {
+            const on = kindFilter === f.id;
+            return (
+              <button key={f.id} onClick={() => setKindFilter(f.id)} style={{
+                padding: '6px 12px', borderRadius: 999, border: `1.5px solid ${on ? T.gold : T.border}`, cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: on ? 700 : 500,
+                background: on ? T.goldGl : 'transparent', color: on ? T.gold : T.textS,
+              }}>{f.label}</button>
+            );
+          })}
+        </div>
+        {(() => {
+          const histFiltered = kindFilter === 'all' ? hist : hist.filter(h => h.kind === kindFilter);
+          return busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
+          : histFiltered.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma transação encontrada.</div>
             : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 520, overflowY: 'auto' }}>
-                {hist.map(h => {
+                {histFiltered.map(h => {
                   const meta = KIND_META[h.kind] || { Icon: IcoReceipt, label: h.kind };
                   const MIcon = meta.Icon;
                   return (
@@ -2013,7 +2132,8 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
                   );
                 })}
               </div>
-            )}
+            );
+        })()}
       </div>
     </div>
   );

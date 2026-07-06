@@ -1,6 +1,7 @@
 // ── Missões da Prisma Store — fonte ÚNICA (definições + cálculo de progresso ao vivo) ──
 // Usado pela Prisma Store (mercado-estelar) e pelo widget "Missões em andamento" do Portal.
-import { supabase, getAuthUser } from '../contexts/user';
+import { supabase } from '../contexts/user';
+import { countOwnedUnikos } from './captureUniko';
 
 const _today = () => {
   const d = new Date();
@@ -17,7 +18,6 @@ export const PRISMA_MISSIONS = [
   { id: 'c_uniko20',   title: 'Maratona Uniko Wave',   desc: 'Jogue 20 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 20, comum: 100, premium: 0,   claimed: false },
   { id: 'c_uniko40',   title: 'Maratona Uniko Wave',   desc: 'Jogue 40 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 40, comum: 0,   premium: 10,  claimed: false },
   // ── MENSAIS ──
-  { id: 'c_ponto',     title: 'Presença Impecável',    desc: '100% de presença sem ocorrências no ponto',     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
   { id: 'c_feedback',  title: 'Voz ativa',             desc: 'Dê um feedback no sistema',                     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 30,  claimed: false },
   { id: 'c_rank1',     title: '🥇 Top 1 do mês',        desc: '1º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
   { id: 'c_rank2',     title: '🥈 Top 2 do mês',        desc: '2º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
@@ -26,11 +26,13 @@ export const PRISMA_MISSIONS = [
   // ── ESPECIAIS (única vez) ──
   { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
   { id: 'c_secondbuy', title: 'Segunda compra',        desc: 'Faça sua segunda compra na Prisma Store',       period: 'unica', progress: 0, goal: 1,  comum: 400, premium: 0,   claimed: false },
+  { id: 'c_colec_pequeno', title: 'Pequeno Colecionador', desc: 'Tenha 10 Unikos na sua Coleção',              period: 'unica', progress: 0, goal: 10, comum: 0,   premium: 50,  claimed: false },
+  { id: 'c_colec_grande',  title: 'Grande Colecionador',  desc: 'Tenha mais de 10 Unikos na sua Coleção',      period: 'unica', progress: 0, goal: 11, comum: 0,   premium: 50,  claimed: false },
 ];
 
 // Calcula o progresso AO VIVO de cada missão (mesmas fontes da Prisma Store).
 // `purchases` = nº de compras já carregado (opcional; senão consulta o histórico).
-export async function loadMissionProgress({ userName, cpf, purchases, baseline } = {}) {
+export async function loadMissionProgress({ userName, purchases, baseline } = {}) {
   const prog = {};
   const today = _today();
   const month = today.slice(0, 7);
@@ -65,14 +67,11 @@ export async function loadMissionProgress({ userName, cpf, purchases, baseline }
     prog.c_uniko40 = Math.min(40, Math.floor(baseAdj('c_uniko40', rawSec, 'dia') / 60));
   } catch {}
 
-  // Presença Impecável — saldo 0 e 0 inconsistências no mês
+  // Pequeno/Grande Colecionador — quantos Unikos o jogador possui (padrão + capturados/comprados)
   try {
-    const c = cpf || getAuthUser?.()?.cpf;
-    if (c) {
-      const { data } = await supabase.from('ponto_presenca')
-        .select('saldo,issues').eq('cpf', c).eq('month', month).maybeSingle();
-      prog.c_ponto = (data && data.saldo === 0 && data.issues === 0) ? 1 : 0;
-    }
+    const total = await countOwnedUnikos(userName);
+    prog.c_colec_pequeno = Math.min(10, total);
+    prog.c_colec_grande = Math.min(11, total);
   } catch {}
 
   // Voz ativa — feedback não anônimo do usuário neste mês

@@ -404,6 +404,39 @@ export const getCaptureReward = (uniko) => ({
   premium: uniko?.reward?.premium ?? CAPTURE_REWARD.premium,
 });
 
+/* ── Loja de Unikos — preço (Prisma Comum) definido pelo admin pra cada Uniko poder ser
+   COMPRADO na Prisma Store (além de capturado no evento). Tabela `uniko_store_prices`,
+   uma linha por Uniko; sem linha (ou price nulo/0) = não está à venda. ── */
+export async function loadUnikoStorePrices() {
+  try {
+    const { data } = await _supabase.from('uniko_store_prices').select('uniko_id,price');
+    const map = {};
+    for (const r of (data || [])) if (r.price > 0) map[r.uniko_id] = r.price;
+    return map;
+  } catch { return {}; }
+}
+export async function saveUnikoStorePrice(unikoId, price) {
+  const p = Number(price) || 0;
+  if (p <= 0) {
+    await _supabase.from('uniko_store_prices').delete().eq('uniko_id', unikoId);
+    return;
+  }
+  await _supabase.from('uniko_store_prices').upsert(
+    { uniko_id: unikoId, price: p, updated_at: new Date().toISOString() },
+    { onConflict: 'uniko_id' }
+  );
+}
+
+/* ── Conta quantos Unikos o jogador possui — usado pelas missões Colecionador.
+   +1 sempre: o UNiko padrão é possuído por todo mundo (mesma conta que a mini-widget
+   "Coleção" da Home já usa: padrão + capturados/comprados distintos). ── */
+export async function countOwnedUnikos(player) {
+  if (!player) return 1;
+  const rows = await fetchCapturesFor(player);
+  const distinct = new Set(rows.map(r => r.uniko_id));
+  return 1 + distinct.size;
+}
+
 /* ── Lock GLOBAL: só UM colaborador captura por evento ──────────────────────
    `capture_uniko_event` tem event_id como chave única → o 1º insert vence.
    Se der conflito (já capturado), devolve quem capturou. ─────────────────── */
