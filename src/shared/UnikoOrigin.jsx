@@ -25,10 +25,11 @@ const Stars = ({ n = 22, seed = 0, w = 400, h = 200 }) => {
 const PrismScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={40} seed={1}/>
+    <circle cx="200" cy="96" r="32" fill="url(#uoCrystalGlow)" opacity=".85"/>
     <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 30s linear infinite' }}>
       <polygon points="200,34 262,96 200,158 138,96" fill="none" stroke="#7fd8ff" strokeWidth="1.6" opacity=".55"/>
-      <polygon points="200,54 242,96 200,138 158,96" fill="none" stroke="#c9a6ff" strokeWidth="1.2" opacity=".5"/>
-      <polygon points="200,74 222,96 200,118 178,96" fill="none" stroke="#ffe58a" strokeWidth="1" opacity=".55"/>
+      <polygon points="200,54 242,96 200,138 158,96" fill="#8fe0ff1c" stroke="#c9a6ff" strokeWidth="1.2" opacity=".5"/>
+      <polygon points="200,74 222,96 200,118 178,96" fill="#eaffff4d" stroke="#ffe58a" strokeWidth="1" opacity=".55"/>
     </g>
     <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 8s linear infinite' }}>
       <circle cx="200" cy="24" r="3" fill="#8fffd6"/>
@@ -50,14 +51,17 @@ const PrismScene = () => (
 const PortalsScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={24} seed={2}/>
+    <ellipse cx="90" cy="62" rx="34" ry="34" fill="url(#uoPortalGlow)" opacity=".55"/>
     <ellipse cx="90" cy="62" rx="36" ry="36" fill="none" stroke="#4AA6FF" strokeWidth="3" strokeDasharray="10 8" opacity=".7"
       style={{ transformOrigin: '90px 62px', animation: 'uoRotateSlow 9s linear infinite' }}/>
     <ellipse cx="90" cy="62" rx="22" ry="22" fill="none" stroke="#4AA6FF" strokeWidth="1.4" strokeDasharray="5 6" opacity=".5"
       style={{ transformOrigin: '90px 62px', animation: 'uoRotateSlow 6s linear infinite reverse' }}/>
+    <ellipse cx="310" cy="58" rx="30" ry="30" fill="url(#uoPortalGlow)" opacity=".5"/>
     <ellipse cx="310" cy="58" rx="32" ry="32" fill="none" stroke="#ffcf6b" strokeWidth="3" strokeDasharray="9 7" opacity=".7"
       style={{ transformOrigin: '310px 58px', animation: 'uoRotateSlow 7s linear infinite reverse' }}/>
     <ellipse cx="310" cy="58" rx="18" ry="18" fill="none" stroke="#ffcf6b" strokeWidth="1.2" strokeDasharray="4 6" opacity=".5"
       style={{ transformOrigin: '310px 58px', animation: 'uoRotateSlow 5s linear infinite' }}/>
+    <ellipse cx="200" cy="170" rx="28" ry="28" fill="url(#uoPortalGlow)" opacity=".5"/>
     <ellipse cx="200" cy="170" rx="30" ry="30" fill="none" stroke="#8fffd6" strokeWidth="3" strokeDasharray="8 7" opacity=".7"
       style={{ transformOrigin: '200px 170px', animation: 'uoRotateSlow 11s linear infinite' }}/>
     <ellipse cx="60" cy="150" rx="16" ry="16" fill="none" stroke="#c9a6ff" strokeWidth="1.6" strokeDasharray="5 5" opacity=".5"
@@ -73,11 +77,18 @@ const PortalsScene = () => (
 const SignalScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={20} seed={3}/>
-    <ellipse cx="270" cy="100" rx="52" ry="52" fill="#2f6a4f"/>
-    <ellipse cx="250" cy="82" rx="18" ry="11" fill="#234f39" opacity=".8"/>
-    <ellipse cx="288" cy="116" rx="14" ry="9" fill="#234f39" opacity=".8"/>
-    <ellipse cx="266" cy="122" rx="9" ry="6" fill="#234f39" opacity=".7"/>
-    <ellipse cx="270" cy="100" rx="60" ry="18" fill="none" stroke="#8fffd6" strokeWidth="1" opacity=".3" transform="rotate(-16 270 100)"/>
+    {/* Terra de verdade: oceano azul, continentes verdes/marrons, nuvens e brilho atmosférico (sem anéis) */}
+    <circle cx="270" cy="100" r="50" fill="url(#uoEarthOcean)"/>
+    <path d="M246,72 q10,-13 25,-9 q15,4 12,17 q-3,13 -17,15 q-15,2 -21,-9 q-5,-9 1,-14 Z" fill="#3f8f4f"/>
+    <path d="M282,63 q11,-4 17,5 q6,9 -3,15 q-9,6 -17,-1 q-8,-7 3,-19 Z" fill="#357c43"/>
+    <path d="M287,95 q13,-6 19,5 q6,11 -5,19 q-11,8 -19,-2 q-8,-10 5,-22 Z" fill="#4a9c55"/>
+    <path d="M239,111 q11,-9 20,-2 q9,7 0,18 q-9,11 -20,4 q-11,-7 0,-20 Z" fill="#2f7a44"/>
+    <path d="M261,133 q9,-6 15,3 q6,9 -5,13 q-11,4 -15,-4 q-4,-8 5,-12 Z" fill="#3f8f4f"/>
+    <ellipse cx="251" cy="83" rx="13" ry="4.5" fill="#fff" opacity=".4"/>
+    <ellipse cx="291" cy="109" rx="11" ry="3.5" fill="#fff" opacity=".35"/>
+    <ellipse cx="267" cy="129" rx="8" ry="3" fill="#fff" opacity=".3"/>
+    <circle cx="270" cy="100" r="50" fill="url(#uoSphereShine)"/>
+    <circle cx="270" cy="100" r="51" fill="none" stroke="#8fd6ff" strokeWidth="1.6" opacity=".45"/>
     {[0, 1, 2, 3].map(i => (
       <circle key={i} cx="270" cy="100" r="22" fill="none" stroke="#ff6b6b" strokeWidth="2"
         style={{ transformOrigin: '270px 100px', animation: `uoPing 2.6s ease-out ${i * 0.65}s infinite` }}/>
@@ -101,6 +112,7 @@ const CometScene = () => (
     <g style={{ animation: 'uoCometTrail 2.4s ease-in-out infinite' }}>
       <ellipse cx="120" cy="120" rx="70" ry="8" fill="url(#uoCometGrad)" opacity=".85" transform="rotate(-22 120 120)"/>
       <ellipse cx="130" cy="112" rx="40" ry="4" fill="#fff" opacity=".5" transform="rotate(-22 130 112)"/>
+      <circle cx="132" cy="110" r="9" fill="#eaffff" opacity=".9" filter="url(#uoSoftBlur)"/>
     </g>
     <defs>
       <linearGradient id="uoCometGrad" x1="0" y1="0" x2="1" y2="0">
@@ -111,6 +123,7 @@ const CometScene = () => (
     <circle cx="332" cy="58" r="26" fill="#1b2550"/>
     <ellipse cx="322" cy="48" rx="9" ry="5" fill="#26346a" opacity=".7"/>
     <ellipse cx="342" cy="66" rx="7" ry="4" fill="#26346a" opacity=".7"/>
+    <circle cx="332" cy="58" r="26" fill="url(#uoSphereShine)"/>
     <ellipse cx="332" cy="58" rx="34" ry="9" fill="none" stroke="#7fd8ff" strokeWidth="1" opacity=".35" transform="rotate(-18 332 58)"/>
     {[[20, 150], [70, 176], [200, 20]].map(([x, y], i) => (
       <path key={i} d={`M${x},${y} l6,-14 l6,14 z`} fill="#4AA6FF" opacity=".25"
@@ -124,10 +137,12 @@ const FallScene = () => (
     <ellipse cx="200" cy="20" rx="240" ry="34" fill="#ff8a3d" opacity=".18"/>
     <path d="M0,40 Q200,10 400,40" fill="none" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
     {[[150, 34], [175, 48], [200, 30], [225, 50], [248, 36]].map(([x, y], i) => (
-      <ellipse key={i} cx={x} cy={y} rx="9" ry="17" fill="#ff7a3d" opacity=".7"
+      <ellipse key={i} cx={x} cy={y} rx="9" ry="17" fill="url(#uoFlameGrad)" opacity=".9"
         style={{ animation: `uoFlicker ${1.1 + i * .18}s ease-in-out ${i * .18}s infinite` }}/>
     ))}
     <ellipse cx="200" cy="42" rx="20" ry="10" fill="#fff2c9" opacity=".8" style={{ animation: 'uoFlicker .7s ease-in-out infinite' }}/>
+    <ellipse cx="152" cy="52" rx="10" ry="15" fill="#8a8a90" opacity=".22" filter="url(#uoSoftBlur)" style={{ animation: 'uoBob 5s ease-in-out infinite' }}/>
+    <ellipse cx="230" cy="46" rx="12" ry="17" fill="#8a8a90" opacity=".18" filter="url(#uoSoftBlur)" style={{ animation: 'uoBob 5.6s ease-in-out .5s infinite' }}/>
     <ellipse cx="140" cy="86" rx="16" ry="26" fill="#5a5a66" opacity=".12" style={{ animation: 'uoBob 4s ease-in-out infinite' }}/>
     <ellipse cx="260" cy="80" rx="20" ry="30" fill="#5a5a66" opacity=".1" style={{ animation: 'uoBob 4.6s ease-in-out .5s infinite' }}/>
     <rect x="60" y="150" width="280" height="40" rx="5" fill="#141a26" stroke="#2a3448"/>
@@ -152,6 +167,7 @@ const FallScene = () => (
 const GuardianScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={10} seed={6}/>
+    <circle cx="200" cy="100" r="95" fill="url(#uoPortalGlow)" opacity=".3"/>
     <rect x="120" y="30" width="160" height="140" rx="18" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".65"/>
     <rect x="138" y="46" width="124" height="108" rx="12" fill="#ffcf6b" opacity=".07"/>
     <line x1="138" y1="70" x2="262" y2="70" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
@@ -178,7 +194,7 @@ const FolderScene = () => (
     <line x1="0" y1="80" x2="400" y2="80" stroke="#8a7a4a" strokeWidth=".5" opacity=".15"/>
     <line x1="0" y1="120" x2="400" y2="120" stroke="#8a7a4a" strokeWidth=".5" opacity=".15"/>
     <path d="M130,130 h60 l12,-14 h68 v14" fill="none" stroke="#8a7a4a" strokeWidth="2" opacity=".7"/>
-    <rect x="118" y="130" width="164" height="42" rx="4" fill="#3a3220" stroke="#8a7a4a" strokeWidth="1.5"/>
+    <rect x="118" y="130" width="164" height="42" rx="4" fill="url(#uoFolderShade)" stroke="#8a7a4a" strokeWidth="1.5"/>
     <rect x="190" y="140" width="20" height="8" rx="2" fill="#ffe58a" opacity=".95"
       style={{ animation: 'uoFlicker 1.4s ease-in-out infinite' }}/>
     <rect x="150" y="146" width="10" height="4" fill="#ffe58a" opacity=".5" style={{ animation: 'uoFlicker 1.7s ease-in-out .2s infinite' }}/>
@@ -213,6 +229,7 @@ const TruthScene = () => (
 const EscapeScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={16} seed={7}/>
+    <circle cx="200" cy="100" r="80" fill="url(#uoPortalGlow)" opacity=".22"/>
     <circle cx="200" cy="100" r="80" fill="none" stroke="#c9a6ff" strokeWidth="1.6" opacity=".5"/>
     <ellipse cx="200" cy="100" rx="80" ry="26" fill="none" stroke="#c9a6ff" strokeWidth="1" opacity=".4"/>
     <ellipse cx="200" cy="100" rx="80" ry="52" fill="none" stroke="#c9a6ff" strokeWidth=".8" opacity=".3"/>
@@ -232,11 +249,11 @@ const EscapeScene = () => (
 const CageScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <ellipse cx="200" cy="180" rx="90" ry="14" fill="#000" opacity=".3"/>
-    <ellipse cx="200" cy="40" rx="86" ry="16" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
-    <ellipse cx="200" cy="160" rx="86" ry="16" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
+    <ellipse cx="200" cy="40" rx="86" ry="16" fill="none" stroke="url(#uoGoldShine)" strokeWidth="2.5" opacity=".9"/>
+    <ellipse cx="200" cy="160" rx="86" ry="16" fill="none" stroke="url(#uoGoldShine)" strokeWidth="2.5" opacity=".9"/>
     <ellipse cx="200" cy="100" rx="94" ry="20" fill="none" stroke="#ffcf6b" strokeWidth="1" opacity=".3"/>
     {Array.from({ length: 13 }, (_, i) => 200 - 86 + i * 14.3).map((x, i) => (
-      <line key={i} x1={x} y1="40" x2={x} y2="160" stroke="#ffcf6b" strokeWidth="2" opacity=".7"/>
+      <line key={i} x1={x} y1="40" x2={x} y2="160" stroke="url(#uoGoldShine)" strokeWidth="2" opacity=".8"/>
     ))}
     <circle cx="200" cy="100" r="22" fill="#8fd6ff" opacity=".5" style={{ animation: 'uoDarkPulse 2.4s ease-in-out infinite' }}/>
     <circle cx="200" cy="100" r="34" fill="none" stroke="#8fd6ff" strokeWidth="1" opacity=".3" style={{ animation: 'uoDarkPulse 2.4s ease-in-out .3s infinite' }}/>
@@ -253,6 +270,53 @@ const SilenceScene = () => (
   <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
     <Stars n={8} seed={9}/>
     <circle cx="200" cy="100" r="3" fill="#4AA6FF" opacity=".9" style={{ animation: 'uoTwinkle 2.2s ease-in-out infinite' }}/>
+  </svg>
+);
+
+// Gradientes/filtros reaproveitados em várias cenas (dá volume/brilho tipo
+// desenho animado 3D em vez de formas chapadas) — um único bloco de <defs>,
+// referenciado por url(#id) a partir de cada <svg> de cena (o id é global no
+// documento, não precisa repetir os defs em cada uma).
+const SceneDefs = () => (
+  <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+    <defs>
+      <radialGradient id="uoSphereShine" cx="35%" cy="28%" r="75%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity=".55"/>
+        <stop offset="45%" stopColor="#ffffff" stopOpacity=".05"/>
+        <stop offset="100%" stopColor="#000000" stopOpacity=".45"/>
+      </radialGradient>
+      <radialGradient id="uoEarthOcean" cx="32%" cy="26%" r="82%">
+        <stop offset="0%" stopColor="#7fd8f7"/>
+        <stop offset="45%" stopColor="#2f8fce"/>
+        <stop offset="100%" stopColor="#0d3a63"/>
+      </radialGradient>
+      <linearGradient id="uoGoldShine" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stopColor="#f5d98a"/>
+        <stop offset="50%" stopColor="#c99a3c"/>
+        <stop offset="100%" stopColor="#f5d98a"/>
+      </linearGradient>
+      <radialGradient id="uoFlameGrad" cx="50%" cy="82%" r="72%">
+        <stop offset="0%" stopColor="#fff4c2"/>
+        <stop offset="45%" stopColor="#ff9d3d"/>
+        <stop offset="100%" stopColor="#ff5a3d" stopOpacity="0"/>
+      </radialGradient>
+      <radialGradient id="uoCrystalGlow" cx="50%" cy="45%" r="60%">
+        <stop offset="0%" stopColor="#eaffff"/>
+        <stop offset="55%" stopColor="#8fe0ff"/>
+        <stop offset="100%" stopColor="#4aa6ff" stopOpacity="0"/>
+      </radialGradient>
+      <radialGradient id="uoPortalGlow" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity=".5"/>
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0"/>
+      </radialGradient>
+      <linearGradient id="uoFolderShade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#5a4f30"/>
+        <stop offset="100%" stopColor="#2a2415"/>
+      </linearGradient>
+      <filter id="uoSoftBlur" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3"/>
+      </filter>
+    </defs>
   </svg>
 );
 
@@ -476,6 +540,7 @@ export const UnikoOrigin = () => {
 
             {/* Palco: a cena ilustrada + o mascote reagindo */}
             <div style={{ position:'relative', width:'100%', height:340, overflow:'hidden', background:SCENE_BG[s.scene] }}>
+              <SceneDefs/>
               <Scene/>
               <div style={{ position:'absolute', top:pos.top, left:pos.left, transform:'translate(-50%,-50%)', width:84, height:84 }}>
                 <img key={page} src="/UNIKO_NEW.png" alt="Uniko"
