@@ -5,7 +5,7 @@ import { PRISMA_MISSIONS, loadMissionProgress, snapshotMissionBaseline } from '.
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import {
-  getAllUnikos, loadUnikoStorePrices, saveCaptureToCollection, addToMyUnikoCollection,
+  getAllUnikos, getUniko, saveCaptureToCollection, addToMyUnikoCollection,
   syncCollectionFromServer, fetchCapturesFor, loadCustomUnikos,
 } from '../../shared/captureUniko';
 
@@ -137,7 +137,6 @@ const RARITY_COLOR = {
   'Épico':    '#9B6FE8',
   'Lendário': '#F5B63A',
 };
-const RARITY_RANK = { 'Comum': 0, 'Raro': 1, 'Épico': 2, 'Lendário': 3 };
 
 const DEFAULT_STATE = {
   comum: 0,
@@ -250,8 +249,8 @@ const PrismChip = ({ type, amount }) => {
 const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
 // Linha "fake" da tabela mercado_state usada só pra guardar config GLOBAL (ex.: expiração)
 const CONFIG_PLAYER = '__mercado_config__';
-const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, updated_at: new Date().toISOString() });
-const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [] });
+const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, uniko_id: it.unikoId || null, updated_at: new Date().toISOString() });
+const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [], unikoId: r.uniko_id || null });
 const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
 
 const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
@@ -309,16 +308,15 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => { alive = false; };
   }, []); // eslint-disable-line
 
-  // ── Loja de Unikos: preços definidos pelo admin (uniko_store_prices) + quais o
-  // usuário já possui (capture_uniko_captures) — pra saber o que exibir/bloquear ──
-  const [unikoPrices, setUnikoPrices] = useState({});
+  // ── Unikos à venda: são itens normais do catálogo (item.unikoId setado) — só
+  // precisamos saber quais o usuário JÁ possui (capture_uniko_captures), pra
+  // desabilitar "Comprar" e mostrar "Já possui" nesses itens específicos ──
   const [ownedUnikoIds, setOwnedUnikoIds] = useState(new Set());
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [prices, rows] = await Promise.all([loadUnikoStorePrices(), fetchCapturesFor(userName), loadCustomUnikos()]);
+      const [rows] = await Promise.all([fetchCapturesFor(userName), loadCustomUnikos()]);
       if (!alive) return;
-      setUnikoPrices(prices);
       setOwnedUnikoIds(new Set(rows.map(r => r.uniko_id)));
     })();
     return () => { alive = false; };
@@ -380,18 +378,32 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
 
-  const addHistory = (entry) => {
+  const addHistory = async (entry) => {
     setState(s => ({ ...s, history: [{ id: 'h' + Date.now(), date: todayStr(), ...entry }, ...s.history] }));
-    try { supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null }); } catch {}
+    // Antes disparava o insert sem aguardar nem checar erro — uma falha (RLS, coluna
+    // errada etc.) sumia em silêncio e a compra "funcionava" pro usuário mas nunca
+    // aparecia pro admin em Transações. Agora aguarda e loga se der erro de verdade.
+    const { error } = await supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null });
+    if (error) console.error('[mercado-estelar] addHistory falhou:', error);
   };
 
   // Prêmios expiram na data definida pelo admin (compara YYYY-MM-DD)
   const prizesExpired = !!state.expiresAt && todayStr() > state.expiresAt;
 
-  // ── Compra na loja ──
-  const buyItem = (item) => {
-    if (item.stock <= 0) return;
-    if (prizesExpired) { flash('Os prêmios deste mês já expiraram.'); return; }
+  // ── Compra na loja — prêmio físico OU Uniko (item.unikoId setado), mesma lista, mesmo
+  // botão. Prêmio físico: baixa estoque, some da carteira, entra na Coleção da loja.
+  // Uniko: não baixa estoque (não é exclusivo — cada colaborador tem a própria "cópia"),
+  // some da carteira, entra na Coleção da loja (igual um prêmio) E ganha ownership de
+  // verdade (capture_uniko_captures), reaproveitando o mesmo caminho de uma captura —
+  // assim aparece tanto aqui quanto na Coleção de Unikos do Portal. ──
+  const buyItem = async (item) => {
+    const isUniko = !!item.unikoId;
+    if (isUniko) {
+      if (ownedUnikoIds.has(item.unikoId)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
+    } else {
+      if (item.stock <= 0) return;
+      if (prizesExpired) { flash('Os prêmios deste mês já expiraram.'); return; }
+    }
     const bal = state[item.cur];
     if (bal < item.price) { flash(`Saldo de ${item.cur === 'premium' ? PREMIUM.name : COMUM.name} insuficiente`); return; }
     setState(s => {
@@ -402,31 +414,20 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       return {
         ...s,
         [item.cur]: s[item.cur] - item.price,
-        items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
+        items: isUniko ? s.items : s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
         collection,
         updatedAt: Date.now(),
       };
     });
-    addHistory({ kind: 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
+    addHistory({ kind: isUniko ? 'compra_uniko' : 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
     flash(`Você resgatou: ${item.name}`);
-  };
-
-  // ── Compra de Uniko (preço em Prisma Comum definido pelo admin) ──
-  // Ganhar ownership funciona igual a capturar: grava em capture_uniko_captures (fonte
-  // de verdade) + reflete na Coleção local na hora — reaproveita as mesmas funções do
-  // Capture o Uniko em vez de inventar um caminho novo pra "possuir" um Uniko.
-  const buyUniko = async (uniko) => {
-    const price = unikoPrices[uniko.id];
-    if (!price) return;
-    if (ownedUnikoIds.has(uniko.id)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
-    if (state.comum < price) { flash(`Saldo de ${COMUM.name} insuficiente`); return; }
-    setState(s => ({ ...s, comum: s.comum - price, updatedAt: Date.now() }));
-    setOwnedUnikoIds(prev => new Set([...prev, uniko.id]));
-    addHistory({ kind: 'compra_uniko', desc: `Comprou o Uniko “${uniko.name}”`, comum: -price });
-    await saveCaptureToCollection(uniko);
-    addToMyUnikoCollection(uniko);
-    syncCollectionFromServer();
-    flash(`Uniko “${uniko.name}” adicionado à sua Coleção! 🎉`);
+    if (isUniko) {
+      setOwnedUnikoIds(prev => new Set([...prev, item.unikoId]));
+      const uniko = getUniko(item.unikoId);
+      await saveCaptureToCollection(uniko);
+      addToMyUnikoCollection(uniko);
+      syncCollectionFromServer();
+    }
   };
 
   // ── Check-in (streak + ciclo de 5 dias úteis + teto mensal por moeda) ──
@@ -541,8 +542,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           </div>
         )}
 
-        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg}
-          unikoPrices={unikoPrices} ownedUnikoIds={ownedUnikoIds} onBuyUniko={buyUniko} />}
+        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} ownedUnikoIds={ownedUnikoIds} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
@@ -636,61 +636,20 @@ const fileToDataUrl = (file, maxDim = 760) => new Promise((res, rej) => {
   fr.onerror = rej; fr.readAsDataURL(file);
 });
 
-// Grade de Unikos com preço definido pelo admin (uniko_store_prices) — compra vira
-// posse na Coleção na hora (mesmo caminho de uma captura). Some se nenhum tiver preço.
-const UnikoShopSection = ({ unikoPrices, ownedUnikoIds, onBuyUniko, comumBalance, isMobile, cardBg }) => {
-  const priced = getAllUnikos().filter(u => unikoPrices[u.id] > 0);
-  if (!priced.length) return null;
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 3 }}>🧬 Unikos à venda</div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 12 }}>Compre um Uniko com Prisma Comum — ele vai direto pra sua Coleção.</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
-        {priced.map(u => {
-          const price = unikoPrices[u.id];
-          const owned = ownedUnikoIds.has(u.id);
-          const afford = comumBalance >= price;
-          return (
-            <div key={u.id} style={{
-              background: cardBg, border: `1.5px solid ${(u.theme?.accent || T.border)}55`, borderRadius: 16,
-              padding: '14px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-            }}>
-              <img src={u.img} alt={u.name} style={{
-                width: 64, height: 64, objectFit: 'contain', opacity: owned ? 0.55 : 1,
-                filter: owned ? 'grayscale(.5)' : `drop-shadow(0 4px 12px ${(u.theme?.accent || '#8886')}66)`,
-              }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, lineHeight: 1.25 }}>{u.name}</div>
-              <div style={{ fontSize: 11, color: T.textT, minHeight: 28 }}>{u.tagline}</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 800, fontSize: 15 }}>
-                <PrismIcon type="comum" size={18} /><span style={prismText('comum')}>{fmt(price)}</span>
-              </div>
-              <button disabled={owned || !afford} onClick={() => onBuyUniko(u)} style={{
-                width: '100%', padding: '9px', borderRadius: 10, border: 'none', cursor: (owned || !afford) ? 'not-allowed' : 'pointer',
-                background: owned ? (T.surfaceSub || 'rgba(0,0,0,0.06)') : `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`,
-                color: owned ? T.textT : '#fff', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)',
-                opacity: (!owned && !afford) ? 0.5 : 1,
-              }}>
-                {owned ? 'Já possui' : afford ? 'Comprar' : 'Sem saldo'}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
 // ═══════════════════════════════════════════════ LOJA ═══════════════════════
-const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg, unikoPrices, ownedUnikoIds, onBuyUniko }) => {
+const Loja = ({ items, balances, onBuy, ownedUnikoIds, expiresAt, isMobile, cardBg }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | premium | comum
   const [viewId, setViewId] = useState(null);  // item em tela cheia (lightbox)
   const viewItem = viewId ? items.find(i => i.id === viewId) : null;
+  const isOwned = (item) => !!item.unikoId && ownedUnikoIds.has(item.unikoId);
 
+  // Ordem é a que o ADMIN definiu (arrastar/mover na aba Administrador → Prêmios) — os
+  // Unikos à venda ficam misturados na mesma lista, sem seção separada. `filter`/`query`
+  // só reduzem a lista, sem reordenar (Array.filter preserva a ordem).
   const filtered = items
     .filter(i => filter === 'all' || i.cur === filter)
-    .filter(i => !query.trim() || (i.name + ' ' + i.desc).toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity]) || (b.price - a.price));
+    .filter(i => !query.trim() || (i.name + ' ' + i.desc).toLowerCase().includes(query.trim().toLowerCase()));
 
   // Maior prêmio em destaque (fixo em todas as páginas) + o resto paginado (6/pág)
   const featured = filtered[0] || null;
@@ -741,9 +700,6 @@ const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg, unikoPrices
         </div>
       </div>
 
-      <UnikoShopSection unikoPrices={unikoPrices} ownedUnikoIds={ownedUnikoIds} onBuyUniko={onBuyUniko}
-        comumBalance={balances.comum} isMobile={isMobile} cardBg={cardBg} />
-
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: T.textT }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: T.textD }}><IcoSearch size={38} /></div>
@@ -751,13 +707,13 @@ const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg, unikoPrices
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: 14, alignItems: 'stretch' }}>
-          {/* DESTAQUE — maior prêmio */}
-          {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
+          {/* DESTAQUE — primeiro item na ordem definida pelo admin */}
+          {featured && <FeaturedCard item={featured} afford={balances[featured.cur] >= featured.price} owned={isOwned(featured)} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />}
 
           {/* Grade dos demais (6 por página) + botão de próxima página */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill,minmax(200px,1fr))', gap: 14, alignContent: 'start' }}>
             {pagedRest.map(item => (
-              <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />
+              <ItemCard key={item.id} item={item} afford={balances[item.cur] >= item.price} owned={isOwned(item)} onBuy={onBuy} onView={setViewId} cardBg={cardBg} />
             ))}
             {rest.length > PAGE && (
               <button onClick={() => setPage(p => (p + 1) % pageCount)} title="Ver outros prêmios"
@@ -775,16 +731,17 @@ const Loja = ({ items, balances, onBuy, expiresAt, isMobile, cardBg, unikoPrices
 
       {/* Lightbox — prêmio em tela cheia */}
       {viewItem && (
-        <ItemLightbox item={viewItem} afford={balances[viewItem.cur] >= viewItem.price} onBuy={onBuy} onClose={() => setViewId(null)} cardBg={cardBg} />
+        <ItemLightbox item={viewItem} afford={balances[viewItem.cur] >= viewItem.price} owned={isOwned(viewItem)} onBuy={onBuy} onClose={() => setViewId(null)} cardBg={cardBg} />
       )}
     </div>
   );
 };
 
 // Visualização em tela cheia do prêmio (card central + fundo desfocado)
-const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
+const ItemLightbox = ({ item, afford, owned, onBuy, onClose, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = item.stock <= 0;
+  const sold = !item.unikoId && item.stock <= 0;
+  const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   const imgs = prizeImages(item);
   const [imgIdx, setImgIdx] = useState(0);
@@ -822,8 +779,8 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
         {/* Foto expandida + galeria (setas pra trocar de imagem) */}
         <div style={{ padding: '48px 18px 14px', position: 'relative' }}>
           {imgs.length > 0
-            ? <PrizeMedia item={item} idx={imgIdx} h={360} radius={16} sold={sold} fit="contain" style={{ background: 'rgba(0,0,0,0.18)' }} />
-            : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ fontSize: 150, lineHeight: 1, filter: sold ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</span></div>}
+            ? <PrizeMedia item={item} idx={imgIdx} h={360} radius={16} sold={blocked} fit="contain" style={{ background: 'rgba(0,0,0,0.18)' }} />
+            : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}><span style={{ fontSize: 150, lineHeight: 1, filter: blocked ? 'grayscale(1)' : `drop-shadow(0 14px 40px ${rc}66)` }}>{item.emoji}</span></div>}
           {imgs.length > 1 && (
             <>
               <button onClick={() => go(-1)} aria-label="Anterior" style={arrowBtn('left')}>
@@ -845,7 +802,7 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: T.text, lineHeight: 1.15 }}>{item.name}</div>
             <span style={{ fontSize: 12.5, color: sold ? '#C04050' : T.textT, fontWeight: 700, flexShrink: 0, marginLeft: 10 }}>
-              {sold ? 'Esgotado' : `${item.stock} disponíve${item.stock > 1 ? 'is' : 'l'} para resgate`}
+              {owned ? 'Você já tem' : sold ? 'Esgotado' : `${item.stock} disponíve${item.stock > 1 ? 'is' : 'l'} para resgate`}
             </span>
           </div>
           <div style={{ fontSize: 14, color: T.textT, lineHeight: 1.6, marginBottom: 22 }}>{item.desc}</div>
@@ -854,12 +811,12 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 26 }}>
               <PrismIcon type={item.cur} size={36} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
             </span>
-            <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-              padding: '13px 30px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 12),
+            <button disabled={blocked || !afford} onClick={() => onBuy(item)} style={{
+              padding: '13px 30px', cursor: (blocked || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, blocked, 12),
               fontWeight: 800, fontSize: 15, fontFamily: 'var(--font-body)',
-              opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 22px ${cfg.color}55`,
+              opacity: (!blocked && !afford) ? 0.5 : 1, boxShadow: blocked ? 'none' : `0 6px 22px ${cfg.color}55`,
             }}>
-              {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
+              {owned ? 'Já possui' : sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
             </button>
           </div>
         </div>
@@ -870,9 +827,10 @@ const ItemLightbox = ({ item, afford, onBuy, onClose, cardBg }) => {
 };
 
 // Card grande de destaque (maior prêmio)
-const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
+const FeaturedCard = ({ item, afford, owned, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = item.stock <= 0;
+  const sold = !item.unikoId && item.stock <= 0;
+  const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
     <div
@@ -880,7 +838,7 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = `0 10px 36px ${rc}22`; }}
       style={{
       background: cardBg, border: `1.5px solid ${rc}55`, borderRadius: 20, overflow: 'hidden',
-      position: 'relative', opacity: sold ? 0.65 : 1, display: 'flex', flexDirection: 'column',
+      position: 'relative', opacity: blocked ? 0.65 : 1, display: 'flex', flexDirection: 'column',
       boxShadow: `0 10px 36px ${rc}22`, transition: 'transform .2s ease, box-shadow .2s ease',
     }}>
       {/* Brilho temático no topo */}
@@ -891,14 +849,14 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
       </div>
 
       <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ flex: 1, minHeight: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 12px 2px', position: 'relative', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h="100%" emojiSize={88} radius={14} sold={sold} style={{ width: '100%', filter: sold ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
+        <PrizeMedia item={item} h="100%" emojiSize={88} radius={14} sold={blocked} style={{ width: '100%', filter: blocked ? 'none' : `drop-shadow(0 10px 30px ${rc}40)` }} />
       </div>
 
       <div style={{ padding: '0 18px 16px', position: 'relative' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 10.5, fontWeight: 800, color: rc, textTransform: 'uppercase', letterSpacing: '.08em' }}>{item.rarity}</span>
           <span style={{ fontSize: 11.5, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>
-            {sold ? 'Esgotado' : `${item.stock} p/ resgate`}
+            {owned ? 'Você já tem' : sold ? 'Esgotado' : `${item.stock} p/ resgate`}
           </span>
         </div>
         <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4, lineHeight: 1.2 }}>{item.name}</div>
@@ -908,39 +866,40 @@ const FeaturedCard = ({ item, afford, onBuy, onView, cardBg }) => {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontWeight: 800, fontSize: 20 }}>
             <PrismIcon type={item.cur} size={28} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
-          <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '10px 22px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 11),
+          <button disabled={blocked || !afford} onClick={() => onBuy(item)} style={{
+            padding: '10px 22px', cursor: (blocked || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, blocked, 11),
             fontWeight: 800, fontSize: 14.5, fontFamily: 'var(--font-body)',
-            opacity: (!sold && !afford) ? 0.5 : 1, boxShadow: sold ? 'none' : `0 6px 20px ${cfg.color}44`,
+            opacity: (!blocked && !afford) ? 0.5 : 1, boxShadow: blocked ? 'none' : `0 6px 20px ${cfg.color}44`,
           }}>
-            {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
+            {owned ? 'Já possui' : sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
           </button>
         </div>
       </div>
 
-      {sold && <SoldRibbon />}
+      {sold && !owned && <SoldRibbon />}
     </div>
   );
 };
 
 // Card pequeno (grade)
-const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
+const ItemCard = ({ item, afford, owned, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = item.stock <= 0;
+  const sold = !item.unikoId && item.stock <= 0;
+  const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
     <div
       onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = `0 14px 32px ${rc}33`; e.currentTarget.style.zIndex = 2; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = T.sh; e.currentTarget.style.zIndex = 1; }}
-      style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: sold ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh, transition: 'transform .18s ease, box-shadow .18s ease' }}>
+      style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden', position: 'relative', opacity: blocked ? 0.62 : 1, display: 'flex', flexDirection: 'column', boxShadow: T.sh, transition: 'transform .18s ease, box-shadow .18s ease' }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${rc},transparent)` }} />
       <div onClick={() => onView?.(item.id)} title="Ampliar" style={{ padding: '9px 9px 3px', cursor: 'zoom-in' }}>
-        <PrizeMedia item={item} h={84} emojiSize={40} radius={10} sold={sold} />
+        <PrizeMedia item={item} h={84} emojiSize={40} radius={10} sold={blocked} />
       </div>
       <div style={{ padding: '0 13px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 3 }}>
           <span style={{ fontSize: 9.5, fontWeight: 700, color: rc, textTransform: 'uppercase', letterSpacing: '.05em' }}>{item.rarity}</span>
-          <span style={{ fontSize: 10, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{sold ? 'Esgotado' : `${item.stock} disp.`}</span>
+          <span style={{ fontSize: 10, color: sold ? '#C04050' : T.textT, fontWeight: 600 }}>{owned ? 'Você já tem' : sold ? 'Esgotado' : `${item.stock} disp.`}</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 3, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.name}</div>
         <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4, marginBottom: 9, flex: 1, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.desc}</div>
@@ -948,15 +907,15 @@ const ItemCard = ({ item, afford, onBuy, onView, cardBg }) => {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: 14 }}>
             <PrismIcon type={item.cur} size={22} /><span style={prismText(item.cur)}>{fmt(item.price)}</span>
           </span>
-          <button disabled={sold || !afford} onClick={() => onBuy(item)} style={{
-            padding: '6px 12px', cursor: (sold || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, sold, 8),
-            fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!sold && !afford) ? 0.5 : 1,
+          <button disabled={blocked || !afford} onClick={() => onBuy(item)} style={{
+            padding: '6px 12px', cursor: (blocked || !afford) ? 'not-allowed' : 'pointer', ...buyBtn(item.cur, blocked, 8),
+            fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)', opacity: (!blocked && !afford) ? 0.5 : 1,
           }}>
-            {sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
+            {owned ? 'Já possui' : sold ? 'Esgotado' : afford ? 'Resgatar' : 'Sem saldo'}
           </button>
         </div>
       </div>
-      {sold && <SoldRibbon />}
+      {sold && !owned && <SoldRibbon />}
     </div>
   );
 };
@@ -1666,13 +1625,37 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
   const [sub, setSub] = useState('premios');  // premios | transacoes
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  // ── Adicionar um Uniko à loja (mesma lista dos prêmios, não uma seção separada) ──
+  const [isUnikoMode, setIsUnikoMode] = useState(false);
+  const [unikoPickId, setUnikoPickId] = useState('');
+  useEffect(() => { loadCustomUnikos(); }, []); // garante que os Unikos da Oficina já estejam no cache
+  const listedUnikoIds = new Set(items.filter(i => i.unikoId).map(i => i.unikoId));
+  const availableUnikos = getAllUnikos().filter(u => !listedUnikoIds.has(u.id));
+
   const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
   const addItem = () => {
     const price = parseInt(form.price, 10);
+    if (!price || price <= 0) { flash('Informe um preço válido'); return; }
+
+    if (isUnikoMode) {
+      const uniko = availableUnikos.find(u => u.id === unikoPickId);
+      if (!uniko) { flash('Escolha um Uniko'); return; }
+      // stock bem alto de propósito: não é um item exclusivo/limitado como um prêmio
+      // físico — cada colaborador ganha a própria "cópia" (ownership), então nunca
+      // deveria "esgotar" por causa de outra pessoa ter comprado.
+      const item = {
+        id: 'uniko_' + uniko.id, name: uniko.name, desc: uniko.tagline || '', emoji: '🧬',
+        rarity: form.rarity || 'Raro', cur: 'comum', price, stock: 999999, images: [uniko.img], unikoId: uniko.id,
+      };
+      setState(s => ({ ...s, items: [...s.items, item] }));
+      setForm(blank); setUnikoPickId(''); setIsUnikoMode(false);
+      flash(`Uniko "${uniko.name}" adicionado à loja`);
+      return;
+    }
+
     const stock = parseInt(form.stock, 10);
     if (!form.name.trim()) { flash('Informe o nome do prêmio'); return; }
-    if (!price || price <= 0) { flash('Informe um preço válido'); return; }
     if (isNaN(stock) || stock < 0) { flash('Informe a quantidade disponível'); return; }
     const item = { id: 'i' + Date.now(), name: form.name.trim(), desc: form.desc.trim(), emoji: form.emoji || '🎁', rarity: form.rarity, cur: form.cur, price, stock, images: form.images || [] };
     setState(s => ({ ...s, items: [...s.items, item] }));
@@ -1682,6 +1665,16 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
 
   const patchItem = (id, patch) => setState(s => ({ ...s, items: s.items.map(i => i.id === id ? { ...i, ...patch } : i) }));
   const removeItem = (id) => setState(s => ({ ...s, items: s.items.filter(i => i.id !== id) }));
+  // Reordenar manualmente: troca de posição com o vizinho (o "sort" salvo é sempre o
+  // índice atual no array — ver itemToRow — então só mexer na ordem do array já basta).
+  const moveItem = (id, dir) => setState(s => {
+    const idx = s.items.findIndex(i => i.id === id);
+    const swapIdx = idx + dir;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= s.items.length) return s;
+    const arr = [...s.items];
+    [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+    return { ...s, items: arr };
+  });
 
   // Expiração GLOBAL dos prêmios (vale pra todos os colaboradores) → linha de config no Supabase
   const setExpiry = (date) => {
@@ -1741,84 +1734,132 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px 1fr', gap: 16, alignItems: 'start' }}>
         {/* Cadastrar novo prêmio */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoPlus size={17} /></span>Novo prêmio</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}><span style={{ color: T.gold }}><IcoPlus size={17} /></span>Novo item da loja</div>
 
-          <label style={lbl}>Nome do prêmio</label>
-          <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Vale-Presente R$100" style={{ ...fieldStyle, marginBottom: 12 }} />
-
-          <label style={lbl}>Descrição</label>
-          <textarea value={form.desc} onChange={e => set('desc', e.target.value)} placeholder="Descrição do prêmio" rows={2} style={{ ...fieldStyle, marginBottom: 12, resize: 'vertical' }} />
-
-          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 80 }}>
-              <label style={lbl}>Ícone</label>
-              <input value={form.emoji} onChange={e => set('emoji', e.target.value)} placeholder="🎁" style={{ ...fieldStyle, textAlign: 'center', fontSize: 20 }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={lbl}>Raridade</label>
-              <select value={form.rarity} onChange={e => set('rarity', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
-                {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <label style={lbl}>Fotos do prêmio <span style={{ textTransform: 'none', fontWeight: 500, color: T.textT }}>(1ª = capa)</span></label>
-          <div style={{ marginBottom: 12 }}>
-            <ImageManager images={form.images} onChange={imgs => set('images', imgs)} cardBg={cardBg} />
-          </div>
-
-          <label style={lbl}>Pago com</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
-              <button key={k} onClick={() => set('cur', k)} style={{
-                flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
-                border: `1.5px solid ${form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 13,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                background: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
-              }}><PrismIcon type={k} size={15} />{label}</button>
+          {/* Prêmio físico vs Uniko — Unikos entram na MESMA lista, não numa seção à parte */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            {[{ k: false, label: '🎁 Prêmio físico' }, { k: true, label: '🧬 Uniko' }].map(({ k, label }) => (
+              <button key={String(k)} onClick={() => setIsUnikoMode(k)} style={{
+                flex: 1, padding: '9px 10px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${isUnikoMode === k ? T.gold : T.border}`, fontWeight: 700, fontSize: 12.5,
+                background: isUnikoMode === k ? T.goldGl : 'transparent', color: isUnikoMode === k ? T.gold : T.textS,
+              }}>{label}</button>
             ))}
           </div>
 
+          {isUnikoMode ? (
+            <>
+              <label style={lbl}>Escolha o Uniko</label>
+              <select value={unikoPickId} onChange={e => setUnikoPickId(e.target.value)} style={{ ...fieldStyle, marginBottom: 12, cursor: 'pointer' }}>
+                <option value="">Selecione...</option>
+                {availableUnikos.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              {unikoPickId && (() => {
+                const u = availableUnikos.find(x => x.id === unikoPickId);
+                if (!u) return null;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '8px 10px', borderRadius: 10, background: T.surfaceSub || 'rgba(0,0,0,0.02)' }}>
+                    <img src={u.img} alt={u.name} style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />
+                    <div style={{ fontSize: 12, color: T.textT }}>{u.tagline}</div>
+                  </div>
+                );
+              })()}
+              {availableUnikos.length === 0 && <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>Todos os Unikos já estão na loja.</div>}
+            </>
+          ) : (
+            <>
+              <label style={lbl}>Nome do prêmio</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Vale-Presente R$100" style={{ ...fieldStyle, marginBottom: 12 }} />
+
+              <label style={lbl}>Descrição</label>
+              <textarea value={form.desc} onChange={e => set('desc', e.target.value)} placeholder="Descrição do prêmio" rows={2} style={{ ...fieldStyle, marginBottom: 12, resize: 'vertical' }} />
+
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 80 }}>
+                  <label style={lbl}>Ícone</label>
+                  <input value={form.emoji} onChange={e => set('emoji', e.target.value)} placeholder="🎁" style={{ ...fieldStyle, textAlign: 'center', fontSize: 20 }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Raridade</label>
+                  <select value={form.rarity} onChange={e => set('rarity', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+                    {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <label style={lbl}>Fotos do prêmio <span style={{ textTransform: 'none', fontWeight: 500, color: T.textT }}>(1ª = capa)</span></label>
+              <div style={{ marginBottom: 12 }}>
+                <ImageManager images={form.images} onChange={imgs => set('images', imgs)} cardBg={cardBg} />
+              </div>
+
+              <label style={lbl}>Pago com</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {[{ k: 'comum', label: 'Comum' }, { k: 'premium', label: 'Premium' }].map(({ k, label }) => (
+                  <button key={k} onClick={() => set('cur', k)} style={{
+                    flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    border: `1.5px solid ${form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.border}`, fontWeight: 600, fontSize: 13,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    background: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) + '18' : 'transparent', color: form.cur === k ? (k === 'premium' ? PREMIUM.color : COMUM.color) : T.textS,
+                  }}><PrismIcon type={k} size={15} />{label}</button>
+                ))}
+              </div>
+            </>
+          )}
+
           <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
             <div style={{ flex: 1 }}>
-              <label style={lbl}>Preço (prismas)</label>
+              <label style={lbl}>Preço ({isUnikoMode ? 'Prisma Comum' : 'prismas'})</label>
               <input type="number" min="1" value={form.price} onChange={e => set('price', e.target.value)} placeholder="0" style={fieldStyle} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={lbl}>Qtd. disponível</label>
-              <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} placeholder="0" style={fieldStyle} />
-            </div>
+            {!isUnikoMode && (
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Qtd. disponível</label>
+                <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} placeholder="0" style={fieldStyle} />
+              </div>
+            )}
           </div>
 
-          <button onClick={addItem} style={primaryBtn(T.gold)}>Adicionar prêmio</button>
+          <button onClick={addItem} style={primaryBtn(T.gold)}>{isUnikoMode ? 'Adicionar Uniko à loja' : 'Adicionar prêmio'}</button>
         </div>
 
-        {/* Prêmios existentes */}
+        {/* Itens existentes (prêmios + Unikos, mesma lista) */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 14 }}>Prêmios cadastrados ({items.length})</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>Itens da loja ({items.length})</div>
+          <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Use as setas ↑↓ pra reordenar — é a ordem exata que os colaboradores veem na Loja (o primeiro vira o destaque).</div>
           {items.length === 0 ? (
-            <div style={{ color: T.textT, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nenhum prêmio cadastrado.</div>
+            <div style={{ color: T.textT, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nenhum item cadastrado.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map(i => {
+              {items.map((i, idx) => {
                 const rc = RARITY_COLOR[i.rarity] || T.textT;
                 const nImgs = prizeImages(i).length;
                 const open = editId === i.id;
                 return (
                   <div key={i.id} style={{ borderRadius: 11, border: `1px solid ${open ? T.goldLine + '88' : T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px' }}>
+                      {/* Mover pra cima/baixo (reordenação manual) */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                        <button onClick={() => moveItem(i.id, -1)} disabled={idx === 0} title="Mover pra cima" style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 5, border: `1px solid ${T.border}`, background: 'transparent', color: idx === 0 ? T.textD : T.textS, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? .4 : 1, padding: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+                        </button>
+                        <button onClick={() => moveItem(i.id, 1)} disabled={idx === items.length - 1} title="Mover pra baixo" style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 5, border: `1px solid ${T.border}`, background: 'transparent', color: idx === items.length - 1 ? T.textD : T.textS, cursor: idx === items.length - 1 ? 'default' : 'pointer', opacity: idx === items.length - 1 ? .4 : 1, padding: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                        </button>
+                      </div>
                       <div style={{ width: 46, height: 46, flexShrink: 0, borderRadius: 9, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: cardBg, border: `1px solid ${T.border}` }}>
                         <PrizeMedia item={i} h={46} emojiSize={24} radius={0} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>
+                          {i.unikoId
+                            ? <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: 'uppercase' }}>🧬 Uniko</span>
+                            : <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>}
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
-                          <span style={{ fontSize: 10.5, color: T.textT }}>· {i.stock} em estoque · {nImgs} foto{nImgs === 1 ? '' : 's'}</span>
+                          {!i.unikoId && <span style={{ fontSize: 10.5, color: T.textT }}>· {i.stock} em estoque · {nImgs} foto{nImgs === 1 ? '' : 's'}</span>}
                         </div>
                       </div>
-                      <button onClick={() => setEditId(open ? null : i.id)} title="Editar prêmio" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+                      <button onClick={() => setEditId(open ? null : i.id)} title="Editar" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                         {open ? 'Fechar' : 'Editar'}
                       </button>

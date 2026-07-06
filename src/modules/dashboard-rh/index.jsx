@@ -7,7 +7,6 @@ import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
-  loadUnikoStorePrices, saveUnikoStorePrice,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -421,25 +420,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [capSaving, setCapSaving] = useState(false);
   // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação)
   const [captureSubTab, setCaptureSubTab] = useState('evento');
-
-  // ── Loja de Unikos: preço em Prisma Comum por Uniko (roster fixo + Oficina) ──
-  const [unikoPrices, setUnikoPrices] = useState({});     // { [unikoId]: price }
-  const [unikoPriceDrafts, setUnikoPriceDrafts] = useState({}); // valor digitado (antes de salvar)
-  const [unikoPriceSavingId, setUnikoPriceSavingId] = useState(null);
-  const loadUnikoPrices = async () => {
-    const prices = await loadUnikoStorePrices();
-    setUnikoPrices(prices);
-    setUnikoPriceDrafts(Object.fromEntries(Object.entries(prices).map(([k, v]) => [k, String(v)])));
-  };
-  const saveUnikoPrice = async (unikoId) => {
-    setUnikoPriceSavingId(unikoId);
-    const price = parseInt(unikoPriceDrafts[unikoId], 10) || 0;
-    try {
-      await saveUnikoStorePrice(unikoId, price);
-      setUnikoPrices(p => { const n = { ...p }; if (price > 0) n[unikoId] = price; else delete n[unikoId]; return n; });
-    } finally { setUnikoPriceSavingId(null); }
-  };
-  useEffect(() => { if (tab === 'capture' && captureSubTab === 'loja') loadUnikoPrices(); }, [tab, captureSubTab]); // eslint-disable-line
 
   const loadCapCfg = async () => {
     const c = await loadCaptureConfig();
@@ -1816,7 +1796,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 {[
                   {id:'evento',  label:'⚡ Evento & Spawn'},
                   {id:'oficina', label:'🛠️ Oficina de Uniko'},
-                  {id:'loja',    label:'🛒 Loja de Unikos'},
                 ].map(v=>{
                   const on = captureSubTab===v.id;
                   return (
@@ -2104,39 +2083,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </div>
               </>)}
 
-              {/* Loja de Unikos: preço em Prisma Comum pra comprar direto na Prisma Store */}
-              {captureSubTab==='loja' && (<>
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
-                <div>
-                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛒 Loja de Unikos</div>
-                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Defina um preço em Prisma Comum pra cada Uniko poder ser comprado direto na Prisma Store, sem precisar esperar o evento de captura. Deixe em branco ou 0 pra tirar da loja.</div>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                  {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
-                    const draft = unikoPriceDrafts[u.id] ?? '';
-                    const forSale = unikoPrices[u.id] > 0;
-                    const saving = unikoPriceSavingId === u.id;
-                    return (
-                      <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,flexWrap:'wrap',
-                        border:`1px solid ${forSale?(u.theme.accent+'66'):T.border}`,background:forSale?`${u.theme.accent}12`:'transparent'}}>
-                        <img src={u.img} alt={u.name} style={{width:40,height:40,objectFit:'contain',flexShrink:0}}/>
-                        <div style={{flex:1,minWidth:140}}>
-                          <div style={{fontSize:13,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.name}</div>
-                          <div style={{fontSize:11,color:T.textT}}>{forSale ? `À venda por ${unikoPrices[u.id]} Prisma Comum` : 'Não está à venda'}</div>
-                        </div>
-                        <input type="number" min="0" value={draft} onChange={e=>setUnikoPriceDrafts(d=>({...d,[u.id]:e.target.value}))}
-                          placeholder="0"
-                          style={{width:100,padding:'8px 10px',borderRadius:9,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
-                        <button onClick={()=>saveUnikoPrice(u.id)} disabled={saving}
-                          style={{padding:'8px 16px',borderRadius:9,border:'none',cursor:saving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)',opacity:saving?.6:1,flexShrink:0}}>
-                          {saving?'...':'Salvar'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              </>)}
             </div>
           );})()}
 
