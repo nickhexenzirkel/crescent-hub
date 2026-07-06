@@ -107,20 +107,6 @@ const FONTS = `
   0%,100% { transform: translate(0px,0px) scale(1); }
   50%     { transform: translate(10px,10px) scale(1.1); }
 }
-@keyframes themeBtnPulse {
-  0%,100% { box-shadow: 0 4px 14px rgba(0,0,0,0.22); transform: scale(1); }
-  50%     { box-shadow: 0 6px 22px rgba(0,0,0,0.32); transform: scale(1.07); }
-}
-@keyframes confettiL {
-  0%   { transform: translateY(-30px) rotate(0deg);             opacity: 1; }
-  75%  { opacity: 1; }
-  100% { transform: translateY(110vh) translateX(-90px) rotate(780deg);  opacity: 0; }
-}
-@keyframes confettiR {
-  0%   { transform: translateY(-30px) rotate(0deg);            opacity: 1; }
-  75%  { opacity: 1; }
-  100% { transform: translateY(110vh) translateX(90px) rotate(-620deg); opacity: 0; }
-}
 @keyframes wave1 {
   0%,100% { transform: translateY(0px) scaleX(1); }
   30%     { transform: translateY(-55px) scaleX(1.04); }
@@ -336,80 +322,13 @@ const THEMES = {
     sidebarBg:'rgba(20,10,4,0.98)', topbarBg:'rgba(20,10,4,0.95)',
     text:'#FFF0D8', textS:'#C09060', textT:'#806040', textD:'#503020',
   },
-  /* ─────────── ESPECIAL — VOZ DO BRASIL ─────────── */
-  vozBrasil: {
-    name:'Voz do Brasil', surfaceSub:'rgba(0,0,0,0.025)', itemHover:'rgba(0,0,0,0.04)', dot:'#C8A000', dark:false,
-    page:'#F6FCF0', gold:'#9A7A00', goldL:'#C8A000', goldV:'#FFE050',
-    goldGl:'rgba(154,122,0,0.09)', goldLine:'#B09000',
-    blue:'#9A7A00', blueL:'#C8A000', blueGl:'rgba(154,122,0,0.08)',
-    blobBase:'#EEF8E6', blobVeil:'rgba(238,248,230,0.65)',
-    b1:'rgba(0,60,15,0.80)',   b2:'rgba(0,100,35,0.68)',
-    b3:'rgba(255,220,0,0.55)', b4:'rgba(0,40,130,0.58)',
-    b5:'rgba(255,245,80,0.48)',b6:'rgba(0,20,80,0.50)',
-    b7:'rgba(0,140,50,0.45)',
-    sb1:'rgba(150,120,0,0.38)',sb2:'rgba(200,160,0,0.28)',sb3:'rgba(255,225,60,0.20)',
-    lb:'rgba(154,122,0,0.28)', lb2:'rgba(154,122,0,0.12)',
-    sidebarBg:'rgba(244,252,240,0.97)', topbarBg:'rgba(244,252,240,0.94)',
-    text:'#0B1E08', textS:'#2E5020', textT:'#6A8860', textD:'#AABCA0',
-  },
-  vozBrasilDark: {
-    name:'Voz do Brasil Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#D4B000', dark:true,
-    page:'#080D04', surface:'#111A08', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
-    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
-    gold:'#D4B000', goldL:'#FFCC10', goldV:'#FFE860',
-    goldGl:'rgba(212,176,0,0.20)', goldLine:'#D4B000',
-    blue:'#D4B000', blueL:'#FFCC10', blueGl:'rgba(212,176,0,0.16)',
-    blobBase:'#050A02', blobVeil:'rgba(5,10,2,0.58)',
-    b1:'rgba(0,50,10,0.92)',   b2:'rgba(0,80,22,0.88)',
-    b3:'rgba(215,175,0,0.70)', b4:'rgba(0,15,90,0.88)',
-    b5:'rgba(255,228,40,0.55)',b6:'rgba(0,10,55,0.92)',
-    b7:'rgba(0,110,35,0.68)',
-    sb1:'rgba(160,125,0,0.60)',sb2:'rgba(210,165,0,0.50)',sb3:'rgba(255,225,50,0.35)',
-    lb:'rgba(212,176,0,0.42)', lb2:'rgba(212,176,0,0.18)',
-    sidebarBg:'rgba(5,9,3,0.98)', topbarBg:'rgba(5,9,3,0.95)',
-    text:'#EEFFD8', textS:'#90B870', textT:'#507040', textD:'#284020',
-  },
-  /* ─────────── ESPECIAL — MÊS DO ORGULHO ─────────── */
-  orgulho: {
-    name:'Mês do Orgulho', surfaceSub:'rgba(0,0,0,0.025)', itemHover:'rgba(0,0,0,0.04)', dot:'#C030A0', dark:false,
-    page:'#FEFEFE', gold:'#9A1880', goldL:'#C030A0', goldV:'#FF80D0',
-    goldGl:'rgba(154,24,128,0.09)', goldLine:'#B020A0',
-    blue:'#9A1880', blueL:'#C030A0', blueGl:'rgba(154,24,128,0.08)',
-    blobBase:'#FFFFFF', blobVeil:'rgba(255,255,255,0.08)',
-    b1:'rgba(255,0,0,0.90)',    b2:'rgba(255,110,0,0.85)',
-    b3:'rgba(255,240,0,0.85)',  b4:'rgba(0,230,0,0.85)',
-    b5:'rgba(0,40,255,0.85)',   b6:'rgba(110,0,255,0.90)',
-    b7:'rgba(255,0,200,0.85)',
-    sb1:'rgba(154,24,128,0.38)',sb2:'rgba(192,48,160,0.28)',sb3:'rgba(255,128,208,0.20)',
-    lb:'rgba(154,24,128,0.28)', lb2:'rgba(154,24,128,0.12)',
-    sidebarBg:'rgba(255,253,255,0.97)', topbarBg:'rgba(255,253,255,0.94)',
-    text:'#28082A', textS:'#6A3070', textT:'#A880A8', textD:'#D4C0D4',
-  },
-  orgulhoDark: {
-    name:'Mês do Orgulho Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#D840C0', dark:true,
-    page:'#030303', surface:'#0C0810', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
-    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
-    gold:'#D840C0', goldL:'#FF60E0', goldV:'#FFB0F0',
-    goldGl:'rgba(216,64,192,0.20)', goldLine:'#D840C0',
-    blue:'#D840C0', blueL:'#FF60E0', blueGl:'rgba(216,64,192,0.16)',
-    blobBase:'#000000', blobVeil:'rgba(0,0,0,0.08)',
-    b1:'rgba(255,0,0,0.98)',    b2:'rgba(255,120,0,0.95)',
-    b3:'rgba(255,255,0,0.92)',  b4:'rgba(0,255,0,0.95)',
-    b5:'rgba(0,50,255,0.95)',   b6:'rgba(130,0,255,0.98)',
-    b7:'rgba(255,0,220,0.95)',
-    sb1:'rgba(180,30,160,0.60)',sb2:'rgba(216,60,192,0.50)',sb3:'rgba(255,120,224,0.35)',
-    lb:'rgba(216,64,192,0.42)', lb2:'rgba(216,64,192,0.18)',
-    sidebarBg:'rgba(3,2,5,0.98)', topbarBg:'rgba(3,2,5,0.95)',
-    text:'#FFE8FF', textS:'#D090D0', textT:'#906090', textD:'#503050',
-  },
-
 };
 
 /* Uniko ÚNICO — sem variação por tema (sempre o UNIKO_NEW) */
 const UNIKO_NEW = '/UNIKO_NEW.png';
 
 /* T é mutável — inicializado com o tema salvo no localStorage */
-const _initThemeKey = (typeof localStorage !== 'undefined' && localStorage.getItem('ch_theme')) || 'vozBrasil';
+const _initThemeKey = (typeof localStorage !== 'undefined' && localStorage.getItem('ch_theme')) || 'blue';
 const _initTheme    = THEMES[_initThemeKey] || THEMES.blue;
 
 if(typeof document !== 'undefined') {

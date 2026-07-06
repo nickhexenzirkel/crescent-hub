@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto } from './contexts/user';
-import { LavaLamp, Confetti, FloatingThemeBtn } from './shared/components';
+import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
 import { ModuleSelector } from './shared/ModuleSelector';
@@ -24,9 +24,7 @@ export default function CrescentHub() {
   const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
-  const [confettiTheme, setConfettiTheme] = useState(null);
   const isMobile = useIsMobile();
-  const [activeTheme, setActiveTheme]     = useState(() => localStorage.getItem('ch_theme') || 'vozBrasil');
   // Config do "Capture o Uniko" — o aviso (som + assistente) é GLOBAL; o card só no Portal.
   // Atualiza em tempo real (realtime + poll) pra o spawn chegar a todos ~ao mesmo tempo.
   useEffect(() => {
@@ -56,12 +54,6 @@ export default function CrescentHub() {
     const id = setInterval(syncServerClock, 10 * 60 * 1000);
     return () => clearInterval(id);
   }, [authUser]);
-  useEffect(() => {
-    const h = (e) => setActiveTheme(e.detail);
-    window.addEventListener('ch_themechange', h);
-    return () => window.removeEventListener('ch_themechange', h);
-  }, []);
-
   // Verifica token salvo ao carregar o app
   useEffect(() => {
     const token = localStorage.getItem('ch_token');
@@ -120,11 +112,6 @@ export default function CrescentHub() {
   const handleModuleSelect = (id) => {
     const adminOnly = ['dashboard','ponto','conexao-setorial','mercado-estelar'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
-    const theme = localStorage.getItem('ch_theme') || 'vozBrasil';
-    if (['vozBrasil','vozBrasilDark','orgulho','orgulhoDark'].includes(theme)) {
-      setConfettiTheme(theme);
-      setTimeout(() => setConfettiTheme(null), 3200);
-    }
     navPush(id);
   };
 
@@ -337,14 +324,6 @@ export default function CrescentHub() {
       <style>{`body.uw-active .floating-theme-btn{display:none!important}`}</style>
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
-        {confettiTheme && <Confetti themeKey={confettiTheme}/>}
-        <FloatingThemeBtn
-          themeKey={activeTheme}
-          onConfetti={() => {
-            setConfettiTheme(activeTheme);
-            setTimeout(() => setConfettiTheme(null), 3200);
-          }}
-        />
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
