@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
+import { UnikoOrigin } from './UnikoOrigin';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
@@ -129,6 +130,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           @keyframes starPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.18)}}
           .mob-card { -webkit-tap-highlight-color: transparent; }
         `}</style>
+
+        <UnikoOrigin/>
 
         {/* Top bar */}
         <div style={{position:'sticky', top:0, zIndex:20, background:T.surface,
@@ -270,6 +273,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,padding:'20px 32px'}}>
 
       <WhatsNew/>
+      <UnikoOrigin/>
 
       {authUser&&(
         <div style={{position:'fixed',top:16,right:20,display:'flex',alignItems:'center',gap:8,zIndex:10}}>

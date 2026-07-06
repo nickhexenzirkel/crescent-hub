@@ -97,6 +97,8 @@ const KB = [
     a: 'O Uniko HUB é o portal interno da empresa: Portal do Colaborador (RH, jogos, eventos), Prisma Store (recompensas), Uniko Wave (jogo de ritmo), Central Alexa (música), Ponto Eletrônico, Oficina Estelar e Conexão Setorial.' },
   { k: ['ajuda', 'o que voce faz', 'oi', 'ola', 'help', 'funcoes', 'o que voce pode fazer'],
     a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas recebidos, avisos do RH, eventos e do progresso das missões.' },
+  { k: ['quem e voce', 'quem e o uniko', 'o viajante', 'sua historia', 'de onde voce veio', 'quem sou eu', 'qual sua origem', 'voce e um alien', 'quem te criou'],
+    a: 'Eu venho da Rede Prismática, uma dimensão de dados luminosos e magia ancestral — lá eu era um Navegador de Frequências, saltando entre mundos pra manter tudo conectado. Um dia senti um sinal de desconexão vindo da Terra e vim resolver — mas a queda fragmentou minha forma, e acabei virando o guardião deste portal 🌌. Clique em "Quem sou eu?" no canto da tela pra ver a história completa!' },
 ];
 
 // Dicas rotativas (a cada 10s) — cada uma com a CHAVE do sprite (resolvida pela skin ativa).
