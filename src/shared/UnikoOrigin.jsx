@@ -396,6 +396,10 @@ export const UnikoOrigin = () => {
       <style>{`
         @keyframes uoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
         @keyframes uoBtnGlow{0%,100%{box-shadow:0 0 0 0 ${T.blue}55, 0 4px 14px rgba(0,0,0,.12)}50%{box-shadow:0 0 0 6px ${T.blue}00, 0 4px 14px rgba(0,0,0,.12)}}
+        @keyframes uoBtnTextHue{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+        @keyframes uoBlobA{0%,100%{transform:translate(-8px,-4px) scale(1)}50%{transform:translate(118px,8px) scale(1.2)}}
+        @keyframes uoBlobB{0%,100%{transform:translate(146px,14px) scale(1)}50%{transform:translate(24px,-16px) scale(.85)}}
+        @keyframes uoBlobC{0%,100%{transform:translate(60px,22px) scale(1)}50%{transform:translate(92px,-14px) scale(1.25)}}
       `}</style>
 
       {/* ── Botão fixo (canto inferior direito, longe do badge de usuário e do robô) ── */}
@@ -403,10 +407,26 @@ export const UnikoOrigin = () => {
         title="A verdadeira história do UNiko"
         style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:10,
           padding:'11px 22px 11px 12px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:15, fontWeight:700,
-          color:T.blue, background:'#fff', border:`2px solid ${T.blue}`, outline:'none',
+          border:`2px solid ${T.blue}`, outline:'none', overflow:'hidden', isolation:'isolate',
+          background:'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
           animation:'uoBtnGlow 2.6s ease-in-out infinite' }}>
-        <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ width:28, height:28, objectFit:'contain', animation:'uoFloat 3.4s ease-in-out infinite' }}/>
-        Quem sou eu?
+        {/* fundo "lava lamp" — blobs azuis subindo/descendo por trás do conteúdo */}
+        <span aria-hidden="true" style={{ position:'absolute', inset:0, overflow:'hidden', zIndex:0 }}>
+          <span style={{ position:'absolute', left:-14, top:-10, width:52, height:52, borderRadius:'50%',
+            background:'radial-gradient(circle, #bfe0ff, #bfe0ff00 70%)', filter:'blur(7px)', opacity:.8,
+            animation:'uoBlobA 7s ease-in-out infinite' }}/>
+          <span style={{ position:'absolute', left:-14, top:-6, width:42, height:42, borderRadius:'50%',
+            background:'radial-gradient(circle, #4AA6FF, #4AA6FF00 70%)', filter:'blur(6px)', opacity:.7,
+            animation:'uoBlobB 9s ease-in-out infinite' }}/>
+          <span style={{ position:'absolute', left:-10, top:-8, width:36, height:36, borderRadius:'50%',
+            background:'radial-gradient(circle, #8fd6ff, #8fd6ff00 70%)', filter:'blur(6px)', opacity:.75,
+            animation:'uoBlobC 11s ease-in-out infinite' }}/>
+        </span>
+        <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ position:'relative', zIndex:1, width:28, height:28, objectFit:'contain' }}/>
+        <span style={{ position:'relative', zIndex:1,
+          backgroundImage:'linear-gradient(90deg,#1A6FB5,#4AA6FF,#8fd6ff,#2E8DD4,#1A6FB5)', backgroundSize:'300% 100%',
+          WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
+          animation:'uoBtnTextHue 4s linear infinite' }}>Quem sou eu?</span>
       </button>
 
       {/* ── Minissérie animada ── */}
