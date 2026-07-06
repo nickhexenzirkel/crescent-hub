@@ -393,13 +393,19 @@ export const UnikoOrigin = () => {
 
   return (
     <>
+      <style>{`
+        @keyframes uoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes uoBtnGlow{0%,100%{box-shadow:0 0 0 0 ${T.blue}55, 0 4px 14px rgba(0,0,0,.12)}50%{box-shadow:0 0 0 6px ${T.blue}00, 0 4px 14px rgba(0,0,0,.12)}}
+      `}</style>
+
       {/* ── Botão fixo (canto inferior direito, longe do badge de usuário e do robô) ── */}
       <button onClick={openModal}
         title="A verdadeira história do UNiko"
-        style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:8,
-          padding:'6px 14px 6px 8px', borderRadius:20, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13, fontWeight:600,
-          color:T.gold, background:T.goldGl, border:`1px solid ${T.goldLine}44`, outline:'none' }}>
-        <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ width:22, height:22, objectFit:'contain', animation:'uoFloat 3.4s ease-in-out infinite' }}/>
+        style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:10,
+          padding:'11px 22px 11px 12px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:15, fontWeight:700,
+          color:T.blue, background:'#fff', border:`2px solid ${T.blue}`, outline:'none',
+          animation:'uoBtnGlow 2.6s ease-in-out infinite' }}>
+        <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ width:28, height:28, objectFit:'contain', animation:'uoFloat 3.4s ease-in-out infinite' }}/>
         Quem sou eu?
       </button>
 
@@ -410,7 +416,6 @@ export const UnikoOrigin = () => {
             display:'flex', alignItems:'center', justifyContent:'center', padding:20, fontFamily:'var(--font-body)' }}>
           <style>{`
             @keyframes uoIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-            @keyframes uoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
             @keyframes uoShake{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-3px) rotate(-2deg)}40%{transform:translateX(3px) rotate(2deg)}60%{transform:translateX(-2px) rotate(-1deg)}80%{transform:translateX(2px) rotate(1deg)}}
             @keyframes uoComet{0%{transform:translateX(-46px) translateY(12px) rotate(-20deg) scale(.9);opacity:.35}70%{transform:translateX(4px) translateY(-3px) rotate(-4deg) scale(1.05);opacity:1}100%{transform:translateX(0) translateY(0) rotate(0deg) scale(1);opacity:1}}
             @keyframes uoFall{0%{transform:translateY(-64px) rotate(-10deg);opacity:0}55%{transform:translateY(6px) rotate(5deg);opacity:1}75%{transform:translateY(-4px) rotate(-2deg)}100%{transform:translateY(0) rotate(0deg)}}
