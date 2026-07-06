@@ -361,6 +361,7 @@ export const UnikoOrigin = () => {
   const fullText = s.text.join('\n\n');
   const Scene = SCENES[s.scene];
   const pos = MASCOT_POS[s.scene];
+  const isDark = !!T.dark;
 
   const openModal  = () => { setPage(0); setPaused(false); setOpen(true); };
   const closeModal = () => setOpen(false);
@@ -408,7 +409,7 @@ export const UnikoOrigin = () => {
         style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:10,
           padding:'11px 22px 11px 12px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:15, fontWeight:700,
           border:`2px solid ${T.blue}`, outline:'none',
-          background:'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
+          background: isDark ? 'linear-gradient(135deg,#1c2733,#141d27 45%,#101820)' : 'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
           animation:'uoBtnGlow 2.6s ease-in-out infinite' }}>
         {/* fundo "lava lamp" — só atrás do ÍCONE (não passa por trás das letras) */}
         <span style={{ position:'relative', width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0 }}>
@@ -424,7 +425,8 @@ export const UnikoOrigin = () => {
           <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ position:'relative', zIndex:1, width:'100%', height:'100%', objectFit:'contain' }}/>
         </span>
         <span style={{
-          backgroundImage:'linear-gradient(90deg,#000,#333,#111,#4d4d4d,#000)', backgroundSize:'300% 100%',
+          backgroundImage: isDark ? 'linear-gradient(90deg,#fff,#ccc,#eee,#999,#fff)' : 'linear-gradient(90deg,#000,#333,#111,#4d4d4d,#000)',
+          backgroundSize:'300% 100%',
           WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
           animation:'uoBtnTextHue 4s linear infinite' }}>Quem sou eu?</span>
       </button>
