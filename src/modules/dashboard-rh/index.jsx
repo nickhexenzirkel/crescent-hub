@@ -18,6 +18,11 @@ const safeKeyPart = (s) => (s || '')
   .replace(/\s+/g, '_')
   .replace(/[^a-zA-Z0-9_-]/g, '');
 
+// Mensagem padrão que a Alexa anuncia quando o Uniko spawna no Portal (o servidor
+// faz o anúncio de verdade, vendo o spawnAt gravado em settings.capture_uniko_config —
+// ver checkCaptureUnikoSpawn no crescent-hub-server). Editável na tela de evento/spawn.
+const DEFAULT_CAPTURE_ALEXA_MSG = 'Atenção a todos, verifiquem o portal do colaborador! Tem uma surpresa por lá.';
+
 const AdminLoginModal = ({onSuccess, onCancel}) => {
   const [pw, setPw]     = useState('');
   const [show, setShow] = useState(false);
@@ -410,7 +415,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // datetime-local <-> ISO. O input usa horário LOCAL; guardamos ISO no settings.
   const isoToLocal = (iso) => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const localToIso = (loc) => { if(!loc) return ''; const d=new Date(loc); return isNaN(d)?'':d.toISOString(); };
-  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot' });
+  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot', alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG });
   const [capMsg, setCapMsg]       = useState('');
   const [capSaving, setCapSaving] = useState(false);
   // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação)
@@ -418,7 +423,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const loadCapCfg = async () => {
     const c = await loadCaptureConfig();
-    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot' });
+    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot', alexaMessage:c.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
   };
   const saveCapCfg = async () => {
     if (capCfg.enabled && (!capCfg.startAt || !capCfg.endAt)) { setCapMsg('⚠️ Defina início e fim da janela'); return; }
@@ -433,24 +438,25 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       if (capCfg.enabled && startIso && endIso) {
         spawnAt = pickSpawnAt(startIso, endIso);
       }
-      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId });
+      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
       setCapMsg('✅ Configuração salva!');
     } catch(e) { setCapMsg('❌ ' + (e.message||'Erro ao salvar')); }
     setCapSaving(false);
     setTimeout(()=>setCapMsg(''), 4000);
   };
   // Spawna AGORA: abre uma janela imediata (agora → +30min) com o uniko selecionado,
-  // gerando um evento novo. O widget faz o Uniko surgir em segundos para quem está no Portal.
+  // gerando um evento novo. O widget faz o Uniko surgir em segundos para quem está no Portal
+  // — e o servidor (checkCaptureUnikoSpawn) faz a Alexa anunciar assim que o spawnAt chegar.
   const spawnNow = async () => {
     setCapSaving(true); setCapMsg('');
     try {
       const now = new Date();
       const end = new Date(now.getTime() + 30 * 60 * 1000);      // janela de 30 min
       const spawnAt = new Date(now.getTime() + 6 * 1000);        // +6s: dá tempo de todos receberem e revelarem juntos
-      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot' };
+      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot', alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG };
       await saveCaptureConfig(cfg);
-      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId });
-      setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal.');
+      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId, alexaMessage:cfg.alexaMessage });
+      setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal (e a Alexa avisa).');
     } catch (e) { setCapMsg('❌ ' + (e.message || 'Erro ao spawnar')); }
     setCapSaving(false);
     setTimeout(() => setCapMsg(''), 6000);
@@ -1854,6 +1860,23 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Anúncio na Alexa */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Mensagem que a Alexa anuncia ao spawnar</label>
+                  <textarea value={capCfg.alexaMessage} onChange={e=>setCapCfg(c=>({...c,alexaMessage:e.target.value}))} rows={2}
+                    placeholder={DEFAULT_CAPTURE_ALEXA_MSG}
+                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',resize:'vertical'}}/>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
+                    <div style={{fontSize:11,color:T.textT}}>Falada no Echo assim que o Uniko surgir de verdade no Portal.</div>
+                    {capCfg.alexaMessage!==DEFAULT_CAPTURE_ALEXA_MSG&&(
+                      <button onClick={()=>setCapCfg(c=>({...c,alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG}))}
+                        style={{fontSize:11,fontWeight:600,color:T.gold,background:'none',border:'none',cursor:'pointer',padding:0}}>
+                        Restaurar padrão
+                      </button>
+                    )}
                   </div>
                 </div>
 
