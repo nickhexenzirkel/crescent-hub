@@ -23,57 +23,84 @@ const Stars = ({ n = 22, seed = 0, w = 400, h = 200 }) => {
 };
 
 const PrismScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <Stars n={26} seed={1}/>
-    <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 26s linear infinite' }}>
-      <polygon points="200,50 246,96 200,142 154,96" fill="none" stroke="#7fd8ff" strokeWidth="1.6" opacity=".55"/>
-      <polygon points="200,66 232,96 200,126 168,96" fill="none" stroke="#c9a6ff" strokeWidth="1.2" opacity=".5"/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={40} seed={1}/>
+    <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 30s linear infinite' }}>
+      <polygon points="200,34 262,96 200,158 138,96" fill="none" stroke="#7fd8ff" strokeWidth="1.6" opacity=".55"/>
+      <polygon points="200,54 242,96 200,138 158,96" fill="none" stroke="#c9a6ff" strokeWidth="1.2" opacity=".5"/>
+      <polygon points="200,74 222,96 200,118 178,96" fill="none" stroke="#ffe58a" strokeWidth="1" opacity=".55"/>
     </g>
-    <path d="M60,150 Q200,110 340,150" fill="none" stroke="#4AA6FF" strokeWidth="1.4" strokeDasharray="6 10" opacity=".6"
+    <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 8s linear infinite' }}>
+      <circle cx="200" cy="24" r="3" fill="#8fffd6"/>
+    </g>
+    <g style={{ transformOrigin: '200px 96px', animation: 'uoRotateSlow 13s linear infinite reverse' }}>
+      <circle cx="264" cy="96" r="2.4" fill="#ffcf6b"/>
+    </g>
+    <path d="M20,168 Q200,120 380,168" fill="none" stroke="#4AA6FF" strokeWidth="1.4" strokeDasharray="6 10" opacity=".6"
       style={{ animation: 'uoFlow 3.2s linear infinite' }}/>
-    <path d="M70,60 Q200,20 330,60" fill="none" stroke="#c9a6ff" strokeWidth="1.2" strokeDasharray="4 9" opacity=".5"
+    <path d="M30,26 Q200,-14 370,26" fill="none" stroke="#c9a6ff" strokeWidth="1.2" strokeDasharray="4 9" opacity=".5"
       style={{ animation: 'uoFlow 4s linear infinite reverse' }}/>
+    <path d="M10,96 Q90,70 160,96" fill="none" stroke="#ffe58a" strokeWidth="1" strokeDasharray="3 7" opacity=".4"
+      style={{ animation: 'uoFlow 3.6s linear infinite' }}/>
+    <path d="M240,96 Q310,70 390,96" fill="none" stroke="#ffe58a" strokeWidth="1" strokeDasharray="3 7" opacity=".4"
+      style={{ animation: 'uoFlow 3.6s linear infinite reverse' }}/>
   </svg>
 );
 
 const PortalsScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <Stars n={16} seed={2}/>
-    <ellipse cx="110" cy="70" rx="34" ry="34" fill="none" stroke="#4AA6FF" strokeWidth="3" strokeDasharray="10 8" opacity=".7"
-      style={{ transformOrigin: '110px 70px', animation: 'uoRotateSlow 9s linear infinite' }}/>
-    <ellipse cx="290" cy="70" rx="30" ry="30" fill="none" stroke="#ffcf6b" strokeWidth="3" strokeDasharray="9 7" opacity=".7"
-      style={{ transformOrigin: '290px 70px', animation: 'uoRotateSlow 7s linear infinite reverse' }}/>
-    <ellipse cx="200" cy="150" rx="28" ry="28" fill="none" stroke="#8fffd6" strokeWidth="3" strokeDasharray="8 7" opacity=".7"
-      style={{ transformOrigin: '200px 150px', animation: 'uoRotateSlow 11s linear infinite' }}/>
-    <path d="M132,84 Q170,120 178,132" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="3 6" opacity=".35"/>
-    <path d="M262,84 Q230,120 222,132" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="3 6" opacity=".35"/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={24} seed={2}/>
+    <ellipse cx="90" cy="62" rx="36" ry="36" fill="none" stroke="#4AA6FF" strokeWidth="3" strokeDasharray="10 8" opacity=".7"
+      style={{ transformOrigin: '90px 62px', animation: 'uoRotateSlow 9s linear infinite' }}/>
+    <ellipse cx="90" cy="62" rx="22" ry="22" fill="none" stroke="#4AA6FF" strokeWidth="1.4" strokeDasharray="5 6" opacity=".5"
+      style={{ transformOrigin: '90px 62px', animation: 'uoRotateSlow 6s linear infinite reverse' }}/>
+    <ellipse cx="310" cy="58" rx="32" ry="32" fill="none" stroke="#ffcf6b" strokeWidth="3" strokeDasharray="9 7" opacity=".7"
+      style={{ transformOrigin: '310px 58px', animation: 'uoRotateSlow 7s linear infinite reverse' }}/>
+    <ellipse cx="310" cy="58" rx="18" ry="18" fill="none" stroke="#ffcf6b" strokeWidth="1.2" strokeDasharray="4 6" opacity=".5"
+      style={{ transformOrigin: '310px 58px', animation: 'uoRotateSlow 5s linear infinite' }}/>
+    <ellipse cx="200" cy="170" rx="30" ry="30" fill="none" stroke="#8fffd6" strokeWidth="3" strokeDasharray="8 7" opacity=".7"
+      style={{ transformOrigin: '200px 170px', animation: 'uoRotateSlow 11s linear infinite' }}/>
+    <ellipse cx="60" cy="150" rx="16" ry="16" fill="none" stroke="#c9a6ff" strokeWidth="1.6" strokeDasharray="5 5" opacity=".5"
+      style={{ transformOrigin: '60px 150px', animation: 'uoRotateSlow 10s linear infinite' }}/>
+    <path d="M118,84 Q160,120 176,142" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="3 6" opacity=".35"
+      style={{ animation: 'uoFlow 2.6s linear infinite' }}/>
+    <path d="M282,80 Q240,120 222,142" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="3 6" opacity=".35"
+      style={{ animation: 'uoFlow 2.6s linear infinite reverse' }}/>
+    <path d="M60,20 h280" fill="none" stroke="#4AA6FF" strokeWidth=".6" strokeDasharray="2 10" opacity=".2"/>
   </svg>
 );
 
 const SignalScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <Stars n={14} seed={3}/>
-    <ellipse cx="260" cy="100" rx="46" ry="46" fill="#2f6a4f"/>
-    <ellipse cx="244" cy="86" rx="16" ry="10" fill="#234f39" opacity=".8"/>
-    <ellipse cx="276" cy="112" rx="12" ry="8" fill="#234f39" opacity=".8"/>
-    {[0, 1, 2].map(i => (
-      <circle key={i} cx="260" cy="100" r="20" fill="none" stroke="#ff6b6b" strokeWidth="2"
-        style={{ transformOrigin: '260px 100px', animation: `uoPing 2.4s ease-out ${i * 0.8}s infinite` }}/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={20} seed={3}/>
+    <ellipse cx="270" cy="100" rx="52" ry="52" fill="#2f6a4f"/>
+    <ellipse cx="250" cy="82" rx="18" ry="11" fill="#234f39" opacity=".8"/>
+    <ellipse cx="288" cy="116" rx="14" ry="9" fill="#234f39" opacity=".8"/>
+    <ellipse cx="266" cy="122" rx="9" ry="6" fill="#234f39" opacity=".7"/>
+    <ellipse cx="270" cy="100" rx="60" ry="18" fill="none" stroke="#8fffd6" strokeWidth="1" opacity=".3" transform="rotate(-16 270 100)"/>
+    {[0, 1, 2, 3].map(i => (
+      <circle key={i} cx="270" cy="100" r="22" fill="none" stroke="#ff6b6b" strokeWidth="2"
+        style={{ transformOrigin: '270px 100px', animation: `uoPing 2.6s ease-out ${i * 0.65}s infinite` }}/>
     ))}
-    {[[60, 50], [90, 140], [40, 110], [120, 70]].map(([x, y], i) => (
-      <rect key={i} x={x} y={y} width="14" height="10" rx="1.5" fill="#4AA6FF"
-        style={{ animation: `uoFlicker ${2.4 + i * .4}s ease-in-out ${i * .5}s infinite` }}/>
+    <rect x="30" y="90" width="4" height="46" fill="#3a4a5a"/>
+    <path d="M32,90 L18,66 M32,90 L46,66" stroke="#3a4a5a" strokeWidth="2.5" fill="none"/>
+    <circle cx="32" cy="64" r="4" fill="#ff9b6b" style={{ animation: 'uoFlicker 1s ease-in-out infinite' }}/>
+    {[[54, 46], [92, 148], [36, 118], [128, 66], [150, 130], [70, 22]].map(([x, y], i) => (
+      <rect key={i} x={x} y={y} width="13" height="9" rx="1.5" fill="#4AA6FF"
+        style={{ animation: `uoFlicker ${2.2 + i * .35}s ease-in-out ${i * .45}s infinite` }}/>
     ))}
   </svg>
 );
 
 const CometScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <Stars n={24} seed={4}/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={34} seed={4}/>
     <path d="M40,40 L52,46 L38,52 Z" fill="#c9a6ff" opacity=".5" style={{ animation: 'uoFlicker 1.6s ease-in-out infinite' }}/>
     <path d="M340,150 L354,144 L342,160 Z" fill="#c9a6ff" opacity=".4" style={{ animation: 'uoFlicker 2s ease-in-out .4s infinite' }}/>
+    <path d="M300,30 L314,24 L302,40 Z" fill="#ffe58a" opacity=".4" style={{ animation: 'uoFlicker 1.8s ease-in-out .8s infinite' }}/>
     <g style={{ animation: 'uoCometTrail 2.4s ease-in-out infinite' }}>
-      <ellipse cx="120" cy="120" rx="60" ry="7" fill="url(#uoCometGrad)" opacity=".85" transform="rotate(-22 120 120)"/>
+      <ellipse cx="120" cy="120" rx="70" ry="8" fill="url(#uoCometGrad)" opacity=".85" transform="rotate(-22 120 120)"/>
+      <ellipse cx="130" cy="112" rx="40" ry="4" fill="#fff" opacity=".5" transform="rotate(-22 130 112)"/>
     </g>
     <defs>
       <linearGradient id="uoCometGrad" x1="0" y1="0" x2="1" y2="0">
@@ -81,90 +108,140 @@ const CometScene = () => (
         <stop offset="100%" stopColor="#bfe8ff" stopOpacity="1"/>
       </linearGradient>
     </defs>
-    <circle cx="330" cy="60" r="20" fill="#1b2550"/>
+    <circle cx="332" cy="58" r="26" fill="#1b2550"/>
+    <ellipse cx="322" cy="48" rx="9" ry="5" fill="#26346a" opacity=".7"/>
+    <ellipse cx="342" cy="66" rx="7" ry="4" fill="#26346a" opacity=".7"/>
+    <ellipse cx="332" cy="58" rx="34" ry="9" fill="none" stroke="#7fd8ff" strokeWidth="1" opacity=".35" transform="rotate(-18 332 58)"/>
+    {[[20, 150], [70, 176], [200, 20]].map(([x, y], i) => (
+      <path key={i} d={`M${x},${y} l6,-14 l6,14 z`} fill="#4AA6FF" opacity=".25"
+        style={{ animation: `uoFlicker ${2 + i * .5}s ease-in-out ${i * .6}s infinite` }}/>
+    ))}
   </svg>
 );
 
 const FallScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <ellipse cx="200" cy="30" rx="220" ry="30" fill="#ff8a3d" opacity=".18"/>
-    {[[170, 40], [200, 55], [225, 42]].map(([x, y], i) => (
-      <ellipse key={i} cx={x} cy={y} rx="9" ry="16" fill="#ff7a3d" opacity=".7"
-        style={{ animation: `uoFlicker ${1.1 + i * .2}s ease-in-out ${i * .2}s infinite` }}/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <ellipse cx="200" cy="20" rx="240" ry="34" fill="#ff8a3d" opacity=".18"/>
+    <path d="M0,40 Q200,10 400,40" fill="none" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
+    {[[150, 34], [175, 48], [200, 30], [225, 50], [248, 36]].map(([x, y], i) => (
+      <ellipse key={i} cx={x} cy={y} rx="9" ry="17" fill="#ff7a3d" opacity=".7"
+        style={{ animation: `uoFlicker ${1.1 + i * .18}s ease-in-out ${i * .18}s infinite` }}/>
     ))}
-    <rect x="70" y="150" width="260" height="34" rx="4" fill="#141a26" stroke="#2a3448"/>
-    {[0, 1, 2, 3, 4, 5].map(i => (
+    <ellipse cx="200" cy="42" rx="20" ry="10" fill="#fff2c9" opacity=".8" style={{ animation: 'uoFlicker .7s ease-in-out infinite' }}/>
+    <ellipse cx="140" cy="86" rx="16" ry="26" fill="#5a5a66" opacity=".12" style={{ animation: 'uoBob 4s ease-in-out infinite' }}/>
+    <ellipse cx="260" cy="80" rx="20" ry="30" fill="#5a5a66" opacity=".1" style={{ animation: 'uoBob 4.6s ease-in-out .5s infinite' }}/>
+    <rect x="60" y="150" width="280" height="40" rx="5" fill="#141a26" stroke="#2a3448"/>
+    <rect x="60" y="120" width="280" height="28" rx="5" fill="#101622" stroke="#232e40"/>
+    {[0, 1, 2, 3, 4, 5, 6].map(i => (
+      <rect key={i} x={76 + i * 38} y="128" width="24" height="6" fill="#1c2436"/>
+    ))}
+    {[0, 1, 2, 3, 4, 5, 6].map(i => (
       <g key={i}>
-        <rect x={82 + i * 40} y="158" width="26" height="6" fill="#1e2636"/>
-        <circle cx={90 + i * 40} cy="176" r="2.2" fill="#4AA6FF" style={{ animation: `uoLed 1.6s ease-in-out ${i * .3}s infinite` }}/>
-        <circle cx={100 + i * 40} cy="176" r="2.2" fill="#8fffd6" style={{ animation: `uoLed 1.4s ease-in-out ${i * .22}s infinite` }}/>
+        <rect x={76 + i * 38} y="160" width="24" height="6" fill="#1e2636"/>
+        <circle cx={83 + i * 38} cy="180" r="2.2" fill="#4AA6FF" style={{ animation: `uoLed 1.6s ease-in-out ${i * .3}s infinite` }}/>
+        <circle cx={93 + i * 38} cy="180" r="2.2" fill="#8fffd6" style={{ animation: `uoLed 1.4s ease-in-out ${i * .22}s infinite` }}/>
       </g>
+    ))}
+    {[0, 1, 2, 3, 4, 5].map(i => (
+      <line key={i} x1="200" y1="150" x2={200 + Math.cos(i * 1.05) * 26} y2={150 + Math.sin(i * 1.05) * 26 - 10}
+        stroke="#ffe58a" strokeWidth="1.6" opacity=".6" style={{ animation: `uoFlicker ${1 + i * .1}s ease-in-out infinite` }}/>
     ))}
   </svg>
 );
 
 const GuardianScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <rect x="130" y="46" width="140" height="108" rx="16" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".65"/>
-    <rect x="146" y="60" width="108" height="80" rx="10" fill="#ffcf6b" opacity=".07"/>
-    <path d="M92,80 a8,8 0 0,1 16,0 c0,7 -8,10 -8,16 c0,-6 -8,-9 -8,-16 Z" fill="#ff9bb0"
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={10} seed={6}/>
+    <rect x="120" y="30" width="160" height="140" rx="18" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".65"/>
+    <rect x="138" y="46" width="124" height="108" rx="12" fill="#ffcf6b" opacity=".07"/>
+    <line x1="138" y1="70" x2="262" y2="70" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
+    <line x1="138" y1="94" x2="262" y2="94" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
+    <line x1="138" y1="118" x2="262" y2="118" stroke="#ffcf6b" strokeWidth="1" opacity=".2"/>
+    <path d="M78,66 a8,8 0 0,1 16,0 c0,7 -8,10 -8,16 c0,-6 -8,-9 -8,-16 Z" fill="#ff9bb0"
       style={{ animation: 'uoBob 2.6s ease-in-out infinite' }}/>
-    <rect x="286" y="70" width="26" height="18" rx="6" fill="#4AA6FF" opacity=".8"
+    <rect x="296" y="56" width="28" height="19" rx="6" fill="#4AA6FF" opacity=".8"
       style={{ animation: 'uoBob 3s ease-in-out .4s infinite' }}/>
-    <polygon points="90,140 94,150 104,150 96,157 99,167 90,161 81,167 84,157 76,150 86,150"
+    <polygon points="70,120 74,130 84,130 76,137 79,147 70,141 61,147 64,137 56,130 66,130"
       fill="#ffe08a" style={{ animation: 'uoBob 2.4s ease-in-out .8s infinite' }}/>
+    <path d="M320,130 a7,7 0 0,1 14,0 c0,6 -7,9 -7,14 c0,-5 -7,-8 -7,-14 Z" fill="#8fffd6" opacity=".85"
+      style={{ animation: 'uoBob 2.8s ease-in-out .3s infinite' }}/>
+    <circle cx="60" cy="60" r="4" fill="#c9a6ff" opacity=".6" style={{ animation: 'uoBob 3.2s ease-in-out .6s infinite' }}/>
+    <path d="M60,60 Q90,50 118,52" fill="none" stroke="#c9a6ff" strokeWidth="1" strokeDasharray="2 6" opacity=".3"/>
+    <circle cx="330" cy="160" r="4" fill="#ff9bb0" opacity=".6" style={{ animation: 'uoBob 2.9s ease-in-out .2s infinite' }}/>
+    <path d="M330,160 Q300,150 270,148" fill="none" stroke="#ff9bb0" strokeWidth="1" strokeDasharray="2 6" opacity=".3"/>
   </svg>
 );
 
 const FolderScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <line x1="0" y1="40" x2="400" y2="40" stroke="#8a7a4a" strokeWidth=".5" opacity=".15"/>
+    <line x1="0" y1="80" x2="400" y2="80" stroke="#8a7a4a" strokeWidth=".5" opacity=".15"/>
+    <line x1="0" y1="120" x2="400" y2="120" stroke="#8a7a4a" strokeWidth=".5" opacity=".15"/>
     <path d="M130,130 h60 l12,-14 h68 v14" fill="none" stroke="#8a7a4a" strokeWidth="2" opacity=".7"/>
     <rect x="118" y="130" width="164" height="42" rx="4" fill="#3a3220" stroke="#8a7a4a" strokeWidth="1.5"/>
     <rect x="190" y="140" width="20" height="8" rx="2" fill="#ffe58a" opacity=".95"
       style={{ animation: 'uoFlicker 1.4s ease-in-out infinite' }}/>
-    <text x="252" y="60" fontSize="20" fill="#7fd8ff" opacity=".7" style={{ animation: 'uoBob 2.4s ease-in-out infinite' }}>{'{'}</text>
-    <text x="292" y="90" fontSize="20" fill="#c9a6ff" opacity=".6" style={{ animation: 'uoBob 2.8s ease-in-out .5s infinite' }}>{'}'}</text>
-    <text x="80" y="80" fontSize="16" fill="#8fffd6" opacity=".5" style={{ animation: 'uoBob 3s ease-in-out .2s infinite' }}>01</text>
+    <rect x="150" y="146" width="10" height="4" fill="#ffe58a" opacity=".5" style={{ animation: 'uoFlicker 1.7s ease-in-out .2s infinite' }}/>
+    <rect x="240" y="146" width="10" height="4" fill="#ffe58a" opacity=".5" style={{ animation: 'uoFlicker 1.9s ease-in-out .4s infinite' }}/>
+    <text x="252" y="60" fontSize="22" fill="#7fd8ff" opacity=".7" style={{ animation: 'uoBob 2.4s ease-in-out infinite' }}>{'{'}</text>
+    <text x="298" y="94" fontSize="22" fill="#c9a6ff" opacity=".6" style={{ animation: 'uoBob 2.8s ease-in-out .5s infinite' }}>{'}'}</text>
+    <text x="70" y="86" fontSize="17" fill="#8fffd6" opacity=".5" style={{ animation: 'uoBob 3s ease-in-out .2s infinite' }} fontFamily="monospace">01</text>
+    <text x="308" y="54" fontSize="15" fill="#ff9bb0" opacity=".45" style={{ animation: 'uoBob 3.2s ease-in-out .6s infinite' }} fontFamily="monospace">?</text>
+    <text x="60" y="50" fontSize="14" fill="#ffe58a" opacity=".4" style={{ animation: 'uoBob 2.6s ease-in-out .8s infinite' }} fontFamily="monospace">10</text>
   </svg>
 );
 
 const TruthScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    {['1010', '0110', '1100', '0101', '1001'].map((t, i) => (
-      <text key={i} x={40 + i * 80} y="0" fontSize="13" fill="#ff4d6d" opacity=".55" fontFamily="monospace"
-        style={{ animation: `uoRain ${2.4 + i * .3}s linear ${i * .5}s infinite` }}>{t}</text>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    {['1010', '0110', '1100', '0101', '1001', '1110', '0011', '1011'].map((t, i) => (
+      <text key={i} x={20 + i * 48} y="0" fontSize="13" fill="#ff4d6d" opacity=".5" fontFamily="monospace"
+        style={{ animation: `uoRain ${2.2 + (i % 4) * .3}s linear ${i * .35}s infinite` }}>{t}</text>
     ))}
-    <polygon points="200,54 226,100 174,100" fill="none" stroke="#ff4d6d" strokeWidth="2.5"
+    <path d="M0,60 L400,64" stroke="#fff" strokeWidth="1" opacity=".25" style={{ animation: 'uoFlicker .6s ease-in-out infinite' }}/>
+    <path d="M0,140 L400,136" stroke="#7fd8ff" strokeWidth="1" opacity=".2" style={{ animation: 'uoFlicker .8s ease-in-out .2s infinite' }}/>
+    <polygon points="200,44 232,100 168,100" fill="none" stroke="#ff4d6d" strokeWidth="2.5"
       style={{ animation: 'uoFlicker 1.1s ease-in-out infinite' }}/>
-    <text x="200" y="94" fontSize="16" fill="#ff4d6d" textAnchor="middle" fontWeight="700"
+    <text x="200" y="90" fontSize="18" fill="#ff4d6d" textAnchor="middle" fontWeight="700"
       style={{ animation: 'uoFlicker 1.1s ease-in-out infinite' }}>!</text>
+    <rect x="60" y="150" width="46" height="30" fill="none" stroke="#c9a6ff" strokeWidth="1.4" opacity=".4"
+      style={{ animation: 'uoFlicker 1.6s ease-in-out .3s infinite' }}/>
+    <rect x="294" y="130" width="40" height="26" fill="none" stroke="#8fffd6" strokeWidth="1.4" opacity=".4"
+      style={{ animation: 'uoFlicker 1.4s ease-in-out .5s infinite' }}/>
   </svg>
 );
 
 const EscapeScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <circle cx="200" cy="100" r="66" fill="none" stroke="#c9a6ff" strokeWidth="1.6" opacity=".5"/>
-    <ellipse cx="200" cy="100" rx="66" ry="22" fill="none" stroke="#c9a6ff" strokeWidth="1" opacity=".4"/>
-    <ellipse cx="200" cy="100" rx="30" ry="66" fill="none" stroke="#c9a6ff" strokeWidth="1" opacity=".4"/>
-    <path d="M150,60 L182,96 L164,104 L196,140" fill="none" stroke="#fff" strokeWidth="1.6"
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={16} seed={7}/>
+    <circle cx="200" cy="100" r="80" fill="none" stroke="#c9a6ff" strokeWidth="1.6" opacity=".5"/>
+    <ellipse cx="200" cy="100" rx="80" ry="26" fill="none" stroke="#c9a6ff" strokeWidth="1" opacity=".4"/>
+    <ellipse cx="200" cy="100" rx="80" ry="52" fill="none" stroke="#c9a6ff" strokeWidth=".8" opacity=".3"/>
+    <ellipse cx="200" cy="100" rx="36" ry="80" fill="none" stroke="#c9a6ff" strokeWidth="1" opacity=".4"/>
+    <ellipse cx="200" cy="100" rx="58" ry="80" fill="none" stroke="#c9a6ff" strokeWidth=".8" opacity=".3"/>
+    <path d="M150,44 L192,96 L164,106 L206,150" fill="none" stroke="#fff" strokeWidth="1.8"
       style={{ animation: 'uoFlicker 1.3s ease-in-out infinite' }}/>
-    {[[140, 80], [258, 70], [244, 138]].map(([x, y], i) => (
-      <rect key={i} x={x} y={y} width="10" height="10" fill="#c9a6ff"
-        style={{ transformOrigin: `${x + 5}px ${y + 5}px`, animation: `uoDrift ${1.8 + i * .3}s ease-in ${i * .6}s infinite` }}/>
+    <path d="M250,50 L228,90 L246,98 L222,140" fill="none" stroke="#fff" strokeWidth="1.4" opacity=".8"
+      style={{ animation: 'uoFlicker 1.5s ease-in-out .3s infinite' }}/>
+    {[[132, 76], [268, 66], [252, 144], [140, 132], [200, 30]].map(([x, y], i) => (
+      <rect key={i} x={x} y={y} width="11" height="11" fill="#c9a6ff"
+        style={{ transformOrigin: `${x + 5}px ${y + 5}px`, animation: `uoDrift ${1.8 + i * .3}s ease-in ${i * .5}s infinite` }}/>
     ))}
   </svg>
 );
 
 const CageScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
-    <ellipse cx="200" cy="52" rx="70" ry="14" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
-    <ellipse cx="200" cy="150" rx="70" ry="14" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
-    {Array.from({ length: 9 }, (_, i) => 200 - 70 + i * 17.5).map((x, i) => (
-      <line key={i} x1={x} y1="52" x2={x} y2="150" stroke="#ffcf6b" strokeWidth="2" opacity=".7"/>
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <ellipse cx="200" cy="180" rx="90" ry="14" fill="#000" opacity=".3"/>
+    <ellipse cx="200" cy="40" rx="86" ry="16" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
+    <ellipse cx="200" cy="160" rx="86" ry="16" fill="none" stroke="#ffcf6b" strokeWidth="2.5" opacity=".8"/>
+    <ellipse cx="200" cy="100" rx="94" ry="20" fill="none" stroke="#ffcf6b" strokeWidth="1" opacity=".3"/>
+    {Array.from({ length: 13 }, (_, i) => 200 - 86 + i * 14.3).map((x, i) => (
+      <line key={i} x1={x} y1="40" x2={x} y2="160" stroke="#ffcf6b" strokeWidth="2" opacity=".7"/>
     ))}
-    <circle cx="200" cy="100" r="16" fill="#8fd6ff" opacity=".55" style={{ animation: 'uoDarkPulse 2.4s ease-in-out infinite' }}/>
-    {[[40, 40], [360, 50], [50, 160], [355, 155]].map(([x, y], i) => (
-      <g key={i} style={{ transformOrigin: `${x}px ${y}px`, animation: `uoBlinkEye 3.4s ease-in-out ${i * .7}s infinite` }}>
+    <circle cx="200" cy="100" r="22" fill="#8fd6ff" opacity=".5" style={{ animation: 'uoDarkPulse 2.4s ease-in-out infinite' }}/>
+    <circle cx="200" cy="100" r="34" fill="none" stroke="#8fd6ff" strokeWidth="1" opacity=".3" style={{ animation: 'uoDarkPulse 2.4s ease-in-out .3s infinite' }}/>
+    {[[26, 30], [374, 34], [18, 168], [382, 164], [70, 12], [330, 190]].map(([x, y], i) => (
+      <g key={i} style={{ transformOrigin: `${x}px ${y}px`, animation: `uoBlinkEye 3.4s ease-in-out ${i * .6}s infinite` }}>
         <ellipse cx={x} cy={y} rx="9" ry="5" fill="#fff" opacity=".8"/>
         <circle cx={x} cy={y} r="2.6" fill="#241a05"/>
       </g>
@@ -173,7 +250,8 @@ const CageScene = () => (
 );
 
 const SilenceScene = () => (
-  <svg viewBox="0 0 400 200" width="100%" height="100%">
+  <svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+    <Stars n={8} seed={9}/>
     <circle cx="200" cy="100" r="3" fill="#4AA6FF" opacity=".9" style={{ animation: 'uoTwinkle 2.2s ease-in-out infinite' }}/>
   </svg>
 );
@@ -260,7 +338,6 @@ const SLIDES = [
 
 const CHARS_PER_TICK = 2;
 const TICK_MS = 20;
-const AUTO_ADVANCE_PAUSE_MS = 1500;
 
 const MOOD_ANIM = {
   calm:     'uoFloat 3.4s ease-in-out infinite',
@@ -288,29 +365,21 @@ export const UnikoOrigin = () => {
   const openModal  = () => { setPage(0); setPaused(false); setOpen(true); };
   const closeModal = () => setOpen(false);
 
-  // Narração em tempo real: revela a cena caractere a caractere e, ao terminar,
-  // aguarda um tempo de leitura e avança sozinho pra próxima (se não estiver pausado).
+  // Narração em tempo real: revela a cena caractere a caractere. Ao terminar, fica
+  // parado na cena esperando o usuário avançar manualmente (sem pular sozinho).
   useEffect(() => {
     if (!open) return;
     setTypedChars(0);
-    let advanceTimer = null;
     const total = fullText.length;
     const id = setInterval(() => {
       if (pausedRef.current) return;
       setTypedChars(c => {
         const next = Math.min(total, c + CHARS_PER_TICK);
-        if (next >= total) {
-          clearInterval(id);
-          if (page < last) {
-            advanceTimer = setTimeout(() => {
-              if (!pausedRef.current) setPage(p => Math.min(last, p + 1));
-            }, AUTO_ADVANCE_PAUSE_MS);
-          }
-        }
+        if (next >= total) clearInterval(id);
         return next;
       });
     }, TICK_MS);
-    return () => { clearInterval(id); clearTimeout(advanceTimer); };
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, open]);
 
@@ -364,11 +433,11 @@ export const UnikoOrigin = () => {
             @keyframes uoIris{0%{clip-path:circle(140px at 50% 50%)}100%{clip-path:circle(4px at 50% 50%)}}
           `}</style>
           <div onClick={e => e.stopPropagation()}
-            style={{ width:'min(560px, 96vw)', background:T.surface, borderRadius:22, overflow:'hidden',
+            style={{ width:'min(820px, 96vw)', background:T.surface, borderRadius:22, overflow:'hidden',
               border:`1px solid ${T.border}`, boxShadow:'0 24px 80px rgba(0,0,0,0.35)', animation:'uoIn .22s ease' }}>
 
             {/* Cabeçalho */}
-            <div style={{ position:'relative', padding:'16px 26px 12px', background:T.goldGl, borderBottom:`1px solid ${T.border}` }}>
+            <div style={{ position:'relative', padding:'18px 30px 14px', background:T.goldGl, borderBottom:`1px solid ${T.border}` }}>
               <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:T.gold, marginBottom:4 }}>
                 🌌 O Viajante · {s.tag}
               </div>
@@ -379,11 +448,11 @@ export const UnikoOrigin = () => {
             </div>
 
             {/* Palco: a cena ilustrada + o mascote reagindo */}
-            <div style={{ position:'relative', width:'100%', height:180, overflow:'hidden', background:SCENE_BG[s.scene] }}>
+            <div style={{ position:'relative', width:'100%', height:340, overflow:'hidden', background:SCENE_BG[s.scene] }}>
               <Scene/>
-              <div style={{ position:'absolute', top:pos.top, left:pos.left, transform:'translate(-50%,-50%)', width:52, height:52 }}>
+              <div style={{ position:'absolute', top:pos.top, left:pos.left, transform:'translate(-50%,-50%)', width:84, height:84 }}>
                 <img key={page} src="/UNIKO_NEW.png" alt="Uniko"
-                  style={{ width:'100%', height:'100%', objectFit:'contain', filter:'drop-shadow(0 4px 10px rgba(0,0,0,.5))',
+                  style={{ width:'100%', height:'100%', objectFit:'contain', filter:'drop-shadow(0 6px 14px rgba(0,0,0,.5))',
                     animation:MOOD_ANIM[s.mood], animationPlayState:paused ? 'paused' : 'running' }}/>
               </div>
               {s.scene === 'silence' && (
@@ -399,8 +468,8 @@ export const UnikoOrigin = () => {
 
             {/* Legenda (caixa de narração, como num quadrinho) */}
             <div onClick={handleNext}
-              style={{ padding:'16px 26px 8px', minHeight:96, maxHeight:150, overflowY:'auto',
-                display:'flex', flexDirection:'column', gap:11, cursor:'pointer' }}>
+              style={{ padding:'18px 30px 10px', minHeight:120, maxHeight:190, overflowY:'auto',
+                display:'flex', flexDirection:'column', gap:12, cursor:'pointer' }}>
               {fullText.slice(0, typedChars).split('\n\n').map((paragraph, i, arr) => (
                 <div key={i} style={{ fontSize:14, color:T.text, lineHeight:1.6 }}>
                   {paragraph}
@@ -413,7 +482,7 @@ export const UnikoOrigin = () => {
             </div>
 
             {/* Rodapé: narrador (pausar) + dots + navegação */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'12px 26px 20px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'12px 30px 22px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <button onClick={() => setPaused(p => !p)} title={paused ? 'Continuar narração' : 'Pausar narração'}
                   style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${T.border}`, background:'transparent',
