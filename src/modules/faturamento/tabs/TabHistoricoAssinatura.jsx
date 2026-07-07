@@ -20,6 +20,8 @@ const fmtHora = (iso) => {
   catch { return '—'; }
 };
 
+const TIPO_LABEL = { assinatura_automatica: 'Assinatura Automática', carta_correcao: 'Carta de Correção' };
+
 export const TabHistoricoAssinatura = () => {
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ export const TabHistoricoAssinatura = () => {
             <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',fontSize:13}}>
               <thead>
                 <tr style={{background:T.goldGl,borderBottom:`1px solid ${T.border}`}}>
-                  {['Usuário','Login','Arquivo','Data','Hora'].map(h => (
+                  {['Usuário','Login','Tipo','Arquivo','Data','Hora',''].map(h => (
                     <th key={h} style={{padding:'12px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:T.textS,letterSpacing:'.05em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
                       {h}
                     </th>
@@ -122,14 +124,24 @@ export const TabHistoricoAssinatura = () => {
                     onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                     <td style={{padding:'10px 14px',color:T.text,fontWeight:600,whiteSpace:'nowrap'}}>{r.usuario || '—'}</td>
                     <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{fmtLogin(r.login)}</td>
+                    <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{TIPO_LABEL[r.tipo] || r.tipo || '—'}</td>
                     <td style={{padding:'10px 14px',color:T.text,maxWidth:280,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.arquivo}>{r.arquivo || '—'}</td>
                     <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{fmtData(r.assinado_em)}</td>
                     <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{fmtHora(r.assinado_em)}</td>
+                    <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}>
+                      {r.arquivo_url && (
+                        <a href={r.arquivo_url} target="_blank" rel="noopener noreferrer"
+                          style={{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:8,border:`1px solid ${T.gold}55`,background:T.goldGl,color:T.gold,fontSize:12,fontWeight:600,textDecoration:'none'}}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Ver/Baixar
+                        </a>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
+                    <td colSpan={7} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
                       {search ? 'Nenhum resultado para a busca' : 'Nenhuma assinatura registrada ainda'}
                     </td>
                   </tr>

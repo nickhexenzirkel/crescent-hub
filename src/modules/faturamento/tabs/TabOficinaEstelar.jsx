@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { T } from '../../../contexts/theme';
+import { supabase } from '../../../contexts/user';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
+import { logAssinatura } from '../assinaturaDb';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
 import logo7ServUrl from '../../../assets/logo-7beneficios.png';
 
@@ -318,13 +320,7 @@ const TabCarta = () => {
   const printCarta = () => {
     const src = document.getElementById('carta-doc');
     if (!src) return;
-    const w = window.open('', '_blank', 'width=900,height=1000');
-    if (!w) { window.print(); return; } // pop-up bloqueado → volta pro jeito antigo
-    w.document.open();
-    // título vazio: se o navegador imprimir cabeçalho/rodapé (opção do próprio
-    // diálogo de impressão), evita duplicar "Carta de Correção" — que já aparece
-    // no corpo do documento — no canto da página.
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    const htmlDoc = `<!DOCTYPE html><html><head><meta charset="utf-8">
       <title> </title>
       <style>
         @page{margin:10mm} body{margin:0}
@@ -333,7 +329,15 @@ const TabCarta = () => {
            sai vazia no PDF mesmo aparecendo preenchida na tela. */
         *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
       </style>
-      </head><body>${src.outerHTML}</body></html>`);
+      </head><body>${src.outerHTML}</body></html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=1000');
+    if (!w) { window.print(); return; } // pop-up bloqueado → volta pro jeito antigo
+    w.document.open();
+    // título vazio: se o navegador imprimir cabeçalho/rodapé (opção do próprio
+    // diálogo de impressão), evita duplicar "Carta de Correção" — que já aparece
+    // no corpo do documento — no canto da página.
+    w.document.write(htmlDoc);
     w.document.close();
     // fecha a janela sozinha só DEPOIS que o diálogo de impressão for fechado
     // (fechar logo após w.print() arriscaria cancelar a impressão em alguns navegadores)
@@ -344,6 +348,26 @@ const TabCarta = () => {
     let pending = imgs.length;
     const done = () => { if (--pending <= 0) doPrint(); };
     imgs.forEach(img => { img.complete ? done() : (img.onload = img.onerror = done); });
+
+    // Guarda um snapshot do documento no Storage e registra no Histórico de
+    // Assinatura — deixa o admin ver/baixar depois quem gerou o quê. Roda em
+    // segundo plano (não atrasa nem bloqueia a impressão em si).
+    (async () => {
+      try {
+        const empresaSlug = (form.empresa || 'documento').trim().slice(0, 40).replace(/[^\p{L}\p{N}]+/gu, '-');
+        const path = `carta-correcao/${Date.now()}_${empresaSlug}.html`;
+        const blob = new Blob([htmlDoc], { type: 'text/html' });
+        const { error: upErr } = await supabase.storage
+          .from('oficina-documentos').upload(path, blob, { contentType: 'text/html', upsert: false });
+        if (upErr) throw upErr;
+        const { data: urlData } = supabase.storage.from('oficina-documentos').getPublicUrl(path);
+        await logAssinatura({
+          arquivo: `Carta de Correção — ${form.empresa || 'sem razão social'}${form.nfNumero ? ' (NF ' + form.nfNumero + ')' : ''}`,
+          tipo: 'carta_correcao',
+          arquivoUrl: urlData?.publicUrl || null,
+        });
+      } catch { /* histórico indisponível — não bloqueia o download do usuário */ }
+    })();
   };
 
   return (
