@@ -318,6 +318,20 @@ canvas{display:block}
 .go-btn:hover{transform:scale(1.03);box-shadow:0 6px 40px rgba(255,45,146,.65);filter:brightness(1.1)}
 .go-btn:active{transform:scale(.97)}
 
+/* ─── PLAY CHOICE (Adicionar música nova × Biblioteca) ─── */
+.play-choice-row{width:100%;max-width:640px;display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.play-choice-card{
+  flex:1;min-width:220px;max-width:280px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;
+  background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.14);
+  border-radius:18px;padding:28px 20px;cursor:pointer;
+  transition:transform .18s,border-color .18s,background .18s,box-shadow .18s;
+}
+.play-choice-card:hover{transform:translateY(-4px);border-color:rgba(255,45,146,.5);background:rgba(255,45,146,.08);box-shadow:0 10px 34px rgba(255,45,146,.3)}
+.play-choice-icon{font-size:38px;filter:drop-shadow(0 0 14px rgba(255,45,146,.5))}
+.play-choice-title{font-family:var(--font-pixel);font-size:12px;color:#fff;letter-spacing:1px}
+.play-choice-sub{font-size:11.5px;color:rgba(255,255,255,.45);line-height:1.5}
+
 /* ─── PANEL TITLE (shared) ─── */
 .panel-title{
   font-family:var(--font-pixel);font-size:clamp(14px,2vw,22px);font-weight:400;
@@ -1570,7 +1584,7 @@ canvas{display:block}
       <button class="snav-btn active" id="mnBtnHome" onclick="showMenuPanel('panelHome',this)">
         <span class="snav-icon" data-pxicon="home"></span> INÍCIO
       </button>
-      <button class="snav-btn" id="mnBtn0" onclick="showMenuPanel('panelPlay',this)">
+      <button class="snav-btn" id="mnBtn0" onclick="showMenuPanel('panelPlayChoice',this)">
         <span class="snav-icon" data-pxicon="play"></span> JOGAR
       </button>
       <button class="snav-btn" id="mnBtn4" onclick="showMenuPanel('panelChar',this)">
@@ -1611,7 +1625,27 @@ canvas{display:block}
           style="width:100%;height:100%;object-fit:contain;object-position:center;display:block"></video>
         <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(5,1,24,.9),rgba(5,1,24,.15) 42%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 24px 38px;gap:14px">
           <div style="font-family:var(--font-pixel);font-size:clamp(9px,1.4vw,13px);color:rgba(255,255,255,.82);letter-spacing:2px;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.9)">SINTA O RITMO</div>
-          <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlay',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>
+          <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlayChoice',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAY CHOICE PANEL — adicionar música nova × ir pra Biblioteca -->
+    <div class="menu-panel off" id="panelPlayChoice">
+      <div class="play-icon">▶</div>
+      <div class="play-title-top">PRONTO PARA</div>
+      <div class="play-title-bot">JOGAR?</div>
+      <div class="play-hint">Escolha como você quer começar</div>
+      <div class="play-choice-row">
+        <div class="play-choice-card" onclick="showMenuPanel('panelPlay',document.getElementById('mnBtn0'))">
+          <div class="play-choice-icon">🎵</div>
+          <div class="play-choice-title">ADICIONAR MÚSICA NOVA</div>
+          <div class="play-choice-sub">Cole o link de qualquer música do YouTube e jogue na hora</div>
+        </div>
+        <div class="play-choice-card" onclick="showMenuPanel('panelLib',document.getElementById('mnBtn2'))">
+          <div class="play-choice-icon">📚</div>
+          <div class="play-choice-title">BIBLIOTECA</div>
+          <div class="play-choice-sub">Escolha entre as músicas iniciais e as que você já jogou</div>
         </div>
       </div>
     </div>
@@ -4143,6 +4177,13 @@ const STARTER_SONGS = [
   { vid:'83C3TZ4Zm_o', title:'Lemonade' },
   { vid:'pzPElFdxMCM', title:'Shinigami Eyes' },
   { vid:'5sT20edl02I', title:'Woke Up' },
+  { vid:'-fR_W18UG0U', title:'Telefone (Luísa Sonza)' },
+  { vid:'i0p1bmr0EmE', title:'What Is Love? (TWICE)' },
+  { vid:'Dst9gZkq1a8', title:'Goosebumps (Travis Scott)' },
+  { vid:'fcnDmrtj6Sk', title:'Dai Dai (Shakira, Burna Boy)' },
+  { vid:'q0u47Nl7N7M', title:'Lua Cheia (Marina Sena)' },
+  { vid:'DYPbhPY2WAg', title:'O Nosso Amor a Gente Inventa (Cazuza)' },
+  { vid:'eiPX0qqT_Nk', title:'Nice to Meet You (PinkPantheress)' },
 ];
 // Filtros da biblioteca (categoria, dificuldade, modo, estrelas mín., pontuação mín.)
 let libFilters = { cat:'todas', diff:'todas', mode:'todos', stars:0, score:0 };
