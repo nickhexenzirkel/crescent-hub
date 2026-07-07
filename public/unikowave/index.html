@@ -2722,6 +2722,9 @@ function setBgMode(mode){
   bgMode = mode;
   localStorage.setItem('dw_bgmode_v2', mode);
   updateBgPickerUI();
+  // Trocou pra "Com Clipe" já na prévia de uma música → dispara o download agora
+  // (antes só rodava se já tivesse escolhido "vídeo" ao entrar na prévia).
+  if(mode==='video'){ const vid=getYTId(lastYtUrl||''); if(vid) _ytdlKickoff(vid); }
 }
 function updateBgPickerUI(){
   const eff=document.getElementById('bgOptEffects'), vid=document.getElementById('bgOptVideo');
@@ -3115,13 +3118,76 @@ function _capVideoQuality(player, target){
 // do _vbAudioPlayer (ver _startVideoClockPlayer), que é pequeno/leve e muito mais
 // resistente a buffer. Pior caso: a imagem congela/pisca um instante, mas as
 // notas e a música continuam tocando normal.
-function startVideoBg(videoId){
+// Cria um objeto com a MESMA "API" que um YT.Player (pauseVideo/playVideo/seekTo/
+// getPlayerState/destroy/etc) só que por cima de um <video> comum — assim todo o
+// resto do código que já fala com _vbPlayer (pauseGame, wargame, watchdog...)
+// funciona sem precisar saber se é o embed do YouTube ou o vídeo local.
+function _wrapLocalVideoAsPlayer(v){
+  return {
+    _localEl:v,
+    playVideo(){ try{ const p=v.play(); if(p&&p.catch)p.catch(()=>{}); }catch(_){} },
+    pauseVideo(){ try{ v.pause(); }catch(_){} },
+    seekTo(t){ try{ v.currentTime=Math.max(0,t||0); }catch(_){} },
+    mute(){ try{ v.muted=true; }catch(_){} },
+    unMute(){ try{ v.muted=false; }catch(_){} },
+    setVolume(vol){ try{ v.volume=Math.max(0,Math.min(1,(vol||0)/100)); }catch(_){} },
+    getCurrentTime(){ return v.currentTime||0; },
+    getDuration(){ return v.duration||0; },
+    getPlayerState(){
+      if(!window.YT||!YT.PlayerState) return -1;
+      if(v.ended) return YT.PlayerState.ENDED;
+      if(v.paused) return YT.PlayerState.PAUSED;
+      if(v.readyState<3) return YT.PlayerState.BUFFERING; // HAVE_FUTURE_DATA
+      return YT.PlayerState.PLAYING;
+    },
+    getIframe(){ return null; }, // não é um iframe — quem usa isso trata o null
+    setPlaybackQuality(){}, getAvailableQualityLevels(){ return []; }, // já é a versão leve baixada
+    destroy(){ try{ v.pause(); v.removeAttribute('src'); v.load(); v.remove(); }catch(_){} },
+  };
+}
+
+// Cria o vídeo VISÍVEL a partir do arquivo baixado pelo servidor (bem mais
+// resistente a buffer que o embed do YouTube — é um <video> comum com
+// byte-range, o navegador lida com isso muito melhor).
+function _startVideoBgLocal(videoId, url){
+  const wrap=document.getElementById('videoBgWrap');
+  wrap.innerHTML='<video id="localVideoFrame" muted playsinline autoplay></video>';
+  const v=document.getElementById('localVideoFrame');
+  if(!v) return;
+  v.style.cssText=VB_IFRAME_CSS;
+  v.src=url;
+  const p=v.play(); if(p&&p.catch) p.catch(()=>{});
+  _vbPlayer=_wrapLocalVideoAsPlayer(v);
+}
+
+// Prioriza o vídeo baixado pelo servidor (ver _ytdlKickoff, disparado bem antes
+// na tela de prévia) — só cai pro embed do YouTube se ainda não tiver terminado
+// de baixar ou tiver falhado. Não atrasa nada: se não tiver pronto na hora,
+// segue o fluxo normal de sempre.
+async function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
   _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0; _vbVisibleRetries=0; _vbVisibleGivenUp=false;
   wrap.innerHTML='<div id="ytVideoFrame"></div>';
 
+  try{
+    const status=await _ytdlCheckStatus(videoId);
+    // bgMode pode ter mudado ou a tela pode ter sido fechada enquanto esperava a resposta
+    if(bgMode!=='video'||!_videoBgActive) return;
+    if(status==='ready'){
+      _startVideoBgLocal(videoId, _ytdlServeUrl(videoId));
+      const badge=document.getElementById('localVidBadge');
+      if(badge){ badge.textContent='⚡ vídeo local (mais estável)'; badge.style.display='block'; }
+      return;
+    }
+  }catch(_){}
+  _startVideoBgYouTube(videoId);
+}
+
+// Caminho original: embed do YouTube (fallback quando o download local não
+// está pronto a tempo ou falhou).
+function _startVideoBgYouTube(videoId){
   const build=()=>{
     if(!document.getElementById('ytVideoFrame')) return;
     // width/height PEQUENOS de propósito (o CSS depois estica pra tela toda via
@@ -4693,6 +4759,10 @@ async function startLoad(){
 
 function showPreview(url,title,dur){
   const vid=getYTId(url);
+  // Só vale a pena baixar se o jogador for usar o clipe — dá o máximo de tempo
+  // possível (o jogador ainda vai escolher dificuldade/personagem) pro servidor
+  // terminar antes da partida começar.
+  if(vid && bgMode==='video') _ytdlKickoff(vid);
   if(vid){
     // Tenta maxresdefault (1280x720) primeiro; fallback para hqdefault se não existir
     const srcMax=`https://img.youtube.com/vi/${vid}/maxresdefault.jpg`;
@@ -4736,12 +4806,34 @@ function showPreview(url,title,dur){
   if(gpConnected) setTimeout(()=>gpHighlightDiff(),40); // mostra o cursor da dificuldade no controle
 }
 
-// Base do servidor de análise (Render em produção, localhost em dev)
+// Base do servidor de análise (VPS em produção, localhost em dev)
 function unikoServerBase(){
   const h=location.hostname;
   if(h==='localhost'||h==='127.0.0.1'||h==='') return 'http://localhost:3001';
-  return 'https://crescent-hub-server.onrender.com';
+  return 'https://api.centraluniko.com.br';
 }
+
+// ─── Vídeo baixado pelo SERVIDOR (yt-dlp, ≤480p) em vez de streaming direto do
+// YouTube — o vídeo de fundo vira um <video> comum servido do nosso próprio VPS,
+// bem mais resistente a buffer que o embed do YouTube. Kickoff cedo (na prévia,
+// antes até de escolher dificuldade) pra dar tempo do download terminar antes
+// da partida. Se não der tempo/falhar, cai de volta pro embed do YouTube — sem
+// travar nada, só sem o benefício. ───
+function _ytdlKickoff(videoId){
+  if(!videoId) return;
+  fetch(`${unikoServerBase()}/api/ytdl/download`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({videoId}),
+  }).catch(()=>{});
+}
+async function _ytdlCheckStatus(videoId){
+  try{
+    const r=await fetch(`${unikoServerBase()}/api/ytdl/status/${videoId}`);
+    const d=await r.json();
+    return d?.status||'not_found';
+  }catch(_){ return 'not_found'; }
+}
+function _ytdlServeUrl(videoId){ return `${unikoServerBase()}/api/ytdl/serve/${videoId}`; }
 
 // Busca o mapa de ritmo REAL no servidor (com polling enquanto analisa).
 // Lança erro se falhar — o chamador cai no modo estimado.
@@ -8299,9 +8391,9 @@ function wgEnterFinisher(){
   if(WG.phase!=='play') return;
   WG.phase='finisher'; WG.finisherStart=songTime(); WG.finisherKicks=0; WG.finisherNeed=wgDiff().kicks;
   WG.bossHp=WG.bossMaxHp; WG.attack=null; WG.waving=false; WG.waveT=0; wgHoldSfxStop();
-  // some com o vídeo de fundo no finisher (visual fica só no canvas)
-  try{ if(_vbPlayer&&_vbPlayer.getIframe){ const f=_vbPlayer.getIframe(); if(f) f.style.opacity='0'; } }catch(_){}
-  const vEl=document.getElementById('videoBg'); if(vEl) vEl.style.opacity='0';
+  // some com o vídeo de fundo no finisher (visual fica só no canvas) — funciona
+  // tanto pro embed do YouTube quanto pro <video> local (some o container todo).
+  const vbWrap=document.getElementById('videoBgWrap'); if(vbWrap) vbWrap.style.opacity='0';
   // resolve o que sobrou pra não contar como erro
   for(const n of chart){ if(n.state==='pending'||n.state==='holding') n.state='gone'; }
   WG.holds.air=null; WG.holds.ground=null; WG.bolts.length=0;
