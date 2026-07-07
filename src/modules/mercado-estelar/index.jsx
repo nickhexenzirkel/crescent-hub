@@ -392,14 +392,17 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
   // ── Compra na loja — prêmio físico OU Uniko (item.unikoId setado), mesma lista, mesmo
   // botão. Prêmio físico: baixa estoque, some da carteira, entra na Coleção da loja.
-  // Uniko: não baixa estoque (não é exclusivo — cada colaborador tem a própria "cópia"),
-  // some da carteira, entra na Coleção da loja (igual um prêmio) E ganha ownership de
-  // verdade (capture_uniko_captures), reaproveitando o mesmo caminho de uma captura —
-  // assim aparece tanto aqui quanto na Coleção de Unikos do Portal. ──
+  // Uniko: some da carteira, entra na Coleção da loja (igual um prêmio) E ganha
+  // ownership de verdade (capture_uniko_captures), reaproveitando o mesmo caminho
+  // de uma captura — assim aparece tanto aqui quanto na Coleção de Unikos do
+  // Portal. O estoque agora é configurável pelo admin (edição limitada) — baixa
+  // igual a um prêmio físico, além da checagem de "já possui" (não pode comprar
+  // o mesmo Uniko duas vezes mesmo se ainda tiver estoque). ──
   const buyItem = async (item) => {
     const isUniko = !!item.unikoId;
     if (isUniko) {
       if (ownedUnikoIds.has(item.unikoId)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
+      if (item.stock <= 0) { flash('Esse Uniko esgotou.'); return; }
     } else {
       if (item.stock <= 0) return;
       if (prizesExpired) { flash('Os prêmios deste mês já expiraram.'); return; }
@@ -414,7 +417,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       return {
         ...s,
         [item.cur]: s[item.cur] - item.price,
-        items: isUniko ? s.items : s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
+        items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
         collection,
         updatedAt: Date.now(),
       };
@@ -740,7 +743,7 @@ const Loja = ({ items, balances, onBuy, ownedUnikoIds, expiresAt, isMobile, card
 // Visualização em tela cheia do prêmio (card central + fundo desfocado)
 const ItemLightbox = ({ item, afford, owned, onBuy, onClose, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = !item.unikoId && item.stock <= 0;
+  const sold = item.stock <= 0;
   const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   const imgs = prizeImages(item);
@@ -829,7 +832,7 @@ const ItemLightbox = ({ item, afford, owned, onBuy, onClose, cardBg }) => {
 // Card grande de destaque (maior prêmio)
 const FeaturedCard = ({ item, afford, owned, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = !item.unikoId && item.stock <= 0;
+  const sold = item.stock <= 0;
   const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
@@ -884,7 +887,7 @@ const FeaturedCard = ({ item, afford, owned, onBuy, onView, cardBg }) => {
 // Card pequeno (grade)
 const ItemCard = ({ item, afford, owned, onBuy, onView, cardBg }) => {
   const cfg = item.cur === 'premium' ? PREMIUM : COMUM;
-  const sold = !item.unikoId && item.stock <= 0;
+  const sold = item.stock <= 0;
   const blocked = sold || owned;
   const rc = RARITY_COLOR[item.rarity] || T.textT;
   return (
@@ -1641,12 +1644,11 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
     if (isUnikoMode) {
       const uniko = availableUnikos.find(u => u.id === unikoPickId);
       if (!uniko) { flash('Escolha um Uniko'); return; }
-      // stock bem alto de propósito: não é um item exclusivo/limitado como um prêmio
-      // físico — cada colaborador ganha a própria "cópia" (ownership), então nunca
-      // deveria "esgotar" por causa de outra pessoa ter comprado.
+      const stock = parseInt(form.stock, 10);
+      if (isNaN(stock) || stock < 0) { flash('Informe a quantidade disponível'); return; }
       const item = {
         id: 'uniko_' + uniko.id, name: uniko.name, desc: uniko.tagline || '', emoji: '🧬',
-        rarity: form.rarity || 'Raro', cur: 'comum', price, stock: 999999, images: [uniko.img], unikoId: uniko.id,
+        rarity: form.rarity || 'Raro', cur: 'comum', price, stock, images: [uniko.img], unikoId: uniko.id,
       };
       setState(s => ({ ...s, items: [...s.items, item] }));
       setForm(blank); setUnikoPickId(''); setIsUnikoMode(false);
@@ -1811,12 +1813,10 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
               <label style={lbl}>Preço ({isUnikoMode ? 'Prisma Comum' : 'prismas'})</label>
               <input type="number" min="1" value={form.price} onChange={e => set('price', e.target.value)} placeholder="0" style={fieldStyle} />
             </div>
-            {!isUnikoMode && (
-              <div style={{ flex: 1 }}>
-                <label style={lbl}>Qtd. disponível</label>
-                <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} placeholder="0" style={fieldStyle} />
-              </div>
-            )}
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Qtd. disponível</label>
+              <input type="number" min="0" value={form.stock} onChange={e => set('stock', e.target.value)} placeholder="0" style={fieldStyle} />
+            </div>
           </div>
 
           <button onClick={addItem} style={primaryBtn(T.gold)}>{isUnikoMode ? 'Adicionar Uniko à loja' : 'Adicionar prêmio'}</button>
@@ -1856,7 +1856,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
                             ? <span style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: 'uppercase' }}>🧬 Uniko</span>
                             : <span style={{ fontSize: 10, fontWeight: 700, color: rc, textTransform: 'uppercase' }}>{i.rarity}</span>}
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, ...prismText(i.cur) }}><PrismIcon type={i.cur} size={13} />{fmt(i.price)}</span>
-                          {!i.unikoId && <span style={{ fontSize: 10.5, color: T.textT }}>· {i.stock} em estoque · {nImgs} foto{nImgs === 1 ? '' : 's'}</span>}
+                          <span style={{ fontSize: 10.5, color: T.textT }}>· {i.stock} em estoque{!i.unikoId && <> · {nImgs} foto{nImgs === 1 ? '' : 's'}</>}</span>
                         </div>
                       </div>
                       <button onClick={() => setEditId(open ? null : i.id)} title="Editar" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
