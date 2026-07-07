@@ -3081,6 +3081,22 @@ function _bufferResume(){
   requestAnimationFrame(gameLoop);
 }
 
+// Trava a qualidade do vídeo de fundo num nível mais leve (~480p) em vez de
+// deixar o YouTube escolher "auto" (que tende a pedir 720p/1080p pra um player
+// grande). É só o fundo da partida — não precisa de HD — e pedir bem menos
+// dado por segundo reduz MUITO a chance de re-bufferizar no meio da música,
+// sem tirar o clipe de quem quer jogar com ele. Reaplicado sempre que o
+// player volta a tocar, porque o YouTube às vezes reverte pra automático
+// sozinho depois de um soluço de rede.
+function _capVideoQuality(player){
+  try{
+    if(!player||!player.setPlaybackQuality) return;
+    const levels=player.getAvailableQualityLevels?player.getAvailableQualityLevels():[];
+    const pick=levels.includes('medium')?'medium':(levels[levels.length-1]||'medium');
+    player.setPlaybackQuality(pick);
+  }catch(_){}
+}
+
 // Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
 function startVideoBg(videoId, muted){
   if(bgMode!=='video'||!videoId) return;
@@ -3101,12 +3117,13 @@ function startVideoBg(videoId, muted){
         onReady:(e)=>{
           try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS;
             if(muted && e.target.mute) e.target.mute();
-            e.target.playVideo(); }catch(_){}
+            e.target.playVideo();
+            _capVideoQuality(e.target); }catch(_){}
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
           if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
-          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); }
+          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target); }
         },
       },
     });
