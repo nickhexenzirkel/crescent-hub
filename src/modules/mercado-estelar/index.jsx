@@ -654,10 +654,11 @@ const Loja = ({ items, balances, onBuy, ownedUnikoIds, expiresAt, isMobile, card
     .filter(i => filter === 'all' || i.cur === filter)
     .filter(i => !query.trim() || (i.name + ' ' + i.desc).toLowerCase().includes(query.trim().toLowerCase()));
 
-  // Maior prêmio em destaque (fixo em todas as páginas) + o resto paginado (6/pág)
+  // Maior prêmio em destaque (fixo em todas as páginas) + o resto paginado por página
+  // (era 7 = ~2 linhas de 4; +8 = mais 2 linhas de 4, total ~4 linhas por página)
   const featured = filtered[0] || null;
   const rest = filtered.slice(1);
-  const PAGE = 7;
+  const PAGE = 15;
   const [page, setPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(rest.length / PAGE));
   const pageSafe = page % pageCount;
