@@ -2961,6 +2961,7 @@ let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
 // junto; separando, um soluço no vídeo grande vira só um piscar de imagem.
 let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
+let _vbVisibleStuckSince=0; // vídeo visível (decorativo) preso bufferizando/pausado — pra auto-recuperação em syncVideoBg
 
 // Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
 function _loadYTApi(){
@@ -3113,7 +3114,7 @@ function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
-  _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false;
+  _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0;
   wrap.innerHTML='<div id="ytVideoFrame"></div>';
 
   const build=()=>{
@@ -3229,7 +3230,7 @@ function hideVideoBg(){
     wrap.style.transition=''; wrap.style.opacity='';
     wrap.innerHTML='';
   }
-  _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false;
+  _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0;
 }
 
 function fadeOutVideoBg(cb){
@@ -3254,6 +3255,22 @@ function syncVideoBg(){
       if(wrap){ wrap.style.transition='opacity 0.4s linear'; wrap.style.opacity=String(Math.max(0,Math.min(1,rem/2))); }
     }
     if(rem<=1.0){ _endByVideo(); } // encerra antes do YouTube mostrar recomendações
+  }
+  // Vídeo visível é só decoração e não afeta mais o jogo — mas se ele ficar
+  // preso bufferizando/pausado por muito tempo (conexão fraca), tenta se
+  // recuperar sozinho pulando pra posição REAL (a do relógio de verdade) em
+  // vez de ficar preto/parado pra sempre.
+  if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState){
+    let vs=-1; try{ vs=_vbPlayer.getPlayerState(); }catch(_){}
+    if(vs===YT.PlayerState.BUFFERING||vs===YT.PlayerState.PAUSED){
+      if(!_vbVisibleStuckSince) _vbVisibleStuckSince=performance.now();
+      else if(performance.now()-_vbVisibleStuckSince>3500){
+        _vbVisibleStuckSince=performance.now(); // evita tentar de novo a cada frame
+        try{ _vbPlayer.seekTo(Math.max(0,cur), true); _vbPlayer.playVideo(); }catch(_){}
+      }
+    } else {
+      _vbVisibleStuckSince=0;
+    }
   }
 }
 // ─── FULLSCREEN ───
