@@ -57,8 +57,7 @@ const NAV = [
   },
   {
     id: 'oficina',
-    label: 'Ferramentas Estelares',
-    adminOnly: true,
+    label: 'Ferramenta de Edição',
     icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
   },
   {
@@ -105,12 +104,11 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
               background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
               filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',zIndex:0,pointerEvents:'none'}}/>
             <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <img src="/UnikoCatbotQuadrado.png" alt="CatBot" style={{width:52,height:52,objectFit:'cover',borderRadius:12,display:'block'}}/>
+              <img src="/UNIKO_NEW.png" alt="Uniko" style={{width:52,height:52,objectFit:'contain',display:'block'}}/>
             </div>
           </div>
           <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Uniko Cat-Bot</div>
-            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginTop:3}}>Oficina Estelar</div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Uniko - Oficina Estelar</div>
           </div>
         </div>
         <StarDivider my={0}/>
@@ -161,7 +159,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramentas Estelares', carta:'Carta de Correção', oficio:'Ofício de Emissão' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramenta de Edição', carta:'Carta de Correção', oficio:'Ofício de Emissão' };
   if (tab === 'inicio') return null;
   return (
     <div style={{

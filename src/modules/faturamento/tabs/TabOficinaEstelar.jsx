@@ -595,7 +595,7 @@ export const TabOficinaEstelar = () => {
   const [hasDoc, setHasDoc] = useState(false);
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
-      {!hasDoc&&<StellarHero compact eyebrow="Ferramentas Estelares" title="Editor de PDF"
+      {!hasDoc&&<StellarHero compact eyebrow="Ferramenta de Edição" title="Editor de PDF"
         subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas." icon={HERO_ICON}/>}
       <PdfEditor onDoc={setHasDoc}/>
     </div>

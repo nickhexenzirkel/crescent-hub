@@ -99,8 +99,7 @@ const FEATURES = [
     id: 'oficina',
     color: '#8B5FE8',
     bg: 'rgba(139,95,232,0.10)',
-    adminOnly: true,
-    title: 'Ferramentas Estelares',
+    title: 'Ferramenta de Edição',
     desc: 'Editor de PDF: edite o texto existente, adicione textos, imagens e assinaturas — direto no navegador.',
     steps: ['Carregue o PDF', 'Edite o texto ou adicione elementos', 'Salve o PDF editado'],
     icon: (c) => (
