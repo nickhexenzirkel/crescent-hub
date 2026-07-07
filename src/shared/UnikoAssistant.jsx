@@ -209,6 +209,16 @@ function containsBlockedContent(raw) {
   return BLOCKED_CHAT_TERMS.some(term => q.includes(qkeyOf(term)));
 }
 
+// Verifica se o gatilho `k` aparece como PALAVRA/FRASE INTEIRA em `q` (isolado por
+// espaço ou início/fim), não como fragmento dentro de outra palavra. Antes era um
+// simples q.includes(k) — bastava a keyword "oi" pra bater dentro de "hoje",
+// "apoio", "envio" etc., disparando resposta errada sem relação com a pergunta.
+function _hasKeyword(q, k) {
+  if (!k) return false;
+  const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s)${esc}(?:$|\\s)`).test(q);
+}
+
 // FAQ por palavra-chave: ignora ACENTO (q e keywords normalizados) e dá mais peso a FRASES
 // (gatilho com espaço pesa 2, palavra solta pesa 1) → a entrada mais específica vence.
 function faqMatch(raw) {
@@ -216,10 +226,33 @@ function faqMatch(raw) {
   let best = null, bestScore = 0;
   for (const item of KB) {
     let score = 0;
-    for (const kw of item.k) { const k = qkeyOf(kw); if (k && q.includes(k)) score += k.includes(' ') ? 2 : 1; }
+    for (const kw of item.k) { const k = qkeyOf(kw); if (_hasKeyword(q, k)) score += k.includes(' ') ? 2 : 1; }
     if (score > bestScore) { bestScore = score; best = item; }
   }
   return bestScore > 0 ? best.a : null;
+}
+
+// Respostas REGISTRADAS pelo admin (overrides): antes comparava por IGUALDADE
+// EXATA do texto normalizado — então "nicolas" batia, mas "quem é o nicolas?"
+// não (texto normalizado diferente), mesmo contendo a mesma palavra-chave.
+// Agora usa o MESMO princípio da FAQ curada acima: a pergunta registrada é
+// tratada como palavra-chave/gatilho — basta estar CONTIDA no que a pessoa
+// perguntou (nos dois sentidos, pra cobrir tanto uma pergunta longa contendo
+// o gatilho curto quanto o oposto). Chave mais longa/específica vence se mais
+// de uma bater. Ignora chaves bem curtas (<3 caracteres) pra não disparar à
+// toa em qualquer mensagem que contenha uma palavra comum.
+function overrideMatch(overrides, raw) {
+  const q = qkeyOf(raw);
+  if (!q) return null;
+  let best = null, bestLen = 0;
+  for (const key in overrides) {
+    if (!key || key.length < 3) continue;
+    if ((_hasKeyword(q, key) || _hasKeyword(key, q)) && key.length > bestLen) {
+      bestLen = key.length;
+      best = overrides[key];
+    }
+  }
+  return best;
 }
 
 // IA (fallback quando a FAQ não sabe): chama o endpoint do SERVIDOR (a chave fica SÓ lá).
@@ -1018,7 +1051,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     }
 
     // 2) Resposta REGISTRADA pelo admin (override) vence a FAQ curada
-    const ov = overrides[qkeyOf(text)];
+    const ov = overrideMatch(overrides, text);
     if (ov) { setMessages(m => [...m, { from: 'uniko', text: ov }]); return; }
 
     // 3) FAQ curada (grátis/instantânea)
