@@ -138,7 +138,7 @@ const CartaDoc = ({ form }) => {
 
       {/* ── CNPJ / IE ── */}
       <div style={{display:'flex',alignItems:'baseline',gap:24,marginBottom:10}}>
-        <span><strong>CNPJ: (99,999,999/9999-99)</strong> <strong style={{fontSize:10.5}}>{cnpj}</strong></span>
+        <span><strong>CNPJ:</strong> <strong style={{fontSize:10.5}}>{cnpj}</strong></span>
         <span><strong>I.E</strong> <strong style={{fontSize:10.5}}>{ie}</strong></span>
       </div>
 
@@ -257,16 +257,18 @@ const CartaDoc = ({ form }) => {
         </div>
         <div>
           <div style={{fontSize:9,color:'#555',marginBottom:1}}>R. Social</div>
-          <div style={{fontWeight:'bold',fontSize:11.5,marginBottom:6}}>
-            {empresa||<span style={{color:'#aaa',fontStyle:'italic'}}>Razão Social</span>}
+          <div style={{fontWeight:'bold',fontSize:11.5,marginBottom:6,border:'1px solid #999',borderRadius:2,padding:'3px 7px',minHeight:15}}>
+            {empresa||<span style={{color:'#aaa',fontStyle:'italic',fontWeight:400}}>Razão Social</span>}
           </div>
           <div style={{fontSize:9,color:'#555',marginBottom:1}}>Ender.</div>
-          <div style={{fontWeight:'bold',color:FILL_COLOR,fontSize:10,marginBottom:6}}>
+          <div style={{fontWeight:'bold',color:FILL_COLOR,fontSize:10,marginBottom:6,border:'1px solid #999',borderRadius:2,padding:'3px 7px',minHeight:15}}>
             {endereco||' '}
           </div>
-          <div style={{fontSize:10}}>
-            CNPJ <strong>{cnpj||'              '}</strong>
-            {ie&&<span style={{marginLeft:12}}>I.Estadual <strong>{ie}</strong></span>}
+          <div style={{display:'flex',alignItems:'center',gap:10,fontSize:10}}>
+            <span style={{whiteSpace:'nowrap'}}>CNPJ</span>
+            <strong style={{border:'1px solid #999',borderRadius:2,padding:'3px 7px',flex:1,minHeight:15}}>{cnpj||'              '}</strong>
+            <span style={{whiteSpace:'nowrap'}}>I.Estadual</span>
+            <strong style={{border:'1px solid #999',borderRadius:2,padding:'3px 7px',minWidth:80,minHeight:15}}>{ie||' '}</strong>
           </div>
         </div>
       </div>
@@ -317,9 +319,18 @@ const TabCarta = () => {
     const w = window.open('', '_blank', 'width=900,height=1000');
     if (!w) { window.print(); return; } // pop-up bloqueado → volta pro jeito antigo
     w.document.open();
+    // título vazio: se o navegador imprimir cabeçalho/rodapé (opção do próprio
+    // diálogo de impressão), evita duplicar "Carta de Correção" — que já aparece
+    // no corpo do documento — no canto da página.
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Carta de Correção</title>
-      <style>@page{margin:10mm} body{margin:0}</style>
+      <title> </title>
+      <style>
+        @page{margin:10mm} body{margin:0}
+        /* Chrome não imprime cor de fundo por padrão (opção "gráficos de
+           segundo plano" desligada) — sem isso a bolinha marcada de NOSSA/SUA
+           sai vazia no PDF mesmo aparecendo preenchida na tela. */
+        *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+      </style>
       </head><body>${src.outerHTML}</body></html>`);
     w.document.close();
     // fecha a janela sozinha só DEPOIS que o diálogo de impressão for fechado
