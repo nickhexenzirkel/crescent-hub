@@ -281,7 +281,7 @@ const TabCarta = () => {
   const hoje = new Date();
   // Dados fixos da 7Serv — vêm sempre preenchidos, mas continuam editáveis no formulário.
   const emptyForm = () => ({
-    cidade:'Fortaleza', dia:String(hoje.getDate()), mes:String(hoje.getMonth()), ano:String(hoje.getFullYear()),
+    cidade:'FORTALEZA', dia:String(hoje.getDate()), mes:String(hoje.getMonth()), ano:String(hoje.getFullYear()),
     empresa:'7SERV GESTAO DE BENEFICIOS LTDA',
     endereco:'AV WASHINGTON SOARES, 3663 - EDSON QUEIROZ, CEP 60.811-341',
     cnpj:'13.858.769/0001-97', ie:'0951862-2',
@@ -356,7 +356,7 @@ const TabCarta = () => {
 
           {sec('Data da Carta')}
           <Fld label="Cidade">
-            <input style={inp} placeholder="Ex: Fortaleza" value={form.cidade} onChange={e=>set('cidade',e.target.value)}/>
+            <input style={{...inp,textTransform:'uppercase'}} placeholder="Ex: FORTALEZA" value={form.cidade} onChange={e=>set('cidade',e.target.value.toUpperCase())}/>
           </Fld>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1.6fr 1.2fr',gap:10}}>
             <Fld label="Dia">
