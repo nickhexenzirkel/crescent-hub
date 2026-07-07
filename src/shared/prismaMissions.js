@@ -19,9 +19,9 @@ export const PRISMA_MISSIONS = [
   { id: 'c_uniko40',   title: 'Maratona Uniko Wave',   desc: 'Jogue 40 minutos no Uniko Wave',                period: 'dia',   progress: 0, goal: 40, comum: 0,   premium: 10,  claimed: false },
   // ── MENSAIS ──
   { id: 'c_feedback',  title: 'Voz ativa',             desc: 'Dê um feedback no sistema',                     period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 30,  claimed: false },
-  { id: 'c_rank1',     title: '🥇 Top 1 do mês',        desc: '1º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
-  { id: 'c_rank2',     title: '🥈 Top 2 do mês',        desc: '2º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
-  { id: 'c_rank3',     title: '🥉 Top 3 do mês',        desc: '3º lugar de quem mais colocou música no mês',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
+  { id: 'c_rank1',     title: '🥇 Top 1 do mês',        desc: '1º lugar de quem mais colocou música no mês passado',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 100, claimed: false },
+  { id: 'c_rank2',     title: '🥈 Top 2 do mês',        desc: '2º lugar de quem mais colocou música no mês passado',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 70,  claimed: false },
+  { id: 'c_rank3',     title: '🥉 Top 3 do mês',        desc: '3º lugar de quem mais colocou música no mês passado',   period: 'mes',   progress: 0, goal: 1,  comum: 0,   premium: 50,  claimed: false },
   { id: 'c_setor',     title: 'Setor nota 90+',        desc: 'Seu setor passou de 90% no chatbot do mês',     period: 'mes',   progress: 0, goal: 1,  comum: 500, premium: 0,   claimed: false, maintenance: true },
   // ── ESPECIAIS (única vez) ──
   { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
@@ -81,9 +81,17 @@ export async function loadMissionProgress({ userName, purchases, baseline } = {}
     prog.c_feedback = baseAdj('c_feedback', (count || 0), 'mes') >= 1 ? 1 : 0;
   } catch {}
 
-  // Top 1/2/3 — quem mais coloca música no mês (Central Alexa)
+  // Top 1/2/3 — quem mais colocou música no MÊS PASSADO (já fechado), não no mês
+  // corrente. Antes usava o mês em andamento: quem entrasse no top 3 nos primeiros
+  // dias (com pouca gente tendo jogado ainda) já conseguia resgatar, mesmo sendo
+  // ultrapassado depois — o "resultado" mudava, mas o resgate já tinha acontecido.
+  // Usando o mês fechado, o ranking só fica disponível quando já é definitivo, e
+  // quem ultrapassar alguém só no fim do mês também consegue resgatar.
   try {
-    const { data } = await supabase.from('maquina_monthly_djs').select('requested_by,plays').eq('month', month);
+    const [py, pm] = month.split('-').map(Number);
+    const prevD = new Date(py, pm - 2, 1);
+    const prevMonth = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+    const { data } = await supabase.from('maquina_monthly_djs').select('requested_by,plays').eq('month', prevMonth);
     const agg = {};
     for (const d of (data || [])) { if (isSysDj(d.requested_by)) continue; const n = (d.requested_by || '').trim(); agg[n] = (agg[n] || 0) + (Number(d.plays) || 0); }
     const rank = Object.entries(agg).sort((a, b) => b[1] - a[1]).map(([n]) => n).indexOf((userName || '').trim()) + 1;
