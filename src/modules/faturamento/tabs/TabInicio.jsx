@@ -112,7 +112,6 @@ const FEATURES = [
     id: 'carta',
     color: '#1A9C70',
     bg: 'rgba(26,156,112,0.10)',
-    adminOnly: true,
     title: 'Carta de Correção',
     desc: 'Gere a Carta de Correção Eletrônica (CC-e) de uma NF-e. (Em desenvolvimento.)',
     steps: ['Informe os dados da NF-e', 'Descreva a correção', 'Gere a carta'],
