@@ -585,6 +585,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [lembMsg, setLembMsg]           = useState('');
   const [alexaStatus, setAlexaStatus]   = useState(null);
   const [testingAlexa, setTestingAlexa] = useState(false);
+  const [alexaCookieModal, setAlexaCookieModal] = useState(false);
+  const [alexaCookieText, setAlexaCookieText]   = useState('');
+  const [alexaCookieMsg, setAlexaCookieMsg]     = useState('');
+  const [alexaCookieSaving, setAlexaCookieSaving] = useState(false);
 
   const loadLembretes = async () => {
     setLembLoading(true);
@@ -641,6 +645,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       const d = await r.json();
       setAlexaStatus(d);
     } catch { setAlexaStatus({ ok: false, configured: false }); }
+  };
+
+  // Cola o JSON gerado pelo setup-alexa.js direto no Supabase via servidor —
+  // evita ter que entrar no VPS/editar .env toda vez que o token expira.
+  const updateAlexaCookies = async () => {
+    const text = alexaCookieText.trim();
+    if (!text) { setAlexaCookieMsg('Cole o JSON gerado pelo setup-alexa.js'); return; }
+    setAlexaCookieSaving(true); setAlexaCookieMsg('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/alexa/update-registration`, {
+        method: 'POST', headers: authHeader(), body: JSON.stringify({ data: text }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setAlexaCookieMsg(`❌ ${d.error}`); setAlexaCookieSaving(false); return; }
+      setAlexaCookieMsg('✅ Cookies salvos! Verificando conexão...');
+      setAlexaCookieText('');
+      // Dá um tempo pro servidor reconectar antes de checar o status de novo.
+      setTimeout(async () => { await checkAlexaStatus(); }, 3000);
+      setTimeout(() => { setAlexaCookieModal(false); setAlexaCookieMsg(''); }, 3500);
+    } catch (e) { setAlexaCookieMsg(`❌ ${e.message}`); }
+    setAlexaCookieSaving(false);
   };
 
   const testAlexa = async () => {
@@ -2095,10 +2120,26 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Lembretes & Alexa Programada</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Programe o que a Alexa vai falar e quando — aparece para todos os colaboradores</div>
                 </div>
-                <button onClick={()=>{ setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'}); setLembMsg(''); setLembModal('new'); }}
-                  style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
-                  + Novo Lembrete
-                </button>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  {alexaStatus&&(
+                    <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:8,fontSize:11,
+                      background:alexaStatus.ok?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',
+                      border:`1px solid ${alexaStatus.ok?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,
+                      color:alexaStatus.ok?'#16a34a':'#C04050'}}>
+                      <div style={{width:6,height:6,borderRadius:'50%',background:alexaStatus.ok?'#16a34a':'#C04050',flexShrink:0}}/>
+                      {alexaStatus.ok ? 'Alexa conectada' : 'Alexa offline'}
+                    </div>
+                  )}
+                  <button onClick={()=>{ setAlexaCookieText(''); setAlexaCookieMsg(''); setAlexaCookieModal(true); }}
+                    title="Cole aqui o JSON gerado pelo setup-alexa.js quando a Alexa cair/expirar"
+                    style={{display:'flex',alignItems:'center',gap:6,padding:'9px 14px',borderRadius:10,border:`1.5px solid ${T.border}`,cursor:'pointer',background:'transparent',color:T.textS,fontWeight:600,fontSize:12.5,fontFamily:'var(--font-body)'}}>
+                    🔑 Atualizar cookies da Alexa
+                  </button>
+                  <button onClick={()=>{ setLembForm({title:'',message:'',time:'',date:'',type:'lembrete',repeat:'never',active:true,fanfare:false,sound:'fanfarra'}); setLembMsg(''); setLembModal('new'); }}
+                    style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                    + Novo Lembrete
+                  </button>
+                </div>
               </div>
 
               {/* Tipo legend */}
@@ -2281,6 +2322,30 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       <button onClick={saveLembrete} disabled={lembSaving}
                         style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:lembSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
                         {lembSaving?'Salvando...':'Salvar programado'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal: atualizar cookies da Alexa */}
+              {alexaCookieModal&&(
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                  <div style={{background:cardBg,borderRadius:18,padding:32,width:520,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:8}}>🔑 Atualizar cookies da Alexa</div>
+                    <div style={{fontSize:12.5,color:T.textS,marginBottom:16,lineHeight:1.6}}>
+                      Quando a Alexa cair (token expirado), rode <code style={{background:T.surfaceSub||'rgba(0,0,0,0.04)',padding:'1px 5px',borderRadius:4}}>node setup-alexa.js</code> no seu PC,
+                      faça login com a conta Amazon e cole aqui o JSON que aparecer no terminal. Reconecta na hora, sem precisar mexer no VPS.
+                    </div>
+                    <textarea value={alexaCookieText} onChange={e=>setAlexaCookieText(e.target.value)} rows={8}
+                      placeholder='Cole aqui o JSON completo, ex: {"loginCookie":"...","refreshToken":"...",...}'
+                      style={{width:'100%',padding:'10px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12,color:T.text,outline:'none',resize:'vertical',fontFamily:'monospace',boxSizing:'border-box',marginBottom:12}}/>
+                    {alexaCookieMsg&&<div style={{fontSize:12,color:alexaCookieMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:alexaCookieMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)'}}>{alexaCookieMsg}</div>}
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={()=>setAlexaCookieModal(false)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={updateAlexaCookies} disabled={alexaCookieSaving||!alexaCookieText.trim()}
+                        style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:alexaCookieSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none',opacity:alexaCookieText.trim()?1:0.5}}>
+                        {alexaCookieSaving?'Salvando...':'Salvar e reconectar'}
                       </button>
                     </div>
                   </div>
