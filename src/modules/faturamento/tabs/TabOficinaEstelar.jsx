@@ -286,8 +286,10 @@ const TabCarta = () => {
     endereco:'AV WASHINGTON SOARES, 3663 - EDSON QUEIROZ, CEP 60.811-341',
     cnpj:'13.858.769/0001-97', ie:'0951862-2',
     nfTipo:'nossa', nfNumero:'', nfDataEmissao:'',
-    retificacoes:[{codigo:'',texto:''}],
-    sigSrc:null, logoSrc:logo7ServUrl,
+    // 2 linhas já prontas (a maioria das cartas tem pelo menos isso) — ainda dá pra
+    // adicionar mais ou remover se sobrar linha em branco.
+    retificacoes:[{codigo:'',texto:''},{codigo:'',texto:''}],
+    sigSrc:rubricaUrl, logoSrc:logo7ServUrl,
   });
 
   const [form, setForm] = useState(emptyForm);
@@ -372,14 +374,14 @@ const TabCarta = () => {
             </div>
           </Fld>
           <Fld label="Empresa (Razão Social)">
-            <input style={inp} placeholder="Ex: 7 SERV GESTAO DE BENEFICIOS" value={form.empresa} onChange={e=>set('empresa',e.target.value)}/>
+            <input style={{...inp,textTransform:'uppercase'}} placeholder="Ex: 7 SERV GESTAO DE BENEFICIOS" value={form.empresa} onChange={e=>set('empresa',e.target.value.toUpperCase())}/>
           </Fld>
           <Fld label="Endereço">
-            <input style={inp} placeholder="Rua, nº, bairro, cidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}/>
+            <input style={{...inp,textTransform:'uppercase'}} placeholder="Rua, nº, bairro, cidade" value={form.endereco} onChange={e=>set('endereco',e.target.value.toUpperCase())}/>
           </Fld>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:13}}>
-            <div><Lbl>CNPJ</Lbl><input style={inp} placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e=>set('cnpj',e.target.value)}/></div>
-            <div><Lbl>I. Estadual</Lbl><input style={inp} placeholder="000000000" value={form.ie} onChange={e=>set('ie',e.target.value)}/></div>
+            <div><Lbl>CNPJ</Lbl><input style={{...inp,textTransform:'uppercase'}} placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e=>set('cnpj',e.target.value.toUpperCase())}/></div>
+            <div><Lbl>I. Estadual</Lbl><input style={{...inp,textTransform:'uppercase'}} placeholder="000000000" value={form.ie} onChange={e=>set('ie',e.target.value.toUpperCase())}/></div>
           </div>
 
           {sec('Data da Carta')}
@@ -416,7 +418,7 @@ const TabCarta = () => {
             </div>
           </Fld>
           <Fld label="N.F. Nº">
-            <input style={inp} placeholder="Ex: 12421" value={form.nfNumero} onChange={e=>set('nfNumero',e.target.value)}/>
+            <input style={{...inp,textTransform:'uppercase'}} placeholder="Ex: 12421" value={form.nfNumero} onChange={e=>set('nfNumero',e.target.value.toUpperCase())}/>
           </Fld>
           <Fld label="Data de Emissão">
             <input style={inp} type="date" value={form.nfDataEmissao} onChange={e=>set('nfDataEmissao',e.target.value)}/>
@@ -430,11 +432,11 @@ const TabCarta = () => {
             <div key={i} style={{display:'grid',gridTemplateColumns:'80px 1fr 28px',gap:6,marginBottom:8,alignItems:'center'}}>
               <div>
                 {i===0&&<Lbl>Cód.</Lbl>}
-                <input style={{...inp,textAlign:'center',fontWeight:600}} placeholder="14" value={r.codigo} onChange={e=>setRow(i,'codigo',e.target.value)} maxLength={3}/>
+                <input style={{...inp,textAlign:'center',fontWeight:600,textTransform:'uppercase'}} placeholder="14" value={r.codigo} onChange={e=>setRow(i,'codigo',e.target.value.toUpperCase())} maxLength={3}/>
               </div>
               <div>
                 {i===0&&<Lbl>Retificação</Lbl>}
-                <input style={inp} placeholder="Ex: ONDE LÊ: ... LEIA-SE: ..." value={r.texto} onChange={e=>setRow(i,'texto',e.target.value)}/>
+                <input style={{...inp,textTransform:'uppercase'}} placeholder="Ex: ONDE LÊ: ... LEIA-SE: ..." value={r.texto} onChange={e=>setRow(i,'texto',e.target.value.toUpperCase())}/>
               </div>
               <div style={{paddingTop:i===0?20:0}}>
                 {form.retificacoes.length>1&&(
