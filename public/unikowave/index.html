@@ -3207,7 +3207,18 @@ async function _beginVideoBg(videoId, muted){
   wrap.innerHTML='<div id="ytVideoFrame"></div>';
 
   try{
-    const status=await _ytdlCheckStatus(videoId);
+    // Sonda algumas vezes em vez de checar só uma — o download pode ainda estar
+    // terminando bem na hora que a contagem regressiva começa (uma música de
+    // ~3-4min demora uns 10-15s pra baixar); dar mais alguns segundos de chance
+    // antes de desistir de vez e cair pro YouTube pro resto da partida.
+    const t0=performance.now();
+    let status='not_found';
+    while(performance.now()-t0<4000){
+      status=await _ytdlCheckStatus(videoId);
+      if(status==='ready'||status==='error') break;
+      if(bgMode!=='video'||!_videoBgActive) return; // mudou/fechou enquanto sondava
+      await new Promise(r=>setTimeout(r,500));
+    }
     // bgMode pode ter mudado ou a tela pode ter sido fechada enquanto esperava a resposta
     if(bgMode!=='video'||!_videoBgActive) return;
     if(status==='ready'){
@@ -3215,11 +3226,31 @@ async function _beginVideoBg(videoId, muted){
       _vbAudioPlayer=_vbPlayer; // mesmo elemento serve de som/relógio também
       const badge=document.getElementById('localVidBadge');
       if(badge){ badge.textContent='⚡ vídeo local (mais estável)'; badge.style.display='block'; }
+      _releaseVideoIfGoAlreadyPassed();
       return;
     }
   }catch(_){}
   _startVideoBgYouTube(videoId);
   _startVideoClockPlayer(videoId, muted);
+  _releaseVideoIfGoAlreadyPassed();
+}
+
+// A sondagem acima pode levar até 4s — se a contagem regressiva (só ~3.7s)
+// já tiver passado do "GO" antes do player existir, ele nasceria mudo esperando
+// um GO que já aconteceu (ver runCountdown) e ficaria travado em silêncio pro
+// resto da música. Se isso acontecer, libera o som NA HORA, já sincronizado
+// com o ponto real da música (songTime), em vez de tocar do zero.
+function _releaseVideoIfGoAlreadyPassed(){
+  if(_videoStartPending) return; // GO ainda não aconteceu — o fluxo normal cuida disso
+  try{
+    if(_vbPlayer&&_vbPlayer.playVideo) _vbPlayer.playVideo();
+    if(_vbAudioPlayer){
+      if(_vbAudioPlayer.unMute)    _vbAudioPlayer.unMute();
+      if(_vbAudioPlayer.setVolume) _vbAudioPlayer.setVolume(100);
+      if(_vbAudioPlayer.seekTo)    _vbAudioPlayer.seekTo(Math.max(0,songTime()), true);
+      if(_vbAudioPlayer.playVideo) _vbAudioPlayer.playVideo();
+    }
+  }catch(_){}
 }
 
 // Caminho original: embed do YouTube (fallback quando o download local não
