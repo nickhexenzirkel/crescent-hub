@@ -3679,9 +3679,21 @@ function updateColorMoments(st, dt){
 const canvas=document.getElementById('gc');
 const ctx=canvas.getContext('2d');
 let CW=800,CH=600,DPR=1;
+// Teto ABSOLUTO de resolução do canvas (largura da tela de desenho, em pixels
+// reais), independente do tamanho da janela/monitor. Sem isso, numa tela cheia
+// grande (ex: 1920px+ de largura, ou monitor de alta densidade com
+// devicePixelRatio>1), o canvas podia desenhar em resoluções bem maiores que o
+// necessário — cada quadro fica MUITO mais caro (efeitos de brilho/gradiente
+// escalam com a quantidade de pixels), e somado ao vídeo de fundo tocando por
+// cima, sobrecarrega o processador a ponto de travar até a música (o mesmo
+// motivo pelo qual encolher a janela com o F12 aberto "resolve" — reduz
+// window.innerWidth/innerHeight, então reduz o canvas também).
+const MAX_CANVAS_W=1600;
 function resize(){
-  DPR=Math.min(window.devicePixelRatio||1, (typeof GFX!=='undefined'&&GFX.dprCap)||3);
+  let dpr=Math.min(window.devicePixelRatio||1, (typeof GFX!=='undefined'&&GFX.dprCap)||3);
   CW=window.innerWidth; CH=window.innerHeight;
+  if(CW*dpr>MAX_CANVAS_W) dpr=Math.max(1, MAX_CANVAS_W/CW);
+  DPR=dpr;
   canvas.width=CW*DPR; canvas.height=CH*DPR;
   canvas.style.width=CW+'px'; canvas.style.height=CH+'px';
   ctx.setTransform(1,0,0,1,0,0);
