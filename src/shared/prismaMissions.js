@@ -27,7 +27,7 @@ export const PRISMA_MISSIONS = [
   { id: 'c_firstbuy',  title: 'Primeira compra',       desc: 'Faça sua primeira compra na Prisma Store',      period: 'unica', progress: 0, goal: 1,  comum: 200, premium: 0,   claimed: false },
   { id: 'c_secondbuy', title: 'Segunda compra',        desc: 'Faça sua segunda compra na Prisma Store',       period: 'unica', progress: 0, goal: 1,  comum: 400, premium: 0,   claimed: false },
   { id: 'c_colec_pequeno', title: 'Pequeno Colecionador', desc: 'Tenha 10 Unikos na sua Coleção',              period: 'unica', progress: 0, goal: 10, comum: 0,   premium: 50,  claimed: false },
-  { id: 'c_colec_grande',  title: 'Grande Colecionador',  desc: 'Tenha mais de 10 Unikos na sua Coleção',      period: 'unica', progress: 0, goal: 11, comum: 0,   premium: 50,  claimed: false },
+  { id: 'c_colec_grande',  title: 'Grande Colecionador',  desc: 'Tenha mais de 20 Unikos na sua Coleção',      period: 'unica', progress: 0, goal: 21, comum: 0,   premium: 50,  claimed: false },
 ];
 
 // Calcula o progresso AO VIVO de cada missão (mesmas fontes da Prisma Store).
@@ -71,7 +71,7 @@ export async function loadMissionProgress({ userName, purchases, baseline } = {}
   try {
     const total = await countOwnedUnikos(userName);
     prog.c_colec_pequeno = Math.min(10, total);
-    prog.c_colec_grande = Math.min(11, total);
+    prog.c_colec_grande = Math.min(21, total);
   } catch {}
 
   // Voz ativa — feedback não anônimo do usuário neste mês
