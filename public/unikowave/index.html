@@ -2962,6 +2962,8 @@ let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
 let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
 let _vbVisibleStuckSince=0; // vídeo visível (decorativo) preso bufferizando/pausado — pra auto-recuperação em syncVideoBg
+let _vbVisibleRetries=0, _vbVisibleGivenUp=false; // depois de várias tentativas sem sucesso, desiste e esconde (evita piscar pra sempre)
+const _VB_VISIBLE_MAX_RETRIES=3;
 
 // Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
 function _loadYTApi(){
@@ -3114,25 +3116,31 @@ function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
-  _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0;
+  _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0; _vbVisibleRetries=0; _vbVisibleGivenUp=false;
   wrap.innerHTML='<div id="ytVideoFrame"></div>';
 
   const build=()=>{
     if(!document.getElementById('ytVideoFrame')) return;
+    // width/height PEQUENOS de propósito (o CSS depois estica pra tela toda via
+    // VB_IFRAME_CSS): o YouTube usa o tamanho declarado do player como parte da
+    // escolha de qualidade automática — um player "grande" (100%, geralmente
+    // bem mais que 720px) tende a puxar 720p/1080p mesmo travando a qualidade
+    // pela API (que muitos vídeos hoje em dia ignoram). Um player 426×240 pede
+    // uma faixa bem mais leve desde o início, é só decoração mesmo.
     _vbPlayer=new YT.Player('ytVideoFrame',{
-      width:'100%',height:'100%',videoId,
+      width:426,height:240,videoId,
       playerVars:{autoplay:1,mute:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
         disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
       events:{
         onReady:(e)=>{
           try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS;
             e.target.mute(); e.target.playVideo();
-            _capVideoQuality(e.target); }catch(_){}
+            _capVideoQuality(e.target,'small'); }catch(_){}
         },
         onStateChange:(e)=>{
           // Vídeo é só decoração agora — nem BUFFERING nem ENDED daqui mexem no
           // estado do jogo (isso é papel do _vbAudioPlayer). Só reforça a qualidade.
-          if(e.data===YT.PlayerState.PLAYING){ _capVideoQuality(e.target); }
+          if(e.data===YT.PlayerState.PLAYING){ _capVideoQuality(e.target,'small'); }
         },
       },
     });
@@ -3230,7 +3238,7 @@ function hideVideoBg(){
     wrap.style.transition=''; wrap.style.opacity='';
     wrap.innerHTML='';
   }
-  _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0;
+  _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0; _vbVisibleRetries=0; _vbVisibleGivenUp=false;
 }
 
 function fadeOutVideoBg(cb){
@@ -3250,7 +3258,7 @@ function syncVideoBg(){
   if(clk&&clk.getDuration){ try{cur=clk.getCurrentTime()||0;dur=clk.getDuration()||0;}catch(_){} }
   if(dur>1){
     const rem=dur-cur;
-    if(rem<=2.2){ // fade nos últimos ~2s
+    if(rem<=2.2 && !_vbVisibleGivenUp){ // fade nos últimos ~2s
       const wrap=document.getElementById('videoBgWrap');
       if(wrap){ wrap.style.transition='opacity 0.4s linear'; wrap.style.opacity=String(Math.max(0,Math.min(1,rem/2))); }
     }
@@ -3259,14 +3267,24 @@ function syncVideoBg(){
   // Vídeo visível é só decoração e não afeta mais o jogo — mas se ele ficar
   // preso bufferizando/pausado por muito tempo (conexão fraca), tenta se
   // recuperar sozinho pulando pra posição REAL (a do relógio de verdade) em
-  // vez de ficar preto/parado pra sempre.
-  if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState){
+  // vez de ficar preto/parado pra sempre. Se mesmo assim continuar travando
+  // repetidas vezes, desiste de vez (a conexão não aguenta nem o clipe leve)
+  // e some com ele — evita ficar piscando/tentando pro resto da música. O
+  // jogo em si não é afetado (som/relógio já são o _vbAudioPlayer).
+  if(!_vbVisibleGivenUp && _vbPlayer&&window.YT&&_vbPlayer.getPlayerState){
     let vs=-1; try{ vs=_vbPlayer.getPlayerState(); }catch(_){}
     if(vs===YT.PlayerState.BUFFERING||vs===YT.PlayerState.PAUSED){
       if(!_vbVisibleStuckSince) _vbVisibleStuckSince=performance.now();
       else if(performance.now()-_vbVisibleStuckSince>3500){
-        _vbVisibleStuckSince=performance.now(); // evita tentar de novo a cada frame
-        try{ _vbPlayer.seekTo(Math.max(0,cur), true); _vbPlayer.playVideo(); }catch(_){}
+        _vbVisibleStuckSince=performance.now();
+        _vbVisibleRetries++;
+        if(_vbVisibleRetries>_VB_VISIBLE_MAX_RETRIES){
+          _vbVisibleGivenUp=true;
+          const wrap=document.getElementById('videoBgWrap');
+          if(wrap){ wrap.style.transition='opacity 0.6s ease'; wrap.style.opacity='0'; }
+        } else {
+          try{ _vbPlayer.seekTo(Math.max(0,cur), true); _vbPlayer.playVideo(); }catch(_){}
+        }
       }
     } else {
       _vbVisibleStuckSince=0;
