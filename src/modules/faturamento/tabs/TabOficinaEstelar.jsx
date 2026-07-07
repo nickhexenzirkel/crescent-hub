@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { T } from '../../../contexts/theme';
 import { supabase } from '../../../contexts/user';
 import { StarDivider } from '../../../shared/components';
@@ -312,53 +314,34 @@ const TabCarta = () => {
     </div>
   );
 
-  // Imprime só o documento, numa janela isolada — em vez de esconder o resto da
-  // página com CSS (a técnica antiga usava position:fixed + visibility:hidden no
-  // resto da página, e como a página tem bastante coisa escondida mas que ainda
-  // ocupa espaço, o conteúdo saía repetido em 2 páginas). Isolar numa janela nova
-  // também tira o cabeçalho/rodapé do navegador com o título/link da página atual.
-  const printCarta = () => {
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  // Gera o PDF direto no código (html2canvas + jsPDF) em vez de passar pelo
+  // diálogo de impressão do navegador — sem diálogo, não existe cabeçalho/
+  // rodapé do Chrome (data, título, "about:blank") pra carimbar em cima do
+  // documento, então o problema nem chega a existir.
+  const downloadCartaPdf = async () => {
     const src = document.getElementById('carta-doc');
     if (!src) return;
-    const htmlDoc = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title> </title>
-      <style>
-        @page{margin:10mm} body{margin:0}
-        /* Chrome não imprime cor de fundo por padrão (opção "gráficos de
-           segundo plano" desligada) — sem isso a bolinha marcada de NOSSA/SUA
-           sai vazia no PDF mesmo aparecendo preenchida na tela. */
-        *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
-      </style>
-      </head><body>${src.outerHTML}</body></html>`;
+    setPdfBusy(true);
+    try {
+      const canvas = await html2canvas(src, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      // Página do PDF do tamanho exato do documento (px → mm, 96dpi)
+      const wMm = src.offsetWidth * 25.4 / 96, hMm = src.offsetHeight * 25.4 / 96;
+      const pdf = new jsPDF({ unit: 'mm', format: [wMm, hMm] });
+      pdf.addImage(imgData, 'PNG', 0, 0, wMm, hMm);
+      const empresaSlug = (form.empresa || 'documento').trim().slice(0, 40).replace(/[^\p{L}\p{N}]+/gu, '-') || 'documento';
+      pdf.save(`Carta de Correcao - ${empresaSlug}.pdf`);
 
-    const w = window.open('', '_blank', 'width=900,height=1000');
-    if (!w) { window.print(); return; } // pop-up bloqueado → volta pro jeito antigo
-    w.document.open();
-    // título vazio: se o navegador imprimir cabeçalho/rodapé (opção do próprio
-    // diálogo de impressão), evita duplicar "Carta de Correção" — que já aparece
-    // no corpo do documento — no canto da página.
-    w.document.write(htmlDoc);
-    w.document.close();
-    // fecha a janela sozinha só DEPOIS que o diálogo de impressão for fechado
-    // (fechar logo após w.print() arriscaria cancelar a impressão em alguns navegadores)
-    w.onafterprint = () => w.close();
-    const doPrint = () => { w.focus(); w.print(); };
-    const imgs = Array.from(w.document.images);
-    if (imgs.length === 0) { doPrint(); return; }
-    let pending = imgs.length;
-    const done = () => { if (--pending <= 0) doPrint(); };
-    imgs.forEach(img => { img.complete ? done() : (img.onload = img.onerror = done); });
-
-    // Guarda um snapshot do documento no Storage e registra no Histórico de
-    // Assinatura — deixa o admin ver/baixar depois quem gerou o quê. Roda em
-    // segundo plano (não atrasa nem bloqueia a impressão em si).
-    (async () => {
+      // Guarda o mesmo PDF no Storage e registra no Histórico de Assinatura —
+      // deixa o admin ver/baixar depois quem gerou o quê. Não bloqueia o
+      // download do usuário se falhar.
       try {
-        const empresaSlug = (form.empresa || 'documento').trim().slice(0, 40).replace(/[^\p{L}\p{N}]+/gu, '-');
-        const path = `carta-correcao/${Date.now()}_${empresaSlug}.html`;
-        const blob = new Blob([htmlDoc], { type: 'text/html' });
+        const blob = pdf.output('blob');
+        const path = `carta-correcao/${Date.now()}_${empresaSlug}.pdf`;
         const { error: upErr } = await supabase.storage
-          .from('oficina-documentos').upload(path, blob, { contentType: 'text/html', upsert: false });
+          .from('oficina-documentos').upload(path, blob, { contentType: 'application/pdf', upsert: false });
         if (upErr) throw upErr;
         const { data: urlData } = supabase.storage.from('oficina-documentos').getPublicUrl(path);
         await logAssinatura({
@@ -367,7 +350,11 @@ const TabCarta = () => {
           arquivoUrl: urlData?.publicUrl || null,
         });
       } catch { /* histórico indisponível — não bloqueia o download do usuário */ }
-    })();
+    } catch (e) {
+      window.alert('Não foi possível gerar o PDF: ' + (e?.message || 'erro'));
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   return (
@@ -500,10 +487,10 @@ const TabCarta = () => {
 
           {/* Botões */}
           <div style={{display:'flex',gap:10,marginTop:24,flexWrap:'wrap'}}>
-            <button style={btnGold} onClick={printCarta}
-              onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+            <button style={{...btnGold,opacity:pdfBusy?.7:1,cursor:pdfBusy?'default':'pointer'}} onClick={downloadCartaPdf} disabled={pdfBusy}
+              onMouseEnter={e=>{if(!pdfBusy)e.currentTarget.style.opacity='.85';}} onMouseLeave={e=>{if(!pdfBusy)e.currentTarget.style.opacity='1';}}>
               <Ico><path d="M6 9V2h12l4 4v14a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><polyline points="14 2 14 8 20 8"/></Ico>
-              Imprimir / Salvar PDF
+              {pdfBusy ? 'Gerando PDF...' : 'Baixar PDF'}
             </button>
             <button onClick={()=>setForm(emptyForm())} style={{display:'inline-flex',alignItems:'center',gap:7,
               background:'transparent',border:`1px solid ${T.border}`,borderRadius:10,padding:'10px 18px',
