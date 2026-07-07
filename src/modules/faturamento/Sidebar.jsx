@@ -108,7 +108,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin }) => {
             </div>
           </div>
           <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Uniko - Oficina Estelar</div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Oficina Estelar</div>
           </div>
         </div>
         <StarDivider my={0}/>
