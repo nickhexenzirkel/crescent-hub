@@ -2982,7 +2982,7 @@ function _loadYTApi(){
 window.onYouTubeIframeAPIReady=function(){ _ytApiReady=true; };
 
 // Prepara o wrap (fundo preto durante a contagem). O player só é criado em
-// startVideoBg(), sincronizado com o fim do countdown.
+// _beginVideoBg(), sincronizado com o fim do countdown.
 function applyVideoBg(videoId){
   if(_videoBgActive) hideVideoBg();
   _videoBgFaded=false; _videoBgEnding=false;
@@ -3146,25 +3146,33 @@ function _wrapLocalVideoAsPlayer(v){
   };
 }
 
-// Cria o vídeo VISÍVEL a partir do arquivo baixado pelo servidor (bem mais
-// resistente a buffer que o embed do YouTube — é um <video> comum com
-// byte-range, o navegador lida com isso muito melhor).
-function _startVideoBgLocal(videoId, url){
+// Cria o vídeo a partir do arquivo baixado pelo servidor (bem mais resistente
+// a buffer que o embed do YouTube — é um <video> comum com byte-range, o
+// navegador lida com isso muito melhor). Vira _vbPlayer E _vbAudioPlayer ao
+// mesmo tempo (ver _beginVideoBg) — um único elemento faz os três papéis
+// (visual+som+relógio), sem NENHUM YT.Player durante a partida. Isso também
+// evita de vez o bug conhecido do widget do YouTube em iframes aninhados
+// ("Failed to execute postMessage... target origin youtube.com") que às vezes
+// impede a gente de saber se o player realmente está tocando.
+function _startVideoBgLocal(videoId, url, muted){
   const wrap=document.getElementById('videoBgWrap');
-  wrap.innerHTML='<video id="localVideoFrame" muted playsinline autoplay></video>';
+  wrap.innerHTML=`<video id="localVideoFrame" playsinline autoplay${muted?' muted':''}></video>`;
   const v=document.getElementById('localVideoFrame');
   if(!v) return;
   v.style.cssText=VB_IFRAME_CSS;
+  v.muted=!!muted;
   v.src=url;
   const p=v.play(); if(p&&p.catch) p.catch(()=>{});
   _vbPlayer=_wrapLocalVideoAsPlayer(v);
 }
 
-// Prioriza o vídeo baixado pelo servidor (ver _ytdlKickoff, disparado bem antes
-// na tela de prévia) — só cai pro embed do YouTube se ainda não tiver terminado
-// de baixar ou tiver falhado. Não atrasa nada: se não tiver pronto na hora,
-// segue o fluxo normal de sempre.
-async function startVideoBg(videoId){
+// Ponto único que decide como montar o fundo de vídeo. Prioriza o arquivo
+// baixado pelo servidor (ver _ytdlKickoff, disparado bem antes na tela de
+// prévia): se já estiver pronto, um ÚNICO <video> local faz tudo (visual +
+// som + relógio), sem nenhum embed do YouTube na partida. Só cai pro esquema
+// antigo (2 players do YouTube: visível mudo + áudio/relógio escondido) se o
+// download ainda não tiver terminado ou tiver falhado — sem atrasar nada.
+async function _beginVideoBg(videoId, muted){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
@@ -3176,13 +3184,15 @@ async function startVideoBg(videoId){
     // bgMode pode ter mudado ou a tela pode ter sido fechada enquanto esperava a resposta
     if(bgMode!=='video'||!_videoBgActive) return;
     if(status==='ready'){
-      _startVideoBgLocal(videoId, _ytdlServeUrl(videoId));
+      _startVideoBgLocal(videoId, _ytdlServeUrl(videoId), muted);
+      _vbAudioPlayer=_vbPlayer; // mesmo elemento serve de som/relógio também
       const badge=document.getElementById('localVidBadge');
       if(badge){ badge.textContent='⚡ vídeo local (mais estável)'; badge.style.display='block'; }
       return;
     }
   }catch(_){}
   _startVideoBgYouTube(videoId);
+  _startVideoClockPlayer(videoId, muted);
 }
 
 // Caminho original: embed do YouTube (fallback quando o download local não
@@ -5351,12 +5361,11 @@ function _beginPlaybackNow(startDelay){
   } else {
     gameStartWallTime=performance.now()+startDelay*1000;
     if(bgMode==='video'&&lastVideoUrl){
-      // Cria os dois players JÁ (mudos) em vez de esperar o fim da contagem — dá à
+      // Cria o vídeo/player JÁ mudo em vez de esperar o fim da contagem — dá à
       // conexão toda a duração da contagem pra bufferizar antes da partida precisar
-      // de verdade. No GO (ver runCountdown) o player de áudio/relógio volta pro
-      // início e libera o som; o vídeo visível segue mudo pra sempre (é decoração).
-      startVideoBg(lastVideoUrl);
-      _startVideoClockPlayer(lastVideoUrl, true);
+      // de verdade. No GO (ver runCountdown) libera o som; o vídeo visível segue
+      // mudo pra sempre quando é o esquema com 2 players do YouTube (decoração).
+      _beginVideoBg(lastVideoUrl, true);
       _videoStartPending=true;
     } else {
       // Modo efeitos: iframe offscreen só p/ som, coincide com o fim do countdown.
@@ -5372,7 +5381,7 @@ function _beginPlaybackNow(startDelay){
 // no toque, dar unMute()+playVideo() sincronamente — o som é liberado.
 function _mobileTapStart(){
   // Cria o vídeo já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
-  if(bgMode==='video'&&lastVideoUrl){ startVideoBg(lastVideoUrl); _startVideoClockPlayer(lastVideoUrl, true); }
+  if(bgMode==='video'&&lastVideoUrl){ _beginVideoBg(lastVideoUrl, true); }
   else startAudioIframe(lastVideoUrl);
 
   let ov=document.getElementById('tapStartOverlay');
@@ -5454,8 +5463,8 @@ function runCountdown(){
         }
         if(videoPlaying){ gameState='playing'; return; }
         // Reaproveita o mecanismo de auto-pausa de buffering: fica "carregando…" até
-        // o player disparar PLAYING (ver onStateChange em startVideoBg) ou a sondagem
-        // do watchdog detectar (ver _armBufferWatchdog) — o que vier primeiro.
+        // o player disparar PLAYING (ver onStateChange em _startVideoClockPlayer) ou
+        // a sondagem do watchdog detectar (ver _armBufferWatchdog) — o que vier primeiro.
         _bufferPaused=true; _bufferPrevState='playing'; gameState='paused';
         pauseStartWallMs=performance.now();
         _bufferOverlayEl().style.display='flex';
