@@ -88,12 +88,12 @@ const CartaDoc = ({ form }) => {
   const rows = [...retificacoes];
   while (rows.length < 10) rows.push({codigo:'', texto:''});
 
-  const TH = {border:'1px solid #666',padding:'2px 4px',background:'#e8e8e8',fontWeight:'bold',fontSize:7.5,textAlign:'center',whiteSpace:'nowrap'};
-  const TD = {border:'1px solid #ccc',padding:'1px 3px',fontSize:7.5,verticalAlign:'top'};
+  const TH = {border:'1px solid #666',padding:'2px 4px',background:'#e8e8e8',fontWeight:'bold',fontSize:9,textAlign:'center',whiteSpace:'nowrap'};
+  const TD = {border:'1px solid #ccc',padding:'1px 3px',fontSize:9,verticalAlign:'top'};
   const TDc = {...TD,textAlign:'center',width:22};
 
   return (
-    <div style={{background:'#fff',padding:'18px 22px',fontSize:8.5,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5,minWidth:520}}>
+    <div style={{background:'#fff',padding:'18px 22px',fontSize:10,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5,minWidth:520}}>
 
       {/* ── Logo + Título ── */}
       {logoSrc && (
@@ -101,14 +101,14 @@ const CartaDoc = ({ form }) => {
           <img src={logoSrc} alt="Logo" style={{maxHeight:56,maxWidth:200,objectFit:'contain'}}/>
         </div>
       )}
-      <div style={{textAlign:'center',fontWeight:'bold',fontSize:12,marginBottom:13,letterSpacing:'.08em',textDecoration:'underline'}}>
+      <div style={{textAlign:'center',fontWeight:'bold',fontSize:14,marginBottom:13,letterSpacing:'.08em',textDecoration:'underline'}}>
         CARTA DE CORREÇÃO
       </div>
 
       {/* ── Cidade / Data ── */}
-      <div style={{display:'flex',flexWrap:'wrap',alignItems:'baseline',gap:3,marginBottom:7,fontSize:8.5}}>
+      <div style={{display:'flex',flexWrap:'wrap',alignItems:'baseline',gap:3,marginBottom:7,fontSize:10}}>
         <strong>CIDADE</strong>
-        <span style={{borderBottom:'1px solid #444',minWidth:130,display:'inline-block',paddingLeft:4,fontWeight:'bold',fontSize:9}}>
+        <span style={{borderBottom:'1px solid #444',minWidth:130,display:'inline-block',paddingLeft:4,fontWeight:'bold',fontSize:10.5}}>
           {cidade||'                    '}
         </span>
         <span style={{marginLeft:4}}>,</span>
@@ -123,7 +123,7 @@ const CartaDoc = ({ form }) => {
       {/* ── Empresa ── */}
       <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:6}}>
         <strong style={{whiteSpace:'nowrap'}}>EMPRESA</strong>
-        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',fontSize:10,minHeight:13}}>
+        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',fontSize:11.5,minHeight:15}}>
           {empresa}
         </span>
       </div>
@@ -131,15 +131,15 @@ const CartaDoc = ({ form }) => {
       {/* ── Endereço ── */}
       <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:6}}>
         <strong style={{whiteSpace:'nowrap'}}>ENDEREÇO</strong>
-        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',minHeight:13}}>
+        <span style={{borderBottom:'1px solid #444',flex:1,display:'block',paddingLeft:4,fontWeight:'bold',minHeight:15}}>
           {endereco}
         </span>
       </div>
 
       {/* ── CNPJ / IE ── */}
       <div style={{display:'flex',alignItems:'baseline',gap:24,marginBottom:10}}>
-        <span><strong>CNPJ: (99,999,999/9999-99)</strong> <strong style={{fontSize:9}}>{cnpj}</strong></span>
-        <span><strong>I.E</strong> <strong style={{fontSize:9}}>{ie}</strong></span>
+        <span><strong>CNPJ: (99,999,999/9999-99)</strong> <strong style={{fontSize:10.5}}>{cnpj}</strong></span>
+        <span><strong>I.E</strong> <strong style={{fontSize:10.5}}>{ie}</strong></span>
       </div>
 
       {/* ── Tabela NF ── */}
@@ -155,7 +155,7 @@ const CartaDoc = ({ form }) => {
           <tr>
             {/* NOSSA / SUA */}
             <td style={{...TD,textAlign:'center',padding:'4px 6px'}}>
-              <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:8.5}}>
+              <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:10}}>
                 NOSSA&nbsp;
                 <span style={{width:9,height:9,borderRadius:'50%',border:'1.5px solid #333',display:'inline-block',
                   background:nfTipo==='nossa'?'#222':'transparent',flexShrink:0}}/>
@@ -165,21 +165,19 @@ const CartaDoc = ({ form }) => {
               </span>
             </td>
             {/* NF Número */}
-            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:13,color:FILL_COLOR,letterSpacing:'.02em'}}>
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:15,color:FILL_COLOR,letterSpacing:'.02em'}}>
               {nfNumero}
             </td>
-            {/* Emissão */}
-            <td style={{...TD,textAlign:'center',fontWeight:'bold',color:FILL_COLOR}}>
-              {eMes&&<><span style={{fontSize:9}}>{eMes}</span> <span style={{fontSize:8}}>▾</span> / </>}
-              {eDia&&<><span style={{fontSize:9}}>{eDia}</span> <span style={{fontSize:8}}>▾</span> / </>}
-              <span style={{fontSize:12}}>{eAno}</span>
+            {/* Emissão — DIA/MÊS/ANO (ex: 01/01/2026), mesmo tamanho, sem setas */}
+            <td style={{...TD,textAlign:'center',fontWeight:'bold',fontSize:12,color:FILL_COLOR}}>
+              {eDia&&eMes&&eAno ? `${eDia}/${eMes}/${eAno}` : ''}
             </td>
           </tr>
         </tbody>
       </table>
 
       {/* ── Texto da carta ── */}
-      <div style={{marginBottom:8,fontSize:8,textAlign:'justify',lineHeight:1.4}}>
+      <div style={{marginBottom:8,fontSize:9.5,textAlign:'justify',lineHeight:1.4}}>
         Em face do que determina a legislaçao fiscal vigente, vimos pela presente comunicar-lhe que a Nota Fiscal em referência contém a (s) irregularidade (s) que abaixo apontamos, e que solicitamos as devidas providências.
       </div>
 
@@ -221,11 +219,11 @@ const CartaDoc = ({ form }) => {
             return (
               <tr key={i}>
                 <td style={{...TDc,fontWeight:filled?700:400,color:filled?FILL_COLOR:'transparent',
-                  fontSize:filled?9:8,padding:'1px 4px',minHeight:16,height:16}}>
+                  fontSize:filled?10.5:9.5,padding:'1px 4px',minHeight:18,height:18}}>
                   {r.codigo||' '}
                 </td>
                 <td style={{...TD,fontWeight:filled?700:400,color:filled?FILL_COLOR:'#111',
-                  fontSize:filled?8.5:8,minHeight:16,height:16,padding:'1px 5px'}}>
+                  fontSize:filled?10:9.5,minHeight:18,height:18,padding:'1px 5px'}}>
                   {r.texto||' '}
                 </td>
               </tr>
@@ -235,7 +233,7 @@ const CartaDoc = ({ form }) => {
       </table>
 
       {/* ── Parágrafo de encerramento ── */}
-      <div style={{marginBottom:12,fontSize:8,textAlign:'justify',lineHeight:1.4}}>
+      <div style={{marginBottom:12,fontSize:9.5,textAlign:'justify',lineHeight:1.4}}>
         Para evitar qualquer sanção fiscal, solicitamos acusarem o recebimento desta, na cópia que a acompanha, devendo a via de V.Sª ficar arquivada com a nota fiscal em questão.
       </div>
 
@@ -244,12 +242,12 @@ const CartaDoc = ({ form }) => {
         <div style={{textAlign:'center',minWidth:220}}>
           {sigSrc&&<img src={sigSrc} alt="Assinatura" style={{height:38,maxWidth:200,objectFit:'contain',display:'block',margin:'0 auto 3px'}}/>}
           <div style={{borderBottom:'1px solid #666',marginBottom:4,marginTop:sigSrc?0:28}}/>
-          <div style={{fontSize:8.5}}>Atenciosamente,</div>
+          <div style={{fontSize:10}}>Atenciosamente,</div>
         </div>
       </div>
 
       {/* ── Rodapé ── */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,fontSize:8.5}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,fontSize:10}}>
         <div>
           <div style={{marginBottom:3}}>Acusamos recebimento da 1ª via.</div>
           <div style={{fontWeight:'bold',marginBottom:18}}>LOCAL E DATA</div>
@@ -258,15 +256,15 @@ const CartaDoc = ({ form }) => {
           <div style={{borderBottom:'1px solid #666',width:'90%'}}/>
         </div>
         <div>
-          <div style={{fontSize:7.5,color:'#555',marginBottom:1}}>R. Social</div>
-          <div style={{fontWeight:'bold',fontSize:10,marginBottom:6}}>
+          <div style={{fontSize:9,color:'#555',marginBottom:1}}>R. Social</div>
+          <div style={{fontWeight:'bold',fontSize:11.5,marginBottom:6}}>
             {empresa||<span style={{color:'#aaa',fontStyle:'italic'}}>Razão Social</span>}
           </div>
-          <div style={{fontSize:7.5,color:'#555',marginBottom:1}}>Ender.</div>
-          <div style={{fontWeight:'bold',color:FILL_COLOR,fontSize:8.5,marginBottom:6}}>
+          <div style={{fontSize:9,color:'#555',marginBottom:1}}>Ender.</div>
+          <div style={{fontWeight:'bold',color:FILL_COLOR,fontSize:10,marginBottom:6}}>
             {endereco||' '}
           </div>
-          <div style={{fontSize:8.5}}>
+          <div style={{fontSize:10}}>
             CNPJ <strong>{cnpj||'              '}</strong>
             {ie&&<span style={{marginLeft:12}}>I.Estadual <strong>{ie}</strong></span>}
           </div>
@@ -308,16 +306,35 @@ const TabCarta = () => {
     </div>
   );
 
+  // Imprime só o documento, numa janela isolada — em vez de esconder o resto da
+  // página com CSS (a técnica antiga usava position:fixed + visibility:hidden no
+  // resto da página, e como a página tem bastante coisa escondida mas que ainda
+  // ocupa espaço, o conteúdo saía repetido em 2 páginas). Isolar numa janela nova
+  // também tira o cabeçalho/rodapé do navegador com o título/link da página atual.
+  const printCarta = () => {
+    const src = document.getElementById('carta-doc');
+    if (!src) return;
+    const w = window.open('', '_blank', 'width=900,height=1000');
+    if (!w) { window.print(); return; } // pop-up bloqueado → volta pro jeito antigo
+    w.document.open();
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Carta de Correção</title>
+      <style>@page{margin:10mm} body{margin:0}</style>
+      </head><body>${src.outerHTML}</body></html>`);
+    w.document.close();
+    // fecha a janela sozinha só DEPOIS que o diálogo de impressão for fechado
+    // (fechar logo após w.print() arriscaria cancelar a impressão em alguns navegadores)
+    w.onafterprint = () => w.close();
+    const doPrint = () => { w.focus(); w.print(); };
+    const imgs = Array.from(w.document.images);
+    if (imgs.length === 0) { doPrint(); return; }
+    let pending = imgs.length;
+    const done = () => { if (--pending <= 0) doPrint(); };
+    imgs.forEach(img => { img.complete ? done() : (img.onload = img.onerror = done); });
+  };
+
   return (
     <div>
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #carta-doc, #carta-doc * { visibility: visible !important; }
-          #carta-doc { position: fixed !important; top: 0 !important; left: 0 !important;
-            width: 100% !important; background: #fff !important; padding: 0 !important; }
-        }
-      `}</style>
 
       <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gap:26,alignItems:'start'}}>
 
@@ -446,7 +463,7 @@ const TabCarta = () => {
 
           {/* Botões */}
           <div style={{display:'flex',gap:10,marginTop:24,flexWrap:'wrap'}}>
-            <button style={btnGold} onClick={()=>window.print()}
+            <button style={btnGold} onClick={printCarta}
               onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
               <Ico><path d="M6 9V2h12l4 4v14a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><polyline points="14 2 14 8 20 8"/></Ico>
               Imprimir / Salvar PDF
