@@ -2614,7 +2614,10 @@ function closeSettings(){
 }
 
 // ─── BACKGROUND MODE ───
-let bgMode = localStorage.getItem('dw_bgmode') || 'effects';
+// Chave nova (v2): quem já tinha 'video' salvo de antes das correções de buffer
+// volta a começar em "Sem Clipe" (o padrão seguro) — ainda pode escolher "Com
+// Clipe" de novo manualmente, só não fica preso numa escolha antiga arriscada.
+let bgMode = localStorage.getItem('dw_bgmode_v2') || 'effects';
 
 // ─── MODO DE JOGO (clássico = Teclado Estelar / wargame = Guerra Estelar) ───
 let gameMode = localStorage.getItem('dw_gamemode') || 'classic';
@@ -2717,7 +2720,7 @@ function closeBgPicker(){
 }
 function setBgMode(mode){
   bgMode = mode;
-  localStorage.setItem('dw_bgmode', mode);
+  localStorage.setItem('dw_bgmode_v2', mode);
   updateBgPickerUI();
 }
 function updateBgPickerUI(){
@@ -2963,7 +2966,7 @@ let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
 let _vbVisibleStuckSince=0; // vídeo visível (decorativo) preso bufferizando/pausado — pra auto-recuperação em syncVideoBg
 let _vbVisibleRetries=0, _vbVisibleGivenUp=false; // depois de várias tentativas sem sucesso, desiste e esconde (evita piscar pra sempre)
-const _VB_VISIBLE_MAX_RETRIES=3;
+const _VB_VISIBLE_MAX_RETRIES=1; // desiste rápido — o vídeo é só decoração, não vale a pena insistir muito
 
 // Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
 function _loadYTApi(){
@@ -3275,7 +3278,7 @@ function syncVideoBg(){
     let vs=-1; try{ vs=_vbPlayer.getPlayerState(); }catch(_){}
     if(vs===YT.PlayerState.BUFFERING||vs===YT.PlayerState.PAUSED){
       if(!_vbVisibleStuckSince) _vbVisibleStuckSince=performance.now();
-      else if(performance.now()-_vbVisibleStuckSince>3500){
+      else if(performance.now()-_vbVisibleStuckSince>2000){
         _vbVisibleStuckSince=performance.now();
         _vbVisibleRetries++;
         if(_vbVisibleRetries>_VB_VISIBLE_MAX_RETRIES){
