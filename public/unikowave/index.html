@@ -2954,7 +2954,12 @@ function playSfx(kind){
 const VB_IFRAME_CSS='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
   +'width:148%;height:148%;border:none;pointer-events:none;background:#000;';
 let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
-let _vbPlayer=null, _ytApiReady=false, _ytApiLoading=false;
+// _vbPlayer = vídeo VISÍVEL, sempre mudo — só decoração, pode soluçar sem afetar o jogo.
+// _vbAudioPlayer = player escondido/minúsculo (qualidade mínima, bem mais resistente a
+// buffer) que toca o SOM de verdade e é a autoridade do relógio das notas. Antes um
+// player só fazia os três papéis (vídeo+som+relógio) e qualquer soluço travava tudo
+// junto; separando, um soluço no vídeo grande vira só um piscar de imagem.
+let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
 
 // Carrega a IFrame Player API uma vez (cedo, p/ estar pronta no início da partida)
@@ -2999,7 +3004,7 @@ let _vbSynced=false;
 const _VB_SLEW=0.06;     // fração corrigida por frame (~0.25s de constante de tempo)
 const _VB_SNAP_MS=150;   // gap acima do qual travamos de imediato em vez de seguir
 function _syncClockToVideo(p){
-  p=p||_vbPlayer;
+  p=p||_vbAudioPlayer||_vbPlayer; // o relógio de verdade vem do player de áudio
   if(!p||!p.getCurrentTime) return;
   if(gameState!=='playing'&&gameState!=='countdown') return;
   // Só ancora com o vídeo REALMENTE tocando (evita ancorar em buffering/0s).
@@ -3036,7 +3041,8 @@ function _armBufferWatchdog(){
   _bufPollTimer=setInterval(()=>{
     if(!_bufferPaused){ clearInterval(_bufPollTimer); return; }
     try{
-      if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState&&_vbPlayer.getPlayerState()===YT.PlayerState.PLAYING){
+      const clk=_vbAudioPlayer||_vbPlayer;
+      if(clk&&window.YT&&clk.getPlayerState&&clk.getPlayerState()===YT.PlayerState.PLAYING){
         clearInterval(_bufPollTimer); _bufferResume();
       }
     }catch(_){}
@@ -3088,17 +3094,22 @@ function _bufferResume(){
 // sem tirar o clipe de quem quer jogar com ele. Reaplicado sempre que o
 // player volta a tocar, porque o YouTube às vezes reverte pra automático
 // sozinho depois de um soluço de rede.
-function _capVideoQuality(player){
+function _capVideoQuality(player, target){
   try{
     if(!player||!player.setPlaybackQuality) return;
+    target=target||'medium';
     const levels=player.getAvailableQualityLevels?player.getAvailableQualityLevels():[];
-    const pick=levels.includes('medium')?'medium':(levels[levels.length-1]||'medium');
+    const pick=levels.includes(target)?target:(levels[levels.length-1]||target);
     player.setPlaybackQuality(pick);
   }catch(_){}
 }
 
-// Cria o player visível (autoplay com áudio) — é a fonte de áudio+vídeo no modo vídeo
-function startVideoBg(videoId, muted){
+// Cria o player VISÍVEL — sempre mudo, só decoração. Se ele engasgar/bufferizar,
+// NÃO pausa o jogo (ver onStateChange abaixo) — o som e o relógio de verdade vêm
+// do _vbAudioPlayer (ver _startVideoClockPlayer), que é pequeno/leve e muito mais
+// resistente a buffer. Pior caso: a imagem congela/pisca um instante, mas as
+// notas e a música continuam tocando normal.
+function startVideoBg(videoId){
   if(bgMode!=='video'||!videoId) return;
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
@@ -3107,23 +3118,20 @@ function startVideoBg(videoId, muted){
 
   const build=()=>{
     if(!document.getElementById('ytVideoFrame')) return;
-    // muted=true → autoplay MUDO (permitido no iOS); o som é liberado depois com
-    // unMute() dentro de um gesto do usuário (ver _mobileTapStart).
     _vbPlayer=new YT.Player('ytVideoFrame',{
       width:'100%',height:'100%',videoId,
-      playerVars:{autoplay:1,mute:muted?1:0,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
+      playerVars:{autoplay:1,mute:1,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
         disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
       events:{
         onReady:(e)=>{
           try{ const ifr=e.target.getIframe(); if(ifr) ifr.style.cssText=VB_IFRAME_CSS;
-            if(muted && e.target.mute) e.target.mute();
-            e.target.playVideo();
+            e.target.mute(); e.target.playVideo();
             _capVideoQuality(e.target); }catch(_){}
         },
         onStateChange:(e)=>{
-          if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
-          if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
-          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target); }
+          // Vídeo é só decoração agora — nem BUFFERING nem ENDED daqui mexem no
+          // estado do jogo (isso é papel do _vbAudioPlayer). Só reforça a qualidade.
+          if(e.data===YT.PlayerState.PLAYING){ _capVideoQuality(e.target); }
         },
       },
     });
@@ -3142,6 +3150,44 @@ function startVideoBg(videoId, muted){
       // pra sempre na pausa de "carregando vídeo" (ver runCountdown). Libera na hora.
       if(_bufferPaused) _bufferResume();
     }
+  },120);
+}
+
+// Cria o player ESCONDIDO/minúsculo que toca o SOM de verdade e é a autoridade
+// do relógio das notas — qualidade travada no mínimo disponível pra ser bem
+// mais resistente a buffer que o vídeo grande. Se ESTE bufferizar (raro, já
+// que pesa muito pouco), aí sim pausamos o jogo de verdade (ver onStateChange).
+function _startVideoClockPlayer(videoId, muted){
+  let host=document.getElementById('ytClockFrame');
+  if(!host){
+    host=document.createElement('div'); host.id='ytClockFrame';
+    host.style.cssText='position:fixed;left:-9999px;top:0;width:2px;height:2px;pointer-events:none;';
+    document.body.appendChild(host);
+  }
+  const build=()=>{
+    if(!document.getElementById('ytClockFrame')) return;
+    _vbAudioPlayer=new YT.Player('ytClockFrame',{
+      width:2,height:2,videoId,
+      playerVars:{autoplay:1,mute:muted?1:0,controls:0,rel:0,modestbranding:1,iv_load_policy:3,
+        disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
+      events:{
+        onReady:(e)=>{
+          try{ if(muted && e.target.mute) e.target.mute();
+            e.target.playVideo(); _capVideoQuality(e.target,'small'); }catch(_){}
+        },
+        onStateChange:(e)=>{
+          if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
+          if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
+          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target,'small'); }
+        },
+      },
+    });
+  };
+  if(_ytApiReady && window.YT && window.YT.Player){ build(); return; }
+  let waited=0;
+  const iv=setInterval(()=>{
+    if(_ytApiReady && window.YT && window.YT.Player){ clearInterval(iv); build(); }
+    else if((waited+=120)>=20000){ clearInterval(iv); if(_bufferPaused) _bufferResume(); }
   },120);
 }
 
@@ -3175,6 +3221,8 @@ function _endByVideo(){
 
 function hideVideoBg(){
   if(_vbPlayer){try{_vbPlayer.destroy();}catch(_){}_vbPlayer=null;}
+  if(_vbAudioPlayer){try{_vbAudioPlayer.destroy();}catch(_){}_vbAudioPlayer=null;}
+  const clockHost=document.getElementById('ytClockFrame'); if(clockHost) clockHost.remove();
   const wrap=document.getElementById('videoBgWrap');
   if(wrap){
     wrap.classList.remove('active');
@@ -3197,7 +3245,8 @@ function syncVideoBg(){
   if(bgMode!=='video'||!_videoBgActive||_videoBgEnding) return;
   if(gameState!=='playing') return;
   let cur=0,dur=0;
-  if(_vbPlayer&&_vbPlayer.getDuration){ try{cur=_vbPlayer.getCurrentTime()||0;dur=_vbPlayer.getDuration()||0;}catch(_){} }
+  const clk=_vbAudioPlayer||_vbPlayer; // relógio de verdade vem do player de áudio
+  if(clk&&clk.getDuration){ try{cur=clk.getCurrentTime()||0;dur=clk.getDuration()||0;}catch(_){} }
   if(dur>1){
     const rem=dur-cur;
     if(rem<=2.2){ // fade nos últimos ~2s
@@ -5172,11 +5221,12 @@ function _beginPlaybackNow(startDelay){
   } else {
     gameStartWallTime=performance.now()+startDelay*1000;
     if(bgMode==='video'&&lastVideoUrl){
-      // Cria o player JÁ (mudo) em vez de esperar o fim da contagem — dá à conexão
-      // toda a duração da contagem pra bufferizar antes da partida precisar do vídeo
-      // de verdade. Mesmo truque do celular (_mobileTapStart): "aquece" mudo e, no
-      // GO (ver runCountdown), volta pro início e libera o som de verdade.
-      startVideoBg(lastVideoUrl, true);
+      // Cria os dois players JÁ (mudos) em vez de esperar o fim da contagem — dá à
+      // conexão toda a duração da contagem pra bufferizar antes da partida precisar
+      // de verdade. No GO (ver runCountdown) o player de áudio/relógio volta pro
+      // início e libera o som; o vídeo visível segue mudo pra sempre (é decoração).
+      startVideoBg(lastVideoUrl);
+      _startVideoClockPlayer(lastVideoUrl, true);
       _videoStartPending=true;
     } else {
       // Modo efeitos: iframe offscreen só p/ som, coincide com o fim do countdown.
@@ -5192,7 +5242,7 @@ function _beginPlaybackNow(startDelay){
 // no toque, dar unMute()+playVideo() sincronamente — o som é liberado.
 function _mobileTapStart(){
   // Cria o vídeo já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
-  if(bgMode==='video'&&lastVideoUrl) startVideoBg(lastVideoUrl, true);
+  if(bgMode==='video'&&lastVideoUrl){ startVideoBg(lastVideoUrl); _startVideoClockPlayer(lastVideoUrl, true); }
   else startAudioIframe(lastVideoUrl);
 
   let ov=document.getElementById('tapStartOverlay');
@@ -5207,14 +5257,19 @@ function _mobileTapStart(){
   ov.style.display='flex';
   const go=()=>{
     ov.style.display='none';
-    // No gesto: unMute (libera o som no iOS) + reinicia em 0 e PAUSA. O play de
-    // fato acontece no "GO" da contagem → o vídeo/som só começa DEPOIS do 3 2 1.
+    // No gesto: unMute no player de ÁUDIO (libera o som no iOS) + reinicia em 0 e
+    // PAUSA. O play de fato acontece no "GO" da contagem → o som só começa DEPOIS
+    // do 3 2 1. O vídeo visível só precisa resetar a posição (segue mudo sempre).
     try{
       if(_vbPlayer){
-        if(_vbPlayer.unMute)     _vbPlayer.unMute();
-        if(_vbPlayer.setVolume)  _vbPlayer.setVolume(100);
         if(_vbPlayer.seekTo)     _vbPlayer.seekTo(0, true);
         if(_vbPlayer.pauseVideo) _vbPlayer.pauseVideo();
+      }
+      if(_vbAudioPlayer){
+        if(_vbAudioPlayer.unMute)     _vbAudioPlayer.unMute();
+        if(_vbAudioPlayer.setVolume)  _vbAudioPlayer.setVolume(100);
+        if(_vbAudioPlayer.seekTo)     _vbAudioPlayer.seekTo(0, true);
+        if(_vbAudioPlayer.pauseVideo) _vbAudioPlayer.pauseVideo();
       }
     }catch(_){}
     _videoStartPending=true;  // runCountdown dá o play no GO
@@ -5241,24 +5296,31 @@ function runCountdown(){
       if(_videoStartPending){
         _videoStartPending=false;
         try{
+          // Vídeo visível: só reseta a posição (segue mudo, é só decoração).
           if(_vbPlayer){
-            if(_vbPlayer.unMute)    _vbPlayer.unMute();
-            if(_vbPlayer.setVolume) _vbPlayer.setVolume(100);
             if(_vbPlayer.seekTo)    _vbPlayer.seekTo(0, true);
             if(_vbPlayer.playVideo) _vbPlayer.playVideo();
+          }
+          // Player de áudio/relógio: agora sim libera o som de verdade.
+          if(_vbAudioPlayer){
+            if(_vbAudioPlayer.unMute)    _vbAudioPlayer.unMute();
+            if(_vbAudioPlayer.setVolume) _vbAudioPlayer.setVolume(100);
+            if(_vbAudioPlayer.seekTo)    _vbAudioPlayer.seekTo(0, true);
+            if(_vbAudioPlayer.playVideo) _vbAudioPlayer.playVideo();
           }
           audioIframeCmd('playVideo');
         }catch(_){}
       }
       setTimeout(()=>{
         overlay.classList.add('off');overlay.innerHTML='';
-        // Modo vídeo: só libera a partida (minions/notas) quando o vídeo do YouTube
-        // já estiver REALMENTE tocando — sem isso, em rede lenta (1ª partida do dia)
-        // o jogo começava "no escuro" enquanto o player ainda carregava/bufferizava.
+        // Modo vídeo: só libera a partida (minions/notas) quando o player de
+        // áudio/relógio já estiver REALMENTE tocando — sem isso, em rede lenta
+        // (1ª partida do dia) o jogo começava "no escuro" enquanto ainda carregava.
         let videoPlaying=true;
         if(bgMode==='video'&&lastVideoUrl){
           videoPlaying=false;
-          try{ if(_vbPlayer&&window.YT&&_vbPlayer.getPlayerState) videoPlaying=(_vbPlayer.getPlayerState()===YT.PlayerState.PLAYING); }catch(_){}
+          const clk=_vbAudioPlayer||_vbPlayer;
+          try{ if(clk&&window.YT&&clk.getPlayerState) videoPlaying=(clk.getPlayerState()===YT.PlayerState.PLAYING); }catch(_){}
         }
         if(videoPlaying){ gameState='playing'; return; }
         // Reaproveita o mecanismo de auto-pausa de buffering: fica "carregando…" até
@@ -5394,6 +5456,7 @@ function gameOver(){
   try{ wgHoldSfxStop(); }catch(_){}
   try{ triggerScreenFlash('miss'); }catch(_){}
   if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
+  if(_vbAudioPlayer&&_vbAudioPlayer.pauseVideo){ try{_vbAudioPlayer.pauseVideo();}catch(_){} }
   audioIframeCmd('pauseVideo');
   if(audioCtx){ try{audioCtx.suspend();}catch(_){} }
   setTimeout(showResult,800);
@@ -8249,7 +8312,7 @@ function wgBossDie(){
   // encerra a partida após a animação/fala
   if(!WG.resultScheduled){
     WG.resultScheduled=true;
-    try{ if(_vbPlayer&&_vbPlayer.pauseVideo) _vbPlayer.pauseVideo(); audioIframeCmd('pauseVideo'); }catch(_){}
+    try{ if(_vbPlayer&&_vbPlayer.pauseVideo) _vbPlayer.pauseVideo(); if(_vbAudioPlayer&&_vbAudioPlayer.pauseVideo) _vbAudioPlayer.pauseVideo(); audioIframeCmd('pauseVideo'); }catch(_){}
     setTimeout(()=>{ if(gameState!=='result') showResult(); }, 3800);
   }
 }
@@ -9455,8 +9518,9 @@ function pauseGame(){
   gameState='paused';
   try{ wgHoldSfxStop(); }catch(_){}
   if(audioCtx) audioCtx.suspend();
-  // Pausa também a música do YouTube — modo vídeo (_vbPlayer) e modo efeitos (iframe oculto)
+  // Pausa também a música do YouTube — vídeo visível, player de áudio/relógio e modo efeitos
   if(_vbPlayer&&_vbPlayer.pauseVideo){ try{_vbPlayer.pauseVideo();}catch(_){} }
+  if(_vbAudioPlayer&&_vbAudioPlayer.pauseVideo){ try{_vbAudioPlayer.pauseVideo();}catch(_){} }
   audioIframeCmd('pauseVideo');
   pauseStartWallMs=performance.now();
   document.getElementById('pauseOverlay').classList.remove('off');
@@ -9466,8 +9530,9 @@ function resumeGame(){
   if(gameState!=='paused') return;
   gameState=prePauseState;
   if(audioCtx) audioCtx.resume();
-  // Retoma a música do YouTube de onde parou (vídeo e efeitos)
+  // Retoma a música do YouTube de onde parou (vídeo visível, áudio/relógio e efeitos)
   if(_vbPlayer&&_vbPlayer.playVideo){ try{_vbPlayer.playVideo();}catch(_){} }
+  if(_vbAudioPlayer&&_vbAudioPlayer.playVideo){ try{_vbAudioPlayer.playVideo();}catch(_){} }
   audioIframeCmd('playVideo');
   const pausedMs=performance.now()-pauseStartWallMs;
   gameStartWallTime+=pausedMs;       // âncora provisória até o vídeo voltar a tocar
