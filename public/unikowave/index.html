@@ -293,6 +293,7 @@ canvas{display:block}
 .url-in{width:100%;background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.14);border-radius:12px;color:#fff;font-family:var(--font-ui);font-size:11px;padding:14px 18px;outline:none;transition:border-color .2s,box-shadow .2s,background .2s;-webkit-user-select:text;user-select:text;letter-spacing:1px}
 .url-in:focus{border-color:rgba(255,45,146,.6);box-shadow:0 0 24px rgba(255,45,146,.2);background:rgba(255,45,146,.06)}
 .url-in::placeholder{color:rgba(255,255,255,0.25)}
+.url-msg{width:100%;max-width:540px;text-align:center;font-size:12.5px;color:#ff5c5c;font-weight:700;letter-spacing:.2px;line-height:1.5;background:rgba(255,45,45,.08);border:1px solid rgba(255,45,45,.28);border-radius:10px;padding:10px 14px}
 
 .play-char-badge{
   display:flex;align-items:center;gap:12px;
@@ -1658,6 +1659,7 @@ canvas{display:block}
       <div class="play-hint">Escolha uma música e mostre suas habilidades no ritmo!</div>
       <div class="play-url-row">
         <input class="url-in" id="urlIn" type="url" placeholder="Cole o link do YouTube aqui..." autocomplete="off">
+        <div id="urlMsg" class="url-msg" style="display:none"></div>
         <div class="play-char-badge" onclick="showMenuPanel('panelChar',document.getElementById('mnBtn4'))">
           <div class="play-char-info">
             <div class="play-char-label">PERSONAGEM</div>
@@ -4447,6 +4449,60 @@ function setProgress(pct,msg,isErr=false){
 function getYTId(url){const m=url.match(/(?:v=|youtu\.be\/|\/embed\/)([a-zA-Z0-9_-]{11})/);return m?m[1]:null;}
 function fmtDur(s){const m=Math.floor(s/60);return `${m}:${String(Math.floor(s%60)).padStart(2,'0')}`;}
 
+// Limite de duração pra jogar uma música (10 minutos).
+const MAX_SONG_SECONDS=600;
+// Descobre a duração REAL do vídeo antes de deixar jogar — a oEmbed do YouTube não
+// traz duração, então usamos um player oculto e temporário da IFrame API (mesma API
+// já usada pelo vídeo de fundo) só pra ler getDuration() e descartar em seguida.
+// Em qualquer falha/demora resolve com 0 (não bloqueia — só o limite é reforçado).
+function getYTDuration(vid){
+  return new Promise((resolve)=>{
+    let done=false;
+    const host=document.createElement('div');
+    host.id='ytDurProbe_'+Math.random().toString(36).slice(2);
+    host.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;';
+    document.body.appendChild(host);
+    let probePlayer=null;
+    const finish=(d)=>{
+      if(done) return; done=true;
+      try{ probePlayer&&probePlayer.destroy(); }catch(_){}
+      try{ host.remove(); }catch(_){}
+      resolve(d||0);
+    };
+    const build=()=>{
+      try{
+        probePlayer=new YT.Player(host.id,{
+          videoId:vid,
+          playerVars:{autoplay:0,controls:0},
+          events:{
+            onReady:(e)=>{ try{ finish(e.target.getDuration()||0); }catch(_){ finish(0); } },
+            onError:()=>finish(0),
+          },
+        });
+      }catch(_){ finish(0); }
+    };
+    if(_ytApiReady && window.YT && window.YT.Player){ build(); }
+    else{
+      let waited=0;
+      const iv=setInterval(()=>{
+        if(_ytApiReady && window.YT && window.YT.Player){ clearInterval(iv); build(); }
+        else if((waited+=120)>=8000){ clearInterval(iv); finish(0); }
+      },120);
+    }
+    setTimeout(()=>finish(0),9000); // segurança: nunca trava o botão Jogar
+  });
+}
+// Mostra a mensagem de música longa demais perto do campo de link (painel Jogar).
+function showTooLongMsg(){
+  const msgEl=document.getElementById('urlMsg');
+  if(msgEl){
+    msgEl.textContent='Ei, você não pode colocar uma música de mais de 10 minutos, tente colocar um tempo menor!';
+    msgEl.style.display='block';
+  }
+  const inp=document.getElementById('urlIn');
+  if(inp){ inp.style.outline='2px solid #ff4444'; setTimeout(()=>{inp.style.outline='';},2500); }
+}
+
 let pendingAudioBuffer=null,pendingTitle='',pendingDuration=0;
 
 /* ─── Autorização YouTube via Catbot ─── */
@@ -4491,6 +4547,8 @@ function requestYtAuth(){
 
 async function startLoad(){
   const url=(document.getElementById('urlIn').value||'').trim();
+  const msgEl=document.getElementById('urlMsg');
+  if(msgEl){ msgEl.style.display='none'; }
   if(!url){document.getElementById('urlIn').focus();return;}
   const vid=getYTId(url);
   if(!vid){
@@ -4499,6 +4557,14 @@ async function startLoad(){
     setTimeout(()=>inp.style.outline='',2000);
     return;
   }
+
+  // Bloqueia músicas com mais de 10 minutos ANTES de gastar tempo carregando/analisando.
+  const goBtn=document.querySelector('#panelPlay .go-btn');
+  if(goBtn){ goBtn.disabled=true; goBtn.textContent='VERIFICANDO...'; }
+  const dur=await getYTDuration(vid);
+  if(goBtn){ goBtn.disabled=false; goBtn.textContent='▶ JOGAR'; }
+  if(dur>MAX_SONG_SECONDS){ showTooLongMsg(); return; }
+
   lastYtUrl=url; lastVideoUrl=vid;
   showScreen('loadScr');
   document.getElementById('loadTxt').textContent='CARREGANDO';
@@ -9800,10 +9866,15 @@ async function libReplay(idx){
   closeLibrary();
   const e = _libCache[idx];
   if(!e){ goMenu(); return; }
-  lastYtUrl = e.ytUrl;
-  selectDiff(e.diff||'normal');
   const vid=getYTId(e.ytUrl);
   if(!vid){ goMenu(); return; }
+
+  // Mesmo limite de 10 minutos, pro caso de músicas antigas salvas antes dessa regra existir.
+  const dur=await getYTDuration(vid);
+  if(dur>MAX_SONG_SECONDS){ showTooLongMsg(); return; }
+
+  lastYtUrl = e.ytUrl;
+  selectDiff(e.diff||'normal');
   lastVideoUrl=vid;
   showScreen('loadScr');
   document.getElementById('loadTxt').textContent='CARREGANDO';
