@@ -294,6 +294,8 @@ export const PdfEditor = ({ onDoc }) => {
   const annosRef  = useRef(annos);
   const histRef   = useRef([]);
   const dragRef   = useRef(null);
+  const drawRef   = useRef(null);
+  const [drawBox, setDrawBox] = useState(null); // preview do whiteout sendo arrastado
   const editedFocus = useRef(false);
   const fileInput = useRef();
   const addInput  = useRef();
@@ -436,12 +438,20 @@ export const PdfEditor = ({ onDoc }) => {
       str:'Novo texto', orig:undefined, color:'#111111' }]);
     setSelId(id); setTool('select');
   };
-  const addWhiteout = (pageIdx, xPt, topPt) => {
+  const addWhiteout = useCallback((pageIdx, xPt, topPt) => {
     pushHistory();
     const id = uid();
     setAnnos(p => [...p, { id, page:pageIdx, type:'whiteout', x:xPt-60, top:topPt-20, w:120, h:40 }]);
     setSelId(id); setTool('select');
-  };
+  }, [pushHistory]);
+  // Cria o whiteout já com a área exata que o usuário arrastou (em vez de um
+  // tamanho fixo pra depois mover/redimensionar).
+  const addWhiteoutRect = useCallback((pageIdx, xPt, topPt, wPt, hPt) => {
+    pushHistory();
+    const id = uid();
+    setAnnos(p => [...p, { id, page:pageIdx, type:'whiteout', x:xPt, top:topPt, w:wPt, h:hPt }]);
+    setSelId(id); setTool('select');
+  }, [pushHistory]);
   const addImageAnno = (dataUrl, type, repeat=false) => {
     const img = new Image();
     img.onload = () => {
@@ -465,10 +475,20 @@ export const PdfEditor = ({ onDoc }) => {
     if (tool === 'text') {
       const r = e.currentTarget.getBoundingClientRect();
       addText(pageIdx, (e.clientX-r.left)/scale, (e.clientY-r.top)/scale);
-    } else if (tool === 'whiteout') {
-      const r = e.currentTarget.getBoundingClientRect();
-      addWhiteout(pageIdx, (e.clientX-r.left)/scale, (e.clientY-r.top)/scale);
-    } else { setSelId(null); }
+    } else if (tool !== 'whiteout') {
+      // whiteout agora é feito por arraste (ver onPagePointerDown) — não por clique
+      setSelId(null);
+    }
+  };
+
+  // Whiteout: arrasta pra desenhar a área exata que quer cobrir de branco.
+  const onPagePointerDown = (pageIdx, e) => {
+    if (tool !== 'whiteout') return;
+    e.preventDefault();
+    setActivePage(pageIdx);
+    const r = e.currentTarget.getBoundingClientRect();
+    drawRef.current = { pageIdx, rect:r, sx:e.clientX, sy:e.clientY };
+    setDrawBox({ pageIdx, x:(e.clientX-r.left)/scale, top:(e.clientY-r.top)/scale, w:0, h:0 });
   };
 
   const updateAnno = (id, patch) => setAnnos(p => p.map(a => a.id===id ? {...a, ...patch} : a));
@@ -476,23 +496,43 @@ export const PdfEditor = ({ onDoc }) => {
   /* ── drag / resize ── */
   useEffect(() => {
     const move = (e) => {
-      const d = dragRef.current; if (!d) return;
+      const d = dragRef.current;
+      if (d) {
+        const s = scaleRef.current;
+        const dx = (e.clientX-d.sx)/s, dy = (e.clientY-d.sy)/s;
+        setAnnos(prev => prev.map(a => {
+          const match = d.group ? a.group === d.group : a.id === d.id;
+          if (!match) return a;
+          if (d.mode === 'move')    return { ...a, x:d.ox+dx, top:d.oy+dy };
+          if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h:w/d.aspect }; }
+          if (d.mode === 'resizeWH') { return { ...a, w:Math.max(24,d.ow+dx), h:Math.max(16,d.oh+dy) }; }
+          return a;
+        }));
+        return;
+      }
+      const w = drawRef.current; if (!w) return;
       const s = scaleRef.current;
-      const dx = (e.clientX-d.sx)/s, dy = (e.clientY-d.sy)/s;
-      setAnnos(prev => prev.map(a => {
-        const match = d.group ? a.group === d.group : a.id === d.id;
-        if (!match) return a;
-        if (d.mode === 'move')    return { ...a, x:d.ox+dx, top:d.oy+dy };
-        if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h:w/d.aspect }; }
-        if (d.mode === 'resizeWH') { return { ...a, w:Math.max(24,d.ow+dx), h:Math.max(16,d.oh+dy) }; }
-        return a;
-      }));
+      const x0 = (w.sx-w.rect.left)/s, y0 = (w.sy-w.rect.top)/s;
+      const x1 = (e.clientX-w.rect.left)/s, y1 = (e.clientY-w.rect.top)/s;
+      setDrawBox({ pageIdx:w.pageIdx, x:Math.min(x0,x1), top:Math.min(y0,y1), w:Math.abs(x1-x0), h:Math.abs(y1-y0) });
     };
-    const up = () => { dragRef.current = null; };
+    const up = (e) => {
+      if (dragRef.current) { dragRef.current = null; return; }
+      const w = drawRef.current; if (!w) return;
+      drawRef.current = null;
+      setDrawBox(null);
+      const s = scaleRef.current;
+      const x0 = (w.sx-w.rect.left)/s, y0 = (w.sy-w.rect.top)/s;
+      const x1 = (e.clientX-w.rect.left)/s, y1 = (e.clientY-w.rect.top)/s;
+      const wid = Math.abs(x1-x0), hei = Math.abs(y1-y0);
+      // Arraste pequeno demais (praticamente um clique) → caixa padrão centrada ali
+      if (wid < 6 || hei < 6) addWhiteout(w.pageIdx, x0, y0);
+      else addWhiteoutRect(w.pageIdx, Math.min(x0,x1), Math.min(y0,y1), wid, hei);
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, []);
+  }, [addWhiteout, addWhiteoutRect]);
 
   const startDrag = (e, a, mode) => {
     e.stopPropagation(); e.preventDefault();
@@ -689,7 +729,7 @@ export const PdfEditor = ({ onDoc }) => {
       {error && <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,fontSize:13.5,color:T.danger}}>{error}</div>}
 
       {tool==='text' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique sobre um texto do PDF para editá-lo, ou clique numa área vazia para adicionar texto novo.</div>}
-      {tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique no PDF para inserir uma caixa branca. Arraste para mover e use a alça para redimensionar.</div>}
+      {tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Arraste sobre a área que quer cobrir de branco (ou só clique pra inserir uma caixa padrão).</div>}
 
       <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
         {/* Miniaturas */}
@@ -711,7 +751,10 @@ export const PdfEditor = ({ onDoc }) => {
             <div key={i} id={'pdfpg-'+i} style={{margin:'0 auto 18px',width:p.w*scale,boxShadow:'0 4px 18px rgba(0,0,0,.14)'}}>
               <div style={{position:'relative',width:p.w*scale,height:p.h*scale}}>
                 <PdfCanvas pdf={pdf} index={i} scale={scale} quality={RENDER_QUALITY}/>
-                <div onClick={(e)=>onPageClick(i,e)} style={{position:'absolute',inset:0,cursor:tool==='text'?'text':tool==='whiteout'?'crosshair':'default'}}>
+                <div onClick={(e)=>onPageClick(i,e)} onPointerDown={(e)=>onPagePointerDown(i,e)} style={{position:'absolute',inset:0,cursor:tool==='text'?'text':tool==='whiteout'?'crosshair':'default'}}>
+                  {drawBox && drawBox.pageIdx===i && (
+                    <div style={{position:'absolute',left:drawBox.x*scale,top:drawBox.top*scale,width:drawBox.w*scale,height:drawBox.h*scale,background:'rgba(255,255,255,.65)',outline:`1.5px dashed ${T.gold}`,zIndex:7,pointerEvents:'none'}}/>
+                  )}
                   {annos.filter(a=>a.page===i).map(a => {
                     const selected = a.id===selId;
                     if (a.type === 'text') {

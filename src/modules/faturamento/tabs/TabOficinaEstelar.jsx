@@ -4,6 +4,7 @@ import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
+import logo7ServUrl from '../../../assets/logo-7beneficios.png';
 
 const HERO_ICON = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)"
@@ -278,12 +279,15 @@ const CartaDoc = ({ form }) => {
 /* ── Formulário + Preview ── */
 const TabCarta = () => {
   const hoje = new Date();
+  // Dados fixos da 7Serv — vêm sempre preenchidos, mas continuam editáveis no formulário.
   const emptyForm = () => ({
-    cidade:'', dia:String(hoje.getDate()), mes:String(hoje.getMonth()), ano:String(hoje.getFullYear()),
-    empresa:'', endereco:'', cnpj:'', ie:'',
+    cidade:'Fortaleza', dia:String(hoje.getDate()), mes:String(hoje.getMonth()), ano:String(hoje.getFullYear()),
+    empresa:'7SERV GESTAO DE BENEFICIOS LTDA',
+    endereco:'AV WASHINGTON SOARES, 3663 - EDSON QUEIROZ, CEP 60.811-341',
+    cnpj:'13.858.769/0001-97', ie:'0951862-2',
     nfTipo:'nossa', nfNumero:'', nfDataEmissao:'',
     retificacoes:[{codigo:'',texto:''}],
-    sigSrc:null, logoSrc:null,
+    sigSrc:null, logoSrc:logo7ServUrl,
   });
 
   const [form, setForm] = useState(emptyForm);
