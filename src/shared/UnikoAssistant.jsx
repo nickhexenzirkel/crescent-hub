@@ -984,7 +984,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     // (como colidir com uma parede), em vez de só corrigir depois de soltar — assim ele
     // desliza ao redor da área durante o próprio arraste, nunca chega a entrar.
     const pushOutsideCard = (pt, icon) => {
-      if (captureRef.current) return pt; // tem Uniko disponível agora -- pode entrar
+      // Checa os DOIS sinais de "disponível agora": captureRef.current (estado React,
+      // via pub/sub) E getCaptureTargetRect() (variável direta que o próprio widget seta
+      // no mesmo instante que fica disponível, sem depender de um re-render do React pra
+      // propagar) — evita a barreira ficar presa achando "nada disponível" por causa de um
+      // possível atraso entre o widget emitir o estado e o React aplicar o novo valor aqui.
+      if (captureRef.current || getCaptureTargetRect()) return pt; // tem Uniko disponível agora -- pode entrar
       const rect = document.getElementById('capture-uniko-card')?.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) return pt;
       const left = pt.x, right = pt.x + icon, top = pt.y, bottom = pt.y + icon;
@@ -1022,7 +1027,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       // ── ARREMESSO: soltou o assistente em cima do Uniko do widget? → captura ──
       const icon = iconRef.current, margin = marginRef.current;
       const cx = posRef.current.x + icon / 2, cy = posRef.current.y + icon / 2;
-      if (captureRef.current) {
+      if (captureRef.current || getCaptureTargetRect()) {
         const rect = getCaptureTargetRect();
         const M = 46; // margem de tolerância (mira generosa)
         if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
