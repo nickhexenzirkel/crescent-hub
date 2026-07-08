@@ -355,8 +355,10 @@ export default function CrescentHub() {
           </div>
         )}
 
-        {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
-        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
+        {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ──
+             Escondido no Lobby Estelar: lá o "assistente" de cada um já aparece dentro do
+             cenário como avatar, não faz sentido o robô de dicas flutuando por cima também. */}
+        {screen!=='lobby-estelar' && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}

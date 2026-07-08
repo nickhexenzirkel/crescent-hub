@@ -8,10 +8,14 @@ create table if not exists public.lobby_presence (
   skin_id     text not null default 'default',   -- Uniko usado como avatar (mesmo id do assistente)
   scene       text not null default 'hangar',    -- cenário atual (futuro: mais de um)
   x           numeric not null default 50,        -- posição horizontal, 0-100 (%)
+  y           numeric not null default 40,        -- posição dentro da faixa do chão, 0-100 (%)
   message     text,                               -- último balão de fala (nulo = sem balão)
   message_at  timestamptz,                        -- quando foi enviado (cliente expira o balão sozinho)
   updated_at  timestamptz not null default now()   -- heartbeat — usado pra saber quem está online
 );
+
+-- Se a tabela já existia (versão anterior, sem chão 2D) — adiciona a coluna sem quebrar nada.
+alter table public.lobby_presence add column if not exists y numeric not null default 40;
 
 alter table public.lobby_presence enable row level security;
 
