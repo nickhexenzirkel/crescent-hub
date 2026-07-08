@@ -29,7 +29,9 @@ import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange } fro
 const SCENES = {
   // Faixa do chão cinza metálico dessa arte específica: começa logo abaixo do
   // emblema circular e vai até a borda de baixo da imagem.
-  hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90 },
+  // exitRight/exitLeft: atravessar aquela borda lateral leva pro cenário indicado.
+  hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitRight: 'laboratorio' },
+  laboratorio: { bg: '/lobby-estelar/laboratorio.png', floorBottomPct: 2, floorHeightPct: 36, minX: 6, maxX: 94, exitLeft: 'hangar' },
 };
 const DEFAULT_SCENE = 'hangar';
 
@@ -41,6 +43,7 @@ const BROADCAST_MS   = 150;   // throttle do envio de posição pro servidor
 const SPEED_PCT_S    = 32;    // velocidade de andar (% da área por segundo)
 const ICON_SIZE      = 132;
 const CHAT_LOG_MAX   = 30;
+const ENTRY_MARGIN   = 3;    // onde aparece do outro lado da porta (distância da borda)
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const shortName = (n) => (n || '').trim().split(/\s+/).slice(0, 2).join(' ');
@@ -48,7 +51,7 @@ const isTypingTarget = (el) => !!el && (el.tagName === 'INPUT' || el.tagName ===
 
 export const LobbyEstelar = ({ onBack, authUser }) => {
   const player = authUser?.name || getAuthUser()?.name || 'Anônimo';
-  const scene  = DEFAULT_SCENE;
+  const [scene, setScene] = useState(DEFAULT_SCENE);
   const sceneCfg = SCENES[scene];
 
   const [skinId, setSkinId] = useState(getActiveAssistantSkinId());
@@ -60,9 +63,10 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   const [myMsg, setMyMsg] = useState(null); // {text, at} — bolha da MINHA fala, otimista (sem esperar o servidor)
   const [, setTick] = useState(0);
 
-  const sceneRef = useRef(null);
+  const sceneElRef = useRef(null);
   const posRef = useRef(pos);
   const skinIdRef = useRef(skinId);
+  const sceneRef = useRef(scene);
   const chatOpenRef = useRef(chatOpen);
   const keysRef = useRef({});
   const lastBroadcastRef = useRef(0);
@@ -70,20 +74,23 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
 
   useEffect(() => { posRef.current = pos; }, [pos]);
   useEffect(() => { skinIdRef.current = skinId; }, [skinId]);
+  useEffect(() => { sceneRef.current = scene; }, [scene]);
   useEffect(() => { chatOpenRef.current = chatOpen; }, [chatOpen]);
   useEffect(() => onAssistantSkinChange(setSkinId), []);
 
+  // Lê scene/skin/pos sempre via ref (não fecha sobre o valor do render) — assim
+  // não precisa recriar heartbeat/poll/realtime toda vez que troca de cenário.
   const upsertMe = useCallback(async (patch = {}) => {
     try {
       await supabase.from('lobby_presence').upsert({
-        player, scene, skin_id: skinIdRef.current, x: posRef.current.x, y: posRef.current.y,
+        player, scene: sceneRef.current, skin_id: skinIdRef.current, x: posRef.current.x, y: posRef.current.y,
         updated_at: new Date().toISOString(), ...patch,
       }, { onConflict: 'player' });
     } catch { /* rede instável — próximo heartbeat/frame tenta de novo */ }
-  }, [player, scene]);
+  }, [player]);
 
   const loadPlayers = useCallback(async () => {
-    const { data } = await supabase.from('lobby_presence').select('*').eq('scene', scene);
+    const { data } = await supabase.from('lobby_presence').select('*').eq('scene', sceneRef.current);
     if (!data) return;
     setPlayers(data);
     // Detecta mensagens NOVAS (message_at mudou) pra alimentar o histórico do chat.
@@ -102,9 +109,12 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       fresh.sort((a, b) => new Date(a.at) - new Date(b.at));
       setChatLog(prev => [...prev, ...fresh].slice(-CHAT_LOG_MAX));
     }
-  }, [scene]);
+  }, []);
 
-  // Entra no lobby + heartbeat + poll de reforço + realtime + tick (expira balões)
+  // Entra no lobby + heartbeat + poll de reforço + realtime + tick (expira balões).
+  // Roda só UMA VEZ (não em toda troca de cenário — senão apagaria/recriaria a
+  // linha de presença a cada passagem de porta); loadPlayers/upsertMe sempre leem
+  // o cenário ATUAL via sceneRef.
   useEffect(() => {
     upsertMe();
     loadPlayers();
@@ -120,10 +130,26 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       supabase.from('lobby_presence').delete().eq('player', player).then(() => {}, () => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene]);
+  }, []);
 
   // Mudou a skin do assistente enquanto estava no lobby → avisa os outros
   useEffect(() => { upsertMe({ skin_id: skinId }); }, [skinId, upsertMe]);
+
+  // Atravessou a borda lateral pra outro cenário: aparece do lado OPOSTO de lá
+  // (entrou pela direita → surge perto da borda esquerda do novo cenário, e
+  // vice-versa). Atualiza as refs NA HORA (não só via effect) pra loadPlayers/
+  // upsertMe já usarem o cenário novo na mesma chamada, sem esperar o re-render.
+  const enterScene = useCallback((nextId, side, ny) => {
+    const next = SCENES[nextId];
+    const sx = side === 'fromRight' ? next.minX + ENTRY_MARGIN : next.maxX - ENTRY_MARGIN;
+    sceneRef.current = nextId;
+    posRef.current = { x: sx, y: ny };
+    setScene(nextId);
+    setPos({ x: sx, y: ny });
+    setPlayers([]); // some com os avatares do cenário antigo na hora, sem esperar o fetch
+    upsertMe({ scene: nextId, x: sx, y: ny });
+    loadPlayers();
+  }, [upsertMe, loadPlayers]);
 
   // Mostra o balão/histórico da MINHA fala na hora (sem esperar o vai-e-volta do
   // servidor) — o que dava aquela sensação de atraso ao digitar.
@@ -164,6 +190,9 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
     };
   }, []);
 
+  // Loop de movimento (WASD/setas). Lê o cenário atual via sceneRef (não fecha
+  // sobre sceneCfg do render) — assim o efeito só monta UMA VEZ, e continua
+  // funcionando certinho depois de atravessar pra outro cenário.
   useEffect(() => {
     let raf, last = performance.now();
     const loop = (now) => {
@@ -179,27 +208,42 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       if (k.w || k.arrowup)    dy += 1;
       if (dx || dy) {
         const len = Math.hypot(dx, dy) || 1;
-        const nx = clamp(posRef.current.x + (dx / len) * SPEED_PCT_S * dt, sceneCfg.minX, sceneCfg.maxX);
+        const rawX = posRef.current.x + (dx / len) * SPEED_PCT_S * dt;
         const ny = clamp(posRef.current.y + (dy / len) * SPEED_PCT_S * dt, 0, 100);
-        setPos({ x: nx, y: ny });
-        if (now - lastBroadcastRef.current > BROADCAST_MS) { lastBroadcastRef.current = now; upsertMe({ x: nx, y: ny }); }
+        const cfg = SCENES[sceneRef.current];
+        if (rawX >= cfg.maxX && cfg.exitRight) {
+          enterScene(cfg.exitRight, 'fromRight', ny);
+        } else if (rawX <= cfg.minX && cfg.exitLeft) {
+          enterScene(cfg.exitLeft, 'fromLeft', ny);
+        } else {
+          const nx = clamp(rawX, cfg.minX, cfg.maxX);
+          setPos({ x: nx, y: ny });
+          posRef.current = { x: nx, y: ny };
+          if (now - lastBroadcastRef.current > BROADCAST_MS) { lastBroadcastRef.current = now; upsertMe({ x: nx, y: ny }); }
+        }
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [upsertMe, sceneCfg]);
+  }, [upsertMe, enterScene]);
 
-  // Clique no chão: anda até o ponto clicado (x + y, dentro da faixa do chão)
+  // Clique no chão: anda até o ponto clicado (x + y, dentro da faixa do chão);
+  // clicar além da borda lateral (onde tem exitRight/exitLeft) atravessa pro
+  // cenário vizinho.
   const walkToClick = (e) => {
-    const el = sceneRef.current; if (!el) return;
+    const el = sceneElRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = clamp(((e.clientX - r.left) / r.width) * 100, sceneCfg.minX, sceneCfg.maxX);
+    const rawX = ((e.clientX - r.left) / r.width) * 100;
     const bandBottomPx = r.height * (sceneCfg.floorBottomPct / 100);
     const bandHeightPx = r.height * (sceneCfg.floorHeightPct / 100);
     const relFromBottom = r.height - (e.clientY - r.top);
     const y = clamp(((relFromBottom - bandBottomPx) / bandHeightPx) * 100, 0, 100);
+    if (rawX >= sceneCfg.maxX && sceneCfg.exitRight) { enterScene(sceneCfg.exitRight, 'fromRight', y); return; }
+    if (rawX <= sceneCfg.minX && sceneCfg.exitLeft)  { enterScene(sceneCfg.exitLeft, 'fromLeft', y); return; }
+    const x = clamp(rawX, sceneCfg.minX, sceneCfg.maxX);
     setPos({ x, y });
+    posRef.current = { x, y };
     upsertMe({ x, y });
   };
 
@@ -238,7 +282,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       </div>
 
       {/* Cenário */}
-      <div ref={sceneRef} onClick={walkToClick}
+      <div ref={sceneElRef} onClick={walkToClick}
         style={{ position: 'relative', flex: 1, backgroundImage: `url(${sceneCfg.bg})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer', overflow: 'hidden' }}>
         <style>{`
           @keyframes lobbyIdleBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
