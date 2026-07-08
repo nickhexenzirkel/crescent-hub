@@ -7,7 +7,7 @@ import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
-  giftUnikoToPlayer,
+  giftUnikoToPlayer, themeWithScene,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -490,7 +490,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
   const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
   const [oficinaForm, setOficinaForm]       = useState({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
-  const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null });
+  const [oficinaFrames, setOficinaFrames]   = useState({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null, scene: null });
   const [oficinaSaving, setOficinaSaving]   = useState(false);
   const [oficinaMsg, setOficinaMsg]         = useState('');
   const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
@@ -501,14 +501,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // Preview piscando — só pra dar uma ideia de como fica animado (aberto/fechado a cada 2s).
   useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
 
-  // Lê um arquivo de imagem, redimensiona (máx. 320px no lado maior, mantém transparência) e
-  // devolve um dataURL PNG — mesma ideia do canvas 300x300 já usado pra foto de perfil.
-  const frameFromFile = (file) => new Promise((resolve, reject) => {
+  // Lê um arquivo de imagem, redimensiona (máx. `maxSize`px no lado maior, mantém
+  // transparência) e devolve um dataURL PNG — mesma ideia do canvas 300x300 já usado
+  // pra foto de perfil. maxSize maior (640) pro cenário, que cobre uma área bem maior
+  // que os ícones/frames do assistente (320).
+  const frameFromFile = (file, maxSize = 320) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const maxSize = 320;
         let { width, height } = img;
         if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
         else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
@@ -527,10 +528,17 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     try { setOficinaFrames(f => ({ ...f, [key]: null })); const dataUrl = await frameFromFile(file); setOficinaFrames(f => ({ ...f, [key]: dataUrl })); }
     catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
   };
+  // Cenário: OPCIONAL. Se anexado, vira o fundo do Uniko no Capture o Uniko em vez da
+  // cor gradiente padrão. Sem anexar nada, continua só a cor (nada muda).
+  const handleSceneFile = async (file) => {
+    if (!file) return;
+    try { setOficinaFrames(f => ({ ...f, scene: null })); const dataUrl = await frameFromFile(file, 640); setOficinaFrames(f => ({ ...f, scene: dataUrl })); }
+    catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
+  };
   const resetOficinaForm = () => {
     setOficinaEditingId(null);
     setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
-    setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null });
+    setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null, scene: null });
   };
   // Carrega um Uniko já criado de volta no formulário — os frames vêm exatamente como
   // foram salvos (sem cair no principal), pra não "perder" um frame vazio ao reeditar.
@@ -545,6 +553,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setOficinaFrames({
       main: row.img_main, notif: row.img_notif, alert: row.img_alert, closed: row.img_closed, capture: row.img_capture,
       prismaComum: row.img_prisma_comum, prismaPremium: row.img_prisma_premium, alexa: row.img_alexa, wave: row.img_wave,
+      scene: row.img_scene,
     });
     setOficinaMsg('');
   };
@@ -563,6 +572,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
         imgClosed: oficinaFrames.closed, imgCapture: oficinaFrames.capture,
         imgPrismaComum: oficinaFrames.prismaComum, imgPrismaPremium: oficinaFrames.prismaPremium,
         imgAlexa: oficinaFrames.alexa, imgWave: oficinaFrames.wave,
+        imgScene: oficinaFrames.scene,
         createdBy: raw?.created_by || getAuthUser()?.name, // edição mantém o criador original
       });
       setOficinaMsg(oficinaEditingId ? '✅ Alterações salvas!' : '✅ Uniko adicionado à Biblioteca!');
@@ -2042,8 +2052,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </div>
                 </div>
 
+                {/* Cenário — OPCIONAL. Sem anexar nada, fica só a cor gradiente (como sempre foi). */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Cenário personalizado (opcional)</label>
+                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar uma imagem, ela aparece como fundo quando o Uniko spawnar no Capture o Uniko, em vez da cor gradiente.</div>
+                  <div style={{display:'flex',alignItems:'center',gap:14}}>
+                    <label style={{width:160,height:90,borderRadius:12,border:`2px dashed ${T.border}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:oficinaFrames.scene?'rgba(0,0,0,.15)':'transparent',flexShrink:0}}>
+                      {oficinaFrames.scene
+                        ? <img src={oficinaFrames.scene} alt="Cenário" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                        : <span style={{fontSize:22,color:T.textT,opacity:.6}}>+</span>}
+                      <input type="file" accept="image/*" style={{display:'none'}}
+                        onChange={e=>{ const f=e.target.files?.[0]; handleSceneFile(f); e.target.value=''; }}/>
+                    </label>
+                    {oficinaFrames.scene && (
+                      <button onClick={()=>setOficinaFrames(fr=>({...fr,scene:null}))}
+                        style={{fontSize:11,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>remover cenário</button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Teste — prévia ao vivo de como fica cada ação */}
-                {oficinaFrames.main && (()=>{ const pt = deriveUnikoTheme(oficinaForm.accent); return (
+                {oficinaFrames.main && (()=>{ const pt = themeWithScene(deriveUnikoTheme(oficinaForm.accent), oficinaFrames.scene); return (
                   <div style={{borderRadius:14,padding:3,background:`conic-gradient(${pt.border.join(',')})`}}>
                     <div style={{borderRadius:12,background:pt.scene,padding:'16px',display:'flex',flexDirection:'column',gap:14}}>
                       <div style={{display:'flex',alignItems:'center',gap:14}}>

@@ -174,6 +174,14 @@ export function deriveUnikoTheme(accentHex) {
   };
 }
 
+// Se o admin anexou um cenário personalizado (img_scene, opcional), usa ele como fundo
+// (com um leve escurecido pra manter o Uniko/texto legíveis por cima) em vez da cor
+// gradiente padrão. Sem imagem, `theme` volta do jeito que já era (só a cor).
+export function themeWithScene(theme, imgScene) {
+  if (!imgScene) return theme;
+  return { ...theme, scene: `linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.55)), url('${imgScene}') center/cover no-repeat` };
+}
+
 const _slugify = (s) => (s || '')
   .toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'uniko';
@@ -186,7 +194,7 @@ function _buildCustomCaptureUniko(row) {
     perks: ['Uniko personalizado — feito na Oficina de Uniko', 'Assistente flutuante e foto de perfil próprios'],
     canBeAssistant: true,
     reward: { comum: row.reward_comum ?? 100, premium: row.reward_premium ?? 100 },
-    theme: deriveUnikoTheme(row.accent),
+    theme: themeWithScene(deriveUnikoTheme(row.accent), row.img_scene),
     isCustom: true,
   };
 }
@@ -250,6 +258,7 @@ export async function saveCustomUniko(fields) {
     img_closed: fields.imgClosed || null, img_capture: fields.imgCapture || null,
     img_prisma_comum: fields.imgPrismaComum || null, img_prisma_premium: fields.imgPrismaPremium || null,
     img_alexa: fields.imgAlexa || null, img_wave: fields.imgWave || null,
+    img_scene: fields.imgScene || null,
     created_by: fields.createdBy || null,
   };
   const { error } = await _supabase.from('custom_unikos').upsert(row, { onConflict: 'id' });
