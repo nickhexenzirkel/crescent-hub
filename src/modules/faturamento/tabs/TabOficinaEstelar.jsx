@@ -6,6 +6,7 @@ import { supabase } from '../../../contexts/user';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
+import { PdfMerge } from '../PdfMerge';
 import { logAssinatura } from '../assinaturaDb';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
 import logo7ServUrl from '../../../assets/logo-7beneficios.png';
@@ -632,10 +633,72 @@ const TabOficio = () => {
 /* ════════════════════════════════════════════════════════════════
    EXPORTS
 ════════════════════════════════════════════════════════════════ */
+const ToolCard = ({ title, desc, icon, onClick }) => (
+  <button onClick={onClick} style={{
+    display:'flex', flexDirection:'column', alignItems:'flex-start', gap:12, textAlign:'left',
+    padding:'22px 24px', borderRadius:16, border:`1.5px solid ${T.border}`, background:T.surface,
+    cursor:'pointer', fontFamily:'var(--font-body)', boxShadow:T.sh, transition:'transform .15s, border-color .15s',
+  }}
+    onMouseEnter={e=>{ e.currentTarget.style.borderColor=T.gold; e.currentTarget.style.transform='translateY(-2px)'; }}
+    onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; e.currentTarget.style.transform='none'; }}>
+    <div style={{width:44,height:44,borderRadius:12,background:T.goldGl,display:'flex',alignItems:'center',justifyContent:'center',color:T.gold}}>
+      {icon}
+    </div>
+    <div style={{fontSize:16,fontWeight:700,color:T.text}}>{title}</div>
+    <div style={{fontSize:13,color:T.textS,lineHeight:1.5}}>{desc}</div>
+  </button>
+);
+
+const BackLink = ({ onClick }) => (
+  <button onClick={onClick} style={{
+    display:'flex', alignItems:'center', gap:6, marginBottom:14, padding:'7px 14px', borderRadius:9,
+    border:`1px solid ${T.border}`, background:'transparent', color:T.textS, fontSize:12.5, fontWeight:600,
+    cursor:'pointer', fontFamily:'var(--font-body)',
+  }}>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Trocar ferramenta
+  </button>
+);
+
 export const TabOficinaEstelar = () => {
+  const [tool, setTool]     = useState(null); // null (escolha) | 'editor' | 'mesclar'
   const [hasDoc, setHasDoc] = useState(false);
+
+  if (!tool) {
+    return (
+      <div style={{fontFamily:'var(--font-body)'}}>
+        <StellarHero compact eyebrow="Ferramenta de Edição" title="O que você quer fazer?"
+          subtitle="Escolha uma ferramenta pra continuar." icon={HERO_ICON}/>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16}}>
+          <ToolCard title="Editor de PDF"
+            desc="Edite o texto existente do PDF, adicione textos, imagens e assinaturas."
+            onClick={()=>{ setHasDoc(false); setTool('editor'); }}
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}/>
+          <ToolCard title="Mesclar PDF"
+            desc="Organize a ordem das páginas arrastando e junte vários PDFs num único arquivo."
+            onClick={()=>setTool('mesclar')}
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/><path d="M10 8h4M10 12h4M10 16h4"/></svg>}/>
+        </div>
+      </div>
+    );
+  }
+
+  if (tool === 'mesclar') {
+    return (
+      <div style={{fontFamily:'var(--font-body)'}}>
+        <BackLink onClick={()=>setTool(null)}/>
+        <StellarHero compact eyebrow="Ferramenta de Edição" title="Mesclar PDF"
+          subtitle="Organize a ordem das páginas e junte tudo num único arquivo." icon={HERO_ICON}/>
+        <PdfMerge/>
+      </div>
+    );
+  }
+
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
+      {!hasDoc && <BackLink onClick={()=>setTool(null)}/>}
       {!hasDoc&&<StellarHero compact eyebrow="Ferramenta de Edição" title="Editor de PDF"
         subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas." icon={HERO_ICON}/>}
       <PdfEditor onDoc={setHasDoc}/>
