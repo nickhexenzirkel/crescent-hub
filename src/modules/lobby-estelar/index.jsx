@@ -38,7 +38,7 @@ const STALE_MS       = 22000;
 const BUBBLE_MS      = 7000;
 const MOVE_TRANSITION_S = 0.12;
 const BROADCAST_MS   = 150;   // throttle do envio de posição pro servidor
-const SPEED_PCT_S    = 14;    // velocidade de andar (% da área por segundo)
+const SPEED_PCT_S    = 32;    // velocidade de andar (% da área por segundo)
 const ICON_SIZE      = 132;
 const CHAT_LOG_MAX   = 30;
 
@@ -57,6 +57,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const [chatLog, setChatLog] = useState([]);
+  const [myMsg, setMyMsg] = useState(null); // {text, at} — bolha da MINHA fala, otimista (sem esperar o servidor)
   const [, setTick] = useState(0);
 
   const sceneRef = useRef(null);
@@ -120,14 +121,22 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   // Mudou a skin do assistente enquanto estava no lobby → avisa os outros
   useEffect(() => { upsertMe({ skin_id: skinId }); }, [skinId, upsertMe]);
 
+  // Mostra o balão/histórico da MINHA fala na hora (sem esperar o vai-e-volta do
+  // servidor) — o que dava aquela sensação de atraso ao digitar.
   const sendMessage = useCallback(() => {
     setChatText(curr => {
       const text = curr.trim().slice(0, 140);
-      if (text) upsertMe({ message: text, message_at: new Date().toISOString() });
+      if (text) {
+        const at = new Date().toISOString();
+        setMyMsg({ text, at });
+        seenMsgRef.current[player] = at; // evita duplicar no histórico quando o servidor confirmar
+        setChatLog(prev => [...prev, { id: player + '_' + at, player, message: text, at }].slice(-CHAT_LOG_MAX));
+        upsertMe({ message: text, message_at: at });
+      }
       return '';
     });
     setChatOpen(false);
-  }, [upsertMe]);
+  }, [upsertMe, player]);
 
   // ── Movimento: WASD / setas (loop contínuo) + clique no chão ──
   useEffect(() => {
@@ -159,8 +168,11 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       let dx = 0, dy = 0;
       if (k.a || k.arrowleft)  dx -= 1;
       if (k.d || k.arrowright) dx += 1;
-      if (k.w || k.arrowup)    dy -= 1;
-      if (k.s || k.arrowdown)  dy += 1;
+      // y=0 é a frente (mais perto da câmera) e y=100 o fundo — por isso quem
+      // quer ANDAR PRA FRENTE aperta a seta/tecla de BAIXO (aumenta o "bottom"
+      // na tela, se aproxima), e PRA TRÁS aperta a de CIMA.
+      if (k.s || k.arrowdown)  dy -= 1;
+      if (k.w || k.arrowup)    dy += 1;
       if (dx || dy) {
         const len = Math.hypot(dx, dy) || 1;
         const nx = clamp(posRef.current.x + (dx / len) * SPEED_PCT_S * dt, sceneCfg.minX, sceneCfg.maxX);
@@ -192,9 +204,10 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
 
   const myRow  = players.find(p => p.player === player);
   const others = players.filter(p => p.player !== player && isFresh(p));
+  const myBubble = (myMsg && (Date.now() - new Date(myMsg.at).getTime()) < BUBBLE_MS) ? myMsg.text : bubbleOf(myRow);
 
   const avatars = [
-    { player, x: pos.x, y: pos.y, skin_id: skinId, message: bubbleOf(myRow), isMe: true },
+    { player, x: pos.x, y: pos.y, skin_id: skinId, message: myBubble, isMe: true },
     ...others.map(p => ({ player: p.player, x: p.x, y: p.y ?? 40, skin_id: p.skin_id, message: bubbleOf(p), isMe: false })),
   ];
 
@@ -250,14 +263,16 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
                 </div>
               )}
               <div style={{
-                fontSize: 13, fontWeight: 700, color: a.isMe ? '#ffd76a' : '#fff', marginBottom: 4,
-                textShadow: '0 1px 4px rgba(0,0,0,0.8)', whiteSpace: 'nowrap', padding: '2px 10px',
-                borderRadius: 8, background: 'rgba(0,0,0,0.4)',
+                fontSize: 17, fontWeight: 700, color: a.isMe ? '#ffd76a' : '#fff', marginBottom: 5,
+                fontFamily: "'Poppins', sans-serif", letterSpacing: '.03em',
+                textShadow: '0 1px 4px rgba(0,0,0,0.8)', whiteSpace: 'nowrap', padding: '3px 13px',
+                borderRadius: 9, background: 'rgba(0,0,0,0.4)',
               }}>
                 {shortName(a.player)}{a.isMe ? ' (você)' : ''}
               </div>
               <div style={{ width: ICON_SIZE, height: ICON_SIZE, animation: 'lobbyIdleBob 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.5))' }}>
-                <img src={sprite} alt={a.player} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src={sprite} alt={a.player} draggable={false} onDragStart={e => e.preventDefault()}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', WebkitUserDrag: 'none', pointerEvents: 'none' }} />
               </div>
             </div>
           );
@@ -265,11 +280,11 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       </div>
 
       {/* Histórico do chat — canto superior esquerdo */}
-      <div style={{ position: 'fixed', top: 68, left: 16, zIndex: 35, width: 250, maxHeight: '46vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: chatLog.length ? 10 : 0, borderRadius: 12, background: chatLog.length ? 'rgba(8,10,22,0.72)' : 'transparent', backdropFilter: chatLog.length ? 'blur(14px)' : 'none', border: chatLog.length ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+      <div style={{ position: 'fixed', top: 68, left: 16, zIndex: 35, width: 340, maxHeight: '62vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 9, padding: chatLog.length ? 16 : 0, borderRadius: 14, background: chatLog.length ? 'rgba(8,10,22,0.78)' : 'transparent', backdropFilter: chatLog.length ? 'blur(16px)' : 'none', border: chatLog.length ? '1px solid rgba(255,255,255,0.12)' : 'none', boxShadow: chatLog.length ? '0 10px 34px rgba(0,0,0,0.35)' : 'none' }}>
         {chatLog.slice().reverse().map(m => (
-          <div key={m.id} style={{ fontSize: 12.5, color: '#e4e8f5', lineHeight: 1.4 }}>
-            <span style={{ fontWeight: 700, color: '#ffd76a' }}>{shortName(m.player)}: </span>
-            <span>{m.message}</span>
+          <div key={m.id} style={{ fontSize: 15, color: '#e4e8f5', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 700, color: '#ffd76a', fontFamily: "'Poppins', sans-serif" }}>{shortName(m.player)}: </span>
+            <span style={{ fontFamily: 'var(--font-body)' }}>{m.message}</span>
           </div>
         ))}
       </div>
