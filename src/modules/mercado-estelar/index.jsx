@@ -108,10 +108,12 @@ const COLABORADORES = [
 const fetchTeamNames = async () => {
   try {
     const r = await fetch(`${SERVER_URL}/api/team`, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` } });
+    if (!r.ok) { console.error('[prisma-store] /api/team respondeu', r.status); return null; }
     const d = await r.json();
     const names = (d.employees || []).filter(e => e.active !== false).map(e => e.name).filter(Boolean);
     if (names.length) return names;
-  } catch {}
+    console.error('[prisma-store] /api/team voltou sem colaboradores:', d);
+  } catch (e) { console.error('[prisma-store] falha ao buscar /api/team:', e); }
   return null;
 };
 

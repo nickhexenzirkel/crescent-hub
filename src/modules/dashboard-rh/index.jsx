@@ -293,6 +293,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(()=>{ if(tab==='funcionarios') loadEmployees(); }, [tab]);
   useEffect(()=>{ if(tab==='banco') loadBancoHoras(); }, [tab]);
+  // Trofeus e Capture o Uniko tambem precisam da lista de colaboradores (empList),
+  // mas ninguem carrega ela se o admin nunca abriu a aba "Funcionarios" antes --
+  // sem isso os selects dessas abas ficavam sempre vazios.
+  useEffect(()=>{ if((tab==='trofeus'||tab==='capture') && empList.length===0) loadEmployees(); }, [tab]); // eslint-disable-line
 
   // ── Gerenciar Usuários — perfil completo ─────────────────
   const [gerList, setGerList]         = useState([]);
@@ -584,7 +588,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [resetting, setResetting]     = useState(false);
   const doReset = async (all) => {
     const who = all ? 'TODOS os usuários' : `"${resetPlayer.trim()}"`;
-    if (!all && !resetPlayer.trim()) { setResetMsg('⚠️ Digite o nome do usuário'); return; }
+    if (!all && !resetPlayer.trim()) { setResetMsg('⚠️ Selecione o colaborador'); return; }
     if (!window.confirm(`Resetar a coleção do Capture o Uniko de ${who}? Eles poderão capturar novamente. Esta ação não pode ser desfeita.`)) return;
     setResetting(true); setResetMsg('');
     try {
@@ -2116,7 +2120,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <select value={giftTarget} onChange={e=>setGiftTarget(e.target.value)}
                     style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',cursor:'pointer'}}>
                     <option value="">Selecione o colaborador...</option>
-                    {users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                    {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
                   </select>
                 </div>
 
@@ -2192,8 +2196,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
                 {/* Um usuário */}
                 <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
-                  <input value={resetPlayer} onChange={e=>setResetPlayer(e.target.value)} placeholder="Nome do usuário (ex.: Maria Silva)"
-                    style={{flex:1,minWidth:220,padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  <select value={resetPlayer} onChange={e=>setResetPlayer(e.target.value)}
+                    style={{flex:1,minWidth:220,padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',cursor:'pointer'}}>
+                    <option value="">Selecione o colaborador...</option>
+                    {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
                   <button onClick={()=>doReset(false)} disabled={resetting}
                     style={{padding:'10px 18px',borderRadius:10,border:`1px solid ${T.danger||'#C04050'}55`,cursor:resetting?'default':'pointer',background:'transparent',color:T.danger||'#C04050',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:resetting?.6:1}}>
                     Resetar deste usuário
@@ -2659,7 +2666,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <select value={trophyTarget||''} onChange={e=>setTrophyTarget(e.target.value||null)}
                       style={{width:'100%',padding:'9px 12px',border:`1.5px solid ${T.border}`,borderRadius:9,fontFamily:'var(--font-body)',fontSize:13,color:T.text,background:T.surface,outline:'none',cursor:'pointer'}}>
                       <option value="">Selecione o colaborador...</option>
-                      {users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                      {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
                     </select>
                   </div>
                   <div>
