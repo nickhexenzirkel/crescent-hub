@@ -108,6 +108,14 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
     </svg>
   );
+  const IcoLobby = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="2.6"/>
+      <path d="M4 20c0-3 2.2-5 5-5s5 2 5 5"/>
+      <circle cx="18" cy="9" r="2"/>
+      <path d="M14.5 20c.2-2.4 1.7-4 3.5-4s3.3 1.6 3.5 4"/>
+    </svg>
+  );
 
   const allMods = [
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
@@ -117,6 +125,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Mensagens internas · Comunicados', icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'lobby-estelar',    label:'Lobby Estelar',         sub:'Espaço social · Andar e conversar', icon:IcoLobby,      color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
   ];
   const mods = allMods.filter(m => !m.adminOnly || isAdmin);
 

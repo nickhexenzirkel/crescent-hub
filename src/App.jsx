@@ -12,6 +12,7 @@ import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
+import LobbyEstelar from './modules/lobby-estelar';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -110,7 +111,7 @@ export default function CrescentHub() {
   };
 
   const handleModuleSelect = (id) => {
-    const adminOnly = ['dashboard','ponto','conexao-setorial','mercado-estelar'];
+    const adminOnly = ['dashboard','ponto','conexao-setorial','mercado-estelar','lobby-estelar'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     navPush(id);
   };
@@ -335,6 +336,7 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && authUser?.role==='admin' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='lobby-estelar' && authUser?.role==='admin' && <LobbyEstelar onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
