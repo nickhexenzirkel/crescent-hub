@@ -87,12 +87,16 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
     if (!data) return;
     setPlayers(data);
     // Detecta mensagens NOVAS (message_at mudou) pra alimentar o histórico do chat.
+    // Compara por VALOR de tempo (epoch ms), não pela string crua — o Postgres pode
+    // devolver o timestamp num formato diferente do que foi enviado (ex.: "Z" vira
+    // "+00:00"), então comparar string com string às vezes falhava e duplicava.
     const fresh = [];
     for (const row of data) {
       if (!row.message || !row.message_at) continue;
-      if (seenMsgRef.current[row.player] === row.message_at) continue;
-      seenMsgRef.current[row.player] = row.message_at;
-      fresh.push({ id: row.player + '_' + row.message_at, player: row.player, message: row.message, at: row.message_at });
+      const t = new Date(row.message_at).getTime();
+      if (seenMsgRef.current[row.player] === t) continue;
+      seenMsgRef.current[row.player] = t;
+      fresh.push({ id: row.player + '_' + t, player: row.player, message: row.message, at: row.message_at });
     }
     if (fresh.length) {
       fresh.sort((a, b) => new Date(a.at) - new Date(b.at));
@@ -129,7 +133,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       if (text) {
         const at = new Date().toISOString();
         setMyMsg({ text, at });
-        seenMsgRef.current[player] = at; // evita duplicar no histórico quando o servidor confirmar
+        seenMsgRef.current[player] = new Date(at).getTime(); // evita duplicar quando o servidor confirmar (mesmo formato do loadPlayers)
         setChatLog(prev => [...prev, { id: player + '_' + at, player, message: text, at }].slice(-CHAT_LOG_MAX));
         upsertMe({ message: text, message_at: at });
       }
