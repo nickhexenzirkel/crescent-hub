@@ -21,3 +21,33 @@ alter table public.lobby_presence enable row level security;
 
 drop policy if exists lobby_presence_all on public.lobby_presence;
 create policy lobby_presence_all on public.lobby_presence for all using (true) with check (true);
+
+-- CRÍTICO pro tempo real funcionar: sem isso, o postgres_changes do Supabase
+-- Realtime NUNCA dispara pra essa tabela — o app só atualiza a posição dos
+-- outros jogadores a cada 5s (o poll de reforço), o que parece "teletransporte"
+-- em vez de movimento suave. Precisa rodar mesmo se a tabela já existia (o
+-- bloco abaixo é idempotente, mesmo padrão de supabase_capture_uniko_realtime.sql).
+
+-- REPLICA IDENTITY FULL → entrega a linha completa nos eventos de UPDATE (a
+-- posição/mensagem é sempre atualizada via UPSERT, ou seja, UPDATE por baixo).
+alter table public.lobby_presence replica identity full;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    create publication supabase_realtime;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public' and tablename = 'lobby_presence'
+  ) then
+    alter publication supabase_realtime add table public.lobby_presence;
+  end if;
+end $$;
+
+-- Conferência — deve retornar uma linha (lobby_presence).
+select schemaname, tablename
+from pg_publication_tables
+where pubname = 'supabase_realtime' and tablename = 'lobby_presence';
