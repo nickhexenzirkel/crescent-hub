@@ -437,13 +437,13 @@ export async function countOwnedUnikos(player) {
   return 1 + distinct.size;
 }
 
-/* ── Até 5 capturadores por evento ────────────────────────────────────────
-   `capture_uniko_event` agora aceita até 5 linhas por event_id (1 slot cada,
-   ver supabase_capture_uniko_multi.sql) — as 5 primeiras pessoas a capturar
-   ganham; da 6ª tentativa em diante o evento já está esgotado. ─────────── */
-const CAPTURE_MAX_WINNERS = 5;
+/* ── Até 3 capturadores por evento ────────────────────────────────────────
+   `capture_uniko_event` aceita até 3 linhas por event_id (1 slot cada, ver
+   supabase_capture_uniko_multi.sql) — as 3 primeiras pessoas a capturar
+   ganham; da 4ª tentativa em diante o evento já está esgotado. ─────────── */
+const CAPTURE_MAX_WINNERS = 3;
 
-// Devolve TODOS os vencedores desse evento (0 a 5); undefined = erro de rede.
+// Devolve TODOS os vencedores desse evento (0 a 3); undefined = erro de rede.
 export async function fetchCaptureWinners(cfg) {
   try {
     const { data, error } = await _supabase.from('capture_uniko_event')

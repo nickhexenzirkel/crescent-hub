@@ -20,7 +20,7 @@ import {
   loadCustomUnikos, nowMs, syncServerClock, CAPTURE_MAX_WINNERS,
 } from './captureUniko';
 
-const ESCAPE_CHANCE = 0;    // captura na 1ª tentativa sempre (era 0.6 — muita gente reclamou de precisar de várias tentativas)
+// Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
 
 const fmtWhen = (iso) => {
   try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
@@ -53,9 +53,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const th = uniko.theme;
 
   const [available, setAvailable] = useState(false);
-  const [winners, setWinners]     = useState([]); // até 5: [{player, at, comum, premium, unikoId, unikoName}]
-  const [attempts, setAttempts]   = useState(0);
-  const [phase, setPhase]         = useState('idle'); // idle | thrown | escaped | error | caught
+  const [winners, setWinners]     = useState([]); // até CAPTURE_MAX_WINNERS: [{player, at, comum, premium, unikoId, unikoName}]
+  const [phase, setPhase]         = useState('idle'); // idle | thrown | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
   const [, forceRefresh]          = useState(0);
@@ -83,7 +82,6 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
-  const attemptsRef = useRef(0); attemptsRef.current = attempts;
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const resolvingRef = useRef(false);
   const resolveAttemptRef = useRef(null); // sempre a versão mais recente de resolveAttempt (ver onCaptureThrow abaixo)
@@ -234,21 +232,13 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // UMA tentativa só — captura sempre na primeira (sem chance de escapar).
   const resolveAttempt = async () => {
     resolvingRef.current = true;
-    const n = attemptsRef.current + 1;
-    setAttempts(n);
-    const escaped = n === 1 && Math.random() < ESCAPE_CHANCE;
-    if (escaped) {
-      setPhase('escaped');
-      setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1200);
-      return;
-    }
     const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, uniko);
     if (networkError) {
-      // erro de verdade (não é "esgotou"/"já é meu") — NÃO marca como feito nem gasta a
-      // tentativa; deixa tentar de novo em vez de fingir sucesso sem nada gravado.
-      setAttempts(n - 1);
+      // erro de verdade (não é "esgotou"/"já é meu") — NÃO marca como feito;
+      // deixa tentar de novo em vez de fingir sucesso sem nada gravado.
       setPhase('error');
       setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1800);
       return;
@@ -371,13 +361,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none', zIndex: 2 }}/>
 
           <img ref={unikoRef} src={uniko.img} alt={uniko.name} draggable="false"
-            style={{ position: 'absolute', left: '50%', top: 76, transform: 'translateX(-50%)', width: 132, height: 132, objectFit: 'contain', zIndex: 3, filter: `drop-shadow(0 0 22px ${th.accent}) drop-shadow(0 8px 16px rgba(0,0,0,.6))`, animation: (phase === 'escaped' || phase === 'error') ? 'cuDodge .9s ease-in-out' : phase === 'thrown' ? 'cuHit .5s ease-in-out' : 'cuIdle 3.5s ease-in-out infinite' }}/>
+            style={{ position: 'absolute', left: '50%', top: 76, transform: 'translateX(-50%)', width: 132, height: 132, objectFit: 'contain', zIndex: 3, filter: `drop-shadow(0 0 22px ${th.accent}) drop-shadow(0 8px 16px rgba(0,0,0,.6))`, animation: phase === 'error' ? 'cuDodge .9s ease-in-out' : phase === 'thrown' ? 'cuHit .5s ease-in-out' : 'cuIdle 3.5s ease-in-out infinite' }}/>
 
-          {phase === 'escaped' && (
-            <div style={{ position: 'absolute', left: 0, right: 0, top: 62, textAlign: 'center', zIndex: 7, pointerEvents: 'none' }}>
-              <div style={{ display: 'inline-block', padding: '5px 14px', borderRadius: 12, background: 'rgba(0,0,0,.55)', color: '#ffd9a0', fontWeight: 800, fontSize: 13, border: '1px solid rgba(255,180,80,.4)' }}>Escapou! Joga o UNIKO de novo</div>
-            </div>
-          )}
           {phase === 'error' && (
             <div style={{ position: 'absolute', left: 0, right: 0, top: 62, textAlign: 'center', zIndex: 7, pointerEvents: 'none' }}>
               <div style={{ display: 'inline-block', padding: '5px 14px', borderRadius: 12, background: 'rgba(0,0,0,.55)', color: '#ffb0b0', fontWeight: 800, fontSize: 13, border: '1px solid rgba(255,80,80,.4)' }}>Erro de conexão — tenta de novo</div>
@@ -385,13 +370,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           )}
 
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 16, textAlign: 'center', zIndex: 5, pointerEvents: 'none' }}>
-            <div style={{ fontSize: 11.5, color: '#fff', fontWeight: 700, marginBottom: 6, textShadow: `0 1px 8px ${th.accent2}` }}>
+            <div style={{ fontSize: 11.5, color: '#fff', fontWeight: 700, textShadow: `0 1px 8px ${th.accent2}` }}>
               {phase === 'thrown' ? '...' : 'Arraste o assistente UNIKO até aqui e solte!'}
-            </div>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-              {[0, 1].map(i => (
-                <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i < attempts ? '#6b7280' : th.glow, boxShadow: i < attempts ? 'none' : `0 0 8px ${th.glow}` }}/>
-              ))}
             </div>
           </div>
         </div>
