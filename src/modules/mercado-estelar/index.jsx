@@ -331,13 +331,28 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => { alive = false; };
   }, [userName]);
 
-  // Persiste o estado do usuário (saldos/check-in/coleção/desafios)
+  // Persiste o estado do usuário (saldos/check-in/coleção/desafios) — debounced,
+  // 400ms depois da última mudança. AGORA loga erro (RLS, rede etc.) em vez de
+  // engolir silenciosamente — se isso estiver falhando de verdade (ex.: alguma
+  // policy do Supabase bloqueando update pra colaborador comum), antes não tinha
+  // como saber; o progresso "sumia" sem deixar rastro nenhum no console.
   useEffect(() => {
     if (!loaded) return;
     const data = USER_SLICE(state);
-    const t = setTimeout(() => { supabase.from('mercado_state').upsert({ player: userName, data, updated_at: new Date().toISOString() }); }, 400);
+    const t = setTimeout(() => {
+      supabase.from('mercado_state').upsert({ player: userName, data, updated_at: new Date().toISOString() })
+        .then(({ error }) => { if (error) console.error('[prisma-store] falha ao salvar estado (debounced):', error); });
+    }, 400);
     return () => clearTimeout(t);
   }, [loaded, state.updatedAt, state.comum, state.premium, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
+
+  // Salva IMEDIATAMENTE (sem esperar o debounce de 400ms) — usado só por ações
+  // que dão prisma na hora (check-in, missão): se a pessoa atualizar a página
+  // logo em seguida, não corre o risco de perder o resgate por causa do atraso.
+  const persistNow = (nextState) => {
+    supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(nextState), updated_at: new Date().toISOString() })
+      .then(({ error }) => { if (error) console.error('[prisma-store] falha ao salvar estado (imediato):', error); });
+  };
 
   // Persiste o catálogo (upsert dos itens + remove os apagados)
   const prevItemIds = useRef(null);
@@ -457,9 +472,10 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (!canCheckin) return;
     const cur = nextReward.cur;
     const give = Math.min(nextReward.amount, capRemaining[cur]); // respeita o teto mensal
+    let nextSnapshot = null;
     setState(s => {
       const base = s.capMonth === monthKey ? (s.earned || { premium: 0, comum: 0 }) : { premium: 0, comum: 0 };
-      return {
+      const next = {
         ...s,
         [cur]: s[cur] + give,
         checkins: [...(s.checkins || []), today],
@@ -467,7 +483,10 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         earned: { ...base, [cur]: base[cur] + give },
         updatedAt: Date.now(),
       };
+      nextSnapshot = next;
+      return next;
     });
+    if (nextSnapshot) persistNow(nextSnapshot);
     if (give > 0) addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give });
     const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
     flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${streak})` : `Check-in feito! Teto mensal de ${label} já atingido.`);
@@ -476,11 +495,17 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   // ── Missões ──
   const claimMission = (m) => {
     if (m.progress < m.goal || m.claimed) return;
-    setState(s => ({
-      ...s, comum: s.comum + (m.comum || 0), premium: s.premium + (m.premium || 0),
-      missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true, claimedAt: today } : x),
-      updatedAt: Date.now(),
-    }));
+    let nextSnapshot = null;
+    setState(s => {
+      const next = {
+        ...s, comum: s.comum + (m.comum || 0), premium: s.premium + (m.premium || 0),
+        missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true, claimedAt: today } : x),
+        updatedAt: Date.now(),
+      };
+      nextSnapshot = next;
+      return next;
+    });
+    if (nextSnapshot) persistNow(nextSnapshot);
     addHistory({ kind: 'missao', desc: `Missão: ${m.title}`, ...(m.comum ? { comum: m.comum } : {}), ...(m.premium ? { premium: m.premium } : {}) });
     flash(`Recompensa da missão resgatada: ${m.title}`);
   };
