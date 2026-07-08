@@ -47,7 +47,7 @@ const buyBtn = (type, sold, radius) => sold
     : { background: `linear-gradient(135deg,${COMUM.color},${COMUM.color}bb)`, color: '#fff', border: 'none', borderRadius: radius };
 
 // Taxa de troca: quantos Comuns valem 1 Premium
-const EXCHANGE_RATE = 500;
+const EXCHANGE_RATE = 10;
 
 // ── CHECK-IN: ciclo de 5 dias (SEGUNDA A SEXTA), ganhos crescentes que INTERCALAM a moeda ──
 // O dia do ciclo vem do "streak" (dias ÚTEIS seguidos). Errar 1 dia útil zera → volta ao dia 1.
