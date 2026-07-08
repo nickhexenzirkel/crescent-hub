@@ -1906,7 +1906,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
                         <div>
                           <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
-                          <div style={{fontSize:11,color:T.textT}}>{u.tagline}</div>
                           <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium</div>
                         </div>
                       </button>
@@ -1939,7 +1938,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div>
                       <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:uni.theme.glow}}>★ CAPTURE O UNIKO ★</div>
                       <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{uni.name}</div>
-                      <div style={{fontSize:11,color:uni.theme.ink,opacity:.85}}>Prévia da borda e cenário temático no Portal</div>
+                      <div style={{fontSize:11,color:uni.theme.ink,opacity:.85}}>{uni.tagline}</div>
                     </div>
                   </div>
                 </div>
@@ -2138,7 +2137,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
                         <div>
                           <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
-                          <div style={{fontSize:11,color:T.textT}}>{u.tagline}</div>
                           <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium (padrão)</div>
                         </div>
                       </button>
@@ -2168,7 +2166,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div>
                       <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:gu.theme.glow}}>★ PRESENTE ★</div>
                       <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{gu.name}</div>
-                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.85}}>{giftTarget?`Vai pra ${giftTarget} a coleção + a carteira`:'Escolha o colaborador acima'}</div>
+                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.85}}>{gu.tagline}</div>
+                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.7,marginTop:2}}>{giftTarget?`Vai pra ${giftTarget} a coleção + a carteira`:'Escolha o colaborador acima'}</div>
                     </div>
                   </div>
                 </div>
