@@ -85,7 +85,16 @@ const computeStreak = (checkins) => {
 const MONTH_NAMES =['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const pad2 = (n) => String(n).padStart(2, '0');
 
-const STORAGE_KEY = 'me_state_v2';
+// BUG CORRIGIDO: essa chave era FIXA (global), sem o nome do usuário — em
+// qualquer máquina/navegador usado por mais de uma pessoa (ou ao trocar de
+// conta no mesmo navegador), o cache local de UM colaborador vazava pro
+// próximo que logasse ali. Como o "conflito local x nuvem" (ver hidratação
+// abaixo) confia em quem tem o `updatedAt` mais recente, o cache errado
+// (de outra pessoa, geralmente mais "vazio") podia parecer mais novo e
+// SOBRESCREVER o progresso real do colaborador (prismas do check-in,
+// missões resgatadas) ao recarregar a página. Agora a chave inclui o nome.
+const storageUserTag = () => { try { return getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
+const STORAGE_KEY = () => `me_state_v2_${storageUserTag()}`;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -179,7 +188,7 @@ const DEFAULT_STATE = {
 
 const loadState = () => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY());
     if (raw) {
       const s = JSON.parse(raw);
       // Catálogo de itens: o admin gerencia (adiciona/edita/remove), então o save
@@ -266,7 +275,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
   // Cache local (pintura instantânea / offline)
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY(), JSON.stringify(state)); } catch {}
   }, [state]);
 
   // ── Hidrata do Supabase (catálogo + estado do usuário + histórico) ──
