@@ -437,18 +437,22 @@ export async function countOwnedUnikos(player) {
   return 1 + distinct.size;
 }
 
-/* ── Lock GLOBAL: só UM colaborador captura por evento ──────────────────────
-   `capture_uniko_event` tem event_id como chave única → o 1º insert vence.
-   Se der conflito (já capturado), devolve quem capturou. ─────────────────── */
-// Devolve o vencedor; null = sem vencedor (ok); undefined = erro de rede (estado desconhecido).
-export async function fetchCaptureWinner(cfg) {
+/* ── Até 5 capturadores por evento ────────────────────────────────────────
+   `capture_uniko_event` agora aceita até 5 linhas por event_id (1 slot cada,
+   ver supabase_capture_uniko_multi.sql) — as 5 primeiras pessoas a capturar
+   ganham; da 6ª tentativa em diante o evento já está esgotado. ─────────── */
+const CAPTURE_MAX_WINNERS = 5;
+
+// Devolve TODOS os vencedores desse evento (0 a 5); undefined = erro de rede.
+export async function fetchCaptureWinners(cfg) {
   try {
     const { data, error } = await _supabase.from('capture_uniko_event')
-      .select('*').eq('event_id', captureEventId(cfg)).maybeSingle();
+      .select('*').eq('event_id', captureEventId(cfg)).order('slot', { ascending: true });
     if (error) return undefined;
-    if (!data) return null;
-    return { player: data.player, unikoId: data.uniko_id, unikoName: data.uniko_name,
-             comum: data.comum || 0, premium: data.premium || 0, at: data.captured_at };
+    return (data || []).map(row => ({
+      player: row.player, unikoId: row.uniko_id, unikoName: row.uniko_name,
+      comum: row.comum || 0, premium: row.premium || 0, at: row.captured_at,
+    }));
   } catch { return undefined; }
 }
 
@@ -457,11 +461,12 @@ export function clearCaptureLocal(cfg) {
   try { localStorage.removeItem(doneKey(cfg)); localStorage.removeItem(resultKey(cfg)); } catch {}
 }
 
-// ── Realtime: avisa TODOS os clientes ~na hora quando alguém captura (insert em
-// capture_uniko_event), em vez de esperar o próximo poll (até 4s de atraso, e é durante
-// essa janela que dois jogadores podem achar que "os dois conseguiram"). Precisa do
-// supabase_capture_uniko_realtime.sql rodado; sem ele, o app cai só no poll (fallback
-// já existente no widget) — não quebra nada, só demora mais.
+// ── Realtime: avisa TODOS os clientes ~na hora quando ALGUÉM captura (um dos
+// até 5 INSERTs em capture_uniko_event), em vez de esperar o próximo poll (até
+// 4s de atraso). Dispara uma vez por captura nova — quem chama acumula numa
+// lista, não trata como "o" vencedor único. Precisa do
+// supabase_capture_uniko_realtime.sql rodado; sem ele, cai só no poll
+// (fallback já existente no widget) — não quebra nada, só demora mais.
 export function subscribeCaptureWinner(cfg, onWinner) {
   if (!cfg) return () => {};
   let ch;
@@ -481,34 +486,38 @@ export function subscribeCaptureWinner(cfg, onWinner) {
   return () => { try { _supabase.removeChannel(ch); } catch {} };
 }
 
+// Tenta ocupar um dos 5 slots do evento via função atômica no banco
+// (capture_uniko_try) — evita a corrida de duas pessoas "ganhando" o mesmo
+// slot ao capturar quase ao mesmo tempo (ver supabase_capture_uniko_multi.sql).
 export async function claimCapture(cfg, uniko) {
   const me = getAuthUser()?.name || 'Você';
   const reward = getCaptureReward(uniko);
-  const row = {
-    event_id: captureEventId(cfg), player: me,
-    uniko_id: uniko.id, uniko_name: uniko.name,
-    comum: reward.comum, premium: reward.premium,
-    captured_at: new Date().toISOString(),
-  };
   try {
-    const { error } = await _supabase.from('capture_uniko_event').insert(row);
-    if (!error) return { won: true, winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: row.comum, premium: row.premium, at: row.captured_at } };
-    if (error.code === '23505') {
-      // conflito de verdade (chave duplicada) → alguém já capturou, busca quem foi
-      const winner = await fetchCaptureWinner(cfg);
-      return { won: false, winner: winner || { player: '—', comum: 0, premium: 0 } };
+    const { data, error } = await _supabase.rpc('capture_uniko_try', {
+      p_event_id: captureEventId(cfg), p_player: me,
+      p_uniko_id: uniko.id, p_uniko_name: uniko.name,
+      p_comum: reward.comum, p_premium: reward.premium,
+    });
+    if (error) {
+      console.error('[capture-uniko] claimCapture (rpc) falhou:', error);
+      return { won: false, alreadyMine: false, isFull: false, winner: null, networkError: true };
     }
-    // erro que NÃO é conflito (RLS, coluna faltando, etc.) — NÃO finge que capturou
-    // (bug corrigido: antes isso caía no fail-safe e o cliente achava que tinha
-    // ganhado sem NADA gravado no servidor → sumia da Coleção). Loga pra investigar.
-    console.error('[capture-uniko] claimCapture falhou (não é conflito):', error);
-    return { won: false, winner: null, networkError: true };
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.ok) {
+      return { won: true, alreadyMine: false, isFull: false,
+        winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: reward.comum, premium: reward.premium, at: new Date().toISOString() } };
+    }
+    if (row?.already_mine) return { won: false, alreadyMine: true, isFull: false, winner: null };
+    // esgotado (5/5) — busca a lista pra exibir quem conseguiu
+    const winners = await fetchCaptureWinners(cfg);
+    return { won: false, alreadyMine: false, isFull: true, winner: null, winners: winners || [] };
   } catch (e) {
-    // erro de rede de verdade (offline etc.) — mesma lógica: não finge sucesso.
     console.error('[capture-uniko] claimCapture lançou exceção:', e);
-    return { won: false, winner: null, networkError: true };
+    return { won: false, alreadyMine: false, isFull: false, winner: null, networkError: true };
   }
 }
+
+export { CAPTURE_MAX_WINNERS };
 
 /* ── Credita os prismas na carteira do vencedor (mercado_state) + histórico ── */
 export async function awardPrismas(player, comum, premium) {

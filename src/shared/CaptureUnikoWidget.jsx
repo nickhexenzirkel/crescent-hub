@@ -3,7 +3,8 @@
 // no App, aparece como um card FLUTUANTE em qualquer lugar do sistema (Portal, Central
 // Alexa, Editor...) e NÃO some ao navegar. Toca um SOM de alerta ao surgir.
 // MECÂNICA: arraste o assistente UNIKO (canto) e solte em cima do Uniko pra arremessar.
-// • SÓ UM colaborador captura por evento (lock global no Supabase).
+// • ATÉ 5 colaboradores capturam por evento (as 5 primeiras tentativas bem-sucedidas
+//   ganham; da 6ª em diante o evento já está esgotado — lock por slot no Supabase).
 // • Quem captura ganha os Prismas do Uniko (uniko.reward) e o Uniko vai pra coleção.
 // • Duas tentativas: na 1ª ele pode escapar; na 2ª a captura é garantida.
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,9 +15,9 @@ import OceanScene from './oceanScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
-  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinner, claimCapture, awardPrismas, addToMyUnikoCollection,
+  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, nowMs, syncServerClock,
+  loadCustomUnikos, nowMs, syncServerClock, CAPTURE_MAX_WINNERS,
 } from './captureUniko';
 
 const ESCAPE_CHANCE = 0.6;  // chance de escapar na 1ª tentativa (2ª é garantida)
@@ -52,7 +53,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const th = uniko.theme;
 
   const [available, setAvailable] = useState(false);
-  const [result, setResult]       = useState(null); // vencedor: {player, at, comum, premium}
+  const [winners, setWinners]     = useState([]); // até 5: [{player, at, comum, premium, unikoId, unikoName}]
   const [attempts, setAttempts]   = useState(0);
   const [phase, setPhase]         = useState('idle'); // idle | thrown | escaped | error | caught
   const [checked, setChecked]     = useState(false);
@@ -66,10 +67,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   // re-render pra `getUniko` (que roda a cada render, sem estado próprio) already achar.
   useEffect(() => { loadCustomUnikos().then(() => forceRefresh(n => n + 1)); }, []);
 
-  // Painel "resgatado" fica visível por 30 min após a captura; depois volta ao placeholder.
-  const winnerAt = result?.at ? Date.parse(result.at) : null;
+  // Até CAPTURE_MAX_WINNERS (5) pessoas capturam o mesmo evento — cada uma vê o
+  // PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro disponível
+  // até esgotarem as vagas.
+  const me      = getAuthUser()?.name;
+  const myWin   = winners.find(w => w.player === me) || null;
+  const isFull  = winners.length >= CAPTURE_MAX_WINNERS;
+  const latestWinner = winners.length ? winners[winners.length - 1] : null;
+  const panelWinner  = myWin || latestWinner; // só define o TEMPO de exibição do painel (30 min)
+
+  // Painel "resgatado"/"esgotado" fica visível por 30 min após a última captura; depois volta ao placeholder.
+  const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
-  const winnerMine = !!result?.player && result.player === getAuthUser()?.name;
+  const winnerMine = !!myWin;
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
@@ -90,22 +100,27 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     let alive = true;
     if (!cfg) { setChecked(true); return; }
     (async () => {
-      const w = await fetchCaptureWinner(cfg);
+      const ws = await fetchCaptureWinners(cfg);
       if (!alive) return;
-      if (w === undefined) {                 // erro de rede → confia no cache local
-        if (getCaptureResult(cfg)) setResult(getCaptureResult(cfg));
+      if (ws === undefined) {                 // erro de rede → confia no cache local
+        const cached = getCaptureResult(cfg);
+        if (cached) setWinners(Array.isArray(cached) ? cached : [cached]); // compat com o formato antigo (1 vencedor só)
         setChecked(true); return;
       }
-      if (w) { setResult(w); setCaptureResult(cfg, w); markCaptureDone(cfg); }
-      else  { setResult(null); clearCaptureLocal(cfg); }
+      setWinners(ws);
+      setCaptureResult(cfg, ws);
+      const meNow = getAuthUser()?.name;
+      if (ws.length >= CAPTURE_MAX_WINNERS || ws.some(w => w.player === meNow)) markCaptureDone(cfg);
+      else if (ws.length === 0) clearCaptureLocal(cfg);
       setChecked(true);
     })();
     return () => { alive = false; };
   }, [cfg]);
 
-  /* ── Surgimento SINCRONIZADO: todos veem no mesmo momento (spawnAt do config) ── */
+  /* ── Surgimento SINCRONIZADO: todos veem no mesmo momento (spawnAt do config) ──
+       Continua disponível pra quem ainda não capturou até as 5 vagas acabarem. ── */
   useEffect(() => {
-    if (!cfg || !checked || result || isCaptureDone(cfg)) return;
+    if (!cfg || !checked || isFull || myWin || isCaptureDone(cfg)) return;
     let revealT;
     const evaluate = () => {
       if (isCaptureDone(cfg)) { setAvailable(false); return; }
@@ -123,26 +138,47 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     evaluate();
     const tick = setInterval(evaluate, 3000);
     return () => { clearTimeout(revealT); clearInterval(tick); };
-  }, [cfg, checked, result]);
+  }, [cfg, checked, isFull, myWin]);
 
-  /* ── Alguém capturou? → some pra TODOS ao mesmo tempo. Realtime (quase instantâneo,
-       requer supabase_capture_uniko_realtime.sql) + poll de 4s como fallback caso o
+  /* ── Alguém (um dos até 5) capturou? → acumula na lista; quando fecha as 5 vagas,
+       some pra quem ainda não capturou. Realtime (quase instantâneo, requer
+       supabase_capture_uniko_realtime.sql) + poll de 4s como fallback caso o
        realtime não esteja habilitado no projeto Supabase. ── */
   useEffect(() => {
-    if (!cfg || result || !available) return;
-    const onWinner = (w) => {
-      markCaptureDone(cfg); setCaptureResult(cfg, w); setAvailable(false);
-      setResult(w);                                        // mostra o painel de resgatado (30 min)
-      emitCaptureState({ available: false, uniko: null, captured: true });
+    if (!cfg || isFull || myWin || !available) return;
+    const addWinner = (w) => {
+      setWinners(prev => {
+        if (prev.some(p => p.player === w.player)) return prev;
+        const next = [...prev, w].slice(0, CAPTURE_MAX_WINNERS);
+        setCaptureResult(cfg, next);
+        return next;
+      });
     };
-    const unsub = subscribeCaptureWinner(cfg, onWinner);
+    const unsub = subscribeCaptureWinner(cfg, addWinner);
     const id = setInterval(async () => {
-      const w = await fetchCaptureWinner(cfg);
-      if (!w) return;
-      onWinner(w);
+      const ws = await fetchCaptureWinners(cfg);
+      if (!ws || !ws.length) return;
+      setWinners(prev => {
+        const map = new Map(prev.map(p => [p.player, p]));
+        for (const w of ws) map.set(w.player, w);
+        const merged = Array.from(map.values());
+        setCaptureResult(cfg, merged);
+        return merged;
+      });
     }, 4000);
     return () => { unsub(); clearInterval(id); };
-  }, [available, cfg, result]); // eslint-disable-line
+  }, [available, cfg, isFull, myWin]);
+
+  /* ── Quando as 5 vagas se esgotam (por qualquer via acima) → some pra quem
+       ainda não capturou e avisa o assistente que acabou o encontro. ── */
+  useEffect(() => {
+    if (cfg && isFull && !myWin) {
+      markCaptureDone(cfg);
+      setAvailable(false);
+      emitCaptureState({ available: false, uniko: null, captured: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFull]);
 
   /* ── Expira o painel de "resgatado" após 30 min → volta ao placeholder ── */
   useEffect(() => {
@@ -208,9 +244,9 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1200);
       return;
     }
-    const { won, winner, networkError } = await claimCapture(cfg, uniko);
+    const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, uniko);
     if (networkError) {
-      // erro de verdade (não é "alguém já pegou") — NÃO marca como feito nem gasta a
+      // erro de verdade (não é "esgotou"/"já é meu") — NÃO marca como feito nem gasta a
       // tentativa; deixa tentar de novo em vez de fingir sucesso sem nada gravado.
       setAttempts(n - 1);
       setPhase('error');
@@ -227,12 +263,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       addToMyUnikoCollection(uniko);                 // otimista: já aparece na Coleção local na hora
       await saveCaptureToCollection(uniko);           // grava no servidor (agora loga erro se falhar)
       syncCollectionFromServer();                     // reconcilia com o servidor (fire-and-forget)
-      const res = { player: me, at: new Date().toISOString(), comum: reward.comum, premium: reward.premium };
-      setResult(res); setCaptureResult(cfg, res);
+      setWinners(prev => {
+        if (prev.some(p => p.player === me)) return prev;
+        const next = [...prev, winner].slice(0, CAPTURE_MAX_WINNERS);
+        setCaptureResult(cfg, next);
+        return next;
+      });
       emitCaptureState({ available: false, uniko, captured: true });
+    } else if (!alreadyMine && full && fullList?.length) {
+      // esgotado (5/5) — mostra a lista completa de quem conseguiu
+      setWinners(fullList);
+      setCaptureResult(cfg, fullList);
+      emitCaptureState({ available: false, uniko: null, captured: true });
     } else {
-      const res = { player: winner?.player || '—', at: winner?.at || new Date().toISOString(), comum: winner?.comum || 0, premium: winner?.premium || 0 };
-      setResult(res); setCaptureResult(cfg, res);
       emitCaptureState({ available: false, uniko: null, captured: true });
     }
     resolvingRef.current = false;
@@ -250,8 +293,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       {node}
     </div>, slotEl);
 
-  // Painel de "resgatado" — quem pegou, quando e quantas prismas (fica 30 min)
-  if (winnerActive && result && !available) {
+  // Painel "Você resgatou!" — só pra quem capturou (fica 30 min)
+  if (winnerActive && myWin && !available) {
     return wrap(
         <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -260,15 +303,36 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>★ UNIKO RESGATADO ★</div>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {winnerMine ? 'Você resgatou!' : result.player}
+                Você resgatou!
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
                 <span style={{ fontSize: 11.5, color: th.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={th.ink} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
-                  {fmtWhen(result.at)}
+                  {fmtWhen(myWin.at)}
                 </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{result.comum || 0}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(155,107,255,.2)', border: '1px solid rgba(155,107,255,.55)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaPremium.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{result.premium || 0}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{myWin.comum || 0}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(155,107,255,.2)', border: '1px solid rgba(155,107,255,.55)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaPremium.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{myWin.premium || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+    );
+  }
+
+  // Painel "esgotado" — não fui eu, mas as 5 vagas já foram todas usadas (fica 30 min)
+  if (winnerActive && isFull && !myWin && !available) {
+    return wrap(
+        <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
+          <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+          <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
+            <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, opacity: .5, filter: 'grayscale(.6)' }}/>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>★ TODAS AS VAGAS FORAM USADAS ★</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1 }}>
+                {winners.length} pessoas já capturaram
+              </div>
+              <div style={{ fontSize: 11.5, color: th.ink, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {winners.map(w => w.player).join(', ')}
               </div>
             </div>
           </div>
