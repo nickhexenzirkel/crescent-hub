@@ -71,6 +71,14 @@ export const UnikoOrigin = () => {
   const openModal  = () => { setPage(0); setPaused(false); setOpen(true); };
   const closeModal = () => setOpen(false);
 
+  // Pré-carrega todas as imagens da história assim que o componente monta (não
+  // só quando abre o modal) — sem isso, cada página só começava a baixar a
+  // imagem (2-3MB cada) quando o usuário clicava "Próxima", deixando a tela
+  // preta por um tempo até carregar.
+  useEffect(() => {
+    SLIDES.forEach(sl => { const img = new Image(); img.src = sl.img; });
+  }, []);
+
   // Narração em tempo real: revela a cena caractere a caractere. Ao terminar, fica
   // parado na cena esperando o usuário avançar manualmente (sem pular sozinho).
   useEffect(() => {
