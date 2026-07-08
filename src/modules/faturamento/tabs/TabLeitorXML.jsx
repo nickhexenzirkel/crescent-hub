@@ -137,8 +137,9 @@ const parseGinfes = (xmlStr, filename) => {
     const cpfCnpj         = getEl(tomador, 'CpfCnpj');
     const prestadorIdentif = getEl(prestador, 'IdentificacaoPrestador');
 
-    const disc = getText(inf, 'Discriminacao');
-    const d    = extractDisc(disc);
+    const disc         = getText(inf, 'Discriminacao');
+    const d            = extractDisc(disc);
+    const identifRps   = getEl(inf, 'IdentificacaoRps');
 
     return {
       error:          false,
@@ -146,6 +147,7 @@ const parseGinfes = (xmlStr, filename) => {
       // identificação
       numero:         getText(inf, 'Numero'),
       codigoVerif:    getText(inf, 'CodigoVerificacao'),
+      numeroRps:      getText(identifRps, 'Numero'),
       chaveAcesso:    getText(inf, 'ChaveAcesso'),
       dataEmissao:    fmtData(getText(inf, 'DataEmissao')),
       // do extractDisc
@@ -405,7 +407,7 @@ export const TabLeitorXML = () => {
               <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',fontSize:13}}>
                 <thead>
                   <tr style={{background:T.goldGl,borderBottom:`1px solid ${T.border}`}}>
-                    {['Nota','Início','Fim','Município','Secretaria / Setor','Categoria','V. Bruto','IR Abast','IR Peça','IR Serviço','V. Líquido','V. c/ Retenção'].map(h => (
+                    {['Nota','Cód. Verificação','Cód. RPS','Início','Fim','Município','Secretaria / Setor','Categoria','V. Bruto','IR Abast','IR Peça','IR Serviço','V. Líquido','V. c/ Retenção'].map(h => (
                       <th key={h} style={{padding:'12px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:T.textS,letterSpacing:'.05em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
                         {h}
                       </th>
@@ -419,6 +421,8 @@ export const TabLeitorXML = () => {
                       onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <td style={{padding:'10px 14px',color:T.text,fontWeight:600}}>{r.numero}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.codigoVerif||'—'}</td>
+                      <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.numeroRps||'—'}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.inicio}</td>
                       <td style={{padding:'10px 14px',color:T.textS,whiteSpace:'nowrap'}}>{r.fim}</td>
                       <td style={{padding:'10px 14px',color:T.text,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={r.tomadorNome}>{muniName(r)}</td>
@@ -437,7 +441,7 @@ export const TabLeitorXML = () => {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={12} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
+                      <td colSpan={14} style={{padding:'32px',textAlign:'center',color:T.textT,fontSize:14}}>
                         {search || filterTipo !== 'todos' ? 'Nenhum resultado para o filtro aplicado' : 'Nenhuma NFS-e carregada'}
                       </td>
                     </tr>
