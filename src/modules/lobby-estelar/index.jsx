@@ -31,7 +31,8 @@ const SCENES = {
   // emblema circular e vai até a borda de baixo da imagem.
   // exitRight/exitLeft: atravessar aquela borda lateral leva pro cenário indicado.
   hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitRight: 'laboratorio' },
-  laboratorio: { bg: '/lobby-estelar/laboratorio.png', floorBottomPct: 2, floorHeightPct: 36, minX: 6, maxX: 94, exitLeft: 'hangar' },
+  laboratorio: { bg: '/lobby-estelar/laboratorio.png', floorBottomPct: 2, floorHeightPct: 36, minX: 6, maxX: 94, exitLeft: 'hangar', exitRight: 'biolab' },
+  biolab: { bg: '/lobby-estelar/biolab.png', floorBottomPct: 2, floorHeightPct: 40, minX: 8, maxX: 92, exitLeft: 'laboratorio' },
 };
 const DEFAULT_SCENE = 'hangar';
 
@@ -48,6 +49,28 @@ const ENTRY_MARGIN   = 3;    // onde aparece do outro lado da porta (distância 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const shortName = (n) => (n || '').trim().split(/\s+/).slice(0, 2).join(' ');
 const isTypingTarget = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+
+// Portal espiral — marca visualmente onde o cenário atual dá acesso a outro
+// (side: 'left' ou 'right'). Puramente decorativo — quem decide a travessia
+// de verdade é a checagem de x/exitLeft/exitRight no loop de movimento/clique.
+const Portal = ({ side }) => (
+  <div style={{
+    position: 'absolute', [side]: '1.5%', bottom: '4%', width: 84, height: 210,
+    zIndex: 12, pointerEvents: 'none', borderRadius: '50%', overflow: 'hidden',
+    boxShadow: '0 0 50px 16px rgba(124,58,237,0.5), 0 0 90px 30px rgba(34,211,238,0.25)',
+  }}>
+    <div style={{
+      position: 'absolute', inset: -20,
+      background: 'conic-gradient(from 0deg, #7c3aed, #22d3ee, #a855f7, #7c3aed, #22d3ee, #a855f7, #7c3aed)',
+      animation: 'lobbyPortalSpin 2.6s linear infinite', filter: 'blur(1.5px) saturate(1.3)',
+    }} />
+    <div style={{
+      position: 'absolute', inset: 14, borderRadius: '50%',
+      background: 'radial-gradient(circle, rgba(8,10,22,0.15), rgba(8,10,22,0.85) 75%)',
+      animation: 'lobbyPortalSpin 1.8s linear infinite reverse',
+    }} />
+  </div>
+);
 
 export const LobbyEstelar = ({ onBack, authUser }) => {
   const player = authUser?.name || getAuthUser()?.name || 'Anônimo';
@@ -287,7 +310,11 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
         <style>{`
           @keyframes lobbyIdleBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
           @keyframes lobbyBubbleIn { from { opacity:0; transform: translate(-50%,4px) scale(.9) } to { opacity:1; transform: translate(-50%,0) scale(1) } }
+          @keyframes lobbyPortalSpin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         `}</style>
+
+        {sceneCfg.exitLeft  && <Portal side="left" />}
+        {sceneCfg.exitRight && <Portal side="right" />}
 
         {avatars.map(a => {
           const skin = getAssistantSkin(a.skin_id);
