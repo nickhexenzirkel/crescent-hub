@@ -296,6 +296,8 @@ export const PdfEditor = ({ onDoc }) => {
   const dragRef   = useRef(null);
   const drawRef   = useRef(null);
   const [drawBox, setDrawBox] = useState(null); // preview do whiteout sendo arrastado
+  const dragPageRef = useRef(null); // índice da miniatura sendo arrastada (reordenar páginas)
+  const [overPageIdx, setOverPageIdx] = useState(null);
   const editedFocus = useRef(false);
   const fileInput = useRef();
   const addInput  = useRef();
@@ -392,6 +394,40 @@ export const PdfEditor = ({ onDoc }) => {
       histRef.current = []; setCanUndo(false);
     } catch (e) {
       setError('Não foi possível excluir a página: ' + (e?.message || 'erro'));
+    } finally { setBusy(false); }
+  };
+
+  /* ── mover uma página pra outra posição (arrastar nas miniaturas) ──
+     Reconstrói o PDF copiando as páginas na nova ordem (mesmo padrão de
+     deletePage: recarrega do zero via pdf-lib, salva, e relê com pdfjs).
+     `annos` são remapeadas pelo índice ORIGINAL da página, não pela posição. */
+  const movePage = async (from, to) => {
+    if (!srcRef.current || busy || from === to) return;
+    setError(''); setBusy(true);
+    try {
+      const doc = await PDFDocument.load(srcRef.current.slice());
+      const order = pages.map((_, i) => i);
+      const [moved] = order.splice(from, 1);
+      order.splice(to, 0, moved);
+
+      const out = await PDFDocument.create();
+      const copied = await out.copyPages(doc, order);
+      copied.forEach(pg => out.addPage(pg));
+      const newSrc = new Uint8Array(await out.save());
+      const newPdf = await pdfjsLib.getDocument({ data: newSrc.slice() }).promise;
+
+      const remap = {};
+      order.forEach((origIdx, newIdx) => { remap[origIdx] = newIdx; });
+
+      srcRef.current = newSrc;
+      pushHistory();
+      setPdf(newPdf);
+      setPages(p => { const next = p.slice(); const [m] = next.splice(from, 1); next.splice(to, 0, m); return next; });
+      setAnnos(prev => prev.map(a => ({ ...a, page: remap[a.page] })));
+      setSelId(null); setFocusId(null);
+      setActivePage(ap => remap[ap] ?? ap);
+    } catch (e) {
+      setError('Não foi possível mover a página: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
   };
 
@@ -733,16 +769,31 @@ export const PdfEditor = ({ onDoc }) => {
 
       <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
         {/* Miniaturas */}
-        <div style={{width:120,flexShrink:0,maxHeight:'72vh',overflowY:'auto',display:'flex',flexDirection:'column',gap:8,paddingRight:4}}>
+        <div style={{width:120,flexShrink:0,display:'flex',flexDirection:'column'}}>
+          <div style={{fontSize:10,color:T.textD,marginBottom:6,lineHeight:1.4}}>Arraste pra reordenar</div>
+          <div style={{maxHeight:'68vh',overflowY:'auto',display:'flex',flexDirection:'column',gap:8,paddingRight:4}}>
           {pages.map((p,i)=>(
-            <div key={i} onClick={()=>{ setActivePage(i); document.getElementById('pdfpg-'+i)?.scrollIntoView({behavior:'smooth',block:'start'}); }}
-              style={{cursor:'pointer',border:`2px solid ${activePage===i?T.gold:T.border}`,borderRadius:8,overflow:'hidden',background:'#fff',position:'relative'}}>
+            <div key={i}
+              draggable={!busy}
+              onClick={()=>{ setActivePage(i); document.getElementById('pdfpg-'+i)?.scrollIntoView({behavior:'smooth',block:'start'}); }}
+              onDragStart={e=>{ dragPageRef.current = i; e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={e=>{ e.preventDefault(); if (dragPageRef.current !== null) setOverPageIdx(i); }}
+              onDragLeave={()=> setOverPageIdx(o => (o===i ? null : o))}
+              onDrop={e=>{
+                e.preventDefault();
+                const from = dragPageRef.current;
+                dragPageRef.current = null; setOverPageIdx(null);
+                if (from !== null && from !== i) movePage(from, i);
+              }}
+              onDragEnd={()=>{ dragPageRef.current = null; setOverPageIdx(null); }}
+              style={{cursor:busy?'default':'grab',border:`2px solid ${overPageIdx===i?T.gold:activePage===i?T.gold:T.border}`,borderRadius:8,overflow:'hidden',background:'#fff',position:'relative',transition:'border-color .12s'}}>
               <PdfCanvas pdf={pdf} index={i} scale={0.16}/>
               <div style={{position:'absolute',bottom:2,right:4,fontSize:10,color:T.textT,background:'rgba(255,255,255,.8)',borderRadius:4,padding:'0 4px'}}>{i+1}</div>
               <button title="Excluir página" onClick={e=>{ e.stopPropagation(); deletePage(i); }} disabled={busy}
                 style={{position:'absolute',top:2,right:2,width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,.85)',border:`1px solid ${T.border}`,borderRadius:5,color:T.danger,fontSize:10.5,cursor:busy?'default':'pointer',padding:0}}>🗑</button>
             </div>
           ))}
+          </div>
         </div>
 
         {/* Páginas */}
