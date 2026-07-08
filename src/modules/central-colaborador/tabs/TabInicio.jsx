@@ -567,7 +567,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       </div>
 
       {/* ══ CAPTURE O UNIKO — o encontro renderiza DENTRO deste widget (config do RH) ═════ */}
-      <div className="home-card" style={{position:'relative',minHeight:capBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
+      <div id="capture-uniko-card" className="home-card" style={{position:'relative',minHeight:capBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
         background:capBusy?'transparent':'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
         border:capBusy?'none':`1px solid ${T.border}`,boxShadow:capBusy?'none':T.sh,
         display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>

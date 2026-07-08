@@ -999,9 +999,9 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
       // ── ARREMESSO: soltou o assistente em cima do Uniko do widget? → captura ──
       const icon = iconRef.current, margin = marginRef.current;
+      const cx = posRef.current.x + icon / 2, cy = posRef.current.y + icon / 2;
       if (captureRef.current) {
         const rect = getCaptureTargetRect();
-        const cx = posRef.current.x + icon / 2, cy = posRef.current.y + icon / 2;
         const M = 46; // margem de tolerância (mira generosa)
         if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
           emitCaptureThrow();
@@ -1010,6 +1010,20 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           const home = dockToPixels(homeDock, icon, margin);
           setPos(clampPixels({ x: rect.left + rect.width / 2 - icon / 2, y: rect.top + rect.height / 2 - icon / 2 }, icon, margin));
           setTimeout(() => { setPos(home); saveDock(homeDock); }, 420);
+          return;
+        }
+      } else {
+        // Não deixa "estacionar" o assistente em cima da área do Capture o Uniko
+        // enquanto não tem nada spawnado — sem isso, dava pra ficar de tocaia já
+        // em cima esperando o Uniko aparecer, com vantagem injusta sobre quem
+        // precisa arrastar até lá na hora certa. Volta pra posição de ANTES do
+        // arraste, como se o solto ali nunca tivesse acontecido.
+        const card = document.getElementById('capture-uniko-card');
+        const r = card?.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0 && cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
+          const backDock = pixelsToDock({ x: d.ox, y: d.oy }, icon, margin);
+          setPos(dockToPixels(backDock, icon, margin));
+          saveDock(backDock);
           return;
         }
       }
