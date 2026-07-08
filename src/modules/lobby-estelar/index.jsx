@@ -27,7 +27,9 @@ import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange } fro
 ══════════════════════════════════════════════════════════════════ */
 
 const SCENES = {
-  hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 6, floorHeightPct: 30, minX: 4, maxX: 96 },
+  // Faixa do chão cinza metálico dessa arte específica: começa logo abaixo do
+  // emblema circular e vai até a borda de baixo da imagem.
+  hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90 },
 };
 const DEFAULT_SCENE = 'hangar';
 
@@ -36,7 +38,7 @@ const STALE_MS       = 22000;
 const BUBBLE_MS      = 7000;
 const MOVE_TRANSITION_S = 0.12;
 const BROADCAST_MS   = 150;   // throttle do envio de posição pro servidor
-const SPEED_PCT_S    = 55;    // velocidade de andar (% da área por segundo)
+const SPEED_PCT_S    = 14;    // velocidade de andar (% da área por segundo)
 const ICON_SIZE      = 132;
 const CHAT_LOG_MAX   = 30;
 
@@ -225,15 +227,6 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
           @keyframes lobbyIdleBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
           @keyframes lobbyBubbleIn { from { opacity:0; transform: translate(-50%,4px) scale(.9) } to { opacity:1; transform: translate(-50%,0) scale(1) } }
         `}</style>
-
-        {/* Chão — área onde dá pra se mover */}
-        <div style={{
-          position: 'absolute', left: `${sceneCfg.minX}%`, right: `${100 - sceneCfg.maxX}%`,
-          bottom: `${sceneCfg.floorBottomPct}%`, height: `${sceneCfg.floorHeightPct}%`,
-          borderRadius: 18, border: '1.5px dashed rgba(255,255,255,0.22)',
-          background: 'linear-gradient(180deg, rgba(120,160,255,0.05), rgba(120,160,255,0.12))',
-          boxShadow: 'inset 0 0 60px rgba(120,160,255,0.08)', pointerEvents: 'none', zIndex: 1,
-        }} />
 
         {avatars.map(a => {
           const skin = getAssistantSkin(a.skin_id);
