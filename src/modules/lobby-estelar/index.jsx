@@ -365,7 +365,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       </div>
 
       {/* Chat: digitar */}
-      <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+      <div style={{ position: 'fixed', left: 20, bottom: 20, zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10 }}>
         {chatOpen && (
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, background: 'rgba(8,10,22,0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }}>
             <input autoFocus value={chatText} onChange={e => setChatText(e.target.value)}
