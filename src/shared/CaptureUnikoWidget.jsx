@@ -20,7 +20,7 @@ import {
   loadCustomUnikos, nowMs, syncServerClock, CAPTURE_MAX_WINNERS,
 } from './captureUniko';
 
-const ESCAPE_CHANCE = 0.6;  // chance de escapar na 1ª tentativa (2ª é garantida)
+const ESCAPE_CHANCE = 0;    // captura na 1ª tentativa sempre (era 0.6 — muita gente reclamou de precisar de várias tentativas)
 
 const fmtWhen = (iso) => {
   try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
