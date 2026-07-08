@@ -33,7 +33,8 @@ const SCENES = {
   hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitRight: 'laboratorio' },
   laboratorio: { bg: '/lobby-estelar/laboratorio.png', floorBottomPct: 2, floorHeightPct: 36, minX: 6, maxX: 94, exitLeft: 'hangar', exitRight: 'biolab' },
   biolab: { bg: '/lobby-estelar/biolab.png', floorBottomPct: 2, floorHeightPct: 40, minX: 8, maxX: 92, exitLeft: 'laboratorio', exitRight: 'izakaya' },
-  izakaya: { bg: '/lobby-estelar/izakaya.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitLeft: 'biolab' },
+  izakaya: { bg: '/lobby-estelar/izakaya.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitLeft: 'biolab', exitRight: 'escritorio' },
+  escritorio: { bg: '/lobby-estelar/escritorio.png', floorBottomPct: 2, floorHeightPct: 38, minX: 8, maxX: 92, exitLeft: 'izakaya' },
 };
 const DEFAULT_SCENE = 'hangar';
 
