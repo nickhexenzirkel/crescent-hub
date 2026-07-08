@@ -309,17 +309,23 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     );
   }
 
-  // Painel "esgotado" — não fui eu, mas as 5 vagas já foram todas usadas (fica 30 min)
-  if (winnerActive && isFull && !myWin && !available) {
+  // Painel "não fui eu" — dispara sempre que winnerActive (o mesmo sinal que emitCaptureSlotBusy
+  // usa lá no TabInicio pra reservar o espaço do card). Antes só cobria o caso "esgotado" (3/3);
+  // se alguém capturasse 1 ou 2 vagas sem fechar todas, ninguém mais via NADA aqui (nem esse
+  // painel, nem o "Não há nada aqui, por enquanto..." do TabInicio, que só reaparece quando o
+  // card "não está ocupado") — o espaço ficava vazio/colapsado até winnerActive expirar (30 min).
+  if (winnerActive && !myWin && !available) {
     return wrap(
         <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
           <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
             <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, opacity: .5, filter: 'grayscale(.6)' }}/>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>★ TODAS AS VAGAS FORAM USADAS ★</div>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>
+                {isFull ? '★ TODAS AS VAGAS FORAM USADAS ★' : '★ ALGUÉM JÁ CAPTUROU ★'}
+              </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1 }}>
-                {winners.length} pessoas já capturaram
+                {winners.length} de {CAPTURE_MAX_WINNERS} vagas usadas
               </div>
               <div style={{ fontSize: 11.5, color: th.ink, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {winners.map(w => w.player).join(', ')}

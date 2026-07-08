@@ -978,11 +978,33 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     setDragging(true);
   }, []);
   useEffect(() => {
+    // Barreira invisível: enquanto NÃO tem Uniko spawnado (nem painel de resultado ativo),
+    // o assistente não pode ser arrastado PARA DENTRO da área do Capture o Uniko (evita
+    // "estacionar" já em cima esperando o spawn). Empurra pra fora pela borda mais próxima
+    // (como colidir com uma parede), em vez de só corrigir depois de soltar — assim ele
+    // desliza ao redor da área durante o próprio arraste, nunca chega a entrar.
+    const pushOutsideCard = (pt, icon) => {
+      if (captureRef.current) return pt; // tem Uniko disponível agora -- pode entrar
+      const rect = document.getElementById('capture-uniko-card')?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return pt;
+      const left = pt.x, right = pt.x + icon, top = pt.y, bottom = pt.y + icon;
+      const overlaps = right > rect.left && left < rect.right && bottom > rect.top && top < rect.bottom;
+      if (!overlaps) return pt;
+      const penLeft = right - rect.left, penRight = rect.right - left;
+      const penTop = bottom - rect.top, penBottom = rect.bottom - top;
+      const minPen = Math.min(penLeft, penRight, penTop, penBottom);
+      if (minPen === penLeft)   return { x: rect.left - icon, y: pt.y };
+      if (minPen === penRight)  return { x: rect.right, y: pt.y };
+      if (minPen === penTop)    return { x: pt.x, y: rect.top - icon };
+      return { x: pt.x, y: rect.bottom };
+    };
     const moveTo = (cx, cy) => {
       const d = dragRef.current; if (!d) return;
       const dx = cx - d.sx, dy = cy - d.sy;
       if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) d.moved = true;
-      setPos(clampPixels({ x: d.ox + dx, y: d.oy + dy }, iconRef.current, marginRef.current));
+      const icon = iconRef.current;
+      const clamped = clampPixels({ x: d.ox + dx, y: d.oy + dy }, icon, marginRef.current);
+      setPos(pushOutsideCard(clamped, icon));
     };
     const onMouseMove = (e) => moveTo(e.clientX, e.clientY);
     const onTouchMove = (e) => {
