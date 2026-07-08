@@ -12,7 +12,7 @@ import { TabOficinaEstelar, TabCartaCorrecao, TabOficioEmissao } from './tabs/Ta
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 
-const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficio', 'historico-assinatura']);
+const ADMIN_TABS = new Set(['xml', 'assinatura', 'carta', 'consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficio', 'historico-assinatura']);
 
 const FaturamentoPortal = ({ onBack, authUser }) => {
   const isMobile = useIsMobile();

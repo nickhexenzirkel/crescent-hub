@@ -18,11 +18,13 @@ const NAV = [
   {
     id: 'xml',
     label: 'Controle de Notas',
+    adminOnly: true,
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="19" x2="13" y2="19"/></I>,
   },
   {
     id: 'assinatura',
     label: 'Assinatura Automática',
+    adminOnly: true,
     icon: <I><path d="M20 19.5v.5a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2h9"/><polyline points="13 8 16 5 21 10 18 13"/><line x1="8" y1="17" x2="12" y2="17"/><line x1="8" y1="13" x2="10" y2="13"/></I>,
   },
   {
@@ -63,6 +65,7 @@ const NAV = [
   {
     id: 'carta',
     label: 'Carta de Correção',
+    adminOnly: true,
     icon: <I><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></I>,
   },
   {
