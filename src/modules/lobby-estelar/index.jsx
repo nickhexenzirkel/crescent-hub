@@ -358,6 +358,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
         style={{ position: 'relative', flex: 1, backgroundImage: `url(${sceneCfg.bg})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer', overflow: 'hidden' }}>
         <style>{`
           @keyframes lobbyIdleBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+          @keyframes lobbyWalkBob { 0%,100% { transform: translateY(0) rotate(-4deg) } 50% { transform: translateY(-9px) rotate(4deg) } }
           @keyframes lobbyBubbleIn { from { opacity:0; transform: translate(-50%,4px) scale(.9) } to { opacity:1; transform: translate(-50%,0) scale(1) } }
           @keyframes lobbyPortalSpin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
           @keyframes lobbyPortalPulse { 0%,100% { transform: scale(1); opacity:.65 } 50% { transform: scale(.82); opacity:1 } }
@@ -375,7 +376,13 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
               onClick={e => e.stopPropagation()}
               style={{
                 position: 'absolute', left: `${a.x}%`, bottom: `${bottomOf(a.y)}%`,
-                transform: 'translate(-50%,0)', transition: `left ${MOVE_TRANSITION_S}s linear, bottom ${MOVE_TRANSITION_S}s linear`,
+                transform: 'translate(-50%,0)',
+                // O MEU avatar já anda em passos suaves a 60fps (ver o loop de
+                // movimento) — colocar uma transição CSS por cima disso competia
+                // com as atualizações constantes e dava uma sensação de atraso/
+                // "teleporte". Só os OUTROS (que só recebem posição de vez em
+                // quando pela rede) precisam da transição pra suavizar os saltos.
+                transition: a.isMe ? 'none' : `left ${MOVE_TRANSITION_S}s linear, bottom ${MOVE_TRANSITION_S}s linear`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'default',
                 zIndex: 20 + Math.round(a.y),
               }}>
@@ -396,7 +403,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
               }}>
                 {shortName(a.player)}{a.isMe ? ' (você)' : ''}
               </div>
-              <div style={{ width: ICON_SIZE, height: ICON_SIZE, animation: `lobbyIdleBob ${a.moving ? '0.45s' : '2.6s'} ease-in-out infinite`, filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.5))' }}>
+              <div style={{ width: ICON_SIZE, height: ICON_SIZE, animation: a.moving ? 'lobbyWalkBob 0.42s ease-in-out infinite' : 'lobbyIdleBob 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.5))' }}>
                 <img src={sprite} alt={a.player} draggable={false} onDragStart={e => e.preventDefault()}
                   style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', WebkitUserDrag: 'none', pointerEvents: 'none' }} />
               </div>
