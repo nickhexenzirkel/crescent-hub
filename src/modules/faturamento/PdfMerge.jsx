@@ -7,14 +7,16 @@ import { T } from '../../contexts/theme';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /* ══════════════════════════════════════════════════════════════════
-   MESCLAR PDF — organiza as páginas de vários PDFs (arrastar pra
-   reordenar, estilo iLovePDF) e junta tudo num único arquivo baixado.
-   Usa pdf-lib (já uma dependência do PdfEditor) pra copiar as páginas
-   na ordem final, e pdfjs-dist só pra gerar as miniaturas.
+   MESCLAR PDF — cada PDF inteiro vira UM cartão (mostrando só a 1ª
+   página como capa, estilo iLovePDF), não um cartão por página. Arrasta
+   os cartões pra reordenar os ARQUIVOS; cada um entra no resultado final
+   com todas as suas páginas, na ordem interna original. Usa pdf-lib (já
+   dependência do PdfEditor) pra copiar as páginas, e pdfjs-dist só pra
+   gerar a miniatura da capa.
 ══════════════════════════════════════════════════════════════════ */
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const THUMB_SCALE = 0.35;
+const THUMB_SCALE = 0.5;
 
 async function renderThumb(page) {
   const vp = page.getViewport({ scale: THUMB_SCALE });
@@ -23,7 +25,7 @@ async function renderThumb(page) {
   cv.height = Math.max(1, Math.floor(vp.height));
   const ctx = cv.getContext('2d');
   await page.render({ canvasContext: ctx, viewport: vp }).promise;
-  return cv.toDataURL('image/jpeg', 0.72);
+  return cv.toDataURL('image/jpeg', 0.78);
 }
 
 const DropZone = ({ onFiles, small }) => {
@@ -56,7 +58,7 @@ const DropZone = ({ onFiles, small }) => {
       </div>
       {!small && (
         <div style={{ fontSize: 13, color: T.textT }}>
-          Pode soltar vários de uma vez — as páginas de todos entram na lista, na ordem que você quiser
+          Pode soltar vários de uma vez — cada um vira um cartão, na ordem que você quiser
         </div>
       )}
       <input ref={inputRef} type="file" accept=".pdf" multiple style={{ display: 'none' }}
@@ -66,7 +68,7 @@ const DropZone = ({ onFiles, small }) => {
 };
 
 export const PdfMerge = () => {
-  const [pages, setPages] = useState([]); // {id, fileId, fileName, pageIndex, thumb}
+  const [files, setFiles] = useState([]); // {id, name, pageCount, thumb}
   const docsRef = useRef({}); // fileId -> PDFDocument (pdf-lib), usado só na hora de mesclar
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -74,22 +76,19 @@ export const PdfMerge = () => {
   const dragIndexRef = useRef(null);
   const [overIndex, setOverIndex] = useState(null);
 
-  const addFiles = async (files) => {
+  const addFiles = async (newFiles) => {
     setLoading(true); setError('');
     try {
-      for (const file of files) {
+      for (const file of newFiles) {
         const buf = await file.arrayBuffer();
         const bytes = new Uint8Array(buf);
         const fileId = uid();
-        docsRef.current[fileId] = await PDFDocument.load(bytes.slice());
+        const libDoc = await PDFDocument.load(bytes.slice());
+        docsRef.current[fileId] = libDoc;
         const jsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
-        const newPages = [];
-        for (let i = 1; i <= jsDoc.numPages; i++) {
-          const page = await jsDoc.getPage(i);
-          const thumb = await renderThumb(page);
-          newPages.push({ id: uid(), fileId, fileName: file.name, pageIndex: i - 1, thumb });
-        }
-        setPages(prev => [...prev, ...newPages]);
+        const firstPage = await jsDoc.getPage(1);
+        const thumb = await renderThumb(firstPage);
+        setFiles(prev => [...prev, { id: fileId, name: file.name, pageCount: libDoc.getPageCount(), thumb }]);
       }
     } catch (e) {
       setError('Não consegui ler um dos PDFs: ' + (e?.message || 'erro desconhecido'));
@@ -97,15 +96,18 @@ export const PdfMerge = () => {
     setLoading(false);
   };
 
-  const removePage = (id) => setPages(prev => prev.filter(p => p.id !== id));
-  const clearAll = () => { setPages([]); docsRef.current = {}; setError(''); };
+  const removeFile = (id) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
+    delete docsRef.current[id];
+  };
+  const clearAll = () => { setFiles([]); docsRef.current = {}; setError(''); };
 
-  const onDropPage = (i) => (e) => {
+  const onDropCard = (i) => (e) => {
     e.preventDefault();
     const from = dragIndexRef.current;
     setOverIndex(null);
     if (from == null || from === i) return;
-    setPages(prev => {
+    setFiles(prev => {
       const next = prev.slice();
       const [moved] = next.splice(from, 1);
       next.splice(i, 0, moved);
@@ -115,14 +117,14 @@ export const PdfMerge = () => {
   };
 
   const downloadMerged = async () => {
-    if (!pages.length) return;
+    if (!files.length) return;
     setMerging(true); setError('');
     try {
       const out = await PDFDocument.create();
-      for (const p of pages) {
-        const src = docsRef.current[p.fileId];
-        const [copied] = await out.copyPages(src, [p.pageIndex]);
-        out.addPage(copied);
+      for (const f of files) {
+        const src = docsRef.current[f.id];
+        const copiedPages = await out.copyPages(src, src.getPageIndices());
+        copiedPages.forEach(p => out.addPage(p));
       }
       const bytes = await out.save();
       const blob = new Blob([bytes], { type: 'application/pdf' });
@@ -138,27 +140,30 @@ export const PdfMerge = () => {
     setMerging(false);
   };
 
-  const fileCount = new Set(pages.map(p => p.fileId)).size;
+  const totalPages = files.reduce((s, f) => s + f.pageCount, 0);
 
   return (
     <div>
-      {pages.length === 0 ? (
+      {files.length === 0 ? (
         <DropZone onFiles={addFiles} />
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
             <div style={{ padding: '6px 14px', background: T.goldGl, border: `1px solid ${T.gold}22`, borderRadius: 10, fontSize: 13, color: T.textS }}>
-              <strong style={{ color: T.text }}>{pages.length}</strong> página{pages.length !== 1 ? 's' : ''}
-              <span style={{ color: T.textT, marginLeft: 6 }}>· {fileCount} arquivo{fileCount !== 1 ? 's' : ''}</span>
+              <strong style={{ color: T.text }}>{files.length}</strong> PDF{files.length !== 1 ? 's' : ''}
+              <span style={{ color: T.textT, marginLeft: 6 }}>· {totalPages} página{totalPages !== 1 ? 's' : ''} no total</span>
             </div>
             <div style={{ flex: 1 }} />
             <button onClick={clearAll}
               style={{ padding: '9px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
               Limpar
             </button>
-            <button onClick={downloadMerged} disabled={merging}
+            <button onClick={downloadMerged} disabled={merging || files.length < 2}
+              title={files.length < 2 ? 'Adicione pelo menos 2 PDFs pra mesclar' : undefined}
               style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 20px', borderRadius: 10, border: 'none',
-                background: T.gold, color: '#fff', fontSize: 14, fontWeight: 600, cursor: merging ? 'wait' : 'pointer', fontFamily: 'var(--font-body)' }}>
+                background: T.gold, color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: merging ? 'wait' : files.length < 2 ? 'not-allowed' : 'pointer',
+                opacity: files.length < 2 ? 0.5 : 1, fontFamily: 'var(--font-body)' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
@@ -172,33 +177,36 @@ export const PdfMerge = () => {
           </div>
 
           <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10 }}>
-            Arraste as páginas pra reordenar. Clique no ✕ pra remover uma página.
+            Arraste os cartões pra reordenar os PDFs. Cada um entra inteiro (todas as páginas) na ordem mostrada. Clique no ✕ pra remover um PDF.
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 14 }}>
-            {pages.map((p, i) => (
-              <div key={p.id}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 14 }}>
+            {files.map((f, i) => (
+              <div key={f.id}
                 draggable
                 onDragStart={() => { dragIndexRef.current = i; }}
                 onDragOver={e => { e.preventDefault(); setOverIndex(i); }}
                 onDragLeave={() => setOverIndex(o => (o === i ? null : o))}
-                onDrop={onDropPage(i)}
+                onDrop={onDropCard(i)}
                 onDragEnd={() => { dragIndexRef.current = null; setOverIndex(null); }}
                 style={{
                   position: 'relative', cursor: 'grab', borderRadius: 10, overflow: 'hidden',
                   border: overIndex === i ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
                   background: T.surface, boxShadow: T.sh, transition: 'border-color .12s',
                 }}>
-                <img src={p.thumb} alt={`Página ${i + 1}`} style={{ width: '100%', display: 'block' }} />
+                <img src={f.thumb} alt={f.name} style={{ width: '100%', display: 'block' }} />
                 <div style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6 }}>
                   {i + 1}
                 </div>
-                <button onClick={() => removePage(p.id)} title="Remover página"
+                <div style={{ position: 'absolute', bottom: 30, right: 6, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 6 }}>
+                  {f.pageCount} pág.
+                </div>
+                <button onClick={() => removeFile(f.id)} title="Remover PDF"
                   style={{ position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.65)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   ✕
                 </button>
-                <div style={{ padding: '5px 8px', fontSize: 10.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.fileName}>
-                  {p.fileName}
+                <div style={{ padding: '5px 8px', fontSize: 10.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>
+                  {f.name}
                 </div>
               </div>
             ))}
