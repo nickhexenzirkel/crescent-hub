@@ -56,7 +56,8 @@ const KB = [
     a: 'Missões dão prismas: Maratona Uniko Wave (20 min/dia = 100 Comum; 40 min/dia = 10 Premium), Voz ativa (1 feedback no mês = 30 Premium), Pequeno Colecionador (10 Unikos na Coleção = 50 Premium), Grande Colecionador (mais de 20 Unikos = 50 Premium), Top 1/2/3 de quem mais coloca música (100/70/50 Premium) e 1ª/2ª compra (200/400 Comum).' },
   { k: ['resgatar premio', 'comprar premio', 'loja', 'trocar prisma', 'premios', 'pix', 'recompensa'],
     a: 'Na Loja da Prisma Store você troca prismas por prêmios reais (PIX, eletrônicos, vouchers...). Comum/Raro custam Prisma Comum; Épico/Lendário custam Prisma Premium. Alguns prêmios têm data de expiração.' },
-  { k: ['transferir prisma', 'enviar prisma', 'dar prisma', 'mandar prisma'],
+  { k: ['transferir prisma', 'transferir prismas', 'enviar prisma', 'enviar prismas', 'envio prisma', 'envio prismas',
+        'mandar prisma', 'mandar prismas', 'dar prisma', 'dar prismas', 'passar prisma', 'passar prismas'],
     a: 'Dá pra transferir Prisma Comum pra um colega na Prisma Store. O admin também pode adicionar, retirar ou zerar prismas.' },
   // ── PORTAL / RH ──
   { k: ['ponto eletronico', 'banco de horas', 'minhas horas', 'saldo de horas', 'marcacao', 'bater ponto'],
@@ -221,6 +222,8 @@ function _hasKeyword(q, k) {
 
 // FAQ por palavra-chave: ignora ACENTO (q e keywords normalizados) e dá mais peso a FRASES
 // (gatilho com espaço pesa 2, palavra solta pesa 1) → a entrada mais específica vence.
+// Retorna {answer,score} (não só a resposta) pra dar pra comparar com o override e
+// decidir qual dos dois é mais específico pra essa pergunta (ver overrideMatch).
 function faqMatch(raw) {
   const q = qkeyOf(raw);
   let best = null, bestScore = 0;
@@ -229,30 +232,38 @@ function faqMatch(raw) {
     for (const kw of item.k) { const k = qkeyOf(kw); if (_hasKeyword(q, k)) score += k.includes(' ') ? 2 : 1; }
     if (score > bestScore) { bestScore = score; best = item; }
   }
-  return bestScore > 0 ? best.a : null;
+  return bestScore > 0 ? { answer: best.a, score: bestScore } : null;
 }
 
 // Respostas REGISTRADAS pelo admin (overrides): antes comparava por IGUALDADE
 // EXATA do texto normalizado — então "nicolas" batia, mas "quem é o nicolas?"
 // não (texto normalizado diferente), mesmo contendo a mesma palavra-chave.
-// Agora usa o MESMO princípio da FAQ curada acima: a pergunta registrada é
-// tratada como palavra-chave/gatilho — basta estar CONTIDA no que a pessoa
-// perguntou (nos dois sentidos, pra cobrir tanto uma pergunta longa contendo
-// o gatilho curto quanto o oposto). Chave mais longa/específica vence se mais
-// de uma bater. Ignora chaves bem curtas (<3 caracteres) pra não disparar à
-// toa em qualquer mensagem que contenha uma palavra comum.
+// Motivo de ter score aqui também (e não só "achou/não achou"): depois de trocar
+// pra match por palavra-chave, um override curto tipo "nicolas" passou a bater
+// em QUALQUER pergunta que citasse esse nome — inclusive "como envio prismas pro
+// nicolas?", que é uma pergunta sobre OUTRA coisa (transferir prisma) e só cita o
+// nome de passagem. Com score comparável ao da FAQ (mesmo peso: frase=2,
+// palavra=1), a pergunta mais específica vence: "enviar prismas" (frase, na FAQ)
+// bate mais forte que "nicolas" (palavra solta, no override) nesse caso, mas
+// "nicolas" sozinho ainda vence quando NADA mais específico bate (ex.: "quem é o
+// nicolas?"). Chave mais longa/específica vence se mais de um override bater.
+// Ignora chaves bem curtas (<3 caracteres) pra não disparar à toa em qualquer
+// mensagem que contenha uma palavra comum.
 function overrideMatch(overrides, raw) {
   const q = qkeyOf(raw);
   if (!q) return null;
-  let best = null, bestLen = 0;
+  let best = null, bestLen = 0, bestScore = 0;
   for (const key in overrides) {
     if (!key || key.length < 3) continue;
-    if ((_hasKeyword(q, key) || _hasKeyword(key, q)) && key.length > bestLen) {
-      bestLen = key.length;
-      best = overrides[key];
+    if (_hasKeyword(q, key) || _hasKeyword(key, q)) {
+      if (key.length > bestLen) {
+        bestLen = key.length;
+        bestScore = key.includes(' ') ? 2 : 1;
+        best = overrides[key];
+      }
     }
   }
-  return best;
+  return best ? { answer: best, score: bestScore } : null;
 }
 
 // IA (fallback quando a FAQ não sabe): chama o endpoint do SERVIDOR (a chave fica SÓ lá).
@@ -1050,13 +1061,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       return;
     }
 
-    // 2) Resposta REGISTRADA pelo admin (override) vence a FAQ curada
-    const ov = overrideMatch(overrides, text);
-    if (ov) { setMessages(m => [...m, { from: 'uniko', text: ov }]); return; }
-
-    // 3) FAQ curada (grátis/instantânea)
+    // 2) Resposta REGISTRADA pelo admin (override) e 3) FAQ curada — a mais
+    // específica (maior score) vence; empate favorece o override (é uma
+    // correção deliberada do admin). Ver comentário em overrideMatch acima.
+    const ov  = overrideMatch(overrides, text);
     const faq = faqMatch(text);
-    if (faq) { setMessages(m => [...m, { from: 'uniko', text: faq }]); return; }
+    if (ov && (!faq || ov.score >= faq.score)) { setMessages(m => [...m, { from: 'uniko', text: ov.answer }]); return; }
+    if (faq) { setMessages(m => [...m, { from: 'uniko', text: faq.answer }]); return; }
 
     // 4) Não bateu na FAQ → IA (com placeholder "pensando"; se falhar, usa o fallback)
     setMessages(m => [...m, { from: 'uniko', text: '…', pending: true }]);
