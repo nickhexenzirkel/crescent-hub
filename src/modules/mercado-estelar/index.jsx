@@ -121,8 +121,13 @@ const useAllPlayers = () => {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const out = new Set(COLABORADORES);
-      const team = await fetchTeamNames(); if (team) team.forEach(n => out.add(n));
+      // COLABORADORES é um array antigo com nomes CURTOS (ex.: "Alan Matos", "Brenda
+      // Késia"), de antes da API /api/team existir. Antes ele era SEMPRE somado com o
+      // time real (que tem os nomes completos e atuais, ex.: "Alan Matos Paixão") —
+      // como são strings diferentes pra mesma pessoa, ela aparecia 2x na lista. Agora
+      // COLABORADORES só entra se a busca no time real falhar de verdade (fallback).
+      const team = await fetchTeamNames();
+      const out = new Set(team && team.length ? team : COLABORADORES);
       try { const { data } = await supabase.from('mercado_state').select('player'); (data || []).forEach(r => r.player && out.add(r.player)); } catch {}
       if (alive) setList([...out].filter(Boolean).sort((a, b) => a.localeCompare(b)));
     })();
