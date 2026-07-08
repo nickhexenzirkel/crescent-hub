@@ -530,6 +530,36 @@ export async function awardPrismas(player, comum, premium) {
   } catch {}
 }
 
+/* ── RH Dashboard: envia um Uniko + prismas DIRETO pra um colaborador específico,
+   fora do sorteio aleatório do evento (ex.: "dar" o Uniko Sereia pro Kauã com 100
+   comuns + 100 premium). Credita a coleção (capture_uniko_captures, mesma tabela
+   de quem captura de verdade — aparece na Coleção/My Uniko dele) e a carteira
+   (mercado_state), igual a uma captura genuína. ── */
+export async function giftUnikoToPlayer(player, uniko, comum, premium) {
+  try {
+    const already = await fetchCapturesFor(player);
+    const hasIt = (already || []).some(c => c.uniko_id === uniko.id);
+    if (!hasIt) {
+      const { error: capErr } = await _supabase.from('capture_uniko_captures').insert({
+        player, uniko_id: uniko.id, uniko_name: uniko.name, captured_at: new Date().toISOString(),
+      });
+      if (capErr) { console.error('[capture-uniko] gift: falha ao salvar na coleção:', capErr); return { ok: false, alreadyHadUniko: false }; }
+    }
+
+    const { data: rowData } = await _supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
+    const base = (rowData?.data && Object.keys(rowData.data).length) ? rowData.data : {};
+    const data = { ...base, comum: (base.comum || 0) + comum, premium: (base.premium || 0) + premium, updatedAt: Date.now() };
+    const { error: walletErr } = await _supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
+    if (walletErr) { console.error('[capture-uniko] gift: falha ao creditar carteira:', walletErr); return { ok: false, alreadyHadUniko: hasIt }; }
+
+    await _supabase.from('mercado_history').insert({ player, kind: 'presente', descr: `Ganhou o Uniko ${uniko.name} (enviado pelo RH)`, comum, premium });
+    return { ok: true, alreadyHadUniko: hasIt };
+  } catch (e) {
+    console.error('[capture-uniko] gift: exceção:', e);
+    return { ok: false, alreadyHadUniko: false };
+  }
+}
+
 /* ── Coleção do My Uniko (localStorage por usuário) ──────────────────────────
    O uniko capturado vira um "skin" equipável no My Uniko. ─────────────────── */
 const COLLECTION_KEY = () => `uniko_captured_${userTag()}`;

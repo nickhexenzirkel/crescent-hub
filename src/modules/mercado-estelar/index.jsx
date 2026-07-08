@@ -1474,6 +1474,7 @@ const KIND_META = {
   troca:        { Icon: IcoSwap,    label: 'Troca' },
   missao:       { Icon: IcoTarget,  label: 'Missão' },
   captura:      { Icon: IcoTarget,  label: 'Capture o Uniko' },
+  presente:     { Icon: IcoGift,    label: 'Presente (RH)' },
   admin:        { Icon: IcoShield,  label: 'Administrador' },
 };
 

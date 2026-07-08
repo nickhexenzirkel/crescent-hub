@@ -7,6 +7,7 @@ import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
+  giftUnikoToPlayer,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -418,8 +419,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot', alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG });
   const [capMsg, setCapMsg]       = useState('');
   const [capSaving, setCapSaving] = useState(false);
-  // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação)
+  // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação) vs. Enviar
   const [captureSubTab, setCaptureSubTab] = useState('evento');
+
+  // ── Enviar Uniko direto pra um colaborador (fora do sorteio do evento) ──
+  const [giftTarget, setGiftTarget]   = useState('');
+  const [giftUnikoId, setGiftUnikoId] = useState('vampire-robot');
+  const [giftComum, setGiftComum]     = useState(100);
+  const [giftPremium, setGiftPremium] = useState(100);
+  const [giftSending, setGiftSending] = useState(false);
+  const [giftMsg, setGiftMsg]         = useState('');
+  const pickGiftUniko = (u) => { setGiftUnikoId(u.id); const rw = getCaptureReward(u); setGiftComum(rw.comum); setGiftPremium(rw.premium); };
+  const sendUnikoGift = async () => {
+    if (!giftTarget || giftSending) return;
+    setGiftSending(true); setGiftMsg('');
+    const u = getUniko(giftUnikoId);
+    const res = await giftUnikoToPlayer(giftTarget, u, Number(giftComum) || 0, Number(giftPremium) || 0);
+    setGiftSending(false);
+    setGiftMsg(res.ok
+      ? `✅ ${u.name} enviado pra ${giftTarget}!${res.alreadyHadUniko ? ' (já tinha o Uniko — só creditou os prismas)' : ''}`
+      : '❌ Falha ao enviar — confira o console e tenta de novo.');
+  };
 
   const loadCapCfg = async () => {
     const c = await loadCaptureConfig();
@@ -1812,15 +1832,18 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div style={{fontSize:13,color:T.textS,marginTop:2}}>
                   {captureSubTab==='evento'
                     ? 'Defina a janela em que um Uniko pode surgir aleatoriamente no Portal do Colaborador para os funcionários capturarem.'
-                    : 'Crie Unikos personalizados, fora do roster fixo, pra disponibilizar no evento.'}
+                    : captureSubTab==='oficina'
+                    ? 'Crie Unikos personalizados, fora do roster fixo, pra disponibilizar no evento.'
+                    : 'Dê um Uniko + prismas direto pra um colaborador específico, sem depender do sorteio do evento.'}
                 </div>
               </div>
 
-              {/* Sub-abas: evento/spawn vs. Oficina de Uniko */}
+              {/* Sub-abas: evento/spawn vs. Oficina de Uniko vs. Enviar */}
               <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                 {[
                   {id:'evento',  label:'⚡ Evento & Spawn'},
                   {id:'oficina', label:'🛠️ Oficina de Uniko'},
+                  {id:'enviar',  label:'🎁 Enviar Uniko'},
                 ].map(v=>{
                   const on = captureSubTab===v.id;
                   return (
@@ -1932,7 +1955,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. São 2 tentativas de captura — na 1ª o Uniko pode escapar, na 2ª é garantido.
+                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. A captura é sempre na 1ª tentativa (arrastou, pegou) e vale para as {' '}3 primeiras pessoas que conseguirem.
                 </div>
               </div>
               </>)}
@@ -2080,6 +2103,86 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
               </div>
               </>)}
+
+              {/* Enviar Uniko direto pra um colaborador (fora do sorteio) */}
+              {captureSubTab==='enviar' && (()=>{
+                const gu = getUniko(giftUnikoId);
+                return (
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+
+                {/* Colaborador */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Colaborador</label>
+                  <select value={giftTarget} onChange={e=>setGiftTarget(e.target.value)}
+                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',cursor:'pointer'}}>
+                    <option value="">Selecione o colaborador...</option>
+                    {users.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
+                </div>
+
+                {/* Escolha do Uniko */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko a enviar</label>
+                  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                    {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
+                      const rw = getCaptureReward(u);
+                      return (
+                      <button key={u.id} onClick={()=>pickGiftUniko(u)}
+                        style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
+                          border:`2px solid ${giftUnikoId===u.id?u.theme.accent:T.border}`,
+                          background:giftUnikoId===u.id?`${u.theme.accent}18`:'transparent',transition:'all .15s'}}>
+                        <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
+                          <div style={{fontSize:11,color:T.textT}}>{u.tagline}</div>
+                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium (padrão)</div>
+                        </div>
+                      </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Prismas (editável, pré-preenchido com o padrão do Uniko escolhido) */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Prismas Comuns</label>
+                    <input type="number" min={0} value={giftComum} onChange={e=>setGiftComum(e.target.value)}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Prismas Premium</label>
+                    <input type="number" min={0} value={giftPremium} onChange={e=>setGiftPremium(e.target.value)}
+                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
+                  </div>
+                </div>
+
+                {/* Preview do tema */}
+                <div style={{borderRadius:14,padding:3,background:`conic-gradient(${gu.theme.border.join(',')})`}}>
+                  <div style={{borderRadius:12,background:gu.theme.scene,padding:'18px 16px',display:'flex',alignItems:'center',gap:14}}>
+                    <img src={gu.img} alt="" style={{width:70,height:70,objectFit:'contain',filter:`drop-shadow(0 0 14px ${gu.theme.accent})`}}/>
+                    <div>
+                      <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:gu.theme.glow}}>★ PRESENTE ★</div>
+                      <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{gu.name}</div>
+                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.85}}>{giftTarget?`Vai pra ${giftTarget} a coleção + a carteira`:'Escolha o colaborador acima'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={sendUnikoGift} disabled={!giftTarget||giftSending}
+                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:(!giftTarget||giftSending)?'default':'pointer',background:`linear-gradient(135deg,${gu.theme.accent},${gu.theme.accent}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:(!giftTarget||giftSending)?.6:1,boxShadow:`0 3px 12px ${gu.theme.accent}44`}}>
+                    {giftSending?'Enviando...':'🎁 Enviar Uniko'}
+                  </button>
+                  {giftMsg&&<span style={{fontSize:13,color:giftMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{giftMsg}</span>}
+                </div>
+
+                <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+                  ℹ️ Isso credita o Uniko na Coleção/My Uniko do colaborador e os prismas na carteira dele, exatamente como uma captura de verdade — mas sem precisar esperar o sorteio do evento.
+                </div>
+              </div>
+                );
+              })()}
 
               {/* Resetar coleção */}
               {captureSubTab==='evento' && (<>
