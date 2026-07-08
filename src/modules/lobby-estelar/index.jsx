@@ -32,7 +32,8 @@ const SCENES = {
   // exitRight/exitLeft: atravessar aquela borda lateral leva pro cenário indicado.
   hangar: { bg: '/lobby-estelar/hangar.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitRight: 'laboratorio' },
   laboratorio: { bg: '/lobby-estelar/laboratorio.png', floorBottomPct: 2, floorHeightPct: 36, minX: 6, maxX: 94, exitLeft: 'hangar', exitRight: 'biolab' },
-  biolab: { bg: '/lobby-estelar/biolab.png', floorBottomPct: 2, floorHeightPct: 40, minX: 8, maxX: 92, exitLeft: 'laboratorio' },
+  biolab: { bg: '/lobby-estelar/biolab.png', floorBottomPct: 2, floorHeightPct: 40, minX: 8, maxX: 92, exitLeft: 'laboratorio', exitRight: 'izakaya' },
+  izakaya: { bg: '/lobby-estelar/izakaya.png', floorBottomPct: 2, floorHeightPct: 38, minX: 10, maxX: 90, exitLeft: 'biolab' },
 };
 const DEFAULT_SCENE = 'hangar';
 
@@ -53,21 +54,38 @@ const isTypingTarget = (el) => !!el && (el.tagName === 'INPUT' || el.tagName ===
 // Portal espiral — marca visualmente onde o cenário atual dá acesso a outro
 // (side: 'left' ou 'right'). Puramente decorativo — quem decide a travessia
 // de verdade é a checagem de x/exitLeft/exitRight no loop de movimento/clique.
+// Camadas (estilo "Abismo Espiral"): fundo escuro + 2 braços em conic-gradient
+// girando em direções/velocidades opostas (dá profundidade) + anéis
+// concêntricos "respirando" pra dentro/fora + núcleo pulsante no centro.
 const Portal = ({ side }) => (
   <div style={{
-    position: 'absolute', [side]: '1.5%', bottom: '4%', width: 84, height: 210,
+    position: 'absolute', [side]: '1.5%', bottom: '4%', width: 100, height: 230,
     zIndex: 12, pointerEvents: 'none', borderRadius: '50%', overflow: 'hidden',
-    boxShadow: '0 0 50px 16px rgba(124,58,237,0.5), 0 0 90px 30px rgba(34,211,238,0.25)',
+    background: '#070311',
+    boxShadow: '0 0 60px 18px rgba(124,58,237,0.55), 0 0 110px 40px rgba(34,211,238,0.22), inset 0 0 40px 12px rgba(0,0,0,0.85)',
   }}>
     <div style={{
-      position: 'absolute', inset: -20,
-      background: 'conic-gradient(from 0deg, #7c3aed, #22d3ee, #a855f7, #7c3aed, #22d3ee, #a855f7, #7c3aed)',
-      animation: 'lobbyPortalSpin 2.6s linear infinite', filter: 'blur(1.5px) saturate(1.3)',
+      position: 'absolute', inset: '-45%', borderRadius: '50%',
+      background: 'repeating-conic-gradient(from 0deg, rgba(168,85,247,0.95) 0deg 8deg, transparent 8deg 46deg, rgba(34,211,238,0.75) 46deg 54deg, transparent 54deg 92deg)',
+      animation: 'lobbyPortalSpin 2.4s linear infinite', filter: 'blur(1px)',
+      maskImage: 'radial-gradient(circle, black 55%, transparent 100%)', WebkitMaskImage: 'radial-gradient(circle, black 55%, transparent 100%)',
     }} />
     <div style={{
-      position: 'absolute', inset: 14, borderRadius: '50%',
-      background: 'radial-gradient(circle, rgba(8,10,22,0.15), rgba(8,10,22,0.85) 75%)',
-      animation: 'lobbyPortalSpin 1.8s linear infinite reverse',
+      position: 'absolute', inset: '5%', borderRadius: '50%',
+      background: 'repeating-conic-gradient(from 45deg, rgba(255,255,255,0.55) 0deg 4deg, transparent 4deg 40deg)',
+      animation: 'lobbyPortalSpin 1.1s linear infinite reverse', filter: 'blur(0.5px)',
+      maskImage: 'radial-gradient(circle, black 45%, transparent 88%)', WebkitMaskImage: 'radial-gradient(circle, black 45%, transparent 88%)',
+    }} />
+    <div style={{
+      position: 'absolute', inset: 0, borderRadius: '50%',
+      background: 'repeating-radial-gradient(circle at 50% 50%, rgba(168,85,247,0.4) 0, rgba(168,85,247,0.4) 2px, transparent 2px, transparent 13px)',
+      animation: 'lobbyPortalPulse 1.7s ease-in-out infinite',
+    }} />
+    <div style={{
+      position: 'absolute', left: '50%', top: '50%', width: '24%', height: '13%',
+      transform: 'translate(-50%,-50%)', borderRadius: '50%',
+      background: 'radial-gradient(circle, #fff, #a855f7 55%, transparent 100%)',
+      animation: 'lobbyPortalCore 1.8s ease-in-out infinite', filter: 'blur(2px)',
     }} />
   </div>
 );
@@ -84,6 +102,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   const [chatText, setChatText] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [myMsg, setMyMsg] = useState(null); // {text, at} — bolha da MINHA fala, otimista (sem esperar o servidor)
+  const [isMoving, setIsMoving] = useState(false); // true enquanto anda (WASD/setas OU indo até o clique) — flutuação mais rápida
   const [, setTick] = useState(0);
 
   const sceneElRef = useRef(null);
@@ -94,6 +113,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   const keysRef = useRef({});
   const lastBroadcastRef = useRef(0);
   const seenMsgRef = useRef({});
+  const clickTargetRef = useRef(null); // {x,y} — destino do clique; anda suave até lá (não teleporta)
 
   useEffect(() => { posRef.current = pos; }, [pos]);
   useEffect(() => { skinIdRef.current = skinId; }, [skinId]);
@@ -198,6 +218,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       const k = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
         keysRef.current[k] = true;
+        clickTargetRef.current = null; // teclado interrompe o "andar até o clique"
         e.preventDefault();
       } else if (!chatOpenRef.current && (k === ';' || k === 't' || k === 'enter')) {
         e.preventDefault();
@@ -213,10 +234,30 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
     };
   }, []);
 
-  // Loop de movimento (WASD/setas). Lê o cenário atual via sceneRef (não fecha
-  // sobre sceneCfg do render) — assim o efeito só monta UMA VEZ, e continua
-  // funcionando certinho depois de atravessar pra outro cenário.
+  // Loop de movimento (WASD/setas + andar até o clique). Lê o cenário atual via
+  // sceneRef (não fecha sobre sceneCfg do render) — assim o efeito só monta UMA
+  // VEZ, e continua funcionando certinho depois de atravessar pra outro cenário.
   useEffect(() => {
+    // Aplica um passo de movimento (rawX/ny já calculados) — detecta travessia
+    // de cenário e faz o broadcast (throttle normal, ou na hora se `force`).
+    const stepTo = (rawX, ny, now, force) => {
+      const cfg = SCENES[sceneRef.current];
+      if (rawX >= cfg.maxX && cfg.exitRight) {
+        clickTargetRef.current = null;
+        enterScene(cfg.exitRight, 'fromRight', ny);
+        return;
+      }
+      if (rawX <= cfg.minX && cfg.exitLeft) {
+        clickTargetRef.current = null;
+        enterScene(cfg.exitLeft, 'fromLeft', ny);
+        return;
+      }
+      const nx = clamp(rawX, cfg.minX, cfg.maxX);
+      setPos({ x: nx, y: ny });
+      posRef.current = { x: nx, y: ny };
+      if (force || now - lastBroadcastRef.current > BROADCAST_MS) { lastBroadcastRef.current = now; upsertMe({ x: nx, y: ny }); }
+    };
+
     let raf, last = performance.now();
     const loop = (now) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
@@ -229,31 +270,42 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
       // na tela, se aproxima), e PRA TRÁS aperta a de CIMA.
       if (k.s || k.arrowdown)  dy -= 1;
       if (k.w || k.arrowup)    dy += 1;
+
+      let moving = false;
       if (dx || dy) {
+        moving = true;
         const len = Math.hypot(dx, dy) || 1;
         const rawX = posRef.current.x + (dx / len) * SPEED_PCT_S * dt;
         const ny = clamp(posRef.current.y + (dy / len) * SPEED_PCT_S * dt, 0, 100);
-        const cfg = SCENES[sceneRef.current];
-        if (rawX >= cfg.maxX && cfg.exitRight) {
-          enterScene(cfg.exitRight, 'fromRight', ny);
-        } else if (rawX <= cfg.minX && cfg.exitLeft) {
-          enterScene(cfg.exitLeft, 'fromLeft', ny);
+        stepTo(rawX, ny, now);
+      } else if (clickTargetRef.current) {
+        // Anda em direção ao alvo do clique na MESMA velocidade do teclado — não
+        // teleporta pro ponto clicado, só define pra onde ir.
+        const t = clickTargetRef.current;
+        const ddx = t.x - posRef.current.x, ddy = t.y - posRef.current.y;
+        const dist = Math.hypot(ddx, ddy);
+        const step = SPEED_PCT_S * dt;
+        if (dist <= step || dist < 0.4) {
+          clickTargetRef.current = null;
+          stepTo(t.x, t.y, now, true);
         } else {
-          const nx = clamp(rawX, cfg.minX, cfg.maxX);
-          setPos({ x: nx, y: ny });
-          posRef.current = { x: nx, y: ny };
-          if (now - lastBroadcastRef.current > BROADCAST_MS) { lastBroadcastRef.current = now; upsertMe({ x: nx, y: ny }); }
+          moving = true;
+          const nx = posRef.current.x + (ddx / dist) * step;
+          const ny = posRef.current.y + (ddy / dist) * step;
+          stepTo(nx, ny, now);
         }
       }
+      setIsMoving(moving);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [upsertMe, enterScene]);
 
-  // Clique no chão: anda até o ponto clicado (x + y, dentro da faixa do chão);
-  // clicar além da borda lateral (onde tem exitRight/exitLeft) atravessa pro
-  // cenário vizinho.
+  // Clique no chão: define o DESTINO (x + y, dentro da faixa do chão) — o loop
+  // acima anda suavemente até lá, na mesma velocidade do teclado. Clicar além da
+  // borda lateral (onde tem exitRight/exitLeft) também funciona: o loop detecta
+  // a travessia sozinho quando chega perto, igual andando com o teclado.
   const walkToClick = (e) => {
     const el = sceneElRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
@@ -262,12 +314,8 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
     const bandHeightPx = r.height * (sceneCfg.floorHeightPct / 100);
     const relFromBottom = r.height - (e.clientY - r.top);
     const y = clamp(((relFromBottom - bandBottomPx) / bandHeightPx) * 100, 0, 100);
-    if (rawX >= sceneCfg.maxX && sceneCfg.exitRight) { enterScene(sceneCfg.exitRight, 'fromRight', y); return; }
-    if (rawX <= sceneCfg.minX && sceneCfg.exitLeft)  { enterScene(sceneCfg.exitLeft, 'fromLeft', y); return; }
     const x = clamp(rawX, sceneCfg.minX, sceneCfg.maxX);
-    setPos({ x, y });
-    posRef.current = { x, y };
-    upsertMe({ x, y });
+    clickTargetRef.current = { x, y };
   };
 
   const isFresh = (row) => row && (Date.now() - new Date(row.updated_at).getTime()) < STALE_MS;
@@ -278,8 +326,8 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
   const myBubble = (myMsg && (Date.now() - new Date(myMsg.at).getTime()) < BUBBLE_MS) ? myMsg.text : bubbleOf(myRow);
 
   const avatars = [
-    { player, x: pos.x, y: pos.y, skin_id: skinId, message: myBubble, isMe: true },
-    ...others.map(p => ({ player: p.player, x: p.x, y: p.y ?? 40, skin_id: p.skin_id, message: bubbleOf(p), isMe: false })),
+    { player, x: pos.x, y: pos.y, skin_id: skinId, message: myBubble, isMe: true, moving: isMoving },
+    ...others.map(p => ({ player: p.player, x: p.x, y: p.y ?? 40, skin_id: p.skin_id, message: bubbleOf(p), isMe: false, moving: false })),
   ];
 
   const bottomOf = (y) => sceneCfg.floorBottomPct + (y / 100) * sceneCfg.floorHeightPct;
@@ -311,6 +359,8 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
           @keyframes lobbyIdleBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
           @keyframes lobbyBubbleIn { from { opacity:0; transform: translate(-50%,4px) scale(.9) } to { opacity:1; transform: translate(-50%,0) scale(1) } }
           @keyframes lobbyPortalSpin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+          @keyframes lobbyPortalPulse { 0%,100% { transform: scale(1); opacity:.65 } 50% { transform: scale(.82); opacity:1 } }
+          @keyframes lobbyPortalCore { 0%,100% { opacity:.7; transform: translate(-50%,-50%) scale(.85) } 50% { opacity:1; transform: translate(-50%,-50%) scale(1.2) } }
         `}</style>
 
         {sceneCfg.exitLeft  && <Portal side="left" />}
@@ -345,7 +395,7 @@ export const LobbyEstelar = ({ onBack, authUser }) => {
               }}>
                 {shortName(a.player)}{a.isMe ? ' (você)' : ''}
               </div>
-              <div style={{ width: ICON_SIZE, height: ICON_SIZE, animation: 'lobbyIdleBob 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.5))' }}>
+              <div style={{ width: ICON_SIZE, height: ICON_SIZE, animation: `lobbyIdleBob ${a.moving ? '0.45s' : '2.6s'} ease-in-out infinite`, filter: 'drop-shadow(0 10px 12px rgba(0,0,0,0.5))' }}>
                 <img src={sprite} alt={a.player} draggable={false} onDragStart={e => e.preventDefault()}
                   style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', WebkitUserDrag: 'none', pointerEvents: 'none' }} />
               </div>
