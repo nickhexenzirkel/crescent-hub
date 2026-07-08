@@ -446,13 +446,22 @@ export async function countOwnedUnikos(player) {
   return 1 + distinct.size;
 }
 
-/* ── Até 3 capturadores por evento ────────────────────────────────────────
-   `capture_uniko_event` aceita até 3 linhas por event_id (1 slot cada, ver
-   supabase_capture_uniko_multi.sql) — as 3 primeiras pessoas a capturar
-   ganham; da 4ª tentativa em diante o evento já está esgotado. ─────────── */
-const CAPTURE_MAX_WINNERS = 3;
+/* ── Até N capturadores por evento (o admin escolhe N no Dashboard RH, campo
+   maxWinners do cfg — padrão 3 se não vier definido, ex.: eventos antigos) ──
+   `capture_uniko_event` aceita até 5 linhas por event_id (1 slot cada, ver
+   supabase_capture_uniko_multi.sql e supabase_capture_uniko_max_winners.sql —
+   o teto de linhas no banco é 5, mas o admin pode configurar de 1 a 5 vagas
+   por evento) — as N primeiras pessoas a capturar ganham; da próxima tentativa
+   em diante o evento já está esgotado. ─────────────────────────────────────── */
+export const CAPTURE_MAX_WINNERS_DEFAULT = 3; // eventos sem maxWinners definido (compatibilidade)
+export const CAPTURE_MAX_WINNERS_CAP = 5;     // teto absoluto (limite de slots no banco)
+export function maxWinnersFor(cfg) {
+  const n = Math.floor(Number(cfg?.maxWinners));
+  if (!Number.isFinite(n) || n < 1) return CAPTURE_MAX_WINNERS_DEFAULT;
+  return Math.min(n, CAPTURE_MAX_WINNERS_CAP);
+}
 
-// Devolve TODOS os vencedores desse evento (0 a 3); undefined = erro de rede.
+// Devolve TODOS os vencedores desse evento (0 a maxWinnersFor(cfg)); undefined = erro de rede.
 export async function fetchCaptureWinners(cfg) {
   try {
     const { data, error } = await _supabase.from('capture_uniko_event')
@@ -506,6 +515,7 @@ export async function claimCapture(cfg, uniko) {
       p_event_id: captureEventId(cfg), p_player: me,
       p_uniko_id: uniko.id, p_uniko_name: uniko.name,
       p_comum: reward.comum, p_premium: reward.premium,
+      p_max_winners: maxWinnersFor(cfg),
     });
     if (error) {
       console.error('[capture-uniko] claimCapture (rpc) falhou:', error);
@@ -525,8 +535,6 @@ export async function claimCapture(cfg, uniko) {
     return { won: false, alreadyMine: false, isFull: false, winner: null, networkError: true };
   }
 }
-
-export { CAPTURE_MAX_WINNERS };
 
 /* ── Credita os prismas na carteira do vencedor (mercado_state) + histórico ── */
 export async function awardPrismas(player, comum, premium) {

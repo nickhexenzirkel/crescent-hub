@@ -3,10 +3,11 @@
 // no App, aparece como um card FLUTUANTE em qualquer lugar do sistema (Portal, Central
 // Alexa, Editor...) e NÃO some ao navegar. Toca um SOM de alerta ao surgir.
 // MECÂNICA: arraste o assistente UNIKO (canto) e solte em cima do Uniko pra arremessar.
-// • ATÉ 5 colaboradores capturam por evento (as 5 primeiras tentativas bem-sucedidas
-//   ganham; da 6ª em diante o evento já está esgotado — lock por slot no Supabase).
+// • O admin escolhe quantos colaboradores capturam por evento (1 a 5, campo maxWinners
+//   do cfg — padrão 3 se não vier definido); as N primeiras tentativas bem-sucedidas
+//   ganham; da próxima em diante o evento já está esgotado — lock por slot no Supabase.
 // • Quem captura ganha os Prismas do Uniko (uniko.reward) e o Uniko vai pra coleção.
-// • Duas tentativas: na 1ª ele pode escapar; na 2ª a captura é garantida.
+// • Uma tentativa só — captura sempre na primeira.
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
@@ -17,7 +18,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, nowMs, syncServerClock, CAPTURE_MAX_WINNERS,
+  loadCustomUnikos, nowMs, syncServerClock, maxWinnersFor,
 } from './captureUniko';
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
@@ -53,7 +54,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const th = uniko.theme;
 
   const [available, setAvailable] = useState(false);
-  const [winners, setWinners]     = useState([]); // até CAPTURE_MAX_WINNERS: [{player, at, comum, premium, unikoId, unikoName}]
+  const [winners, setWinners]     = useState([]); // até maxWinners: [{player, at, comum, premium, unikoId, unikoName}]
   const [phase, setPhase]         = useState('idle'); // idle | thrown | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
@@ -66,12 +67,13 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   // re-render pra `getUniko` (que roda a cada render, sem estado próprio) already achar.
   useEffect(() => { loadCustomUnikos().then(() => forceRefresh(n => n + 1)); }, []);
 
-  // Até CAPTURE_MAX_WINNERS (5) pessoas capturam o mesmo evento — cada uma vê o
-  // PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro disponível
-  // até esgotarem as vagas.
+  // Até maxWinners (o admin escolhe, 1 a 5, padrão 3) pessoas capturam o mesmo evento —
+  // cada uma vê o PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro
+  // disponível até esgotarem as vagas.
+  const maxWinners = maxWinnersFor(cfg);
   const me      = getAuthUser()?.name;
   const myWin   = winners.find(w => w.player === me) || null;
-  const isFull  = winners.length >= CAPTURE_MAX_WINNERS;
+  const isFull  = winners.length >= maxWinners;
   const latestWinner = winners.length ? winners[winners.length - 1] : null;
   const panelWinner  = myWin || latestWinner; // só define o TEMPO de exibição do painel (30 min)
 
@@ -108,12 +110,12 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       setWinners(ws);
       setCaptureResult(cfg, ws);
       const meNow = getAuthUser()?.name;
-      if (ws.length >= CAPTURE_MAX_WINNERS || ws.some(w => w.player === meNow)) markCaptureDone(cfg);
+      if (ws.length >= maxWinners || ws.some(w => w.player === meNow)) markCaptureDone(cfg);
       else if (ws.length === 0) clearCaptureLocal(cfg);
       setChecked(true);
     })();
     return () => { alive = false; };
-  }, [cfg]);
+  }, [cfg, maxWinners]);
 
   /* ── Surgimento SINCRONIZADO: todos veem no mesmo momento (spawnAt do config) ──
        Continua disponível pra quem ainda não capturou até as 5 vagas acabarem. ── */
@@ -147,7 +149,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     const addWinner = (w) => {
       setWinners(prev => {
         if (prev.some(p => p.player === w.player)) return prev;
-        const next = [...prev, w].slice(0, CAPTURE_MAX_WINNERS);
+        const next = [...prev, w].slice(0, maxWinners);
         setCaptureResult(cfg, next);
         return next;
       });
@@ -165,7 +167,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       });
     }, 4000);
     return () => { unsub(); clearInterval(id); };
-  }, [available, cfg, isFull, myWin]);
+  }, [available, cfg, isFull, myWin, maxWinners]);
 
   /* ── Quando as 5 vagas se esgotam (por qualquer via acima) → some pra quem
        ainda não capturou e avisa o assistente que acabou o encontro. ── */
@@ -255,7 +257,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       syncCollectionFromServer();                     // reconcilia com o servidor (fire-and-forget)
       setWinners(prev => {
         if (prev.some(p => p.player === me)) return prev;
-        const next = [...prev, winner].slice(0, CAPTURE_MAX_WINNERS);
+        const next = [...prev, winner].slice(0, maxWinners);
         setCaptureResult(cfg, next);
         return next;
       });
@@ -325,7 +327,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
                 {isFull ? '★ TODAS AS VAGAS FORAM USADAS ★' : '★ ALGUÉM JÁ CAPTUROU ★'}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1 }}>
-                {winners.length} de {CAPTURE_MAX_WINNERS} vagas usadas
+                {winners.length} de {maxWinners} vagas usadas
               </div>
               <div style={{ fontSize: 11.5, color: th.ink, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {winners.map(w => w.player).join(', ')}

@@ -420,7 +420,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // datetime-local <-> ISO. O input usa horário LOCAL; guardamos ISO no settings.
   const isoToLocal = (iso) => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
   const localToIso = (loc) => { if(!loc) return ''; const d=new Date(loc); return isNaN(d)?'':d.toISOString(); };
-  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot', alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG });
+  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot', maxWinners:3, alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG });
   const [capMsg, setCapMsg]       = useState('');
   const [capSaving, setCapSaving] = useState(false);
   // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação) vs. Enviar
@@ -447,7 +447,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const loadCapCfg = async () => {
     const c = await loadCaptureConfig();
-    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot', alexaMessage:c.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
+    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot', maxWinners:c.maxWinners||3, alexaMessage:c.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
   };
   const saveCapCfg = async () => {
     if (capCfg.enabled && (!capCfg.startAt || !capCfg.endAt)) { setCapMsg('⚠️ Defina início e fim da janela'); return; }
@@ -462,7 +462,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       if (capCfg.enabled && startIso && endIso) {
         spawnAt = pickSpawnAt(startIso, endIso);
       }
-      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
+      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId, maxWinners:Number(capCfg.maxWinners)||3, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
       setCapMsg('✅ Configuração salva!');
     } catch(e) { setCapMsg('❌ ' + (e.message||'Erro ao salvar')); }
     setCapSaving(false);
@@ -477,9 +477,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       const now = new Date();
       const end = new Date(now.getTime() + 30 * 60 * 1000);      // janela de 30 min
       const spawnAt = new Date(now.getTime() + 6 * 1000);        // +6s: dá tempo de todos receberem e revelarem juntos
-      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot', alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG };
+      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot', maxWinners:Number(capCfg.maxWinners)||3, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG };
       await saveCaptureConfig(cfg);
-      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId, alexaMessage:cfg.alexaMessage });
+      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId, maxWinners:cfg.maxWinners, alexaMessage:cfg.alexaMessage });
       setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal (e a Alexa avisa).');
     } catch (e) { setCapMsg('❌ ' + (e.message || 'Erro ao spawnar')); }
     setCapSaving(false);
@@ -1902,6 +1902,23 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   </div>
                 </div>
 
+                {/* Vagas — quantas pessoas conseguem capturar esse Uniko */}
+                <div style={{maxWidth:260}}>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Vagas (quantas pessoas conseguem pegar)</label>
+                  <div style={{display:'flex',gap:8}}>
+                    {[1,2,3,4,5].map(n=>(
+                      <button key={n} onClick={()=>setCapCfg(c=>({...c,maxWinners:n}))}
+                        style={{flex:1,padding:'9px 0',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:700,
+                          border:`1.5px solid ${Number(capCfg.maxWinners)===n?T.gold:T.border}`,
+                          background:Number(capCfg.maxWinners)===n?(T.goldGl||`${T.gold}22`):'transparent',
+                          color:Number(capCfg.maxWinners)===n?T.gold:T.textS,transition:'all .15s'}}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{fontSize:11,color:T.textT,marginTop:6}}>{capCfg.maxWinners===1?'Só a 1ª pessoa a arrastar até o Uniko consegue capturar.':`As ${capCfg.maxWinners} primeiras pessoas que conseguirem capturar ganham.`}</div>
+                </div>
+
                 {/* Escolha do Uniko */}
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko disponível</label>
@@ -1968,7 +1985,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. A captura é sempre na 1ª tentativa (arrastou, pegou) e vale para as {' '}3 primeiras pessoas que conseguirem.
+                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. A captura é sempre na 1ª tentativa (arrastou, pegou) e vale para {capCfg.maxWinners===1?'a 1ª pessoa que conseguir':`as ${capCfg.maxWinners} primeiras pessoas que conseguirem`}.
                 </div>
               </div>
               </>)}
