@@ -111,7 +111,7 @@ export default function CrescentHub() {
   };
 
   const handleModuleSelect = (id) => {
-    const adminOnly = ['dashboard','ponto','conexao-setorial','mercado-estelar','lobby-estelar'];
+    const adminOnly = ['dashboard','ponto','conexao-setorial','lobby-estelar'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     navPush(id);
   };
@@ -335,7 +335,7 @@ export default function CrescentHub() {
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
-          {screen==='mercado-estelar' && authUser?.role==='admin' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='lobby-estelar' && authUser?.role==='admin' && <LobbyEstelar onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
