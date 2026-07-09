@@ -2378,9 +2378,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {tab==="festival" && songSkin === 'uniko-sereia' && <CentralOcean />}
 
       {/* ── Cenário cósmico de fundo (Destruidora de Mundos): asteroides, planetas,
-           buracos negros, estrelas e a espada cravada num planeta. Só no modo escuro,
-           igual a tempestade do vampiro (tema sombrio não combina com tema claro). ── */}
-      {T.dark && tab==="festival" && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
+           buracos negros, estrelas e a espada cravada num planeta. SEM gate de tema
+           (igual o recife da Sereia) — precisa aparecer pra TODO MUNDO vendo a Central
+           Alexa quando a música de quem tem essa skin está tocando, não só pra quem
+           estiver no tema escuro (antes tinha o mesmo gate T.dark do vampiro, por
+           engano — o vampiro é sombrio de propósito, mas o pedido aqui é aparecer
+           sempre). ── */}
+      {tab==="festival" && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
