@@ -100,6 +100,12 @@ const GLOW_BY_SKIN  = {
   'uniko-sereia':  'drop-shadow(0 0 10px #2dd4bf88) drop-shadow(0 4px 12px rgba(0,0,0,.35))',
   'destruidora-de-mundos-dh0x': 'drop-shadow(0 0 10px #9d6bff88) drop-shadow(0 4px 12px rgba(0,0,0,.5))',
 };
+// Multiplicador de tamanho por skin — o card usa um `size` fixo (110 mobile / 160
+// desktop) pra qualquer Uniko; a arte da Destruidora de Mundos lia pequena demais
+// nesse tamanho padrão, então ela ganha um boost só pra ela (as outras continuam 1×).
+const SIZE_MULT_BY_SKIN = {
+  'destruidora-de-mundos-dh0x': 1.4,
+};
 
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
 const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' }) => {
@@ -112,6 +118,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   const customAccent = uni?.theme?.accent || null;
   const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
   const bubbleClass = isVamp ? 'vamp-bubble' : isSea ? 'sea-bubble' : 'normal-bubble';
+  const imgSize   = Math.round(size * (SIZE_MULT_BY_SKIN[songSkin] || 1));
 
   const [line,          setLine]          = useState(() => rand(lines));
   const [showBubble,    setShowBubble]    = useState(true);
@@ -254,15 +261,15 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
         }}>
         {/* Correção de centro (Unikos da Oficina com o desenho fora do centro do PNG) */}
         <div style={contentOffset ? {
-          transform: `translate(${contentOffset.dxFrac * size}px, ${contentOffset.dyFrac * size}px)`,
+          transform: `translate(${contentOffset.dxFrac * imgSize}px, ${contentOffset.dyFrac * imgSize}px)`,
         } : undefined}>
           {/* Imagem flutuante — sem quadrado, sem borda */}
           <img
             src={img}
             alt="UNIKO"
             style={{
-              width:      size,
-              height:     size,
+              width:      imgSize,
+              height:     imgSize,
               objectFit:  'contain',
               flexShrink: 0,
               animation:  'unikoFloat 3s ease-in-out infinite',
