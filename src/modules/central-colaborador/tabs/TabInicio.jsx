@@ -619,7 +619,16 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             // duplicada de antes do fix de UNIQUE(player,uniko_id) no banco.
             const seenIds = new Set();
             const dedupedCaptured = captured.filter(c => (seenIds.has(c.id) ? false : (seenIds.add(c.id), true)));
-            const all = [{ id:'default', name:'UNIKO', img:'/UNIKO_NEW.png', deep:'#0c1c2e' }, ...dedupedCaptured.map(c=>({ ...c, deep:getUniko(c.id).theme.deep }))];
+            // Resolve img/name/deep NA HORA via getUniko (não confia no `img` que ficou
+            // salvo no cache local) — se o cache dos Unikos da Oficina (_customUnikoCache)
+            // ainda não tinha carregado no momento em que a coleção sincronizou com o
+            // servidor, o `img` gravado no localStorage podia ser o fallback ERRADO
+            // (Vampire-Robot) em vez do Uniko customizado de verdade — causava um
+            // Uniko da Oficina aparecer com a CARA do Vampire-Robot no widget.
+            const all = [{ id:'default', name:'UNIKO', img:'/UNIKO_NEW.png', deep:'#0c1c2e' }, ...dedupedCaptured.map(c=>{
+              const u = getUniko(c.id);
+              return { ...c, img: u.img, name: c.name || u.name, deep: u.theme.deep };
+            })];
             return (
               <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,textAlign:'center'}}>
                 <div style={{display:'flex',marginLeft:8}}>
