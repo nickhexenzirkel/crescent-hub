@@ -2763,9 +2763,10 @@ function startAudioIframe(videoId, muted){
   f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
   f.setAttribute('allow','autoplay');
   // enablejsapi=1 → permite pausar/retomar via postMessage (usado pela pausa do jogo)
-  // muted=true no celular: autoplay mudo é permitido no iOS/Android; o som real
-  // é liberado depois via audioIframeCmd('unMute') DENTRO do gesto de toque
-  // (ver _mobileTapStart) — autoplay com som direto é bloqueado sem gesto.
+  // muted=true no desktop (buffer antecipado, sem gesto). No celular usa muted=false
+  // (ver _mobileTapStart/_armAudioIframeHoldForGo) — no iOS um iframe cross-origin só
+  // pode tocar com som se o autoplay JÁ nascer desmutado como consequência DIRETA de
+  // um gesto; mandar unMute() via postMessage pra um iframe criado antes não funciona.
   f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&playsinline=1&loop=1&playlist=${videoId}&origin=${encodeURIComponent(location.origin)}${muted?'&mute=1':''}`;
   document.body.appendChild(f);
 }
@@ -2773,11 +2774,31 @@ function stopAudioIframe(){
   const f=document.getElementById('ytAudioFrame');
   if(f) f.remove();
   if(_audioIframeTimer){clearTimeout(_audioIframeTimer);_audioIframeTimer=null;}
+  if(_audioIframeReadyHandler){ window.removeEventListener('message', _audioIframeReadyHandler); _audioIframeReadyHandler=null; }
 }
 // Envia comando (pauseVideo/playVideo) ao iframe de áudio oculto do modo efeitos
 function audioIframeCmd(func){
   const f=document.getElementById('ytAudioFrame');
   if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}),'*'); }catch(_){} }
+}
+// Celular, modo Sem Clipe: o iframe cru (sem wrapper oficial YT.Player) ainda assim
+// manda um postMessage {event:'onReady'} quando termina de carregar (enablejsapi=1
+// já habilita isso). Escuta esse evento pra pausar de volta assim que possível —
+// mesma lógica de "nasce desmutado (destrava o iOS) e pausa na hora" do modo vídeo.
+let _audioIframeReadyHandler=null;
+function _armAudioIframeHoldForGo(){
+  if(_audioIframeReadyHandler) window.removeEventListener('message', _audioIframeReadyHandler);
+  _audioIframeReadyHandler=(ev)=>{
+    if(ev.origin!=='https://www.youtube.com') return;
+    let data;
+    try{ data=typeof ev.data==='string'?JSON.parse(ev.data):ev.data; }catch(_){ return; }
+    if(data && data.event==='onReady'){
+      audioIframeCmd('pauseVideo');
+      window.removeEventListener('message', _audioIframeReadyHandler);
+      _audioIframeReadyHandler=null;
+    }
+  };
+  window.addEventListener('message', _audioIframeReadyHandler);
 }
 
 /* ─── MÚSICA DO MENU ───────────────────────────────────────────────────
@@ -2996,6 +3017,13 @@ let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
 // junto; separando, um soluço no vídeo grande vira só um piscar de imagem.
 let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo só dá play no "GO" da contagem
+// iOS: um iframe cross-origin (YouTube) só pode tocar com som se o PRIMEIRO play
+// unmuted acontecer como consequência DIRETA/síncrona de um gesto (toque) — mandar
+// unMute()/playVideo() via postMessage pra um player JÁ EXISTENTE (criado antes,
+// mesmo que dentro do mesmo gesto num handler async) não é confiável no Safari.
+// Por isso o player é criado JÁ desmutado na hora do toque; essa flag pausa ele de
+// volta assim que fica pronto (onReady), segurando o silêncio até o "GO" da contagem.
+let _holdForGoAudio=false;
 let _vbVisibleStuckSince=0; // vídeo visível (decorativo) preso bufferizando/pausado — pra auto-recuperação em syncVideoBg
 let _vbVisibleRetries=0, _vbVisibleGivenUp=false; // depois de várias tentativas sem sucesso, desiste e esconde (evita piscar pra sempre)
 const _VB_VISIBLE_MAX_RETRIES=1; // desiste rápido — o vídeo é só decoração, não vale a pena insistir muito
@@ -3201,13 +3229,24 @@ function _startVideoBgLocal(videoId, url, muted){
 // som + relógio), sem nenhum embed do YouTube na partida. Só cai pro esquema
 // antigo (2 players do YouTube: visível mudo + áudio/relógio escondido) se o
 // download ainda não tiver terminado ou tiver falhado — sem atrasar nada.
-async function _beginVideoBg(videoId, muted){
+async function _beginVideoBg(videoId, muted, skipLocalCheck){
   if(bgMode!=='video'||!videoId) return;
   _applyVideoModeGfxOverride(); // vídeo por cima do canvas pesa — baixa brilho/DPR enquanto durar
   const wrap=document.getElementById('videoBgWrap');
   wrap.classList.add('active'); wrap.style.background='#000';
   _videoBgActive=true; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0; _vbVisibleRetries=0; _vbVisibleGivenUp=false;
   wrap.innerHTML='<div id="ytVideoFrame"></div>';
+
+  // No celular, criar o player já DESMUTADO precisa acontecer de forma síncrona
+  // dentro do gesto de toque (ver _mobileTapStart) — a sondagem async abaixo (até
+  // 4s de polling) quebraria essa sincronia. skipLocalCheck pula direto pro embed
+  // do YouTube (_startVideoClockPlayer), sem esperar o vídeo local do servidor.
+  if(skipLocalCheck){
+    _startVideoBgYouTube(videoId);
+    _startVideoClockPlayer(videoId, muted);
+    _releaseVideoIfGoAlreadyPassed();
+    return;
+  }
 
   try{
     // Sonda algumas vezes em vez de checar só uma — o download pode ainda estar
@@ -3321,8 +3360,14 @@ function _startVideoClockPlayer(videoId, muted){
         disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
       events:{
         onReady:(e)=>{
-          try{ if(muted && e.target.mute) e.target.mute();
-            e.target.playVideo(); _capVideoQuality(e.target,'small'); }catch(_){}
+          try{
+            if(muted && e.target.mute) e.target.mute();
+            e.target.playVideo();
+            // Celular: o play acima (desmutado, criado dentro do gesto) já "destravou"
+            // o som pro iOS — agora pausa de volta pra não tocar antes do "GO".
+            if(_holdForGoAudio){ _holdForGoAudio=false; e.target.pauseVideo(); }
+            _capVideoQuality(e.target,'small');
+          }catch(_){}
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
@@ -5468,14 +5513,17 @@ function _beginPlaybackNow(startDelay){
   setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
 }
 
-// Celular: o iOS só deixa o vídeo tocar com som se o unMute acontecer DENTRO de um
-// gesto. Estratégia: criar o player já MUDO (autoplay mudo é permitido no iOS) e,
-// no toque, dar unMute()+playVideo() sincronamente — o som é liberado.
+// Celular/iOS: um iframe cross-origin (YouTube) só toca com som se o autoplay
+// nascer JÁ desmutado como consequência SÍNCRONA e DIRETA de um toque — mandar
+// unMute()/play() via postMessage pra um player criado ANTES do gesto (mesmo que
+// dentro do mesmo handler) não é confiável no Safari (a ativação do gesto não
+// atravessa pro contexto do iframe via postMessage). Por isso NADA é pré-criado
+// aqui: o player/iframe só nasce dentro do toque (`go`), já desmutado — isso
+// "destrava" o som pro iOS — e é pausado de volta assim que fica pronto
+// (onReady) pra não tocar antes do "GO" da contagem (ver _holdForGoAudio /
+// _armAudioIframeHoldForGo). Retomar depois via postMessage funciona normalmente,
+// porque o player já tocou com som uma vez por causa do gesto.
 function _mobileTapStart(){
-  // Cria o vídeo/áudio já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
-  if(bgMode==='video'&&lastVideoUrl){ _beginVideoBg(lastVideoUrl, true); }
-  else startAudioIframe(lastVideoUrl, true);
-
   let ov=document.getElementById('tapStartOverlay');
   if(!ov){
     ov=document.createElement('div'); ov.id='tapStartOverlay';
@@ -5488,29 +5536,19 @@ function _mobileTapStart(){
   ov.style.display='flex';
   const go=()=>{
     ov.style.display='none';
-    // No gesto: unMute no player de ÁUDIO (libera o som no iOS) + reinicia em 0 e
-    // PAUSA. O play de fato acontece no "GO" da contagem → o som só começa DEPOIS
-    // do 3 2 1. O vídeo visível só precisa resetar a posição (segue mudo sempre).
+    // Marca ANTES de criar o player: _releaseVideoIfGoAlreadyPassed (chamado
+    // dentro de _beginVideoBg) só deve liberar o som se o GO já tiver passado —
+    // com a flag já true na hora da criação, ela corretamente NÃO libera agora.
+    _videoStartPending=true;
     try{
-      if(_vbPlayer){
-        if(_vbPlayer.seekTo)     _vbPlayer.seekTo(0, true);
-        if(_vbPlayer.pauseVideo) _vbPlayer.pauseVideo();
-      }
-      if(_vbAudioPlayer){
-        if(_vbAudioPlayer.unMute)     _vbAudioPlayer.unMute();
-        if(_vbAudioPlayer.setVolume)  _vbAudioPlayer.setVolume(100);
-        if(_vbAudioPlayer.seekTo)     _vbAudioPlayer.seekTo(0, true);
-        if(_vbAudioPlayer.pauseVideo) _vbAudioPlayer.pauseVideo();
-      }
-      // Modo SEM CLIPE: mesmo truque no iframe de áudio oculto — unMute+pause
-      // DENTRO do gesto libera o som; o play de verdade vem no "GO" (audioIframeCmd
-      // em runCountdown), sem precisar de novo gesto.
-      if(bgMode!=='video'){
-        audioIframeCmd('unMute');
-        audioIframeCmd('pauseVideo');
+      if(bgMode==='video'&&lastVideoUrl){
+        _holdForGoAudio=true;
+        _beginVideoBg(lastVideoUrl, false, true); // desmutado, síncrono, pula sondagem do vídeo local
+      } else {
+        startAudioIframe(lastVideoUrl, false); // desmutado, síncrono — cria dentro do toque
+        _armAudioIframeHoldForGo();
       }
     }catch(_){}
-    _videoStartPending=true;  // runCountdown dá o play no GO
     _vbSynced=false;          // re-ancora o relógio quando o vídeo tocar
     gameStartWallTime=performance.now()+3800; // sem notas durante a contagem
     initColorMoments(songDuration);
