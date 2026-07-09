@@ -4,7 +4,7 @@ import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName 
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
-import CosmosScene, { CrackedPlanet, BlackHole, CrystalShard, rockPolygonPoints, COSMOS_SCENE_CSS } from '../../shared/cosmosScene';
+import CosmosScene from '../../shared/cosmosScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -499,130 +499,12 @@ const CentralOcean = () => {
   );
 };
 
-/* ── Cenário cósmico de FUNDO da página (Destruidora de Mundos): estrelas piscando,
-     nebulosa roxa, planetas trincados nos cantos, buracos negros pulsando, asteroides
-     cruzando a tela em loop e uma ESPADA cravada destruindo um planeta (peça central
-     do tema "destruidora de mundos"). Análogo ao CentralStorm/CentralOcean acima. ── */
-const rndCosmo = (a, b) => a + Math.random() * (b - a);
-
-// Estrela de fundo — posição fixa (não atravessa a tela; só nebulosa/asteroides fazem isso)
-const BgStar = ({ top, left, sz, dur, delay }) => (
-  <div style={{
-    position: 'absolute', top: `${top}%`, left: `${left}%`, width: sz, height: sz,
-    borderRadius: '50%', background: '#fff', pointerEvents: 'none',
-    boxShadow: '0 0 5px 1px rgba(255,255,255,.7)',
-    animation: `cosmoTwinkle ${dur}s ease-in-out ${delay}s infinite`,
-  }} />
-);
-
-// Asteroide cruzando a tela toda (mesmo esquema do DriftFish/GiantJelly do recife)
-const DriftAsteroid = ({ top, size, dur, delay, reverse, pts, rot }) => (
-  <div style={{
-    position: 'absolute', top: `${top}%`, left: reverse ? '112%' : '-10%', pointerEvents: 'none',
-    animation: `cosmoAsteroidDrift${reverse ? 'Rev' : ''} ${dur}s linear ${delay}s infinite`,
-  }}>
-    <svg width={size} height={size} viewBox="0 0 100 100"
-      style={{ display: 'block', animation: `cosmoAsteroidSpin ${8 + delay}s linear infinite`, filter: 'drop-shadow(0 0 4px rgba(157,107,255,.5))' }}>
-      <polygon points={pts} fill="#2b1d3f" stroke="#8a63c9" strokeWidth="3" strokeLinejoin="round" transform={`rotate(${rot} 50 50)`} />
-    </svg>
-  </div>
-);
-
-// Nebulosa roxa GIGANTE de fundo, drift bem lento
-const BigNebula = ({ top, left, sz, op, dur, delay }) => (
-  <div style={{
-    position: 'absolute', top, left, width: sz, height: sz * 0.65, borderRadius: '50%',
-    background: 'radial-gradient(ellipse at 50% 50%, #7a4fd6 0%, transparent 72%)',
-    opacity: op, pointerEvents: 'none', filter: 'blur(2px)',
-    animation: `cosmoNebulaDriftBig ${dur}s ease-in-out ${delay}s infinite`,
-  }} />
-);
-
-// Espada gigante cravada num planeta trincado — peça central do tema. A espada "entra"
-// perto do centro do planeta (núcleo de impacto pulsando) e o cabo fica pra fora, com
-// cacos de cristal se soltando do ponto de impacto.
-const SwordPlanet = ({ style, sz = 260 }) => (
-  <div style={{ position: 'absolute', width: sz, height: sz, pointerEvents: 'none', ...style }}>
-    <CrackedPlanet top={0} left={0} sz={sz} ring={false} dur={16} delay={0} />
-
-    {/* núcleo do impacto, pulsando */}
-    <div style={{
-      position: 'absolute', top: sz * 0.40, left: sz * 0.44, width: sz * 0.24, height: sz * 0.24,
-      borderRadius: '50%', background: 'radial-gradient(circle, #f0e0ff 0%, #c9a3ff 55%, transparent 78%)',
-      mixBlendMode: 'screen', transform: 'translate(-50%,-50%)',
-      animation: 'cosmoImpactPulse 2.1s ease-in-out infinite',
-    }} />
-
-    {/* lâmina cravada — ponta no núcleo, cabo/guarda pra fora do planeta */}
-    <svg viewBox="0 0 40 160" width={sz * 0.5} height={sz * 1.02} style={{
-      position: 'absolute', top: -sz * 0.40, left: sz * 0.28,
-      transform: 'rotate(-26deg)', transformOrigin: '50% 78%',
-      filter: 'drop-shadow(0 0 10px #c9a3ffcc) drop-shadow(0 4px 10px rgba(0,0,0,.5))',
-      animation: 'cosmoSwordGlow 2.6s ease-in-out infinite',
-    }}>
-      <polygon points="20,0 26,20 24,118 20,132 16,118 14,20" fill="#e9e4f7" stroke="#8a63c9" strokeWidth="1.5" />
-      <polygon points="20,4 22,20 21,106 20,126 19,106 18,20" fill="#f6f1ff" opacity=".65" />
-      <rect x="4" y="106" width="32" height="7" rx="2.5" fill="#5c3f96" stroke="#c9a3ff" strokeWidth="1" />
-      <rect x="16" y="111" width="8" height="20" rx="3" fill="#3a2a5c" />
-      <circle cx="20" cy="135" r="6" fill="#c9a3ff" />
-    </svg>
-
-    {/* cacos de cristal se soltando do impacto */}
-    <CrystalShard left={38} /><CrystalShard left={50} /><CrystalShard left={44} /><CrystalShard left={56} />
-  </div>
-);
-
-const CentralCosmos = () => {
-  const stars = useRef(null);
-  if (!stars.current) {
-    stars.current = Array.from({ length: 40 }).map((_, i) => ({
-      id: i, top: rndCosmo(0, 100), left: rndCosmo(0, 100), sz: rndCosmo(1, 2.6),
-      dur: rndCosmo(1.6, 4), delay: rndCosmo(0, 3),
-    }));
-  }
-  const asteroids = useRef(null);
-  if (!asteroids.current) {
-    asteroids.current = Array.from({ length: 7 }).map((_, i) => ({
-      id: i, top: rndCosmo(4, 88), size: Math.round(rndCosmo(18, 38)), dur: rndCosmo(16, 30),
-      delay: rndCosmo(0, 18), reverse: i % 2 === 0, rot: Math.round(rndCosmo(0, 360)),
-      pts: rockPolygonPoints(7, 40),
-    }));
-  }
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1, overflow: 'hidden' }}>
-      <style>{COSMOS_SCENE_CSS}</style>
-      <style>{`
-        @keyframes cosmoTwinkle{0%,100%{opacity:.25;}50%{opacity:1;}}
-        @keyframes cosmoAsteroidDrift{0%{transform:translateX(0);}100%{transform:translateX(128vw);}}
-        @keyframes cosmoAsteroidDriftRev{0%{transform:translateX(0);}100%{transform:translateX(-128vw);}}
-        @keyframes cosmoAsteroidSpin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
-        @keyframes cosmoNebulaDriftBig{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(18px,-10px) scale(1.05);}}
-        @keyframes cosmoImpactPulse{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1);}50%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}}
-        @keyframes cosmoSwordGlow{0%,100%{filter:drop-shadow(0 0 8px #c9a3ffaa) drop-shadow(0 4px 10px rgba(0,0,0,.5));}50%{filter:drop-shadow(0 0 18px #f0e0ffdd) drop-shadow(0 4px 10px rgba(0,0,0,.5));}}
-      `}</style>
-
-      <BigNebula top="-4%" left="-8%" sz={340} op={.28} dur={26} delay={0} />
-      <BigNebula top="46%" left="62%" sz={300} op={.24} dur={22} delay={3} />
-      <BigNebula top="66%" left="-6%" sz={260} op={.22} dur={30} delay={6} />
-
-      {stars.current.map(s => <BgStar key={s.id} {...s} />)}
-
-      <BlackHole top="8%" left="45%" sz={44} />
-
-      <CrackedPlanet top="4%" left="3%" sz={92} delay={0} dur={17} />
-      <CrackedPlanet top="58%" left="88%" sz={70} delay={2} dur={14} flip />
-
-      {asteroids.current.map(a => <DriftAsteroid key={a.id} {...a} />)}
-
-      {/* Peça central: espada cravada destruindo um planeta, canto inferior direito */}
-      <SwordPlanet style={{ bottom: '-4%', right: '2%' }} sz={280} />
-
-      {/* Brilho atmosférico roxo */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse at 50% 0%, #9d6bff1c 0%, transparent 62%)' }} />
-    </div>
-  );
-};
+// ── Cenário cósmico de FUNDO da página (Destruidora de Mundos) — canvas animado
+//    (estrelas, nebulosa, mini-galáxias, planetas com anéis, planetas estilhaçados com
+//    cacos orbitando, destroços e a espada cravada num planeta). Ver cosmosScene.jsx —
+//    o MESMO componente serve pro card do encontro (CaptureUnikoWidget) via `fixed=false`
+//    e pra tela cheia aqui via `fixed=true` (o canvas se redimensiona sozinho).
+const CentralCosmos = () => <CosmosScene fixed />;
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
