@@ -528,9 +528,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   // Lê um arquivo de imagem, redimensiona (máx. `maxSize`px no lado maior, mantém
   // transparência) e devolve um dataURL PNG — mesma ideia do canvas 300x300 já usado
-  // pra foto de perfil. maxSize maior (640) pro cenário, que cobre uma área bem maior
-  // que os ícones/frames do assistente (320).
-  const frameFromFile = (file, maxSize = 320) => new Promise((resolve, reject) => {
+  // pra foto de perfil. Era 320 por padrão, mas algumas telas (ex.: card "Uniko x
+  // Alexa" com SIZE_MULT_BY_SKIN) renderizam o frame principal bem maior que isso —
+  // 320px upscalado ficava borrado/pixelado. Subiu pra 640 (mesmo valor já usado
+  // pro cenário) — cobre esses casos sem pesar demais o banco (base64 de um PNG
+  // 640px ainda é pequeno pra uma linha só).
+  const frameFromFile = (file, maxSize = 640) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
