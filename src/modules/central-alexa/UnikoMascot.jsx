@@ -45,6 +45,21 @@ const SEREIA_LINES = [
   'Lá no fundo do mar, essa faixa também faz sucesso 🐬',
 ];
 
+const DESTRUIDORA_LINES = [
+  'Nem um planeta inteiro faz mais barulho que essa batida! 💥',
+  'Eu destruo mundos, mas essa música eu preservo pra sempre 🌌',
+  'Cada grave bate mais forte que um cometa colidindo ☄️',
+  'Os buracos negros dançam quando essa faixa toca 🕳️',
+  'Reduzi impérios inteiros a pó, mas essa melodia eu não apago 💫',
+  'O universo treme... e olha que é só o grave dessa música 🎶',
+  'Nem a força de mil supernovas supera esse refrão 🌟',
+  'Destruí galáxias inteiras procurando um som assim 🔮',
+  'As estrelas se realinham no ritmo dessa canção ✨',
+  'Sou o fim dos mundos, mas o começo de uma boa festa 🪐',
+  'Essa batida ecoa mais longe que a explosão de uma galáxia 💥',
+  'Nem toda a minha fúria cósmica resiste a esse groove 🌠',
+];
+
 const BLINK_SEQ = [
   { key: 'open',   ms: 2600 },
   { key: 'mid',    ms: 80   },
@@ -75,10 +90,15 @@ const MASCOT_CSS = `
 .normal-bubble{ animation: normalBubble 3s ease-in-out infinite; }
 `;
 
-const LINES_BY_SKIN = { 'vampire-robot': VAMPIRE_LINES, 'uniko-sereia': SEREIA_LINES };
+const LINES_BY_SKIN = {
+  'vampire-robot': VAMPIRE_LINES,
+  'uniko-sereia':  SEREIA_LINES,
+  'destruidora-de-mundos-dh0x': DESTRUIDORA_LINES,
+};
 const GLOW_BY_SKIN  = {
   'vampire-robot': 'drop-shadow(0 0 10px #c41e3a88) drop-shadow(0 4px 12px rgba(0,0,0,.5))',
   'uniko-sereia':  'drop-shadow(0 0 10px #2dd4bf88) drop-shadow(0 4px 12px rgba(0,0,0,.35))',
+  'destruidora-de-mundos-dh0x': 'drop-shadow(0 0 10px #9d6bff88) drop-shadow(0 4px 12px rgba(0,0,0,.5))',
 };
 
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)

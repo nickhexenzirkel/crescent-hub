@@ -75,7 +75,10 @@ const _crackPath = (cx, cy, r, seed) => {
   }
   return [d, ...branches];
 };
-const CrackedPlanet = ({ top, left, sz = 70, ring = true, delay = 0, flip = false, dur = 14 }) => {
+// Exportado (não duplicado em versão "Big") — usado também no cenário de tela cheia
+// da Central Alexa, só com `sz` maior. Mesmo padrão do MushroomCoral/TubeCoral/BubbleCoral
+// em oceanScene.jsx (a lógica de rachadura por trigonometria não vale a pena duplicar).
+export const CrackedPlanet = ({ top, left, sz = 70, ring = true, delay = 0, flip = false, dur = 14 }) => {
   const [p] = useState(() => {
     const pal = PLANET_PALETTE[Math.floor(rndN(0, PLANET_PALETTE.length))];
     const cracks = Array.from({ length: 3 }).flatMap((_, i) => _crackPath(50, 50, 44, i + rndN(0, 9)));
@@ -120,7 +123,7 @@ const CrackedPlanet = ({ top, left, sz = 70, ring = true, delay = 0, flip = fals
 };
 
 /* ── Buraco negro / portal: núcleo escuro com anel de energia roxa girando ── */
-const BlackHole = ({ top, left, sz = 46 }) => (
+export const BlackHole = ({ top, left, sz = 46 }) => (
   <div style={{ position: 'absolute', top, left, width: sz, height: sz, pointerEvents: 'none' }}>
     <div style={{
       position: 'absolute', inset: -sz * 0.22, borderRadius: '50%',
@@ -136,11 +139,13 @@ const BlackHole = ({ top, left, sz = 46 }) => (
 );
 
 /* ── Asteroide: rocha irregular (polígono trigonométrico), à deriva devagar ── */
-const _rockPoints = (n, rBase) => Array.from({ length: n }).map((_, i) => {
+// Exportado — reusado no cenário de tela cheia (asteroide cruzando a tela toda).
+export const rockPolygonPoints = (n, rBase) => Array.from({ length: n }).map((_, i) => {
   const a = (i / n) * Math.PI * 2;
   const r = rBase * rndN(0.68, 1);
   return `${(50 + Math.cos(a) * r).toFixed(1)},${(50 + Math.sin(a) * r).toFixed(1)}`;
 }).join(' ');
+const _rockPoints = rockPolygonPoints;
 const Asteroid = () => {
   const [p] = useState(() => ({
     top: rndN(4, 92), left: rndN(0, 90), sz: rndN(8, 20),
@@ -162,10 +167,12 @@ const Asteroid = () => {
   );
 };
 
-/* ── Caco de cristal roxo (mesmo motivo dos enfeites pendurados do Uniko) subindo devagar ── */
-const CrystalShard = () => {
+/* ── Caco de cristal roxo (mesmo motivo dos enfeites pendurados do Uniko) subindo devagar ──
+   Exportado — `left` opcional pra agrupar cacos num ponto específico (ex.: debris de
+   impacto no cenário de tela cheia); sem ele, sorteia a posição como sempre. ── */
+export const CrystalShard = ({ left } = {}) => {
   const [p] = useState(() => ({
-    left: rndN(2, 96), sz: rndN(6, 13), dur: rndN(9, 16), delay: rndN(0, 8),
+    left: left ?? rndN(2, 96), sz: rndN(6, 13), dur: rndN(9, 16), delay: rndN(0, 8),
     sdx: rndN(-16, 16), srot: rndN(-40, 40),
   }));
   return (
