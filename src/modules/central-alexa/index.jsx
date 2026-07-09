@@ -2499,7 +2499,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     padding:"14px 16px 22px",
                     boxShadow: isThemedCard ? undefined : T.shM,
                     animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : isSeaCard ? 'seaCardBreathe 4s ease-in-out infinite' : undefined,
-                    position:"relative", overflow:"hidden",
+                    position:"relative",
+                    // Destruidora de Mundos é ENORME de propósito (SIZE_MULT_BY_SKIN em
+                    // UnikoMascot.jsx) e deve estourar pra fora do card — as outras skins
+                    // continuam contidas (a CosmosScene de fundo tem seu PRÓPRIO
+                    // overflow:hidden logo abaixo, então ela não vaza mesmo com isso).
+                    overflow: songSkin === 'destruidora-de-mundos-dh0x' ? 'visible' : 'hidden',
                     width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
                     transition:"background .5s, border .5s",
                   }}>

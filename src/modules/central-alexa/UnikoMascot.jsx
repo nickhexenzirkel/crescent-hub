@@ -101,10 +101,12 @@ const GLOW_BY_SKIN  = {
   'destruidora-de-mundos-dh0x': 'drop-shadow(0 0 10px #9d6bff88) drop-shadow(0 4px 12px rgba(0,0,0,.5))',
 };
 // Multiplicador de tamanho por skin — o card usa um `size` fixo (110 mobile / 160
-// desktop) pra qualquer Uniko; a arte da Destruidora de Mundos lia pequena demais
-// nesse tamanho padrão, então ela ganha um boost só pra ela (as outras continuam 1×).
+// desktop) pra qualquer Uniko. Pedido explícito do usuário: a Destruidora de Mundos
+// deve ficar ENORME — do tamanho do card inteiro, MESMO que estoure pra fora dele
+// (o card em central-alexa/index.jsx desliga o overflow:hidden só pra essa skin,
+// combinando com esse tamanho grande). As outras skins continuam 1× (sem mudança).
 const SIZE_MULT_BY_SKIN = {
-  'destruidora-de-mundos-dh0x': 1.4,
+  'destruidora-de-mundos-dh0x': 3,
 };
 
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
@@ -184,7 +186,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   return (
     <>
       <style>{MASCOT_CSS}{albumBubbleCss}</style>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2 }}>
+      {/* pointerEvents:none — o mascote é só decoração; sem isso, uma skin com
+          tamanho grande o bastante pra estourar o card (ex.: Destruidora de Mundos)
+          bloquearia cliques nos cards vizinhos (busca de música, fila...). */}
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, userSelect:'none', position:'relative', zIndex:2, pointerEvents:'none' }}>
 
         {/* Balão de fala — SEMPRE reserva o próprio espaço (o card nunca muda de
             tamanho, só o opacity desliga o balão); quem se reposiciona é o ícone
