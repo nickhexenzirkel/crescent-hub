@@ -257,7 +257,15 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   // UMA tentativa só — captura sempre na primeira (sem chance de escapar).
   const resolveAttempt = async () => {
     resolvingRef.current = true;
-    const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, uniko);
+    // Recarrega os Unikos da Oficina AGORA (não confia no cache carregado só no mount) e
+    // resolve o `uniko` DE NOVO a partir dele — sem isso, um admin editando a recompensa
+    // (ex.: comum/premium) DEPOIS que alguém já tinha a aba aberta fazia essa pessoa
+    // creditar o valor VELHO na hora de capturar, enquanto quem abriu a aba depois da
+    // edição pegava o valor certo (bug real: Uniko Natureza editado pra 10/2, dois
+    // jogadores com aba aberta desde antes ainda creditaram o valor antigo, 50/50).
+    await loadCustomUnikos();
+    const freshUniko = getUniko(cfg?.unikoId);
+    const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
     if (networkError) {
       // erro de verdade (não é "esgotou"/"já é meu") — NÃO marca como feito;
       // deixa tentar de novo em vez de fingir sucesso sem nada gravado.
@@ -270,10 +278,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     setPhase('caught');
     setAvailable(false);
     if (won) {
-      const reward = getCaptureReward(uniko);
+      const reward = getCaptureReward(freshUniko);
       awardPrismas(me, reward.comum, reward.premium);
-      addToMyUnikoCollection(uniko);                 // otimista: já aparece na Coleção local na hora
-      await saveCaptureToCollection(uniko);           // grava no servidor (agora loga erro se falhar)
+      addToMyUnikoCollection(freshUniko);             // otimista: já aparece na Coleção local na hora
+      await saveCaptureToCollection(freshUniko);       // grava no servidor (agora loga erro se falhar)
       syncCollectionFromServer();                     // reconcilia com o servidor (fire-and-forget)
       setWinners(prev => {
         if (prev.some(p => p.player === me)) return prev;
@@ -281,7 +289,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
         setCaptureResult(cfg, next);
         return next;
       });
-      emitCaptureState({ available: false, uniko, captured: true });
+      emitCaptureState({ available: false, uniko: freshUniko, captured: true });
     } else if (!alreadyMine && full && fullList?.length) {
       // esgotado (5/5) — mostra a lista completa de quem conseguiu
       setWinners(fullList);
