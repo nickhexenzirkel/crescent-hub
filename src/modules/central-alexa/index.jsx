@@ -1400,7 +1400,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   };
 
   // Visão Geral só mostra ranking depois de N dias acumulando plays no período atual
-  const MAQUINA_MIN_DAYS = 3;
+  const MAQUINA_MIN_DAYS = 2;
 
   // Períodos do collage da Semaninha
   const COLLAGE_PERIODS = [
