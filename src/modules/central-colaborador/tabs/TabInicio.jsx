@@ -614,8 +614,12 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <BtnVer tab="uniko"/>
           </div>
           {(() => {
-            // Todo mundo tem o UNIKO padrão na coleção + os capturados.
-            const all = [{ id:'default', name:'UNIKO', img:'/UNIKO_NEW.png', deep:'#0c1c2e' }, ...captured.map(c=>({ ...c, deep:getUniko(c.id).theme.deep }))];
+            // Todo mundo tem o UNIKO padrão na coleção + os capturados. dedupe por id —
+            // proteção extra caso o cache local (localStorage) ainda tenha uma entrada
+            // duplicada de antes do fix de UNIQUE(player,uniko_id) no banco.
+            const seenIds = new Set();
+            const dedupedCaptured = captured.filter(c => (seenIds.has(c.id) ? false : (seenIds.add(c.id), true)));
+            const all = [{ id:'default', name:'UNIKO', img:'/UNIKO_NEW.png', deep:'#0c1c2e' }, ...dedupedCaptured.map(c=>({ ...c, deep:getUniko(c.id).theme.deep }))];
             return (
               <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,textAlign:'center'}}>
                 <div style={{display:'flex',marginLeft:8}}>

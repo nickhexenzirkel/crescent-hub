@@ -401,12 +401,17 @@ export async function saveCaptureToCollection(uniko) {
   try {
     const a = getAuthUser();
     if (!a?.name) return;
-    const { error } = await _supabase.from('capture_uniko_captures').insert({
-      player: a.name,
-      uniko_id: uniko.id,
-      uniko_name: uniko.name,
-      captured_at: new Date().toISOString(),
-    });
+    // upsert (não insert puro) + onConflict — se por qualquer motivo essa função rodar
+    // 2x pro mesmo (player, uniko_id) (ex.: retry de rede, reentrância), não duplica linha
+    // na coleção. Precisa da constraint UNIQUE(player, uniko_id) — ver
+    // supabase_capture_uniko_captures_unique.sql (também limpa duplicatas já existentes).
+    const { error } = await _supabase.from('capture_uniko_captures')
+      .upsert({
+        player: a.name,
+        uniko_id: uniko.id,
+        uniko_name: uniko.name,
+        captured_at: new Date().toISOString(),
+      }, { onConflict: 'player,uniko_id', ignoreDuplicates: true });
     // Não é mais silencioso: se isso falhar (RLS, coluna faltando etc.), o Uniko fica
     // "capturado" (lock em capture_uniko_event) mas não aparece na Coleção — melhor
     // logar pra dar pra investigar do que engolir o erro sem deixar rastro.
@@ -565,9 +570,12 @@ export async function giftUnikoToPlayer(player, uniko, comum, premium) {
     const already = await fetchCapturesFor(player);
     const hasIt = (already || []).some(c => c.uniko_id === uniko.id);
     if (!hasIt) {
-      const { error: capErr } = await _supabase.from('capture_uniko_captures').insert({
-        player, uniko_id: uniko.id, uniko_name: uniko.name, captured_at: new Date().toISOString(),
-      });
+      // upsert+onConflict (não insert puro) — mesma proteção do saveCaptureToCollection:
+      // se o admin clicar "Enviar" 2x rápido (ou a checagem `hasIt` perder uma corrida
+      // com outra gravação), não duplica linha na coleção do jogador.
+      const { error: capErr } = await _supabase.from('capture_uniko_captures')
+        .upsert({ player, uniko_id: uniko.id, uniko_name: uniko.name, captured_at: new Date().toISOString() },
+          { onConflict: 'player,uniko_id', ignoreDuplicates: true });
       if (capErr) { console.error('[capture-uniko] gift: falha ao salvar na coleção:', capErr); return { ok: false, alreadyHadUniko: false }; }
     }
 
@@ -631,7 +639,13 @@ export async function syncCollectionFromServer() {
     const active = getActiveAssistantSkinId();
     if (active && active !== 'default' && !list.some(x => x.id === active)) setActiveAssistantSkin('default');
     return list;
-  } catch { return getCapturedCollection(); }
+  } catch (e) {
+    // Antes engolia o erro em silêncio — se essa sync falhar (rede, RLS, etc.), a
+    // coleção local fica travada no que já estava em cache (podendo ficar bem
+    // desatualizada em relação ao servidor) sem nenhum rastro pra investigar.
+    console.error('[capture-uniko] syncCollectionFromServer falhou:', e);
+    return getCapturedCollection();
+  }
 }
 
 // ADMIN: reseta a coleção "Capture o Uniko" — de TODOS ou de um jogador específico.
