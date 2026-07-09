@@ -2752,6 +2752,23 @@ function updateBgMenuBtn(){
     btn.textContent='🎨 BACKGROUND';
   }
 }
+// ─── DEBUG TEMPORÁRIO: diagnóstico do unlock de áudio no celular (remover depois
+// de confirmar o fix ao vivo — não dá pra abrir o console do Safari remotamente) ───
+function _mobAudioDbg(msg){
+  if(!IS_MOBILE) return;
+  try{
+    let el=document.getElementById('mobAudioDbg');
+    if(!el){
+      el=document.createElement('div'); el.id='mobAudioDbg';
+      el.style.cssText='position:fixed;left:4px;bottom:4px;z-index:999999;max-width:94vw;max-height:32vh;overflow:auto;background:rgba(0,0,0,.82);color:#4f8;font:9px/1.4 monospace;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:pre-wrap;';
+      document.body.appendChild(el);
+    }
+    const t=new Date().toISOString().slice(11,23);
+    el.textContent += `[${t}] ${msg}\n`;
+    el.scrollTop = el.scrollHeight;
+  }catch(_){}
+}
+
 /* ─── Áudio: iframe invisível do YouTube (offscreen, sem recomendações visíveis) ─── */
 let _audioIframeTimer=null;
 function startAudioIframe(videoId, muted){
@@ -2768,6 +2785,7 @@ function startAudioIframe(videoId, muted){
   // pode tocar com som se o autoplay JÁ nascer desmutado como consequência DIRETA de
   // um gesto; mandar unMute() via postMessage pra um iframe criado antes não funciona.
   f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&playsinline=1&loop=1&playlist=${videoId}&origin=${encodeURIComponent(location.origin)}${muted?'&mute=1':''}`;
+  _mobAudioDbg(`startAudioIframe muted=${!!muted} id=${videoId}`);
   document.body.appendChild(f);
 }
 function stopAudioIframe(){
@@ -2779,7 +2797,8 @@ function stopAudioIframe(){
 // Envia comando (pauseVideo/playVideo) ao iframe de áudio oculto do modo efeitos
 function audioIframeCmd(func){
   const f=document.getElementById('ytAudioFrame');
-  if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}),'*'); }catch(_){} }
+  _mobAudioDbg(`audioIframeCmd(${func}) iframeExists=${!!f} hasWindow=${!!(f&&f.contentWindow)}`);
+  if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}),'*'); }catch(e){ _mobAudioDbg('audioIframeCmd ERRO: '+e.message); } }
 }
 // Celular, modo Sem Clipe: o iframe cru (sem wrapper oficial YT.Player) ainda assim
 // manda um postMessage {event:'onReady'} quando termina de carregar (enablejsapi=1
@@ -2788,10 +2807,12 @@ function audioIframeCmd(func){
 let _audioIframeReadyHandler=null;
 function _armAudioIframeHoldForGo(){
   if(_audioIframeReadyHandler) window.removeEventListener('message', _audioIframeReadyHandler);
+  _mobAudioDbg('_armAudioIframeHoldForGo: escutando postMessage...');
   _audioIframeReadyHandler=(ev)=>{
-    if(ev.origin!=='https://www.youtube.com') return;
+    if(ev.origin!=='https://www.youtube.com'){ _mobAudioDbg('msg ignorada, origin='+ev.origin); return; }
     let data;
-    try{ data=typeof ev.data==='string'?JSON.parse(ev.data):ev.data; }catch(_){ return; }
+    try{ data=typeof ev.data==='string'?JSON.parse(ev.data):ev.data; }catch(_){ _mobAudioDbg('msg do youtube.com, parse falhou: '+String(ev.data).slice(0,80)); return; }
+    _mobAudioDbg('msg do youtube.com: event='+data?.event);
     if(data && data.event==='onReady'){
       audioIframeCmd('pauseVideo');
       window.removeEventListener('message', _audioIframeReadyHandler);
@@ -3346,6 +3367,7 @@ function _startVideoBgYouTube(videoId){
 // mais resistente a buffer que o vídeo grande. Se ESTE bufferizar (raro, já
 // que pesa muito pouco), aí sim pausamos o jogo de verdade (ver onStateChange).
 function _startVideoClockPlayer(videoId, muted){
+  _mobAudioDbg(`_startVideoClockPlayer muted=${!!muted} ytApiReady=${_ytApiReady} hasYT=${!!(window.YT&&window.YT.Player)}`);
   let host=document.getElementById('ytClockFrame');
   if(!host){
     host=document.createElement('div'); host.id='ytClockFrame';
@@ -3353,6 +3375,7 @@ function _startVideoClockPlayer(videoId, muted){
     document.body.appendChild(host);
   }
   const build=()=>{
+    _mobAudioDbg('_startVideoClockPlayer build() chamado');
     if(!document.getElementById('ytClockFrame')) return;
     _vbAudioPlayer=new YT.Player('ytClockFrame',{
       width:2,height:2,videoId,
@@ -3360,6 +3383,7 @@ function _startVideoClockPlayer(videoId, muted){
         disablekb:1,fs:0,playsinline:1,origin:window.location.origin},
       events:{
         onReady:(e)=>{
+          _mobAudioDbg(`_vbAudioPlayer onReady! muted=${!!muted} holdForGo=${_holdForGoAudio}`);
           try{
             if(muted && e.target.mute) e.target.mute();
             e.target.playVideo();
@@ -3367,13 +3391,15 @@ function _startVideoClockPlayer(videoId, muted){
             // o som pro iOS — agora pausa de volta pra não tocar antes do "GO".
             if(_holdForGoAudio){ _holdForGoAudio=false; e.target.pauseVideo(); }
             _capVideoQuality(e.target,'small');
-          }catch(_){}
+          }catch(e2){ _mobAudioDbg('onReady ERRO: '+e2.message); }
         },
         onStateChange:(e)=>{
+          _mobAudioDbg('_vbAudioPlayer onStateChange: '+e.data);
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
           if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
           if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target,'small'); }
         },
+        onError:(e)=>{ _mobAudioDbg('_vbAudioPlayer onError: '+e.data); },
       },
     });
   };
@@ -5476,6 +5502,7 @@ function beginGame(){
   // pro vídeo de fundo (modo COM CLIPE) quanto pro iframe de áudio oculto (modo SEM
   // CLIPE, o padrão) — antes só cobria bgMode==='video', deixando o modo padrão sem
   // som nenhum no celular. Mostra overlay "TOQUE PARA COMEÇAR" e libera dentro do gesto.
+  _mobAudioDbg(`beginGame: IS_MOBILE=${IS_MOBILE} lastVideoUrl=${lastVideoUrl} bgMode=${bgMode}`);
   if(IS_MOBILE && lastVideoUrl){
     _mobileTapStart();
   } else {
@@ -5536,6 +5563,7 @@ function _mobileTapStart(){
   ov.style.display='flex';
   const go=()=>{
     ov.style.display='none';
+    _mobAudioDbg(`TOQUE recebido. bgMode=${bgMode} lastVideoUrl=${lastVideoUrl}`);
     // Marca ANTES de criar o player: _releaseVideoIfGoAlreadyPassed (chamado
     // dentro de _beginVideoBg) só deve liberar o som se o GO já tiver passado —
     // com a flag já true na hora da criação, ela corretamente NÃO libera agora.
@@ -5548,7 +5576,7 @@ function _mobileTapStart(){
         startAudioIframe(lastVideoUrl, false); // desmutado, síncrono — cria dentro do toque
         _armAudioIframeHoldForGo();
       }
-    }catch(_){}
+    }catch(e){ _mobAudioDbg('go() ERRO: '+e.message); }
     _vbSynced=false;          // re-ancora o relógio quando o vídeo tocar
     gameStartWallTime=performance.now()+3800; // sem notas durante a contagem
     initColorMoments(songDuration);
@@ -5571,6 +5599,7 @@ function runCountdown(){
       // início (descartando o progresso mudo) e libera o som de verdade agora.
       if(_videoStartPending){
         _videoStartPending=false;
+        _mobAudioDbg(`GO! vbAudioPlayer=${!!_vbAudioPlayer} vbPlayer=${!!_vbPlayer}`);
         try{
           // Vídeo visível: só reseta a posição (segue mudo, é só decoração).
           if(_vbPlayer){
