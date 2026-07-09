@@ -383,7 +383,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (!loaded) return;
     let alive = true;
     (async () => {
-      const purchases = (state.history || []).filter(h => h.kind === 'compra').length;
+      const purchases = (state.history || []).filter(h => h.kind === 'compra' || h.kind === 'compra_uniko').length;
       const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline });
       if (alive) setLiveProg(prog);
     })();

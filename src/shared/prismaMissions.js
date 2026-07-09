@@ -46,12 +46,13 @@ export async function loadMissionProgress({ userName, purchases, baseline } = {}
     return same ? Math.max(0, raw - (b.v || 0)) : raw;
   };
 
-  // 1ª/2ª compra
+  // 1ª/2ª compra — conta prêmio físico ('compra') E Uniko ('compra_uniko', sempre pago
+  // em prisma comum); antes só contava 'compra', então comprar Uniko não avançava a missão.
   let buys = purchases;
   if (buys == null) {
     try {
       const { count } = await supabase.from('mercado_history')
-        .select('id', { count: 'exact', head: true }).eq('player', userName).eq('kind', 'compra');
+        .select('id', { count: 'exact', head: true }).eq('player', userName).in('kind', ['compra', 'compra_uniko']);
       buys = count || 0;
     } catch { buys = 0; }
   }
