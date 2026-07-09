@@ -11,8 +11,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
+import { notifyDesktop } from '../utils/desktopNotify';
 import VampireScene from './vampireScene';
 import OceanScene from './oceanScene';
+import CosmosScene from './cosmosScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
@@ -138,7 +140,25 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     evaluate();
     const tick = setInterval(evaluate, 3000);
     return () => { clearTimeout(revealT); clearInterval(tick); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, checked, isFull, myWin]);
+
+  /* ── Avisa no DESKTOP quando o Uniko surge (transição false→true só) — mesmo
+       caminho dos lembretes/avisos do RH (extensão Cat-bot → fallback Web Notifications
+       API). Id estável (uniko-cfg) evita notificação duplicada entre abas abertas. ── */
+  const notifiedSpawnRef = useRef(null);
+  useEffect(() => {
+    if (!available || !cfg) { notifiedSpawnRef.current = null; return; }
+    const spawnKey = `${cfg.unikoId}-${cfg.startAt || ''}`;
+    if (notifiedSpawnRef.current === spawnKey) return;
+    notifiedSpawnRef.current = spawnKey;
+    notifyDesktop({
+      id: `capture-uniko-${spawnKey}`,
+      type: 'lembrete',
+      title: '.✧. Um Uniko selvagem apareceu! .✧.',
+      message: `${uniko.name} surgiu no Capture o Uniko — corre lá antes que as vagas acabem! 🐱`,
+    });
+  }, [available, cfg, uniko]);
 
   /* ── Alguém (um dos até 5) capturou? → acumula na lista; quando fecha as 5 vagas,
        some pra quem ainda não capturou. Realtime (quase instantâneo, requer
@@ -364,6 +384,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           {/* Cenário (igual ao card da Central Alexa) — escolhido pelo tema do Uniko */}
           {th.sceneType === 'ocean' ? <OceanScene jellies={4} fish={5} bubbles={8} whales={false} dolphins={false} />
             : th.sceneType === 'vampire' ? <VampireScene bats={6} />
+            : th.sceneType === 'cosmos' ? <CosmosScene />
             : null /* Unikos sem cenário artesanal (comuns/Oficina) usam só o fundo (th.scene) */}
 
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none', zIndex: 2 }}/>

@@ -4,6 +4,7 @@ import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName 
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
 import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
+import CosmosScene from '../../shared/cosmosScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -2458,6 +2459,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Glow na cor do Uniko personalizado (Oficina/Comum) — sem cenário artesanal próprio */}
                     {isCustomCard && (
                       <div style={{position:"absolute",width:110,height:110,borderRadius:"50%",background:customAccent,filter:"blur(40px)",opacity:0.18,top:-10,left:"18%"}}/>
+                    )}
+
+                    {/* Cenário cósmico artesanal — Unikos da Oficina com theme.sceneType='cosmos' (ex.: Destruidora de Mundos) */}
+                    {isCustomCard && uni?.theme?.sceneType === 'cosmos' && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        <CosmosScene />
+                      </div>
                     )}
 
                     <div style={{ position:'relative', zIndex:2 }}>

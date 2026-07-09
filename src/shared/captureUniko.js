@@ -186,15 +186,23 @@ const _slugify = (s) => (s || '')
   .toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'uniko';
 
+// Unikos da Oficina que ganharam um cenário ARTESANAL/animado (igual Vampire-Robot/Sereia)
+// em vez do neutro genérico — mapa id -> sceneType (ver CaptureUnikoWidget.jsx).
+const CUSTOM_SCENE_BY_ID = {
+  'destruidora-de-mundos-dh0x': 'cosmos', // planetas trincados, buraco negro, asteroides (cosmosScene.jsx)
+};
+
 // Monta a entrada no formato CAPTURE_UNIKOS a partir de uma linha da tabela custom_unikos.
 function _buildCustomCaptureUniko(row) {
+  const theme = themeWithScene(deriveUnikoTheme(row.accent), row.img_scene);
+  if (CUSTOM_SCENE_BY_ID[row.id]) theme.sceneType = CUSTOM_SCENE_BY_ID[row.id];
   return {
     id: row.id, name: row.name, shortName: row.name, img: row.img_main,
     tagline: row.tagline || 'Uniko criado na Oficina',
     perks: ['Uniko personalizado — feito na Oficina de Uniko', 'Assistente flutuante e foto de perfil próprios'],
     canBeAssistant: true,
     reward: { comum: row.reward_comum ?? 100, premium: row.reward_premium ?? 100 },
-    theme: themeWithScene(deriveUnikoTheme(row.accent), row.img_scene),
+    theme,
     isCustom: true,
   };
 }
