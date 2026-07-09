@@ -65,7 +65,12 @@ const CHECKIN_CYCLE = [
 // Teto MENSAL de ganho do check-in por moeda (mesmo intercalando)
 const MONTHLY_CAP = { premium: 300, comum: 200 };
 const cycleReward = (streak) => CHECKIN_CYCLE[((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length];
-const WEEKDAY_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+// NÃO são os dias da semana de verdade — são a posição 1-5 dentro da SEQUÊNCIA
+// (streak) de cada pessoa, que pode começar em qualquer dia útil (não só segunda).
+// Rotular como "Segunda/Terça/..." era enganoso: quem começou a sequência numa
+// quarta via a posição 1 chamada "Segunda", mesmo tendo resgatado numa quarta de
+// verdade. "Dia 1..5" reflete o que o sistema realmente conta.
+const WEEKDAY_LABELS = ['Dia 1', 'Dia 2', 'Dia 3', 'Dia 4', 'Dia 5'];
 
 const isWeekend = (d) => { const wd = d.getDay(); return wd === 0 || wd === 6; };
 // Dia útil anterior a `d` (pula sábado/domingo) — usado tanto pra saber se hoje é dia
@@ -1360,7 +1365,7 @@ const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, next
 
   return (
     <div>
-      <SectionHead title="Check-in Diário" sub="De segunda a sexta: os ganhos crescem ao longo da semana e a moeda intercala. Faltou um dia útil? A sequência volta pro dia 1. Sábado e domingo não contam (nem quebram a sequência)." />
+      <SectionHead title="Check-in Diário" sub="Em dias úteis: os ganhos crescem a cada dia da sequência e a moeda intercala. Faltou um dia útil (sem contar fim de semana)? A sequência volta pro dia 1. Sábado e domingo não contam (nem quebram a sequência) — sua sequência pode começar em qualquer dia útil, não só segunda." />
 
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
@@ -1397,7 +1402,7 @@ const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, next
 
       {/* Ciclo de 5 dias (seg-sex) */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 5 dias (segunda a sexta)</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 5 dias úteis</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: isMobile ? 6 : 11 }}>
           {CHECKIN_CYCLE.map((r, i) => {
             const dayNum = i + 1;
