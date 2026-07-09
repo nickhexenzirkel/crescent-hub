@@ -2927,11 +2927,15 @@ function setGfx(q){
 // janela/reduz o canvas). Em vez de mudar o padrão de todo mundo, só "pisa no
 // freio" da qualidade ENQUANTO toca com clipe — a preferência real do usuário
 // (gfxQuality) não muda, isso é só temporário pra aguentar o vídeo por cima.
+// dprCap 1.5 (1ª tentativa) NÃO foi suficiente — usuário confirmou que só Baixo/
+// Ultra (dprCap 1) tocam o clipe liso, então o freio agora vai até dprCap 1
+// igual esses presets (também vale pro Guerra Estelar — mesmo travamento lá,
+// não é só o efeito de fogo, é o vídeo de fundo em qualquer modo de jogo).
 let _gfxVideoOverrideActive=false, _gfxSavedForVideo=null;
 function _applyVideoModeGfxOverride(){
   if(_gfxVideoOverrideActive) return;
   _gfxSavedForVideo=GFX; _gfxVideoOverrideActive=true;
-  GFX={ ...GFX, glow:false, dprCap:Math.min(GFX.dprCap||3,1.5), particleMul:Math.min(GFX.particleMul!=null?GFX.particleMul:1,0.55) };
+  GFX={ ...GFX, glow:false, dprCap:1, particleMul:Math.min(GFX.particleMul!=null?GFX.particleMul:1,0.25) };
   if(typeof resize==='function') resize();
 }
 function _restoreGfxAfterVideoMode(){
