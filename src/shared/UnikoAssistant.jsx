@@ -512,15 +512,22 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [open, setOpen] = useState(false);          // painel de chat aberto?
   const [skinId, setSkinId] = useState(getActiveAssistantSkinId); // skin do assistente (default | uniko capturado)
   const [scale, setScale] = useState(getAssistantScale); // preferência pessoal de tamanho (Coleção)
+  const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
   const skin = getAssistantSkin(skinId);
   const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
   const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
   const tipSpriteRef = useRef(skin.tipSprite); tipSpriteRef.current = skin.tipSprite; // override das DICAS (se a skin tiver um ícone próprio de dica)
-  const ICON = Math.round((skin.iconSize || 84) * scale);     // tamanho do robô (skin × preferência pessoal)
-  const MARGIN = Math.round((skin.edgeMargin ?? 12) * scale); // distância das bordas (escala junto)
+  // Enquanto um Uniko está DISPONÍVEL pra capturar, o tamanho volta a 100% temporariamente
+  // pra quem tinha zoom (aumentou/diminuiu em "Tamanho do assistente" na Coleção) — sem
+  // isso, alguém com o assistente bem grande/pequeno arremessando pro encontro (tamanho
+  // fixo) ficava em desvantagem/vantagem injusta. Volta pra escala pessoal assim que o
+  // Uniko é capturado por alguém (ou o evento esgota) — `captureAlert` já vira null nesse
+  // momento (ver onCaptureState abaixo).
+  const effectiveScale = captureAlert ? 1 : scale;
+  const ICON = Math.round((skin.iconSize || 84) * effectiveScale);     // tamanho do robô (skin × preferência pessoal)
+  const MARGIN = Math.round((skin.edgeMargin ?? 12) * effectiveScale); // distância das bordas (escala junto)
   const iconRef = useRef(ICON); iconRef.current = ICON;
   const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
-  const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
   const [sprite, setSprite] = useState(null);       // imagem atual (null = carinha normal)
   const [talking, setTalking] = useState(false);    // está "digitando"/falando? → boca mexe
