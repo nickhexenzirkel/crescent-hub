@@ -626,6 +626,86 @@ const BubbleBurstOverlay = () => {
   );
 };
 
+// Animação rápida (~5s): explosão de estrelas brancas/roxas e meteoros/rochas surge do
+// centro e voa em diagonal pra longe, em direção aos 4 cantos da tela — equivalente
+// cósmico do burst de morcegos (Vampire-Robot) e de bolhas (Sereia), pra Destruidora
+// de Mundos. Mistura estrelas (sparkle branco/roxo) e pequenas rochas com rastro.
+const MeteorBurstOverlay = () => {
+  const items = useRef(null);
+  if (!items.current) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const CORNERS = [[-1, -1], [1, -1], [-1, 1], [1, 1]]; // TL, TR, BL, BR
+    items.current = Array.from({ length: 90 }).map((_, i) => {
+      const [cx, cy] = CORNERS[Math.floor(Math.random() * 4)]; // mira num dos 4 cantos
+      const dx = cx * rnd(80, 140), dy = cy * rnd(80, 140);    // vmax → ultrapassa o canto
+      const isRock = i % 3 === 0;                              // ~1/3 rochas/meteoros, resto estrelas
+      return {
+        id: i, kind: isRock ? 'rock' : 'star',
+        x: rnd(36, 64), y: rnd(36, 64),                        // % posição inicial (perto do centro)
+        dx, dy,
+        sz: isRock ? Math.round(rnd(10, 22)) : Math.round(rnd(10, 26)),
+        dur: rnd(4.2, 5.0), delay: rnd(0, 0.3),                // praticamente todos ao mesmo tempo
+        twinkle: rnd(0.6, 1.1), spin: rnd(1.5, 3),
+        angle: Math.atan2(dy, dx) * 180 / Math.PI,             // direção do voo (pro rastro da rocha)
+        color: Math.random() < 0.55 ? '#ffffff' : '#c9a3ff',   // branco ou roxo
+      };
+    });
+  }
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:99998, pointerEvents:'none', overflow:'hidden' }}>
+      <style>{`
+        @keyframes meteorBurstFlash{0%{opacity:0;}20%{opacity:.4;}80%{opacity:.28;}100%{opacity:0;}}
+        @keyframes meteorBurstFly{
+          0%{transform:translate(-50%,-50%) scale(.5);opacity:0;}
+          7%{opacity:1;}
+          90%{opacity:.9;}
+          100%{transform:translate(calc(-50% + var(--bdx)),calc(-50% + var(--bdy))) scale(1.1);opacity:0;}
+        }
+        @keyframes meteorBurstSpin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+        @keyframes meteorBurstTwinkle{0%,100%{opacity:.5;}50%{opacity:1;}}
+      `}</style>
+      {/* Escurecimento roxo pra dar destaque (sem o susto do vermelho do vampiro) */}
+      <div style={{
+        position:'absolute', inset:0,
+        background:'radial-gradient(ellipse at 50% 45%, rgba(157,107,255,.0) 30%, rgba(10,3,20,.72) 100%)',
+        animation:'meteorBurstFlash 5.25s ease-out forwards',
+      }}/>
+      {items.current.map(b => (
+        <div key={b.id} style={{
+          position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
+          '--bdx':`${b.dx}vmax`, '--bdy':`${b.dy}vmax`,
+          animation:`meteorBurstFly ${b.dur}s ease-in ${b.delay}s both`,
+        }}>
+          {b.kind === 'star' ? (
+            <svg width={b.sz} height={b.sz} viewBox="0 0 24 24" style={{
+              display:'block', animation:`meteorBurstTwinkle ${b.twinkle}s ease-in-out infinite`,
+              filter:`drop-shadow(0 0 4px ${b.color})`,
+            }}>
+              <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z" fill={b.color}/>
+            </svg>
+          ) : (
+            <div style={{ position:'relative', width:b.sz, height:b.sz }}>
+              {/* rastro da rocha, alinhado com a direção do voo */}
+              <div style={{
+                position:'absolute', left:'50%', top:'50%', width:b.sz * 3.2, height:2,
+                background:`linear-gradient(90deg, transparent, ${b.color}99)`,
+                transform:`translate(-100%,-50%) rotate(${b.angle + 180}deg)`, transformOrigin:'100% 50%',
+              }}/>
+              <div style={{
+                width:'100%', height:'100%', borderRadius:'50%',
+                background:'radial-gradient(circle at 35% 30%, #2b1d3f, #120a1e 70%)',
+                border:`1px solid ${b.color}aa`,
+                animation:`meteorBurstSpin ${b.spin}s linear infinite`,
+                boxShadow:`0 0 6px ${b.color}88`,
+              }}/>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // Árvore pequena e seca (sem folhas) — silhueta de galhos (g = linha do chão)
 const BareTree = ({ x, h = 30, s = 1, g = 105 }) => (
   <g stroke="#34161f" strokeWidth={1.5 * s} fill="none" strokeLinecap="round">
@@ -1110,12 +1190,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       .catch(() => setSongSkin('default'));
   }, [currentSong?.requested_by, myName, mascotSkinId]); // eslint-disable-line
 
-  // Burst em tela cheia ao trocar de skin especial: morcegos pro Vampire-Robot (assustador)
-  // e uma explosão de bolhas turquesa pra Uniko Sereia (calma) — mesmo gatilho (troca de
-  // songSkin), cada um com seu overlay. Dispara tanto quando a música da pessoa toca quanto
-  // ao entrar na Central Alexa já com a skin dela ativa (songSkin sai de 'default' pra ela).
+  // Burst em tela cheia ao trocar de skin especial: morcegos pro Vampire-Robot (assustador),
+  // explosão de bolhas turquesa pra Uniko Sereia (calma) e explosão de estrelas/meteoros
+  // roxos+brancos pra Destruidora de Mundos — mesmo gatilho (troca de songSkin), cada um
+  // com seu overlay. Dispara tanto quando a música da pessoa toca quanto ao entrar na
+  // Central Alexa já com a skin dela ativa (songSkin sai de 'default' pra ela).
   const [batBurst, setBatBurst] = useState(false);
   const [bubbleBurst, setBubbleBurst] = useState(false);
+  const [meteorBurst, setMeteorBurst] = useState(false);
   const prevSongSkin = useRef(songSkin);
   useEffect(() => {
     const prev = prevSongSkin.current;
@@ -1129,6 +1211,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     if (songSkin === 'uniko-sereia') {
       setBubbleBurst(true);
       const t = setTimeout(() => setBubbleBurst(false), 5250);
+      return () => clearTimeout(t);
+    }
+    if (songSkin === 'destruidora-de-mundos-dh0x') {
+      setMeteorBurst(true);
+      const t = setTimeout(() => setMeteorBurst(false), 5250);
       return () => clearTimeout(t);
     }
   }, [songSkin]);
@@ -3640,6 +3727,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {batBurst && <BatBurstOverlay />}
       {/* ── Explosão de bolhas (3s) ao trocar para a Uniko Sereia ── */}
       {bubbleBurst && <BubbleBurstOverlay />}
+      {/* ── Explosão de estrelas/meteoros (3s) ao trocar para a Destruidora de Mundos ── */}
+      {meteorBurst && <MeteorBurstOverlay />}
     </div>
   );
 };
