@@ -5533,7 +5533,11 @@ function _mobileTapStart(){
     initColorMoments(songDuration);
     setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
   };
-  ov.addEventListener('pointerdown', go, {once:true});
+  // 'click' (não 'pointerdown'/'touchstart') — o Safari/iOS só reconhece click, touchend
+  // ou keydown como gesto válido pra desbloquear áudio com som. pointerdown NÃO conta,
+  // e era exatamente por isso que só o botão de PAUSA (que usa onclick de verdade)
+  // conseguia liberar o som — o toque no overlay nunca contava como gesto de verdade.
+  ov.addEventListener('click', go, {once:true});
 }
 
 function runCountdown(){
