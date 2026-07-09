@@ -214,6 +214,31 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   useEffect(() => { if (tab === 'spotify') loadSpotifyServerStatus(); }, [tab]);
 
+  // ── Logs do servidor (PM2, VPS) ───────────────────────────
+  const [logsData,    setLogsData]    = useState(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsErr,     setLogsErr]     = useState('');
+  const [logsStream,  setLogsStream]  = useState('error'); // 'error' | 'out'
+  const [logsAuto,    setLogsAuto]    = useState(false);
+
+  const loadLogs = async () => {
+    setLogsLoading(true); setLogsErr('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/logs?lines=300`, { headers: authHeader() });
+      const d = await r.json();
+      if (r.ok) setLogsData(d);
+      else setLogsErr(d.error || 'Erro ao buscar logs');
+    } catch { setLogsErr('Servidor offline ou inacessível.'); }
+    setLogsLoading(false);
+  };
+
+  useEffect(() => { if (tab === 'logs') loadLogs(); }, [tab]);
+  useEffect(() => {
+    if (tab !== 'logs' || !logsAuto) return;
+    const id = setInterval(loadLogs, 5000);
+    return () => clearInterval(id);
+  }, [tab, logsAuto]);
+
   const saveSpotifyCreds = async () => {
     if (!spotifyClientId.trim() || !spotifySecret.trim()) { setSpotifyMsg('⚠️ Preencha ambos os campos'); return; }
     setSpotifySaving(true); setSpotifyMsg('');
@@ -1025,6 +1050,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
     {id:'spotify',        label:'API do Spotify',     icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
+    {id:'logs',           label:'Logs do Servidor',   icon:<><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></>},
   ];
 
   return(
@@ -2950,6 +2976,87 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </Card>
             </div>
           )}
+
+          {/* ── TAB: LOGS DO SERVIDOR (PM2 na VPS) ── */}
+          {tab==='logs'&&(() => {
+            const list = logsData ? (logsStream==='error' ? logsData.error : logsData.out) : [];
+            const fmtUptime = (ms) => {
+              if (!ms) return '—';
+              const s = Math.floor((Date.now()-ms)/1000);
+              const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+              return h>0 ? `${h}h ${m}m` : `${m}m`;
+            };
+            const fmtMem = (bytes) => bytes ? `${(bytes/1024/1024).toFixed(0)} MB` : '—';
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Logs do Servidor</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Saída do PM2 na VPS (crescent-hub-server)</div>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:T.textS,cursor:'pointer'}}>
+                    <input type="checkbox" checked={logsAuto} onChange={e=>setLogsAuto(e.target.checked)} />
+                    Auto-atualizar (5s)
+                  </label>
+                  <button onClick={loadLogs} disabled={logsLoading}
+                    style={{padding:'9px 16px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:logsLoading?'wait':'pointer',fontSize:12,fontWeight:600,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                    {logsLoading ? 'Atualizando...' : '↻ Atualizar'}
+                  </button>
+                </div>
+              </div>
+
+              {logsErr&&(
+                <div style={{padding:'10px 14px',borderRadius:9,background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',fontSize:12,color:'#C04050'}}>
+                  ⚠️ {logsErr}
+                </div>
+              )}
+
+              {logsData&&(
+                <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                  {[
+                    {label:'Status', value: logsData.status, color: logsData.status==='online' ? '#1DB954' : '#C04050'},
+                    {label:'PID', value: logsData.pid},
+                    {label:'Uptime', value: fmtUptime(logsData.uptime)},
+                    {label:'Restarts', value: logsData.restarts},
+                    {label:'Memória', value: fmtMem(logsData.memory)},
+                    {label:'CPU', value: logsData.cpu!=null ? `${logsData.cpu}%` : '—'},
+                  ].map(({label,value,color})=>(
+                    <div key={label} style={{flex:'1 1 120px',padding:'10px 14px',borderRadius:10,background:cardBg,border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:10,color:T.textD,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:3}}>{label}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:color||T.text}}>{value ?? '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Filtro de stream */}
+              <div style={{display:'flex',gap:6}}>
+                {[{id:'error',label:`Erros${logsData?` (${logsData.error.length})`:''}`},{id:'out',label:`Saída${logsData?` (${logsData.out.length})`:''}`}].map(s=>(
+                  <button key={s.id} onClick={()=>setLogsStream(s.id)}
+                    style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${logsStream===s.id?T.gold:T.border}`,background:logsStream===s.id?T.goldGl:'transparent',cursor:'pointer',fontSize:12,fontWeight:600,color:logsStream===s.id?T.gold:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Console */}
+              <div style={{borderRadius:13,background:'#0D1117',border:`1px solid ${T.border}`,boxShadow:T.shM,overflow:'hidden'}}>
+                <div style={{maxHeight:520,overflowY:'auto',padding:'14px 16px',fontFamily:'monospace',fontSize:12,lineHeight:1.6}}>
+                  {list.length===0&&!logsLoading&&(
+                    <div style={{color:'#6E7681'}}>{logsData ? 'Sem linhas nesse stream.' : 'Carregando logs…'}</div>
+                  )}
+                  {list.map((l,i)=>(
+                    <div key={i} style={{color: l.stream==='error' ? '#F85149' : '#C9D1D9', whiteSpace:'pre-wrap',wordBreak:'break-all'}}>
+                      {l.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            );
+          })()}
 
           {/* ── TAB: FEEDBACK ── */}
           {tab === 'feedback' && (() => {
