@@ -2754,7 +2754,7 @@ function updateBgMenuBtn(){
 }
 /* ─── Áudio: iframe invisível do YouTube (offscreen, sem recomendações visíveis) ─── */
 let _audioIframeTimer=null;
-function startAudioIframe(videoId){
+function startAudioIframe(videoId, muted){
   stopAudioIframe();
   if(!videoId) return;
   const f=document.createElement('iframe');
@@ -2763,7 +2763,10 @@ function startAudioIframe(videoId){
   f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
   f.setAttribute('allow','autoplay');
   // enablejsapi=1 → permite pausar/retomar via postMessage (usado pela pausa do jogo)
-  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&playsinline=1&loop=1&playlist=${videoId}&origin=${encodeURIComponent(location.origin)}`;
+  // muted=true no celular: autoplay mudo é permitido no iOS/Android; o som real
+  // é liberado depois via audioIframeCmd('unMute') DENTRO do gesto de toque
+  // (ver _mobileTapStart) — autoplay com som direto é bloqueado sem gesto.
+  f.src=`https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&playsinline=1&loop=1&playlist=${videoId}&origin=${encodeURIComponent(location.origin)}${muted?'&mute=1':''}`;
   document.body.appendChild(f);
 }
 function stopAudioIframe(){
@@ -5424,9 +5427,11 @@ function beginGame(){
   if(gameMode==='wargame') wgInit(); else WG.active=false;
   _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
   applyVideoBg(lastVideoUrl);
-  // No CELULAR o navegador bloqueia o autoplay do vídeo com som → exige um toque.
-  // Mostramos um overlay "TOQUE PARA COMEÇAR" e iniciamos o vídeo DENTRO do gesto.
-  if(IS_MOBILE && bgMode==='video' && lastVideoUrl){
+  // No CELULAR o navegador bloqueia autoplay com som → exige um toque. Vale tanto
+  // pro vídeo de fundo (modo COM CLIPE) quanto pro iframe de áudio oculto (modo SEM
+  // CLIPE, o padrão) — antes só cobria bgMode==='video', deixando o modo padrão sem
+  // som nenhum no celular. Mostra overlay "TOQUE PARA COMEÇAR" e libera dentro do gesto.
+  if(IS_MOBILE && lastVideoUrl){
     _mobileTapStart();
   } else {
     _beginPlaybackNow(4.2);
@@ -5467,9 +5472,9 @@ function _beginPlaybackNow(startDelay){
 // gesto. Estratégia: criar o player já MUDO (autoplay mudo é permitido no iOS) e,
 // no toque, dar unMute()+playVideo() sincronamente — o som é liberado.
 function _mobileTapStart(){
-  // Cria o vídeo já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
+  // Cria o vídeo/áudio já tocando MUDO enquanto o overlay aparece (carrega/buffer adianta).
   if(bgMode==='video'&&lastVideoUrl){ _beginVideoBg(lastVideoUrl, true); }
-  else startAudioIframe(lastVideoUrl);
+  else startAudioIframe(lastVideoUrl, true);
 
   let ov=document.getElementById('tapStartOverlay');
   if(!ov){
@@ -5477,7 +5482,7 @@ function _mobileTapStart(){
     ov.style.cssText='position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,4,15,.94);color:#fff;text-align:center;padding:24px;cursor:pointer';
     ov.innerHTML='<div style="font-family:var(--font-pixel);font-size:15px;letter-spacing:2px">TOQUE PARA COMEÇAR</div>'
       +'<div style="font-size:46px">▶</div>'
-      +'<div style="font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6">No celular o som do vídeo só toca depois de um toque na tela.</div>';
+      +'<div style="font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6">No celular o som da música só toca depois de um toque na tela.</div>';
     document.body.appendChild(ov);
   }
   ov.style.display='flex';
@@ -5496,6 +5501,13 @@ function _mobileTapStart(){
         if(_vbAudioPlayer.setVolume)  _vbAudioPlayer.setVolume(100);
         if(_vbAudioPlayer.seekTo)     _vbAudioPlayer.seekTo(0, true);
         if(_vbAudioPlayer.pauseVideo) _vbAudioPlayer.pauseVideo();
+      }
+      // Modo SEM CLIPE: mesmo truque no iframe de áudio oculto — unMute+pause
+      // DENTRO do gesto libera o som; o play de verdade vem no "GO" (audioIframeCmd
+      // em runCountdown), sem precisar de novo gesto.
+      if(bgMode!=='video'){
+        audioIframeCmd('unMute');
+        audioIframeCmd('pauseVideo');
       }
     }catch(_){}
     _videoStartPending=true;  // runCountdown dá o play no GO
