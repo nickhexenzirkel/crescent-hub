@@ -2776,8 +2776,12 @@ function startAudioIframe(videoId, muted){
   if(!videoId) return;
   const f=document.createElement('iframe');
   f.id='ytAudioFrame';
-  // 1×1 px, fora da tela — áudio toca, vídeo nunca é visto → sem recomendações
-  f.style.cssText='position:fixed;width:1px;height:1px;left:-9999px;top:0;border:none;pointer-events:none;';
+  // DENTRO da viewport (não em left:-9999px) — no iOS Safari um iframe posicionado
+  // bem fora da tela pode nunca inicializar/tocar mídia (tratado como "invisível" e
+  // suspenso). 2×2px quase transparente no canto: visualmente imperceptível, mas
+  // tecnicamente "na tela" pro navegador. Ver debug ao vivo (jul/2026): o iframe em
+  // -9999px nunca chegou a mandar nem um postMessage sequer (nem onReady).
+  f.style.cssText='position:fixed;width:2px;height:2px;left:0;top:0;border:none;pointer-events:none;opacity:0.01;z-index:-1;';
   f.setAttribute('allow','autoplay');
   // enablejsapi=1 → permite pausar/retomar via postMessage (usado pela pausa do jogo)
   // muted=true no desktop (buffer antecipado, sem gesto). No celular usa muted=false
@@ -3371,7 +3375,8 @@ function _startVideoClockPlayer(videoId, muted){
   let host=document.getElementById('ytClockFrame');
   if(!host){
     host=document.createElement('div'); host.id='ytClockFrame';
-    host.style.cssText='position:fixed;left:-9999px;top:0;width:2px;height:2px;pointer-events:none;';
+    // Dentro da viewport (não -9999px) — mesmo motivo do ytAudioFrame acima.
+    host.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;pointer-events:none;opacity:0.01;z-index:-1;';
     document.body.appendChild(host);
   }
   const build=()=>{
