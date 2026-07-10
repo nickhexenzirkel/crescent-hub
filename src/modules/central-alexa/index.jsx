@@ -1709,9 +1709,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const top3 = (d.topArtists || []).slice(0,3);
     if (!top3.length) return null;
     const places = [
-      { i:1, medal:'🥈', ring:'#C9D2DC', pedH:130, photo:150 }, // 2º à esquerda
-      { i:0, medal:'🥇', ring:T.gold,    pedH:180, photo:180 }, // 1º no centro (mais alto)
-      { i:2, medal:'🥉', ring:'#CD9B6A', pedH:90,  photo:142 }, // 3º à direita
+      { i:1, medal:'🥈', ring:'#C9D2DC', pedH:82,  photo:104 }, // 2º à esquerda
+      { i:0, medal:'🥇', ring:T.gold,    pedH:118, photo:124 }, // 1º no centro (mais alto)
+      { i:2, medal:'🥉', ring:'#CD9B6A', pedH:52,  photo:98 },  // 3º à direita
     ];
     return (
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
@@ -1728,19 +1728,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             const initials = artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
             return (
               <div key={p.i} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
-                <div style={{fontSize:p.i===0?44:32,lineHeight:1,marginBottom:8}}>{p.medal}</div>
-                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:10,aspectRatio:"1"}}>
+                <div style={{fontSize:p.i===0?32:24,lineHeight:1,marginBottom:7}}>{p.medal}</div>
+                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:9,aspectRatio:"1"}}>
                   {photo
-                    ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`4px solid ${p.ring}`,boxShadow:`0 6px 26px ${p.ring}77`}}/>
-                    : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`4px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.32),fontWeight:800,color:p.ring}}>{initials}</div>}
+                    ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`3px solid ${p.ring}`,boxShadow:`0 5px 22px ${p.ring}66`}}/>
+                    : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`3px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.32),fontWeight:800,color:p.ring}}>{initials}</div>}
                 </div>
-                <div style={{fontSize:p.i===0?16:14,fontWeight:800,color:T.text,textAlign:"center",width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
-                <div style={{fontSize:12,color:T.gold,fontWeight:700,marginTop:3}}>{count} plays</div>
-                <div style={{marginTop:12,width:"100%",height:p.pedH,borderRadius:"10px 10px 0 0",
+                <div style={{fontSize:p.i===0?14.5:13,fontWeight:800,color:T.text,textAlign:"center",width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
+                <div style={{fontSize:11.5,color:T.gold,fontWeight:700,marginTop:2}}>{count} plays</div>
+                <div style={{marginTop:11,width:"100%",height:p.pedH,borderRadius:"9px 9px 0 0",
                   background:`linear-gradient(180deg,${p.ring}dd,${p.ring}44)`,
-                  boxShadow:`inset 0 2px 0 ${p.ring}, 0 -3px 16px ${p.ring}44`,
-                  display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>
-                  <span style={{fontSize:p.i===0?30:22,fontWeight:900,color:"#fff",textShadow:"0 1px 5px rgba(0,0,0,0.4)"}}>{p.i+1}º</span>
+                  boxShadow:`inset 0 2px 0 ${p.ring}, 0 -3px 14px ${p.ring}44`,
+                  display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:8}}>
+                  <span style={{fontSize:p.i===0?24:18,fontWeight:900,color:"#fff",textShadow:"0 1px 5px rgba(0,0,0,0.4)"}}>{p.i+1}º</span>
                 </div>
               </div>
             );
@@ -1753,9 +1753,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const renderTopCards = (d) => {
     const podium = renderArtistPodium(d);
     return (
-    <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:18,alignItems:"stretch"}}>
-      {podium && <div style={{flex:isMobile?"none":"3.4 1 0",minWidth:0,display:"flex"}}>{podium}</div>}
-      <div style={{flex:isMobile?"none":"5 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
+    <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:18,alignItems:"flex-start"}}>
+      {podium && <div style={{flex:isMobile?"none":"2.7 1 0",minWidth:0,display:"flex"}}>{podium}</div>}
+      <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
