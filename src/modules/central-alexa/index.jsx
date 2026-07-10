@@ -1228,6 +1228,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [activeLine, setActiveLine]     = useState(0);
   const [progressMs, setProgressMs]     = useState(0);
   const lyricsRef = useRef(null);
+  const lyricsPreviewRef = useRef(null);
   const progressTimer = useRef(null);
   const lastSongId  = useRef(null);
   const genreCache  = useRef({});  // mantido por compatibilidade, não mais utilizado
@@ -1702,8 +1703,59 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   };
 
   // Renderiza os cards (músicas + artistas + DJs) de um conjunto agregado
-  const renderTopCards = (d) => (
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.25fr 1fr 1fr",gap:isMobile?14:18}}>
+  // Pódio grande com foto grande dos top 3 artistas (1º no centro/mais alto,
+  // 2º à esquerda, 3º à direita) — fica à esquerda dos 3 cards no renderTopCards.
+  const renderArtistPodium = (d) => {
+    const top3 = (d.topArtists || []).slice(0,3);
+    if (!top3.length) return null;
+    const places = [
+      { i:1, medal:'🥈', ring:'#C9D2DC', pedH:56, photo:74 },  // 2º à esquerda
+      { i:0, medal:'🥇', ring:T.gold,    pedH:88, photo:100 }, // 1º no centro (mais alto)
+      { i:2, medal:'🥉', ring:'#CD9B6A', pedH:38, photo:70 },  // 3º à direita
+    ];
+    return (
+      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
+          <span style={{fontSize:15,fontWeight:700,color:T.text}}>Pódio dos Artistas</span>
+        </div>
+        <div style={{flex:1,display:"flex",alignItems:"flex-end",justifyContent:"center",gap:isMobile?8:12}}>
+          {places.map(p => {
+            const entry = top3[p.i];
+            if (!entry) return <div key={p.i} style={{flex:1}}/>;
+            const [artist,count] = entry;
+            const photo = artistPhotos[artist];
+            const initials = artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
+            return (
+              <div key={p.i} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <div style={{fontSize:p.i===0?26:20,lineHeight:1,marginBottom:6}}>{p.medal}</div>
+                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:8}}>
+                  {photo
+                    ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`3px solid ${p.ring}`,boxShadow:`0 4px 18px ${p.ring}66`}}/>
+                    : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`3px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.3),fontWeight:800,color:p.ring}}>{initials}</div>}
+                </div>
+                <div style={{fontSize:12.5,fontWeight:700,color:T.text,textAlign:"center",width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
+                <div style={{fontSize:10.5,color:T.gold,fontWeight:700,marginTop:2}}>{count} plays</div>
+                <div style={{marginTop:10,width:"100%",height:p.pedH,borderRadius:"9px 9px 0 0",
+                  background:`linear-gradient(180deg,${p.ring}dd,${p.ring}44)`,
+                  boxShadow:`inset 0 2px 0 ${p.ring}, 0 -3px 14px ${p.ring}44`,
+                  display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:7}}>
+                  <span style={{fontSize:p.i===0?22:17,fontWeight:900,color:"#fff",textShadow:"0 1px 4px rgba(0,0,0,0.35)"}}>{p.i+1}º</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTopCards = (d) => {
+    const podium = renderArtistPodium(d);
+    return (
+    <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:18,alignItems:"stretch"}}>
+      {podium && <div style={{flex:isMobile?"none":"0 0 320px",maxWidth:isMobile?"none":320,display:"flex"}}>{podium}</div>}
+      <div style={{flex:1,minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1.1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
@@ -1783,8 +1835,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             );
           })}
       </div>
+      </div>
     </div>
-  );
+    );
+  };
 
   useEffect(() => { if (tab==='maquina')    loadMaquinaData(); }, [tab]);
   useEffect(() => {
@@ -1960,6 +2014,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const el = lyricsRef.current.querySelector(`[data-line="${activeLine}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [activeLine, showLyrics]);
+
+  // Auto-scroll suave da PRÉVIA da letra (mini-karaokê sempre visível) — mesmo
+  // efeito de troca suave da letra inteira: cada linha transiciona pelo CSS
+  // (tamanho/cor/brilho) e o container desliza pra manter a linha ativa
+  // centralizada. Usa scrollTo NO CONTAINER (não scrollIntoView) pra não
+  // arrastar a página junto.
+  useEffect(() => {
+    const cont = lyricsPreviewRef.current;
+    if (!cont) return;
+    const el = cont.querySelector(`[data-pline="${activeLine}"]`);
+    if (!el) return;
+    cont.scrollTo({ top: el.offsetTop - cont.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
+  }, [activeLine, lyrics, lyricsLoading, lyricsError]);
 
   // ── Ações do Festival ────────────────────────────────────
   const handleSearch = (val) => {
@@ -2668,25 +2735,37 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                     <span style={{fontSize:9.5,fontWeight:700,color:"rgba(255,255,255,0.85)",textTransform:"uppercase",letterSpacing:".1em"}}>Letra</span>
                   </div>
-                  <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,textAlign:"center",overflow:"hidden"}}>
+                  <div style={{flex:1,position:"relative",width:"100%",overflow:"hidden",
+                    WebkitMaskImage:"linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent)",
+                    maskImage:"linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent)"}}>
                     {lyricsLoading ? (
-                      <span style={{fontSize:11.5,color:"rgba(255,255,255,0.6)"}}>Buscando letra...</span>
+                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <span style={{fontSize:11.5,color:"rgba(255,255,255,0.6)"}}>Buscando letra...</span>
+                      </div>
                     ) : lyricsError || !lyrics.length ? (
-                      <span style={{fontSize:11.5,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
+                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <span style={{fontSize:11.5,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
+                      </div>
                     ) : (
-                      <>
-                        {lyrics[activeLine-1] && (
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{lyrics[activeLine-1].text}</div>
-                        )}
-                        <div style={{fontSize:16,fontWeight:800,color:"#fff",lineHeight:1.3,
-                          textShadow:`0 0 24px rgba(255,255,255,0.85), 0 0 10px ${festColors?.[0]||"#fff"}cc`,
-                          display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",maxWidth:"100%"}}>
-                          {lyrics[activeLine]?.text || "♪"}
-                        </div>
-                        {lyrics[activeLine+1] && (
-                          <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{lyrics[activeLine+1].text}</div>
-                        )}
-                      </>
+                      // Mini-karaokê: TODAS as linhas no DOM (não só 3 que trocam de
+                      // texto) — assim cada uma transiciona de estilo pelo CSS e o
+                      // container desliza suave, igualzinho à letra inteira. Os
+                      // espaçadores de 50% deixam a 1ª/última linha centralizarem.
+                      <div ref={lyricsPreviewRef} style={{position:"absolute",inset:0,overflow:"hidden"}}>
+                        <div style={{height:"50%"}}/>
+                        {lyrics.map((line,i)=>(
+                          <div key={i} data-pline={i} style={{
+                            padding:"3px 12px",textAlign:"center",
+                            fontSize:i===activeLine?16:11,
+                            fontWeight:i===activeLine?800:400,
+                            color:i===activeLine?"#fff":(i<activeLine?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.5)"),
+                            lineHeight:1.3,
+                            textShadow:i===activeLine?`0 0 24px rgba(255,255,255,0.85), 0 0 10px ${festColors?.[0]||"#fff"}cc`:"none",
+                            transition:"all .35s ease",
+                          }}>{line.text||"♪"}</div>
+                        ))}
+                        <div style={{height:"50%"}}/>
+                      </div>
                     )}
                   </div>
                 </div>
