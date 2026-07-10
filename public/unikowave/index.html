@@ -601,7 +601,7 @@ canvas{display:block}
 .mode-btn small{display:block;font-size:7.5px;font-weight:400;color:rgba(255,255,255,.42);letter-spacing:.2px;line-height:1.25;text-transform:none}
 .mode-btn.sel small{color:rgba(255,255,255,.65)}
 /* Cards de personagem (Guerra Estelar) com retrato */
-.wg-char-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wg-char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .wg-char-card{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 6px 8px;border-radius:11px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);cursor:pointer;transition:all .2s;text-align:center}
 .wg-char-card:hover{background:rgba(255,255,255,.07)}
 .wg-char-card.sel{border-color:#ff00cc;background:rgba(255,0,204,.08)}
@@ -2134,7 +2134,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       <div class="prev-diff-label">Modo de Jogo</div>
       <div class="prev-mode-grid">
         <button class="diff-btn normal mode-btn sel" id="modeBtnClassic" onclick="selectMode('classic')"><i class="pxi" data-pxicon="keyboard"></i><span>TECLADO ESTELAR</span><small>Notas em 4 lanes</small></button>
-        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')"><i class="pxi" data-pxicon="swords"></i><span>GUERRA ESTELAR</span><small>Mizuki/Venebra vs. Dark CatBot</small></button>
+        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')"><i class="pxi" data-pxicon="swords"></i><span>GUERRA ESTELAR</span><small>Mizuki/Venebra/Oceania vs. Dark CatBot</small></button>
       </div>
       <div id="modeHint" class="prev-hint"></div>
     </div>
@@ -2166,6 +2166,11 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
             <img class="wg-char-img" src="images/venebra_passo2.png" alt="Lady Venebra" onerror="this.style.display='none'">
             <div class="wg-char-name">🩸 LADY VENEBRA</div>
             <div class="wg-char-desc">Vampira da realeza. Finisher: Explosão de Magia Sanguínea.</div>
+          </button>
+          <button class="wg-char-card" id="wgCharOceania" onclick="selectWgChar('oceania')">
+            <img class="wg-char-img" src="images/oceania_passo2.png" alt="Oceania" onerror="this.style.display='none'">
+            <div class="wg-char-name">🌊 OCEANIA</div>
+            <div class="wg-char-desc">Rainha dos Mares. Finisher: Maremoto Abissal.</div>
           </button>
         </div>
       </div>
@@ -2645,6 +2650,13 @@ const WG_CHAR_FRAMES = {
     hold2:'images/venebra_segurar.png', hold3:'images/venebra_segurar.png',
     arrow:'images/venebra_finalizacao.png',                        // EXPLOSÃO DE MAGIA SANGUÍNEA (pose)
   },
+  oceania: {
+    run: ['images/oceania_passo1.png','images/oceania_passo2.png'], // 2 frames → ciclo de andar (loop)
+    jump:'images/oceania_pulando.png', atk:'images/oceania_pulando.png',
+    chateada:'images/oceania_passo1.png', alegre:'images/oceania_passo1.png',
+    hold2:'images/oceania_segurar.png', hold3:'images/oceania_segurar.png',
+    arrow:'images/oceania_finalizacao.png',                        // MAREMOTO ABISSAL (pose)
+  },
 };
 const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
 function wgApplyChar(key){
@@ -2657,6 +2669,42 @@ function wgApplyChar(key){
 wgApplyChar(wgChar);
 // Frame atual do "andar": cicla os frames do personagem (Venebra=2 → anda, Mizuki=1) ~5x/s (WG.runPhase).
 function wgRunSpr(){ const f=WG_SPR.runFrames; return (f && f.length) ? f[Math.floor(WG.runPhase*0.5)%f.length] : WG_SPR.run; }
+
+// Paleta de "magia de cajado" por personagem — Mizuki é a exceção (flecha estelar,
+// tratada no else). Venebra = magia de sangue (vermelho); Oceania = magia de água
+// (azul-oceano). Generaliza os efeitos (acerto, orbes, finisher) por cor, em vez de
+// duplicar o código canvas — venebra mantém EXATAMENTE as cores de antes.
+const WG_MAGIC = {
+  venebra: {
+    say:'🩸 EXPLOSÃO DE MAGIA SANGUÍNEA! 🩸',
+    hitBurstHi:'#ff2a3a', hitBurstLo:'#c81428',
+    ring1Hi:'#e01030', ring1Lo:'#a30012', ring2:'#ffd0d6',
+    judgeHi:'#ff5a6e', judgeLo:'#ff8a96',
+    projShadow:'#c81428', projTrail:['rgba(200,20,40,0)','rgba(170,10,30,.65)','rgba(255,90,110,.9)'],
+    orb:['#ffe0e4','#e01030','#5a0a16'],
+    chargeShadow:'#e01030', chargeGrad:['#ffd0d6','#c81428','#5a0a16','rgba(90,10,22,0)'],
+    fistTrail:['rgba(170,10,30,0)','rgba(255,90,110,.9)'],
+    explGlow:['rgba(255,210,216,.95)','rgba(224,16,48,.85)','rgba(120,0,20,.7)','rgba(8,2,4,0)'],
+    explRings:[['#ff5a6e',1.0],['#c81428',0.82],['#5a0a16',0.62],['#0a0205',0.42]],
+    explShadow:'#c81428', shard:['#c81428','#7a0010'], shardShadow:'#e01030',
+    particles:['#d11a24','#a30012','#7a0010','#c01020','#8b0000'],
+  },
+  oceania: {
+    say:'🌊 MAREMOTO ABISSAL! 🌊',
+    hitBurstHi:'#5ad9ff', hitBurstLo:'#1e7ae0',
+    ring1Hi:'#28c0ff', ring1Lo:'#1060c0', ring2:'#d6f2ff',
+    judgeHi:'#5ad9ff', judgeLo:'#8ad0ff',
+    projShadow:'#1e7ae0', projTrail:['rgba(30,120,224,0)','rgba(20,90,200,.65)','rgba(120,220,255,.9)'],
+    orb:['#e0f4ff','#1e88e5','#0a3a7a'],
+    chargeShadow:'#28c0ff', chargeGrad:['#d6f2ff','#1e88e5','#0a3a7a','rgba(10,40,90,0)'],
+    fistTrail:['rgba(20,90,200,0)','rgba(120,220,255,.9)'],
+    explGlow:['rgba(214,242,255,.95)','rgba(30,136,229,.85)','rgba(10,58,122,.7)','rgba(2,10,26,0)'],
+    explRings:[['#5ad9ff',1.0],['#1e88e5',0.82],['#0a3a7a',0.62],['#041224',0.42]],
+    explShadow:'#1e7ae0', shard:['#1e88e5','#0a3a7a'], shardShadow:'#28c0ff',
+    particles:['#28c0ff','#1e88e5','#1060c0','#5ad9ff','#0a3a7a'],
+  },
+};
+function wgMagic(){ return WG_MAGIC[wgChar] || null; }
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -2690,9 +2738,10 @@ function selectWgSubmode(m){
 function selectWgChar(key){
   wgApplyChar(key); // normaliza wgChar e troca os sprites
   localStorage.setItem('dw_wgchar', wgChar);
-  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra');
+  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania');
   if(m) m.classList.toggle('sel', wgChar==='mizuki');
   if(v) v.classList.toggle('sel', wgChar==='venebra');
+  if(o) o.classList.toggle('sel', wgChar==='oceania');
 }
 
 function selectMode(m){
@@ -4143,6 +4192,7 @@ const CHAR_ICONS = {
   icy:       'images/IconeIcy.png',
   linnea:    'images/IconeLinnea.png',   // Mizuki (reusa ícone/imagens da Linnea)
   venebra:   'images/IconeVenebra.png',  // Lady Venebra — ícone de perfil próprio
+  oceania:   'images/IconeOceania.png',  // Oceania — ícone de perfil próprio
   // ⚠️ TEMP REMOVIDO — restaurar com as personagens:
   // columbina: 'images/IconeColumbina.png',
   // madoka:    'images/IconeMadoka.png',
@@ -7676,6 +7726,24 @@ CHARACTERS.venebra = {
     miss:['Patético... 💔','Falhou, mortal 🦇','Decepcionante 🩸'],
   }
 };
+// ── Oceania, a Rainha dos Mares — jogável na Guerra Estelar + Audição (gacha).
+//    Mesma organização da Venebra (wargameOnly, previewImg = splashart). ──
+CHARACTERS.oceania = {
+  name: 'Oceania',
+  desc: 'A Rainha dos Mares. Comanda as marés com seu cajado de cristal abissal — a fúria do oceano em pessoa.',
+  tag: 'LENDÁRIO', tagClass: 'lendario', rarity: 'lendario',
+  gwPrice: 2500, alwaysUnlocked: false, wargameOnly: true,
+  previewImg: 'images/oceania_splashart.png',
+  imgs: { wave:'images/oceania_splashart.png', animado:'images/oceania_splashart.png', dormindo:'images/oceania_splashart.png', raiva:'images/oceania_splashart.png', surpreso:'images/oceania_splashart.png', tranquilo:'images/oceania_splashart.png' },
+  filter: 'drop-shadow(0 0 16px rgba(40,192,255,.6)) drop-shadow(0 0 34px rgba(10,58,122,.4))',
+  dialogues: {
+    wave:['🌊 As marés obedecem.','💧 O oceano desperta','🔱 Comece.'], animado:['MAREMOTO!! 🌊','MAGNÍFICO!! 💧','Curve-se à maré! 👑'],
+    dormindo:['...zZ 🌊','A rainha repousa','hmm... 💧'], raiva:['Insolência! 🌊','Afogue-se... 💧','Não me provoque! 💢'],
+    surpreso:['Oh?! 🌊','Interessante... 💧','Inesperado! 👑'], tranquilo:['Sinta a correnteza 🌊','O abismo observa 💧','Prossiga 🔱'],
+    combo50:['50! A maré sobe 🌊','Continue, mortal 💧'], combo100:['100! FÚRIA ABISSAL 🌊','A realeza aprova 👑'],
+    miss:['Patético... 💔','Afundou, mortal 💧','Decepcionante 🌊'],
+  }
+};
 // Removidas do roster (não-destrutivo: só somem do gacha/mascote; revertível): Icy, Stella, Natsumi
 delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
 
@@ -7937,6 +8005,7 @@ const BANNER_THEME = {
   stella: 'radial-gradient(ellipse at 50% 22%,#9a7bff 0%,#45389c 52%,#0a0a2e 100%)',
   natsumi:'radial-gradient(ellipse at 50% 22%,#ff5aa0 0%,#a83464 52%,#2a0a1c 100%)',
   venebra:'radial-gradient(ellipse at 50% 22%,#c81428 0%,#5a0a16 52%,#0a0205 100%)',
+  oceania:'radial-gradient(ellipse at 50% 22%,#28c0ff 0%,#0a3a7a 52%,#041224 100%)',
 };
 
 function wishBanners(){
@@ -8520,13 +8589,14 @@ function wgRelease(kind){
 
 // Efeito de impacto no pé da Mizuki
 function wgHitFx(ex,laneY,perf,c){
-  if(wgChar==='venebra'){
-    // MAGIA DE SANGUE: o acerto inteiro vira vermelho sangue (bem visível)
-    spawnBurst(ex,laneY,perf?'#ff2a3a':'#c81428',perf?26:16);
-    wgBloodBurst(ex,laneY,perf?16:10);
-    rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#e01030':'#a30012',w:5});
-    rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffd0d6',w:3,flash:true});
-    wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ff5a6e':'#ff8a96');
+  const mg=wgMagic();
+  if(mg){
+    // MAGIA DE CAJADO (Venebra: sangue / Oceania: água): o acerto fica na cor da personagem
+    spawnBurst(ex,laneY,perf?mg.hitBurstHi:mg.hitBurstLo,perf?26:16);
+    wgMagicBurst(ex,laneY,perf?16:10);
+    rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?mg.ring1Hi:mg.ring1Lo,w:5});
+    rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:mg.ring2,w:3,flash:true});
+    wgSetJudge(perf?'PERFECT':'GOOD', perf?mg.judgeHi:mg.judgeLo);
     return;
   }
   spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
@@ -8592,7 +8662,7 @@ function wgStartFinisherWave(){
   if(WG.waving) return;
   WG.waving=true; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.lungeT=0; WG.atkTimer=0; WG.bossHp=WG.bossMaxHp*0.001;
   wgHoldSfxStop(); wgSfx('charge');
-  wgSay('mizuki', wgChar==='venebra' ? '🩸 EXPLOSÃO DE MAGIA SANGUÍNEA! 🩸' : '✦ FLECHA ESTELAR! ✦', 3);
+  wgSay('mizuki', wgMagic() ? wgMagic().say : '✦ FLECHA ESTELAR! ✦', 3);
   wgSay('boss','N-NÃO!!! 😱', 2.4);
 }
 
@@ -8951,12 +9021,13 @@ function drawWgSpecial(glow){
   if(sp.arrows) for(const a of sp.arrows){
     const ax=a.x0+(a.x1-a.x0)*a.t, ay=a.y0+(a.y1-a.y0)*a.t, ang=Math.atan2(a.y1-a.y0,a.x1-a.x0);
     ctx.save(); ctx.translate(ax,ay); ctx.rotate(ang);
-    if(wgChar==='venebra'){
-      // orbe vermelho de sangue + rastro
-      ctx.shadowColor='#c81428'; ctx.shadowBlur=glow?22:0;
-      const tr=ctx.createLinearGradient(-56,0,8,0); tr.addColorStop(0,'rgba(200,20,40,0)'); tr.addColorStop(.7,'rgba(170,10,30,.65)'); tr.addColorStop(1,'rgba(255,90,110,.9)');
+    const mg=wgMagic();
+    if(mg){
+      // orbe de magia (cor da personagem) + rastro
+      ctx.shadowColor=mg.projShadow; ctx.shadowBlur=glow?22:0;
+      const tr=ctx.createLinearGradient(-56,0,8,0); tr.addColorStop(0,mg.projTrail[0]); tr.addColorStop(.7,mg.projTrail[1]); tr.addColorStop(1,mg.projTrail[2]);
       ctx.fillStyle=tr; ctx.fillRect(-56,-5,62,10);
-      const og=ctx.createRadialGradient(0,0,0,0,0,12); og.addColorStop(0,'#ffe0e4'); og.addColorStop(.4,'#e01030'); og.addColorStop(1,'#5a0a16');
+      const og=ctx.createRadialGradient(0,0,0,0,0,12); og.addColorStop(0,mg.orb[0]); og.addColorStop(.4,mg.orb[1]); og.addColorStop(1,mg.orb[2]);
       ctx.fillStyle=og; ctx.beginPath(); ctx.arc(0,0,11,0,Math.PI*2); ctx.fill();
     } else {
       if(glow){ ctx.shadowColor='#9ff0ff'; ctx.shadowBlur=16; }
@@ -9083,7 +9154,7 @@ function drawWargame(t){
             sp.hits++; score.combo++; if(score.combo>score.maxCombo) score.maxCombo=score.combo; updateHUD(); // conta como combo
             wgSfx('minion'); WG.bossShake=12;
             wgHitFx(sp.x, sp.y, true, C_AIR);
-            if(wgChar==='venebra') wgBloodBurst(sp.x, sp.y, 12); else spawnBurst(sp.x, sp.y, '#28e0ff', 12);
+            if(wgMagic()) wgMagicBurst(sp.x, sp.y, 12); else spawnBurst(sp.x, sp.y, '#28e0ff', 12);
             if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; sp.arrows.length=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki','Tomaaa!! 💥',1.8); }
           }
         }
@@ -9278,20 +9349,20 @@ function drawWargame(t){
     spr=wgRunSpr(); drawX=WG.charX+CW*0.30; feet=WG.floorFeet;
   } else {
     // partida normal
-    if(WG.phase==='special' && wgChar==='venebra'){
-      spr=WG_SPR.hold2;          // DarkCatBot gigante → Lady Venebra na pose de segurar (cajado = venebra_segurar)
+    if(WG.phase==='special' && wgMagic()){
+      spr=WG_SPR.hold2;          // DarkCatBot gigante → personagem de cajado na pose de segurar
     }
     else if(holding){            // segurando nota → Chute Lendário com explosão em movimento (3 frames)
       const h=WG.holds.air||WG.holds.ground;
       let frac=0; if(h&&h.note&&h.note.holdDur>0) frac=Math.max(0,Math.min(1,(st-h.note.hitTime)/h.note.holdDur));
       const pick = frac<0.85 ? WG_SPR.hold2 : WG_SPR.hold3;
       spr=(pick.complete&&pick.naturalWidth)?pick:((WG_SPR.hold2.complete&&WG_SPR.hold2.naturalWidth)?WG_SPR.hold2:WG_SPR.atk);
-      if(wgChar==='venebra' && Math.random()<0.4) wgBloodBurst(WG.hitX, holdingAir?WG.airNoteY:WG.groundNoteY, 2); // magia de sangue ao segurar
+      if(wgMagic() && Math.random()<0.4) wgMagicBurst(WG.hitX, holdingAir?WG.airNoteY:WG.groundNoteY, 2); // magia ao segurar
     }
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
-    const tremble=(holding || (WG.phase==='special' && wgChar==='venebra'))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
+    const tremble=(holding || (WG.phase==='special' && wgMagic()))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
     drawX=WG.charX; feet=WG.feetY-bob+tremble;
   }
   const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chH*mzRatio;
@@ -9311,42 +9382,43 @@ function drawWargame(t){
     const wt=WG.waveT, ox=drawX, oy=feet-chH*0.55;
     const bcx=WG.bossX, bcy=WG.floorFeet-bossH*0.5;
     const ang=Math.atan2(bcy-oy,bcx-ox), len=Math.hypot(bcx-ox,bcy-oy);
-    if(wgChar==='venebra'){
-      // ═══ EXPLOSÃO DE MAGIA SANGUÍNEA ═══
-      // carga (1.2-2.4): energia de sangue acumulando no cajado
+    const mg=wgMagic();
+    if(mg){
+      // ═══ MAGIA DE CAJADO (Venebra: sangue / Oceania: água) ═══
+      // carga (1.2-2.4): energia acumulando no cajado
       if(wt>=1.2 && wt<2.5){
         const cg=Math.min(1,(wt-1.2)/1.3), rad=14+66*cg;
         ctx.save(); ctx.globalAlpha=cg;
         const g=ctx.createRadialGradient(ox,oy,0,ox,oy,rad);
-        g.addColorStop(0,'#ffd0d6'); g.addColorStop(.4,'#c81428'); g.addColorStop(.75,'#5a0a16'); g.addColorStop(1,'rgba(90,10,22,0)');
+        g.addColorStop(0,mg.chargeGrad[0]); g.addColorStop(.4,mg.chargeGrad[1]); g.addColorStop(.75,mg.chargeGrad[2]); g.addColorStop(1,mg.chargeGrad[3]);
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(ox,oy,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
       }
-      // orbes de sangue (2.4-3.4): vários orbes com rastro convergem da Venebra até o boss
+      // orbes (2.4-3.4): vários orbes com rastro convergem da personagem até o boss
       if(wt>=2.4 && wt<3.4){
         const ap=(wt-2.4)/0.9;
         for(let o=0;o<5;o++){
           const ph=ap - o*0.06; if(ph<0||ph>1) continue;
           const spread=(o-2)*18*(1-ph);
           const px=ox+(bcx-ox)*ph - Math.sin(ang)*spread, py=oy+(bcy-oy)*ph + Math.cos(ang)*spread;
-          ctx.save(); ctx.shadowColor='#e01030'; ctx.shadowBlur=glow?20:0;
+          ctx.save(); ctx.shadowColor=mg.chargeShadow; ctx.shadowBlur=glow?20:0;
           const tx=px-Math.cos(ang)*36, ty=py-Math.sin(ang)*36;
-          const tg=ctx.createLinearGradient(tx,ty,px,py); tg.addColorStop(0,'rgba(170,10,30,0)'); tg.addColorStop(1,'rgba(255,90,110,.9)');
+          const tg=ctx.createLinearGradient(tx,ty,px,py); tg.addColorStop(0,mg.fistTrail[0]); tg.addColorStop(1,mg.fistTrail[1]);
           ctx.strokeStyle=tg; ctx.lineWidth=8; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(px,py); ctx.stroke();
-          const og=ctx.createRadialGradient(px,py,0,px,py,13); og.addColorStop(0,'#ffe0e4'); og.addColorStop(.4,'#e01030'); og.addColorStop(1,'#5a0a16');
+          const og=ctx.createRadialGradient(px,py,0,px,py,13); og.addColorStop(0,mg.orb[0]); og.addColorStop(.4,mg.orb[1]); og.addColorStop(1,mg.orb[2]);
           ctx.fillStyle=og; ctx.beginPath(); ctx.arc(px,py,12,0,Math.PI*2); ctx.fill(); ctx.restore();
         }
       }
-      // EXPLOSÃO (3.3+): glow de sangue + anéis vermelho→escuro→preto + estilhaços voando
+      // EXPLOSÃO (3.3+): glow + anéis + estilhaços voando (cor da personagem)
       if(wt>=3.3){
         const bp=Math.min(1,(wt-3.3)/0.6), R=(bossW*0.95+30)*bp;
         ctx.save();
         const ig=ctx.createRadialGradient(bcx,bcy,0,bcx,bcy,R+18);
-        ig.addColorStop(0,'rgba(255,210,216,.95)'); ig.addColorStop(.25,'rgba(224,16,48,.85)'); ig.addColorStop(.6,'rgba(120,0,20,.7)'); ig.addColorStop(1,'rgba(8,2,4,0)');
+        ig.addColorStop(0,mg.explGlow[0]); ig.addColorStop(.25,mg.explGlow[1]); ig.addColorStop(.6,mg.explGlow[2]); ig.addColorStop(1,mg.explGlow[3]);
         ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(bcx,bcy,R+18,0,Math.PI*2); ctx.fill();
-        const rings3=[['#ff5a6e',1.0],['#c81428',0.82],['#5a0a16',0.62],['#0a0205',0.42]];
-        for(let i=0;i<rings3.length;i++){ ctx.globalAlpha=(1-bp)*0.85+0.15; ctx.strokeStyle=rings3[i][0]; ctx.lineWidth=11*(1-i*0.18)+2; ctx.shadowColor='#c81428'; ctx.shadowBlur=glow?20:0; ctx.beginPath(); ctx.arc(bcx,bcy,R*rings3[i][1],0,Math.PI*2); ctx.stroke(); }
+        const rings3=mg.explRings;
+        for(let i=0;i<rings3.length;i++){ ctx.globalAlpha=(1-bp)*0.85+0.15; ctx.strokeStyle=rings3[i][0]; ctx.lineWidth=11*(1-i*0.18)+2; ctx.shadowColor=mg.explShadow; ctx.shadowBlur=glow?20:0; ctx.beginPath(); ctx.arc(bcx,bcy,R*rings3[i][1],0,Math.PI*2); ctx.stroke(); }
         ctx.globalAlpha=Math.max(0,1-bp);
-        for(let s=0;s<14;s++){ const aa=(s/14)*Math.PI*2+animT*0.6, rr=R*(0.5+0.5*((s*37)%10)/10); const sx2=bcx+Math.cos(aa)*rr, sy2=bcy+Math.sin(aa)*rr*0.85, sz=4+((s*53)%6); ctx.fillStyle=s%2?'#c81428':'#7a0010'; ctx.shadowColor='#e01030'; ctx.shadowBlur=glow?12:0; ctx.beginPath(); ctx.arc(sx2,sy2,sz,0,Math.PI*2); ctx.fill(); }
+        for(let s=0;s<14;s++){ const aa=(s/14)*Math.PI*2+animT*0.6, rr=R*(0.5+0.5*((s*37)%10)/10); const sx2=bcx+Math.cos(aa)*rr, sy2=bcy+Math.sin(aa)*rr*0.85, sz=4+((s*53)%6); ctx.fillStyle=s%2?mg.shard[0]:mg.shard[1]; ctx.shadowColor=mg.shardShadow; ctx.shadowBlur=glow?12:0; ctx.beginPath(); ctx.arc(sx2,sy2,sz,0,Math.PI*2); ctx.fill(); }
         ctx.restore();
       }
     } else {
@@ -9798,12 +9870,13 @@ function spawnBurst(x,y,color,n){
     particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.5,life:1,decay:.025+Math.random()*.02,size:1.5+Math.random()*3,color});
   }
 }
-// Magia de sangue (Lady Venebra): partículas vermelhas PEQUENAS que escorrem um pouco.
-const WG_BLOOD_COLS=['#d11a24','#a30012','#7a0010','#c01020','#8b0000'];
-function wgBloodBurst(x,y,n){
+// Magia de cajado (Venebra: sangue / Oceania: água): partículas PEQUENAS na cor da
+// personagem (paleta WG_MAGIC; fallback vermelho se faltar).
+function wgMagicBurst(x,y,n){
+  const cols=(wgMagic()&&wgMagic().particles)||['#d11a24','#a30012','#7a0010','#c01020','#8b0000'];
   for(let i=0;i<n;i++){
     const a=Math.random()*Math.PI*2,sp=0.8+Math.random()*3;
-    particles.push({x:x+(Math.random()-0.5)*10,y:y+(Math.random()-0.5)*10,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.4,life:1,decay:.03+Math.random()*.025,size:1.1+Math.random()*2.2,color:WG_BLOOD_COLS[(Math.random()*WG_BLOOD_COLS.length)|0]});
+    particles.push({x:x+(Math.random()-0.5)*10,y:y+(Math.random()-0.5)*10,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.4,life:1,decay:.03+Math.random()*.025,size:1.1+Math.random()*2.2,color:cols[(Math.random()*cols.length)|0]});
   }
 }
 function addJudge(x,y,text,color){ judgments.push({x,y,vy:-1.6,text,color,life:1,decay:.022,sc:1.5}); }
