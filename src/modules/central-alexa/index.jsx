@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
@@ -61,6 +61,44 @@ function hdArtistImage(url) {
   if (!url) return url;
   return url.replace(/\/\d+x\d+-/, '/1000x1000-');
 }
+
+// Modal do vídeo "Mensagem Especial". É um componente MEMOIZADO à parte de
+// propósito: a Central Alexa re-renderiza a cada 200ms (timer da letra) e, se o
+// modal ficasse dentro do render principal, o vídeo travava — o backdrop com
+// blur tinha que re-borrar o fundo (que muda toda hora) a cada frame. Isolado
+// aqui, com props estáveis (open/onClose/gold), o React pula esse subtree
+// inteiro durante o "storm" de re-renders → vídeo liso. Também: SEM blur no
+// backdrop (fundo opaco) pelo mesmo motivo, e quando o vídeo acaba mostra a
+// capa ampliada em vez do último frame parado.
+const MSG_COVER = '/mensagem-especial-capa.png';
+const MSG_VIDEO = '/mensagem-especial-video.mp4';
+const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold }) {
+  const [ended, setEnded] = useState(false);
+  useEffect(() => { if (open) setEnded(false); }, [open]);
+  if (!open) return null;
+  const frameStyle = {
+    maxWidth: 'min(92vw,460px)', maxHeight: '80vh', borderRadius: 16,
+    border: `3px solid ${gold}`, boxShadow: `0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${gold}55`,
+    cursor: 'default', background: '#000',
+  };
+  return (
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 14, background: 'rgba(6,4,16,0.92)', cursor: 'zoom-out', padding: 24 }}>
+      {ended ? (
+        <img src={MSG_COVER} alt="Mensagem Especial" onClick={e => e.stopPropagation()} style={frameStyle} />
+      ) : (
+        <video src={MSG_VIDEO} controls autoPlay playsInline preload="auto"
+          onEnded={() => setEnded(true)} onClick={e => e.stopPropagation()} style={frameStyle} />
+      )}
+      <button onClick={onClose}
+        style={{ padding: '8px 20px', borderRadius: 999, border: '1.5px solid rgba(255,255,255,0.3)',
+          background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        {ended ? 'Fechar' : 'Fechar'}
+      </button>
+    </div>
+  );
+});
 
 const VAMP_CARD_CSS = `
 @keyframes vampMoonPulse{0%,100%{opacity:.65;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
@@ -1448,6 +1486,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [maquinaView, setMaquinaView]   = useState('geral'); // geral | mensal | djs | semaninha
   const [zoomArtist, setZoomArtist]     = useState(null); // {name, img} — foto do artista ampliada (lightbox)
   const [msgVideoOpen, setMsgVideoOpen] = useState(false); // modal do video "Mensagem Especial"
+  const closeMsgVideo = useCallback(() => setMsgVideoOpen(false), []); // estável p/ o memo do modal
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
   const [collageBusy, setCollageBusy]   = useState(false);
@@ -1774,20 +1813,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           {podium}
           {showSpecialMsg && (
             <div onClick={()=>setMsgVideoOpen(true)} title="Clique para ver a mensagem especial"
-              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 10px 28px ${T.gold}44`;}}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 12px 32px ${T.gold}44`;}}
               onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=`0 6px 20px ${T.gold}22`;}}
-              style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.gold}66`,padding:"12px 14px",boxShadow:`0 6px 20px ${T.gold}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"transform .18s,box-shadow .18s"}}>
-              <div style={{position:"relative",width:54,height:54,borderRadius:11,overflow:"hidden",flexShrink:0}}>
-                <img src="/mensagem-especial-capa.png" alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.3)"}}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none" style={{filter:"drop-shadow(0 1px 3px rgba(0,0,0,.5))"}}><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              style={{borderRadius:16,background:cardBg,border:`1px solid ${T.gold}66`,boxShadow:`0 6px 20px ${T.gold}22`,cursor:"pointer",overflow:"hidden",transition:"transform .18s,box-shadow .18s"}}>
+              {/* Capa grande do vídeo */}
+              <div style={{position:"relative",width:"100%",height:200}}>
+                <img src="/mensagem-especial-capa.png" alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 20%",display:"block"}}/>
+                <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,.05) 55%,rgba(0,0,0,.22))"}}/>
+                <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:60,height:60,borderRadius:"50%",background:"rgba(0,0,0,.45)",border:"2px solid rgba(255,255,255,.9)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 18px rgba(0,0,0,.5)"}}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none" style={{marginLeft:3}}><polygon points="6 4 20 12 6 20 6 4"/></svg>
                 </div>
+                <div style={{position:"absolute",top:10,left:10,padding:"3px 10px",borderRadius:999,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"#fff",fontSize:10.5,fontWeight:800,letterSpacing:".04em",boxShadow:"0 2px 8px rgba(0,0,0,.35)"}}>✨ NOVO</div>
               </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>✨ Mensagem Especial!</div>
-                <div style={{fontSize:11.5,color:T.textT,marginTop:2}}>Clique aqui para ver</div>
+              <div style={{padding:"11px 14px",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:800,color:T.text}}>Mensagem Especial!</div>
+                  <div style={{fontSize:11.5,color:T.textT,marginTop:2}}>Clique aqui para ver</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
           )}
         </div>
@@ -3407,18 +3451,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   style={{padding:"8px 20px",borderRadius:999,border:"1.5px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fechar</button>
               </div>
             )}
-            {/* Modal do vídeo "Mensagem Especial" (abre pelo card abaixo do pódio) */}
-            {msgVideoOpen && (
-              <div onClick={()=>setMsgVideoOpen(false)}
-                style={{position:"fixed",inset:0,zIndex:1000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,
-                  background:"rgba(6,4,16,0.86)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",cursor:"zoom-out",padding:24}}>
-                <video src="/mensagem-especial-video.mp4" controls autoPlay playsInline onClick={e=>e.stopPropagation()}
-                  style={{maxWidth:"min(92vw,460px)",maxHeight:"80vh",borderRadius:16,border:`3px solid ${T.gold}`,
-                    boxShadow:`0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${T.gold}55`,cursor:"default",background:"#000"}}/>
-                <button onClick={()=>setMsgVideoOpen(false)}
-                  style={{padding:"8px 20px",borderRadius:999,border:"1.5px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fechar</button>
-              </div>
-            )}
+            {/* Modal do vídeo "Mensagem Especial" (abre pelo card abaixo do pódio) —
+                componente memoizado à parte pra não travar com os re-renders de 200ms */}
+            <MsgVideoModal open={msgVideoOpen} onClose={closeMsgVideo} gold={T.gold} />
             <div style={{marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
               <div>
                 <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
@@ -3511,7 +3546,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {maquinaView==='geral' && (
                       maquinaData.periodStart && (Date.now() - new Date(maquinaData.periodStart).getTime()) < MAQUINA_MIN_DAYS*86400000
                         ? renderMaquinaAccumulating(maquinaData.periodStart)
-                        : renderTopCards(maquinaData, true)
+                        : renderTopCards(maquinaData, isAdmin)
                     )}
 
                     {/* ── POR MÊS / RETROSPECTIVA ── */}
