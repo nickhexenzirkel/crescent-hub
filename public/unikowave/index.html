@@ -8385,6 +8385,30 @@ const WG_BOSS_TAUNTS = ['Patético!','Dance até cair!','Hahaha!','É só isso?'
 const WG_BOSS_DEATH  = ['Im... impossível!','A música... me... venceu...','Você... é forte demais...','Voltarei... mais forte!'];
 const WG_MIZUKI_LINES= ['Vamos lá! 🌟','Toma essa!','No ritmo! 🎶','Não desisto!','Pra cima dele!','Tá fácil!','Senta o dedo!'];
 const WG_MIZUKI_HURT = ['Ai! 😣','Essa doeu!','Ugh!','Ei!! 😤'];
+// Falas da Guerra Estelar POR PERSONAGEM. Antes eram só as da Mizuki (todos os
+// personagens falavam igual); agora cada um tem as suas. wgLine(key) pega a fala
+// do personagem atual (ou cai na da Mizuki se faltar). 'lines'/'hurt' são arrays
+// (usar com wgPick); o resto são frases únicas de cada evento.
+const WG_LINES = {
+  mizuki: {
+    lines: WG_MIZUKI_LINES, hurt: WG_MIZUKI_HURT,
+    finisher:'Agora é minha vez! 🔥', victory:'Conseguimos! 🌟',
+    bigMinion:'Apareceu um grandão! Bate de W!', bigDefeated:'Tomaaa!! 💥',
+  },
+  venebra: {
+    lines: ['Curve-se, verme. 🩸','Sangue! 🦇','Patético...','A noite é minha 🌙','Ajoelhe-se! 👑','Insignificante.','Sinta meu poder! 🩸'],
+    hurt: ['Insolência! 🩸','Como ousa?! 💢','Argh!','Você vai pagar! 🦇'],
+    finisher:'Chega de brincadeira, verme. 🩸', victory:'Como esperado da realeza. 👑',
+    bigMinion:'Um graúdo? Sangre-o com W! 🩸', bigDefeated:'Deite-se no pó! 🦇',
+  },
+  oceania: {
+    lines: ['As marés obedecem. 🌊','Afogue-se! 💧','Sinta a correnteza 🌊','O abismo chama 🔱','Curve-se à maré! 👑','Uma simples gota.','Sob minhas ondas! 🌊'],
+    hurt: ['Ousadia! 🌊','Como se atreve?! 💢','Argh!','A maré vai te levar! 💧'],
+    finisher:'A maré virou, criatura. 🌊', victory:'O oceano sempre vence. 🔱',
+    bigMinion:'Um grandão? Afogue-o com W! 🌊', bigDefeated:'De volta ao fundo do mar! 💧',
+  },
+};
+function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!=null) ? c[key] : WG_LINES.mizuki[key]; }
 
 function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (W) / 0-1 = chão (S)
 function wgPick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -8633,7 +8657,7 @@ function wgEnterFinisher(){
   // resolve o que sobrou pra não contar como erro
   for(const n of chart){ if(n.state==='pending'||n.state==='holding') n.state='gone'; }
   WG.holds.air=null; WG.holds.ground=null; WG.bolts.length=0;
-  wgSay('mizuki','Agora é minha vez! 🔥',3);
+  wgSay('mizuki', wgLine('finisher'), 3);
   wgSay('boss','N-não!! Fique longe!',3);
 }
 
@@ -8674,7 +8698,7 @@ function wgBossDie(){
   spawnBurst(bx,by,'#ffd34d',70);
   try{ triggerScreenFlash && triggerScreenFlash('perfect'); }catch(_){}
   wgSay('boss', wgPick(WG_BOSS_DEATH), 4.5);   // fala antes de morrer
-  wgSay('mizuki','Conseguimos! 🌟', 4);
+  wgSay('mizuki', wgLine('victory'), 4);
   // encerra a partida após a animação/fala
   if(!WG.resultScheduled){
     WG.resultScheduled=true;
@@ -8690,7 +8714,7 @@ function wgFireBolt(){
   score.health=Math.max(0,(score.health??100)-WG_BOLT_DMG*wgDiff().bolt);
   updateLifeBar(); updateHUD();
   WG.hurtT=0.55; WG.bossShake=6;
-  if(Math.random()<0.5) wgSay('mizuki', wgPick(WG_MIZUKI_HURT), 1.3);
+  if(Math.random()<0.5) wgSay('mizuki', wgPick(wgLine('hurt')), 1.3);
   if(score.health<=0) gameOver();
 }
 
@@ -9129,7 +9153,7 @@ function drawWargame(t){
     // Falas periódicas
     if(WG.phase!=='done'){
       if(st>=WG.nextBossSayAt && !WG.bossDefeated && !WG.attack){ wgSay('boss', wgPick(WG_BOSS_TAUNTS)); WG.nextBossSayAt=st+12+Math.random()*7; }
-      if(st>=WG.nextMizukiSayAt && !WG.attack){ wgSay('mizuki', wgPick(WG_MIZUKI_LINES)); WG.nextMizukiSayAt=st+13+Math.random()*7; }
+      if(st>=WG.nextMizukiSayAt && !WG.attack){ wgSay('mizuki', wgPick(wgLine('lines'))); WG.nextMizukiSayAt=st+13+Math.random()*7; }
     }
     // ── EVENTO ESPECIAL (combo 50): minion gigante. Para de nascer minion e some
     //    o boss; o jogador bate 15x com W (ar) pra derrotá-lo e o jogo segue. ──
@@ -9138,7 +9162,7 @@ function drawWargame(t){
       WG.special={ hits:0, need:15, born:animT, defeated:false, defeatT:0, x:CW*0.56, y:WG.airNoteY, arrows:[] };
       WG.holds.air=null; WG.holds.ground=null; wgSyncHoldSfx();
       for(const n of chart){ if((n.state==='pending'||n.state==='holding') && n.hitTime<=st+1.9) n.state='gone'; } // limpa a tela
-      wgSfx('bossMove'); wgSay('mizuki','Apareceu um grandão! Bate de W!',2.6);
+      wgSfx('bossMove'); wgSay('mizuki', wgLine('bigMinion'), 2.6);
     }
     // Progresso do EVENTO ESPECIAL
     if(WG.phase==='special' && WG.special){
@@ -9155,7 +9179,7 @@ function drawWargame(t){
             wgSfx('minion'); WG.bossShake=12;
             wgHitFx(sp.x, sp.y, true, C_AIR);
             if(wgMagic()) wgMagicBurst(sp.x, sp.y, 12); else spawnBurst(sp.x, sp.y, '#28e0ff', 12);
-            if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; sp.arrows.length=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki','Tomaaa!! 💥',1.8); }
+            if(sp.hits>=sp.need){ sp.defeated=true; sp.defeatT=0; sp.arrows.length=0; spawnDeadMinion(sp.x, sp.y, true); wgSfx('kick'); wgSay('mizuki', wgLine('bigDefeated'), 1.8); }
           }
         }
       }
@@ -9166,7 +9190,7 @@ function drawWargame(t){
         if(sp.defeatT>0.6){ // fim do evento → volta ao normal e resume limpo
           for(const n of chart){ if(n.state==='pending' && n.hitTime<=st+1.9) n.state='gone'; }
           WG.special=null; WG.phase='play';
-          wgSay('mizuki', wgPick(WG_MIZUKI_LINES), 2.0);
+          wgSay('mizuki', wgPick(wgLine('lines')), 2.0);
         }
       }
     }
