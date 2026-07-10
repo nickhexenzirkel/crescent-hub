@@ -601,7 +601,7 @@ canvas{display:block}
 .mode-btn small{display:block;font-size:7.5px;font-weight:400;color:rgba(255,255,255,.42);letter-spacing:.2px;line-height:1.25;text-transform:none}
 .mode-btn.sel small{color:rgba(255,255,255,.65)}
 /* Cards de personagem (Guerra Estelar) com retrato */
-.wg-char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.wg-char-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px}
 .wg-char-card{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 6px 8px;border-radius:11px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);cursor:pointer;transition:all .2s;text-align:center}
 .wg-char-card:hover{background:rgba(255,255,255,.07)}
 .wg-char-card.sel{border-color:#ff00cc;background:rgba(255,0,204,.08)}
@@ -2134,7 +2134,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       <div class="prev-diff-label">Modo de Jogo</div>
       <div class="prev-mode-grid">
         <button class="diff-btn normal mode-btn sel" id="modeBtnClassic" onclick="selectMode('classic')"><i class="pxi" data-pxicon="keyboard"></i><span>TECLADO ESTELAR</span><small>Notas em 4 lanes</small></button>
-        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')"><i class="pxi" data-pxicon="swords"></i><span>GUERRA ESTELAR</span><small>Mizuki/Venebra/Oceania vs. Dark CatBot</small></button>
+        <button class="diff-btn insane mode-btn" id="modeBtnWar" onclick="selectMode('wargame')"><i class="pxi" data-pxicon="swords"></i><span>GUERRA ESTELAR</span><small>Escolha seu herói vs. Dark CatBot</small></button>
       </div>
       <div id="modeHint" class="prev-hint"></div>
     </div>
@@ -2171,6 +2171,11 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
             <img class="wg-char-img" src="images/oceania_passo2.png" alt="Oceania" onerror="this.style.display='none'">
             <div class="wg-char-name">🌊 OCEANIA</div>
             <div class="wg-char-desc">Rainha dos Mares. Finisher: Maremoto Abissal.</div>
+          </button>
+          <button class="wg-char-card" id="wgCharAshen" onclick="selectWgChar('ashen')">
+            <img class="wg-char-img" src="images/ashen_passo2.png" alt="Ashen" onerror="this.style.display='none'">
+            <div class="wg-char-name">🔥 ASHEN</div>
+            <div class="wg-char-desc">Cavaleiro das Cinzas. Finisher: Cinzas do Fim.</div>
           </button>
         </div>
       </div>
@@ -2657,6 +2662,13 @@ const WG_CHAR_FRAMES = {
     hold2:'images/oceania_segurar.png', hold3:'images/oceania_segurar.png',
     arrow:'images/oceania_finalizacao.png',                        // MAREMOTO ABISSAL (pose)
   },
+  ashen: {
+    run: ['images/ashen_passo1.png','images/ashen_passo2.png'], // 2 frames → ciclo de andar (loop)
+    jump:'images/ashen_pulando.png', atk:'images/ashen_pulando.png',
+    chateada:'images/ashen_passo1.png', alegre:'images/ashen_passo1.png',
+    hold2:'images/ashen_segurar.png', hold3:'images/ashen_segurar.png',
+    arrow:'images/ashen_segurar.png',                             // CINZAS DO FIM (sem frame próprio → usa a pose de conjurar)
+  },
 };
 const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
 function wgApplyChar(key){
@@ -2703,6 +2715,21 @@ const WG_MAGIC = {
     explShadow:'#1e7ae0', shard:['#1e88e5','#0a3a7a'], shardShadow:'#28c0ff',
     particles:['#28c0ff','#1e88e5','#1060c0','#5ad9ff','#0a3a7a'],
   },
+  ashen: {
+    // Cinzas & brasa: cinza-fumaça com núcleos de brasa âmbar/laranja
+    say:'🔥 CINZAS DO FIM! 🔥',
+    hitBurstHi:'#ffc46b', hitBurstLo:'#c8712a',
+    ring1Hi:'#ff9e3d', ring1Lo:'#a85a1e', ring2:'#f0e6d8',
+    judgeHi:'#ffc46b', judgeLo:'#e0b088',
+    projShadow:'#c8712a', projTrail:['rgba(120,110,100,0)','rgba(180,120,60,.6)','rgba(255,200,120,.9)'],
+    orb:['#fff4e0','#ff9e3d','#4a3020'],
+    chargeShadow:'#ff9e3d', chargeGrad:['#f5ece0','#c8712a','#3a2a20','rgba(40,32,26,0)'],
+    fistTrail:['rgba(180,120,60,0)','rgba(255,200,120,.9)'],
+    explGlow:['rgba(245,236,224,.95)','rgba(230,150,60,.85)','rgba(90,60,40,.7)','rgba(12,10,8,0)'],
+    explRings:[['#ffc46b',1.0],['#c8712a',0.82],['#5a3a24',0.62],['#141010',0.42]],
+    explShadow:'#c8712a', shard:['#8a7a6a','#3a2a20'], shardShadow:'#ff9e3d',
+    particles:['#8a8078','#c8712a','#5a4a3e','#ffc46b','#3a2e26'],
+  },
 };
 function wgMagic(){ return WG_MAGIC[wgChar] || null; }
 
@@ -2738,10 +2765,11 @@ function selectWgSubmode(m){
 function selectWgChar(key){
   wgApplyChar(key); // normaliza wgChar e troca os sprites
   localStorage.setItem('dw_wgchar', wgChar);
-  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania');
+  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania'), a=document.getElementById('wgCharAshen');
   if(m) m.classList.toggle('sel', wgChar==='mizuki');
   if(v) v.classList.toggle('sel', wgChar==='venebra');
   if(o) o.classList.toggle('sel', wgChar==='oceania');
+  if(a) a.classList.toggle('sel', wgChar==='ashen');
 }
 
 function selectMode(m){
@@ -4202,6 +4230,7 @@ const CHAR_ICONS = {
   linnea:    'images/IconeLinnea.png',   // Mizuki (reusa ícone/imagens da Linnea)
   venebra:   'images/IconeVenebra.png',  // Lady Venebra — ícone de perfil próprio
   oceania:   'images/IconeOceania.png',  // Oceania — ícone de perfil próprio
+  ashen:     'images/IconeAshen.png',    // Ashen — ícone de perfil próprio
   // ⚠️ TEMP REMOVIDO — restaurar com as personagens:
   // columbina: 'images/IconeColumbina.png',
   // madoka:    'images/IconeMadoka.png',
@@ -7758,6 +7787,24 @@ CHARACTERS.oceania = {
     miss:['Patético... 💔','Afundou, mortal 💧','Decepcionante 🌊'],
   }
 };
+// ── Ashen, o Cavaleiro das Cinzas — jogável na Guerra Estelar + Audição (gacha).
+//    Mesma organização da Venebra/Oceania (wargameOnly, previewImg = splashart). ──
+CHARACTERS.ashen = {
+  name: 'Ashen',
+  desc: 'O Cavaleiro das Cinzas. Empunha a lâmina que reduz tudo a brasa e pó — só as cinzas restam onde ele passa.',
+  tag: 'LENDÁRIO', tagClass: 'lendario', rarity: 'lendario',
+  gwPrice: 2500, alwaysUnlocked: false, wargameOnly: true,
+  previewImg: 'images/ashen_splashart.png',
+  imgs: { wave:'images/ashen_splashart.png', animado:'images/ashen_splashart.png', dormindo:'images/ashen_splashart.png', raiva:'images/ashen_splashart.png', surpreso:'images/ashen_splashart.png', tranquilo:'images/ashen_splashart.png' },
+  filter: 'drop-shadow(0 0 16px rgba(255,158,61,.5)) drop-shadow(0 0 34px rgba(90,60,40,.45))',
+  dialogues: {
+    wave:['🔥 Vire cinzas.','🗡️ Tudo queima','🌫️ Comece.'], animado:['CINZAS!! 🔥','MAGNÍFICO!! 🗡️','Ajoelhe-se! ⚔️'],
+    dormindo:['...zZ 🌫️','O cavaleiro repousa','hmm... 🔥'], raiva:['Insolência! 🔥','Pó e cinzas... 🌫️','Não me irrite! 💢'],
+    surpreso:['Oh?! 🔥','Interessante... 🗡️','Inesperado! ⚔️'], tranquilo:['Sinta a brasa 🔥','As cinzas observam 🌫️','Prossiga 🗡️'],
+    combo50:['50! A brasa arde 🔥','Continue, mortal 🌫️'], combo100:['100! TUDO EM CINZAS 🔥','Impecável ⚔️'],
+    miss:['Patético... 💔','Virou fumaça, mortal 🌫️','Decepcionante 🔥'],
+  }
+};
 // Removidas do roster (não-destrutivo: só somem do gacha/mascote; revertível): Icy, Stella, Natsumi
 delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
 
@@ -8020,6 +8067,7 @@ const BANNER_THEME = {
   natsumi:'radial-gradient(ellipse at 50% 22%,#ff5aa0 0%,#a83464 52%,#2a0a1c 100%)',
   venebra:'radial-gradient(ellipse at 50% 22%,#c81428 0%,#5a0a16 52%,#0a0205 100%)',
   oceania:'radial-gradient(ellipse at 50% 22%,#28c0ff 0%,#0a3a7a 52%,#041224 100%)',
+  ashen:'radial-gradient(ellipse at 50% 22%,#ff9e3d 0%,#5a3a24 52%,#120e0a 100%)',
 };
 
 function wishBanners(){
@@ -8420,6 +8468,12 @@ const WG_LINES = {
     hurt: ['Ousadia! 🌊','Como se atreve?! 💢','Argh!','A maré vai te levar! 💧'],
     finisher:'A maré virou, criatura. 🌊', victory:'O oceano sempre vence. 🔱',
     bigMinion:'Um grandão? Afogue-o com W! 🌊', bigDefeated:'De volta ao fundo do mar! 💧',
+  },
+  ashen: {
+    lines: ['Vire cinzas. 🔥','Tudo queima. 🗡️','Pó ao pó...','Sinta a brasa 🌫️','Ajoelhe-se, mortal ⚔️','Insignificante fagulha.','Que só reste cinza. 🔥'],
+    hurt: ['Insolência! 🔥','Vai virar pó! 💢','Argh!','Você vai queimar! 🗡️'],
+    finisher:'Reduza-se a cinzas. 🔥', victory:'Só as cinzas restam. 🌫️',
+    bigMinion:'Um graúdo? Queime-o com W! 🔥', bigDefeated:'Vire pó! 🌫️',
   },
 };
 function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!=null) ? c[key] : WG_LINES.mizuki[key]; }
