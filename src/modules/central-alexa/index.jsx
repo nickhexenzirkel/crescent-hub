@@ -77,7 +77,7 @@ const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold }) {
   useEffect(() => { if (open) setEnded(false); }, [open]);
   if (!open) return null;
   const frameStyle = {
-    maxWidth: 'min(92vw,460px)', maxHeight: '80vh', borderRadius: 16,
+    maxWidth: 'min(96vw,720px)', maxHeight: '88vh', borderRadius: 16,
     border: `3px solid ${gold}`, boxShadow: `0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${gold}55`,
     cursor: 'default', background: '#000',
   };
@@ -3546,7 +3546,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {maquinaView==='geral' && (
                       maquinaData.periodStart && (Date.now() - new Date(maquinaData.periodStart).getTime()) < MAQUINA_MIN_DAYS*86400000
                         ? renderMaquinaAccumulating(maquinaData.periodStart)
-                        : renderTopCards(maquinaData, isAdmin)
+                        : renderTopCards(maquinaData, true)
                     )}
 
                     {/* ── POR MÊS / RETROSPECTIVA ── */}
