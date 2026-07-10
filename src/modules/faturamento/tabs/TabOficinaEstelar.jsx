@@ -325,8 +325,28 @@ const TabCarta = () => {
     const src = document.getElementById('carta-doc');
     if (!src) return;
     setPdfBusy(true);
+    // O preview fica dentro de um painel com scroll próprio (overflow:auto,
+    // maxHeight:84vh — ver abaixo). Se o usuário tivesse rolado esse painel pra
+    // baixo antes de clicar em Baixar, o html2canvas capturava a partir da
+    // posição de scroll ERRADA (bug conhecido da lib com containers scrolláveis
+    // aninhados) — o resultado saía cortado pela metade (só a parte que estava
+    // visível). Zera o scroll do painel (E da janela) antes de capturar e
+    // restaura depois, pra sempre capturar o documento inteiro do topo.
+    const scrollParent = src.closest('[style*="overflow"]') || src.parentElement;
+    const prevParentScroll = scrollParent ? scrollParent.scrollTop : 0;
+    const prevWinScroll = window.scrollY;
+    if (scrollParent) scrollParent.scrollTop = 0;
+    window.scrollTo(0, 0);
     try {
-      const canvas = await html2canvas(src, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      // scale mais alto (era 2) — a fonte pequena do documento (9-10px) ficava
+      // borrada/"péssima qualidade" no PDF final. windowWidth/Height + x/y=0
+      // força o html2canvas a enxergar o elemento como se estivesse sozinho no
+      // topo da página, sem depender do scroll de nenhum ancestral.
+      const canvas = await html2canvas(src, {
+        scale: 3, useCORS: true, backgroundColor: '#ffffff',
+        scrollX: 0, scrollY: 0,
+        windowWidth: src.scrollWidth, windowHeight: src.scrollHeight,
+      });
       const imgData = canvas.toDataURL('image/png');
       // Página do PDF do tamanho exato do documento (px → mm, 96dpi)
       const wMm = src.offsetWidth * 25.4 / 96, hMm = src.offsetHeight * 25.4 / 96;
