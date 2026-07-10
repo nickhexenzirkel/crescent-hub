@@ -43,12 +43,23 @@ function fetchArtistImage(name) {
     const timer = setTimeout(() => done(null), 6000);
     window[cb] = (data) => {
       const a = data?.data?.[0];
-      done(a?.picture_medium || a?.picture_big || a?.picture || null);
+      // Prefere picture_big (500x500) — picture_medium (250) ficava borrado nas
+      // fotos grandes do pódio (124px, ~248px em telas retina). 500 é nítido e leve;
+      // o zoom sobe pra 1000 via hdArtistImage. Cai pra menores só se faltar.
+      done(a?.picture_big || a?.picture_xl || a?.picture_medium || a?.picture || null);
     };
     script.onerror = () => done(null);
     script.src = `https://api.deezer.com/search/artist?q=${encodeURIComponent(key)}&limit=1&output=jsonp&callback=${cb}`;
     document.body.appendChild(script);
   });
+}
+
+// O Deezer serve a MESMA imagem em vários tamanhos no próprio caminho da URL
+// (ex.: /500x500-000000-80-0-0.jpg). Troca a dimensão por 1000x1000 pra versão
+// HD do zoom (lightbox); se o padrão não bater, devolve a original inalterada.
+function hdArtistImage(url) {
+  if (!url) return url;
+  return url.replace(/\/\d+x\d+-/, '/1000x1000-');
 }
 
 const VAMP_CARD_CSS = `
@@ -1435,6 +1446,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [artistPhotos, setArtistPhotos] = useState({}); // {nomeArtista: urlFoto} via Deezer
   const [maquinaLoading, setMaquinaLoading] = useState(false);
   const [maquinaView, setMaquinaView]   = useState('geral'); // geral | mensal | djs | semaninha
+  const [zoomArtist, setZoomArtist]     = useState(null); // {name, img} — foto do artista ampliada (lightbox)
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
   const [collageBusy, setCollageBusy]   = useState(false);
@@ -1729,7 +1741,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             return (
               <div key={p.i} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <div style={{fontSize:p.i===0?32:24,lineHeight:1,marginBottom:7}}>{p.medal}</div>
-                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:9,aspectRatio:"1"}}>
+                <div onClick={photo?()=>setZoomArtist({name:artist,img:photo}):undefined}
+                  title={photo?"Ver foto ampliada":undefined}
+                  style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:9,aspectRatio:"1",cursor:photo?"zoom-in":"default"}}>
                   {photo
                     ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`3px solid ${p.ring}`,boxShadow:`0 5px 22px ${p.ring}66`}}/>
                     : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`3px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.32),fontWeight:800,color:p.ring}}>{initials}</div>}
@@ -1797,7 +1811,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           <div key={artist} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?`1px solid ${T.border}`:"none"}}>
             <div style={{width:22,textAlign:"center",fontSize:12,fontWeight:700,color:i<3?T.gold:T.textD}}>#{i+1}</div>
             {artistPhotos[artist]
-              ? <img src={artistPhotos[artist]} alt={artist} style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
+              ? <img src={artistPhotos[artist]} alt={artist} onClick={()=>setZoomArtist({name:artist,img:artistPhotos[artist]})} title="Ver foto ampliada" style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",flexShrink:0,cursor:"zoom-in"}}/>
               : <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${T.gold}44,${T.gold}22)`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:T.gold}}>
                   {artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}
                 </div>
@@ -3356,6 +3370,20 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         {/* ══════════ MÁQUINA DO TEMPO TAB ══════════ */}
         {tab==="maquina"&&(
           <div style={{position:"relative",zIndex:1}}>
+            {/* Lightbox: foto do artista ampliada (HD) ao clicar na foto no pódio/lista */}
+            {zoomArtist && (
+              <div onClick={()=>setZoomArtist(null)}
+                style={{position:"fixed",inset:0,zIndex:1000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,
+                  background:"rgba(6,4,16,0.82)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",cursor:"zoom-out",padding:24}}>
+                <img src={hdArtistImage(zoomArtist.img)} alt={zoomArtist.name} onClick={e=>e.stopPropagation()}
+                  onError={e=>{ if(e.target.src!==zoomArtist.img) e.target.src=zoomArtist.img; }}
+                  style={{maxWidth:"min(90vw,520px)",maxHeight:"78vh",width:"auto",height:"auto",borderRadius:20,objectFit:"contain",
+                    border:`3px solid ${T.gold}`,boxShadow:`0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${T.gold}55`,cursor:"default"}}/>
+                <div style={{fontSize:18,fontWeight:800,color:"#fff",textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>{zoomArtist.name}</div>
+                <button onClick={()=>setZoomArtist(null)}
+                  style={{padding:"8px 20px",borderRadius:999,border:"1.5px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fechar</button>
+              </div>
+            )}
             <div style={{marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
               <div>
                 <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
