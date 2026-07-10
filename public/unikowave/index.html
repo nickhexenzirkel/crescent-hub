@@ -3129,6 +3129,15 @@ function _syncClockToVideo(p){
   }
   let ct=0; try{ ct=p.getCurrentTime()||0; }catch(_){ return; }
   if(ct<=0) return;
+  // Rede de segurança pra duração: se a duração REAL do vídeo for maior que a
+  // estimada (ex.: getYTDuration falhou e caímos em 240s), estende songDuration pro
+  // valor real — senão a Guerra Estelar dispara o finisher cedo demais e "mata o
+  // boss" no meio da música. Só CRESCE (nunca encurta, pra não cortar o chart) e só
+  // sem áudio baixado (com audioBuffer o songDuration já é exato).
+  if(!audioBuffer && bgMode==='video' && p.getDuration){
+    let vd=0; try{ vd=p.getDuration()||0; }catch(_){}
+    if(vd>10 && vd>songDuration+3) songDuration=vd;
+  }
   const target=performance.now()-ct*1000;
   if(!_vbSynced||Math.abs(target-gameStartWallTime)>_VB_SNAP_MS){
     _vbSynced=true; gameStartWallTime=target;                 // snap
@@ -4951,7 +4960,12 @@ async function startLoad(){
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`)
       .then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||url;
-    pendingDuration=0;
+    // BUG CORRIGIDO (jul/2026): usava a duração REAL do vídeo (dur, de getYTDuration)
+    // só pra checar o limite de 10min e depois jogava fora (pendingDuration=0 → 240).
+    // Com isso, se a análise real do ritmo falhasse (yt-dlp/servidor fora), songDuration
+    // ficava 240s e a Guerra Estelar disparava o finisher em ~4min mesmo numa música de
+    // 9min (boss morria cedo). Agora a duração real vira o pendingDuration.
+    pendingDuration = dur>10 ? dur : 0;
     setProgress(100,'Pronto! ✓');
     await delay(250);
     showPreview(url,pendingTitle,pendingDuration||240);
@@ -10359,7 +10373,9 @@ async function libReplay(idx){
     setProgress(25,'Buscando informações...');
     const oembed=await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`).then(r=>r.json()).catch(()=>({}));
     pendingTitle=oembed.title||e.title||e.ytUrl;
-    pendingDuration=e.dur||240;
+    // Duração REAL do vídeo (dur, de getYTDuration) tem prioridade sobre e.dur (que
+    // pode vir errado/ausente → 240) — ver bug corrigido no outro caminho de preview.
+    pendingDuration = dur>10 ? dur : (e.dur||240);
     setProgress(100,'Pronto! ✓');
     await delay(250);
     showPreview(e.ytUrl, pendingTitle, pendingDuration);
