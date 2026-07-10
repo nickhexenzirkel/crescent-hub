@@ -2716,22 +2716,26 @@ const WG_MAGIC = {
     particles:['#28c0ff','#1e88e5','#1060c0','#5ad9ff','#0a3a7a'],
   },
   ashen: {
-    // Cinzas & brasa: cinza-fumaça com núcleos de brasa âmbar/laranja
-    say:'🔥 CINZAS DO FIM! 🔥',
-    hitBurstHi:'#ffc46b', hitBurstLo:'#c8712a',
-    ring1Hi:'#ff9e3d', ring1Lo:'#a85a1e', ring2:'#f0e6d8',
-    judgeHi:'#ffc46b', judgeLo:'#e0b088',
-    projShadow:'#c8712a', projTrail:['rgba(120,110,100,0)','rgba(180,120,60,.6)','rgba(255,200,120,.9)'],
-    orb:['#fff4e0','#ff9e3d','#4a3020'],
-    chargeShadow:'#ff9e3d', chargeGrad:['#f5ece0','#c8712a','#3a2a20','rgba(40,32,26,0)'],
-    fistTrail:['rgba(180,120,60,0)','rgba(255,200,120,.9)'],
-    explGlow:['rgba(245,236,224,.95)','rgba(230,150,60,.85)','rgba(90,60,40,.7)','rgba(12,10,8,0)'],
-    explRings:[['#ffc46b',1.0],['#c8712a',0.82],['#5a3a24',0.62],['#141010',0.42]],
-    explShadow:'#c8712a', shard:['#8a7a6a','#3a2a20'], shardShadow:'#ff9e3d',
-    particles:['#8a8078','#c8712a','#5a4a3e','#ffc46b','#3a2e26'],
+    // Cinzas & fumaça: efeitos em CINZA e BRANCO (branco brilhante → cinza → carvão)
+    say:'🌫️ CINZAS DO FIM! 🌫️',
+    hitBurstHi:'#ffffff', hitBurstLo:'#b8b8b8',
+    ring1Hi:'#eaeaea', ring1Lo:'#8a8a8a', ring2:'#ffffff',
+    judgeHi:'#ffffff', judgeLo:'#cccccc',
+    projShadow:'#9a9a9a', projTrail:['rgba(180,180,180,0)','rgba(150,150,150,.6)','rgba(255,255,255,.9)'],
+    orb:['#ffffff','#c4c4c4','#3a3a3a'],
+    chargeShadow:'#d0d0d0', chargeGrad:['#ffffff','#b0b0b0','#3a3a3a','rgba(30,30,30,0)'],
+    fistTrail:['rgba(150,150,150,0)','rgba(255,255,255,.9)'],
+    explGlow:['rgba(255,255,255,.95)','rgba(200,200,200,.85)','rgba(80,80,80,.7)','rgba(10,10,10,0)'],
+    explRings:[['#ffffff',1.0],['#c4c4c4',0.82],['#5a5a5a',0.62],['#141414',0.42]],
+    explShadow:'#b8b8b8', shard:['#d4d4d4','#4a4a4a'], shardShadow:'#e6e6e6',
+    particles:['#ffffff','#cccccc','#8a8a8a','#e8e8e8','#4a4a4a'],
   },
 };
 function wgMagic(){ return WG_MAGIC[wgChar] || null; }
+// Escala VISUAL do sprite no jogo por personagem (1 = padrão). Só afeta o desenho
+// (cresce a partir dos pés), não a lógica de acerto. Ashen um pouco maior.
+const WG_CHAR_SCALE = { ashen: 1.18 };
+function wgCharScale(){ return WG_CHAR_SCALE[wgChar] || 1; }
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
 const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
@@ -7795,8 +7799,9 @@ CHARACTERS.ashen = {
   tag: 'LENDÁRIO', tagClass: 'lendario', rarity: 'lendario',
   gwPrice: 2500, alwaysUnlocked: false, wargameOnly: true,
   previewImg: 'images/ashen_splashart.png',
+  splashScale: 1.2,   // a arte do Ashen tem muita fumaça em volta → mostra ele um pouco maior no gacha
   imgs: { wave:'images/ashen_splashart.png', animado:'images/ashen_splashart.png', dormindo:'images/ashen_splashart.png', raiva:'images/ashen_splashart.png', surpreso:'images/ashen_splashart.png', tranquilo:'images/ashen_splashart.png' },
-  filter: 'drop-shadow(0 0 16px rgba(255,158,61,.5)) drop-shadow(0 0 34px rgba(90,60,40,.45))',
+  filter: 'drop-shadow(0 0 16px rgba(200,200,200,.5)) drop-shadow(0 0 34px rgba(90,90,90,.45))',
   dialogues: {
     wave:['🔥 Vire cinzas.','🗡️ Tudo queima','🌫️ Comece.'], animado:['CINZAS!! 🔥','MAGNÍFICO!! 🗡️','Ajoelhe-se! ⚔️'],
     dormindo:['...zZ 🌫️','O cavaleiro repousa','hmm... 🔥'], raiva:['Insolência! 🔥','Pó e cinzas... 🌫️','Não me irrite! 💢'],
@@ -8103,6 +8108,7 @@ function renderWishPanel(){
     const ftag=document.getElementById('wishFeaturedTag');
     if(bg) bg.style.background = BANNER_THEME[wishBanner] || 'radial-gradient(ellipse at 50% 25%,#3a2a6a,#0a0518)';
     if(splash && splash.getAttribute('src')!==ch.previewImg){ splash.src=ch.previewImg; splash.style.opacity=1; }
+    if(splash) splash.style.transform = 'scale('+(ch.splashScale||1)+')'; // escala por personagem (ex.: Ashen)
     if(fname) fname.textContent=ch.name;
     if(ftag){ ftag.textContent=ch.tag; ftag.className='wish-featured-tag '+ch.tagClass; }
   }
@@ -8292,6 +8298,7 @@ function showWishReveal(){
     reveal.classList.toggle('win', !!p.win);
     if(p.win){
       img.src = p.ch.previewImg;
+      img.style.transform = 'scale('+(p.ch.splashScale||1)+')'; // escala por personagem (ex.: Ashen)
       title.textContent = '✦ '+p.ch.name.toUpperCase()+' ✦';
       title.style.color = '#ffd700';
       if(rarity){ rarity.textContent = p.ch.tag||''; rarity.className = 'wish-reveal-rarity '+(p.ch.tagClass||'default'); rarity.style.display='inline-block'; }
@@ -8299,6 +8306,7 @@ function showWishReveal(){
       spawnWishSparkles(sparkC);
       playSfx('win');
     } else {
+      img.style.transform = 'scale(1)'; // reseta a escala (não herda a de um personagem anterior)
       img.src = 'images/DodocoDormindo.png';
       title.textContent = 'Não veio nada dessa vez...';
       title.style.color = '#9aa6c0';
@@ -9457,15 +9465,16 @@ function drawWargame(t){
     const tremble=(holding || (WG.phase==='special' && wgMagic()))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
     drawX=WG.charX; feet=WG.feetY-bob+tremble;
   }
-  const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chH*mzRatio;
+  const chDraw = chH * wgCharScale();   // altura VISUAL (por personagem); pés continuam ancorados em `feet`
+  const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chDraw*mzRatio;
   ctx.save(); ctx.translate(drawX, feet); if(mzRot) ctx.rotate(mzRot);
   if(WG.waving && glow){ ctx.shadowColor='#ffd34d'; ctx.shadowBlur=32; }
   else if(glow){ ctx.shadowColor='rgba(255,200,100,.45)'; ctx.shadowBlur=14; }
   if(spr.complete && spr.naturalWidth){
-    ctx.drawImage(spr, -mzDw*0.5, -chH, mzDw, chH); ctx.shadowBlur=0;
-    if(WG.hurtT>0){ const tn=wgRedTinted(spr); if(tn){ ctx.globalAlpha=Math.min(1,WG.hurtT/0.55); ctx.drawImage(tn, -mzDw*0.5, -chH, mzDw, chH); ctx.globalAlpha=1; } }
+    ctx.drawImage(spr, -mzDw*0.5, -chDraw, mzDw, chDraw); ctx.shadowBlur=0;
+    if(WG.hurtT>0){ const tn=wgRedTinted(spr); if(tn){ ctx.globalAlpha=Math.min(1,WG.hurtT/0.55); ctx.drawImage(tn, -mzDw*0.5, -chDraw, mzDw, chDraw); ctx.globalAlpha=1; } }
   } else {
-    ctx.fillStyle=WG.hurtT>0?'#ff5050':'rgba(255,180,80,.9)'; ctx.fillRect(-chH*0.25,-chH,chH*0.5,chH);
+    ctx.fillStyle=WG.hurtT>0?'#ff5050':'rgba(255,180,80,.9)'; ctx.fillRect(-chDraw*0.25,-chDraw,chDraw*0.5,chDraw);
   }
   ctx.restore();
 
