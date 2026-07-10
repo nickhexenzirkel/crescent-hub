@@ -1994,6 +1994,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
   const [bulkCur, setBulkCur] = useState('premium');
   const [bulkAmt, setBulkAmt] = useState('');
   const [kindFilter, setKindFilter] = useState('all'); // all | compra | compra_uniko | checkin | ...
+  const [playerQuery, setPlayerQuery] = useState(''); // busca por colaborador nas Transações de todos
   const allPlayers = useAllPlayers();
 
   const load = async () => {
@@ -2228,6 +2229,18 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 102.13-9.36L1 10" /></svg>Atualizar
           </button>
         </div>
+        {/* Busca por colaborador — filtra a lista pra ver só o histórico de uma pessoa
+            (tudo que ela ganhou, gastou e resgatou), combinando com o filtro de tipo abaixo */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input value={playerQuery} onChange={e => setPlayerQuery(e.target.value)} placeholder="Buscar colaborador nas transações..."
+            style={{ ...adminField, paddingLeft: 34, paddingRight: playerQuery ? 34 : 12 }} />
+          {playerQuery && (
+            <button onClick={() => setPlayerQuery('')} aria-label="Limpar busca" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textT, fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          )}
+        </div>
         {/* Filtro por tipo — deixa fácil isolar só "Compra" (prêmio da loja) ou "Compra de Uniko" */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           {[{ id: 'all', label: 'Todos' }, ...Object.entries(KIND_META).map(([id, m]) => ({ id, label: m.label }))].map(f => {
@@ -2242,10 +2255,35 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
           })}
         </div>
         {(() => {
-          const histFiltered = kindFilter === 'all' ? hist : hist.filter(h => h.kind === kindFilter);
+          const q = playerQuery.trim().toLowerCase();
+          const nameFiltered = q ? hist.filter(h => (h._p || '').toLowerCase().includes(q)) : hist;
+          const histFiltered = kindFilter === 'all' ? nameFiltered : nameFiltered.filter(h => h.kind === kindFilter);
+          // Resumo do que a pessoa buscada ganhou/gastou no total (soma dos deltas positivos e
+          // negativos de cada moeda) — dá pra ver o saldo movimentado sem contar linha por linha.
+          const summary = q ? histFiltered.reduce((acc, h) => {
+            for (const c of ['comum', 'premium']) {
+              if (h[c] == null) continue;
+              if (h[c] >= 0) acc[c].ganho += h[c]; else acc[c].gasto += -h[c];
+            }
+            return acc;
+          }, { comum: { ganho: 0, gasto: 0 }, premium: { ganho: 0, gasto: 0 } }) : null;
           return busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
           : histFiltered.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma transação encontrada.</div>
             : (
+              <div>
+                {summary && (
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', padding: '9px 13px', borderRadius: 10, background: T.goldGl, border: `1px solid ${T.goldLine}44`, marginBottom: 10, fontSize: 12 }}>
+                    <span style={{ fontWeight: 700, color: T.text }}>{histFiltered.length} transaç{histFiltered.length === 1 ? 'ão' : 'ões'}</span>
+                    {['comum', 'premium'].map(c => (
+                      <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <PrismIcon type={c} size={14} />
+                        <span style={{ color: '#16a34a', fontWeight: 700 }}>+{fmt(summary[c].ganho)}</span>
+                        <span style={{ color: T.textD }}>/</span>
+                        <span style={{ color: '#C04050', fontWeight: 700 }}>−{fmt(summary[c].gasto)}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 520, overflowY: 'auto' }}>
                 {histFiltered.map(h => {
                   const meta = KIND_META[h.kind] || { Icon: IcoReceipt, label: h.kind };
@@ -2268,6 +2306,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
                     </div>
                   );
                 })}
+              </div>
               </div>
             );
         })()}
