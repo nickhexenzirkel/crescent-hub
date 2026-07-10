@@ -3005,6 +3005,25 @@ let _videoBgActive=false, _videoBgFaded=false, _videoBgEnding=false;
 // junto; separando, um soluço no vídeo grande vira só um piscar de imagem.
 let _vbPlayer=null, _vbAudioPlayer=null, _ytApiReady=false, _ytApiLoading=false;
 let _videoStartPending=false; // mobile: vídeo já toca desde o toque; no GO só reancora (seekTo 0)
+// BUG CORRIGIDO (jul/2026): "Com Clipe" sem música na 1ª jogada de uma faixa.
+// No desktop o _beginVideoBg sonda o vídeo local por até 4s; se o download ainda
+// não terminou (1ª vez leva ~10-15s), o player do YouTube só é criado DEPOIS do
+// "GO" da contagem (~3.3s) — e o unMute() do GO (ou do _releaseVideoIfGoAlreadyPassed)
+// era mandado pra um YT.Player que ainda não tinha dado onReady: o comando é
+// simplesmente DESCARTADO pela API e o player nasce mudo pra sempre (a partida
+// rodava em silêncio; na 2ª jogada da mesma música o vídeo local já está pronto
+// e funciona). Esta flag guarda o "liberar som" pendente: quem tentar liberar
+// marca true, e o player aplica (unMute+seek+play) no onReady/primeiro PLAYING.
+let _audioReleasePending=false;
+function _applyAudioRelease(p, seek){
+  try{
+    if(!p) return;
+    if(p.unMute)    p.unMute();
+    if(p.setVolume) p.setVolume(100);
+    if(seek && p.seekTo) p.seekTo(Math.max(0,songTime()), true);
+    if(p.playVideo) p.playVideo();
+  }catch(_){}
+}
 let _vbVisibleStuckSince=0; // vídeo visível (decorativo) preso bufferizando/pausado — pra auto-recuperação em syncVideoBg
 let _vbVisibleRetries=0, _vbVisibleGivenUp=false; // depois de várias tentativas sem sucesso, desiste e esconde (evita piscar pra sempre)
 const _VB_VISIBLE_MAX_RETRIES=1; // desiste rápido — o vídeo é só decoração, não vale a pena insistir muito
@@ -3265,14 +3284,14 @@ async function _beginVideoBg(videoId, muted, skipLocalCheck){
 // com o ponto real da música (songTime), em vez de tocar do zero.
 function _releaseVideoIfGoAlreadyPassed(){
   if(_videoStartPending) return; // GO ainda não aconteceu — o fluxo normal cuida disso
+  // Marca o "liberar som" como pendente ANTES de tentar: se o player do YouTube
+  // ainda não deu onReady (caso comum — ele acabou de ser criado, ver comentário
+  // em _audioReleasePending), as chamadas abaixo são descartadas pela API; o
+  // onReady/PLAYING do próprio player reaplica usando essa flag.
+  _audioReleasePending=true;
   try{
     if(_vbPlayer&&_vbPlayer.playVideo) _vbPlayer.playVideo();
-    if(_vbAudioPlayer){
-      if(_vbAudioPlayer.unMute)    _vbAudioPlayer.unMute();
-      if(_vbAudioPlayer.setVolume) _vbAudioPlayer.setVolume(100);
-      if(_vbAudioPlayer.seekTo)    _vbAudioPlayer.seekTo(Math.max(0,songTime()), true);
-      if(_vbAudioPlayer.playVideo) _vbAudioPlayer.playVideo();
-    }
+    _applyAudioRelease(_vbAudioPlayer, true);
   }catch(_){}
 }
 
@@ -3351,11 +3370,18 @@ function _startVideoClockPlayer(videoId, muted){
             e.target.playVideo();
             _capVideoQuality(e.target,'small');
           }catch(_){}
+          // O GO já pode ter passado ENQUANTO este player carregava (1ª jogada
+          // de uma faixa, ver _audioReleasePending) — o unMute mandado lá foi
+          // descartado porque a API ainda não estava pronta. Reaplica agora.
+          if(_audioReleasePending) _applyAudioRelease(e.target, true);
         },
         onStateChange:(e)=>{
           if(e.data===YT.PlayerState.ENDED){ _endByVideo(); return; }
           if(e.data===YT.PlayerState.BUFFERING){ _bufferPause(); return; }
-          if(e.data===YT.PlayerState.PLAYING){ _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target,'small'); }
+          if(e.data===YT.PlayerState.PLAYING){
+            if(_audioReleasePending){ _audioReleasePending=false; _applyAudioRelease(e.target, false); }
+            _bufferResume(); _syncClockToVideo(e.target); _capVideoQuality(e.target,'small');
+          }
         },
       },
     });
@@ -3407,6 +3433,7 @@ function hideVideoBg(){
     wrap.innerHTML='';
   }
   _videoBgActive=false; _videoBgFaded=false; _videoBgEnding=false; _vbVisibleStuckSince=0; _vbVisibleRetries=0; _vbVisibleGivenUp=false;
+  _audioReleasePending=false;
   _restoreGfxAfterVideoMode();
 }
 
@@ -5451,6 +5478,7 @@ function beginGame(){
   showScreen('gameWrap'); document.getElementById('hud').classList.remove('off'); resize();
   gameState='countdown';
   _bufferPaused=false; clearTimeout(_bufferOverlayTimer);          // reseta a auto-pausa de buffering
+  _audioReleasePending=false; // só vira true no GO / _releaseVideoIfGoAlreadyPassed desta partida
   { const bo=document.getElementById('bufferOverlay'); if(bo) bo.style.display='none'; }
   if(gameMode==='wargame') wgInit(); else WG.active=false;
   _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
@@ -5558,6 +5586,11 @@ function runCountdown(){
       // início (descartando o progresso mudo) e libera o som de verdade agora.
       if(_videoStartPending){
         _videoStartPending=false;
+        // Se o player de áudio ainda não existe/está pronto (1ª jogada da faixa,
+        // sondagem do vídeo local ainda rodando — ver _audioReleasePending), os
+        // comandos abaixo se perdem; a flag garante que o onReady/PLAYING do
+        // player reaplique o unMute assim que ele nascer.
+        if(bgMode==='video') _audioReleasePending=true;
         try{
           // Vídeo visível: só reseta a posição (segue mudo, é só decoração).
           if(_vbPlayer){
