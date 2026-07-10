@@ -49,18 +49,21 @@ const buyBtn = (type, sold, radius) => sold
 // Taxa de troca: quantos Comuns valem 1 Premium
 const EXCHANGE_RATE = 10;
 
-// ── CHECK-IN: ciclo de 5 dias (SEGUNDA A SEXTA), ganhos crescentes que INTERCALAM a moeda ──
+// ── CHECK-IN: ciclo de 5 dias (SEGUNDA A SEXTA), ganhos que INTERCALAM a moeda ──
 // O dia do ciclo vem do "streak" (dias ÚTEIS seguidos). Errar 1 dia útil zera → volta ao dia 1.
 // Sábado/domingo não contam pra sequência nem pro ciclo (não tem check-in nesses dias).
-// Os valores da semana somam EXATAMENTE o mesmo total do ciclo antigo de 7 dias (390 Premium +
-// 250 Comum) — só redistribuídos nos 5 dias úteis pra compensar os 2 dias de fim de semana
-// que deixaram de contar.
+//
+// BUG CORRIGIDO (jul/2026): a versão anterior (70/90/120/160/200) somava 390 Premium + 250
+// Comum JÁ NUMA ÚNICA SEMANA — ou seja, o teto MENSAL (MONTHLY_CAP: 300/200) era batido
+// inteiro na primeira semana do mês, e o check-in ficava dando ZERO nas semanas seguintes até
+// o mês virar. Valores reduzidos pra um ritmo sustentável que dura o mês inteiro (o teto
+// mensal continua sendo o limite absoluto, aplicado no `doCheckin` via `capRemaining`).
 const CHECKIN_CYCLE = [
-  { amount: 70,  cur: 'premium' }, // dia 1 (segunda)
-  { amount: 90,  cur: 'comum'   }, // dia 2 (terça)
-  { amount: 120, cur: 'premium' }, // dia 3 (quarta)
-  { amount: 160, cur: 'comum'   }, // dia 4 (quinta)
-  { amount: 200, cur: 'premium' }, // dia 5 (sexta — bônus da semana)
+  { amount: 12, cur: 'premium' }, // dia 1 (segunda)
+  { amount: 8,  cur: 'comum'   }, // dia 2 (terça)
+  { amount: 12, cur: 'premium' }, // dia 3 (quarta)
+  { amount: 8,  cur: 'comum'   }, // dia 4 (quinta)
+  { amount: 12, cur: 'premium' }, // dia 5 (sexta)
 ];
 // Teto MENSAL de ganho do check-in por moeda (mesmo intercalando)
 const MONTHLY_CAP = { premium: 300, comum: 200 };
@@ -143,11 +146,16 @@ const useAllPlayers = () => {
   return list;
 };
 
-// Credita prismas na carteira de OUTRO usuário no Supabase + registra no histórico dele
+// Credita prismas na carteira de OUTRO usuário no Supabase + registra no histórico dele.
+// BUG CORRIGIDO (jul/2026): não bumpava `data.updatedAt` (o carimbo DENTRO do JSON, usado
+// pra resolver conflito local×nuvem na hidratação — ver comentário lá em cima). Sem isso, se
+// o próprio colaborador tivesse uma aba aberta com estado local mais "antigo" no relógio mas
+// com `updatedAt` mais recente que o valor herdado de `base`, o próximo save dele (debounced)
+// podia sobrescrever esse crédito silenciosamente (last-write-wins sem checar o crédito).
 const creditPlayer = async (player, cur, amount, descr) => {
   const { data: row } = await supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
   const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
-  const data = { ...base, [cur]: (base[cur] || 0) + amount };
+  const data = { ...base, [cur]: (base[cur] || 0) + amount, updatedAt: Date.now() };
   await supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
   await supabase.from('mercado_history').insert({ player, kind: 'envio', descr, [cur]: amount });
 };

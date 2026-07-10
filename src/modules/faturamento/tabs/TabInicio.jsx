@@ -1,13 +1,14 @@
 import { T } from '../../../contexts/theme';
 import { StarDivider, Card } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
+import { canSeeTab } from '../Sidebar';
 
 const FEATURES = [
   {
     id: 'xml',
     color: '#1A6FB5',
     bg: 'rgba(26,111,181,0.10)',
-    adminOnly: true,
+    tabGate: true,
     title: 'Controle de Notas',
     desc: 'Importa arquivos XML (NF-e / NFS-e) e exporta para Excel no formato padrão da planilha de faturamento. Suporta múltiplos arquivos de uma vez.',
     steps: ['Selecione os arquivos .xml', 'Visualize os dados na tabela', 'Exporte para Excel (.xlsx)'],
@@ -24,7 +25,7 @@ const FEATURES = [
     id: 'assinatura',
     color: '#C04050',
     bg: 'rgba(192,64,80,0.10)',
-    adminOnly: true,
+    tabGate: true,
     title: 'Assinatura Automática',
     desc: 'Carregue um PDF e o sistema aplica a rúbrica automaticamente na linha da assinatura, devolvendo o documento já assinado para download.',
     steps: ['Solte o PDF a ser assinado', 'O sistema localiza a linha da assinatura', 'Baixe o PDF assinado'],
@@ -114,7 +115,7 @@ const FEATURES = [
     id: 'carta',
     color: '#1A9C70',
     bg: 'rgba(26,156,112,0.10)',
-    adminOnly: true,
+    tabGate: true,
     title: 'Carta de Correção',
     desc: 'Gere a Carta de Correção Eletrônica (CC-e) de uma NF-e. (Em desenvolvimento.)',
     steps: ['Informe os dados da NF-e', 'Descreva a correção', 'Gere a carta'],
@@ -140,8 +141,8 @@ const FEATURES = [
   },
 ];
 
-export const TabInicio = ({ setTab, isAdmin }) => {
-  const features = FEATURES.filter(f => !f.adminOnly || isAdmin);
+export const TabInicio = ({ setTab, isAdmin, authUser }) => {
+  const features = FEATURES.filter(f => f.tabGate ? canSeeTab(f.id, authUser, isAdmin) : (!f.adminOnly || isAdmin));
   return (
     <div style={{padding:'32px 40px 48px',fontFamily:'var(--font-body)'}}>
       <StellarHero
