@@ -1447,6 +1447,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [maquinaLoading, setMaquinaLoading] = useState(false);
   const [maquinaView, setMaquinaView]   = useState('geral'); // geral | mensal | djs | semaninha
   const [zoomArtist, setZoomArtist]     = useState(null); // {name, img} — foto do artista ampliada (lightbox)
+  const [msgVideoOpen, setMsgVideoOpen] = useState(false); // modal do video "Mensagem Especial"
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
   const [collageBusy, setCollageBusy]   = useState(false);
@@ -1764,11 +1765,33 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     );
   };
 
-  const renderTopCards = (d) => {
+  const renderTopCards = (d, showSpecialMsg) => {
     const podium = renderArtistPodium(d);
     return (
     <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:18,alignItems:"flex-start"}}>
-      {podium && <div style={{flex:isMobile?"none":"2.7 1 0",minWidth:0,display:"flex"}}>{podium}</div>}
+      {podium && (
+        <div style={{flex:isMobile?"none":"2.7 1 0",minWidth:0,display:"flex",flexDirection:"column",gap:16}}>
+          {podium}
+          {showSpecialMsg && (
+            <div onClick={()=>setMsgVideoOpen(true)} title="Clique para ver a mensagem especial"
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 10px 28px ${T.gold}44`;}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=`0 6px 20px ${T.gold}22`;}}
+              style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.gold}66`,padding:"12px 14px",boxShadow:`0 6px 20px ${T.gold}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"transform .18s,box-shadow .18s"}}>
+              <div style={{position:"relative",width:54,height:54,borderRadius:11,overflow:"hidden",flexShrink:0}}>
+                <img src="/mensagem-especial-capa.png" alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.3)"}}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="none" style={{filter:"drop-shadow(0 1px 3px rgba(0,0,0,.5))"}}><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                </div>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>✨ Mensagem Especial!</div>
+                <div style={{fontSize:11.5,color:T.textT,marginTop:2}}>Clique aqui para ver</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          )}
+        </div>
+      )}
       <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
@@ -3384,6 +3407,18 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   style={{padding:"8px 20px",borderRadius:999,border:"1.5px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fechar</button>
               </div>
             )}
+            {/* Modal do vídeo "Mensagem Especial" (abre pelo card abaixo do pódio) */}
+            {msgVideoOpen && (
+              <div onClick={()=>setMsgVideoOpen(false)}
+                style={{position:"fixed",inset:0,zIndex:1000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,
+                  background:"rgba(6,4,16,0.86)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",cursor:"zoom-out",padding:24}}>
+                <video src="/mensagem-especial-video.mp4" controls autoPlay playsInline onClick={e=>e.stopPropagation()}
+                  style={{maxWidth:"min(92vw,460px)",maxHeight:"80vh",borderRadius:16,border:`3px solid ${T.gold}`,
+                    boxShadow:`0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${T.gold}55`,cursor:"default",background:"#000"}}/>
+                <button onClick={()=>setMsgVideoOpen(false)}
+                  style={{padding:"8px 20px",borderRadius:999,border:"1.5px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fechar</button>
+              </div>
+            )}
             <div style={{marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
               <div>
                 <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
@@ -3476,7 +3511,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {maquinaView==='geral' && (
                       maquinaData.periodStart && (Date.now() - new Date(maquinaData.periodStart).getTime()) < MAQUINA_MIN_DAYS*86400000
                         ? renderMaquinaAccumulating(maquinaData.periodStart)
-                        : renderTopCards(maquinaData)
+                        : renderTopCards(maquinaData, true)
                     )}
 
                     {/* ── POR MÊS / RETROSPECTIVA ── */}
