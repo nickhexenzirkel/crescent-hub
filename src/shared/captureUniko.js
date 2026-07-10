@@ -549,15 +549,20 @@ export async function claimCapture(cfg, uniko) {
   }
 }
 
-/* ── Credita os prismas na carteira do vencedor (mercado_state) + histórico ── */
+/* ── Credita os prismas na carteira do vencedor (mercado_state) + histórico ──
+   BUG CORRIGIDO (jul/2026): fazia select-soma-regrava do `data` inteiro — se a
+   Prisma Store estivesse aberta ao mesmo tempo (ela também regrava o `data`
+   inteiro por cima, às cegas, a cada 400ms), o que gravasse por último apagava
+   check-in/missões/coleção do outro lado. Agora usa a RPC `mercado_credit`
+   (incremento ATÔMICO só de comum/premium, ver supabase_mercado_credit_atomico.sql)
+   — nunca mais toca no resto do estado, então não tem mais como um crédito
+   apagar o outro. ── */
 export async function awardPrismas(player, comum, premium) {
   try {
-    const { data: rowData } = await _supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
-    const base = (rowData?.data && Object.keys(rowData.data).length) ? rowData.data : {};
-    const data = { ...base, comum: (base.comum || 0) + comum, premium: (base.premium || 0) + premium, updatedAt: Date.now() };
-    await _supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
+    const { error } = await _supabase.rpc('mercado_credit', { p_player: player, p_comum: comum || 0, p_premium: premium || 0 });
+    if (error) throw error;
     await _supabase.from('mercado_history').insert({ player, kind: 'captura', descr: 'Capture o Uniko', comum, premium });
-  } catch {}
+  } catch (e) { console.error('[capture-uniko] awardPrismas falhou:', e); }
 }
 
 /* ── RH Dashboard: envia um Uniko + prismas DIRETO pra um colaborador específico,
@@ -579,10 +584,7 @@ export async function giftUnikoToPlayer(player, uniko, comum, premium) {
       if (capErr) { console.error('[capture-uniko] gift: falha ao salvar na coleção:', capErr); return { ok: false, alreadyHadUniko: false }; }
     }
 
-    const { data: rowData } = await _supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
-    const base = (rowData?.data && Object.keys(rowData.data).length) ? rowData.data : {};
-    const data = { ...base, comum: (base.comum || 0) + comum, premium: (base.premium || 0) + premium, updatedAt: Date.now() };
-    const { error: walletErr } = await _supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
+    const { error: walletErr } = await _supabase.rpc('mercado_credit', { p_player: player, p_comum: comum || 0, p_premium: premium || 0 });
     if (walletErr) { console.error('[capture-uniko] gift: falha ao creditar carteira:', walletErr); return { ok: false, alreadyHadUniko: hasIt }; }
 
     await _supabase.from('mercado_history').insert({ player, kind: 'presente', descr: `Ganhou o Uniko ${uniko.name} (enviado pelo RH)`, comum, premium });

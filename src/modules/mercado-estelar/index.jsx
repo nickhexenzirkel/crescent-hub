@@ -146,17 +146,14 @@ const useAllPlayers = () => {
   return list;
 };
 
-// Credita prismas na carteira de OUTRO usuário no Supabase + registra no histórico dele.
-// BUG CORRIGIDO (jul/2026): não bumpava `data.updatedAt` (o carimbo DENTRO do JSON, usado
-// pra resolver conflito local×nuvem na hidratação — ver comentário lá em cima). Sem isso, se
-// o próprio colaborador tivesse uma aba aberta com estado local mais "antigo" no relógio mas
-// com `updatedAt` mais recente que o valor herdado de `base`, o próximo save dele (debounced)
-// podia sobrescrever esse crédito silenciosamente (last-write-wins sem checar o crédito).
+// Credita prismas na carteira de OUTRO usuário + registra no histórico dele.
+// BUG CORRIGIDO (jul/2026): fazia select-soma-regrava do `data` inteiro — se o
+// destinatário tivesse a Prisma Store aberta (ela regravava o `data` inteiro por
+// cima, às cegas, a cada 400ms), esse crédito podia ser apagado junto com
+// check-in/missões dele. Agora usa a RPC `mercado_credit` (incremento atômico,
+// só de comum/premium — ver supabase_mercado_credit_atomico.sql).
 const creditPlayer = async (player, cur, amount, descr) => {
-  const { data: row } = await supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
-  const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
-  const data = { ...base, [cur]: (base[cur] || 0) + amount, updatedAt: Date.now() };
-  await supabase.from('mercado_state').upsert({ player, data, updated_at: new Date().toISOString() });
+  await supabase.rpc('mercado_credit', { p_player: player, p_comum: cur === 'comum' ? amount : 0, p_premium: cur === 'premium' ? amount : 0 });
   await supabase.from('mercado_history').insert({ player, kind: 'envio', descr, [cur]: amount });
 };
 
@@ -275,7 +272,14 @@ const PrismChip = ({ type, amount }) => {
 };
 
 // ── Mapeamento estado ↔ Supabase ──
-const USER_SLICE = (s) => ({ comum: s.comum, premium: s.premium, checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
+// BUG CORRIGIDO (jul/2026): USER_SLICE incluía comum/premium — como ela alimenta
+// os saves "às cegas" (debounced + persistNow, que regravam o `data` inteiro por
+// cima do que estiver no banco), qualquer crédito feito por FORA dessa aba (Capture
+// o Uniko, presente do RH, admin) no meio do caminho era apagado no save seguinte.
+// comum/premium agora são creditados só via mercado_credit (RPC atômica, ver
+// supabase_mercado_credit_atomico.sql) e NUNCA fazem parte do save genérico — o
+// banco é a única fonte de verdade pra eles, ver `applyCredit`/hidratação abaixo.
+const USER_SLICE = (s) => ({ checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
 // Linha "fake" da tabela mercado_state usada só pra guardar config GLOBAL (ex.: expiração)
 const CONFIG_PLAYER = '__mercado_config__';
 const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, uniko_id: it.unikoId || null, updated_at: new Date().toISOString() });
@@ -314,13 +318,15 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
         const { data: st } = await supabase.from('mercado_state').select('data').eq('player', userName).maybeSingle();
         let user = st?.data && Object.keys(st.data).length ? st.data : null;
-        if (!user) { user = USER_SLICE(DEFAULT_STATE); await supabase.from('mercado_state').upsert({ player: userName, data: user, updated_at: new Date().toISOString() }); }
+        if (!user) { user = { ...USER_SLICE(DEFAULT_STATE), comum: 0, premium: 0 }; await supabase.from('mercado_state').upsert({ player: userName, data: user, updated_at: new Date().toISOString() }); }
 
         const { data: hist } = await supabase.from('mercado_history').select('*').eq('player', userName).order('created_at', { ascending: false }).limit(120);
         if (!alive) return;
 
         // Resolve conflito local x nuvem: se o progresso LOCAL é mais recente (ex.: o save foi
         // perdido por sair da página antes do upsert), mantém o local e reenvia pro Supabase.
+        // comum/premium NUNCA vêm do local — são creditados só via RPC atômica (mercado_credit),
+        // então o banco é sempre a fonte de verdade pra eles, independente de quem "ganhou" aqui.
         const local = loadState();
         const localNewer = (local.updatedAt || 0) > (user.updatedAt || 0);
         const chosen = localNewer ? local : user;
@@ -329,8 +335,8 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           const sv = savedMap.get(dm.id);
           return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed, claimedAt: sv.claimedAt } : dm;
         });
-        setState(s => ({ ...DEFAULT_STATE, ...chosen, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
-        if (localNewer) { try { await supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(local), updated_at: new Date().toISOString() }); } catch {} }
+        setState(s => ({ ...DEFAULT_STATE, ...chosen, comum: user.comum || 0, premium: user.premium || 0, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
+        if (localNewer) { try { await supabase.rpc('mercado_patch_state', { p_player: userName, p_patch: USER_SLICE(local) }); } catch {} }
       } catch {}
       if (alive) setLoaded(true);
     })();
@@ -351,27 +357,40 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     return () => { alive = false; };
   }, [userName]);
 
-  // Persiste o estado do usuário (saldos/check-in/coleção/desafios) — debounced,
-  // 400ms depois da última mudança. AGORA loga erro (RLS, rede etc.) em vez de
-  // engolir silenciosamente — se isso estiver falhando de verdade (ex.: alguma
-  // policy do Supabase bloqueando update pra colaborador comum), antes não tinha
-  // como saber; o progresso "sumia" sem deixar rastro nenhum no console.
+  // Persiste o "resto" do estado (check-in/coleção/desafios, SEM comum/premium —
+  // ver USER_SLICE) — debounced, 400ms depois da última mudança. Usa a RPC
+  // `mercado_patch_state` (MERGE no banco, `data || patch`) em vez de upsert direto:
+  // como o patch nunca contém comum/premium, esse save nunca pode apagar um
+  // crédito atômico (mercado_credit) que tenha acontecido no meio do caminho —
+  // ver supabase_mercado_credit_atomico.sql. Loga erro em vez de engolir
+  // silenciosamente (RLS, rede etc.) — antes não tinha como saber; o progresso
+  // "sumia" sem deixar rastro nenhum no console.
   useEffect(() => {
     if (!loaded) return;
-    const data = USER_SLICE(state);
+    const patch = USER_SLICE(state);
     const t = setTimeout(() => {
-      supabase.from('mercado_state').upsert({ player: userName, data, updated_at: new Date().toISOString() })
+      supabase.rpc('mercado_patch_state', { p_player: userName, p_patch: patch })
         .then(({ error }) => { if (error) console.error('[prisma-store] falha ao salvar estado (debounced):', error); });
     }, 400);
     return () => clearTimeout(t);
-  }, [loaded, state.updatedAt, state.comum, state.premium, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
+  }, [loaded, state.updatedAt, state.checkins, state.capMonth, state.earned, state.collection, state.missions]); // eslint-disable-line
 
   // Salva IMEDIATAMENTE (sem esperar o debounce de 400ms) — usado só por ações
-  // que dão prisma na hora (check-in, missão): se a pessoa atualizar a página
+  // que mudam check-in/missão/coleção na hora: se a pessoa atualizar a página
   // logo em seguida, não corre o risco de perder o resgate por causa do atraso.
+  // comum/premium são creditados à parte, via applyCredit (RPC atômica) — nunca
+  // fazem parte desse patch.
   const persistNow = (nextState) => {
-    supabase.from('mercado_state').upsert({ player: userName, data: USER_SLICE(nextState), updated_at: new Date().toISOString() })
+    supabase.rpc('mercado_patch_state', { p_player: userName, p_patch: USER_SLICE(nextState) })
       .then(({ error }) => { if (error) console.error('[prisma-store] falha ao salvar estado (imediato):', error); });
+  };
+
+  // Credita comum/premium de forma ATÔMICA (RPC mercado_credit) — nunca toca no
+  // resto do `data`, então nunca apaga check-in/missão/coleção de uma escrita
+  // concorrente (Capture o Uniko, presente do RH, admin), e vice-versa.
+  const applyCredit = (deltaComum, deltaPremium) => {
+    supabase.rpc('mercado_credit', { p_player: userName, p_comum: deltaComum || 0, p_premium: deltaPremium || 0 })
+      .then(({ error }) => { if (error) console.error('[prisma-store] falha ao creditar prisma:', error); });
   };
 
   // Persiste o catálogo (upsert dos itens + remove os apagados)
@@ -466,6 +485,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         updatedAt: Date.now(),
       };
     });
+    applyCredit(item.cur === 'comum' ? -item.price : 0, item.cur === 'premium' ? -item.price : 0);
     addHistory({ kind: isUniko ? 'compra_uniko' : 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
     flash(`Você resgatou: ${item.name}`);
     if (isUniko) {
@@ -507,7 +527,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       return next;
     });
     if (nextSnapshot) persistNow(nextSnapshot);
-    if (give > 0) addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give });
+    if (give > 0) { applyCredit(cur === 'comum' ? give : 0, cur === 'premium' ? give : 0); addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give }); }
     const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
     flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${streak})` : `Check-in feito! Teto mensal de ${label} já atingido.`);
   };
@@ -526,6 +546,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       return next;
     });
     if (nextSnapshot) persistNow(nextSnapshot);
+    applyCredit(m.comum || 0, m.premium || 0);
     addHistory({ kind: 'missao', desc: `Missão: ${m.title}`, ...(m.comum ? { comum: m.comum } : {}), ...(m.premium ? { premium: m.premium } : {}) });
     flash(`Recompensa da missão resgatada: ${m.title}`);
   };
@@ -602,7 +623,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} ownedUnikoIds={ownedUnikoIds} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} />}
+        {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayIsWeekend={todayIsWeekend} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
@@ -676,17 +697,34 @@ const PrizeMedia = ({ item, idx = 0, h = 120, emojiSize = 44, radius = 12, sold 
   );
 };
 
-// Reduz uma imagem escolhida do PC para dataURL leve (cabe no localStorage do protótipo)
-const fileToDataUrl = (file, maxDim = 760) => new Promise((res, rej) => {
+// Redimensiona uma imagem escolhida do PC e SOBE pro Supabase Storage (bucket
+// 'mercado-fotos'), devolvendo a URL pública — em vez de virar dataURL embutido
+// no banco. BUG CORRIGIDO (jul/2026): as fotos dos prêmios eram guardadas como
+// base64 direto na coluna `images` de `mercado_items` — o catálogo inteiro
+// (todas as fotos de todos os prêmios) tinha que baixar por completo, como
+// texto dentro do JSON, ANTES de qualquer imagem aparecer na tela, e sem
+// cache de imagem nenhum (o navegador não cacheia texto de JSON como cacheia
+// uma <img src>). Isso deixava a Loja lenta pra carregar na primeira vez.
+// Precisa rodar supabase_fotos_storage.sql antes (cria o bucket + políticas).
+const fileToStorageUrl = (file, maxDim = 900, quality = 0.85) => new Promise((res, rej) => {
   const fr = new FileReader();
   fr.onload = () => {
     const img = new Image();
-    img.onload = () => {
-      const sc = Math.min(1, maxDim / Math.max(img.width, img.height));
-      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
-      const c = document.createElement('canvas'); c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      res(c.toDataURL('image/jpeg', 0.82));
+    img.onload = async () => {
+      try {
+        const sc = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(async (blob) => {
+          if (!blob) { rej(new Error('toBlob falhou')); return; }
+          const path = `prizes/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+          const { error } = await supabase.storage.from('mercado-fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+          if (error) { rej(error); return; }
+          const { data } = supabase.storage.from('mercado-fotos').getPublicUrl(path);
+          res(data.publicUrl);
+        }, 'image/jpeg', quality);
+      } catch (e) { rej(e); }
     };
     img.onerror = rej; img.src = fr.result;
   };
@@ -1228,7 +1266,7 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ CARTEIRA ═══════════════════════
-const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) => {
+const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, applyCredit }) => {
   const [sendTo, setSendTo] = useState('');
   const [sendQuery, setSendQuery] = useState('');
   const [openList, setOpenList] = useState(false);
@@ -1245,6 +1283,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) 
     if (!amt || amt <= 0) { flash('Informe uma quantidade válida'); return; }
     if (state[sendCur] < amt) { flash('Saldo insuficiente'); return; }
     setState(s => ({ ...s, [sendCur]: s[sendCur] - amt, updatedAt: Date.now() }));
+    applyCredit(sendCur === 'comum' ? -amt : 0, sendCur === 'premium' ? -amt : 0);
     addHistory({ kind: 'envio', desc: `Enviou para ${sendTo}`, [sendCur]: -amt });
     creditPlayer(sendTo, sendCur, amt, `Recebido de ${me || 'um colega'}`); // credita o destinatário no Supabase
     flash(`Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
@@ -1259,6 +1298,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me }) 
     const cost = got * EXCHANGE_RATE;
     if (state.comum < cost) { flash('Saldo de Comuns insuficiente'); return; }
     setState(s => ({ ...s, comum: s.comum - cost, premium: s.premium + got, updatedAt: Date.now() }));
+    applyCredit(-cost, got);
     addHistory({ kind: 'troca', desc: `Trocou ${fmt(cost)} Comuns por ${got} Premium`, comum: -cost, premium: got });
     flash(`Você obteve ${got} Prisma Premium`);
     setExAmt('');
@@ -1575,7 +1615,7 @@ const ImageManager = ({ images = [], onChange, cardBg }) => {
   const [url, setUrl] = useState('');
   const fieldStyle = { flex: 1, padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box', minWidth: 0 };
   const addUrl = () => { const u = url.trim(); if (/^https?:\/\//i.test(u) || u.startsWith('data:')) { onChange([...(images || []), u]); setUrl(''); } };
-  const onFile = async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const d = await fileToDataUrl(f, 760); onChange([...(images || []), d]); } catch {} e.target.value = ''; };
+  const onFile = async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await fileToStorageUrl(f); onChange([...(images || []), url]); } catch (err) { console.error('[prisma-store] upload de foto falhou:', err); } e.target.value = ''; };
   const remove = (i) => onChange(images.filter((_, k) => k !== i));
   const makeCover = (i) => { const arr = [...images]; const [x] = arr.splice(i, 1); arr.unshift(x); onChange(arr); };
   return (
@@ -1977,14 +2017,14 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     if (!to) { flash('Escolha o destinatário'); return; }
     if (!amt || amt <= 0) { flash('Informe um valor válido'); return; }
     try {
+      // Lê só pra saber o delta REAL a logar no histórico (retirada não passa de 0) —
+      // a gravação em si é atômica (mercado_credit), não depende dessa leitura.
       const { data: row } = await supabase.from('mercado_state').select('data').eq('player', to).maybeSingle();
-      const base = row?.data && Object.keys(row.data).length ? row.data : USER_SLICE(DEFAULT_STATE);
-      const cur0 = base[cur] || 0;
+      const cur0 = row?.data?.[cur] || 0;
       const remove = dir === 'remove';
-      const newVal = remove ? Math.max(0, cur0 - amt) : cur0 + amt;
-      const delta = newVal - cur0; // mudança real (retirada respeita o saldo, sem ficar negativo)
-      const data = { ...base, [cur]: newVal, updatedAt: Date.now() };
-      await supabase.from('mercado_state').upsert({ player: to, data, updated_at: new Date().toISOString() });
+      const delta = remove ? -Math.min(amt, cur0) : amt;
+      const { error } = await supabase.rpc('mercado_credit', { p_player: to, p_comum: cur === 'comum' ? delta : 0, p_premium: cur === 'premium' ? delta : 0 });
+      if (error) throw error;
       await supabase.from('mercado_history').insert({ player: to, kind: 'admin', descr: note.trim() || (remove ? 'Retirada do administrador' : 'Transferência do administrador'), [cur]: delta });
       // Se mexeu na própria carteira, reflete no estado local
       if (to === adminName && ownSetState) ownSetState(s => ({ ...s, [cur]: Math.max(0, (s[cur] || 0) + delta) }));

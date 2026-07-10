@@ -527,23 +527,38 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
 
   // Lê um arquivo de imagem, redimensiona (máx. `maxSize`px no lado maior, mantém
-  // transparência) e devolve um dataURL PNG — mesma ideia do canvas 300x300 já usado
-  // pra foto de perfil. Era 320 por padrão, mas algumas telas (ex.: card "Uniko x
-  // Alexa" com SIZE_MULT_BY_SKIN) renderizam o frame principal bem maior que isso —
-  // 320px upscalado ficava borrado/pixelado. Subiu pra 640 (mesmo valor já usado
-  // pro cenário) — cobre esses casos sem pesar demais o banco (base64 de um PNG
-  // 640px ainda é pequeno pra uma linha só).
-  const frameFromFile = (file, maxSize = 640) => new Promise((resolve, reject) => {
+  // transparência), SOBE pro Supabase Storage (bucket 'uniko-fotos') e devolve a
+  // URL pública — mesma ideia do canvas 300x300 já usado pra foto de perfil. Era
+  // 320 por padrão, mas algumas telas (ex.: card "Uniko x Alexa" com
+  // SIZE_MULT_BY_SKIN) renderizam o frame principal bem maior que isso — 320px
+  // upscalado ficava borrado/pixelado. Subiu pra 640 (mesmo valor já usado pro
+  // cenário).
+  // BUG CORRIGIDO (jul/2026): os 10 frames de cada Uniko personalizado eram
+  // guardados como PNG base64 direto nas colunas de `custom_unikos` — a tabela
+  // inteira (~26 Unikos) tinha que baixar por completo, como texto dentro do
+  // JSON, ANTES de qualquer imagem aparecer (Capture o Uniko, Central Alexa,
+  // Coleção...), sem cache de imagem nenhum. Agora vira upload real, com URL.
+  // Precisa rodar supabase_fotos_storage.sql antes (cria o bucket + políticas).
+  const frameFromFile = (file, maxSize = 640, key = 'frame') => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
-        else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
-        const c = document.createElement('canvas'); c.width = width; c.height = height;
-        c.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(c.toDataURL('image/png'));
+      img.onload = async () => {
+        try {
+          let { width, height } = img;
+          if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
+          else if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+          const c = document.createElement('canvas'); c.width = width; c.height = height;
+          c.getContext('2d').drawImage(img, 0, 0, width, height);
+          c.toBlob(async (blob) => {
+            if (!blob) { reject(new Error('toBlob falhou')); return; }
+            const path = `custom/${key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+            const { error } = await _supabase.storage.from('uniko-fotos').upload(path, blob, { contentType: 'image/png', upsert: false });
+            if (error) { reject(error); return; }
+            const { data } = _supabase.storage.from('uniko-fotos').getPublicUrl(path);
+            resolve(data.publicUrl);
+          }, 'image/png');
+        } catch (e) { reject(e); }
       };
       img.onerror = reject;
       img.src = reader.result;
@@ -553,15 +568,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   });
   const handleFrameFile = async (key, file) => {
     if (!file) return;
-    try { setOficinaFrames(f => ({ ...f, [key]: null })); const dataUrl = await frameFromFile(file); setOficinaFrames(f => ({ ...f, [key]: dataUrl })); }
-    catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
+    try { setOficinaFrames(f => ({ ...f, [key]: null })); const url = await frameFromFile(file, 640, key); setOficinaFrames(f => ({ ...f, [key]: url })); }
+    catch (e) { console.error('[oficina-de-uniko] upload de frame falhou:', e); setOficinaMsg('❌ Não consegui subir essa imagem'); }
   };
   // Cenário: OPCIONAL. Se anexado, vira o fundo do Uniko no Capture o Uniko em vez da
   // cor gradiente padrão. Sem anexar nada, continua só a cor (nada muda).
   const handleSceneFile = async (file) => {
     if (!file) return;
-    try { setOficinaFrames(f => ({ ...f, scene: null })); const dataUrl = await frameFromFile(file, 640); setOficinaFrames(f => ({ ...f, scene: dataUrl })); }
-    catch { setOficinaMsg('❌ Não consegui ler essa imagem'); }
+    try { setOficinaFrames(f => ({ ...f, scene: null })); const url = await frameFromFile(file, 640, 'scene'); setOficinaFrames(f => ({ ...f, scene: url })); }
+    catch (e) { console.error('[oficina-de-uniko] upload de cenário falhou:', e); setOficinaMsg('❌ Não consegui subir essa imagem'); }
   };
   const resetOficinaForm = () => {
     setOficinaEditingId(null);
