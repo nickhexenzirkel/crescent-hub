@@ -1709,9 +1709,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const top3 = (d.topArtists || []).slice(0,3);
     if (!top3.length) return null;
     const places = [
-      { i:1, medal:'🥈', ring:'#C9D2DC', pedH:56, photo:74 },  // 2º à esquerda
-      { i:0, medal:'🥇', ring:T.gold,    pedH:88, photo:100 }, // 1º no centro (mais alto)
-      { i:2, medal:'🥉', ring:'#CD9B6A', pedH:38, photo:70 },  // 3º à direita
+      { i:1, medal:'🥈', ring:'#C9D2DC', pedH:130, photo:150 }, // 2º à esquerda
+      { i:0, medal:'🥇', ring:T.gold,    pedH:180, photo:180 }, // 1º no centro (mais alto)
+      { i:2, medal:'🥉', ring:'#CD9B6A', pedH:90,  photo:142 }, // 3º à direita
     ];
     return (
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
@@ -1719,7 +1719,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Pódio dos Artistas</span>
         </div>
-        <div style={{flex:1,display:"flex",alignItems:"flex-end",justifyContent:"center",gap:isMobile?8:12}}>
+        <div style={{flex:1,display:"flex",alignItems:"flex-end",justifyContent:"center",gap:isMobile?10:16}}>
           {places.map(p => {
             const entry = top3[p.i];
             if (!entry) return <div key={p.i} style={{flex:1}}/>;
@@ -1728,19 +1728,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             const initials = artist.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
             return (
               <div key={p.i} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
-                <div style={{fontSize:p.i===0?26:20,lineHeight:1,marginBottom:6}}>{p.medal}</div>
-                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:8}}>
+                <div style={{fontSize:p.i===0?44:32,lineHeight:1,marginBottom:8}}>{p.medal}</div>
+                <div style={{width:p.photo,height:p.photo,maxWidth:"100%",marginBottom:10,aspectRatio:"1"}}>
                   {photo
-                    ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`3px solid ${p.ring}`,boxShadow:`0 4px 18px ${p.ring}66`}}/>
-                    : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`3px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.3),fontWeight:800,color:p.ring}}>{initials}</div>}
+                    ? <img src={photo} alt={artist} style={{width:"100%",height:"100%",borderRadius:"50%",objectFit:"cover",border:`4px solid ${p.ring}`,boxShadow:`0 6px 26px ${p.ring}77`}}/>
+                    : <div style={{width:"100%",height:"100%",borderRadius:"50%",border:`4px solid ${p.ring}`,background:`linear-gradient(135deg,${p.ring}55,${p.ring}22)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(p.photo*0.32),fontWeight:800,color:p.ring}}>{initials}</div>}
                 </div>
-                <div style={{fontSize:12.5,fontWeight:700,color:T.text,textAlign:"center",width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
-                <div style={{fontSize:10.5,color:T.gold,fontWeight:700,marginTop:2}}>{count} plays</div>
-                <div style={{marginTop:10,width:"100%",height:p.pedH,borderRadius:"9px 9px 0 0",
+                <div style={{fontSize:p.i===0?16:14,fontWeight:800,color:T.text,textAlign:"center",width:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{artist}</div>
+                <div style={{fontSize:12,color:T.gold,fontWeight:700,marginTop:3}}>{count} plays</div>
+                <div style={{marginTop:12,width:"100%",height:p.pedH,borderRadius:"10px 10px 0 0",
                   background:`linear-gradient(180deg,${p.ring}dd,${p.ring}44)`,
-                  boxShadow:`inset 0 2px 0 ${p.ring}, 0 -3px 14px ${p.ring}44`,
-                  display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:7}}>
-                  <span style={{fontSize:p.i===0?22:17,fontWeight:900,color:"#fff",textShadow:"0 1px 4px rgba(0,0,0,0.35)"}}>{p.i+1}º</span>
+                  boxShadow:`inset 0 2px 0 ${p.ring}, 0 -3px 16px ${p.ring}44`,
+                  display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:10}}>
+                  <span style={{fontSize:p.i===0?30:22,fontWeight:900,color:"#fff",textShadow:"0 1px 5px rgba(0,0,0,0.4)"}}>{p.i+1}º</span>
                 </div>
               </div>
             );
@@ -1754,8 +1754,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const podium = renderArtistPodium(d);
     return (
     <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:18,alignItems:"stretch"}}>
-      {podium && <div style={{flex:isMobile?"none":"0 0 320px",maxWidth:isMobile?"none":320,display:"flex"}}>{podium}</div>}
-      <div style={{flex:1,minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1.1fr 1fr 1fr",gap:isMobile?14:16}}>
+      {podium && <div style={{flex:isMobile?"none":"3.4 1 0",minWidth:0,display:"flex"}}>{podium}</div>}
+      <div style={{flex:isMobile?"none":"5 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
       <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
