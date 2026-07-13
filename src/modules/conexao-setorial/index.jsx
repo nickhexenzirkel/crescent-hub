@@ -79,6 +79,27 @@ function playChime() {
   } catch {}
 }
 
+// ─── Ícones SVG (estilo traço, herdam currentColor) — substituem os emojis ──────
+const ICON_PATHS = {
+  back:    <><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></>,
+  board:   <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18" /><path d="M15 3v18" /></>,
+  search:  <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
+  bell:    <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>,
+  bellOff: <><path d="M18 8a6 6 0 0 0-9.3-5" /><path d="M6 8c0 7-3 9-3 9h13" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /><path d="M3 3l18 18" /></>,
+  clock:   <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  check:   <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 12l3 3 5-6" /></>,
+  comment: <><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" /></>,
+  image:   <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></>,
+  plus:    <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+  x:       <><path d="M18 6L6 18" /><path d="M6 6l12 12" /></>,
+  trash:   <><path d="M3 6h18" /><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></>,
+  upload:  <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v13" /></>,
+};
+const Ic = ({ n, size = 16, sw = 2, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw}
+    strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block', ...style }}>{ICON_PATHS[n]}</svg>
+);
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 export default function ConexaoSetorial({ onBack, authUser }) {
   const isMobile = useIsMobile();
@@ -151,11 +172,11 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         const p = prev[c.id];
         const meIn = (c.assignees || []).includes(me2);
         const meWas = p ? (p.assignees || []).includes(me2) : false;
-        if (meIn && !meWas) fireNotif('📌 Novo card pra você', c.title);
+        if (meIn && !meWas) fireNotif('Novo card pra você', c.title);
         const nc = (c.comments || []).length, pc = p ? (p.comments || []).length : nc;
         if (nc > pc && (meIn || c.created_by === me2)) {
           const last = c.comments[nc - 1];
-          if (last && last.author !== me2) fireNotif('💬 ' + last.author, `${c.title}: ${last.text}`);
+          if (last && last.author !== me2) fireNotif('Comentário de ' + last.author, `${c.title}: ${last.text}`);
         }
       }
     }
@@ -204,7 +225,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         const key = c.id + ':' + state;
         if (notifiedDueRef.current.has(key)) continue;
         notifiedDueRef.current.add(key);
-        fireNotif(state === 'over' ? '⏰ Card atrasado' : '⏳ Card vencendo em 24h', c.title);
+        fireNotif(state === 'over' ? 'Card atrasado' : 'Card vencendo em 24h', c.title);
       }
     };
     const id = setInterval(scan, 60000);
@@ -240,6 +261,17 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     const { data } = await sb.from('conexao_cards').select('comments').eq('id', id).single();
     const comments = [...(data?.comments || []), { id: uid(), author: me, text: t, at: nowIso() }];
     await patchCard(id, { comments });
+  };
+
+  // Imagens (Supabase Storage bucket 'conexao') — read-modify-write no jsonb do card.
+  const addImages = async (id, imgs) => {
+    const { data } = await sb.from('conexao_cards').select('images').eq('id', id).single();
+    await patchCard(id, { images: [...(data?.images || []), ...imgs] });
+  };
+  const removeImage = async (id, img) => {
+    const { data } = await sb.from('conexao_cards').select('images').eq('id', id).single();
+    await patchCard(id, { images: (data?.images || []).filter(x => x.path !== img.path) });
+    try { await sb.storage.from('conexao').remove([img.path]); } catch {}
   };
 
   const addList = async (title) => {
@@ -320,19 +352,19 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
-        <button className="cs-btn cs-ghost" onClick={onBack} style={{ background: 'transparent', color: T.text, fontSize: 20, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}>←</button>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: UNIKO_GRAD, display: 'grid', placeItems: 'center', fontSize: 20, boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}>🗂️</div>
+        <button className="cs-btn cs-ghost" onClick={onBack} style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
         <div style={{ marginRight: 'auto' }}>
           <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>Conexão Setorial</div>
           <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>Quadro do Financeiro · {cards.length} cards · {lists.length} colunas</div>
         </div>
         <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
           style={{ background: filterActive ? UNIKO_GRAD : (T.surfaceSub || colBg), color: filterActive ? '#fff' : T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
-          🔍 {filterActive ? 'Filtrando' : 'Filtrar'}
+          <Ic n="search" size={15} /> {filterActive ? 'Filtrando' : 'Filtrar'}
         </button>
         <button className="cs-btn" onClick={toggleNotif} title="Notificações desktop + som"
-          style={{ background: notifOn ? UNIKO_GRAD : (T.surfaceSub || colBg), color: notifOn ? '#fff' : T.textT, borderRadius: 12, padding: '8px 12px', fontWeight: 700, fontSize: 14, border: `1px solid ${brd}` }}>
-          {notifOn ? '🔔' : '🔕'}
+          style={{ background: notifOn ? UNIKO_GRAD : (T.surfaceSub || colBg), color: notifOn ? '#fff' : T.textT, borderRadius: 12, padding: '9px 12px', fontWeight: 700, border: `1px solid ${brd}`, display: 'grid', placeItems: 'center' }}>
+          <Ic n={notifOn ? 'bell' : 'bellOff'} size={16} />
         </button>
       </div>
 
@@ -380,7 +412,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                       <div onClick={() => { setEditingList(list.id); setEditListText(list.title); }} style={{ flex: 1, fontWeight: 800, fontSize: 14.5, cursor: 'text', fontFamily: 'var(--font-brand)' }}>{list.title}</div>
                     )}
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.05)', borderRadius: 20, padding: '2px 9px' }}>{listCards.length}</span>
-                    <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26 }}>✕</button>
+                    <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="x" size={14} /></button>
                   </div>
 
                   {/* Cards */}
@@ -389,6 +421,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                       const di = dueInfo(c.due_date);
                       const done = (c.checklist || []).filter(i => i.done).length;
                       const total = (c.checklist || []).length;
+                      const imgs = c.images || [];
                       const prio = c.priority ? PRIO_BY_ID[c.priority] : null;
                       const showLine = dragOver && dragOver.listId === list.id && dragOver.index === idx;
                       return (
@@ -399,7 +432,10 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
-                            style={{ background: cardBg, borderRadius: 12, border: `1px solid ${brd}`, borderLeft: prio ? `4px solid ${prio.color}` : `1px solid ${brd}`, padding: '10px 12px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.05)' }}>
+                            style={{ background: cardBg, borderRadius: 12, border: `1px solid ${brd}`, borderLeft: prio ? `4px solid ${prio.color}` : `1px solid ${brd}`, padding: '10px 12px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.05)', overflow: 'hidden' }}>
+                            {imgs.length > 0 && (
+                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 24px)', height: 128, objectFit: 'cover', margin: '-10px -12px 8px', background: T.surfaceSub }} />
+                            )}
                             {(c.labels || []).length > 0 && (
                               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 7 }}>
                                 {(c.labels || []).map(id => LABEL_BY_ID[id] && (
@@ -408,11 +444,12 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                               </div>
                             )}
                             <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: T.text }}>{c.title}</div>
-                            {(di || total > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
+                            {(di || total > 0 || imgs.length > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
-                                {di && <span style={{ fontSize: 11, fontWeight: 700, color: di.color, background: `${di.color}1e`, borderRadius: 6, padding: '2px 7px' }}>⏰ {di.label}</span>}
-                                {total > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: done === total ? '#27AE60' : T.textT }}>☑ {done}/{total}</span>}
-                                {(c.comments || []).length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: T.textT }}>💬 {(c.comments || []).length}</span>}
+                                {di && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: di.color, background: `${di.color}1e`, borderRadius: 6, padding: '2px 7px' }}><Ic n="clock" size={11} /> {di.label}</span>}
+                                {total > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: done === total ? '#27AE60' : T.textT }}><Ic n="check" size={12} /> {done}/{total}</span>}
+                                {imgs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: T.textT }}><Ic n="image" size={12} /> {imgs.length}</span>}
+                                {(c.comments || []).length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: T.textT }}><Ic n="comment" size={12} /> {(c.comments || []).length}</span>}
                                 <div style={{ marginLeft: 'auto', display: 'flex' }}>
                                   {(c.assignees || []).slice(0, 3).map((n, i) => (
                                     <div key={n} title={n} style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: i ? -7 : 0, border: `2px solid ${cardBg}` }}>{initials(n)}</div>
@@ -442,7 +479,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                         </div>
                       </div>
                     ) : (
-                      <button className="cs-btn cs-ghost" onClick={() => { setComposerList(list.id); setComposerText(''); }} style={{ width: '100%', textAlign: 'left', background: 'transparent', color: T.textT, borderRadius: 10, padding: '9px 11px', fontWeight: 700, fontSize: 13 }}>＋ Adicionar card</button>
+                      <button className="cs-btn cs-ghost" onClick={() => { setComposerList(list.id); setComposerText(''); }} style={{ width: '100%', background: 'transparent', color: T.textT, borderRadius: 10, padding: '9px 11px', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Ic n="plus" size={15} /> Adicionar card</button>
                     )}
                   </div>
                 </div>
@@ -462,7 +499,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                   </div>
                 </div>
               ) : (
-                <button className="cs-btn" onClick={() => setAddingList(true)} style={{ width: '100%', background: T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.03)', color: T.text, borderRadius: 16, padding: '13px', fontWeight: 700, fontSize: 13.5, border: `1px dashed ${brd}` }}>＋ Nova coluna</button>
+                <button className="cs-btn" onClick={() => setAddingList(true)} style={{ width: '100%', background: T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.03)', color: T.text, borderRadius: 16, padding: '13px', fontWeight: 700, fontSize: 13.5, border: `1px dashed ${brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Ic n="plus" size={16} /> Nova coluna</button>
               )}
             </div>
           </>
@@ -471,16 +508,20 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
       {/* ── Toast de notificação ── */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 60, background: cardBg, border: `1px solid ${brd}`, borderLeft: '4px solid #A24CE0', borderRadius: 14, padding: '12px 16px', boxShadow: '0 12px 34px rgba(120,60,180,.28)', maxWidth: 320, animation: 'csToast .3s ease' }}>
-          <div style={{ fontWeight: 800, fontSize: 13.5, color: T.text }}>{toast.title}</div>
-          <div style={{ fontSize: 12.5, color: T.textS, marginTop: 2 }}>{toast.message}</div>
+        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 60, background: cardBg, border: `1px solid ${brd}`, borderLeft: '4px solid #A24CE0', borderRadius: 14, padding: '12px 16px', boxShadow: '0 12px 34px rgba(120,60,180,.28)', maxWidth: 320, animation: 'csToast .3s ease', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ color: '#A24CE0', marginTop: 1 }}><Ic n="bell" size={18} /></div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: T.text }}>{toast.title}</div>
+            <div style={{ fontSize: 12.5, color: T.textS, marginTop: 2 }}>{toast.message}</div>
+          </div>
         </div>
       )}
 
       {/* ── Modal do card ── */}
       {selectedCard && (
         <CardModal card={selectedCard} me={me} people={people} onClose={() => setSelectedId(null)}
-          lists={lists} onPatch={patchCard} onDelete={deleteCard} onComment={appendComment} isMobile={isMobile} />
+          lists={lists} onPatch={patchCard} onDelete={deleteCard} onComment={appendComment}
+          onAddImages={addImages} onRemoveImage={removeImage} isMobile={isMobile} />
       )}
     </div>
   );
@@ -495,15 +536,52 @@ const Section = ({ title, children }) => (
 );
 
 // ─── Modal de detalhes do card ─────────────────────────────────────────────────
-function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComment, isMobile }) {
+function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComment, onAddImages, onRemoveImage, isMobile }) {
   const [title, setTitle] = useState(card.title);
   const [desc, setDesc] = useState(card.description || '');
   const [comment, setComment] = useState('');
   const [checkText, setCheckText] = useState('');
   const [showAssign, setShowAssign] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
+  const fileRef = useRef(null);
 
   useEffect(() => { setTitle(card.title); }, [card.id]); // eslint-disable-line
   useEffect(() => { setDesc(card.description || ''); }, [card.id]); // eslint-disable-line
+
+  const images = card.images || [];
+
+  // Envia arquivos de imagem pro Supabase Storage (bucket 'conexao') e anexa ao card.
+  const handleFiles = async (fileList) => {
+    const files = [...(fileList || [])].filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    setUploading(true);
+    const out = [];
+    for (const f of files) {
+      try {
+        const ext = ((f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'png';
+        const path = `${card.id}/${uid()}.${ext}`;
+        const { error } = await sb.storage.from('conexao').upload(path, f, { contentType: f.type || 'image/png', upsert: false });
+        if (error) throw error;
+        const { data } = sb.storage.from('conexao').getPublicUrl(path);
+        out.push({ url: data.publicUrl, path, name: f.name || 'imagem' });
+      } catch (e) { console.error('[conexao] upload de imagem falhou:', e); }
+    }
+    if (out.length) await onAddImages(card.id, out);
+    setUploading(false);
+  };
+
+  // Colar imagem (Ctrl+V) com o card aberto.
+  useEffect(() => {
+    const onPaste = (e) => {
+      const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+      if (files.length) { e.preventDefault(); handleFiles(files); }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id]);
 
   const brd = T.border || 'rgba(0,0,0,0.08)';
   const surf = T.surface || '#fff';
@@ -531,7 +609,7 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatch(card.id, { title: title.trim() })}
               style={{ flex: 1, fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-brand)', color: T.text, background: 'transparent', border: 'none', outline: 'none', borderBottom: `2px solid transparent` }} />
-            <button className="cs-btn cs-ghost" onClick={onClose} style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, fontSize: 16 }}>✕</button>
+            <button className="cs-btn cs-ghost" onClick={onClose} style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Ic n="x" size={16} /></button>
           </div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 4, marginBottom: 20 }}>
             em <b style={{ color: T.textS }}>{lists.find(l => l.id === card.list_id)?.title || '—'}</b> · criado por {card.created_by || '—'}
@@ -567,8 +645,8 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
               {LABELS.map(l => (
                 <button key={l.id} className="cs-btn" onClick={() => toggleLabel(l.id)}
-                  style={{ background: labels.includes(l.id) ? l.color : `${l.color}1e`, color: labels.includes(l.id) ? '#fff' : l.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${l.color}55` }}>
-                  {labels.includes(l.id) ? '✓ ' : ''}{l.name}
+                  style={{ background: labels.includes(l.id) ? l.color : `${l.color}1e`, color: labels.includes(l.id) ? '#fff' : l.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${l.color}55`, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {labels.includes(l.id) && <Ic n="check" size={13} />}{l.name}
                 </button>
               ))}
             </div>
@@ -580,10 +658,10 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
               {assignees.map(n => (
                 <span key={n} onClick={() => toggleAssignee(n)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: sub, borderRadius: 20, padding: '4px 10px 4px 4px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
                   <span style={{ width: 22, height: 22, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 9.5, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(n)}</span>
-                  {n} <span style={{ color: T.textT }}>✕</span>
+                  {n} <span style={{ color: T.textT, display: 'grid', placeItems: 'center' }}><Ic n="x" size={12} /></span>
                 </span>
               ))}
-              <button className="cs-btn" onClick={() => setShowAssign(s => !s)} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 20, padding: '6px 13px', fontWeight: 700, fontSize: 12.5 }}>＋ Atribuir</button>
+              <button className="cs-btn" onClick={() => setShowAssign(s => !s)} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 20, padding: '6px 13px', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5 }}><Ic n="plus" size={13} /> Atribuir</button>
             </div>
             {showAssign && (
               <div className="cs-scroll" style={{ marginTop: 10, maxHeight: 190, overflowY: 'auto', border: `1px solid ${brd}`, borderRadius: 10, background: T.page }}>
@@ -604,6 +682,33 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13.5, resize: 'vertical', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }} />
           </Section>
 
+          {/* Imagens / anexos — arrastar, colar (Ctrl+V) ou escolher arquivo */}
+          <Section title={`Imagens${images.length ? ` · ${images.length}` : ''}`}>
+            <div
+              onDragOver={e => { e.preventDefault(); if (!dragActive) setDragActive(true); }}
+              onDragLeave={e => { if (e.currentTarget === e.target) setDragActive(false); }}
+              onDrop={e => { e.preventDefault(); setDragActive(false); handleFiles(e.dataTransfer.files); }}
+              onClick={() => fileRef.current?.click()}
+              style={{ border: `2px dashed ${dragActive ? '#A24CE0' : brd}`, background: dragActive ? 'rgba(162,76,224,.08)' : T.page, borderRadius: 12, padding: '16px 14px', textAlign: 'center', cursor: 'pointer', transition: 'border-color .15s, background .15s' }}>
+              <div style={{ color: dragActive ? '#A24CE0' : T.textT, display: 'flex', justifyContent: 'center', marginBottom: 6 }}><Ic n="upload" size={22} /></div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: T.textS }}>{uploading ? 'Enviando…' : 'Arraste imagens, cole (Ctrl+V) ou clique'}</div>
+              <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>PNG, JPG, GIF, WEBP</div>
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+            </div>
+            {images.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8, marginTop: 10 }}>
+                {images.map(img => (
+                  <div key={img.path} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `1px solid ${brd}`, aspectRatio: '1', background: sub }}>
+                    <img src={img.url} alt={img.name} onClick={() => setLightbox(img.url)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }} />
+                    <button className="cs-btn" onClick={() => onRemoveImage(card.id, img)} title="Remover"
+                      style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 8, background: 'rgba(20,8,30,.7)', color: '#fff', display: 'grid', placeItems: 'center' }}><Ic n="x" size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
           {/* Checklist */}
           <Section title={`Checklist${checklist.length ? ` · ${doneCount}/${checklist.length}` : ''}`}>
             {checklist.length > 0 && (
@@ -615,13 +720,13 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
               <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 0' }}>
                 <input type="checkbox" checked={i.done} onChange={() => toggleCheck(i.id)} style={{ width: 17, height: 17, accentColor: '#A24CE0', cursor: 'pointer' }} />
                 <span style={{ flex: 1, fontSize: 13.5, textDecoration: i.done ? 'line-through' : 'none', color: i.done ? T.textT : T.text }}>{i.text}</span>
-                <button className="cs-btn cs-ghost" onClick={() => delCheck(i.id)} style={{ background: 'transparent', color: T.textT, borderRadius: 6, width: 24, height: 24, fontSize: 12 }}>✕</button>
+                <button className="cs-btn cs-ghost" onClick={() => delCheck(i.id)} style={{ background: 'transparent', color: T.textT, borderRadius: 6, width: 24, height: 24, display: 'grid', placeItems: 'center' }}><Ic n="x" size={12} /></button>
               </div>
             ))}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <input value={checkText} onChange={e => setCheckText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCheck()} placeholder="Adicionar item…"
                 style={{ flex: 1, padding: '8px 11px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
-              <button className="cs-btn" onClick={addCheck} style={{ background: sub, color: T.text, borderRadius: 9, padding: '8px 14px', fontWeight: 700, fontSize: 13 }}>＋</button>
+              <button className="cs-btn" onClick={addCheck} style={{ background: sub, color: T.text, borderRadius: 9, padding: '8px 13px', display: 'grid', placeItems: 'center' }}><Ic n="plus" size={15} /></button>
             </div>
           </Section>
 
@@ -648,10 +753,17 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
 
           {/* Excluir */}
           <div style={{ borderTop: `1px solid ${brd}`, paddingTop: 14, marginTop: 4 }}>
-            <button className="cs-btn" onClick={() => onDelete(card.id)} style={{ background: '#E0345A18', color: '#E0345A', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, border: '1px solid #E0345A44' }}>🗑 Excluir card</button>
+            <button className="cs-btn" onClick={() => onDelete(card.id)} style={{ background: '#E0345A18', color: '#E0345A', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, border: '1px solid #E0345A44', display: 'flex', alignItems: 'center', gap: 6 }}><Ic n="trash" size={15} /> Excluir card</button>
           </div>
         </div>
       </div>
+
+      {/* Lightbox da imagem */}
+      {lightbox && (
+        <div onClick={e => { e.stopPropagation(); setLightbox(null); }} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(10,4,16,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />
+        </div>
+      )}
     </div>
   );
 }

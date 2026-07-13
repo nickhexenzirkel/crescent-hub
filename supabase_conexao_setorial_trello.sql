@@ -56,9 +56,9 @@ end $$;
 insert into conexao_lists (title, position)
 select v.title, v.position
 from (values
-  ('📥 A Fazer',        1000.0),
-  ('⚙️ Em Andamento',   2000.0),
-  ('👀 Em Revisão',     3000.0),
-  ('✅ Concluído',      4000.0)
+  ('A Fazer',        1000.0),
+  ('Em Andamento',   2000.0),
+  ('Em Revisão',     3000.0),
+  ('Concluído',      4000.0)
 ) as v(title, position)
 where not exists (select 1 from conexao_lists);
