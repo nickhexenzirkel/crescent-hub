@@ -1,1459 +1,657 @@
-import React, { useState, useRef, useEffect } from 'react';
+// src/modules/conexao-setorial/index.jsx
+// Conexão Setorial — quadro Kanban (estilo Trello) do time do Financeiro.
+// Substitui o antigo chat estilo WhatsApp. Real e compartilhado (Supabase +
+// realtime), com arrastar-e-soltar, prazos, responsáveis, etiquetas, checklists,
+// comentários e notificação desktop + som. Estética Uniko (rosa/roxo). Admin-only
+// (o gate fica no App.jsx). Precisa rodar supabase_conexao_setorial_trello.sql.
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { T } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { SERVER_URL, supabase as sb, getAuthUser } from '../../contexts/user';
+import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
 
-// ─── Dados ───────────────────────────────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
+const UNIKO_GRAD = 'linear-gradient(135deg,#E0559A 0%,#A24CE0 100%)';
 
-const USERS = {
-  nicolas: { name:'Nicolas Andrade', initials:'NA', color:'#1A6FB5', sector:'Faturamento',         online:true  },
-  ana:     { name:'Ana Clara',       initials:'AC', color:'#9B59B6', sector:'Admin',               online:true  },
-  rafael:  { name:'Rafael Santos',   initials:'RS', color:'#27AE60', sector:'Suporte Contratual',  online:false },
-  mariana: { name:'Mariana Lopes',   initials:'ML', color:'#E87C22', sector:'Recursos Humanos',    online:true  },
-  pedro:   { name:'Pedro Oliveira',  initials:'PO', color:'#C0392B', sector:'TI',                  online:false },
-};
-const ME = 'nicolas';
-
-const INIT_GROUP = [
-  { id:1,  from:'ana',     type:'text',    text:'Bom dia, pessoal! 👋 Novo colaborador cadastrado: João Lima – Setor Financeiro. Acesso liberado no sistema.', time:'09:12' },
-  { id:2,  from:'nicolas', type:'text',    text:'Ótimo, Ana! Vou alinhar com ele sobre os primeiros passos no sistema.', time:'09:15' },
-  { id:3,  from:'rafael',  type:'text',    text:'Precisamos atualizar o manual de boas-vindas — a versão atual está desatualizada.', time:'09:42' },
-  { id:4,  from:'mariana', type:'text',    text:'Concordo! Vou separar um tempo hoje à tarde para revisar. 📄', time:'09:44' },
-  { id:5,  from:'nicolas', type:'command', text:'/solicitar_bloqueio Tabuleiro do Norte @rafael amanhã às 8 horas', time:'10:55',
-    cmdData:{ municipio:'Tabuleiro do Norte', mentions:['rafael'], desbloqueio:'Amanhã às 08:00' } },
-  { id:6,  type:'system',  text:'✅ Notificação enviada para @Rafael Santos (Suporte Contratual)  •  Adicionado a Atividades Pendentes', time:'10:55' },
-  { id:7,  from:'rafael',  type:'text',    text:'Recebi! Confirmado para amanhã às 8h. ✅', time:'11:02' },
-  { id:8,  from:'pedro',   type:'file',    name:'Relatório_Backup_Jun.pdf', size:1242880, ext:'pdf', time:'14:08' },
-  { id:9,  from:'pedro',   type:'text',    text:'Servidor de backup com 90% de capacidade. Segue relatório. Vou ampliar o espaço ainda hoje.', time:'14:10' },
-  { id:10, from:'ana',     type:'text',    text:'Obrigada pelo aviso, Pedro! Pode prosseguir. 👍', time:'14:12' },
-  { id:11, from:'mariana', type:'image',   src:null, name:'manual_preview.png', caption:'Prévia do manual revisado', time:'16:27' },
-  { id:12, from:'mariana', type:'text',    text:'Terminei de revisar o manual! 🎉', time:'16:28' },
+const LABELS = [
+  { id: 'urgente',     name: 'Urgente',     color: '#E0345A' },
+  { id: 'faturamento', name: 'Faturamento', color: '#2560C4' },
+  { id: 'financeiro',  name: 'Financeiro',  color: '#16A085' },
+  { id: 'cobranca',    name: 'Cobrança',    color: '#C0392B' },
+  { id: 'rh',          name: 'RH',          color: '#E67E22' },
+  { id: 'ti',          name: 'TI',          color: '#8E44AD' },
+  { id: 'suporte',     name: 'Suporte',     color: '#27AE60' },
+  { id: 'aguardando',  name: 'Aguardando',  color: '#7F8C8D' },
 ];
+const LABEL_BY_ID = Object.fromEntries(LABELS.map(l => [l.id, l]));
 
-const INIT_DM = {
-  dm_rafael: [
-    { id:1, from:'nicolas', type:'text', text:'Rafael, você recebeu a notificação do bloqueio de Tabuleiro do Norte?', time:'10:56' },
-    { id:2, from:'rafael',  type:'text', text:'Sim, apareceu aqui agora mesmo!', time:'10:58' },
-    { id:3, from:'nicolas', type:'text', text:'Ótimo! O município solicitou até amanhã às 8h.', time:'10:59' },
-    { id:4, from:'rafael',  type:'text', text:'Confirmado, vou desbloquear amanhã. ✅', time:'11:02' },
-  ],
-  dm_ana: [
-    { id:1, from:'ana',     type:'text', text:'Nicolas, o João Lima já conseguiu logar no sistema?', time:'14:18' },
-    { id:2, from:'nicolas', type:'text', text:'Sim! Acabei de confirmar com ele.', time:'14:20' },
-    { id:3, from:'ana',     type:'text', text:'Perfeito, pode fechar o chamado então.', time:'14:21' },
-    { id:4, from:'ana',     type:'text', text:'Obrigada pelo retorno rápido! 😊', time:'14:22' },
-  ],
-  dm_mariana: [
-    { id:1, from:'mariana', type:'text', text:'Nicolas, terminei a revisão do manual. Pode conferir?', time:'16:28' },
-    { id:2, from:'nicolas', type:'text', text:'Claro! Vou dar uma olhada.', time:'16:29' },
-    { id:3, from:'mariana', type:'text', text:'Manual atualizado e revisado! ✅', time:'16:30' },
-  ],
+const PRIORITIES = [
+  { id: 'baixa',   name: 'Baixa',   color: '#7F8C8D' },
+  { id: 'media',   name: 'Média',   color: '#2560C4' },
+  { id: 'alta',    name: 'Alta',    color: '#E67E22' },
+  { id: 'urgente', name: 'Urgente', color: '#E0345A' },
+];
+const PRIO_BY_ID = Object.fromEntries(PRIORITIES.map(p => [p.id, p]));
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+const nowIso = () => new Date().toISOString();
+
+const initials = (name) => (name || '?').trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
+const avatarColor = (name) => {
+  let h = 0; for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h} 62% 52%)`;
 };
 
-const INIT_DM_META = [
-  { id:'dm_rafael', user:'rafael', lastMsg:'Confirmado, vou desbloquear amanhã. ✅', lastTime:'11:02', unread:0 },
-  { id:'dm_ana',    user:'ana',    lastMsg:'Obrigada pelo retorno rápido! 😊',       lastTime:'14:22', unread:2 },
-  { id:'dm_mariana',user:'mariana',lastMsg:'Manual atualizado e revisado! ✅',        lastTime:'16:30', unread:0 },
-];
+const toLocalInput = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso); const l = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return l.toISOString().slice(0, 16);
+};
+const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
 
-const GROUP_META = { id:'group', lastMsg:'Mariana: Manual atualizado! 🎉', lastTime:'16:28', unread:3 };
-
-const INIT_ACTIVITIES = [
-  { id:1, icon:'⏰', title:'Desbloquear manutenção de Tabuleiro do Norte', desc:'Solicitado por Nicolas Andrade via /solicitar_bloqueio', when:'Amanhã • 08:00', color:'#E67E22', sector:'Suporte Contratual', urgent:false },
-  { id:2, icon:'📋', title:'Revisar manual de boas-vindas', desc:'Comprometida por Mariana Lopes no grupo', when:'Hoje', color:'#1A6FB5', sector:'RH', urgent:false },
-  { id:3, icon:'🖥️', title:'Ampliar espaço do servidor backup', desc:'Pedro Oliveira — uso em 90%', when:'Hoje', color:'#C0392B', sector:'TI', urgent:true },
-];
-
-const COMMANDS = [
-  { cmd:'/solicitar_bloqueio',
-    desc:'Notifica o Suporte Contratual e cria uma atividade pendente',
-    params:['Cliente / Município'] },
-  { cmd:'/aviso',
-    desc:'Envia um aviso urgente para todos no grupo',
-    params:['Mensagem do aviso'] },
-  { cmd:'/atribuir',
-    desc:'Atribui uma tarefa a um usuário específico',
-    params:['@Usuário', 'Descrição da tarefa'] },
-];
-
-const EXT_ICONS = {
-  pdf:{ bg:'#E74C3C',icon:'PDF' }, docx:{ bg:'#2980B9',icon:'DOC' }, doc:{ bg:'#2980B9',icon:'DOC' },
-  xlsx:{ bg:'#27AE60',icon:'XLS' }, xls:{ bg:'#27AE60',icon:'XLS' }, pptx:{ bg:'#E67E22',icon:'PPT' },
-  zip:{ bg:'#8E44AD',icon:'ZIP' }, mp3:{ bg:'#16A085',icon:'MP3' }, mp4:{ bg:'#2C3E50',icon:'MP4' },
+const dueInfo = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso), diff = d.getTime() - Date.now();
+  const state = diff < 0 ? 'over' : diff < 24 * 3600e3 ? 'soon' : 'ok';
+  const color = state === 'over' ? '#E0345A' : state === 'soon' ? '#E67E22' : (T.textT || '#888');
+  const label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+    d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return { state, color, label };
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const fmt     = (b) => b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB';
-const fmtDur  = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-const nowTime = ()  => new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Sao_Paulo'});
-
-function parseBloqueio(raw) {
-  const mentions = [];
-  let m; const re = /@(\S+)/g;
-  while ((m=re.exec(raw))!==null) {
-    const s=m[1].toLowerCase().replace(/[,.:;!?]/g,'');
-    for (const [id,u] of Object.entries(USERS)) {
-      if(id.startsWith(s)||u.name.toLowerCase().replace(/\s+/g,'').startsWith(s)){if(!mentions.includes(id))mentions.push(id);break;}
-    }
-  }
-  const municipio=(raw.split(/[@,]/)[0]||raw)
-    .replace(/^(eu\s+quero\s+bloquear\s+(manuten[cç][aã]o\s+(de\s+)?)?)/i,'')
-    .replace(/\s*-?\s*(categoria|desbloqueio|responsavel|respons[aá]vel)[:\s].*/i,'')
-    .trim()||'Não especificado';
-  const tm=/(amanhã|hoje|segunda|terça|quarta|quinta|sexta)[^\n@,]*(às?\s+\d{1,2}[h:]\d{0,2}|\d{1,2}\s*hora)/i.exec(raw);
-  const hm=/às?\s+(\d{1,2})[h:](\d{0,2})/i.exec(raw);
-  const dm=/(\d{1,2})\/(\d{1,2})[^\d]*(\d{1,2})[h:](\d{0,2})/i.exec(raw);
-  let desbloqueio='A definir';
-  if(tm){desbloqueio=tm[0].trim();desbloqueio=desbloqueio[0].toUpperCase()+desbloqueio.slice(1);}
-  else if(dm) desbloqueio=`${dm[1]}/${dm[2]} às ${dm[3]}h${dm[4]||'00'}`;
-  else if(hm) desbloqueio=`Às ${hm[1]}h${hm[2]||'00'}`;
-  const rawLow=raw.toLowerCase();
-  let categoria=null;
-  if(rawLow.includes('abastecimento'))  categoria='Abastecimento';
-  else if(rawLow.includes('manut'))     categoria='Manutenção';
-  else if(rawLow.includes('patrim'))    categoria='Patrimônio';
-  return {municipio,mentions,desbloqueio,categoria};
+// Som de alerta curto via WebAudio (sem precisar de arquivo).
+let _ac = null;
+function playChime() {
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === 'suspended') _ac.resume();
+    const now = _ac.currentTime;
+    [[784, 0], [1046, 0.11]].forEach(([f, t]) => {
+      const o = _ac.createOscillator(), g = _ac.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, now + t);
+      g.gain.linearRampToValueAtTime(0.16, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.34);
+      o.connect(g); g.connect(_ac.destination);
+      o.start(now + t); o.stop(now + t + 0.4);
+    });
+  } catch {}
 }
 
-// ─── Cores semânticas ─────────────────────────────────────────────────────────
-const sbBg  = () => T.sidebarBg || T.surface;
-const sbBrd = () => T.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
-const sbSel = () => `${T.gold}18`;
-const recvBg = () => T.dark ? `${T.text}12` : `${T.text}08`;
+// ─── Componente ───────────────────────────────────────────────────────────────
+export default function ConexaoSetorial({ onBack, authUser }) {
+  const isMobile = useIsMobile();
+  const me = authUser?.name || getAuthUser()?.name || 'Colaborador';
 
-// ─── Avatar ───────────────────────────────────────────────────────────────────
-function Avatar({ userId, size=36 }) {
-  const u=USERS[userId]; if(!u) return <div style={{width:size,height:size,flexShrink:0}}/>;
-  return (
-    <div style={{ width:size,height:size,borderRadius:'50%',background:u.color,flexShrink:0,
-      display:'flex',alignItems:'center',justifyContent:'center',
-      fontSize:Math.round(size*.36),fontWeight:700,color:'#fff',userSelect:'none',
-      fontFamily:'var(--font-body)' }}>
-      {u.initials}
-    </div>
-  );
-}
+  const [lists, setLists] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [people, setPeople] = useState([]);        // nomes dos colegas (responsáveis)
+  const [selectedId, setSelectedId] = useState(null); // card aberto no modal
 
-// ─── Badge ────────────────────────────────────────────────────────────────────
-function UnreadBadge({ n }) {
-  return (
-    <div style={{ background:T.gold,color:'#fff',fontSize:9,fontWeight:700,
-      minWidth:18,height:18,borderRadius:9,padding:'0 4px',display:'flex',alignItems:'center',
-      justifyContent:'center',flexShrink:0,marginLeft:6,fontFamily:'var(--font-body)' }}>{n}</div>
-  );
-}
+  // composers / edição
+  const [composerList, setComposerList] = useState(null);
+  const [composerText, setComposerText] = useState('');
+  const [addingList, setAddingList] = useState(false);
+  const [newListText, setNewListText] = useState('');
+  const [editingList, setEditingList] = useState(null);
+  const [editListText, setEditListText] = useState('');
 
-// ─── Wrapper WhatsApp-style ────────────────────────────────────────────────────
-function BubbleRow({ msg, showHeader, mobile, children }) {
-  const isMe = msg.from===ME;
-  const u = USERS[msg.from];
-  const av = mobile ? 38 : 34;
-  return (
-    <div style={{ display:'flex', alignItems:'flex-start', gap:9,
-      flexDirection: isMe ? 'row-reverse' : 'row',
-      marginBottom: showHeader ? 10 : 4 }}>
-      {/* Avatar esquerda para recebidas */}
-      {!isMe
-        ? <div style={{ width:av, flexShrink:0, alignSelf:'flex-end' }}>
-            {showHeader ? <Avatar userId={msg.from} size={av}/> : null}
-          </div>
-        : <div style={{ width:av, flexShrink:0 }}/>
-      }
-      <div style={{ display:'flex', flexDirection:'column',
-        alignItems: isMe ? 'flex-end' : 'flex-start',
-        maxWidth: mobile ? '78%' : '65%', minWidth:0 }}>
-        {/* Nome + setor (só recebidas, só primeira da sequência) */}
-        {!isMe && showHeader && u && (
-          <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:3, paddingLeft:2 }}>
-            <span style={{ fontSize:12, fontWeight:700, color:u.color, fontFamily:'var(--font-body)' }}>{u.name}</span>
-            <span style={{ fontSize:10, color:T.textS, fontFamily:'var(--font-body)' }}>{u.sector}</span>
-          </div>
-        )}
-        {children}
-      </div>
-    </div>
-  );
-}
+  // filtros
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterText, setFilterText] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState(null);
+  const [filterLabel, setFilterLabel] = useState(null);
 
-// ─── Bubbles ──────────────────────────────────────────────────────────────────
-function TextBubble({ msg, showHeader, mobile }) {
-  const isMe = msg.from===ME;
-  return (
-    <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
-      <div style={{
-        background: isMe ? T.gold : recvBg(),
-        color: isMe ? '#fff' : T.text,
-        border: isMe ? 'none' : `1px solid ${T.border}`,
-        borderRadius: isMe ? '18px 18px 5px 18px' : '5px 18px 18px 18px',
-        padding: mobile ? '10px 14px' : '9px 13px',
-        fontSize: mobile ? 15 : 14, lineHeight:1.5,
-        fontFamily:'var(--font-body)', wordBreak:'break-word',
-        boxShadow: isMe ? `0 2px 8px ${T.gold}33` : `0 1px 3px rgba(0,0,0,0.06)`,
-      }}>
-        {msg.text}
-        <span style={{ float:'right', marginLeft:6, marginBottom:-3, marginTop:5,
-          fontSize:10, lineHeight:1, whiteSpace:'nowrap', fontFamily:'var(--font-body)',
-          color: isMe ? 'rgba(255,255,255,0.65)' : T.textT }}>
-          {msg.time}{isMe ? ' ✓✓' : ''}
-        </span>
-        <span style={{ display:'block', clear:'both', height:0 }}/>
-      </div>
-    </BubbleRow>
-  );
-}
+  // notificações
+  const [notifOn, setNotifOn] = useState(() => localStorage.getItem('cs_notif') !== '0');
+  const [toast, setToast] = useState(null);
 
-function ImageBubble({ msg, showHeader, mobile }) {
-  const isMe=msg.from===ME; const maxW=mobile?230:210;
-  return (
-    <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
-      <div style={{ borderRadius: isMe?'18px 18px 5px 18px':'5px 18px 18px 18px',
-        overflow:'hidden', border:`1px solid ${T.border}`, maxWidth:maxW, boxShadow:`0 1px 4px rgba(0,0,0,0.10)`,
-        position:'relative' }}>
-        {msg.src
-          ? <img src={msg.src} alt={msg.name||'imagem'} style={{ width:'100%',display:'block',maxHeight:200,objectFit:'cover' }}/>
-          : <div style={{ width:maxW,height:140,background: isMe?T.gold:recvBg(),
-              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8 }}>
-              <span style={{ fontSize:30 }}>🖼️</span>
-              <span style={{ fontSize:11,color: isMe?'rgba(255,255,255,0.7)':T.textS,fontFamily:'var(--font-body)' }}>{msg.name||'Imagem'}</span>
-            </div>
+  // drag & drop
+  const [drag, setDrag] = useState(null);           // { cardId, fromList }
+  const [dragOver, setDragOver] = useState(null);    // { listId, index }
+
+  const notifOnRef = useRef(notifOn);
+  const meRef = useRef(me);
+  const prevCardsRef = useRef(null);
+  const firstLoadRef = useRef(true);
+  const cardsRef = useRef([]);
+  const notifiedDueRef = useRef(new Set());
+  const reloadTimer = useRef(null);
+  // Mantém os refs em dia (usados dentro de timers/callbacks assíncronos) — em effect,
+  // não durante o render (evita "cannot update ref during render").
+  useEffect(() => { notifOnRef.current = notifOn; }, [notifOn]);
+  useEffect(() => { meRef.current = me; }, [me]);
+  useEffect(() => { cardsRef.current = cards; }, [cards]);
+
+  // ── Notificação ─────────────────────────────────────────────
+  const fireNotif = useCallback((title, message) => {
+    if (!notifOnRef.current) return;
+    playChime();
+    notifyDesktop({ id: 'cs-' + Date.now(), type: 'lembrete', title, message });
+    setToast({ title, message });
+    setTimeout(() => setToast(null), 6000);
+  }, []);
+
+  // ── Carrega o quadro ────────────────────────────────────────
+  const load = useCallback(async () => {
+    const [{ data: ls }, { data: cs }] = await Promise.all([
+      sb.from('conexao_lists').select('*').order('position', { ascending: true }),
+      sb.from('conexao_cards').select('*').order('position', { ascending: true }),
+    ]);
+    const listsArr = ls || [], cardsArr = cs || [];
+    setLists(listsArr); setCards(cardsArr); setLoading(false);
+
+    // diff p/ notificar (pula na 1ª carga)
+    const me2 = meRef.current;
+    const prev = prevCardsRef.current;
+    if (!firstLoadRef.current && prev) {
+      for (const c of cardsArr) {
+        const p = prev[c.id];
+        const meIn = (c.assignees || []).includes(me2);
+        const meWas = p ? (p.assignees || []).includes(me2) : false;
+        if (meIn && !meWas) fireNotif('📌 Novo card pra você', c.title);
+        const nc = (c.comments || []).length, pc = p ? (p.comments || []).length : nc;
+        if (nc > pc && (meIn || c.created_by === me2)) {
+          const last = c.comments[nc - 1];
+          if (last && last.author !== me2) fireNotif('💬 ' + last.author, `${c.title}: ${last.text}`);
         }
-        {msg.caption && (
-          <div style={{ padding:'6px 12px',background: isMe?`${T.gold}cc`:T.surface,
-            fontSize:11,color: isMe?'rgba(255,255,255,0.85)':T.textS,fontFamily:'var(--font-body)' }}>{msg.caption}</div>
-        )}
-        {/* Horário sobreposto no canto inferior direito */}
-        <div style={{ position:'absolute', bottom:6, right:8,
-          fontSize:10, color:'rgba(255,255,255,0.88)', whiteSpace:'nowrap',
-          background:'rgba(0,0,0,0.32)', padding:'2px 6px', borderRadius:6,
-          fontFamily:'var(--font-body)', lineHeight:1.4 }}>
-          {msg.time}{isMe ? ' ✓✓' : ''}
-        </div>
-      </div>
-    </BubbleRow>
-  );
-}
+      }
+    }
+    prevCardsRef.current = Object.fromEntries(cardsArr.map(c => [c.id, c]));
+    firstLoadRef.current = false;
+  }, [fireNotif]);
 
-function FileBubble({ msg, showHeader, mobile }) {
-  const isMe=msg.from===ME;
-  const info=EXT_ICONS[msg.ext?.toLowerCase()]||{bg:'#636E72',icon:'FILE'};
-  return (
-    <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
-      <div style={{ background: isMe?T.gold:T.surface, border: isMe?'none':`1px solid ${T.border}`,
-        borderRadius: isMe?'18px 18px 5px 18px':'5px 18px 18px 18px',
-        padding:'11px 14px 9px',display:'flex',flexDirection:'column',gap:8,
-        minWidth:190,maxWidth: mobile?250:230,
-        boxShadow: isMe?`0 2px 8px ${T.gold}33`:`0 1px 3px rgba(0,0,0,0.06)`,cursor:'pointer' }}>
-        {/* Linha principal: ícone + info + download */}
-        <div style={{ display:'flex',alignItems:'center',gap:11 }}>
-          <div style={{ width:42,height:42,borderRadius:11,background:info.bg,flexShrink:0,
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:9,fontWeight:800,color:'#fff',letterSpacing:'.05em',fontFamily:'monospace' }}>{info.icon}</div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:12,fontWeight:600,color: isMe?'#fff':T.text,
-              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontFamily:'var(--font-body)' }}>{msg.name}</div>
-            <div style={{ fontSize:10,color: isMe?'rgba(255,255,255,0.6)':T.textS,marginTop:2,fontFamily:'var(--font-body)' }}>
-              {fmt(msg.size||0)} · {(msg.ext||'arquivo').toUpperCase()}</div>
-          </div>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke={isMe?'rgba(255,255,255,0.7)':T.textS} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </div>
-        {/* Horário dentro do balão */}
-        <div style={{ display:'flex',justifyContent:'flex-end' }}>
-          <span style={{ fontSize:10,color: isMe?'rgba(255,255,255,0.6)':T.textT,
-            fontFamily:'var(--font-body)',lineHeight:1,whiteSpace:'nowrap' }}>
-            {msg.time}{isMe ? ' ✓✓' : ''}
-          </span>
-        </div>
-      </div>
-    </BubbleRow>
-  );
-}
+  const scheduleReload = useCallback(() => {
+    clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(load, 300);
+  }, [load]);
 
-function AudioBubble({ msg, showHeader, mobile }) {
-  const isMe=msg.from===ME;
-  const [playing,setPlaying]=useState(false);
-  const [progress,setProgress]=useState(0);
-  const [cur,setCur]=useState(0);
-  const aRef=useRef(null);
-  const toggle=()=>{const a=aRef.current;if(!a)return;playing?(a.pause(),setPlaying(false)):(a.play(),setPlaying(true));};
-  const onTU=()=>{const a=aRef.current;if(!a||!a.duration)return;setCur(Math.floor(a.currentTime));setProgress(a.currentTime/a.duration);};
-  const onEnd=()=>{setPlaying(false);setProgress(0);setCur(0);};
-  const onBar=(e)=>{const a=aRef.current;if(!a||!a.duration)return;const r=e.currentTarget.getBoundingClientRect();a.currentTime=(e.clientX-r.left)/r.width*a.duration;};
-  const accent=isMe?'#fff':T.gold; const trackBg=isMe?'rgba(255,255,255,0.28)':T.border;
-  const BARS=[4,7,12,8,15,6,18,10,14,5,9,16,11,7,13,8,17,6,12,9,15,7,11,5];
+  // ── Boot: carrega, realtime, poll, colegas ──────────────────
+  useEffect(() => {
+    load();
+    const ch = sb.channel('conexao-board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_cards' }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_lists' }, scheduleReload)
+      .subscribe();
+    const poll = setInterval(load, 20000);
+    // colegas (responsáveis) — endpoint admin
+    (async () => {
+      try {
+        const r = await fetch(`${SERVER_URL}/api/employees`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` },
+        });
+        const d = await r.json();
+        const names = (d.employees || []).map(e => e.name || e.nome).filter(Boolean);
+        setPeople([...new Set([me, ...names])].sort((a, b) => a.localeCompare(b)));
+      } catch { setPeople([me]); }
+    })();
+    return () => { sb.removeChannel(ch); clearInterval(poll); clearTimeout(reloadTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Varredura de prazos (vencendo/atrasado) ─────────────────
+  useEffect(() => {
+    const scan = () => {
+      const me2 = meRef.current;
+      for (const c of cardsRef.current) {
+        if (!c.due_date) continue;
+        if (!(c.assignees || []).includes(me2) && c.created_by !== me2) continue;
+        const diff = new Date(c.due_date).getTime() - Date.now();
+        const state = diff < 0 ? 'over' : diff < 24 * 3600e3 ? 'soon' : null;
+        if (!state) continue;
+        const key = c.id + ':' + state;
+        if (notifiedDueRef.current.has(key)) continue;
+        notifiedDueRef.current.add(key);
+        fireNotif(state === 'over' ? '⏰ Card atrasado' : '⏳ Card vencendo em 24h', c.title);
+      }
+    };
+    const id = setInterval(scan, 60000);
+    const t = setTimeout(scan, 4000);
+    return () => { clearInterval(id); clearTimeout(t); };
+  }, [fireNotif]);
+
+  // ── Mutations ───────────────────────────────────────────────
+  const patchCard = async (id, patch) => {
+    setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)); // otimista
+    await sb.from('conexao_cards').update({ ...patch, updated_at: nowIso() }).eq('id', id);
+    scheduleReload();
+  };
+
+  const addCard = async (listId, title) => {
+    const t = title.trim(); if (!t) return;
+    const inList = cards.filter(c => c.list_id === listId);
+    const pos = inList.length ? Math.max(...inList.map(c => c.position)) + 1000 : 1000;
+    await sb.from('conexao_cards').insert({ list_id: listId, title: t, position: pos, created_by: me });
+    scheduleReload();
+  };
+
+  const deleteCard = async (id) => {
+    setCards(prev => prev.filter(c => c.id !== id));
+    setSelectedId(null);
+    await sb.from('conexao_cards').delete().eq('id', id);
+    scheduleReload();
+  };
+
+  // append seguro em jsonb (relê a linha p/ não perder edição concorrente)
+  const appendComment = async (id, text) => {
+    const t = text.trim(); if (!t) return;
+    const { data } = await sb.from('conexao_cards').select('comments').eq('id', id).single();
+    const comments = [...(data?.comments || []), { id: uid(), author: me, text: t, at: nowIso() }];
+    await patchCard(id, { comments });
+  };
+
+  const addList = async (title) => {
+    const t = title.trim(); if (!t) return;
+    const pos = lists.length ? Math.max(...lists.map(l => l.position)) + 1000 : 1000;
+    await sb.from('conexao_lists').insert({ title: t, position: pos });
+    scheduleReload();
+  };
+  const renameList = async (id, title) => {
+    const t = title.trim(); if (!t) return;
+    setLists(prev => prev.map(l => l.id === id ? { ...l, title: t } : l));
+    await sb.from('conexao_lists').update({ title: t }).eq('id', id);
+  };
+  const deleteList = async (id) => {
+    if (!window.confirm('Excluir esta coluna e TODOS os cards dela?')) return;
+    setLists(prev => prev.filter(l => l.id !== id));
+    setCards(prev => prev.filter(c => c.list_id !== id));
+    await sb.from('conexao_lists').delete().eq('id', id);
+    scheduleReload();
+  };
+
+  // ── Drop de card ────────────────────────────────────────────
+  const performDrop = async (listId) => {
+    const hint = dragOver; const d = drag;
+    setDrag(null); setDragOver(null);
+    if (!d) return;
+    const rendered = cards.filter(c => c.list_id === listId).sort((a, b) => a.position - b.position);
+    const without = rendered.filter(c => c.id !== d.cardId);
+    let idx = hint && hint.listId === listId ? hint.index : without.length;
+    const draggedIdx = rendered.findIndex(c => c.id === d.cardId);
+    if (draggedIdx !== -1 && draggedIdx < idx) idx -= 1;
+    idx = Math.max(0, Math.min(idx, without.length));
+    const prev = without[idx - 1], next = without[idx];
+    let pos;
+    if (!prev && !next) pos = 1000;
+    else if (!prev) pos = next.position - 1000;
+    else if (!next) pos = prev.position + 1000;
+    else pos = (prev.position + next.position) / 2;
+    const cur = cards.find(c => c.id === d.cardId);
+    if (cur && cur.list_id === listId && cur.position === pos) return;
+    await patchCard(d.cardId, { list_id: listId, position: pos });
+  };
+
+  // ── Filtro ──────────────────────────────────────────────────
+  const passesFilter = (c) => {
+    if (filterText && !(`${c.title} ${c.description}`.toLowerCase().includes(filterText.toLowerCase()))) return false;
+    if (filterAssignee && !(c.assignees || []).includes(filterAssignee)) return false;
+    if (filterLabel && !(c.labels || []).includes(filterLabel)) return false;
+    return true;
+  };
+  const filterActive = filterText || filterAssignee || filterLabel;
+
+  const toggleNotif = async () => {
+    const next = !notifOn;
+    setNotifOn(next); localStorage.setItem('cs_notif', next ? '1' : '0');
+    if (next) { try { await ensureNotifyPermission(); } catch {} playChime(); }
+  };
+
+  const selectedCard = cards.find(c => c.id === selectedId) || null;
+
+  // ── Estilos base ────────────────────────────────────────────
+  const brd = T.border || 'rgba(0,0,0,0.08)';
+  const colBg = T.dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+  const cardBg = T.surface || (T.dark ? '#1a1a2e' : '#fff');
+
   return (
-    <BubbleRow msg={msg} showHeader={showHeader} mobile={mobile}>
-      <div style={{ background: isMe?T.gold:T.surface, border: isMe?'none':`1px solid ${T.border}`,
-        borderRadius: isMe?'18px 18px 5px 18px':'5px 18px 18px 18px',
-        padding:'10px 13px',display:'flex',alignItems:'center',gap:10,
-        minWidth: mobile?200:185,maxWidth: mobile?260:240,
-        boxShadow: isMe?`0 2px 8px ${T.gold}33`:`0 1px 3px rgba(0,0,0,0.06)` }}>
-        {msg.src && <audio ref={aRef} src={msg.src} onTimeUpdate={onTU} onEnded={onEnd}/>}
-        <button onClick={toggle} style={{ width:38,height:38,borderRadius:'50%',flexShrink:0,
-          background: isMe?'rgba(255,255,255,0.2)':`${T.gold}15`,
-          border:`1.5px solid ${isMe?'rgba(255,255,255,0.5)':T.gold}`,
-          cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-          WebkitTapHighlightColor:'transparent' }}>
-          {playing
-            ?<svg width="12" height="12" viewBox="0 0 24 24" fill={accent}><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            :<svg width="12" height="12" viewBox="0 0 24 24" fill={accent}><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
+      <style>{`
+        @keyframes csPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+        @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+        .cs-scroll::-webkit-scrollbar{height:10px;width:10px}
+        .cs-card{transition:transform .12s, box-shadow .12s, border-color .12s}
+        .cs-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(120,60,180,.18)}
+        .cs-btn{cursor:pointer;border:none;font-family:inherit;transition:filter .15s, background .15s}
+        .cs-btn:hover{filter:brightness(1.08)}
+        .cs-ghost:hover{background:${T.itemHover || 'rgba(120,60,180,.08)'}}
+      `}</style>
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
+        <button className="cs-btn cs-ghost" onClick={onBack} style={{ background: 'transparent', color: T.text, fontSize: 20, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}>←</button>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: UNIKO_GRAD, display: 'grid', placeItems: 'center', fontSize: 20, boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}>🗂️</div>
+        <div style={{ marginRight: 'auto' }}>
+          <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>Conexão Setorial</div>
+          <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>Quadro do Financeiro · {cards.length} cards · {lists.length} colunas</div>
+        </div>
+        <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
+          style={{ background: filterActive ? UNIKO_GRAD : (T.surfaceSub || colBg), color: filterActive ? '#fff' : T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
+          🔍 {filterActive ? 'Filtrando' : 'Filtrar'}
         </button>
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ display:'flex',alignItems:'center',gap:1,height:24,marginBottom:5 }}>
-            {BARS.map((h,i)=>(
-              <div key={i} style={{ flex:1,height:`${h}px`,borderRadius:2,
-                background: i/24<=progress?accent:trackBg,transition:'background .1s' }}/>
+        <button className="cs-btn" onClick={toggleNotif} title="Notificações desktop + som"
+          style={{ background: notifOn ? UNIKO_GRAD : (T.surfaceSub || colBg), color: notifOn ? '#fff' : T.textT, borderRadius: 12, padding: '8px 12px', fontWeight: 700, fontSize: 14, border: `1px solid ${brd}` }}>
+          {notifOn ? '🔔' : '🔕'}
+        </button>
+      </div>
+
+      {/* ── Barra de filtros ── */}
+      {showFilters && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '10px 22px', borderBottom: `1px solid ${brd}`, background: T.surface, animation: 'csPop .2s ease' }}>
+          <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar título/descrição…"
+            style={{ flex: '1 1 220px', minWidth: 160, padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
+          <select value={filterAssignee || ''} onChange={e => setFilterAssignee(e.target.value || null)}
+            style={{ padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13 }}>
+            <option value="">Todos responsáveis</option>
+            {people.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {LABELS.map(l => (
+              <button key={l.id} className="cs-btn" onClick={() => setFilterLabel(filterLabel === l.id ? null : l.id)}
+                style={{ background: filterLabel === l.id ? l.color : `${l.color}22`, color: filterLabel === l.id ? '#fff' : l.color, borderRadius: 20, padding: '5px 11px', fontSize: 11.5, fontWeight: 700, border: `1px solid ${l.color}55` }}>{l.name}</button>
             ))}
           </div>
-          <div onClick={onBar} style={{ height:3,background:trackBg,borderRadius:2,cursor:'pointer',position:'relative' }}>
-            <div style={{ position:'absolute',left:0,top:0,height:'100%',background:accent,
-              borderRadius:2,width:`${progress*100}%`,transition:'width .1s' }}/>
-          </div>
-          <div style={{ marginTop:4,fontSize:9,fontFamily:'var(--font-body)',display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-            <span style={{ color: isMe?'rgba(255,255,255,0.6)':T.textS }}>{fmtDur(cur)}</span>
-            <span style={{ color: isMe?'rgba(255,255,255,0.65)':T.textT, fontSize:10, whiteSpace:'nowrap' }}>
-              {msg.time}{isMe ? ' ✓✓' : ''}
-            </span>
-          </div>
+          {filterActive && <button className="cs-btn cs-ghost" onClick={() => { setFilterText(''); setFilterAssignee(null); setFilterLabel(null); }} style={{ background: 'transparent', color: T.textT, fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 8 }}>Limpar ✕</button>}
         </div>
-      </div>
-    </BubbleRow>
-  );
-}
+      )}
 
-function CommandBubble({ msg, mobile }) {
-  const av=mobile?38:34;
-  const catEmoji={'Abastecimento':'💧','Manutenção':'🔧','Patrimônio':'🏛️'};
-  const cat=msg.cmdData.categoria;
-  const fields=[
-    {icon:'👤',label:'Cliente',    val:msg.cmdData.municipio,             color:'#fff'    },
-    {icon:'📋',label:'Categoria',  val:cat?`${catEmoji[cat]||''} ${cat}`:'—', color:'#A78BFA' },
-    {icon:'⏰',label:'Desbloqueio',val:msg.cmdData.desbloqueio,           color:'#E67E22' },
-    {icon:'👥',label:'Responsável',val:'Suporte Contratual & Operacional',color:'#5DCC80' },
-  ];
-  return (
-    <div style={{ display:'flex',alignItems:'flex-end',gap:9,flexDirection:'row-reverse',marginBottom:10 }}>
-      <div style={{ width:av,flexShrink:0 }}/>
-      <div style={{ maxWidth: mobile?'88%':'72%' }}>
-        <div style={{ background: T.dark?'#0D1628':'#1A2B4A', border:`1px solid ${T.gold}44`,
-          borderRadius:'18px 18px 5px 18px', padding:'13px 15px',
-          boxShadow:`0 4px 16px ${T.gold}22`, fontFamily:'var(--font-body)' }}>
-          {/* Badge */}
-          <div style={{ display:'inline-flex',alignItems:'center',gap:6,marginBottom:12,
-            background:'linear-gradient(135deg,#1A4A8B,#2560C4)',borderRadius:8,
-            padding:'5px 11px',fontSize:11,fontWeight:800,color:'#fff',letterSpacing:'.04em' }}>
-            🔒 <span>Solicitação de Bloqueio</span>
-          </div>
-          {/* Intro */}
-          <div style={{ fontSize:13,color:'rgba(255,255,255,0.82)',lineHeight:1.55,marginBottom:14,
-            fontFamily:'var(--font-body)',fontWeight:400,fontStyle:'italic' }}>
-            Olá! Por gentileza, bloquear as transações do cliente:
-          </div>
-          {/* Campos */}
-          <div style={{ display:'flex',flexDirection:'column',gap:11 }}>
-            {fields.map(r=>(
-              <div key={r.label} style={{ display:'flex',gap:11,alignItems:'flex-start' }}>
-                <span style={{ fontSize:16,flexShrink:0,marginTop:1 }}>{r.icon}</span>
-                <div>
-                  <div style={{ fontSize:8,color:'rgba(255,255,255,0.26)',fontWeight:700,
-                    textTransform:'uppercase',letterSpacing:'.1em',marginBottom:3,fontFamily:'var(--font-body)' }}>{r.label}</div>
-                  <div style={{ fontSize:14,fontWeight:700,color:r.color,lineHeight:1.3,fontFamily:'var(--font-body)' }}>{r.val}</div>
+      {/* ── Board ── */}
+      <div className="cs-scroll" style={{ flex: 1, display: 'flex', gap: 16, padding: 18, overflowX: 'auto', overflowY: 'hidden', alignItems: 'flex-start' }}>
+        {loading ? (
+          <div style={{ margin: 'auto', color: T.textT, fontWeight: 600 }}>Carregando quadro…</div>
+        ) : (
+          <>
+            {lists.map(list => {
+              const listCards = cards.filter(c => c.list_id === list.id && passesFilter(c)).sort((a, b) => a.position - b.position);
+              return (
+                <div key={list.id}
+                  onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
+                  onDrop={() => performDrop(list.id)}
+                  style={{ flex: '0 0 auto', width: isMobile ? 268 : 300, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: `1px solid ${brd}` }}>
+                  {/* Cabeçalho da coluna */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' }}>
+                    {editingList === list.id ? (
+                      <input autoFocus value={editListText} onChange={e => setEditListText(e.target.value)}
+                        onBlur={() => { renameList(list.id, editListText); setEditingList(null); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { renameList(list.id, editListText); setEditingList(null); } if (e.key === 'Escape') setEditingList(null); }}
+                        style={{ flex: 1, padding: '5px 8px', borderRadius: 8, border: `1px solid ${brd}`, background: T.page, color: T.text, fontWeight: 700, fontSize: 14 }} />
+                    ) : (
+                      <div onClick={() => { setEditingList(list.id); setEditListText(list.title); }} style={{ flex: 1, fontWeight: 800, fontSize: 14.5, cursor: 'text', fontFamily: 'var(--font-brand)' }}>{list.title}</div>
+                    )}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.05)', borderRadius: 20, padding: '2px 9px' }}>{listCards.length}</span>
+                    <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26 }}>✕</button>
+                  </div>
+
+                  {/* Cards */}
+                  <div className="cs-scroll" style={{ flex: 1, overflowY: 'auto', padding: '2px 10px 8px', display: 'flex', flexDirection: 'column', gap: 9, minHeight: 8 }}>
+                    {listCards.map((c, idx) => {
+                      const di = dueInfo(c.due_date);
+                      const done = (c.checklist || []).filter(i => i.done).length;
+                      const total = (c.checklist || []).length;
+                      const prio = c.priority ? PRIO_BY_ID[c.priority] : null;
+                      const showLine = dragOver && dragOver.listId === list.id && dragOver.index === idx;
+                      return (
+                        <React.Fragment key={c.id}>
+                          {showLine && <div style={{ height: 3, borderRadius: 3, background: '#A24CE0', margin: '-3px 2px 0' }} />}
+                          <div className="cs-card" draggable
+                            onDragStart={() => setDrag({ cardId: c.id, fromList: list.id })}
+                            onDragEnd={() => { setDrag(null); setDragOver(null); }}
+                            onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
+                            onClick={() => setSelectedId(c.id)}
+                            style={{ background: cardBg, borderRadius: 12, border: `1px solid ${brd}`, borderLeft: prio ? `4px solid ${prio.color}` : `1px solid ${brd}`, padding: '10px 12px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.05)' }}>
+                            {(c.labels || []).length > 0 && (
+                              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 7 }}>
+                                {(c.labels || []).map(id => LABEL_BY_ID[id] && (
+                                  <span key={id} style={{ background: LABEL_BY_ID[id].color, color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px' }}>{LABEL_BY_ID[id].name}</span>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: T.text }}>{c.title}</div>
+                            {(di || total > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
+                                {di && <span style={{ fontSize: 11, fontWeight: 700, color: di.color, background: `${di.color}1e`, borderRadius: 6, padding: '2px 7px' }}>⏰ {di.label}</span>}
+                                {total > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: done === total ? '#27AE60' : T.textT }}>☑ {done}/{total}</span>}
+                                {(c.comments || []).length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: T.textT }}>💬 {(c.comments || []).length}</span>}
+                                <div style={{ marginLeft: 'auto', display: 'flex' }}>
+                                  {(c.assignees || []).slice(0, 3).map((n, i) => (
+                                    <div key={n} title={n} style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: i ? -7 : 0, border: `2px solid ${cardBg}` }}>{initials(n)}</div>
+                                  ))}
+                                  {(c.assignees || []).length > 3 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -7, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 3}</div>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                    {dragOver && dragOver.listId === list.id && dragOver.index >= listCards.length && <div style={{ height: 3, borderRadius: 3, background: '#A24CE0', margin: '0 2px' }} />}
+                  </div>
+
+                  {/* Adicionar card */}
+                  <div style={{ padding: '4px 10px 12px' }}>
+                    {composerList === list.id ? (
+                      <div>
+                        <textarea autoFocus value={composerText} onChange={e => setComposerText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addCard(list.id, composerText); setComposerText(''); } if (e.key === 'Escape') { setComposerList(null); setComposerText(''); } }}
+                          placeholder="Título do card…" rows={2}
+                          style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${brd}`, background: cardBg, color: T.text, fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit' }} />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                          <button className="cs-btn" onClick={() => { addCard(list.id, composerText); setComposerText(''); }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Adicionar</button>
+                          <button className="cs-btn cs-ghost" onClick={() => { setComposerList(null); setComposerText(''); }} style={{ background: 'transparent', color: T.textT, borderRadius: 9, padding: '7px 10px', fontWeight: 700, fontSize: 12.5 }}>Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="cs-btn cs-ghost" onClick={() => { setComposerList(list.id); setComposerText(''); }} style={{ width: '100%', textAlign: 'left', background: 'transparent', color: T.textT, borderRadius: 10, padding: '9px 11px', fontWeight: 700, fontSize: 13 }}>＋ Adicionar card</button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop:13,borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:9,
-            display:'flex',alignItems:'center',gap:6 }}>
-            <div style={{ width:6,height:6,borderRadius:'50%',background:'#27AE60',flexShrink:0 }}/>
-            <span style={{ fontSize:10,color:'#5DCC80',fontWeight:600 }}>Notificação enviada · Atividade registrada</span>
-          </div>
-        </div>
-        <div style={{ fontSize:10,color:T.textT,marginTop:3,textAlign:'right',paddingRight:2,fontFamily:'var(--font-body)' }}>
-          {msg.time} ✓✓
-        </div>
+              );
+            })}
+
+            {/* Nova coluna */}
+            <div style={{ flex: '0 0 auto', width: 268 }}>
+              {addingList ? (
+                <div style={{ background: colBg, borderRadius: 16, border: `1px solid ${brd}`, padding: 12 }}>
+                  <input autoFocus value={newListText} onChange={e => setNewListText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { addList(newListText); setNewListText(''); setAddingList(false); } if (e.key === 'Escape') setAddingList(false); }}
+                    placeholder="Nome da coluna…" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button className="cs-btn" onClick={() => { addList(newListText); setNewListText(''); setAddingList(false); }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '7px 14px', fontWeight: 700, fontSize: 12.5 }}>Criar</button>
+                    <button className="cs-btn cs-ghost" onClick={() => setAddingList(false)} style={{ background: 'transparent', color: T.textT, borderRadius: 9, padding: '7px 10px', fontWeight: 700, fontSize: 12.5 }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <button className="cs-btn" onClick={() => setAddingList(true)} style={{ width: '100%', background: T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.03)', color: T.text, borderRadius: 16, padding: '13px', fontWeight: 700, fontSize: 13.5, border: `1px dashed ${brd}` }}>＋ Nova coluna</button>
+              )}
+            </div>
+          </>
+        )}
       </div>
-    </div>
-  );
-}
 
-function SystemMsg({ msg }) {
-  return (
-    <div style={{ textAlign:'center',margin:'6px 0 10px' }}>
-      <span style={{ fontSize:11,color:T.textS,background:T.surface,
-        padding:'3px 14px',borderRadius:20,border:`1px solid ${T.border}`,fontFamily:'var(--font-body)' }}>{msg.text}</span>
-    </div>
-  );
-}
-
-// ─── MsgList ──────────────────────────────────────────────────────────────────
-function MsgList({ msgs, mobile }) {
-  const endRef=useRef(null);
-  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[msgs]);
-  return (
-    <div style={{ flex:1,overflowY:'auto',padding: mobile?'14px 10px':'18px 20px',
-      display:'flex',flexDirection:'column',WebkitOverflowScrolling:'touch',background:T.page }}>
-      <div style={{ textAlign:'center',marginBottom:14 }}>
-        <span style={{ fontSize:11,color:T.textT,background:T.surface,
-          padding:'3px 14px',borderRadius:20,border:`1px solid ${T.border}`,fontFamily:'var(--font-body)' }}>Hoje</span>
-      </div>
-      {msgs.map((msg,idx)=>{
-        if(msg.type==='system')  return <SystemMsg     key={msg.id} msg={msg}/>;
-        if(msg.type==='command') return <CommandBubble key={msg.id} msg={msg} mobile={mobile}/>;
-        const prev=msgs[idx-1];
-        const showHeader=!prev||prev.type==='system'||prev.from!==msg.from;
-        if(msg.type==='image') return <ImageBubble key={msg.id} msg={msg} showHeader={showHeader} mobile={mobile}/>;
-        if(msg.type==='file')  return <FileBubble  key={msg.id} msg={msg} showHeader={showHeader} mobile={mobile}/>;
-        if(msg.type==='audio') return <AudioBubble key={msg.id} msg={msg} showHeader={showHeader} mobile={mobile}/>;
-        return <TextBubble key={msg.id} msg={msg} showHeader={showHeader} mobile={mobile}/>;
-      })}
-      <div ref={endRef}/>
-    </div>
-  );
-}
-
-// ─── InputBar ─────────────────────────────────────────────────────────────────
-function InputBar({ onSend, mobile }) {
-  const [input,setInput]=useState('');
-  const [cmdMenu,setCmdMenu]=useState(false);
-  const [attachOpen,setAttachOpen]=useState(false);
-  const [recording,setRecording]=useState(false);
-  const [recTime,setRecTime]=useState(0);
-  const inputRef=useRef(null); const imgRef=useRef(null);
-  const fileRef=useRef(null); const audioFRef=useRef(null);
-  const mrRef=useRef(null); const timerRef=useRef(null);
-  const [cmdCliente,    setCmdCliente]    = useState('');
-  const [cmdCategoria,  setCmdCategoria]  = useState(null);
-  const [cmdDesbloqueio,setCmdDesbloqueio]= useState(null);
-  const [showCustomDate,setShowCustomDate]= useState(false);
-  const [customDateVal, setCustomDateVal] = useState('');
-
-  const resetQuick=()=>{setCmdCliente('');setCmdCategoria(null);setCmdDesbloqueio(null);setShowCustomDate(false);setCustomDateVal('');};
-
-  const onChange=(e)=>{
-    const v=e.target.value;
-    setInput(v);
-    setCmdMenu(v==='/'||(v.startsWith('/')&&!v.includes(' ')));
-    if(!v.toLowerCase().startsWith('/solicitar_bloqueio')) resetQuick();
-  };
-  const onKey=(e)=>{
-    if(e.key==='Tab'){
-      if(cmdMenu&&filtCmds.length>0){e.preventDefault();pickCmd(filtCmds[0].cmd);}
-      return;
-    }
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}
-    if(e.key==='Escape'){setCmdMenu(false);setAttachOpen(false);}
-  };
-  const doSend=()=>{
-    const t=input.trim();if(!t)return;
-    if(t.toLowerCase().startsWith('/solicitar_bloqueio')){
-      const desblFinal=cmdDesbloqueio==='custom'?customDateVal:cmdDesbloqueio;
-      onSend({type:'text',text:t,_quickCliente:cmdCliente.trim()||undefined,_quickCategoria:cmdCategoria||undefined,_quickDesbloqueio:desblFinal||undefined});
-      resetQuick();
-    } else {
-      onSend({type:'text',text:t});
-    }
-    setInput('');setCmdMenu(false);setAttachOpen(false);inputRef.current?.focus();
-  };
-  const pickCmd=(cmd)=>{setInput(cmd+' ');setCmdMenu(false);inputRef.current?.focus();};
-  const onImg=(e)=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=(ev)=>onSend({type:'image',src:ev.target.result,name:f.name,size:f.size});r.readAsDataURL(f);e.target.value='';setAttachOpen(false);};
-  const onFile=(e)=>{const f=e.target.files?.[0];if(!f)return;onSend({type:'file',name:f.name,size:f.size,ext:f.name.split('.').pop()?.toLowerCase()||''});e.target.value='';setAttachOpen(false);};
-  const onAFile=(e)=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=(ev)=>onSend({type:'audio',src:ev.target.result,name:f.name,size:f.size});r.readAsDataURL(f);e.target.value='';setAttachOpen(false);};
-
-  const startRec=async()=>{
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      const chunks=[];const mr=new MediaRecorder(stream);
-      mr.ondataavailable=(e)=>{if(e.data.size)chunks.push(e.data);};
-      mr.onstop=()=>{onSend({type:'audio',src:URL.createObjectURL(new Blob(chunks,{type:'audio/webm'})),duration:recTime});stream.getTracks().forEach(t=>t.stop());};
-      mr.start();mrRef.current=mr;setRecording(true);setRecTime(0);
-      timerRef.current=setInterval(()=>setRecTime(t=>t+1),1000);setAttachOpen(false);
-    }catch{alert('Permissão de microfone negada.');}
-  };
-  const stopRec=()=>{mrRef.current?.stop();clearInterval(timerRef.current);setRecording(false);};
-  const cancelRec=()=>{if(mrRef.current){mrRef.current.ondataavailable=null;mrRef.current.onstop=null;mrRef.current.stop();}clearInterval(timerRef.current);setRecording(false);setRecTime(0);};
-
-  const hasText=input.trim().length>0;
-  const typedCmd=input.startsWith('/')?input.split(' ')[0].toLowerCase():'';
-  const filtCmds=COMMANDS.filter(c=>c.cmd.startsWith(typedCmd));
-  const activeCmd=COMMANDS.find(c=>input.startsWith(c.cmd+' '));
-  const safeBot=mobile?'max(12px, env(safe-area-inset-bottom))':'12px';
-  const circBtn=(active)=>({
-    width: mobile?44:38,height: mobile?44:38,borderRadius:'50%',flexShrink:0,
-    background: active?`${T.gold}18`:'transparent',
-    border:`1.5px solid ${active?T.gold:T.border}`,
-    cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-    color: active?T.gold:T.textS,WebkitTapHighlightColor:'transparent',transition:'all .15s',
-  });
-
-  return (
-    <div style={{ flexShrink:0,background:T.surface,borderTop:`1px solid ${T.border}`,
-      paddingTop:10,paddingLeft:12,paddingRight:12,paddingBottom:safeBot }}>
-      <input ref={imgRef}    type="file" accept="image/*"    style={{display:'none'}} onChange={onImg}/>
-      <input ref={fileRef}   type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.pptx,.zip,.txt" style={{display:'none'}} onChange={onFile}/>
-      <input ref={audioFRef} type="file" accept="audio/*"    style={{display:'none'}} onChange={onAFile}/>
-
-      {recording?(
-        <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-          <div style={{ width:10,height:10,borderRadius:'50%',background:'#E74C3C',flexShrink:0,animation:'recPulse 1s ease-in-out infinite' }}/>
-          <span style={{ fontSize:14,fontWeight:700,color:'#E74C3C',fontFamily:'var(--font-body)' }}>Gravando</span>
-          <span style={{ fontSize:14,fontFamily:'monospace',color:T.text,minWidth:40 }}>{fmtDur(recTime)}</span>
-          <div style={{ flex:1 }}/>
-          <button onClick={cancelRec} style={{ ...circBtn(false),borderRadius:22,padding:'0 16px',width:'auto',height:38,fontSize:13 }}>Cancelar</button>
-          <button onClick={stopRec} style={{ height:38,padding:'0 18px',borderRadius:22,border:'none',
-            background:T.gold,cursor:'pointer',fontSize:13,fontWeight:700,color:'#fff',
-            fontFamily:'var(--font-body)',WebkitTapHighlightColor:'transparent' }}>⏹ Enviar</button>
+      {/* ── Toast de notificação ── */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 60, background: cardBg, border: `1px solid ${brd}`, borderLeft: '4px solid #A24CE0', borderRadius: 14, padding: '12px 16px', boxShadow: '0 12px 34px rgba(120,60,180,.28)', maxWidth: 320, animation: 'csToast .3s ease' }}>
+          <div style={{ fontWeight: 800, fontSize: 13.5, color: T.text }}>{toast.title}</div>
+          <div style={{ fontSize: 12.5, color: T.textS, marginTop: 2 }}>{toast.message}</div>
         </div>
-      ):(
-        <div style={{ position:'relative' }}>
-          {/* Attach mobile */}
-          {attachOpen&&mobile&&(
-            <div style={{ position:'fixed',inset:0,zIndex:100 }} onClick={()=>setAttachOpen(false)}>
-              <div onClick={e=>e.stopPropagation()} style={{ position:'absolute',bottom:0,left:0,right:0,
-                background:T.surface,borderRadius:'22px 22px 0 0',
-                paddingBottom:'max(24px, env(safe-area-inset-bottom))',
-                boxShadow:`0 -8px 40px rgba(0,0,0,${T.dark?'0.4':'0.12'})`,border:`1px solid ${T.border}` }}>
-                <div style={{ width:40,height:4,borderRadius:2,background:T.border,margin:'12px auto 14px' }}/>
-                {[
-                  {emoji:'📷',label:'Foto / Imagem',       fn:()=>imgRef.current?.click()},
-                  {emoji:'📎',label:'Arquivo / Documento', fn:()=>fileRef.current?.click()},
-                  {emoji:'🎵',label:'Arquivo de Áudio',    fn:()=>audioFRef.current?.click()},
-                  {emoji:'🎙️',label:'Gravar Áudio',        fn:startRec},
-                ].map((item,i)=>(
-                  <div key={i} onClick={()=>{item.fn();setAttachOpen(false);}}
-                    style={{ display:'flex',alignItems:'center',gap:14,padding:'13px 16px',
-                      borderBottom:i<3?`1px solid ${T.border}`:'none',
-                      cursor:'pointer',WebkitTapHighlightColor:'transparent' }}>
-                    <div style={{ width:48,height:48,borderRadius:14,background:T.page,border:`1px solid ${T.border}`,
-                      display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0 }}>{item.emoji}</div>
-                    <span style={{ fontSize:16,color:T.text,fontFamily:'var(--font-body)',fontWeight:500 }}>{item.label}</span>
+      )}
+
+      {/* ── Modal do card ── */}
+      {selectedCard && (
+        <CardModal card={selectedCard} me={me} people={people} onClose={() => setSelectedId(null)}
+          lists={lists} onPatch={patchCard} onDelete={deleteCard} onComment={appendComment} isMobile={isMobile} />
+      )}
+    </div>
+  );
+}
+
+// Seção rotulada dentro do modal (escopo de módulo p/ não recriar componente a cada render).
+const Section = ({ title, children }) => (
+  <div style={{ marginBottom: 18 }}>
+    <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.textT, marginBottom: 8 }}>{title}</div>
+    {children}
+  </div>
+);
+
+// ─── Modal de detalhes do card ─────────────────────────────────────────────────
+function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComment, isMobile }) {
+  const [title, setTitle] = useState(card.title);
+  const [desc, setDesc] = useState(card.description || '');
+  const [comment, setComment] = useState('');
+  const [checkText, setCheckText] = useState('');
+  const [showAssign, setShowAssign] = useState(false);
+
+  useEffect(() => { setTitle(card.title); }, [card.id]); // eslint-disable-line
+  useEffect(() => { setDesc(card.description || ''); }, [card.id]); // eslint-disable-line
+
+  const brd = T.border || 'rgba(0,0,0,0.08)';
+  const surf = T.surface || '#fff';
+  const sub = T.surfaceSub || (T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)');
+
+  const labels = card.labels || [];
+  const assignees = card.assignees || [];
+  const checklist = card.checklist || [];
+  const comments = card.comments || [];
+  const doneCount = checklist.filter(i => i.done).length;
+
+  const toggleLabel = (id) => onPatch(card.id, { labels: labels.includes(id) ? labels.filter(x => x !== id) : [...labels, id] });
+  const setPriority = (id) => onPatch(card.id, { priority: card.priority === id ? null : id });
+  const toggleAssignee = (n) => onPatch(card.id, { assignees: assignees.includes(n) ? assignees.filter(x => x !== n) : [...assignees, n] });
+  const addCheck = () => { const t = checkText.trim(); if (!t) return; onPatch(card.id, { checklist: [...checklist, { id: uid(), text: t, done: false }] }); setCheckText(''); };
+  const toggleCheck = (id) => onPatch(card.id, { checklist: checklist.map(i => i.id === id ? { ...i, done: !i.done } : i) });
+  const delCheck = (id) => onPatch(card.id, { checklist: checklist.filter(i => i.id !== id) });
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,8,30,.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
+      <div onClick={e => e.stopPropagation()} className="cs-scroll" style={{ width: isMobile ? '100%' : 640, maxWidth: '100%', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .2s ease' }}>
+        {/* Faixa Uniko */}
+        <div style={{ height: 6, background: UNIKO_GRAD }} />
+        <div style={{ padding: isMobile ? 18 : 24 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatch(card.id, { title: title.trim() })}
+              style={{ flex: 1, fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-brand)', color: T.text, background: 'transparent', border: 'none', outline: 'none', borderBottom: `2px solid transparent` }} />
+            <button className="cs-btn cs-ghost" onClick={onClose} style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, fontSize: 16 }}>✕</button>
+          </div>
+          <div style={{ fontSize: 12, color: T.textT, marginTop: 4, marginBottom: 20 }}>
+            em <b style={{ color: T.textS }}>{lists.find(l => l.id === card.list_id)?.title || '—'}</b> · criado por {card.created_by || '—'}
+          </div>
+
+          {/* Mover / Prazo / Prioridade */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, marginBottom: 5 }}>COLUNA</div>
+              <select value={card.list_id} onChange={e => onPatch(card.id, { list_id: e.target.value })} style={{ padding: '8px 10px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, fontWeight: 600 }}>
+                {lists.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, marginBottom: 5 }}>PRAZO</div>
+              <input type="datetime-local" value={toLocalInput(card.due_date)} onChange={e => onPatch(card.id, { due_date: fromLocalInput(e.target.value) })}
+                style={{ padding: '8px 10px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13 }} />
+            </div>
+          </div>
+
+          {/* Prioridade */}
+          <Section title="Prioridade">
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {PRIORITIES.map(p => (
+                <button key={p.id} className="cs-btn" onClick={() => setPriority(p.id)}
+                  style={{ background: card.priority === p.id ? p.color : `${p.color}1e`, color: card.priority === p.id ? '#fff' : p.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${p.color}55` }}>{p.name}</button>
+              ))}
+            </div>
+          </Section>
+
+          {/* Etiquetas */}
+          <Section title="Etiquetas">
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {LABELS.map(l => (
+                <button key={l.id} className="cs-btn" onClick={() => toggleLabel(l.id)}
+                  style={{ background: labels.includes(l.id) ? l.color : `${l.color}1e`, color: labels.includes(l.id) ? '#fff' : l.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${l.color}55` }}>
+                  {labels.includes(l.id) ? '✓ ' : ''}{l.name}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          {/* Responsáveis */}
+          <Section title="Responsáveis">
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+              {assignees.map(n => (
+                <span key={n} onClick={() => toggleAssignee(n)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: sub, borderRadius: 20, padding: '4px 10px 4px 4px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 9.5, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(n)}</span>
+                  {n} <span style={{ color: T.textT }}>✕</span>
+                </span>
+              ))}
+              <button className="cs-btn" onClick={() => setShowAssign(s => !s)} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 20, padding: '6px 13px', fontWeight: 700, fontSize: 12.5 }}>＋ Atribuir</button>
+            </div>
+            {showAssign && (
+              <div className="cs-scroll" style={{ marginTop: 10, maxHeight: 190, overflowY: 'auto', border: `1px solid ${brd}`, borderRadius: 10, background: T.page }}>
+                {people.filter(p => !assignees.includes(p)).map(p => (
+                  <div key={p} onClick={() => { toggleAssignee(p); }} className="cs-ghost" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(p), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(p)}</span>{p}
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-          {/* Attach desktop */}
-          {attachOpen&&!mobile&&(
-            <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left:0,
-              background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,
-              overflow:'hidden',boxShadow:`0 -8px 28px rgba(0,0,0,${T.dark?'0.3':'0.1'})`,zIndex:10,minWidth:210 }}>
-              {[
-                {label:'📷  Foto / Imagem',       fn:()=>imgRef.current?.click()},
-                {label:'📎  Arquivo / Documento', fn:()=>fileRef.current?.click()},
-                {label:'🎵  Arquivo de Áudio',    fn:()=>audioFRef.current?.click()},
-                {label:'🎙️  Gravar Áudio',        fn:startRec},
-              ].map((item,i)=>(
-                <div key={i} onClick={()=>{item.fn();setAttachOpen(false);}}
-                  onMouseEnter={e=>e.currentTarget.style.background=T.page}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-                  style={{ padding:'11px 16px',cursor:'pointer',fontSize:13,color:T.text,
-                    fontFamily:'var(--font-body)',borderBottom:i<3?`1px solid ${T.border}`:'none',transition:'background .12s' }}>
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Dropdown: seleção de comando (enquanto digita) */}
-          {cmdMenu&&filtCmds.length>0&&(
-            <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left: mobile?0:44,right: mobile?0:48,
-              background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,
-              overflow:'hidden',boxShadow:`0 -8px 28px rgba(0,0,0,${T.dark?'0.35':'0.1'})`,zIndex:10 }}>
-              <div style={{ padding:'8px 14px 5px',fontSize:9,fontWeight:700,color:T.textT,
-                textTransform:'uppercase',letterSpacing:'.1em',fontFamily:'var(--font-body)',
-                display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-                <span>Comandos disponíveis</span>
-                <span style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
-                  padding:'1px 6px',fontSize:9,fontFamily:'monospace',color:T.textS }}>Tab ⇥ para completar</span>
-              </div>
-              {filtCmds.map(c=>(
-                <div key={c.cmd} onClick={()=>pickCmd(c.cmd)}
-                  style={{ padding:'10px 14px',cursor:'pointer',
-                    borderTop:`1px solid ${T.border}`,WebkitTapHighlightColor:'transparent' }}>
-                  <div style={{ display:'flex',flexWrap:'wrap',gap:5,alignItems:'center',marginBottom:4 }}>
-                    <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:700,flexShrink:0 }}>{c.cmd}</code>
-                    {c.params.map((p,i)=>(
-                      <span key={i} style={{ fontSize:10,color:'#E67E22',background:'#E67E2214',
-                        border:'1px solid #E67E2228',padding:'1px 6px',borderRadius:4,fontFamily:'monospace' }}>
-                        [{p}]
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>{c.desc}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Painel de uso / quick-pick */}
-          {activeCmd&&!cmdMenu&&(
-            activeCmd.cmd==='/solicitar_bloqueio'?(
-              <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left:mobile?0:44,right:mobile?0:48,
-                background:T.dark?'#0C1628':'#EFF6FF',
-                border:`1.5px solid ${T.gold}55`,borderRadius:16,padding:'14px 16px',
-                boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
-                zIndex:10,fontFamily:'var(--font-body)' }}>
-                <div style={{ fontSize:10,fontWeight:700,color:T.gold,textTransform:'uppercase',
-                  letterSpacing:'.1em',marginBottom:13,display:'flex',alignItems:'center',gap:7 }}>
-                  🔒 <span>Solicitação de Bloqueio</span>
-                </div>
-                {/* Cliente */}
-                <div style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
-                    letterSpacing:'.08em',marginBottom:7 }}>👤 Cliente / Município</div>
-                  <input value={cmdCliente} onChange={e=>setCmdCliente(e.target.value)}
-                    placeholder="Nome do município ou empresa..."
-                    autoFocus
-                    style={{ width:'100%',boxSizing:'border-box',background:T.page,
-                      border:`1px solid ${cmdCliente?T.gold+'99':T.border}`,borderRadius:10,
-                      padding:'8px 12px',fontSize:mobile?16:13,color:T.text,
-                      fontFamily:'var(--font-body)',outline:'none',transition:'border-color .15s' }}/>
-                </div>
-                {/* Categoria */}
-                <div style={{ marginBottom:12 }}>
-                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
-                    letterSpacing:'.08em',marginBottom:8 }}>📋 Categoria</div>
-                  <div style={{ display:'flex',flexWrap:'wrap',gap:7 }}>
-                    {[{label:'💧 Abastecimento',val:'Abastecimento'},{label:'🔧 Manutenção',val:'Manutenção'},{label:'🏛️ Patrimônio',val:'Patrimônio'}].map(opt=>(
-                      <button key={opt.val} onClick={()=>setCmdCategoria(cmdCategoria===opt.val?null:opt.val)}
-                        style={{ padding:'7px 14px',borderRadius:22,cursor:'pointer',
-                          fontFamily:'var(--font-body)',fontSize:mobile?13:12,fontWeight:cmdCategoria===opt.val?700:500,
-                          border:`1.5px solid ${cmdCategoria===opt.val?T.gold:T.border}`,
-                          background:cmdCategoria===opt.val?`${T.gold}18`:'transparent',
-                          color:cmdCategoria===opt.val?T.gold:T.textS,
-                          WebkitTapHighlightColor:'transparent',transition:'all .15s' }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Desbloqueio */}
-                <div style={{ marginBottom:11 }}>
-                  <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',
-                    letterSpacing:'.08em',marginBottom:8 }}>⏰ Desbloqueio</div>
-                  <div style={{ display:'flex',flexWrap:'wrap',gap:7,marginBottom:7 }}>
-                    {[{label:'🌅 Amanhã às 8h',val:'Amanhã às 8h'},{label:'📅 Outra hora',val:'custom'}].map(opt=>(
-                      <button key={opt.val} onClick={()=>{const s=cmdDesbloqueio===opt.val?null:opt.val;setCmdDesbloqueio(s);setShowCustomDate(s==='custom');if(s!=='custom')setCustomDateVal('');}}
-                        style={{ padding:'7px 14px',borderRadius:22,cursor:'pointer',
-                          fontFamily:'var(--font-body)',fontSize:mobile?13:12,fontWeight:cmdDesbloqueio===opt.val?700:500,
-                          border:`1.5px solid ${cmdDesbloqueio===opt.val?T.gold:T.border}`,
-                          background:cmdDesbloqueio===opt.val?`${T.gold}18`:'transparent',
-                          color:cmdDesbloqueio===opt.val?T.gold:T.textS,
-                          WebkitTapHighlightColor:'transparent',transition:'all .15s' }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {showCustomDate&&(
-                    <input value={customDateVal} onChange={e=>setCustomDateVal(e.target.value)}
-                      placeholder="Ex: 22/04 às 08:00, próxima segunda..."
-                      style={{ width:'100%',boxSizing:'border-box',background:T.page,
-                        border:`1px solid ${T.gold}55`,borderRadius:10,
-                        padding:'8px 12px',fontSize:mobile?16:13,color:T.text,
-                        fontFamily:'var(--font-body)',outline:'none' }}/>
-                  )}
-                </div>
-                <div style={{ paddingTop:8,borderTop:`1px solid ${T.border}`,
-                  fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap' }}>
-                  <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
-                    padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
-                  <span>para enviar</span>
-                  {cmdCliente.trim()&&<span style={{ color:'#fff',fontWeight:600 }}>· {cmdCliente.trim()}</span>}
-                  {cmdCategoria&&<span style={{ color:T.gold,fontWeight:600 }}>· {cmdCategoria}</span>}
-                  {cmdDesbloqueio&&cmdDesbloqueio!=='custom'&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {cmdDesbloqueio}</span>}
-                  {cmdDesbloqueio==='custom'&&customDateVal&&<span style={{ color:'#E67E22',fontWeight:600 }}>· {customDateVal}</span>}
-                </div>
-              </div>
-            ):(
-              <div style={{ position:'absolute',bottom:'calc(100% + 8px)',left:mobile?0:44,right:mobile?0:48,
-                background:T.dark?'#0C1628':'#EFF6FF',
-                border:`1.5px solid ${T.gold}55`,borderRadius:14,padding:'13px 16px',
-                boxShadow:`0 -8px 24px rgba(0,0,0,${T.dark?'0.28':'0.08'})`,
-                zIndex:10,fontFamily:'var(--font-body)' }}>
-                <div style={{ fontSize:9,fontWeight:700,color:T.gold,textTransform:'uppercase',
-                  letterSpacing:'.1em',marginBottom:9,display:'flex',alignItems:'center',gap:6 }}>
-                  <span>⚡</span><span>Como usar</span>
-                </div>
-                <div style={{ display:'flex',flexWrap:'wrap',gap:6,alignItems:'center',marginBottom:9 }}>
-                  <code style={{ fontSize:12,color:T.gold,fontFamily:'monospace',fontWeight:800 }}>{activeCmd.cmd}</code>
-                  {activeCmd.params.map((p,i)=>(
-                    <span key={i} style={{ fontSize:mobile?11:10,color:'#C0500A',background:'#E67E2215',
-                      border:'1px solid #E67E2230',padding:'2px 8px',borderRadius:5,fontFamily:'monospace',lineHeight:1.6 }}>
-                      [{p}]
-                    </span>
-                  ))}
-                </div>
-                <div style={{ fontSize:11,color:T.textS,lineHeight:1.5 }}>{activeCmd.desc}</div>
-                <div style={{ marginTop:9,paddingTop:8,borderTop:`1px solid ${T.border}`,
-                  fontSize:10,color:T.textT,display:'flex',alignItems:'center',gap:5 }}>
-                  <kbd style={{ background:T.page,border:`1px solid ${T.border}`,borderRadius:4,
-                    padding:'1px 6px',fontSize:9,fontFamily:'monospace' }}>Enter</kbd>
-                  <span>para enviar</span>
-                </div>
-              </div>
-            )
-          )}
-          <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-            <button onClick={()=>{setAttachOpen(o=>!o);setCmdMenu(false);}} style={circBtn(attachOpen)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
-              </svg>
-            </button>
-            <input ref={inputRef} value={input} onChange={onChange} onKeyDown={onKey}
-              placeholder={mobile?'Mensagem...':'Mensagem ou / para comandos...'}
-              style={{ flex:1,background:T.page,borderRadius:24,
-                border:`1.5px solid ${input.startsWith('/solicitar_bloqueio')?T.gold+'AA':T.border}`,
-                padding: mobile?'11px 16px':'9px 15px',
-                fontSize: mobile?16:14,color:T.text,fontFamily:'var(--font-body)',
-                outline:'none',transition:'border-color .15s' }}
-            />
-            {!hasText
-              ?<button onClick={startRec} style={circBtn(false)}>
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-                    <path d="M19 10v2a7 7 0 01-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-                  </svg>
-                </button>
-              :<button onClick={doSend} style={{ ...circBtn(true),background:T.gold,borderColor:'transparent',color:'#fff' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
-                </button>
-            }
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Modal: Colegas Online ─────────────────────────────────────────────────────
-function OnlineModal({ onClose }) {
-  const [search, setSearch] = useState('');
-  const all = Object.entries(USERS);
-  const filtered = search.trim()===''
-    ? all
-    : all.filter(([,u]) => {
-        const q=search.toLowerCase();
-        return u.name.toLowerCase().includes(q) || u.sector.toLowerCase().includes(q);
-      });
-  return (
-    <div style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:2000,
-      display:'flex',alignItems:'center',justifyContent:'center',padding:20 }}
-      onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.surface,borderRadius:18,width:400,maxWidth:'92vw',
-        boxShadow:`0 24px 64px rgba(0,0,0,${T.dark?'0.5':'0.2'})`,border:`1px solid ${T.border}`,overflow:'hidden',
-        display:'flex',flexDirection:'column',maxHeight:'80vh' }}>
-        {/* Header */}
-        <div style={{ padding:'16px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
-          <div style={{ width:32,height:32,borderRadius:9,background:`${T.gold}18`,border:`1px solid ${T.gold}44`,
-            display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>👥</div>
-          <span style={{ fontSize:15,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Colegas</span>
-          <button onClick={onClose} style={{ background:'none',border:'none',color:T.textS,
-            cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',WebkitTapHighlightColor:'transparent' }}>×</button>
-        </div>
-        {/* Barra de pesquisa */}
-        <div style={{ padding:'10px 16px',borderBottom:`1px solid ${T.border}`,flexShrink:0 }}>
-          <div style={{ display:'flex',alignItems:'center',gap:9,background:T.page,
-            borderRadius:12,padding:'9px 13px',border:`1px solid ${T.border}` }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input
-              value={search}
-              onChange={e=>setSearch(e.target.value)}
-              placeholder="Pesquisar por nome ou setor..."
-              autoFocus
-              style={{ flex:1,background:'transparent',border:'none',outline:'none',
-                fontSize:14,color:T.text,fontFamily:'var(--font-body)' }}
-            />
-            {search && (
-              <button onClick={()=>setSearch('')} style={{ background:'none',border:'none',color:T.textT,cursor:'pointer',fontSize:16,lineHeight:1,padding:0 }}>×</button>
-            )}
-          </div>
-        </div>
-        {/* Lista */}
-        <div style={{ overflowY:'auto',WebkitOverflowScrolling:'touch' }}>
-          {filtered.length===0 && (
-            <div style={{ padding:'32px 20px',textAlign:'center',color:T.textT,fontSize:13,fontFamily:'var(--font-body)' }}>
-              Nenhum colega encontrado
-            </div>
-          )}
-          {filtered.map(([id,u])=>(
-            <div key={id} style={{ display:'flex',alignItems:'center',gap:13,padding:'11px 20px',
-              borderBottom:`1px solid ${T.border}` }}>
-              <div style={{ position:'relative',flexShrink:0 }}>
-                <Avatar userId={id} size={44}/>
-                <div style={{ position:'absolute',bottom:1,right:1,width:11,height:11,borderRadius:'50%',
-                  background:u.online?'#27AE60':'#A0A0A8',border:`2px solid ${T.surface}` }}/>
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontSize:13,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</div>
-                <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)',marginTop:1 }}>Setor de {u.sector}</div>
-              </div>
-              <div style={{ display:'flex',alignItems:'center',gap:5,flexShrink:0 }}>
-                <div style={{ width:7,height:7,borderRadius:'50%',background:u.online?'#27AE60':'#A0A0A8' }}/>
-                <span style={{ fontSize:11,fontWeight:600,color:u.online?'#27AE60':T.textS,fontFamily:'var(--font-body)' }}>
-                  {u.online?'Online':'Offline'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Sidebar (desktop) ────────────────────────────────────────────────────────
-function Sidebar({ selected, onSelect, dmMeta, convTab, setConvTab, setShowOnlineModal }) {
-  const bg=sbBg(),brd=sbBrd(),sel=sbSel();
-  const onlineUsers=Object.entries(USERS).filter(([,u])=>u.online);
-  const allConvs=[{...GROUP_META,type:'group'},...dmMeta.map(d=>({...d,type:'dm'}))];
-  const convs=convTab==='unread'?allConvs.filter(c=>c.unread>0):allConvs;
-  const unreadCount=allConvs.filter(c=>c.unread>0).length;
-
-  const rowStyle=(id)=>({
-    display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,
-    background: selected===id?sel:'transparent',
-    cursor:'pointer',transition:'background .12s',marginBottom:2,
-    WebkitTapHighlightColor:'transparent',
-  });
-
-  return (
-    <div style={{ width:272,flexShrink:0,background:bg,borderRight:`1px solid ${brd}`,
-      display:'flex',flexDirection:'column',overflow:'hidden' }}>
-
-      <div style={{ padding:'13px 14px 10px',borderBottom:`1px solid ${brd}`,flexShrink:0 }}>
-        <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-          <div style={{ width:34,height:34,borderRadius:10,background:`${T.gold}18`,border:`1px solid ${T.gold}44`,
-            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:16 }}>💬</div>
-          <div>
-            <div style={{ fontSize:13,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',lineHeight:1.2 }}>Conexão Setorial</div>
-            <div style={{ fontSize:9,color:T.textT,fontFamily:'var(--font-body)',marginTop:1 }}>Admin</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display:'flex',padding:'8px 12px 6px',gap:6,flexShrink:0 }}>
-        {[{id:'all',label:'Todas'},{id:'unread',label:`Não lidas${convTab!=='unread'&&unreadCount>0?` (${unreadCount})`:''}`}].map(tab=>(
-          <button key={tab.id} onClick={()=>setConvTab(tab.id)}
-            style={{ flex:1,padding:'6px 0',borderRadius:8,border:'none',cursor:'pointer',
-              background: convTab===tab.id?T.gold:T.page,
-              color: convTab===tab.id?'#fff':T.textS,
-              fontSize:11,fontWeight:700,fontFamily:'var(--font-body)',
-              transition:'all .15s',WebkitTapHighlightColor:'transparent' }}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div style={{ padding:'0 12px 8px',flexShrink:0 }}>
-        <div style={{ background:T.page,borderRadius:10,padding:'7px 11px',
-          display:'flex',alignItems:'center',gap:7,border:`1px solid ${T.border}` }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <span style={{ fontSize:12,color:T.textT,fontFamily:'var(--font-body)' }}>Pesquisar...</span>
-        </div>
-      </div>
-
-      {/* Lista */}
-      <div style={{ flex:1,overflowY:'auto',padding:'0 12px',minHeight:0 }}>
-        {convs.length===0&&(
-          <div style={{ textAlign:'center',padding:'24px 0',color:T.textT,fontSize:12,fontFamily:'var(--font-body)' }}>
-            Nenhuma mensagem não lida
-          </div>
-        )}
-        {convs.map(conv=>{
-          if(conv.type==='group') return (
-            <div key="group" onClick={()=>onSelect('group')} style={rowStyle('group')}>
-              <div style={{ width:38,height:38,borderRadius:11,background:`${T.gold}15`,border:`1px solid ${T.gold}33`,
-                display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-                </svg>
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-                  <span style={{ fontSize:12,fontWeight:600,color:T.text,fontFamily:'var(--font-body)',
-                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:135 }}>7 SERV - Comunicação Interna</span>
-                  <span style={{ fontSize:10,color:T.textT,fontFamily:'var(--font-body)',flexShrink:0,marginLeft:4 }}>{conv.lastTime}</span>
-                </div>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2 }}>
-                  <span style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)',
-                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1 }}>{conv.lastMsg}</span>
-                  {conv.unread>0&&<UnreadBadge n={conv.unread}/>}
-                </div>
-              </div>
-            </div>
-          );
-          const u=USERS[conv.user];
-          return (
-            <div key={conv.id} onClick={()=>onSelect(conv.id)} style={rowStyle(conv.id)}>
-              <div style={{ position:'relative',flexShrink:0 }}>
-                <Avatar userId={conv.user} size={36}/>
-                <div style={{ position:'absolute',bottom:0,right:0,width:9,height:9,borderRadius:'50%',
-                  background:u.online?'#27AE60':'#A0A0A8',border:`2px solid ${bg}` }}/>
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-                  <span style={{ fontSize:12,fontWeight:600,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</span>
-                  <span style={{ fontSize:10,color:T.textT,fontFamily:'var(--font-body)',flexShrink:0,marginLeft:4 }}>{conv.lastTime}</span>
-                </div>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:2 }}>
-                  <span style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)',
-                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1 }}>{conv.lastMsg}</span>
-                  {conv.unread>0&&<UnreadBadge n={conv.unread}/>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Online agora */}
-      <div style={{ padding:'10px 14px 14px',borderTop:`1px solid ${brd}`,flexShrink:0 }}>
-        <button onClick={()=>setShowOnlineModal(true)}
-          style={{ display:'flex',alignItems:'center',gap:6,marginBottom:10,background:'none',
-            border:'none',cursor:'pointer',padding:0,WebkitTapHighlightColor:'transparent' }}>
-          <span style={{ fontSize:9,fontWeight:700,color:T.gold,letterSpacing:'.12em',
-            textTransform:'uppercase',fontFamily:'var(--font-body)' }}>Colegas Online</span>
-          <div style={{ width:5,height:5,borderRadius:'50%',background:'#27AE60',flexShrink:0 }}/>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-        <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-          {onlineUsers.map(([id,u])=>(
-            <div key={id} style={{ display:'flex',alignItems:'center',gap:9 }}>
-              <div style={{ position:'relative',flexShrink:0 }}>
-                <Avatar userId={id} size={30}/>
-                <div style={{ position:'absolute',bottom:0,right:0,width:8,height:8,borderRadius:'50%',
-                  background:'#27AE60',border:`2px solid ${bg}` }}/>
-              </div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:11,fontWeight:600,color:T.text,fontFamily:'var(--font-body)',
-                  whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{u.name}</div>
-                <div style={{ fontSize:9,color:T.textS,fontFamily:'var(--font-body)' }}>Setor de {u.sector}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── ActivitiesPanel ──────────────────────────────────────────────────────────
-function ActivitiesPanel({ activities, mobile }) {
-  const body=(
-    <div style={{ flex:1,overflowY:'auto',padding:'12px 14px',display:'flex',flexDirection:'column',gap:10,
-      minHeight:0,WebkitOverflowScrolling:'touch' }}>
-      {activities.map(act=>(
-        <div key={act.id} style={{ background:T.surface,borderRadius:12,
-          border:`1px solid ${act.urgent?act.color+'44':T.border}`,
-          padding:'12px 14px',position:'relative',overflow:'hidden',flexShrink:0 }}>
-          <div style={{ position:'absolute',top:0,left:0,bottom:0,width:3,background:act.color,borderRadius:'12px 0 0 12px' }}/>
-          <div style={{ paddingLeft:9 }}>
-            <div style={{ display:'flex',alignItems:'flex-start',gap:8,marginBottom:6 }}>
-              <span style={{ fontSize:16,flexShrink:0 }}>{act.icon}</span>
-              <div style={{ fontSize:12,fontWeight:700,color:T.text,lineHeight:1.3,fontFamily:'var(--font-body)' }}>{act.title}</div>
-            </div>
-            <div style={{ fontSize:11,color:T.textS,lineHeight:1.4,marginBottom:8,fontFamily:'var(--font-body)' }}>{act.desc}</div>
-            <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-              <span style={{ fontSize:10,fontWeight:700,color:act.color,background:`${act.color}18`,
-                padding:'2px 8px',borderRadius:6,fontFamily:'var(--font-body)' }}>{act.when}</span>
-              <span style={{ fontSize:10,color:T.textT,fontFamily:'var(--font-body)' }}>{act.sector}</span>
-            </div>
-            {act.urgent&&(
-              <div style={{ marginTop:6,display:'flex',alignItems:'center',gap:5 }}>
-                <div style={{ width:5,height:5,borderRadius:'50%',background:act.color }}/>
-                <span style={{ fontSize:10,color:act.color,fontWeight:700,fontFamily:'var(--font-body)' }}>Urgente</span>
+                {people.filter(p => !assignees.includes(p)).length === 0 && <div style={{ padding: 12, color: T.textT, fontSize: 12 }}>Todos já atribuídos.</div>}
               </div>
             )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-  if(mobile) return (
-    <div style={{ display:'flex',flexDirection:'column',flex:1,minHeight:0 }}>
-      <div style={{ padding:'12px 16px 10px',borderBottom:`1px solid ${T.border}`,
-        display:'flex',alignItems:'center',gap:10,flexShrink:0,background:T.surface }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span style={{ fontSize:15,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Atividades Pendentes</span>
-        <div style={{ background:`${T.gold}18`,color:T.gold,fontSize:11,fontWeight:700,
-          width:22,height:22,borderRadius:11,display:'flex',alignItems:'center',justifyContent:'center' }}>{activities.length}</div>
-      </div>
-      {body}
-    </div>
-  );
-  return (
-    <div style={{ width:260,flexShrink:0,background:T.surface,borderLeft:`1px solid ${T.border}`,
-      display:'flex',flexDirection:'column',overflow:'hidden' }}>
-      <div style={{ padding:'12px 16px 10px',borderBottom:`1px solid ${T.border}`,
-        display:'flex',alignItems:'center',gap:9,flexShrink:0 }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span style={{ fontSize:13,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Atividades Pendentes</span>
-        <div style={{ background:`${T.gold}18`,color:T.gold,fontSize:10,fontWeight:700,
-          minWidth:20,height:20,borderRadius:10,padding:'0 5px',display:'flex',alignItems:'center',
-          justifyContent:'center',fontFamily:'var(--font-body)' }}>{activities.length}</div>
-      </div>
-      {body}
-      <div style={{ padding:'10px 14px 12px',borderTop:`1px solid ${T.border}`,flexShrink:0 }}>
-        <div style={{ fontSize:9,fontWeight:700,color:T.textT,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:6,fontFamily:'var(--font-body)' }}>Comandos rápidos</div>
-        {COMMANDS.map(c=>(
-          <div key={c.cmd} style={{ marginBottom:5,display:'flex',alignItems:'baseline',gap:6 }}>
-            <code style={{ fontSize:10,color:T.gold,fontFamily:'monospace',background:`${T.gold}12`,padding:'1px 5px',borderRadius:4,flexShrink:0 }}>{c.cmd}</code>
-            <span style={{ fontSize:9,color:T.textT,fontFamily:'var(--font-body)' }}>{c.desc}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+          </Section>
 
-// ─── NotifToast ───────────────────────────────────────────────────────────────
-function NotifToast({ data, onDismiss, mobile }) {
-  return (
-    <div style={{ position:'fixed',top:mobile?'auto':20,bottom:mobile?76:'auto',
-      right:mobile?12:20,left:mobile?12:'auto',zIndex:9999,
-      background: T.dark?'#0F1520':T.surface,borderRadius:16,padding:'13px 15px 15px',
-      boxShadow:`0 12px 40px rgba(0,0,0,${T.dark?'0.5':'0.15'}), 0 0 0 1px ${T.border}`,
-      maxWidth: mobile?'100%':310,fontFamily:'var(--font-body)',
-      animation:'csSlideIn .35s cubic-bezier(.16,1,.3,1)' }}>
-      <div style={{ display:'flex',alignItems:'center',gap:7,marginBottom:9 }}>
-        <div style={{ width:18,height:18,borderRadius:5,background:T.gold,
-          display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,flexShrink:0 }}>🔔</div>
-        <span style={{ fontSize:9,fontWeight:700,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',flex:1 }}>Conexão Setorial</span>
-        <button onClick={onDismiss} style={{ background:'none',border:'none',color:T.textT,
-          cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px',WebkitTapHighlightColor:'transparent' }}>×</button>
-      </div>
-      <div style={{ display:'flex',gap:11,alignItems:'flex-start' }}>
-        <div style={{ width:40,height:40,borderRadius:12,background:`${T.gold}18`,border:`1px solid ${T.gold}44`,
-          display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:20 }}>⚡</div>
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ fontSize:12,fontWeight:700,color:T.text,marginBottom:4,lineHeight:1.3 }}>Solicitação de Bloqueio de Manutenção</div>
-          <div style={{ fontSize:11,color:T.textS,lineHeight:1.5 }}>
-            <b style={{color:T.gold}}>Nicolas Andrade</b> solicitou bloqueio de <b style={{color:'#E67E22'}}>{data.municipio}</b>.
-            {data.mentions.length>0&&<><br/>Responsável: <b style={{color:'#27AE60'}}>{data.mentions.map(u=>USERS[u]?.name).join(', ')}</b></>}
-            <br/>Desbloqueio: <b style={{color:'#E67E22'}}>{data.desbloqueio}</b>
-          </div>
-        </div>
-      </div>
-      <div style={{ marginTop:11,display:'flex',gap:8 }}>
-        <button onClick={onDismiss} style={{ flex:1,padding:'9px 0',borderRadius:10,border:'none',
-          background:T.gold,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',
-          fontFamily:'inherit',WebkitTapHighlightColor:'transparent' }}>Ver Atividade</button>
-        <button onClick={onDismiss} style={{ flex:1,padding:'9px 0',borderRadius:10,
-          border:`1px solid ${T.border}`,background:'transparent',
-          color:T.textS,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-          WebkitTapHighlightColor:'transparent' }}>Fechar</button>
-      </div>
-    </div>
-  );
-}
+          {/* Descrição */}
+          <Section title="Descrição">
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} onBlur={() => desc !== (card.description || '') && onPatch(card.id, { description: desc })}
+              placeholder="Detalhes da tarefa…" rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13.5, resize: 'vertical', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }} />
+          </Section>
 
-// ─── Mobile: chat header ───────────────────────────────────────────────────────
-function MobileChatHeader({ selected, onBack }) {
-  const bg=sbBg(),brd=sbBrd();
-  const conv=INIT_DM_META.find(c=>c.id===selected);
-  const u=conv?USERS[conv.user]:null;
-  return (
-    <div style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
-      background:bg,flexShrink:0,borderBottom:`1px solid ${brd}` }}>
-      <button onClick={onBack} style={{ width:38,height:38,borderRadius:'50%',background:'transparent',
-        border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-        color:T.gold,flexShrink:0,WebkitTapHighlightColor:'transparent' }}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M19 12H5M5 12l7 7M5 12l7-7"/>
-        </svg>
-      </button>
-      {selected==='group'?(
-        <>
-          <div style={{ width:42,height:42,borderRadius:12,background:`${T.gold}18`,border:`1px solid ${T.gold}44`,
-            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-          </div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:14,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>7 SERV - Comunicação Interna</div>
-            <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>5 participantes · 3 online</div>
-          </div>
-        </>
-      ):u&&(
-        <>
-          <div style={{ position:'relative',flexShrink:0 }}>
-            <Avatar userId={conv.user} size={42}/>
-            <div style={{ position:'absolute',bottom:1,right:1,width:11,height:11,borderRadius:'50%',
-              background:u.online?'#27AE60':'#A0A0A8',border:`2px solid ${bg}` }}/>
-          </div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:14,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</div>
-            <div style={{ fontSize:11,color:u.online?'#27AE60':T.textS,fontFamily:'var(--font-body)' }}>
-              {u.online?'● Online':'○ Offline'} · {u.sector}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── Mobile: lista de conversas ────────────────────────────────────────────────
-function MobileConvList({ selected, onSelect, dmMeta, onBack, convTab, setConvTab, setShowOnlineModal }) {
-  const bg=sbBg(),brd=sbBrd(),sel=sbSel();
-  const onlineUsers=Object.entries(USERS).filter(([,u])=>u.online);
-  const allConvs=[{...GROUP_META,type:'group'},...dmMeta.map(d=>({...d,type:'dm'}))];
-  const convs=convTab==='unread'?allConvs.filter(c=>c.unread>0):allConvs;
-  const unreadCount=allConvs.filter(c=>c.unread>0).length;
-
-  return (
-    <div style={{ display:'flex',flexDirection:'column',flex:1,minHeight:0,background:bg }}>
-      <div style={{ padding:'14px 16px 10px',borderBottom:`1px solid ${brd}`,flexShrink:0 }}>
-        <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:10 }}>
-          <button onClick={onBack} style={{ background:'none',border:'none',cursor:'pointer',
-            color:T.textS,display:'flex',alignItems:'center',gap:4,fontSize:13,
-            fontFamily:'var(--font-body)',padding:0,WebkitTapHighlightColor:'transparent' }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 12L6 8L10 4"/></svg>
-            Módulos
-          </button>
-          <span style={{ fontSize:16,fontWeight:700,color:T.text,fontFamily:'var(--font-body)',flex:1 }}>Mensagens</span>
-        </div>
-        <div style={{ display:'flex',gap:8 }}>
-          {[{id:'all',label:'Todas'},{id:'unread',label:`Não lidas${unreadCount>0?` (${unreadCount})`:''}`}].map(tab=>(
-            <button key={tab.id} onClick={()=>setConvTab(tab.id)}
-              style={{ flex:1,padding:'8px 0',borderRadius:10,border:'none',cursor:'pointer',
-                background: convTab===tab.id?T.gold:T.page,
-                color: convTab===tab.id?'#fff':T.textS,
-                fontSize:13,fontWeight:700,fontFamily:'var(--font-body)',
-                WebkitTapHighlightColor:'transparent',transition:'all .15s' }}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding:'8px 14px 4px',flexShrink:0 }}>
-        <div style={{ background:T.page,borderRadius:12,padding:'9px 13px',border:`1px solid ${T.border}`,
-          display:'flex',alignItems:'center',gap:8 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <span style={{ fontSize:14,color:T.textT,fontFamily:'var(--font-body)' }}>Pesquisar...</span>
-        </div>
-      </div>
-
-      <div style={{ flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch' }}>
-        {convs.length===0&&(
-          <div style={{ textAlign:'center',padding:'40px 20px',color:T.textT,fontSize:14,fontFamily:'var(--font-body)' }}>
-            Nenhuma mensagem não lida 🎉
-          </div>
-        )}
-        {convs.map(conv=>{
-          if(conv.type==='group') return (
-            <div key="group" onClick={()=>onSelect('group')}
-              style={{ display:'flex',alignItems:'center',gap:13,padding:'12px 16px',
-                background: selected==='group'?sel:'transparent',
-                cursor:'pointer',WebkitTapHighlightColor:'transparent',borderBottom:`1px solid ${brd}` }}>
-              <div style={{ width:52,height:52,borderRadius:15,background:`${T.gold}15`,border:`1px solid ${T.gold}33`,
-                display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-                </svg>
+          {/* Checklist */}
+          <Section title={`Checklist${checklist.length ? ` · ${doneCount}/${checklist.length}` : ''}`}>
+            {checklist.length > 0 && (
+              <div style={{ height: 6, borderRadius: 4, background: sub, marginBottom: 10, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: UNIKO_GRAD, transition: 'width .3s' }} />
               </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3 }}>
-                  <span style={{ fontSize:15,fontWeight:600,color:T.text,fontFamily:'var(--font-body)' }}>7 SERV - Comunicação Interna</span>
-                  <span style={{ fontSize:11,color:T.textT,fontFamily:'var(--font-body)',flexShrink:0,marginLeft:8 }}>{conv.lastTime}</span>
-                </div>
-                <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-                  <span style={{ fontSize:13,color:T.textS,fontFamily:'var(--font-body)',
-                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1 }}>{conv.lastMsg}</span>
-                  {conv.unread>0&&<UnreadBadge n={conv.unread}/>}
-                </div>
-              </div>
-            </div>
-          );
-          const u=USERS[conv.user];
-          return (
-            <div key={conv.id} onClick={()=>onSelect(conv.id)}
-              style={{ display:'flex',alignItems:'center',gap:13,padding:'12px 16px',
-                background: selected===conv.id?sel:'transparent',
-                cursor:'pointer',WebkitTapHighlightColor:'transparent',borderBottom:`1px solid ${brd}` }}>
-              <div style={{ position:'relative',flexShrink:0 }}>
-                <Avatar userId={conv.user} size={52}/>
-                <div style={{ position:'absolute',bottom:1,right:1,width:13,height:13,borderRadius:'50%',
-                  background:u.online?'#27AE60':'#A0A0A8',border:`2.5px solid ${bg}` }}/>
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3 }}>
-                  <span style={{ fontSize:15,fontWeight:600,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</span>
-                  <span style={{ fontSize:11,color:T.textT,fontFamily:'var(--font-body)',flexShrink:0,marginLeft:8 }}>{conv.lastTime}</span>
-                </div>
-                <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-                  <span style={{ fontSize:13,color:T.textS,fontFamily:'var(--font-body)',
-                    whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1 }}>{conv.lastMsg}</span>
-                  {conv.unread>0&&<UnreadBadge n={conv.unread}/>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Online agora (mobile) */}
-        <div style={{ padding:'16px 16px 20px' }}>
-          <button onClick={()=>setShowOnlineModal(true)}
-            style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12,background:'none',
-              border:'none',cursor:'pointer',padding:0,WebkitTapHighlightColor:'transparent' }}>
-            <span style={{ fontSize:11,fontWeight:700,color:T.gold,letterSpacing:'.1em',
-              textTransform:'uppercase',fontFamily:'var(--font-body)' }}>Colegas Online</span>
-            <div style={{ width:6,height:6,borderRadius:'50%',background:'#27AE60' }}/>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
-          <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
-            {onlineUsers.map(([id,u])=>(
-              <div key={id} style={{ display:'flex',alignItems:'center',gap:12 }}>
-                <div style={{ position:'relative',flexShrink:0 }}>
-                  <Avatar userId={id} size={40}/>
-                  <div style={{ position:'absolute',bottom:0,right:0,width:10,height:10,borderRadius:'50%',
-                    background:'#27AE60',border:`2px solid ${bg}` }}/>
-                </div>
-                <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:13,fontWeight:600,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</div>
-                  <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>Setor de {u.sector}</div>
-                </div>
+            )}
+            {checklist.map(i => (
+              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 0' }}>
+                <input type="checkbox" checked={i.done} onChange={() => toggleCheck(i.id)} style={{ width: 17, height: 17, accentColor: '#A24CE0', cursor: 'pointer' }} />
+                <span style={{ flex: 1, fontSize: 13.5, textDecoration: i.done ? 'line-through' : 'none', color: i.done ? T.textT : T.text }}>{i.text}</span>
+                <button className="cs-btn cs-ghost" onClick={() => delCheck(i.id)} style={{ background: 'transparent', color: T.textT, borderRadius: 6, width: 24, height: 24, fontSize: 12 }}>✕</button>
               </div>
             ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input value={checkText} onChange={e => setCheckText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCheck()} placeholder="Adicionar item…"
+                style={{ flex: 1, padding: '8px 11px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
+              <button className="cs-btn" onClick={addCheck} style={{ background: sub, color: T.text, borderRadius: 9, padding: '8px 14px', fontWeight: 700, fontSize: 13 }}>＋</button>
+            </div>
+          </Section>
+
+          {/* Comentários */}
+          <Section title={`Comentários${comments.length ? ` · ${comments.length}` : ''}`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+              {comments.map(cm => (
+                <div key={cm.id} style={{ display: 'flex', gap: 9 }}>
+                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: avatarColor(cm.author), color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(cm.author)}</div>
+                  <div style={{ flex: 1, background: sub, borderRadius: 12, padding: '8px 12px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{cm.author} <span style={{ color: T.textT, fontWeight: 500 }}>· {new Date(cm.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>
+                    <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.45 }}>{cm.text}</div>
+                  </div>
+                </div>
+              ))}
+              {comments.length === 0 && <div style={{ fontSize: 12.5, color: T.textT }}>Sem comentários ainda.</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && comment.trim()) { onComment(card.id, comment); setComment(''); } }}
+                placeholder={`Comentar como ${me.split(' ')[0]}…`} style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
+              <button className="cs-btn" onClick={() => { if (comment.trim()) { onComment(card.id, comment); setComment(''); } }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13 }}>Enviar</button>
+            </div>
+          </Section>
+
+          {/* Excluir */}
+          <div style={{ borderTop: `1px solid ${brd}`, paddingTop: 14, marginTop: 4 }}>
+            <button className="cs-btn" onClick={() => onDelete(card.id)} style={{ background: '#E0345A18', color: '#E0345A', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, border: '1px solid #E0345A44' }}>🗑 Excluir card</button>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── BottomNav ────────────────────────────────────────────────────────────────
-function BottomNav({ tab, onChange, actCount }) {
-  const bg=sbBg(),brd=sbBrd();
-  const tabs=[
-    {id:'chats',label:'Chats',icon:(
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-      </svg>
-    )},
-    {id:'activities',label:'Atividades',badge:actCount,icon:(
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>
-    )},
-  ];
-  return (
-    <div style={{ display:'flex',background:bg,borderTop:`1px solid ${brd}`,
-      paddingBottom:'max(10px, env(safe-area-inset-bottom))',flexShrink:0 }}>
-      {tabs.map(t=>{
-        const active=tab===t.id;
-        return (
-          <button key={t.id} onClick={()=>onChange(t.id)}
-            style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3,
-              padding:'10px 0 6px',background:'none',border:'none',cursor:'pointer',
-              color: active?T.gold:T.textT,fontFamily:'var(--font-body)',
-              fontSize:11,fontWeight: active?700:400,
-              WebkitTapHighlightColor:'transparent',position:'relative' }}>
-            {t.badge>0&&(
-              <div style={{ position:'absolute',top:6,left:'calc(50% + 8px)',
-                width:16,height:16,borderRadius:'50%',background:'#E67E22',
-                fontSize:9,fontWeight:700,color:'#fff',display:'flex',
-                alignItems:'center',justifyContent:'center' }}>{t.badge}</div>
-            )}
-            {t.icon}{t.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Root ──────────────────────────────────────────────────────────────────────
-export default function ConexaoSetorial({ onBack }) {
-  const isMobile=useIsMobile();
-  const [selected,        setSelected]        = useState('group');
-  const [groupMsgs,       setGroupMsgs]       = useState(INIT_GROUP);
-  const [dmMsgsMap,       setDmMsgsMap]       = useState(INIT_DM);
-  const [dmMeta,          setDmMeta]          = useState(INIT_DM_META);
-  const [activities,      setActivities]      = useState(INIT_ACTIVITIES);
-  const [notifToast,      setNotifToast]      = useState(null);
-  const [mobileTab,       setMobileTab]       = useState('chats');
-  const [convTab,         setConvTab]         = useState('all');
-  const [showOnlineModal, setShowOnlineModal] = useState(false);
-  const nextId=useRef(300);
-
-  useEffect(()=>{
-    if('Notification' in window && Notification.permission==='default'){
-      Notification.requestPermission();
-    }
-  },[]);
-
-  const getMsgs=()=>selected==='group'?groupMsgs:(dmMsgsMap[selected]||[]);
-
-  const openConv=(id)=>{
-    setSelected(id); setMobileTab('chat');
-    if(id!=='group') setDmMeta(prev=>prev.map(c=>c.id===id?{...c,unread:0}:c));
-  };
-
-  const sendMessage=(data)=>{
-    const time=nowTime(); const id1=nextId.current++;
-    if(data.type==='text'&&data.text.toLowerCase().startsWith('/solicitar_bloqueio')){
-      const raw=data.text.slice('/solicitar_bloqueio'.length).trim();
-      const cmdData=parseBloqueio(raw);
-      if(data._quickCliente)    cmdData.municipio   =data._quickCliente;
-      if(data._quickCategoria)  cmdData.categoria   =data._quickCategoria;
-      if(data._quickDesbloqueio)cmdData.desbloqueio =data._quickDesbloqueio;
-      setGroupMsgs(p=>[...p,
-        {id:id1,from:ME,type:'command',text:data.text,time,cmdData},
-        {id:nextId.current++,type:'system',text:'✅ Notificação enviada para Suporte Contratual & Operacional  •  Adicionado a Atividades Pendentes',time},
-      ]);
-      setActivities(p=>[{id:nextId.current++,icon:'🔒',
-        title:`Bloquear transações de ${cmdData.municipio}`,
-        desc:'Solicitado por Nicolas Andrade via /solicitar_bloqueio',
-        when:cmdData.desbloqueio,color:'#2560C4',
-        sector:'Suporte Contratual',urgent:false},...p]);
-      setNotifToast(cmdData);
-      if('Notification' in window && Notification.permission==='granted'){
-        const lines=[
-          `De: Nicolas Andrade · Faturamento`,
-          `👤 Cliente: ${cmdData.municipio}`,
-          cmdData.categoria?`📋 Categoria: ${cmdData.categoria}`:'',
-          `⏰ Desbloqueio: ${cmdData.desbloqueio}`,
-        ].filter(Boolean).join('\n');
-        const n=new Notification('🔒 Nova Solicitação de Bloqueio',{body:lines,tag:'bloqueio-solicitacao',renotify:true});
-        setTimeout(()=>n.close(),10000);
-      }
-    } else {
-      const msg={id:id1,from:ME,time,...data};
-      if(selected==='group') setGroupMsgs(p=>[...p,msg]);
-      else setDmMsgsMap(p=>({...p,[selected]:[...(p[selected]||[]),msg]}));
-    }
-  };
-
-  const CSS=`
-    @keyframes csSlideIn{from{opacity:0;transform:translateX(32px) scale(.97)}to{opacity:1;transform:none}}
-    @keyframes recPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.82)}}
-  `;
-
-  if(isMobile) return (
-    <div style={{ height:'100svh',display:'flex',flexDirection:'column',overflow:'hidden',background:T.page }}>
-      <style>{CSS}</style>
-      {mobileTab==='chat'&&<>
-        <MobileChatHeader selected={selected} onBack={()=>setMobileTab('chats')}/>
-        <MsgList msgs={getMsgs()} mobile/>
-        <InputBar onSend={sendMessage} mobile/>
-      </>}
-      {mobileTab==='chats'&&<>
-        <MobileConvList selected={selected} onSelect={openConv} dmMeta={dmMeta}
-          onBack={onBack} convTab={convTab} setConvTab={setConvTab}
-          setShowOnlineModal={setShowOnlineModal}/>
-        <BottomNav tab="chats" onChange={t=>t==='activities'&&setMobileTab('activities')} actCount={activities.length}/>
-      </>}
-      {mobileTab==='activities'&&<>
-        <div style={{ background:sbBg(),padding:'10px 16px',flexShrink:0,borderBottom:`1px solid ${sbBrd()}`,
-          display:'flex',alignItems:'center',gap:10 }}>
-          <button onClick={onBack} style={{ background:'none',border:'none',cursor:'pointer',
-            color:T.textS,display:'flex',alignItems:'center',gap:4,fontSize:13,
-            fontFamily:'var(--font-body)',padding:0,WebkitTapHighlightColor:'transparent' }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 12L6 8L10 4"/></svg>
-            Módulos
-          </button>
-        </div>
-        <div style={{ flex:1,overflow:'hidden',display:'flex',flexDirection:'column',background:T.page }}>
-          <ActivitiesPanel activities={activities} mobile/>
-        </div>
-        <BottomNav tab="activities" onChange={t=>setMobileTab(t)} actCount={activities.length}/>
-      </>}
-      {notifToast&&<NotifToast data={notifToast} onDismiss={()=>setNotifToast(null)} mobile/>}
-      {showOnlineModal&&<OnlineModal onClose={()=>setShowOnlineModal(false)}/>}
-    </div>
-  );
-
-  return (
-    <div style={{ height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:T.page }}>
-      <style>{CSS}</style>
-      <div style={{ height:50,background:T.surface,borderBottom:`1px solid ${T.border}`,
-        display:'flex',alignItems:'center',paddingLeft:18,paddingRight:22,gap:12,flexShrink:0 }}>
-        <button onClick={onBack} style={{ display:'flex',alignItems:'center',gap:6,background:'none',border:'none',
-          cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)',padding:0 }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke={T.textS} strokeWidth="1.8"><path d="M10 12L6 8L10 4"/></svg>
-          Módulos
-        </button>
-        <div style={{ width:1,height:16,background:T.border }}/>
-        <span style={{ fontSize:14,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>Conexão Setorial</span>
-        <div style={{ background:`${T.gold}12`,color:T.gold,fontSize:9,fontWeight:700,
-          padding:'2px 8px',borderRadius:5,fontFamily:'var(--font-body)',letterSpacing:'.04em' }}>SOMENTE ADMIN</div>
-      </div>
-
-      <div style={{ flex:1,display:'flex',overflow:'hidden',minHeight:0 }}>
-        <Sidebar selected={selected} onSelect={setSelected} dmMeta={dmMeta}
-          convTab={convTab} setConvTab={setConvTab} setShowOnlineModal={setShowOnlineModal}/>
-
-        <div style={{ flex:1,display:'flex',flexDirection:'column',minWidth:0,overflow:'hidden' }}>
-          <div style={{ padding:'11px 18px',borderBottom:`1px solid ${T.border}`,background:T.surface,
-            display:'flex',alignItems:'center',gap:12,flexShrink:0 }}>
-            {selected==='group'?(
-              <>
-                <div style={{ width:40,height:40,borderRadius:12,background:`${T.gold}15`,border:`1px solid ${T.gold}33`,
-                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-                  </svg>
-                </div>
-                <div>
-                  <div style={{ fontSize:14,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>7 SERV - Comunicação Interna</div>
-                  <div style={{ fontSize:11,color:T.textS,fontFamily:'var(--font-body)' }}>5 participantes · 3 online agora</div>
-                </div>
-              </>
-            ):(()=>{
-              const conv=dmMeta.find(c=>c.id===selected);
-              const u=conv?USERS[conv.user]:null;
-              if(!u) return null;
-              return (
-                <>
-                  <div style={{ position:'relative' }}>
-                    <Avatar userId={conv.user} size={40}/>
-                    <div style={{ position:'absolute',bottom:0,right:0,width:11,height:11,borderRadius:'50%',
-                      background:u.online?'#27AE60':'#A0A0A8',border:`2px solid ${T.surface}` }}/>
-                  </div>
-                  <div>
-                    <div style={{ fontSize:14,fontWeight:700,color:T.text,fontFamily:'var(--font-body)' }}>{u.name}</div>
-                    <div style={{ fontSize:11,color:u.online?'#27AE60':T.textS,fontFamily:'var(--font-body)' }}>
-                      {u.online?'● Online':'○ Offline'} · {u.sector}
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-          <MsgList msgs={getMsgs()} mobile={false}/>
-          <InputBar onSend={sendMessage} mobile={false}/>
-        </div>
-
-        <ActivitiesPanel activities={activities} mobile={false}/>
-      </div>
-
-      {notifToast&&<NotifToast data={notifToast} onDismiss={()=>setNotifToast(null)} mobile={false}/>}
-      {showOnlineModal&&<OnlineModal onClose={()=>setShowOnlineModal(false)}/>}
     </div>
   );
 }
