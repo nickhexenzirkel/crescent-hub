@@ -26,12 +26,14 @@ const BACK_CANOPIES = Array.from({ length: 22 }, () => ({
   alpha: rng(0.28, 0.55), hue: pick(['#f9c6de', '#f7b6d2', '#fbd4e6', '#f4a9cc']),
 }));
 
-// Árvores de sakura em primeiro plano — nas laterais, com copas grandes que balançam.
+// Árvores de sakura em primeiro plano. O canto esquerdo (x<0.22) fica LIVRE de propósito:
+// é onde entram o torii e a cachoeirinha, a única faixa que não fica atrás dos painéis da
+// Central Alexa na tela cheia (o centro é todo coberto pela UI).
 const TREES = [
-  { x: 0.09, base: 0.86, scale: 1.05, phase: 0.0, lean: -0.04 },
+  { x: 0.30, base: 0.85, scale: 0.9, phase: 0.0, lean: -0.03 },
   { x: 0.90, base: 0.88, scale: 1.18, phase: 1.4, lean: 0.05 },
-  { x: 0.30, base: 0.83, scale: 0.62, phase: 2.6, lean: -0.02 },
-  { x: 0.70, base: 0.84, scale: 0.7, phase: 3.7, lean: 0.03 },
+  { x: 0.68, base: 0.84, scale: 0.72, phase: 2.6, lean: -0.02 },
+  { x: 0.50, base: 0.82, scale: 0.55, phase: 3.7, lean: 0.03 },
 ];
 
 // Grama rosa — lâminas na base, cada uma com fase própria de balanço.
@@ -140,12 +142,12 @@ export default function SakuraScene({ fixed = false }) {
       ctx.globalAlpha = 1;
     };
 
-    // ── Cachoeira caindo de um rochedo natural pro rio ──────────────────────────
+    // ── Cachoeirinha caindo de um rochedo natural pro rio (pequena, no fundo à esquerda) ──
     const drawWaterfall = (w, h) => {
-      const cx = w * 0.40;          // centro da queda (num vão entre as árvores)
-      const topY = h * 0.26, botY = h * 0.73;
-      const wf = Math.min(w, h) * 0.05;  // meia-largura da queda
-      const rw = wf * 2.5;               // meia-largura do rochedo
+      const cx = w * 0.07;          // canto esquerdo (faixa visível na tela cheia)
+      const topY = h * 0.36, botY = h * 0.72;
+      const wf = Math.min(w, h) * 0.028; // meia-largura da queda (pequena)
+      const rw = wf * 2.6;               // meia-largura do rochedo
 
       // Rochedo irregular (duas faces flanqueando a fenda por onde a água desce)
       const rock = (x0, x1, shade) => {
@@ -391,10 +393,9 @@ export default function SakuraScene({ fixed = false }) {
       drawSky(w, h);
       drawMist(w, h, false);       // névoa de trás
       drawBackForest(w, h);
-      drawTorii(w * 0.5, h * 0.72, Math.min(w, h) * 0.26, 0.32); // torii distante (silhueta clara)
-      drawWaterfall(w, h);
+      drawWaterfall(w, h);         // cachoeirinha no fundo (canto esquerdo)
       drawRiver(w, h);
-      drawTorii(w * 0.62, h * 0.78, Math.min(w, h) * 0.34, 0.95); // torii principal
+      drawTorii(w * 0.15, h * 0.82, Math.min(w, h) * 0.25, 0.95); // torii no canto esquerdo (faixa visível)
       TREES.forEach(tr => drawTree(tr, w, h));
       drawGrass(w, h);
       drawRestPetals(w, h);
