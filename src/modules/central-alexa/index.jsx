@@ -6,6 +6,7 @@ import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
 import CosmosScene from '../../shared/cosmosScene';
 import SakuraScene from '../../shared/sakuraScene';
+import FairyScene from '../../shared/fairyScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -560,6 +561,11 @@ const CentralCosmos = () => <CosmosScene fixed />;
 //    componente canvas serve pro card (fixed=false) e pra tela cheia aqui (fixed=true):
 //    árvores de cerejeira, pétalas caindo, grama rosa, cachoeira/rio, névoas e torii.
 const CentralSakura = () => <SakuraScene fixed />;
+
+// ── Jardim encantado de FUNDO da página (Uniko Rainha das Fadas) — mesmo componente
+//    canvas do card (fixed=false) e da tela cheia (fixed=true): sol, árvores grandes,
+//    rio, flores coloridas, fadinhas voando e brilhos.
+const CentralFairy = () => <FairyScene fixed />;
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
@@ -2545,6 +2551,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
            tem sufixo aleatório), sem gate de tema: suave e bonito em claro ou escuro. ── */}
       {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
 
+      {/* ── Jardim encantado de fundo da página (Uniko Rainha das Fadas) — flores,
+           fadinhas, rio, árvores e sol. Gate pelo sceneType, sem gate de tema. ── */}
+      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
+
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
         @keyframes alexaEq2{0%{height:14px}100%{height:6px}}
@@ -2739,6 +2749,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {isCustomCard && uni?.theme?.sceneType === 'sakura' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <SakuraScene />
+                      </div>
+                    )}
+
+                    {/* Jardim encantado artesanal — Unikos da Oficina com theme.sceneType='fairy' (ex.: Rainha das Fadas) */}
+                    {isCustomCard && uni?.theme?.sceneType === 'fairy' && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        <FairyScene />
                       </div>
                     )}
 

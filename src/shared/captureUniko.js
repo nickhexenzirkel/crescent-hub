@@ -197,6 +197,7 @@ const CUSTOM_SCENE_BY_ID = {
 // padrão que casar (no nome OU no id) define o cenário artesanal.
 const CUSTOM_SCENE_BY_KEYWORD = [
   { rx: /kitsune|raposa|sakura|cerejeira/i, scene: 'sakura' }, // floresta de sakura (sakuraScene.jsx)
+  { rx: /fada|fadas|fairy|rainha das fadas/i, scene: 'fairy' }, // jardim encantado (fairyScene.jsx)
 ];
 function customSceneTypeFor(row) {
   if (CUSTOM_SCENE_BY_ID[row.id]) return CUSTOM_SCENE_BY_ID[row.id];

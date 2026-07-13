@@ -499,11 +499,16 @@ const UnikoFace = ({ size, src, talking, skin }) => {
       </div>
     );
   }
+  // A Rainha das Fadas SEGURA o olho fechado por ~10s a cada ciclo (pedido só dela) —
+  // usa keyframes próprios de 15s; qualquer outra skin mantém a piscada rápida de 3s.
+  const isFairy = /fada|fairy/i.test(skin?.id || '') || /fada|fairy/i.test(skin?.name || '');
+  const midAnim = isFairy ? 'uaBlinkMidFairy 15s linear infinite' : 'uaBlinkMid 3s linear infinite';
+  const topAnim = isFairy ? 'uaBlinkTopFairy 15s linear infinite' : 'uaBlinkTop 3s linear infinite';
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <img src={skin.blink.closed} alt="" aria-hidden="true" style={img} />
-      <img src={skin.blink.mid} alt="" aria-hidden="true" style={{ ...img, animation: 'uaBlinkMid 3s linear infinite' }} />
-      <img src={skin.blink.open} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = fallback; }} style={{ ...img, animation: 'uaBlinkTop 3s linear infinite' }} />
+      <img src={skin.blink.mid} alt="" aria-hidden="true" style={{ ...img, animation: midAnim }} />
+      <img src={skin.blink.open} alt="Uniko" onError={e => { e.target.onerror = null; e.target.src = fallback; }} style={{ ...img, animation: topAnim }} />
     </div>
   );
 };
@@ -1178,6 +1183,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         @keyframes uaFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes uaBlinkTop{0%,90%{opacity:1}90.6%,99%{opacity:0}99.4%,100%{opacity:1}}
         @keyframes uaBlinkMid{0%,93.8%{opacity:1}94.2%,96%{opacity:0}96.4%,100%{opacity:1}}
+        /* Rainha das Fadas: olho fechado SEGURADO por ~10s (ciclo de 15s). Camadas open e
+           mid ficam invisíveis de ~31% a ~98% → revela a base 'closed' por ~10s. */
+        @keyframes uaBlinkTopFairy{0%,29%{opacity:1}30.5%,98%{opacity:0}99.5%,100%{opacity:1}}
+        @keyframes uaBlinkMidFairy{0%,30%{opacity:1}31.5%,97.5%{opacity:0}99%,100%{opacity:1}}
         @keyframes uaPop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
         @keyframes uaSpritePop{from{opacity:.3;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
         @keyframes uaTalkTop{0%,20%{opacity:1}20.01%,80%{opacity:0}80.01%,100%{opacity:1}}

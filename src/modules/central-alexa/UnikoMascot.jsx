@@ -145,17 +145,23 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
     return () => { alive = false; };
   }, [uni, skin.blink.open]); // eslint-disable-line
 
-  // Blink loop — só quando skin especial
+  // Blink loop — só quando skin especial.
+  // A Rainha das Fadas (sceneType 'fairy') SEGURA o olho fechado por 10s a cada ciclo —
+  // pedido específico dela; qualquer outra skin mantém a piscada rápida padrão.
   useEffect(() => {
     if (!isSpecial) { setBlinkImg(null); return; }
+    const isFairy = uni?.theme?.sceneType === 'fairy';
+    const seq = isFairy
+      ? [{ key: 'open', ms: 3000 }, { key: 'mid', ms: 90 }, { key: 'closed', ms: 10000 }, { key: 'mid', ms: 90 }]
+      : BLINK_SEQ;
     let i = 0, t;
     const tick = () => {
-      i = (i + 1) % BLINK_SEQ.length;
-      setBlinkImg(skin.blink[BLINK_SEQ[i].key]);
-      t = setTimeout(tick, BLINK_SEQ[i].ms);
+      i = (i + 1) % seq.length;
+      setBlinkImg(skin.blink[seq[i].key]);
+      t = setTimeout(tick, seq[i].ms);
     };
     setBlinkImg(skin.blink.open);
-    t = setTimeout(tick, BLINK_SEQ[0].ms);
+    t = setTimeout(tick, seq[0].ms);
     return () => clearTimeout(t);
   }, [isSpecial, songSkin]); // eslint-disable-line
 
