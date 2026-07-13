@@ -192,10 +192,24 @@ const CUSTOM_SCENE_BY_ID = {
   'destruidora-de-mundos-dh0x': 'cosmos', // planetas trincados, buraco negro, asteroides (cosmosScene.jsx)
 };
 
+// Fallback por PALAVRA-CHAVE no nome/id — pra Unikos da Oficina cujo id tem sufixo
+// aleatório (ex.: "kitsune-a1b2") que não dá pra fixar no mapa acima. O primeiro
+// padrão que casar (no nome OU no id) define o cenário artesanal.
+const CUSTOM_SCENE_BY_KEYWORD = [
+  { rx: /kitsune|raposa|sakura|cerejeira/i, scene: 'sakura' }, // floresta de sakura (sakuraScene.jsx)
+];
+function customSceneTypeFor(row) {
+  if (CUSTOM_SCENE_BY_ID[row.id]) return CUSTOM_SCENE_BY_ID[row.id];
+  const hay = `${row.name || ''} ${row.id || ''}`;
+  for (const { rx, scene } of CUSTOM_SCENE_BY_KEYWORD) if (rx.test(hay)) return scene;
+  return null;
+}
+
 // Monta a entrada no formato CAPTURE_UNIKOS a partir de uma linha da tabela custom_unikos.
 function _buildCustomCaptureUniko(row) {
   const theme = themeWithScene(deriveUnikoTheme(row.accent), row.img_scene);
-  if (CUSTOM_SCENE_BY_ID[row.id]) theme.sceneType = CUSTOM_SCENE_BY_ID[row.id];
+  const st = customSceneTypeFor(row);
+  if (st) theme.sceneType = st;
   return {
     id: row.id, name: row.name, shortName: row.name, img: row.img_main,
     tagline: row.tagline || 'Uniko criado na Oficina',

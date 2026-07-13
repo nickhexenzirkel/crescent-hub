@@ -5,6 +5,7 @@ import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../.
 import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
 import CosmosScene from '../../shared/cosmosScene';
+import SakuraScene from '../../shared/sakuraScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -554,6 +555,11 @@ const CentralOcean = () => {
 //    o MESMO componente serve pro card do encontro (CaptureUnikoWidget) via `fixed=false`
 //    e pra tela cheia aqui via `fixed=true` (o canvas se redimensiona sozinho).
 const CentralCosmos = () => <CosmosScene fixed />;
+
+// ── Cenário de floresta de sakura de FUNDO da página (Uniko Kitsune) — o MESMO
+//    componente canvas serve pro card (fixed=false) e pra tela cheia aqui (fixed=true):
+//    árvores de cerejeira, pétalas caindo, grama rosa, cachoeira/rio, névoas e torii.
+const CentralSakura = () => <SakuraScene fixed />;
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
@@ -2534,6 +2540,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
            sempre). ── */}
       {tab==="festival" && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
 
+      {/* ── Floresta de sakura de fundo da página (Uniko Kitsune) — pétalas caindo,
+           cachoeira, rio, névoas e torii. Gate pelo sceneType do Uniko (id da Oficina
+           tem sufixo aleatório), sem gate de tema: suave e bonito em claro ou escuro. ── */}
+      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
+
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
         @keyframes alexaEq2{0%{height:14px}100%{height:6px}}
@@ -2721,6 +2732,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {isCustomCard && uni?.theme?.sceneType === 'cosmos' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <CosmosScene />
+                      </div>
+                    )}
+
+                    {/* Cenário de floresta de sakura artesanal — Unikos da Oficina com theme.sceneType='sakura' (ex.: Kitsune) */}
+                    {isCustomCard && uni?.theme?.sceneType === 'sakura' && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        <SakuraScene />
                       </div>
                     )}
 
