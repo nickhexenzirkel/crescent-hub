@@ -1318,6 +1318,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [myVotedSongs, setMyVotedSongs] = useState(new Set());
   const [spotifyOk, setSpotifyOk]       = useState(false);
   const [spotifyChecked, setSpotifyChecked] = useState(false);
+  const [warnDismissed, setWarnDismissed] = useState(false); // aviso de bloqueio dispensado nesta sessão
   const [devices, setDevices]           = useState([]);
   const [showDevices, setShowDevices]   = useState(false);
   const [volume, setVolume]             = useState(50);   // 0-100
@@ -1400,8 +1401,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   const checkSpotify = async () => {
     const r = await api('get', '/api/status').catch(()=>({ok:false}));
-    setSpotifyOk(!!r?.ok);
+    const ok = !!r?.ok;
+    setSpotifyOk(ok);
     setSpotifyChecked(true);
+    if (ok) setWarnDismissed(false); // reconectou → volta a poder avisar num próximo bloqueio
   };
 
   // ── LRCLIB: busca letra sincronizada ─────────────────────
@@ -2406,6 +2409,34 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   return (
     <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+
+      {/* ── Aviso amigável: Spotify temporariamente bloqueado (rate limit / ban / desconectado) ── */}
+      {spotifyChecked && !spotifyOk && !warnDismissed && (
+        <div style={{position:"fixed",inset:0,zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",padding:16}}>
+          <div style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
+            <div style={{fontSize:44,marginBottom:14,animation:"caPulse 1.6s ease-in-out infinite"}}>🎧</div>
+            <div style={{fontWeight:800,fontSize:19,color:T.text,marginBottom:12}}>
+              Spotify temporariamente bloqueado
+            </div>
+            <div style={{fontSize:14,color:T.textT,lineHeight:1.7,marginBottom:10}}>
+              Em instantes a <strong style={{color:T.gold}}>Central Alexa</strong> volta a funcionar e vocês vão poder colocar música normalmente e se divertir 🎶
+            </div>
+            <div style={{fontSize:14,color:T.textT,lineHeight:1.7,marginBottom:22}}>
+              O <strong style={{color:T.text}}>desenvolvedor já foi acionado</strong> e o bloqueio já está sendo resolvido. É só aguardar um pouquinho 💜
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:20,fontSize:12,color:T.textD,fontWeight:600}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:"#F0A030",display:"inline-block",animation:"caPulse 1.2s ease-in-out infinite"}}/>
+              Reconectando automaticamente…
+            </div>
+            <button
+              onClick={()=>setWarnDismissed(true)}
+              style={{border:`1px solid ${T.border}`,background:"transparent",color:T.textS,fontWeight:700,fontSize:13,padding:"9px 22px",borderRadius:10,cursor:"pointer",outline:"none"}}>
+              Entendi, aguardar
+            </button>
+          </div>
+          <style>{`@keyframes caPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.9)}}`}</style>
+        </div>
+      )}
 
       {/* ── Modal: confirmação de música longa (≥15 min) ── */}
       {confirmTrack&&(
