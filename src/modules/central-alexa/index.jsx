@@ -2125,13 +2125,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const handleSearch = (val) => {
     setVoiceVal(val);
     clearTimeout(searchTimer.current);
-    if (!val.trim()) { setSearchResults([]); return; }
+    // Ignora buscas curtas (1 char) — poluem a cota do Spotify sem retorno útil
+    if (val.trim().length < 2) { setSearchResults([]); setIsSearching(false); return; }
     setIsSearching(true);
     searchTimer.current = setTimeout(async () => {
       const r = await api('get', `/api/search?q=${encodeURIComponent(val)}`);
       setSearchResults(r.tracks || []);
       setIsSearching(false);
-    }, 450);
+    }, 650);
   };
 
   const LONG_MS = 15 * 60 * 1000;
@@ -2257,13 +2258,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const handleReplaceSearch = (val) => {
     setReplaceVal(val);
     clearTimeout(replaceTimer.current);
-    if (!val.trim()) { setReplaceResults([]); return; }
+    // Ignora buscas curtas (1 char) — poluem a cota do Spotify sem retorno útil
+    if (val.trim().length < 2) { setReplaceResults([]); setReplaceSearching(false); return; }
     setReplaceSearching(true);
     replaceTimer.current = setTimeout(async () => {
       const r = await api('get', `/api/search?q=${encodeURIComponent(val)}`);
       setReplaceResults(r.tracks || []);
       setReplaceSearching(false);
-    }, 450);
+    }, 650);
   };
 
   // Troca os dados da linha da fila pela nova música, mantendo posição,
