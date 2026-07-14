@@ -1318,7 +1318,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [myVotedSongs, setMyVotedSongs] = useState(new Set());
   const [spotifyOk, setSpotifyOk]       = useState(false);
   const [spotifyChecked, setSpotifyChecked] = useState(false);
-  const [warnDismissed, setWarnDismissed] = useState(false); // aviso de bloqueio dispensado nesta sessão
   const [devices, setDevices]           = useState([]);
   const [showDevices, setShowDevices]   = useState(false);
   const [volume, setVolume]             = useState(50);   // 0-100
@@ -1401,10 +1400,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   const checkSpotify = async () => {
     const r = await api('get', '/api/status').catch(()=>({ok:false}));
-    const ok = !!r?.ok;
-    setSpotifyOk(ok);
+    setSpotifyOk(!!r?.ok);
     setSpotifyChecked(true);
-    if (ok) setWarnDismissed(false); // reconectou → volta a poder avisar num próximo bloqueio
   };
 
   // ── LRCLIB: busca letra sincronizada ─────────────────────
@@ -2410,9 +2407,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   return (
     <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
 
-      {/* ── Aviso amigável: Spotify temporariamente bloqueado (rate limit / ban / desconectado) ── */}
-      {spotifyChecked && !spotifyOk && !warnDismissed && (
-        <div style={{position:"fixed",inset:0,zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",padding:16}}>
+      {/* ── Bloqueio FIXO: Spotify indisponível (rate limit / ban / desconectado) ──
+          Trava a Central inteira — nenhuma ação é possível além de voltar aos módulos.
+          Não é dispensável de propósito: enquanto o Spotify estiver bloqueado, não há o
+          que fazer aqui, então evitamos que as pessoas tentem (e falhem em) pedir música. */}
+      {spotifyChecked && !spotifyOk && (
+        <div style={{position:"fixed",inset:0,zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.72)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",padding:16}}>
           <div style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
             <div style={{fontSize:44,marginBottom:14,animation:"caPulse 1.6s ease-in-out infinite"}}>🎧</div>
             <div style={{fontWeight:800,fontSize:19,color:T.text,marginBottom:12}}>
@@ -2429,9 +2429,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               Reconectando automaticamente…
             </div>
             <button
-              onClick={()=>setWarnDismissed(true)}
-              style={{border:`1px solid ${T.border}`,background:"transparent",color:T.textS,fontWeight:700,fontSize:13,padding:"9px 22px",borderRadius:10,cursor:"pointer",outline:"none"}}>
-              Entendi, aguardar
+              onClick={onBack}
+              style={{border:"none",background:T.gold,color:"#fff",fontWeight:800,fontSize:14,padding:"11px 26px",borderRadius:11,cursor:"pointer",outline:"none",boxShadow:`0 4px 16px ${T.goldLine}55`}}>
+              ← Voltar aos módulos
             </button>
           </div>
           <style>{`@keyframes caPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.9)}}`}</style>
