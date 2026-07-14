@@ -486,7 +486,7 @@ async function runOrdensDownload(data, callerTabId) {
 
 /* ── YouTube Cookies Export ───────────────────────────────── */
 
-const YT_SERVER = 'https://crescent-hub-server.onrender.com';
+const YT_SERVER = 'https://api.centraluniko.com.br';
 const YT_COOKIE_TOKEN = 'uniko-ytcookies';
 
 function formatCookiesNetscape(cookies) {
