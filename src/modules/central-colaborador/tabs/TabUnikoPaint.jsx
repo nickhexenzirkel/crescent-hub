@@ -125,12 +125,17 @@ const myName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
   catch { return 'Colaborador'; }
 };
-const myPhoto = () => {
-  try {
-    const a = getAuthUser();
-    return localStorage.getItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`)
-      || localStorage.getItem('uniko_photo') || '/UNIKO_NEW.png';
-  } catch { return '/UNIKO_NEW.png'; }
+/* ── Foto que trafega na PRESENCE ───────────────────────────────────────────
+   NUNCA mandar a foto de perfil aqui: ela é um data URL de PNG 300x300 (~100-200KB
+   em base64) e o payload da presence não aguenta — o track é rejeitado em SILÊNCIO,
+   e o efeito é cruel: cada um enxerga só a si mesmo, ninguém vê ninguém, e a partida
+   nunca começa por "falta de jogadores". Aqui trafega só a URL da imagem (~30 bytes);
+   é a MESMA arte, só não convertida. A foto de perfil do Portal continua sendo o data
+   URL, salva por saveUserPhoto normalmente. */
+const PHOTO_SRC_KEY = 'up_photo_src';
+const myPhotoSrc = () => {
+  try { return localStorage.getItem(PHOTO_SRC_KEY) || '/UNIKO_NEW.png'; }
+  catch { return '/UNIKO_NEW.png'; }
 };
 
 /* ── DICAS (estilo Gartic) ──────────────────────────────────────────────────
@@ -1305,14 +1310,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const TabUnikoPaint = () => {
   const name = useMemo(() => myName(), []);
-  const [photo, setPhoto] = useState(() => myPhoto());
+  const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
   const [todos, setTodos] = useState([]);         // [{name, photo, room}]
   const [sqlMissing, setSqlMissing] = useState(false);
   const [picker, setPicker] = useState(false);
   const lobbyChan = useRef(null);
   const roomRef = useRef(null);
+  const photoRef = useRef(photo);
   useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => { photoRef.current = photo; }, [photo]);
 
   // Migração rodada?
   useEffect(() => {
@@ -1331,12 +1338,24 @@ const TabUnikoPaint = () => {
       const seen = new Set();
       setTodos(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
     });
-    ch.subscribe((st) => { if (st === 'SUBSCRIBED') ch.track({ name, photo: myPhoto(), room: roomRef.current }); });
+    ch.subscribe(async (st) => {
+      if (st !== 'SUBSCRIBED') return;
+      // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
+      // no console em vez de sumir calado (foi assim que o payload gigante da
+      // foto passou despercebido).
+      const r = await ch.track({ name, photo: photoRef.current, room: roomRef.current });
+      if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
+    });
     return () => { supabase.removeChannel(ch); lobbyChan.current = null; };
   }, [name]);
 
   // Reanuncia ao trocar de sala / trocar a foto.
-  useEffect(() => { lobbyChan.current?.track({ name, photo, room }); }, [room, photo, name]);
+  useEffect(() => {
+    const ch = lobbyChan.current; if (!ch) return;
+    Promise.resolve(ch.track({ name, photo, room }))
+      .then(r => { if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r); })
+      .catch(e => console.error('[uniko-paint] presence track:', e));
+  }, [room, photo, name]);
 
   // Agrupa por sala — o lobby e a sala consomem isso.
   const porSala = useMemo(() => {
@@ -1366,22 +1385,27 @@ const TabUnikoPaint = () => {
       .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
     return [...base, ...fixos, ...custom];
   }, [owned]);
+  // Duas coisas ao escolher um Uniko:
+  //  • foto de perfil do Portal = data URL 300x300 (mesmo caminho da aba Coleção);
+  //  • foto do jogo/presence = a URL da arte (leve o bastante pra trafegar).
   const choosePhoto = (img) => {
+    try { localStorage.setItem(PHOTO_SRC_KEY, img); } catch { /* sem localStorage */ }
+    setPhoto(img);          // presence reanuncia sozinho no effect de [photo]
+    setPicker(false);
     const im = new Image(); im.crossOrigin = 'anonymous';
-    const done = (val) => {
+    const salvaPerfil = (val) => {
       saveUserPhoto(val);
       try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
       catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
-      setPhoto(val); setPicker(false);
     };
     im.onload = () => {
       try {
         const c = document.createElement('canvas'); c.width = c.height = 300;
         c.getContext('2d').drawImage(im, 0, 0, 300, 300);
-        done(c.toDataURL('image/png'));
-      } catch { done(img); }
+        salvaPerfil(c.toDataURL('image/png'));
+      } catch { salvaPerfil(img); }
     };
-    im.onerror = () => done(img);
+    im.onerror = () => salvaPerfil(img);
     im.src = img;
   };
 
