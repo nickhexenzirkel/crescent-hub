@@ -16,7 +16,16 @@ create policy uniko_paint_state_delete on public.uniko_paint_state for delete us
 create index if not exists uniko_paint_state_updated_idx
   on public.uniko_paint_state (updated_at desc);
 
--- Garante a Sala Geral (idempotente — se já existe, não mexe).
+-- Garante a Sala Geral.
 insert into public.uniko_paint_state (id, state)
 values ('global', '{"phase":"lobby","round":0,"scores":{},"nome":"Sala Geral","themeId":"geral"}'::jsonb)
 on conflict (id) do nothing;
+
+-- A linha 'global' já existia desde a migração anterior, criada SEM `nome` e
+-- SEM `themeId` — e o `do nothing` acima nunca preenche o que falta. Sem isso a
+-- Sala Geral fica sem nome/tema no banco e só funciona por fallback do app.
+-- Preenche apenas o que estiver faltando, sem tocar em phase/scores/rodada.
+update public.uniko_paint_state
+   set state = state || jsonb_build_object('nome', 'Sala Geral', 'themeId', 'geral')
+ where id = 'global'
+   and (state->>'nome' is null or state->>'themeId' is null);

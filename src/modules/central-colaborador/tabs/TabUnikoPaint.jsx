@@ -550,8 +550,13 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           position: 'relative', zIndex: 1 }}>
           SALAS ({rooms.length})
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12,
-          position: 'relative', zIndex: 1 }}>
+        {/* `minmax(260px, 340px)` e não `1fr`: com 1fr os cards ESTICAM pra ocupar
+            a linha toda, então em tela grande (ou com poucas salas) cada card
+            virava um bloco enorme, enquanto em tela menor ficava compacto — era
+            a mesma tela parecendo dois layouts diferentes. Teto de 340px + o
+            grid alinhado à esquerda mantém o card sempre do mesmo tamanho. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 340px))',
+          justifyContent: 'start', gap: 12, position: 'relative', zIndex: 1 }}>
           {rooms.map(r => {
             const st = r.state || {};
             const tema = themeById(st.themeId);
@@ -697,6 +702,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const isDrawerRef = useRef(false);
   const stateRef    = useRef(null);
   const hostRef     = useRef(false);
+  // players TAMBÉM precisa de espelho: registerHit roda a partir do handler do
+  // canal, que é registrado uma vez só e enxergaria a lista VAZIA do 1º render.
+  const playersRef  = useRef([]);
 
   /* ── Canvas ──────────────────────────────────────────────────────────── */
   const ctxBase = () => {
@@ -788,6 +796,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { isDrawerRef.current = isDrawer; }, [isDrawer]);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
+  useEffect(() => { playersRef.current = players; }, [players]);
 
   /* ── Estado da sala ──────────────────────────────────────────────────── */
   const pushState = useCallback(async (next) => {
@@ -881,7 +890,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const scores = { ...(s.scores || {}) };
     scores[who] = (scores[who] || 0) + pts;
     scores[s.drawer] = (scores[s.drawer] || 0) + 30;
-    const faltam = players.filter(p => p.name !== s.drawer).length - hits.length;
+    // playersRef, NUNCA `players`: esta função roda a partir do handler do canal
+    // (closure do 1º render, lista vazia) → `faltam` dava -1 e a rodada encerrava
+    // no PRIMEIRO acerto, sem os outros terem chance de pontuar.
+    const faltam = playersRef.current.filter(p => p.name !== s.drawer).length - hits.length;
     pushState(faltam <= 0
       ? { ...s, hits, scores, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) }
       : { ...s, hits, scores });
@@ -897,7 +909,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
-  const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome) => {
+  const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco) => {
     const drawer = queue[0];
     const pool0 = themeById(themeId).words;
     const livres = pool0.filter(w => !usadas.includes(w));
@@ -910,13 +922,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       phase: 'drawing', round, drawer, wordEnc: enc(w),
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
       usadas: [...usadas, w], themeId, hints: 0,
+      // quem já estava quando a partida começou (+ quem entrou depois e já foi
+      // encaixado na fila) — sem isso não dá pra saber quem é "novo"
+      elenco: elenco || [...new Set(queue)],
     });
   };
   const startGame = () => {
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
     const queue = Array.from({ length: laps }, () => ordem).flat();
     // Tema é o que a sala definiu na criação — não se vota, não muda.
-    startRound(queue, {}, 1, queue.length, [], state?.themeId, state?.nome);
+    startRound(queue, {}, 1, queue.length, [], state?.themeId, state?.nome, ordem);
   };
 
   useEffect(() => {
@@ -933,10 +948,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (s.phase === 'drawing') {
         pushState({ ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) });
       } else if (s.phase === 'reveal') {
-        // Tira da fila quem já saiu da sala.
-        const queue = (s.queue || []).slice(1).filter(n => players.some(p => p.name === n));
+        // Tira da fila quem já saiu da sala...
+        const restante = (s.queue || []).slice(1).filter(n => players.some(p => p.name === n));
+        // ...e ACOLHE quem entrou depois do início: sem isso quem chega no meio
+        // nunca é sorteado pra desenhar, porque a fila só era montada no começo.
+        const elenco = s.elenco || [...new Set(s.queue || [])];
+        const novos = players.map(p => p.name).filter(n => !elenco.includes(n));
+        const queue = [...restante, ...novos];
         if (!queue.length) pushState({ ...s, phase: 'over', endsAt: null });
-        else startRound(queue, s.scores || {}, (s.round || 1) + 1, s.totalRounds, s.usadas || [], s.themeId, s.nome);
+        else startRound(queue, s.scores || {}, (s.round || 1) + 1,
+          (s.totalRounds || 0) + novos.length, s.usadas || [], s.themeId, s.nome,
+          [...elenco, ...novos]);
       }
     }, 400);
     return () => clearInterval(t);
