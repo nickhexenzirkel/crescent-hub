@@ -26,7 +26,21 @@ function guessGender(name) {
 
 // Busca a foto do artista (música) pela API pública do Deezer via JSONP (sem backend/CORS).
 // Cacheado em memória; resolve com a URL da imagem ou null.
+//
+// CONFERE O NOME ANTES DE ACEITAR A FOTO. A busca do Deezer é APROXIMADA: quando
+// não acha o artista exato, ela devolve o parecido mais próximo — e pegar o
+// primeiro resultado às cegas (como era antes, com limit=1) colocava a cara de
+// outra pessoa no pódio. Casos reais medidos no acervo da empresa:
+//   "Adele"    → devolvia "Adèle & Zalem" (duo francês obscuro)
+//   "Rondiney" → devolvia "Don Dinero"
+// Agora pede alguns resultados e só aceita o que bate com o nome pedido; se
+// nenhum bater, devolve null e a UI mostra as iniciais — melhor sem foto do que
+// com a foto errada.
 const _artistImgCache = {};
+// Compara nomes ignorando acento, caixa e pontuação ("JAŸ-Z" = "JAY Z",
+// "LUDMILLA" = "Ludmilla", "MAGIC!" = "Magic!").
+const _normArtist = (s) => (s || '').toLowerCase().normalize('NFD')
+  .replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function fetchArtistImage(name) {
   return new Promise((resolve) => {
     const key = (name || '').trim();
@@ -44,14 +58,17 @@ function fetchArtistImage(name) {
     };
     const timer = setTimeout(() => done(null), 6000);
     window[cb] = (data) => {
-      const a = data?.data?.[0];
+      // O certo é o que TEM O MESMO NOME — não o primeiro da lista.
+      const a = (data?.data || []).find(x => _normArtist(x?.name) === _normArtist(key));
       // Prefere picture_big (500x500) — picture_medium (250) ficava borrado nas
       // fotos grandes do pódio (124px, ~248px em telas retina). 500 é nítido e leve;
       // o zoom sobe pra 1000 via hdArtistImage. Cai pra menores só se faltar.
       done(a?.picture_big || a?.picture_xl || a?.picture_medium || a?.picture || null);
     };
     script.onerror = () => done(null);
-    script.src = `https://api.deezer.com/search/artist?q=${encodeURIComponent(key)}&limit=1&output=jsonp&callback=${cb}`;
+    // limit=8: o nome exato às vezes não é o 1º resultado (ex.: "Adele" vem depois
+    // de "Adèle & Zalem"), então precisa de margem pra achar o certo na lista.
+    script.src = `https://api.deezer.com/search/artist?q=${encodeURIComponent(key)}&limit=8&output=jsonp&callback=${cb}`;
     document.body.appendChild(script);
   });
 }
