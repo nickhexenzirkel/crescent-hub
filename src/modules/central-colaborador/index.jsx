@@ -19,6 +19,7 @@ import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
 import { TabQuizMM } from './tabs/TabQuizMM';
+import { TabUnikoStop } from './tabs/TabUnikoStop';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 
@@ -131,6 +132,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='unikowave')   return <TabUnikoWave/>;
     if(tab==='unikopaint')  return <TabUnikoPaint/>;
     if(tab==='quizmm')      return <TabQuizMM/>;
+    if(tab==='unikostop')   return <TabUnikoStop/>;
     return null;
   };
 
@@ -167,10 +169,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
             container ia de 668px pra 1348px com 60 mensagens, e a lista nunca
             rolava). Com `basis:auto` o `height` vira a base e a altura se mantém.
             Só pro Paint pra não mexer no layout das outras abas. */}
-        <div style={{flex: tab==='unikopaint' ? '1 1 auto' : 1,
+        <div style={{flex: (tab==='unikopaint'||tab==='unikostop') ? '1 1 auto' : 1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
-          overflowY: (tab==='unikowave'||tab==='unikopaint') ? 'hidden' : 'auto',
-          minHeight: tab==='unikopaint' ? 0 : undefined,
+          overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop') ? 'hidden' : 'auto',
+          minHeight: (tab==='unikopaint'||tab==='unikostop') ? 0 : undefined,
           paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
           height: tab==='unikowave' ? '100vh' : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined))}}>
           {render()}
