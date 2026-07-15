@@ -1405,7 +1405,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           do grid é `auto` (= max-content) e CRESCE conforme o chat enche, esticando
           junto o canvas até não dar mais pra desenhar. minHeight:0 nos filhos não
           resolve sozinho; quem manda no tamanho é a linha. */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '186px 1fr 254px',
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '216px 1fr 254px',
         gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0, overflow: 'hidden' }}>
         {/* Jogadores — mesma trava de altura do chat (sala cheia rolava o card) */}
         <div className="up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 11,
@@ -1417,23 +1417,24 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             const desenhando = state?.phase === 'drawing' && state?.drawer === p.name;
             const acertou = state?.hits?.includes(p.name);
             return (
-              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', borderRadius: 9,
-                background: desenhando ? `${A}14` : 'transparent', marginBottom: 2 }}>
+              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 7px', borderRadius: 10,
+                background: desenhando ? `${A}14` : 'transparent', marginBottom: 3 }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <img src={p.photo || '/UNIKO_NEW.png'} alt=""
-                    style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover',
-                      border: `2px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`, background: T.surfaceSub }} />
+                    style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover',
+                      border: `2.5px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`,
+                      background: T.surfaceSub, boxShadow: desenhando ? `0 0 0 3px ${A}22` : 'none' }} />
                   {i === 0 && (state?.scores?.[p.name] > 0) && (
-                    <div style={{ position: 'absolute', top: -6, right: -4, color: '#F0B429' }}><IcoCrown size={13} /></div>
+                    <div style={{ position: 'absolute', top: -7, right: -5, color: '#F0B429' }}><IcoCrown size={16} /></div>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: p.name === name ? 800 : 600, color: T.text,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 14, fontWeight: p.name === name ? 800 : 700, color: T.text,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
                     {p.name.split(' ')[0]}{p.name === name && ' (você)'}
                   </div>
-                  <div style={{ fontSize: 10.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-                    {p.pts} pts
+                  <div style={{ fontSize: 11.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                    <b style={{ color: T.text, fontWeight: 700 }}>{p.pts}</b> pts
                     {desenhando && <span style={{ color: A, fontWeight: 700 }}>• desenhando</span>}
                     {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
                     {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
