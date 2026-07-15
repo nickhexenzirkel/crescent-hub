@@ -32,6 +32,10 @@ const ROOM = 'global';
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
 const MIN_PLAYERS = 2;
+/* Uma VOLTA = cada jogador desenha uma vez. Antes a partida era sempre 1 volta,
+   o que com 2 pessoas acabava em 2 rodadas — curto demais na prática. */
+const LAP_OPTIONS = [1, 2, 3, 5, 8];
+const DEFAULT_LAPS = 3;
 
 /* Palavras — mistura de coisas do dia a dia, do universo Uniko e da empresa.
    Fáceis de desenhar de propósito: nada abstrato. */
@@ -108,6 +112,7 @@ const TabUnikoPaint = () => {
   const [sqlMissing, setSqlMissing] = useState(false);
   const [picker, setPicker]   = useState(false);    // modal do seletor de foto
   const [photo, setPhoto]     = useState(() => myPhoto());
+  const [laps, setLaps]       = useState(DEFAULT_LAPS); // voltas da próxima partida (só o host usa)
 
   // ferramentas
   const [color, setColor] = useState(COLORS[0]);
@@ -247,20 +252,28 @@ const TabUnikoPaint = () => {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
-  const startRound = (queue, scores, round) => {
+  // `usadas` = palavras já sorteadas na partida, pra não repetir enquanto houver
+  // palavra nova (com 2 jogadores e 5 voltas dá 10 rodadas — repetição apareceria).
+  const startRound = (queue, scores, round, totalRounds, usadas = []) => {
     const drawer = queue[0];
-    const w = WORDS[Math.floor(Math.random() * WORDS.length)];
+    const livres = WORDS.filter(w => !usadas.includes(w));
+    const pool = livres.length ? livres : WORDS;       // acabou o baralho → recomeça
+    const w = pool[Math.floor(Math.random() * pool.length)];
     chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
     strokes.current = []; redraw();
     pushState({
       phase: 'drawing', round, drawer, wordEnc: enc(w),
-      endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds: null,
+      endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
+      usadas: [...usadas, w],
     });
   };
 
   const startGame = () => {
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
-    startRound(ordem, {}, 1);
+    // Uma "volta" = todo mundo desenha uma vez. A fila é a ordem repetida N voltas,
+    // então cada um desenha exatamente N vezes e a partida dura o que se espera.
+    const queue = Array.from({ length: laps }, () => ordem).flat();
+    startRound(queue, {}, 1, queue.length, []);
   };
 
   // Host cuida das transições de tempo.
@@ -274,7 +287,7 @@ const TabUnikoPaint = () => {
       } else if (s.phase === 'reveal') {
         const queue = (s.queue || []).slice(1);
         if (!queue.length) pushState({ ...s, phase: 'over', endsAt: null });
-        else startRound(queue, s.scores || {}, (s.round || 1) + 1);
+        else startRound(queue, s.scores || {}, (s.round || 1) + 1, s.totalRounds, s.usadas || []);
       }
     }, 400);
     return () => clearInterval(t);
@@ -501,7 +514,9 @@ const TabUnikoPaint = () => {
             display: 'flex', alignItems: 'center', gap: 12, boxShadow: T.sh, flexShrink: 0 }}>
             {state?.phase === 'drawing' ? (
               <>
-                <div style={{ fontSize: 12, color: T.textT }}>Rodada {state.round}</div>
+                <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap' }}>
+                  Rodada {state.round}{state.totalRounds ? ` de ${state.totalRounds}` : ''}
+                </div>
                 <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800,
                   color: T.text, letterSpacing: isDrawer ? '.02em' : '.22em' }}>
                   {isDrawer ? word : maskWord(word)}
@@ -556,19 +571,38 @@ const TabUnikoPaint = () => {
                     <div style={{ fontSize: 13, color: T.textT, maxWidth: 380, lineHeight: 1.55 }}>
                       {players.length < MIN_PLAYERS
                         ? `Chame mais gente! Precisa de pelo menos ${MIN_PLAYERS} jogadores pra começar.`
-                        : 'Todo mundo desenha uma vez. Quem adivinha primeiro ganha mais pontos.'}
+                        : 'Cada um desenha na sua vez. Quem adivinha primeiro ganha mais pontos.'}
                     </div>
                   </>
                 )}
                 {(state?.phase === 'lobby' || state?.phase === 'over') && (
                   isHost ? (
-                    <button onClick={startGame} disabled={players.length < MIN_PLAYERS}
-                      style={{ padding: '11px 26px', borderRadius: 999, border: 'none',
-                        background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${T.gold}, ${T.goldL})`,
-                        color: '#fff', fontSize: 14, fontWeight: 800, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
-                        boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${T.goldGl}` }}>
-                      {state?.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
-                    </button>
+                    <>
+                      {/* Duração: cada volta = todo mundo desenha uma vez. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>Cada um desenha</span>
+                        {LAP_OPTIONS.map(n => (
+                          <button key={n} onClick={() => setLaps(n)}
+                            style={{ minWidth: 32, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                              border: laps === n ? `1.5px solid ${T.gold}` : `1px solid ${T.border}`,
+                              background: laps === n ? `${T.gold}14` : 'transparent',
+                              color: laps === n ? T.gold : T.text }}>
+                            {n}×
+                          </button>
+                        ))}
+                        <span style={{ fontSize: 11.5, color: T.textD }}>
+                          = {laps * Math.max(players.length, 1)} rodadas
+                          {' '}(~{Math.round(laps * Math.max(players.length, 1) * (ROUND_MS + REVEAL_MS) / 60000)} min)
+                        </span>
+                      </div>
+                      <button onClick={startGame} disabled={players.length < MIN_PLAYERS}
+                        style={{ padding: '11px 26px', borderRadius: 999, border: 'none',
+                          background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${T.gold}, ${T.goldL})`,
+                          color: '#fff', fontSize: 14, fontWeight: 800, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
+                          boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${T.goldGl}` }}>
+                        {state?.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
+                      </button>
+                    </>
                   ) : (
                     <div style={{ fontSize: 12, color: T.textT, fontStyle: 'italic' }}>
                       Esperando {host?.split(' ')[0] || 'o host'} começar a partida...
