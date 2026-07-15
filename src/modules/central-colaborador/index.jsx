@@ -156,13 +156,16 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
       <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'}/>
       <div style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
-        {/* minHeight:0 + overflow hidden no Uniko Paint: este div é flex item, e
-            flex item nasce com `min-height:auto` — ou seja, NÃO encolhe abaixo do
-            próprio conteúdo. Resultado: o chat do jogo enchia, este container
-            crescia junto (ignorando o height calc()) e esticava a página inteira,
-            por mais que o jogo tratasse a altura direito lá dentro. O Uniko Wave
-            já escapava disso via overflow hidden. */}
-        <div style={{flex:1,
+        {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
+            `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
+            altura DEFINIDA. O pai aqui tem `minHeight:'100vh'` (mínima, não
+            definida), então o basis cai pra "content" e este container passa a ser
+            dimensionado PELO CONTEÚDO — ignorando o `height:calc()` logo abaixo.
+            Efeito: o chat do jogo enchia e esticava a página inteira (medido:
+            container ia de 668px pra 1348px com 60 mensagens, e a lista nunca
+            rolava). Com `basis:auto` o `height` vira a base e a altura se mantém.
+            Só pro Paint pra não mexer no layout das outras abas. */}
+        <div style={{flex: tab==='unikopaint' ? '1 1 auto' : 1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
           overflowY: (tab==='unikowave'||tab==='unikopaint') ? 'hidden' : 'auto',
           minHeight: tab==='unikopaint' ? 0 : undefined,
