@@ -38,13 +38,12 @@ const NAV=[
   {id:'uniko',      label:'Coleção',        icon:<I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>},
   {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
   {id:'unikowave',  label:'Uniko Wave',     icon:<I><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></I>},
-  /* Em desenvolvimento — adminOnly esconde de todo mundo menos admin (ver NAV_FOR abaixo).
-     Mantido por ÚLTIMO de propósito: os dividers do map são por índice (6 e 10), então
-     um item no fim não desloca os grupos quando some pra quem não é admin. */
-  {id:'unikopaint', label:'Uniko Paint',    adminOnly:true, icon:<I><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></I>},
+  {id:'unikopaint', label:'Uniko Paint',    icon:<I><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></I>},
 ];
 
-/* Só admin enxerga os itens marcados adminOnly (features em desenvolvimento). */
+/* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
+   (o Uniko Paint foi liberado pra todo mundo), mas o filtro fica pronto pra
+   próxima feature que nascer restrita — basta pôr `adminOnly:true` no item. */
 const NAV_FOR = (isAdmin) => NAV.filter(n => !n.adminOnly || isAdmin);
 
 const LockIcon = () => (

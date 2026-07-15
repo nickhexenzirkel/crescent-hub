@@ -128,9 +128,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     if(tab==='unikowave')   return <TabUnikoWave/>;
-    // Uniko Paint está EM DESENVOLVIMENTO: escondido da sidebar pra não-admin e
-    // barrado aqui também — esconder o item de menu não impede chegar pelo estado.
-    if(tab==='unikopaint')  return getAuthUser()?.role === 'admin' ? <TabUnikoPaint/> : null;
+    if(tab==='unikopaint')  return <TabUnikoPaint/>;
     return null;
   };
 
