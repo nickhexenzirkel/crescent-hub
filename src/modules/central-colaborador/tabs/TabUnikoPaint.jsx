@@ -47,6 +47,76 @@ const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala 
 const GLOBAL_ROOM = 'global';
 /* Mascote oficial do Uniko Paint (gato-robô de boina, respingado de tinta). */
 const MASCOTE = '/uniko-paint.png';
+
+/* ── PALETA ─────────────────────────────────────────────────────────────────
+   O Uniko Paint tem identidade PRÓPRIA, tirada do mascote (neon das orelhas e
+   olhos + os respingos de tinta), em vez de herdar o azul/cinza do tema do
+   Portal — o resto do app segue o tema normalmente, só o jogo é colorido.
+   Textos continuam usando T.text/T.textT pra ficarem legíveis em qualquer tema. */
+const UP = {
+  pink:   '#FF3BA7',
+  purple: '#A83BFF',
+  cyan:   '#22CFFF',
+  lime:   '#7DE83B',
+  yellow: '#FFC93B',
+  orange: '#FF8A3B',
+  red:    '#FF4D5E',
+  ink:    '#1A1A2E',
+};
+/* Preto ou branco por cima desta cor? Amarelo/lima/ciano pedem texto escuro;
+   rosa/roxo/vermelho pedem branco. Sem isso o texto do botão some no fundo.
+   (As cores vivas NUNCA são usadas como cor de TEXTO: várias têm contraste <3:1
+   sobre branco, e o Portal ainda tem temas escuros — texto usa sempre T.text.) */
+const luminancia = (h) => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+// Escolhe entre branco e escuro o que der MAIOR contraste — sem limiar chutado:
+// com limiar fixo o laranja caía em texto branco e dava 2.35:1 (ilegível).
+const textoSobre = (hex) => {
+  const l = luminancia(hex);
+  const comBranco = 1.05 / (l + 0.05);
+  const comEscuro = (l + 0.05) / (luminancia(UP.ink) + 0.05);
+  return comBranco >= comEscuro ? '#FFFFFF' : UP.ink;
+};
+
+const A   = UP.pink;                        // destaque principal
+const A2  = UP.purple;                      // destaque secundário
+const A3  = UP.cyan;                        // terceiro tom (gradientes)
+const AG  = 'rgba(255,59,167,.28)';         // brilho/sombra colorida
+const RAINBOW = `linear-gradient(115deg, ${UP.pink} 0%, ${UP.purple} 24%, ${UP.cyan} 48%, ${UP.lime} 68%, ${UP.yellow} 85%, ${UP.orange} 100%)`;
+
+/* ── RESPINGOS DE TINTA ─────────────────────────────────────────────────────
+   Decoração pura (aria-hidden, sem eventos). Cada respingo é um blob orgânico
+   + pingos soltos ao redor, como os do mascote. As posições são fixas e não
+   aleatórias: assim não "pulam" a cada render. */
+const SPLAT_PATHS = [
+  'M52 8c11-2 20 7 21 17s10 13 12 24-6 21-16 25-13 14-24 13-18-9-27-14S6 62 5 51s7-17 11-26S41 10 52 8z',
+  'M46 6c13 0 18 12 26 19s16 12 15 25-13 17-22 22-11 18-23 16S24 74 15 66 2 45 7 33s10-13 17-19S33 6 46 6z',
+  'M50 4c9 6 8 16 15 23s19 8 20 20-11 16-15 26-4 20-16 22-19-9-29-14S6 66 6 54s5-16 9-25S41-2 50 4z',
+];
+const Splat = ({ x, y, size = 60, cor, rot = 0, op = 0.14, forma = 0, pingos = true, style }) => (
+  <svg aria-hidden viewBox="0 0 92 92" width={size} height={size}
+    style={{ position: 'absolute', left: x, top: y, opacity: op, pointerEvents: 'none',
+      transform: `rotate(${rot}deg)`, zIndex: 0, ...style }}>
+    <path d={SPLAT_PATHS[forma % SPLAT_PATHS.length]} fill={cor} />
+    {pingos && <>
+      <circle cx="82" cy="20" r="5" fill={cor} />
+      <circle cx="14" cy="78" r="3.5" fill={cor} />
+      <circle cx="88" cy="62" r="2.6" fill={cor} />
+      <circle cx="24" cy="10" r="2.2" fill={cor} />
+    </>}
+  </svg>
+);
+/* Chuva de respingos de fundo — posições fixas, uma cor por respingo. */
+const SPLATS_HEADER = [
+  { x: '3%',  y: '-18%', size: 74, forma: 0, rot: 12,  op: 0.2 },
+  { x: '22%', y: '52%',  size: 46, forma: 1, rot: 140, op: 0.16 },
+  { x: '46%', y: '-26%', size: 58, forma: 2, rot: 205, op: 0.14 },
+  { x: '68%', y: '46%',  size: 40, forma: 0, rot: 78,  op: 0.18 },
+  { x: '86%', y: '-14%', size: 62, forma: 1, rot: 250, op: 0.15 },
+];
 /* Sala sem ninguém e parada há mais de 20min é lixo — o lobby faz a faxina. */
 const ROOM_TTL_MS = 20 * 60_000;
 
@@ -101,9 +171,21 @@ const THEMES = [
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
 const themeById = (id) => ALL_THEMES.find(t => t.id === id) || GERAL;
+/* Cada tema tem sua cor de tinta — o lobby fica colorido e dá pra reconhecer a
+   sala pela cor antes de ler o nome. Escolhidas à mão (e não por hash do id):
+   o hash amontoava 4 temas na mesma cor e deixava outras sem uso. Aqui elas
+   combinam com o assunto — comida laranja, natureza verde, Brasil amarelo. */
+const COR_TEMA = {
+  geral: UP.pink,     escritorio: UP.cyan,  comida:  UP.orange, animais: UP.lime,
+  filmes: UP.purple,  esportes: UP.red,     musica:  UP.pink,   natureza: UP.lime,
+  tecnologia: UP.cyan, brasil: UP.yellow,   casa:    UP.orange,
+};
+const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
-const COLORS = ['#1A1A2E', '#7A7A8C', '#E63946', '#F77F00', '#FCBF49', '#2A9D8F',
-  '#2E8DD4', '#6B3FC8', '#E060A0', '#8B5E34', '#40916C', '#FFFFFF'];
+/* Paleta de desenho: as cores do mascote + o básico que todo desenho precisa
+   (preto pra contorno, marrom, branco pra corrigir). */
+const COLORS = [UP.ink, '#7A7A8C', UP.red, UP.orange, UP.yellow, UP.lime,
+  UP.cyan, UP.purple, UP.pink, '#8B5E34', '#0FA36B', '#FFFFFF'];
 const SIZES = [3, 8, 16, 30];
 const TOOLS = [
   { id: 'brush',  nome: 'Pincel' },
@@ -221,6 +303,9 @@ const PAINT_CSS = `
 .up-avatar { animation: upAvatarIn .55s cubic-bezier(.2,1.4,.4,1) both; }
 .up-ring   { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid currentColor; animation: upRing 1.6s ease-out infinite; }
 .up-ring2  { animation-delay: .55s; }
+/* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima. */
+.up-hd > svg { z-index: 0; }
+.up-hd > *:not(svg) { position: relative; z-index: 1; }
 /* Entradas suaves */
 @keyframes upFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes upPop    { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
@@ -387,11 +472,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
       <style>{PAINT_CSS}</style>
       {/* Cabeçalho */}
-      <div style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14,
-        background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
-        boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-        <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
-          background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
+      <div className="up-hd" style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14,
+        // brilho embutido no próprio background (evita uma camada só pra isso)
+        background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%),
+                     radial-gradient(circle at 88% 82%, rgba(255,255,255,.2) 0%, transparent 42%), ${RAINBOW}`,
+        boxShadow: `0 8px 26px ${AG}`,
+        position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+        {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
+        {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
         <Mascote size={80} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
@@ -405,14 +493,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         </button>
         <button onClick={() => setCriando(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
-            background: '#fff', color: T.gold, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+            background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
           <IcoPlus size={15} />Criar sala
         </button>
       </div>
 
       {/* Criar sala */}
       {criando && (
-        <div style={{ background: cardBg, border: `1px solid ${T.gold}55`, borderRadius: 14, padding: 16,
+        <div style={{ background: cardBg, border: `1px solid ${A}55`, borderRadius: 14, padding: 16,
           boxShadow: T.sh, flexShrink: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, marginBottom: 11 }}>Nova sala</div>
           <input value={nomeSala} onChange={e => setNomeSala(e.target.value)} maxLength={28}
@@ -422,21 +510,25 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
               background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none' }} />
           <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>TEMA DA SALA</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-            {ALL_THEMES.map(t => (
-              <button key={t.id} onClick={() => setTemaSala(t.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
-                  fontSize: 12, fontWeight: 700, transition: 'all .12s',
-                  border: temaSala === t.id ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-                  background: temaSala === t.id ? `${T.gold}18` : 'transparent', color: temaSala === t.id ? T.gold : T.text }}>
-                <span>{t.emoji}</span>{t.nome}
-              </button>
-            ))}
+            {ALL_THEMES.map(t => {
+              const c = corDoTema(t.id);          // a mesma cor que a sala terá no lobby
+              const on = temaSala === t.id;
+              return (
+                <button key={t.id} className="up-btn" onClick={() => setTemaSala(t.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, transition: 'all .12s',
+                    border: on ? `2px solid ${c}` : `1px solid ${c}44`,
+                    background: on ? `${c}22` : 'transparent', color: T.text }}>
+                  <span>{t.emoji}</span>{t.nome}
+                </button>
+              );
+            })}
           </div>
           {erro && <div style={{ fontSize: 12, color: '#E63946', marginBottom: 8 }}>{erro}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={criarSala}
               style={{ padding: '10px 22px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800,
-                cursor: 'pointer', background: `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, boxShadow: `0 5px 16px ${T.goldGl}` }}>
+                cursor: 'pointer', background: `linear-gradient(135deg, ${A}, ${A2})`, boxShadow: `0 5px 16px ${AG}` }}>
               Criar e entrar
             </button>
             <button onClick={() => setCriando(false)}
@@ -449,33 +541,50 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
       )}
 
       {/* Lista de salas */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10 }}>
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+        {/* respingos coloridos bem sutis no fundo da lista */}
+        <Splat x="-3%"  y="14%" size={190} cor={UP.cyan}   rot={18}  op={0.05} forma={1} />
+        <Splat x="72%"  y="52%" size={230} cor={UP.pink}   rot={200} op={0.045} forma={2} />
+        <Splat x="34%"  y="78%" size={160} cor={UP.yellow} rot={95}  op={0.05} forma={0} />
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10,
+          position: 'relative', zIndex: 1 }}>
           SALAS ({rooms.length})
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12,
+          position: 'relative', zIndex: 1 }}>
           {rooms.map(r => {
             const st = r.state || {};
             const tema = themeById(st.themeId);
             const gente = porSala[r.id] || [];
             const fixa = r.id === GLOBAL_ROOM;
             const jogando = st.phase === 'drawing' || st.phase === 'reveal';
+            const cor = corDoTema(st.themeId);   // cada tema tem sua cor de tinta
             return (
               <div key={r.id} className="up-card up-fade"
-                style={{ background: cardBg, border: `1px solid ${fixa ? `${T.gold}55` : T.border}`, borderRadius: 14,
-                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                style={{ background: cardBg, border: `1.5px solid ${cor}55`, borderRadius: 14,
+                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10,
+                  position: 'relative', overflow: 'hidden' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 10px 26px ${cor}44`; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = `${cor}55`; e.currentTarget.style.boxShadow = T.sh; }}>
+                {/* respingo da cor do tema, no canto */}
+                <Splat y="-22px" size={78} cor={cor} rot={34} op={0.13} forma={r.id.charCodeAt(0) % 3}
+                  style={{ left: 'auto', right: '-16px' }} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, position: 'relative', zIndex: 1 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex',
                     alignItems: 'center', justifyContent: 'center', fontSize: 20,
-                    background: `linear-gradient(135deg, ${T.gold}22, ${T.goldL}18)` }}>{tema.emoji}</div>
+                    background: `linear-gradient(135deg, ${cor}2e, ${cor}14)`, border: `1px solid ${cor}33` }}>{tema.emoji}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap',
                       overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {st.nome || (fixa ? 'Sala Geral' : 'Sala')}
                     </div>
-                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 1 }}>
-                      Tema: <b style={{ color: T.text }}>{tema.nome}</b>
-                      {fixa && <span style={{ color: T.gold, fontWeight: 700 }}> · fixa</span>}
+                    {/* bolinha colorida em vez de texto colorido: várias cores da
+                        paleta não têm contraste pra texto (e há tema escuro). */}
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: cor, flexShrink: 0,
+                        boxShadow: `0 0 0 2px ${cor}33` }} />
+                      <b style={{ color: T.text, fontWeight: 700 }}>{tema.nome}</b>
+                      {fixa && <span style={{ color: T.textD }}>· fixa</span>}
                     </div>
                   </div>
                   {jogando && (
@@ -494,7 +603,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                 </div>
 
                 {/* Quem está na sala */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 30, position: 'relative', zIndex: 1 }}>
                   {gente.length ? (
                     <>
                       <div style={{ display: 'flex' }}>
@@ -517,9 +626,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                 </div>
 
                 <button className="up-btn" onClick={() => { SFX.entrou(); onEnter(r.id); }}
-                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff',
-                    fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                    background: `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, boxShadow: `0 4px 14px ${T.goldGl}` }}>
+                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: textoSobre(cor),
+                    fontSize: 13, fontWeight: 800, cursor: 'pointer', position: 'relative', zIndex: 1,
+                    background: cor, boxShadow: `0 4px 14px ${cor}55` }}>
                   Entrar
                 </button>
 
@@ -946,9 +1055,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       <button key={t.id} onClick={() => setTool(t.id)} title={t.nome}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
           borderRadius: 10, cursor: 'pointer', transition: 'all .12s',
-          border: on ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-          background: on ? `${T.gold}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
-          color: on ? T.gold : T.text, transform: on ? 'translateY(-1px)' : 'none' }}>
+          border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
+          background: on ? `${A}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
+          color: on ? A : T.text, transform: on ? 'translateY(-1px)' : 'none' }}>
         <Ico size={20} />
         <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.nome}</span>
       </button>
@@ -959,11 +1068,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>{PAINT_CSS}</style>
       {/* Cabeçalho */}
-      <div style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
-        background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
-        boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-        <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
-          background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
+      <div className="up-hd" style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
+        // brilho embutido no próprio background (evita uma camada só pra isso)
+        background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%),
+                     radial-gradient(circle at 88% 82%, rgba(255,255,255,.2) 0%, transparent 42%), ${RAINBOW}`,
+        boxShadow: `0 8px 26px ${AG}`,
+        position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+        {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
+        {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
         <Mascote size={68} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: '#fff',
@@ -1011,11 +1123,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             const acertou = state?.hits?.includes(p.name);
             return (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', borderRadius: 9,
-                background: desenhando ? `${T.gold}14` : 'transparent', marginBottom: 2 }}>
+                background: desenhando ? `${A}14` : 'transparent', marginBottom: 2 }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <img src={p.photo || '/UNIKO_NEW.png'} alt=""
                     style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover',
-                      border: `2px solid ${desenhando ? T.gold : acertou ? '#28a060' : 'transparent'}`, background: T.surfaceSub }} />
+                      border: `2px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`, background: T.surfaceSub }} />
                   {i === 0 && (state?.scores?.[p.name] > 0) && (
                     <div style={{ position: 'absolute', top: -6, right: -4, color: '#F0B429' }}><IcoCrown size={13} /></div>
                   )}
@@ -1027,7 +1139,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </div>
                   <div style={{ fontSize: 10.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                     {p.pts} pts
-                    {desenhando && <span style={{ color: T.gold, fontWeight: 700 }}>• desenhando</span>}
+                    {desenhando && <span style={{ color: A, fontWeight: 700 }}>• desenhando</span>}
                     {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
                     {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
                   </div>
@@ -1058,10 +1170,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {isDrawer && (
                   <button onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
-                      border: `1px solid ${revelar >= maxHints(word) ? T.border : T.gold}`,
+                      border: `1px solid ${revelar >= maxHints(word) ? T.border : A}`,
                       cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer',
-                      background: revelar >= maxHints(word) ? 'transparent' : `${T.gold}14`,
-                      color: revelar >= maxHints(word) ? T.textD : T.gold, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      background: revelar >= maxHints(word) ? 'transparent' : `${A}14`,
+                      color: revelar >= maxHints(word) ? T.textD : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
                     <IcoBulb size={13} />Dar dica
                   </button>
                 )}
@@ -1074,7 +1186,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: T.textT, fontWeight: 600 }}>
-                {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: T.gold }}>{state.lastWord}</b></>
+                {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b></>
                   : state?.phase === 'over' ? 'Fim de jogo!'
                   : `Aguardando jogadores (mínimo ${MIN_PLAYERS})`}
               </div>
@@ -1104,7 +1216,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </>
                 ) : state?.phase === 'reveal' ? (
                   <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
-                    A palavra era <span style={{ color: T.gold }}>{state.lastWord}</span>
+                    A palavra era <span style={{ color: A }}>{state.lastWord}</span>
                   </div>
                 ) : (
                   <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>
@@ -1115,7 +1227,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {/* O tema é o da sala, definido na criação — não se vota. */}
                 {noLobby && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
-                    background: `${T.gold}12`, border: `1px solid ${T.gold}44` }}>
+                    background: `${A}12`, border: `1px solid ${A}44` }}>
                     <span style={{ fontSize: 16 }}>{temaAtual.emoji}</span>
                     <span style={{ fontSize: 12.5, color: T.text, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
                   </div>
@@ -1129,8 +1241,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                         {LAP_OPTIONS.map(n => (
                           <button key={n} onClick={() => setLaps(n)}
                             style={{ minWidth: 30, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
-                              border: laps === n ? `1.5px solid ${T.gold}` : `1px solid ${T.border}`,
-                              background: laps === n ? `${T.gold}14` : 'transparent', color: laps === n ? T.gold : T.text }}>
+                              border: laps === n ? `1.5px solid ${A}` : `1px solid ${T.border}`,
+                              background: laps === n ? `${A}14` : 'transparent', color: laps === n ? A : T.text }}>
                             {n}×
                           </button>
                         ))}
@@ -1141,9 +1253,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       </div>
                       <button onClick={startGame} disabled={players.length < MIN_PLAYERS}
                         style={{ padding: '11px 26px', borderRadius: 999, border: 'none',
-                          background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${T.gold}, ${T.goldL})`,
+                          background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
                           color: '#fff', fontSize: 14, fontWeight: 800, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
-                          boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${T.goldGl}` }}>
+                          boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${AG}` }}>
                         {state?.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
                       </button>
                       {players.length < MIN_PLAYERS && (
@@ -1173,7 +1285,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             {vez && (
               <div className="up-turn" style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
                 flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, pointerEvents: 'none',
-                background: `linear-gradient(160deg, ${T.gold}f2, ${T.goldL}ee 60%, ${T.goldV || T.goldL}f2)` }}>
+                background: `linear-gradient(160deg, ${A}f2, ${A2}ee 60%, ${A3}f2)` }}>
                 <div style={{ position: 'absolute', inset: 0, opacity: .2,
                   background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
                 {/* Avatar gigante com anéis pulsando */}
@@ -1212,7 +1324,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {COLORS.map(c => (
                   <button key={c} onClick={() => { setColor(c); if (tool === 'eraser') setTool('brush'); }} title={c}
                     style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer', transition: 'transform .12s',
-                      border: color === c ? `3px solid ${T.gold}` : `1px solid ${T.border}`,
+                      border: color === c ? `3px solid ${A}` : `1px solid ${T.border}`,
                       transform: color === c ? 'scale(1.12)' : 'none' }} />
                 ))}
               </div>
@@ -1222,8 +1334,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <button key={s} onClick={() => setSize(s)} title={`${s}px`}
                     style={{ width: 38, height: 38, borderRadius: 9, cursor: 'pointer', display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
-                      border: size === s ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-                      background: size === s ? `${T.gold}14` : 'transparent' }}>
+                      border: size === s ? `2px solid ${A}` : `1px solid ${T.border}`,
+                      background: size === s ? `${A}14` : 'transparent' }}>
                     <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: T.text }} />
                   </button>
                 ))}
@@ -1233,8 +1345,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <div style={{ width: 1, height: 40, background: T.border }} />
                   <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
-                      border: filled ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-                      background: filled ? `${T.gold}14` : 'transparent', color: filled ? T.gold : T.text, fontSize: 12, fontWeight: 700 }}>
+                      border: filled ? `2px solid ${A}` : `1px solid ${T.border}`,
+                      background: filled ? `${A}14` : 'transparent', color: filled ? A : T.text, fontSize: 12, fontWeight: 700 }}>
                     <div style={{ width: 14, height: 14, borderRadius: 3, border: '2px solid currentColor',
                       background: filled ? 'currentColor' : 'transparent' }} />
                     {filled ? 'Cheio' : 'Vazado'}
@@ -1293,7 +1405,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 fontFamily: 'var(--font-body)', outline: 'none' }} />
             <button onClick={sendGuess} disabled={isDrawer}
               style={{ width: 34, borderRadius: 9, border: 'none', cursor: isDrawer ? 'not-allowed' : 'pointer',
-                background: isDrawer ? T.textD : `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, color: '#fff',
+                background: isDrawer ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <IcoSend size={14} />
             </button>
@@ -1476,7 +1588,7 @@ const TabUnikoPaint = () => {
                     {opts.map(v => (
                       <button key={v.img} onClick={() => choosePhoto(v.img)} title={v.label}
                         style={{ width: 78, padding: 7, borderRadius: 12, cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.03)',
-                          border: photo === v.img ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+                          border: photo === v.img ? `2px solid ${A}` : `1px solid ${T.border}`,
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                         <img src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
                         <span style={{ fontSize: 9.5, color: T.textT, fontWeight: 600, textAlign: 'center',
