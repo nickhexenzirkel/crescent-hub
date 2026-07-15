@@ -303,6 +303,14 @@ const PAINT_CSS = `
 .up-avatar { animation: upAvatarIn .55s cubic-bezier(.2,1.4,.4,1) both; }
 .up-ring   { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid currentColor; animation: upRing 1.6s ease-out infinite; }
 .up-ring2  { animation-delay: .55s; }
+/* Barra de rolagem visível nos palpites. A global do app é de 4px com trilho
+   transparente — some no card do chat, e sem enxergar a barra parece que nada
+   rola. Aqui ela tem 9px, trilho marcado e polegar rosa da paleta. */
+.up-scroll { scrollbar-width: thin; scrollbar-color: ${UP.pink}99 rgba(128,128,128,.14); }
+.up-scroll::-webkit-scrollbar { width: 9px; }
+.up-scroll::-webkit-scrollbar-track { background: rgba(128,128,128,.14); border-radius: 99px; margin: 4px 0; }
+.up-scroll::-webkit-scrollbar-thumb { background: ${UP.pink}99; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
+.up-scroll::-webkit-scrollbar-thumb:hover { background: ${UP.pink}; border: 2px solid transparent; background-clip: content-box; }
 /* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima. */
 .up-hd > svg { z-index: 0; }
 .up-hd > *:not(svg) { position: relative; z-index: 1; }
@@ -1134,9 +1142,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           resolve sozinho; quem manda no tamanho é a linha. */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '186px 1fr 254px',
         gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0, overflow: 'hidden' }}>
-        {/* Jogadores */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 11,
-          overflowY: 'auto', boxShadow: T.sh }}>
+        {/* Jogadores — mesma trava de altura do chat (sala cheia rolava o card) */}
+        <div className="up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 11,
+          height: '100%', minHeight: 0, overflowY: 'auto', boxShadow: T.sh }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 9 }}>
             JOGADORES ({players.length})
           </div>
@@ -1390,14 +1398,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           )}
         </div>
 
-        {/* Chat */}
+        {/* Chat — `height:100%` + `overflow:hidden` fecham a altura do card no
+            tamanho da linha do grid. Sem isso ele ia crescendo junto com o chat
+            (e aí a lista nunca "transborda", então a barra de rolagem nunca
+            aparecia — o card é que esticava). */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex',
-          flexDirection: 'column', minHeight: 0, boxShadow: T.sh }}>
+          flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', boxShadow: T.sh }}>
           <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 800,
             color: T.textT, letterSpacing: '.08em', flexShrink: 0 }}>PALPITES</div>
           {/* minHeight:0 + flexShrink nos irmãos: sem isso a lista não encolhe abaixo
               do próprio conteúdo e empurra o card inteiro conforme o chat enche. */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+            padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
             {!chat.length && (
               <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 20, lineHeight: 1.5 }}>
                 Escreva seu palpite aqui.<br />Quem acerta primeiro leva mais pontos!
