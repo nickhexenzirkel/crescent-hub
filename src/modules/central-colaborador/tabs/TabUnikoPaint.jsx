@@ -967,7 +967,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         // nunca é sorteado pra desenhar, porque a fila só era montada no começo.
         const elenco = s.elenco || [...new Set(s.queue || [])];
         const novos = players.map(p => p.name).filter(n => !elenco.includes(n));
-        const queue = [...restante, ...novos];
+        // NOVOS NA FRENTE, não no fim: a fila tem uma entrada por jogador POR
+        // VOLTA (5 pessoas × 3 voltas = 15 rodadas), então quem entrasse no fim
+        // só desenharia lá pela rodada 15 — e como as pessoas vão saindo antes
+        // disso, a vez dele simplesmente nunca chegava. Na frente, ele desenha
+        // já na próxima rodada.
+        const queue = [...novos, ...restante];
         if (!queue.length) pushState({ ...s, phase: 'over', endsAt: null });
         else startRound(queue, s.scores || {}, (s.round || 1) + 1,
           (s.totalRounds || 0) + novos.length, s.usadas || [], s.themeId, s.nome,
