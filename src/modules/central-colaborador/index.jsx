@@ -18,6 +18,7 @@ import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
+import { TabQuizMM } from './tabs/TabQuizMM';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 
@@ -129,6 +130,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     if(tab==='unikowave')   return <TabUnikoWave/>;
     if(tab==='unikopaint')  return <TabUnikoPaint/>;
+    if(tab==='quizmm')      return <TabQuizMM/>;
     return null;
   };
 
