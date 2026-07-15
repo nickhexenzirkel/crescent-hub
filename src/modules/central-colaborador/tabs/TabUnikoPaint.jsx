@@ -43,6 +43,9 @@ const REVEAL_MS = 5_000;    // tela de "a palavra era..."
 const MIN_PLAYERS = 2;
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
+/* Pulos por rodada: 2 é o suficiente pra escapar de uma palavra impossível sem
+   virar "fico trocando até vir uma fácil". */
+const MAX_SKIPS = 2;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
 const GLOBAL_ROOM = 'global';
 /* Mascote oficial do Uniko Paint (gato-robô de boina, respingado de tinta). */
@@ -269,6 +272,7 @@ const SFX = {
   acerto: () => { beep(880, 0.1, 'sine', 0.12); beep(1175, 0.15, 'sine', 0.12, 0.08); },
   euAcertei: () => [784, 988, 1319].forEach((f, i) => beep(f, 0.17, 'sine', 0.15, i * 0.07)),
   tick:   () => beep(1000, 0.045, 'square', 0.05),
+  pulou:  () => { beep(520, 0.09, 'triangle', 0.1); beep(392, 0.14, 'triangle', 0.1, 0.07); },
   fimRodada: () => [440, 330].forEach((f, i) => beep(f, 0.24, 'triangle', 0.1, i * 0.13)),
   vitoria: () => [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.24, 'triangle', 0.13, i * 0.12)),
   entrou: () => beep(660, 0.07, 'sine', 0.07),
@@ -360,6 +364,7 @@ const IcoSend   = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><poly
 const IcoCrown  = (p) => <Svg {...p}><path d="M2 18h20l-2-9-5 4-3-7-3 7-5-4z"/></Svg>;
 const IcoCheck  = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
 const IcoBulb   = (p) => <Svg {...p}><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></Svg>;
+const IcoSkip   = (p) => <Svg {...p}><path d="M3 12a9 9 0 019-9 9 9 0 016.4 2.7L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 01-9 9 9 9 0 01-6.4-2.7L3 16"/><polyline points="3 21 3 16 8 16"/></Svg>;
 const IcoExit   = (p) => <Svg {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Svg>;
 const IcoPlus   = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Svg>;
 const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></Svg>;
@@ -1030,6 +1035,38 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     pushState({ ...s, hints: (s.hints || 0) + 1 });
   };
 
+  /* ── Pular a palavra ─────────────────────────────────────────────────────
+     Troca a palavra e reinicia o tempo, mantendo a vez de quem desenha — é o
+     caso "peguei algo impossível de desenhar". Regras pra não virar abuso:
+     • no máximo MAX_SKIPS por rodada;
+     • NÃO dá pra pular depois que alguém já acertou (a palavra já foi
+       descoberta — trocar puniria quem acertou e zeraria a rodada dos outros).
+     Quem escreve aqui é o DESENHISTA, não o host — mesmo caminho do "Dar dica",
+     já que a rodada é dele. */
+  const podePular = isDrawer && state?.phase === 'drawing'
+    && (state?.skips || 0) < MAX_SKIPS && !(state?.hits?.length);
+  const pularPalavra = () => {
+    const s = stateRef.current;
+    if (!isDrawer || !s || s.phase !== 'drawing') return;
+    if ((s.skips || 0) >= MAX_SKIPS || s.hits?.length) return;
+    const pool0 = themeById(s.themeId).words;
+    const usadas = s.usadas || [];
+    const livres = pool0.filter(w => !usadas.includes(w));
+    const pool = livres.length ? livres : pool0;    // acabou o baralho → recomeça
+    const nova = pool[Math.floor(Math.random() * pool.length)];
+    chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
+    chanRef.current?.send({ type: 'broadcast', event: 'pulou', payload: { name } });
+    clearAll();
+    addChat({ name, text: 'pulou a palavra 🔄', kind: 'sys' });
+    sfx('pulou');
+    pushState({
+      ...s, wordEnc: enc(nova), usadas: [...usadas, nova],
+      hints: 0,                                     // dicas recomeçam do zero
+      skips: (s.skips || 0) + 1,
+      endsAt: Date.now() + ROUND_MS,                // palavra nova, tempo cheio
+    });
+  };
+
   /* ── Canal da sala (depois das funções que os handlers usam — TDZ) ───── */
   useEffect(() => {
     const ch = supabase.channel(`uniko-paint-room-${roomId}`);
@@ -1053,6 +1090,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       acts.current = payload?.acts || []; replay();
     });
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
+    ch.on('broadcast', { event: 'pulou' }, ({ payload }) => {
+      if (payload?.name === name) return;         // quem pulou já viu o aviso
+      addChat({ name: payload.name, text: 'pulou a palavra 🔄', kind: 'sys' });
+      sfx('pulou');
+    });
     ch.subscribe((st) => {
       if (st !== 'SUBSCRIBED') return;
       ch.send({ type: 'broadcast', event: 'sync-req', payload: { from: name } });
@@ -1198,13 +1240,29 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   )}
                 </div>
                 {isDrawer && (
-                  <button onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
+                  <button className="up-btn" onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
                       border: `1px solid ${revelar >= maxHints(word) ? T.border : A}`,
                       cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer',
                       background: revelar >= maxHints(word) ? 'transparent' : `${A}14`,
                       color: revelar >= maxHints(word) ? T.textD : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
                     <IcoBulb size={13} />Dar dica
+                  </button>
+                )}
+                {isDrawer && (
+                  <button className="up-btn" onClick={pularPalavra} disabled={!podePular}
+                    title={state?.hits?.length ? 'Alguém já acertou — não dá mais pra trocar'
+                      : (state?.skips || 0) >= MAX_SKIPS ? 'Você já usou seus pulos nesta rodada'
+                      : `Trocar por outra palavra (${MAX_SKIPS - (state?.skips || 0)} restante${MAX_SKIPS - (state?.skips || 0) > 1 ? 's' : ''})`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
+                      border: `1px solid ${podePular ? UP.orange : T.border}`,
+                      cursor: podePular ? 'pointer' : 'not-allowed',
+                      background: podePular ? `${UP.orange}14` : 'transparent',
+                      color: podePular ? UP.orange : T.textD, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <IcoSkip size={13} />Pular
+                    {podePular && MAX_SKIPS - (state?.skips || 0) < MAX_SKIPS && (
+                      <span style={{ opacity: .7 }}>({MAX_SKIPS - (state?.skips || 0)})</span>
+                    )}
                   </button>
                 )}
                 <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
