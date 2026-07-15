@@ -337,18 +337,35 @@ const myPhotoSrc = () => {
    botão. Quais letras: ordem embaralhada com semente = a própria palavra, então
    TODO cliente revela exatamente as mesmas — sem sincronizar nada. */
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+/* Só LETRA/NÚMERO vira lacuna. Espaço separa palavras e pontuação (hífen,
+   apóstrofo) aparece como está — revelar um hífen como "dica" não ajuda
+   ninguém, e mostrá-lo entrega de graça que a palavra é hifenizada. */
+const ehLetra = (c) => /[a-z0-9]/i.test((c || '').normalize('NFD').replace(/\p{Diacritic}/gu, ''));
 const hintOrder = (w) => {
-  const idx = [...w].map((c, i) => ({ c, i })).filter(x => x.c !== ' ').map(x => x.i);
+  const idx = [...w].map((c, i) => ({ c, i })).filter(x => ehLetra(x.c)).map(x => x.i);
   let seed = hashStr(w) || 1;
   const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
   for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
   return idx;
 };
-const maxHints = (w) => Math.max(1, Math.floor([...w].filter(c => c !== ' ').length * 0.5));
+const contaLetras = (w) => [...(w || '')].filter(ehLetra).length;
+const maxHints = (w) => Math.max(1, Math.floor(contaLetras(w) * 0.5));
 const autoHints = (w, frac) => Math.min(frac >= 0.9 ? 3 : frac >= 0.75 ? 2 : frac >= 0.5 ? 1 : 0, maxHints(w));
-const maskWord = (w, revelar = 0) => {
+/* Devolve a máscara AGRUPADA POR PALAVRA: [['p','_','_'], ['n','_','_','_']].
+   Antes era uma string só com espaços no meio — e o HTML COLAPSA espaços
+   repetidos, então "procurando nemo" saía como um bloco único de underlines e
+   ninguém via que eram duas palavras. Agora cada palavra vira um grupo e a UI
+   separa com espaçamento de verdade. */
+const maskParts = (w, revelar = 0) => {
   const abrir = new Set(hintOrder(w).slice(0, revelar));
-  return [...(w || '')].map((c, i) => (c === ' ' ? ' ' : abrir.has(i) ? c : '_')).join(' ');
+  const grupos = [];
+  let atual = [];
+  [...(w || '')].forEach((c, i) => {
+    if (c === ' ') { if (atual.length) grupos.push(atual); atual = []; return; }
+    atual.push(ehLetra(c) ? (abrir.has(i) ? c : '_') : c);   // hífen etc. aparecem
+  });
+  if (atual.length) grupos.push(atual);
+  return grupos;
 };
 
 /* ── SOM ────────────────────────────────────────────────────────────────────
@@ -1410,12 +1427,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   Rodada {state.round}{state.totalRounds ? ` de ${state.totalRounds}` : ''}
                 </div>
                 <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800,
-                  color: T.text, letterSpacing: isDrawer ? '.02em' : '.22em' }}>
-                  {isDrawer ? word : maskWord(word, revelar)}
-                  {!isDrawer && (
-                    <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0, marginLeft: 8 }}>
-                      ({[...word].filter(c => c !== ' ').length} letras)
-                    </span>
+                  color: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                  {isDrawer ? <span style={{ letterSpacing: '.02em' }}>{word}</span> : (
+                    <>
+                      {/* uma palavra por bloco, com gap de verdade — espaço solto
+                          o HTML colapsaria e as palavras virariam um bloco só */}
+                      {maskParts(word, revelar).map((g, i) => (
+                        <span key={i} style={{ letterSpacing: '.22em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
+                      ))}
+                      <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0 }}>
+                        ({contaLetras(word)} letras
+                        {maskParts(word).length > 1 ? `, ${maskParts(word).length} palavras` : ''})
+                      </span>
+                    </>
                   )}
                 </div>
                 {isDrawer && (
