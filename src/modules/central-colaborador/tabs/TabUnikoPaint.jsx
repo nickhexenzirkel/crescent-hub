@@ -1,26 +1,36 @@
 // src/modules/central-colaborador/tabs/TabUnikoPaint.jsx
 // ═══════════════════════════════════════════════════════════════════════════
-// UNIKO PAINT — desenho e adivinhação em tempo real (estilo Gartic), sala única
-// global. EM DESENVOLVIMENTO: só admins veem a aba (filtro em Sidebar.jsx).
+// UNIKO PAINT — desenho e adivinhação em tempo real (estilo Gartic).
 //
-// COMO SINCRONIZA (dois canais, de propósito):
-//   • BROADCAST (efêmero, não toca no banco): traços, chat/palpites e o "sync"
-//     do desenho pra quem entra no meio. Um traço a cada frame viraria milhares
-//     de INSERTs por partida — broadcast é o transporte certo.
+// ESTRUTURA: LOBBY (lista de salas) → SALA (a partida). Cada sala é uma linha da
+// tabela uniko_paint_state, e o `id` é o código dela. A sala 'global' é a "Sala
+// Geral": fixa, sempre no lobby, nunca apagada — assim nunca há lobby vazio.
+//
+// COMO SINCRONIZA (três canais, cada um pro que serve):
+//   • PRESENCE DO LOBBY (canal único, todo mundo sempre nele): cada pessoa
+//     publica { name, photo, room }. É daí que o lobby sabe quem está em qual
+//     sala SEM precisar assinar o canal de todas elas.
+//   • BROADCAST DA SALA (efêmero, não toca no banco): traços, formas, balde,
+//     chat e o "sync" do desenho pra quem entra no meio. Um traço a cada frame
+//     viraria milhares de INSERTs por partida.
 //   • TABELA uniko_paint_state (postgres_changes): fase, rodada, quem desenha,
-//     placar. Precisa sobreviver a F5 e a quem chega depois. Ver
-//     supabase_uniko_paint.sql.
-//   • PRESENCE: quem está online agora, com a foto de perfil de cada um.
+//     placar, votos. Precisa sobreviver a F5 e a quem chega depois.
+//     Ver supabase_uniko_paint.sql + supabase_uniko_paint_salas.sql.
 //
-// QUEM MANDA: não há servidor de jogo. O "host" é eleito de forma determinística
-// (menor nome entre os presentes, todos chegam à mesma conclusão) e é o único
-// que escreve as transições de fase e o placar. Se ele fechar a aba, o próximo
-// assume sozinho na eleição seguinte.
+// QUEM MANDA: não há servidor de jogo. O "host" de cada sala é eleito de forma
+// determinística (menor nome entre os presentes; todos chegam à mesma conclusão)
+// e é o único que escreve transições de fase e placar. Se ele sai, o próximo
+// assume na eleição seguinte.
 //
-// LIMITAÇÃO CONHECIDA (aceitável no MVP interno): a palavra vai no estado só em
-// base64, então dá pra trapacear pelo devtools. Esconder de verdade exigiria uma
-// RPC no Postgres que só entrega a palavra pro desenhista. Vale fazer se o jogo
-// sair do modo admin-only.
+// CANVAS: as ações (traço/balde/forma) vivem em `acts` (ref) normalizadas 0..1 e
+// são rasterizadas num canvas BASE offscreen 1000x625; o visível é um blit do
+// base (+ preview da forma em arraste). Desenhar é incremental — replay completo
+// só em desfazer/limpar/sync. Isso existe por causa do BALDE: flood fill é pixel
+// a pixel, e refazer todos os fills a cada segmento de traço travaria o jogo.
+//
+// LIMITAÇÃO CONHECIDA: a palavra vai no estado só em base64, então dá pra
+// trapacear pelo devtools. Esconder de verdade exigiria uma RPC no Postgres
+// entregando a palavra só pro desenhista.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
@@ -28,49 +38,83 @@ import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/us
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
 
-const ROOM = 'global';
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
 const MIN_PLAYERS = 2;
-/* Uma VOLTA = cada jogador desenha uma vez. Antes a partida era sempre 1 volta,
-   o que com 2 pessoas acabava em 2 rodadas — curto demais na prática. */
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
+const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
+const GLOBAL_ROOM = 'global';
+/* Sala sem ninguém e parada há mais de 20min é lixo — o lobby faz a faxina. */
+const ROOM_TTL_MS = 20 * 60_000;
 
-/* Palavras — mistura de coisas do dia a dia, do universo Uniko e da empresa.
-   Fáceis de desenhar de propósito: nada abstrato. */
-const WORDS = [
-  // Universo Uniko / empresa
-  'uniko', 'crachá', 'holerite', 'ponto eletrônico', 'café da manhã', 'reunião',
-  'home office', 'notebook', 'crescent', 'alexa', 'fone de ouvido', 'planilha',
-  'impressora', 'grampeador', 'cafeteira', 'sala de reunião', 'headset', 'mouse',
-  // Objetos
-  'guarda-chuva', 'óculos', 'relógio', 'chave', 'tesoura', 'escada', 'martelo',
-  'bicicleta', 'foguete', 'guitarra', 'violão', 'câmera', 'celular', 'geladeira',
-  'ventilador', 'abajur', 'mochila', 'chinelo', 'panela', 'vassoura', 'balde',
-  // Animais
-  'gato', 'cachorro', 'pinguim', 'elefante', 'girafa', 'tubarão', 'polvo',
-  'borboleta', 'caracol', 'dinossauro', 'coruja', 'tartaruga', 'abelha', 'sapo',
-  // Comida
-  'pizza', 'brigadeiro', 'açaí', 'coxinha', 'pastel', 'churrasco', 'sorvete',
-  'melancia', 'pipoca', 'hambúrguer', 'sushi', 'bolo de aniversário', 'feijoada',
-  // Lugares / natureza
-  'praia', 'montanha', 'cachoeira', 'arco-íris', 'vulcão', 'ilha', 'floresta',
-  'castelo', 'farol', 'ponte', 'igreja', 'estádio',
-  // Ações / cenas
-  'chuva', 'aniversário', 'futebol', 'dormindo', 'correndo', 'nadando',
-  'carnaval', 'festa junina', 'natal', 'praia de férias', 'engarrafamento',
+/* ── TEMAS ─────────────────────────────────────────────────────────────────── */
+const THEMES = [
+  { id: 'escritorio', nome: 'Escritório', emoji: '💼', words: [
+    'headset', 'fone de ouvido', 'teclado', 'notebook', 'gelágua', 'mesa', 'café',
+    'geladeira', 'crachá', 'impressora', 'grampeador', 'cafeteira', 'mouse',
+    'cadeira de escritório', 'reunião', 'holerite', 'ponto eletrônico', 'monitor',
+    'clipe de papel', 'post-it', 'ar-condicionado', 'garrafa térmica'] },
+  { id: 'comida', nome: 'Comida', emoji: '🍕', words: [
+    'pizza', 'brigadeiro', 'açaí', 'coxinha', 'pastel', 'churrasco', 'sorvete',
+    'melancia', 'pipoca', 'hambúrguer', 'sushi', 'bolo de aniversário', 'feijoada',
+    'pão de queijo', 'cachorro-quente', 'tapioca', 'ovo frito', 'espaguete',
+    'cupcake', 'abacaxi', 'banana', 'churros'] },
+  { id: 'animais', nome: 'Animais', emoji: '🐾', words: [
+    'gato', 'cachorro', 'pinguim', 'elefante', 'girafa', 'tubarão', 'polvo',
+    'borboleta', 'caracol', 'dinossauro', 'coruja', 'tartaruga', 'abelha', 'sapo',
+    'cavalo', 'macaco', 'leão', 'cobra', 'peixe', 'aranha', 'preguiça', 'tucano'] },
+  { id: 'filmes', nome: 'Filmes e Séries', emoji: '🎬', words: [
+    'titanic', 'homem-aranha', 'batman', 'star wars', 'harry potter', 'rei leão',
+    'procurando nemo', 'jurassic park', 'toy story', 'shrek', 'frozen', 'matrix',
+    'pantera negra', 'minions', 'e.t.', 'king kong', 'chaves', 'os vingadores',
+    'de volta para o futuro', 'a bela e a fera'] },
+  { id: 'esportes', nome: 'Esportes', emoji: '⚽', words: [
+    'futebol', 'basquete', 'vôlei', 'natação', 'tênis', 'skate', 'surfe', 'boxe',
+    'ciclismo', 'corrida', 'judô', 'golfe', 'patins', 'medalha', 'troféu',
+    'apito', 'cartão vermelho', 'gol', 'academia', 'halteres'] },
+  { id: 'musica', nome: 'Música', emoji: '🎵', words: [
+    'guitarra', 'violão', 'bateria', 'piano', 'microfone', 'pandeiro', 'flauta',
+    'saxofone', 'caixa de som', 'fone de ouvido', 'disco de vinil', 'karaokê',
+    'show', 'partitura', 'triângulo', 'cavaquinho', 'sanfona', 'tambor', 'dj'] },
+  { id: 'natureza', nome: 'Natureza', emoji: '🌳', words: [
+    'praia', 'montanha', 'cachoeira', 'arco-íris', 'vulcão', 'ilha', 'floresta',
+    'chuva', 'sol', 'lua', 'estrela', 'nuvem', 'árvore', 'flor', 'cacto',
+    'deserto', 'rio', 'neve', 'furacão', 'girassol', 'folha', 'pôr do sol'] },
+  { id: 'tecnologia', nome: 'Tecnologia', emoji: '💻', words: [
+    'celular', 'notebook', 'robô', 'satélite', 'foguete', 'drone', 'wi-fi',
+    'câmera', 'pen drive', 'carregador', 'controle de videogame', 'realidade virtual',
+    'antena', 'bateria', 'tablet', 'smartwatch', 'nuvem', 'senha', 'código de barras'] },
+  { id: 'brasil', nome: 'Brasil', emoji: '🇧🇷', words: [
+    'carnaval', 'festa junina', 'cristo redentor', 'pão de açúcar', 'samba',
+    'capoeira', 'chinelo', 'praia de copacabana', 'boi-bumbá', 'caipirinha',
+    'churrasco', 'bandeira do brasil', 'tucano', 'amazônia', 'futebol',
+    'cataratas do iguaçu', 'feijoada', 'jangada'] },
+  { id: 'casa', nome: 'Casa', emoji: '🏠', words: [
+    'geladeira', 'sofá', 'chuveiro', 'vassoura', 'panela', 'abajur', 'ventilador',
+    'escada', 'chave', 'guarda-chuva', 'espelho', 'relógio', 'travesseiro',
+    'balde', 'tesoura', 'martelo', 'lâmpada', 'porta', 'janela', 'tapete',
+    'máquina de lavar', 'micro-ondas'] },
 ];
+const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
+const ALL_THEMES = [GERAL, ...THEMES];
+const themeById = (id) => ALL_THEMES.find(t => t.id === id) || GERAL;
 
-/* Paleta de desenho — tons vivos que funcionam em tema claro e escuro. */
-const COLORS = ['#1A1A2E', '#E63946', '#F77F00', '#FCBF49', '#2A9D8F', '#2E8DD4',
-  '#6B3FC8', '#E060A0', '#8B5E34', '#A8DADC', '#40916C', '#FFFFFF'];
-const SIZES = [3, 7, 14, 26];
+const COLORS = ['#1A1A2E', '#7A7A8C', '#E63946', '#F77F00', '#FCBF49', '#2A9D8F',
+  '#2E8DD4', '#6B3FC8', '#E060A0', '#8B5E34', '#40916C', '#FFFFFF'];
+const SIZES = [3, 8, 16, 30];
+const TOOLS = [
+  { id: 'brush',  nome: 'Pincel' },
+  { id: 'line',   nome: 'Linha',    shape: true },
+  { id: 'rect',   nome: 'Quadrado', shape: true },
+  { id: 'circle', nome: 'Círculo',  shape: true },
+  { id: 'fill',   nome: 'Balde' },
+  { id: 'eraser', nome: 'Borracha' },
+];
 
 /* base64 com acento (btoa puro quebra em "coração"). */
 const enc = (s) => { try { return btoa(unescape(encodeURIComponent(s))); } catch { return ''; } };
 const dec = (s) => { try { return decodeURIComponent(escape(atob(s || ''))); } catch { return ''; } };
-
 /* Compara palpite com a palavra ignorando acento, caixa e espaço extra. */
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/\s+/g, ' ').trim();
@@ -87,337 +131,632 @@ const myPhoto = () => {
   } catch { return '/UNIKO_NEW.png'; }
 };
 
-/* Máscara da palavra pra quem adivinha: "gato" -> "_ _ _ _" (espaços preservados). */
-const maskWord = (w) => (w || '').split('').map(c => (c === ' ' ? '  ' : '_')).join(' ');
+/* ── DICAS (estilo Gartic) ──────────────────────────────────────────────────
+   Letras vão sendo reveladas com o tempo, e o desenhista pode soltar extras no
+   botão. Quais letras: ordem embaralhada com semente = a própria palavra, então
+   TODO cliente revela exatamente as mesmas — sem sincronizar nada. */
+const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const hintOrder = (w) => {
+  const idx = [...w].map((c, i) => ({ c, i })).filter(x => x.c !== ' ').map(x => x.i);
+  let seed = hashStr(w) || 1;
+  const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  return idx;
+};
+const maxHints = (w) => Math.max(1, Math.floor([...w].filter(c => c !== ' ').length * 0.5));
+const autoHints = (w, frac) => Math.min(frac >= 0.9 ? 3 : frac >= 0.75 ? 2 : frac >= 0.5 ? 1 : 0, maxHints(w));
+const maskWord = (w, revelar = 0) => {
+  const abrir = new Set(hintOrder(w).slice(0, revelar));
+  return [...(w || '')].map((c, i) => (c === ' ' ? ' ' : abrir.has(i) ? c : '_')).join(' ');
+};
 
 const Svg = ({ children, size = 16, ...p }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} {...p}>{children}</svg>
 );
-const IcoBrush = (p) => <Svg {...p}><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></Svg>;
+const IcoBrush  = (p) => <Svg {...p}><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></Svg>;
 const IcoEraser = (p) => <Svg {...p}><path d="M20 20H7L3 16a2 2 0 010-3l9-9a2 2 0 013 0l6 6a2 2 0 010 3l-7 7"/></Svg>;
-const IcoTrash = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></Svg>;
-const IcoUndo  = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></Svg>;
-const IcoSend  = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
-const IcoCrown = (p) => <Svg {...p}><path d="M2 18h20l-2-9-5 4-3-7-3 7-5-4z"/></Svg>;
-const IcoCheck = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
+const IcoFill   = (p) => <Svg {...p}><path d="M19 11l-8-8-8.5 8.5a2 2 0 000 2.8L8 20l11-9z"/><path d="M5 2l3 3"/><path d="M21.5 15s1.5 2 1.5 3a1.5 1.5 0 11-3 0c0-1 1.5-3 1.5-3z"/></Svg>;
+const IcoLine   = (p) => <Svg {...p}><line x1="4" y1="20" x2="20" y2="4"/></Svg>;
+const IcoRect   = (p) => <Svg {...p}><rect x="4" y="5" width="16" height="14" rx="1.5"/></Svg>;
+const IcoCircle = (p) => <Svg {...p}><circle cx="12" cy="12" r="8.5"/></Svg>;
+const IcoTrash  = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></Svg>;
+const IcoUndo   = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></Svg>;
+const IcoSend   = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
+const IcoCrown  = (p) => <Svg {...p}><path d="M2 18h20l-2-9-5 4-3-7-3 7-5-4z"/></Svg>;
+const IcoCheck  = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
+const IcoBulb   = (p) => <Svg {...p}><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/></Svg>;
+const IcoExit   = (p) => <Svg {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Svg>;
+const IcoPlus   = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Svg>;
+const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></Svg>;
+const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle };
 
-const TabUnikoPaint = () => {
-  const name = useMemo(() => myName(), []);
-  const [state, setState]     = useState(null);     // estado da partida (tabela)
-  const [players, setPlayers] = useState([]);       // presence: [{name, photo}]
-  const [chat, setChat]       = useState([]);       // [{id, name, text, kind}]
-  const [guess, setGuess]     = useState('');
-  const [now, setNow]         = useState(() => Date.now());
-  const [sqlMissing, setSqlMissing] = useState(false);
-  const [picker, setPicker]   = useState(false);    // modal do seletor de foto
-  const [photo, setPhoto]     = useState(() => myPhoto());
-  const [laps, setLaps]       = useState(DEFAULT_LAPS); // voltas da próxima partida (só o host usa)
+/* ── Balde de tinta ─────────────────────────────────────────────────────────
+   Flood fill scanline com tolerância. A tolerância existe por causa do
+   antialiasing: sem ela o balde para nas bordas suaves do traço e deixa uma
+   auréola branca em volta. */
+const hexToRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const floodFill = (cx, px, py, hex) => {
+  const x0 = Math.round(px), y0 = Math.round(py);
+  if (x0 < 0 || y0 < 0 || x0 >= CW || y0 >= CH) return;
+  const img = cx.getImageData(0, 0, CW, CH);
+  const d = img.data;
+  const at = (x, y) => (y * CW + x) * 4;
+  const s = at(x0, y0);
+  const tr = d[s], tg = d[s + 1], tb = d[s + 2];
+  const [nr, ng, nb] = hexToRgb(hex);
+  if (tr === nr && tg === ng && tb === nb) return;      // já é dessa cor
+  const TOL = 60 * 60 * 3;                              // distância² máxima
+  const casa = (x, y) => {
+    const i = at(x, y);
+    const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb;
+    return dr * dr + dg * dg + db * db <= TOL;
+  };
+  const visto = new Uint8Array(CW * CH);
+  const stack = [[x0, y0]];
+  while (stack.length) {
+    const [sx, sy] = stack.pop();
+    if (visto[sy * CW + sx] || !casa(sx, sy)) continue;
+    let x = sx;
+    while (x > 0 && casa(x - 1, sy) && !visto[sy * CW + (x - 1)]) x--;   // corre pra esquerda
+    let acima = false, abaixo = false;
+    for (; x < CW && casa(x, sy) && !visto[sy * CW + x]; x++) {
+      visto[sy * CW + x] = 1;
+      const i = at(x, sy);
+      d[i] = nr; d[i + 1] = ng; d[i + 2] = nb; d[i + 3] = 255;
+      // Empilha só a PRIMEIRA célula de cada corrida vizinha (senão a pilha explode)
+      if (sy > 0) {
+        const ok = casa(x, sy - 1) && !visto[(sy - 1) * CW + x];
+        if (ok && !acima) stack.push([x, sy - 1]);
+        acima = ok;
+      }
+      if (sy < CH - 1) {
+        const ok = casa(x, sy + 1) && !visto[(sy + 1) * CW + x];
+        if (ok && !abaixo) stack.push([x, sy + 1]);
+        abaixo = ok;
+      }
+    }
+  }
+  cx.putImageData(img, 0, 0);
+};
 
-  // ferramentas
-  const [color, setColor] = useState(COLORS[0]);
-  const [size, setSize]   = useState(SIZES[1]);
-  const [erasing, setErasing] = useState(false);
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOBBY — lista as salas, quem está em cada uma, e deixa criar sala nova.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
+  const [rooms, setRooms] = useState([]);
+  const [criando, setCriando] = useState(false);
+  const [nomeSala, setNomeSala] = useState('');
+  const [temaSala, setTemaSala] = useState('geral');
+  const [erro, setErro] = useState('');
+  const cardBg = T.surface || '#fff';
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from('uniko_paint_state')
+      .select('id, state, updated_at').order('updated_at', { ascending: false });
+    if (error) { console.error('[uniko-paint] lobby:', error); return; }
+    setRooms(data || []);
+    // Faxina: sala criada por alguém, vazia e parada há muito tempo vira lixo.
+    const velhas = (data || []).filter(r =>
+      r.id !== GLOBAL_ROOM && !(porSala[r.id]?.length) &&
+      Date.now() - new Date(r.updated_at).getTime() > ROOM_TTL_MS);
+    if (velhas.length) {
+      await supabase.from('uniko_paint_state').delete().in('id', velhas.map(r => r.id));
+      setRooms(rs => rs.filter(r => !velhas.some(v => v.id === r.id)));
+    }
+  }, [porSala]);
+
+  useEffect(() => {
+    // `load` é async: o setRooms só roda depois do await, nunca síncrono no
+    // effect — o compiler não distingue e acusa cascata de render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+    const ch = supabase.channel('uniko-paint-lobby-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_paint_state' }, load)
+      .subscribe();
+    const poll = setInterval(load, 5000);
+    return () => { supabase.removeChannel(ch); clearInterval(poll); };
+  }, [load]);
+
+  const criarSala = async () => {
+    const nome = nomeSala.trim() || `Sala do ${name.split(' ')[0]}`;
+    const id = Math.random().toString(36).slice(2, 8);
+    setErro('');
+    const { error } = await supabase.from('uniko_paint_state').insert({
+      id, state: { phase: 'lobby', round: 0, scores: {}, nome, themeId: temaSala, criador: name },
+    });
+    if (error) { setErro('Não deu pra criar a sala. Tente de novo.'); console.error('[uniko-paint] criar:', error); return; }
+    onEnter(id);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
+      {/* Cabeçalho */}
+      <div style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 13,
+        background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
+        boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
+          background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
+        <img src="/UNIKO_NEW.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.3))' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
+          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
+        </div>
+        <button onClick={onAbrirPicker} title="Escolher meu Uniko"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
+            border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', cursor: 'pointer' }}>
+          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Meu Uniko</span>
+        </button>
+        <button onClick={() => setCriando(v => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
+            background: '#fff', color: T.gold, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+          <IcoPlus size={15} />Criar sala
+        </button>
+      </div>
+
+      {/* Criar sala */}
+      {criando && (
+        <div style={{ background: cardBg, border: `1px solid ${T.gold}55`, borderRadius: 14, padding: 16,
+          boxShadow: T.sh, flexShrink: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, marginBottom: 11 }}>Nova sala</div>
+          <input value={nomeSala} onChange={e => setNomeSala(e.target.value)} maxLength={28}
+            onKeyDown={e => e.key === 'Enter' && criarSala()}
+            placeholder={`Sala do ${name.split(' ')[0]}`}
+            style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, marginBottom: 12,
+              background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none' }} />
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>TEMA DA SALA</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {ALL_THEMES.map(t => (
+              <button key={t.id} onClick={() => setTemaSala(t.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, transition: 'all .12s',
+                  border: temaSala === t.id ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+                  background: temaSala === t.id ? `${T.gold}18` : 'transparent', color: temaSala === t.id ? T.gold : T.text }}>
+                <span>{t.emoji}</span>{t.nome}
+              </button>
+            ))}
+          </div>
+          {erro && <div style={{ fontSize: 12, color: '#E63946', marginBottom: 8 }}>{erro}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={criarSala}
+              style={{ padding: '10px 22px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800,
+                cursor: 'pointer', background: `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, boxShadow: `0 5px 16px ${T.goldGl}` }}>
+              Criar e entrar
+            </button>
+            <button onClick={() => setCriando(false)}
+              style={{ padding: '10px 18px', borderRadius: 999, border: `1px solid ${T.border}`, background: 'transparent',
+                color: T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de salas */}
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10 }}>
+          SALAS ({rooms.length})
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
+          {rooms.map(r => {
+            const st = r.state || {};
+            const tema = themeById(st.themeId);
+            const gente = porSala[r.id] || [];
+            const fixa = r.id === GLOBAL_ROOM;
+            const jogando = st.phase === 'drawing' || st.phase === 'reveal';
+            return (
+              <div key={r.id}
+                style={{ background: cardBg, border: `1px solid ${fixa ? `${T.gold}55` : T.border}`, borderRadius: 14,
+                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                    background: `linear-gradient(135deg, ${T.gold}22, ${T.goldL}18)` }}>{tema.emoji}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {st.nome || (fixa ? 'Sala Geral' : 'Sala')}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 1 }}>
+                      Tema: <b style={{ color: T.text }}>{tema.nome}</b>
+                      {fixa && <span style={{ color: T.gold, fontWeight: 700 }}> · fixa</span>}
+                    </div>
+                  </div>
+                  {jogando && (
+                    <div style={{ padding: '3px 8px', borderRadius: 999, background: '#28a06018', color: '#28a060',
+                      fontSize: 9.5, fontWeight: 800, whiteSpace: 'nowrap' }}>EM JOGO</div>
+                  )}
+                </div>
+
+                {/* Quem está na sala */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 30 }}>
+                  {gente.length ? (
+                    <>
+                      <div style={{ display: 'flex' }}>
+                        {gente.slice(0, 6).map((p, i) => (
+                          <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
+                            style={{ width: 27, height: 27, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
+                              border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11.5, color: T.textT }}>
+                        {gente.length === 1 ? `${gente[0].name.split(' ')[0]} está aqui`
+                          : `${gente.length} jogadores`}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 11.5, color: T.textD, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <IcoUsers size={13} />Vazia — seja o primeiro
+                    </span>
+                  )}
+                </div>
+
+                <button onClick={() => onEnter(r.id)}
+                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff',
+                    fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, boxShadow: `0 4px 14px ${T.goldGl}` }}>
+                  Entrar
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {!rooms.length && (
+          <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
+            Carregando salas...
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SALA — a partida em si.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
+  const [state, setState] = useState(null);
+  const [chat, setChat]   = useState([]);
+  const [guess, setGuess] = useState('');
+  const [now, setNow]     = useState(() => Date.now());
+  const [laps, setLaps]   = useState(DEFAULT_LAPS);
+
+  const [tool, setTool]     = useState('brush');
+  const [color, setColor]   = useState(COLORS[0]);
+  const [size, setSize]     = useState(SIZES[1]);
+  const [filled, setFilled] = useState(false);
 
   const canvasRef = useRef(null);
+  const baseRef   = useRef(null);   // canvas offscreen com o desenho commitado
   const chanRef   = useRef(null);
-  const strokes   = useRef([]);        // [{points:[{x,y}], color, size, erase}] — normalizado 0..1
-  const cur       = useRef(null);      // traço em andamento
-  const pending   = useRef([]);        // segmentos a enviar (batch)
+  const acts      = useRef([]);     // ações commitadas (normalizadas 0..1)
+  const drag      = useRef(null);
+  const pending   = useRef([]);     // segmentos a enviar (batch)
   const chatEndRef = useRef(null);
-  // Espelhos do estado pros handlers do canal: eles são registrados uma vez só e
-  // enxergariam valores velhos da closure. Declarados AQUI, antes de qualquer uso.
   const isDrawerRef = useRef(false);
   const stateRef    = useRef(null);
   const hostRef     = useRef(false);
 
-  /* ── Canvas (definido cedo: o motor da partida e os handlers do canal usam) ──
-     Os traços vivem em `strokes` (ref) em coordenadas normalizadas 0..1, e o
-     canvas tem resolução FIXA 1000x625 escalada por CSS — assim o desenho sai
-     idêntico em qualquer tela e o resize não precisa redesenhar nada. ── */
-  const applySeg = (seg) => {
-    if (seg.start) strokes.current.push({ points: [seg.p], color: seg.color, size: seg.size, erase: seg.erase });
-    else strokes.current[strokes.current.length - 1]?.points.push(seg.p);
-  };
-
-  const redraw = () => {
-    const cv = canvasRef.current; if (!cv) return;
-    const cx = cv.getContext('2d');
-    const { width: w, height: h } = cv;
-    cx.clearRect(0, 0, w, h);
-    cx.fillStyle = '#FFFFFF'; cx.fillRect(0, 0, w, h);
-    cx.lineCap = 'round'; cx.lineJoin = 'round';
-    for (const s of strokes.current) {
-      if (!s?.points?.length) continue;
-      cx.strokeStyle = s.erase ? '#FFFFFF' : s.color;
-      cx.lineWidth = s.size * (w / 1000);   // espessura relativa ao canvas fixo
-      cx.beginPath();
-      cx.moveTo(s.points[0].x * w, s.points[0].y * h);
-      for (let i = 1; i < s.points.length; i++) cx.lineTo(s.points[i].x * w, s.points[i].y * h);
-      if (s.points.length === 1) cx.lineTo(s.points[0].x * w + 0.1, s.points[0].y * h); // ponto isolado
-      cx.stroke();
+  /* ── Canvas ──────────────────────────────────────────────────────────── */
+  const ctxBase = () => {
+    if (!baseRef.current) {
+      const c = document.createElement('canvas'); c.width = CW; c.height = CH;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, CW, CH);
+      baseRef.current = c;
     }
+    return baseRef.current.getContext('2d', { willReadFrequently: true });
+  };
+  const drawAct = (cx, a) => {
+    const px = (p) => [p.x * CW, p.y * CH];
+    cx.lineCap = 'round'; cx.lineJoin = 'round';
+    cx.strokeStyle = a.c; cx.fillStyle = a.c; cx.lineWidth = a.w || 1;
+    if (a.t === 's') {
+      if (!a.pts?.length) return;
+      cx.strokeStyle = a.e ? '#FFFFFF' : a.c;
+      cx.beginPath(); cx.moveTo(...px(a.pts[0]));
+      for (let i = 1; i < a.pts.length; i++) cx.lineTo(...px(a.pts[i]));
+      if (a.pts.length === 1) cx.lineTo(a.pts[0].x * CW + 0.1, a.pts[0].y * CH);
+      cx.stroke();
+    } else if (a.t === 'l') {
+      cx.beginPath(); cx.moveTo(...px(a.a)); cx.lineTo(...px(a.b)); cx.stroke();
+    } else if (a.t === 'r') {
+      const [x1, y1] = px(a.a), [x2, y2] = px(a.b);
+      cx.beginPath(); cx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+      a.f ? cx.fill() : cx.stroke();
+    } else if (a.t === 'c') {
+      const [x1, y1] = px(a.a), [x2, y2] = px(a.b);
+      cx.beginPath();
+      cx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+      a.f ? cx.fill() : cx.stroke();
+    } else if (a.t === 'f') {
+      floodFill(cx, a.p.x * CW, a.p.y * CH, a.c);
+    }
+  };
+  const blit = (preview) => {
+    const cv = canvasRef.current; if (!cv || !baseRef.current) return;
+    const cx = cv.getContext('2d');
+    cx.clearRect(0, 0, CW, CH);
+    cx.drawImage(baseRef.current, 0, 0);
+    if (preview) drawAct(cx, preview);
+  };
+  const commit = (a) => { acts.current.push(a); drawAct(ctxBase(), a); blit(); };
+  const replay = () => {
+    const cx = ctxBase();
+    cx.clearRect(0, 0, CW, CH);
+    cx.fillStyle = '#FFFFFF'; cx.fillRect(0, 0, CW, CH);
+    for (const a of acts.current) drawAct(cx, a);
+    blit();
+  };
+  const clearAll = () => { acts.current = []; replay(); };
+  // Traço em andamento: aplica só o segmento novo no base (incremental).
+  const applySeg = (seg) => {
+    const cx = ctxBase();
+    if (seg.start) {
+      acts.current.push({ t: 's', pts: [seg.p], c: seg.c, w: seg.w, e: seg.e });
+    } else {
+      const a = acts.current[acts.current.length - 1];
+      if (a?.t !== 's') return;
+      const prev = a.pts[a.pts.length - 1];
+      a.pts.push(seg.p);
+      cx.lineCap = 'round'; cx.lineJoin = 'round';
+      cx.strokeStyle = a.e ? '#FFFFFF' : a.c; cx.lineWidth = a.w;
+      cx.beginPath(); cx.moveTo(prev.x * CW, prev.y * CH); cx.lineTo(seg.p.x * CW, seg.p.y * CH); cx.stroke();
+    }
+    blit();
   };
 
   const isDrawer = state?.phase === 'drawing' && state?.drawer === name;
   const word     = useMemo(() => dec(state?.wordEnc), [state?.wordEnc]);
-  // Host = menor nome entre os presentes. Determinístico: todo cliente elege o mesmo.
   const host     = useMemo(() => players.map(p => p.name).sort((a, b) => a.localeCompare(b))[0], [players]);
   const isHost   = host === name;
   const iHit     = !!state?.hits?.includes(name);
   const secsLeft = state?.endsAt ? Math.max(0, Math.ceil((state.endsAt - now) / 1000)) : 0;
+  const frac     = state?.phase === 'drawing' ? 1 - (secsLeft / (ROUND_MS / 1000)) : 0;
+  const revelar  = state?.phase === 'drawing'
+    ? Math.min(maxHints(word), autoHints(word, frac) + (state?.hints || 0)) : 0;
 
-  // Mantém os espelhos em dia pros handlers do canal (ver comentário na declaração).
   useEffect(() => { isDrawerRef.current = isDrawer; }, [isDrawer]);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
 
-  /* ── Estado da partida: leitura + realtime ───────────────────────────── */
+  /* ── Estado da sala ──────────────────────────────────────────────────── */
   const pushState = useCallback(async (next) => {
     try {
       await supabase.from('uniko_paint_state')
-        .update({ state: next, updated_at: new Date().toISOString() })
-        .eq('id', ROOM);
-      setState(next); // otimista: não espera o realtime voltar
+        .update({ state: next, updated_at: new Date().toISOString() }).eq('id', roomId);
+      setState(next); // otimista
     } catch (e) { console.error('[uniko-paint] pushState:', e); }
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      const { data, error } = await supabase.from('uniko_paint_state').select('state').eq('id', ROOM).maybeSingle();
+      const { data } = await supabase.from('uniko_paint_state').select('state').eq('id', roomId).maybeSingle();
       if (!alive) return;
-      // 42P01 = tabela não existe → a migração não foi rodada.
-      if (error?.code === '42P01' || /uniko_paint_state/.test(error?.message || '')) { setSqlMissing(true); return; }
-      setState(data?.state || { phase: 'lobby', round: 0, scores: {} });
+      if (data?.state) setState(data.state);
     };
     load();
-    const ch = supabase.channel('uniko-paint-state')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_paint_state', filter: `id=eq.${ROOM}` },
+    const ch = supabase.channel(`uniko-paint-state-${roomId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_paint_state', filter: `id=eq.${roomId}` },
         ({ new: row }) => { if (row?.state) setState(row.state); })
       .subscribe();
-    // Fallback: se o realtime não estiver habilitado, ainda assim sincroniza.
     const poll = setInterval(load, 4000);
     return () => { alive = false; supabase.removeChannel(ch); clearInterval(poll); };
-  }, []);
+  }, [roomId]);
 
-  /* ── Relógio local (só pra UI do cronômetro) ─────────────────────────── */
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
 
-  /* ── Chat / palpites ─────────────────────────────────────────────────── */
+  /* ── Chat / palpites ─────────────────────────────────────────────────────
+     eslint react-hooks/purity: as funções desta seção e do "motor da partida"
+     usam Date.now()/Math.random(), mas só rodam em HANDLER ou TIMER (clique,
+     broadcast recebido, tick do host) — nunca durante o render. O compiler não
+     consegue provar isso e marca a definição da função, não a chamada. */
+  /* eslint-disable react-hooks/purity */
   const addChat = (m) => setChat(c => [...c.slice(-60), { id: Math.random().toString(36).slice(2), ...m }]);
-
-  // Cada cliente decide sozinho se o palpite acertou (todos têm a palavra).
-  // O HOST é quem grava o ponto — assim ninguém pontua a si mesmo.
   const onGuessMsg = (p) => {
     const s = stateRef.current;
     const w = dec(s?.wordEnc);
     const acertou = s?.phase === 'drawing' && w && norm(p.text) === norm(w)
       && p.name !== s.drawer && !s.hits?.includes(p.name);
-
     if (acertou) {
       addChat({ name: p.name, text: 'acertou a palavra!', kind: 'hit' });
       if (hostRef.current) registerHit(p.name);
       return;
     }
-    // Quem já acertou fala num canal à parte pra não entregar a resposta.
     addChat({ name: p.name, text: p.text, kind: s?.hits?.includes(p.name) ? 'muted' : 'chat' });
   };
-
   const registerHit = (who) => {
     const s = stateRef.current;
     if (!s || s.phase !== 'drawing' || s.hits?.includes(who)) return;
     const hits = [...(s.hits || []), who];
-    // Quem acerta primeiro leva mais. Desenhista ganha por cada acerto.
     const pts = Math.max(40, 100 - (hits.length - 1) * 15);
     const scores = { ...(s.scores || {}) };
     scores[who] = (scores[who] || 0) + pts;
     scores[s.drawer] = (scores[s.drawer] || 0) + 30;
     const faltam = players.filter(p => p.name !== s.drawer).length - hits.length;
-    // Todos acertaram → encerra a rodada na hora.
     pushState(faltam <= 0
       ? { ...s, hits, scores, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) }
       : { ...s, hits, scores });
   };
-
   const sendGuess = () => {
     const text = guess.trim();
     if (!text) return;
     setGuess('');
     if (isDrawer) { addChat({ name, text: 'você está desenhando! 🤫', kind: 'sys' }); return; }
     chanRef.current?.send({ type: 'broadcast', event: 'guess', payload: { name, text } });
-    onGuessMsg({ name, text }); // eco local imediato
+    onGuessMsg({ name, text });
   };
-
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
 
+  /* ── Votação de tema (dentro da sala, antes de começar) ──────────────── */
+  // useMemo aqui não é firula: `state?.votes || {}` cria um objeto NOVO a cada
+  // render, o que refaria o useMemo do themeVencedor toda vez.
+  const votes = useMemo(() => state?.votes || {}, [state?.votes]);
+  const myVote = votes[name];
+  const voteTheme = (id) => {
+    chanRef.current?.send({ type: 'broadcast', event: 'vote', payload: { name, theme: id } });
+    if (hostRef.current) applyVote(name, id);
+  };
+  // Só o host escreve (mesma regra do resto: um escritor só).
+  const applyVote = (quem, id) => {
+    const s = stateRef.current; if (!s) return;
+    pushState({ ...s, votes: { ...(s.votes || {}), [quem]: id } });
+  };
+  // Vencedor: mais votado; ninguém votou → o tema com que a sala foi criada.
+  const themeVencedor = useMemo(() => {
+    const cont = {};
+    Object.values(votes).forEach(v => { cont[v] = (cont[v] || 0) + 1; });
+    const top = Object.entries(cont).sort((a, b) => b[1] - a[1])[0];
+    return top ? themeById(top[0]) : themeById(state?.themeId);
+  }, [votes, state?.themeId]);
+
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
-  // `usadas` = palavras já sorteadas na partida, pra não repetir enquanto houver
-  // palavra nova (com 2 jogadores e 5 voltas dá 10 rodadas — repetição apareceria).
-  const startRound = (queue, scores, round, totalRounds, usadas = []) => {
+  const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome) => {
     const drawer = queue[0];
-    const livres = WORDS.filter(w => !usadas.includes(w));
-    const pool = livres.length ? livres : WORDS;       // acabou o baralho → recomeça
+    const pool0 = themeById(themeId).words;
+    const livres = pool0.filter(w => !usadas.includes(w));
+    const pool = livres.length ? livres : pool0;   // acabou o baralho → recomeça
     const w = pool[Math.floor(Math.random() * pool.length)];
     chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
-    strokes.current = []; redraw();
+    clearAll();
     pushState({
+      nome, criador: stateRef.current?.criador,
       phase: 'drawing', round, drawer, wordEnc: enc(w),
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
-      usadas: [...usadas, w],
+      usadas: [...usadas, w], themeId, hints: 0, votes: stateRef.current?.votes || {},
     });
   };
-
   const startGame = () => {
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
-    // Uma "volta" = todo mundo desenha uma vez. A fila é a ordem repetida N voltas,
-    // então cada um desenha exatamente N vezes e a partida dura o que se espera.
     const queue = Array.from({ length: laps }, () => ordem).flat();
-    startRound(queue, {}, 1, queue.length, []);
+    startRound(queue, {}, 1, queue.length, [], themeVencedor.id, state?.nome);
   };
+  /* eslint-enable react-hooks/purity */
 
-  // Host cuida das transições de tempo.
   useEffect(() => {
-    if (!isHost || !state || sqlMissing) return;
+    if (!isHost || !state) return;
     const t = setInterval(() => {
       const s = stateRef.current;
-      if (!s?.endsAt || Date.now() < s.endsAt) return;
+      if (!s) return;
+      // Desenhista sumiu (saiu/fechou) → não deixa a rodada morrer no relógio.
+      if (s.phase === 'drawing' && s.drawer && !players.some(p => p.name === s.drawer)) {
+        pushState({ ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) });
+        return;
+      }
+      if (!s.endsAt || Date.now() < s.endsAt) return;
       if (s.phase === 'drawing') {
         pushState({ ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) });
       } else if (s.phase === 'reveal') {
-        const queue = (s.queue || []).slice(1);
+        // Tira da fila quem já saiu da sala.
+        const queue = (s.queue || []).slice(1).filter(n => players.some(p => p.name === n));
         if (!queue.length) pushState({ ...s, phase: 'over', endsAt: null });
-        else startRound(queue, s.scores || {}, (s.round || 1) + 1, s.totalRounds, s.usadas || []);
+        else startRound(queue, s.scores || {}, (s.round || 1) + 1, s.totalRounds, s.usadas || [], s.themeId, s.nome);
       }
     }, 400);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, state?.phase, state?.endsAt, sqlMissing]);
+  }, [isHost, state?.phase, state?.endsAt, players]);
 
-  // Canvas em resolução fixa 1000x625 e escalado por CSS: o desenho fica igual
-  // pra todo mundo independente do tamanho da janela, e não precisa redesenhar
-  // no resize.
-  useEffect(() => {
-    const cv = canvasRef.current; if (!cv) return;
-    cv.width = 1000; cv.height = 625; redraw();
-    // Só na montagem: `redraw` lê tudo de refs, não precisa entrar nas deps.
-  }, []);
-
+  /* ── Desenho ─────────────────────────────────────────────────────────── */
   const posOf = (e) => {
     const r = canvasRef.current.getBoundingClientRect();
     return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
              y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
   };
-
   const flush = useCallback(() => {
     if (!pending.current.length) return;
     chanRef.current?.send({ type: 'broadcast', event: 'stroke', payload: { from: name, segs: pending.current } });
     pending.current = [];
   }, [name]);
-  // Traços saem em lote a cada 60ms — um send por pixel entupiria o canal.
+  // Traços saem em lote a cada 60ms — um send por ponto entope o canal.
   useEffect(() => { const t = setInterval(flush, 60); return () => clearInterval(t); }, [flush]);
 
+  const shapeAct = (a, b) => ({
+    t: tool === 'line' ? 'l' : tool === 'rect' ? 'r' : 'c',
+    a, b, c: color, w: size, f: filled && tool !== 'line',
+  });
+  const sendAct = (a) => {
+    commit(a);
+    chanRef.current?.send({ type: 'broadcast', event: 'act', payload: { from: name, act: a } });
+  };
   const down = (e) => {
     if (!isDrawer) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const p = posOf(e);
-    const seg = { start: true, p, color, size, erase: erasing };
-    cur.current = true; applySeg(seg); pending.current.push(seg); redraw();
+    if (tool === 'fill') { sendAct({ t: 'f', p, c: color }); return; }
+    if (TOOLS.find(x => x.id === tool)?.shape) { drag.current = { a: p, b: p }; return; }
+    const seg = { start: true, p, c: color, w: size, e: tool === 'eraser' };
+    drag.current = { free: true };
+    applySeg(seg); pending.current.push(seg);
   };
   const move = (e) => {
-    if (!isDrawer || !cur.current) return;
-    const seg = { start: false, p: posOf(e) };
-    applySeg(seg); pending.current.push(seg); redraw();
+    if (!isDrawer || !drag.current) return;
+    const p = posOf(e);
+    if (drag.current.free) {
+      const seg = { start: false, p };
+      applySeg(seg); pending.current.push(seg);
+    } else {
+      drag.current.b = p;
+      blit(shapeAct(drag.current.a, p));    // preview sem commitar
+    }
   };
-  const up = () => { if (cur.current) { cur.current = null; flush(); } };
+  const up = () => {
+    const d = drag.current; drag.current = null;
+    if (!d) return;
+    if (d.free) { flush(); return; }
+    sendAct(shapeAct(d.a, d.b));
+  };
+  const doClear = () => { if (!isDrawer) return; clearAll(); chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} }); };
+  const doUndo  = () => { if (!isDrawer) return; acts.current.pop(); replay(); chanRef.current?.send({ type: 'broadcast', event: 'undo', payload: {} }); };
+  const darDica = () => {
+    const s = stateRef.current;
+    if (!isDrawer || !s || revelar >= maxHints(word)) return;
+    pushState({ ...s, hints: (s.hints || 0) + 1 });
+  };
 
-  const doClear = () => {
-    if (!isDrawer) return;
-    strokes.current = []; redraw();
-    chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
-  };
-  const doUndo = () => {
-    if (!isDrawer) return;
-    strokes.current.pop(); redraw();
-    chanRef.current?.send({ type: 'broadcast', event: 'undo', payload: {} });
-  };
-
-  /* ── Canal de tempo real: presence + broadcast ───────────────────────────
-     Declarado DEPOIS de applySeg/redraw/onGuessMsg de propósito: os handlers
-     abaixo usam essas funções, e em JS `const` não sobe (TDZ). ── */
+  /* ── Canal da sala (depois das funções que os handlers usam — TDZ) ───── */
   useEffect(() => {
-    const ch = supabase.channel('uniko-paint-room', { config: { presence: { key: name } } });
+    const ch = supabase.channel(`uniko-paint-room-${roomId}`);
     chanRef.current = ch;
-
-    ch.on('presence', { event: 'sync' }, () => {
-      const st = ch.presenceState();
-      const list = Object.values(st).flat().map(p => ({ name: p.name, photo: p.photo }));
-      // dedup por nome (mesma pessoa em duas abas conta uma vez)
-      const seen = new Set();
-      setPlayers(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
-    });
-
     ch.on('broadcast', { event: 'stroke' }, ({ payload }) => {
-      if (payload?.from === name) return;            // meus traços já estão na tela
+      if (payload?.from === name) return;      // meus traços já estão na tela
       (payload?.segs || []).forEach(applySeg);
-      redraw();
     });
-    ch.on('broadcast', { event: 'clear' }, () => { strokes.current = []; redraw(); });
-    ch.on('broadcast', { event: 'undo' }, () => { strokes.current.pop(); redraw(); });
-    // Quem entra no meio pede o desenho; só o desenhista responde.
+    ch.on('broadcast', { event: 'act' }, ({ payload }) => {
+      if (payload?.from === name) return;
+      commit(payload.act);
+    });
+    ch.on('broadcast', { event: 'clear' }, () => clearAll());
+    ch.on('broadcast', { event: 'undo' }, () => { acts.current.pop(); replay(); });
     ch.on('broadcast', { event: 'sync-req' }, () => {
-      if (!isDrawerRef.current) return;
-      ch.send({ type: 'broadcast', event: 'sync-all', payload: { strokes: strokes.current } });
+      if (!isDrawerRef.current) return;        // só o desenhista responde
+      ch.send({ type: 'broadcast', event: 'sync-all', payload: { acts: acts.current } });
     });
     ch.on('broadcast', { event: 'sync-all' }, ({ payload }) => {
       if (isDrawerRef.current) return;
-      strokes.current = payload?.strokes || []; redraw();
+      acts.current = payload?.acts || []; replay();
     });
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
-
-    ch.subscribe(async (st) => {
+    ch.on('broadcast', { event: 'vote' }, ({ payload }) => {
+      if (hostRef.current) applyVote(payload.name, payload.theme);
+    });
+    ch.subscribe((st) => {
       if (st !== 'SUBSCRIBED') return;
-      await ch.track({ name, photo: myPhoto() });
       ch.send({ type: 'broadcast', event: 'sync-req', payload: { from: name } });
     });
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name]);
+  }, [roomId, name]);
 
-  /* ── Seletor de foto: Unikos capturados + suas variações ─────────────── */
-  const [owned, setOwned] = useState(() => getCapturedCollection());
-  useEffect(() => { syncCollectionFromServer().then(l => Array.isArray(l) && setOwned(l)); }, []);
-
-  const myUnikos = useMemo(() => {
-    const ids = new Set(owned.map(o => o.id));
-    const base = [{ id: 'default', name: 'UNIKO', img: '/UNIKO_NEW.png' }];
-    const fixos = Object.values(CAPTURE_UNIKOS).filter(u => ids.has(u.id))
-      .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
-    const custom = (getCustomUnikos() || []).filter(u => ids.has(u.id))
-      .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
-    return [...base, ...fixos, ...custom];
-  }, [owned]);
-
-  const choosePhoto = (img) => {
-    // Mesmo caminho da aba Coleção: normaliza em 300x300 e salva como foto do Portal.
-    const im = new Image(); im.crossOrigin = 'anonymous';
-    const done = (val) => {
-      saveUserPhoto(val);
-      try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
-      catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
-      setPhoto(val); setPicker(false);
-      chanRef.current?.track({ name, photo: val });   // reflete na hora pros outros
-    };
-    im.onload = () => {
-      try {
-        const c = document.createElement('canvas'); c.width = c.height = 300;
-        c.getContext('2d').drawImage(im, 0, 0, 300, 300);
-        done(c.toDataURL('image/png'));
-      } catch { done(img); }
-    };
-    im.onerror = () => done(img);
-    im.src = img;
-  };
+  useEffect(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    cv.width = CW; cv.height = CH;
+    ctxBase(); blit();
+    // Só na montagem: o canvas tem tamanho fixo e `blit` lê tudo de refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── UI ──────────────────────────────────────────────────────────────── */
   const cardBg = T.surface || '#fff';
@@ -425,55 +764,67 @@ const TabUnikoPaint = () => {
     const sc = state?.scores || {};
     return [...players].map(p => ({ ...p, pts: sc[p.name] || 0 })).sort((a, b) => b.pts - a.pts);
   }, [players, state?.scores]);
+  const temaAtual = themeById(state?.themeId);
+  const noLobby = !state || state.phase === 'lobby' || state.phase === 'over';
 
-  if (sqlMissing) return (
-    <div style={{ maxWidth: 620, margin: '40px auto', background: cardBg, border: `1px solid ${T.border}`,
-      borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
-      <img src="/UNIKO_NEW.png" alt="" style={{ width: 84, height: 84, objectFit: 'contain', marginBottom: 12 }} />
-      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>
-        Falta rodar a migração
-      </div>
-      <div style={{ fontSize: 13.5, color: T.textT, lineHeight: 1.6 }}>
-        O Uniko Paint precisa da tabela <code>uniko_paint_state</code>. Rode o arquivo{' '}
-        <b style={{ color: T.text }}>supabase_uniko_paint.sql</b> no SQL Editor do Supabase e recarregue esta página.
-      </div>
-    </div>
-  );
+  const btnTool = (t) => {
+    const Ico = ICON_OF[t.id];
+    const on = tool === t.id;
+    return (
+      <button key={t.id} onClick={() => setTool(t.id)} title={t.nome}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
+          borderRadius: 10, cursor: 'pointer', transition: 'all .12s',
+          border: on ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+          background: on ? `${T.gold}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
+          color: on ? T.gold : T.text, transform: on ? 'translateY(-1px)' : 'none' }}>
+        <Ico size={20} />
+        <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.nome}</span>
+      </button>
+    );
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
-      {/* ── Cabeçalho ── */}
-      <div style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14,
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      {/* Cabeçalho */}
+      <div style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
         background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
         boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
           background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
-        <img src="/UNIKO_NEW.png" alt="" style={{ width: 42, height: 42, objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.3))' }} />
+        <img src="/UNIKO_NEW.png" alt="" style={{ width: 38, height: 38, objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.3))' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: '#fff', letterSpacing: '.01em' }}>
-            Uniko Paint
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#fff',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {state?.nome || (roomId === GLOBAL_ROOM ? 'Sala Geral' : 'Sala')}
           </div>
           <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.85)' }}>
-            Desenhe e adivinhe com a galera — em tempo real
+            Tema: {temaAtual.emoji} {temaAtual.nome}
           </div>
         </div>
-        <div style={{ padding: '4px 11px', borderRadius: 999, background: 'rgba(0,0,0,.22)', color: '#fff',
-          fontSize: 10.5, fontWeight: 800, letterSpacing: '.05em' }}>EM DESENVOLVIMENTO</div>
-        <button onClick={() => setPicker(true)} title="Escolher meu Uniko"
+        <button onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', cursor: 'pointer' }}>
-          <img src={photo} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Meu Uniko</span>
+        </button>
+        <button onClick={onLeave} title="Sair da partida"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
+            border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)', color: '#fff',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          <IcoExit size={14} />Sair
         </button>
       </div>
 
-      {/* ── Corpo: jogadores | canvas | chat ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '190px 1fr 260px', gap: 14, minHeight: 0 }}>
-
-        {/* Jogadores + placar */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 12,
+      {/* Corpo — `gridTemplateRows: minmax(0,1fr)` é obrigatório: sem isso a linha
+          do grid é `auto` (= max-content) e CRESCE conforme o chat enche, esticando
+          junto o canvas até não dar mais pra desenhar. minHeight:0 nos filhos não
+          resolve sozinho; quem manda no tamanho é a linha. */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '186px 1fr 254px',
+        gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0, overflow: 'hidden' }}>
+        {/* Jogadores */}
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 11,
           overflowY: 'auto', boxShadow: T.sh }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 9 }}>
             JOGADORES ({players.length})
           </div>
           {ranked.map((p, i) => {
@@ -495,7 +846,7 @@ const TabUnikoPaint = () => {
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {p.name.split(' ')[0]}{p.name === name && ' (você)'}
                   </div>
-                  <div style={{ fontSize: 10.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <div style={{ fontSize: 10.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                     {p.pts} pts
                     {desenhando && <span style={{ color: T.gold, fontWeight: 700 }}>• desenhando</span>}
                     {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
@@ -507,9 +858,8 @@ const TabUnikoPaint = () => {
           })}
         </div>
 
-        {/* Canvas + estado da rodada */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-          {/* Barra da rodada */}
+        {/* Canvas */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, minHeight: 0 }}>
           <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '9px 14px',
             display: 'flex', alignItems: 'center', gap: 12, boxShadow: T.sh, flexShrink: 0 }}>
             {state?.phase === 'drawing' ? (
@@ -519,8 +869,23 @@ const TabUnikoPaint = () => {
                 </div>
                 <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800,
                   color: T.text, letterSpacing: isDrawer ? '.02em' : '.22em' }}>
-                  {isDrawer ? word : maskWord(word)}
+                  {isDrawer ? word : maskWord(word, revelar)}
+                  {!isDrawer && (
+                    <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0, marginLeft: 8 }}>
+                      ({[...word].filter(c => c !== ' ').length} letras)
+                    </span>
+                  )}
                 </div>
+                {isDrawer && (
+                  <button onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
+                      border: `1px solid ${revelar >= maxHints(word) ? T.border : T.gold}`,
+                      cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer',
+                      background: revelar >= maxHints(word) ? 'transparent' : `${T.gold}14`,
+                      color: revelar >= maxHints(word) ? T.textD : T.gold, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <IcoBulb size={13} />Dar dica
+                  </button>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
                   background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub,
                   color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5, minWidth: 54, justifyContent: 'center' }}>
@@ -536,23 +901,21 @@ const TabUnikoPaint = () => {
             )}
           </div>
 
-          {/* Área do desenho */}
           <div style={{ position: 'relative', flex: 1, minHeight: 0, borderRadius: 14, overflow: 'hidden',
             border: `1px solid ${T.border}`, boxShadow: T.sh, background: '#fff' }}>
             <canvas ref={canvasRef}
               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
               style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none',
-                cursor: isDrawer ? 'crosshair' : 'default' }} />
+                cursor: isDrawer ? (tool === 'fill' ? 'cell' : 'crosshair') : 'default' }} />
 
-            {/* Overlays de lobby / reveal / fim */}
             {state?.phase !== 'drawing' && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 14, textAlign: 'center', padding: 22,
-                background: 'rgba(255,255,255,.86)', backdropFilter: 'blur(2px)' }}>
-                <img src="/UNIKO_NEW.png" alt="" style={{ width: 74, height: 74, objectFit: 'contain' }} />
+                alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: 20,
+                overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
+                <img src="/UNIKO_NEW.png" alt="" style={{ width: 54, height: 54, objectFit: 'contain' }} />
                 {state?.phase === 'over' ? (
                   <>
-                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text }}>
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
                       🏆 {ranked[0]?.name?.split(' ')[0] || '—'} venceu!
                     </div>
                     <div style={{ fontSize: 13, color: T.textT }}>
@@ -560,33 +923,57 @@ const TabUnikoPaint = () => {
                     </div>
                   </>
                 ) : state?.phase === 'reveal' ? (
-                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text }}>
+                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
                     A palavra era <span style={{ color: T.gold }}>{state.lastWord}</span>
                   </div>
                 ) : (
-                  <>
-                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text }}>
-                      Sala do Uniko Paint
-                    </div>
-                    <div style={{ fontSize: 13, color: T.textT, maxWidth: 380, lineHeight: 1.55 }}>
-                      {players.length < MIN_PLAYERS
-                        ? `Chame mais gente! Precisa de pelo menos ${MIN_PLAYERS} jogadores pra começar.`
-                        : 'Cada um desenha na sua vez. Quem adivinha primeiro ganha mais pontos.'}
-                    </div>
-                  </>
+                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>
+                    {state?.nome || 'Sala'}
+                  </div>
                 )}
-                {(state?.phase === 'lobby' || state?.phase === 'over') && (
+
+                {/* Votação de tema */}
+                {noLobby && (
+                  <div style={{ width: '100%', maxWidth: 560 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.06em', marginBottom: 7 }}>
+                      VOTE NO TEMA {myVote && <span style={{ color: T.gold }}>· você votou em {themeById(myVote).nome}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                      {ALL_THEMES.map(t => {
+                        const n = Object.values(votes).filter(v => v === t.id).length;
+                        const on = myVote === t.id;
+                        return (
+                          <button key={t.id} onClick={() => voteTheme(t.id)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 999,
+                              cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all .12s',
+                              border: on ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+                              background: on ? `${T.gold}18` : cardBg, color: on ? T.gold : T.text }}>
+                            <span>{t.emoji}</span>{t.nome}
+                            {n > 0 && (
+                              <span style={{ minWidth: 16, padding: '1px 5px', borderRadius: 999, fontSize: 10, fontWeight: 800,
+                                background: T.gold, color: '#fff' }}>{n}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textD, marginTop: 7 }}>
+                      Vale: {themeVencedor.emoji} <b>{themeVencedor.nome}</b>
+                      {!Object.keys(votes).length && ' (tema da sala — vote pra mudar)'}
+                    </div>
+                  </div>
+                )}
+
+                {noLobby && (
                   isHost ? (
                     <>
-                      {/* Duração: cada volta = todo mundo desenha uma vez. */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
                         <span style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>Cada um desenha</span>
                         {LAP_OPTIONS.map(n => (
                           <button key={n} onClick={() => setLaps(n)}
-                            style={{ minWidth: 32, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                            style={{ minWidth: 30, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
                               border: laps === n ? `1.5px solid ${T.gold}` : `1px solid ${T.border}`,
-                              background: laps === n ? `${T.gold}14` : 'transparent',
-                              color: laps === n ? T.gold : T.text }}>
+                              background: laps === n ? `${T.gold}14` : 'transparent', color: laps === n ? T.gold : T.text }}>
                             {n}×
                           </button>
                         ))}
@@ -602,6 +989,11 @@ const TabUnikoPaint = () => {
                           boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${T.goldGl}` }}>
                         {state?.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
                       </button>
+                      {players.length < MIN_PLAYERS && (
+                        <div style={{ fontSize: 12, color: T.textT }}>
+                          Chame mais gente! Precisa de pelo menos {MIN_PLAYERS} jogadores nesta sala.
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div style={{ fontSize: 12, color: T.textT, fontStyle: 'italic' }}>
@@ -612,7 +1004,6 @@ const TabUnikoPaint = () => {
               </div>
             )}
 
-            {/* Aviso pra quem não desenha */}
             {state?.phase === 'drawing' && !isDrawer && (
               <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
                 padding: '4px 12px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff',
@@ -622,60 +1013,68 @@ const TabUnikoPaint = () => {
             )}
           </div>
 
-          {/* Ferramentas (só o desenhista) */}
+          {/* Barra de ferramentas */}
           {isDrawer && (
-            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '8px 12px',
+            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '9px 12px',
               display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', boxShadow: T.sh, flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 5 }}>{TOOLS.map(btnTool)}</div>
+              <div style={{ width: 1, height: 40, background: T.border }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
                 {COLORS.map(c => (
-                  <button key={c} onClick={() => { setColor(c); setErasing(false); }} title={c}
-                    style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
-                      border: color === c && !erasing ? `2.5px solid ${T.text}` : `1px solid ${T.border}`,
-                      transform: color === c && !erasing ? 'scale(1.15)' : 'none', transition: 'transform .12s' }} />
+                  <button key={c} onClick={() => { setColor(c); if (tool === 'eraser') setTool('brush'); }} title={c}
+                    style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer', transition: 'transform .12s',
+                      border: color === c ? `3px solid ${T.gold}` : `1px solid ${T.border}`,
+                      transform: color === c ? 'scale(1.12)' : 'none' }} />
                 ))}
               </div>
-              <div style={{ width: 1, height: 20, background: T.border }} />
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <div style={{ width: 1, height: 40, background: T.border }} />
+              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                 {SIZES.map(s => (
                   <button key={s} onClick={() => setSize(s)} title={`${s}px`}
-                    style={{ width: 26, height: 26, borderRadius: 8, cursor: 'pointer', display: 'flex',
+                    style={{ width: 38, height: 38, borderRadius: 9, cursor: 'pointer', display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
-                      border: size === s ? `1.5px solid ${T.gold}` : `1px solid ${T.border}`,
-                      background: size === s ? `${T.gold}12` : 'transparent' }}>
-                    <div style={{ width: Math.min(s, 16), height: Math.min(s, 16), borderRadius: '50%', background: T.text }} />
+                      border: size === s ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+                      background: size === s ? `${T.gold}14` : 'transparent' }}>
+                    <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: T.text }} />
                   </button>
                 ))}
               </div>
-              <div style={{ width: 1, height: 20, background: T.border }} />
-              <button onClick={() => setErasing(e => !e)} title="Borracha"
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, cursor: 'pointer',
-                  border: erasing ? `1.5px solid ${T.gold}` : `1px solid ${T.border}`,
-                  background: erasing ? `${T.gold}12` : 'transparent', color: T.text, fontSize: 12, fontWeight: 600 }}>
-                <IcoEraser size={14} />Borracha
-              </button>
+              {(tool === 'rect' || tool === 'circle') && (
+                <>
+                  <div style={{ width: 1, height: 40, background: T.border }} />
+                  <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
+                      border: filled ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
+                      background: filled ? `${T.gold}14` : 'transparent', color: filled ? T.gold : T.text, fontSize: 12, fontWeight: 700 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: 3, border: '2px solid currentColor',
+                      background: filled ? 'currentColor' : 'transparent' }} />
+                    {filled ? 'Cheio' : 'Vazado'}
+                  </button>
+                </>
+              )}
+              <div style={{ width: 1, height: 40, background: T.border }} />
               <button onClick={doUndo} title="Desfazer"
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, cursor: 'pointer',
-                  border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 12, fontWeight: 600 }}>
-                <IcoUndo size={14} />Desfazer
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
+                  borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent', color: T.text }}>
+                <IcoUndo size={20} /><span style={{ fontSize: 9.5, fontWeight: 700 }}>Desfazer</span>
               </button>
               <button onClick={doClear} title="Limpar tudo"
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 8, cursor: 'pointer',
-                  border: '1px solid #E6394640', background: '#E6394610', color: '#E63946', fontSize: 12, fontWeight: 600 }}>
-                <IcoTrash size={14} />Limpar
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
+                  borderRadius: 10, cursor: 'pointer', border: '1px solid #E6394640', background: '#E6394610', color: '#E63946' }}>
+                <IcoTrash size={20} /><span style={{ fontSize: 9.5, fontWeight: 700 }}>Limpar</span>
               </button>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: T.textT }}>
-                <IcoBrush size={13} /> você está desenhando
-              </div>
             </div>
           )}
         </div>
 
-        {/* Chat / palpites */}
+        {/* Chat */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex',
           flexDirection: 'column', minHeight: 0, boxShadow: T.sh }}>
           <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 800,
-            color: T.textT, letterSpacing: '.08em' }}>PALPITES</div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            color: T.textT, letterSpacing: '.08em', flexShrink: 0 }}>PALPITES</div>
+          {/* minHeight:0 + flexShrink nos irmãos: sem isso a lista não encolhe abaixo
+              do próprio conteúdo e empurra o card inteiro conforme o chat enche. */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
             {!chat.length && (
               <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 20, lineHeight: 1.5 }}>
                 Escreva seu palpite aqui.<br />Quem acerta primeiro leva mais pontos!
@@ -695,7 +1094,7 @@ const TabUnikoPaint = () => {
             ))}
             <div ref={chatEndRef} />
           </div>
-          <div style={{ padding: 9, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 6 }}>
+          <div style={{ padding: 9, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 6, flexShrink: 0 }}>
             <input value={guess} onChange={e => setGuess(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendGuess()}
               placeholder={isDrawer ? 'Você está desenhando...' : iHit ? 'Você acertou!' : 'Seu palpite...'}
@@ -712,8 +1111,112 @@ const TabUnikoPaint = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* ── Modal: escolher meu Uniko (capturados + variações) ── */}
+/* ═══════════════════════════════════════════════════════════════════════════
+   RAIZ — mantém a presence global (quem está em qual sala) e alterna
+   lobby ⇄ sala.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TabUnikoPaint = () => {
+  const name = useMemo(() => myName(), []);
+  const [photo, setPhoto] = useState(() => myPhoto());
+  const [room, setRoom]   = useState(null);       // null = lobby
+  const [todos, setTodos] = useState([]);         // [{name, photo, room}]
+  const [sqlMissing, setSqlMissing] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const lobbyChan = useRef(null);
+  const roomRef = useRef(null);
+  useEffect(() => { roomRef.current = room; }, [room]);
+
+  // Migração rodada?
+  useEffect(() => {
+    supabase.from('uniko_paint_state').select('id').limit(1).then(({ error }) => {
+      if (error?.code === '42P01' || /uniko_paint_state/.test(error?.message || '')) setSqlMissing(true);
+    });
+  }, []);
+
+  /* Presence ÚNICA pra todo o jogo: cada um publica em que sala está. É assim
+     que o lobby mostra quem está em cada sala sem assinar o canal de todas. */
+  useEffect(() => {
+    const ch = supabase.channel('uniko-paint-presence', { config: { presence: { key: name } } });
+    lobbyChan.current = ch;
+    ch.on('presence', { event: 'sync' }, () => {
+      const list = Object.values(ch.presenceState()).flat().map(p => ({ name: p.name, photo: p.photo, room: p.room }));
+      const seen = new Set();
+      setTodos(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
+    });
+    ch.subscribe((st) => { if (st === 'SUBSCRIBED') ch.track({ name, photo: myPhoto(), room: roomRef.current }); });
+    return () => { supabase.removeChannel(ch); lobbyChan.current = null; };
+  }, [name]);
+
+  // Reanuncia ao trocar de sala / trocar a foto.
+  useEffect(() => { lobbyChan.current?.track({ name, photo, room }); }, [room, photo, name]);
+
+  // Agrupa por sala — o lobby e a sala consomem isso.
+  const porSala = useMemo(() => {
+    const m = {};
+    todos.forEach(p => { if (p.room) (m[p.room] = m[p.room] || []).push(p); });
+    return m;
+  }, [todos]);
+
+  /* ── Seletor de foto (compartilhado por lobby e sala) ────────────────── */
+  const [owned, setOwned] = useState(() => getCapturedCollection());
+  useEffect(() => { syncCollectionFromServer().then(l => Array.isArray(l) && setOwned(l)); }, []);
+  const myUnikos = useMemo(() => {
+    const ids = new Set(owned.map(o => o.id));
+    const base = [{ id: 'default', name: 'UNIKO', img: '/UNIKO_NEW.png' }];
+    const fixos = Object.values(CAPTURE_UNIKOS).filter(u => ids.has(u.id))
+      .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
+    const custom = (getCustomUnikos() || []).filter(u => ids.has(u.id))
+      .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
+    return [...base, ...fixos, ...custom];
+  }, [owned]);
+  const choosePhoto = (img) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    const done = (val) => {
+      saveUserPhoto(val);
+      try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
+      catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
+      setPhoto(val); setPicker(false);
+    };
+    im.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 300;
+        c.getContext('2d').drawImage(im, 0, 0, 300, 300);
+        done(c.toDataURL('image/png'));
+      } catch { done(img); }
+    };
+    im.onerror = () => done(img);
+    im.src = img;
+  };
+
+  const cardBg = T.surface || '#fff';
+
+  if (sqlMissing) return (
+    <div style={{ maxWidth: 620, margin: '40px auto', background: cardBg, border: `1px solid ${T.border}`,
+      borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
+      <img src="/UNIKO_NEW.png" alt="" style={{ width: 84, height: 84, objectFit: 'contain', marginBottom: 12 }} />
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>
+        Falta rodar a migração
+      </div>
+      <div style={{ fontSize: 13.5, color: T.textT, lineHeight: 1.6 }}>
+        O Uniko Paint precisa da tabela <code>uniko_paint_state</code>. Rode{' '}
+        <b style={{ color: T.text }}>supabase_uniko_paint.sql</b> e depois{' '}
+        <b style={{ color: T.text }}>supabase_uniko_paint_salas.sql</b> no SQL Editor do Supabase, e recarregue.
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {room
+        ? <Sala roomId={room} name={name} photo={photo} players={porSala[room] || []}
+            onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
+        : <Lobby name={name} photo={photo} porSala={porSala}
+            onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
+
       {picker && (
         <div onClick={() => setPicker(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)',
@@ -767,7 +1270,7 @@ const TabUnikoPaint = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
