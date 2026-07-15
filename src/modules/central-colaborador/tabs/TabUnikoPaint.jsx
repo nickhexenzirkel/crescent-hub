@@ -443,8 +443,10 @@ const PAINT_CSS = `
 .up-scroll::-webkit-scrollbar-thumb { background: ${UP.pink}99; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
 .up-scroll::-webkit-scrollbar-thumb:hover { background: ${UP.pink}; border: 2px solid transparent; background-clip: content-box; }
 /* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima.
-   `.up-hd-center` é exceção: precisa continuar absolute pra ficar centralizado
-   na barra INTEIRA (e não no espaço que sobra entre o nome e os botões). */
+   A regra up-hd-center é exceção: precisa continuar absolute pra ficar
+   centralizada na barra INTEIRA (e não no espaço que sobra entre nome e botões).
+   ATENÇÃO: nada de crase aqui dentro — isto é um template literal, e uma crase
+   solta FECHA a string, truncando o CSS e jogando o resto pro parser do JS. */
 .up-hd > svg { z-index: 0; }
 .up-hd > *:not(svg):not(.up-hd-center) { position: relative; z-index: 1; }
 .up-hd-center {
