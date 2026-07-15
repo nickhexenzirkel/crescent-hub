@@ -392,10 +392,10 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
           background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
-        <Mascote size={52} />
+        <Mascote size={80} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
-          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
         </div>
         <button onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
@@ -964,9 +964,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
           background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
-        <Mascote size={46} />
+        <Mascote size={68} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#fff',
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: '#fff',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {state?.nome || (roomId === GLOBAL_ROOM ? 'Sala Geral' : 'Sala')}
           </div>
@@ -1092,7 +1092,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: 20,
                 overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
-                <Mascote size={72} halo big />
+                <Mascote size={112} halo big />
                 {state?.phase === 'over' ? (
                   <>
                     <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
@@ -1330,14 +1330,24 @@ const TabUnikoPaint = () => {
 
   /* Presence ÚNICA pra todo o jogo: cada um publica em que sala está. É assim
      que o lobby mostra quem está em cada sala sem assinar o canal de todas. */
+  // Relê o estado do canal e joga na UI. `presenceState()` é LOCAL (o SDK mantém
+  // o mapa em memória), então chamar isso é de graça — não vai à rede.
+  const refreshPresence = useCallback(() => {
+    const ch = lobbyChan.current; if (!ch) return;
+    const list = Object.values(ch.presenceState()).flat()
+      .map(p => ({ name: p.name, photo: p.photo, room: p.room }));
+    const seen = new Set();
+    setTodos(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
+  }, []);
+
   useEffect(() => {
     const ch = supabase.channel('uniko-paint-presence', { config: { presence: { key: name } } });
     lobbyChan.current = ch;
-    ch.on('presence', { event: 'sync' }, () => {
-      const list = Object.values(ch.presenceState()).flat().map(p => ({ name: p.name, photo: p.photo, room: p.room }));
-      const seen = new Set();
-      setTodos(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
-    });
+    // Os TRÊS eventos, não só o 'sync': sozinho ele não dispara de forma confiável
+    // quando OUTRA pessoa entra/sai (era por isso que só aparecia gente após F5).
+    ch.on('presence', { event: 'sync' },  refreshPresence)
+      .on('presence', { event: 'join' },  refreshPresence)
+      .on('presence', { event: 'leave' }, refreshPresence);
     ch.subscribe(async (st) => {
       if (st !== 'SUBSCRIBED') return;
       // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
@@ -1345,9 +1355,13 @@ const TabUnikoPaint = () => {
       // foto passou despercebido).
       const r = await ch.track({ name, photo: photoRef.current, room: roomRef.current });
       if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
+      refreshPresence();
     });
-    return () => { supabase.removeChannel(ch); lobbyChan.current = null; };
-  }, [name]);
+    // Rede de segurança: se algum evento se perder, isso conserta em ≤2s. Barato
+    // porque presenceState() não vai à rede.
+    const t = setInterval(refreshPresence, 2000);
+    return () => { clearInterval(t); supabase.removeChannel(ch); lobbyChan.current = null; };
+  }, [name, refreshPresence]);
 
   // Reanuncia ao trocar de sala / trocar a foto.
   useEffect(() => {
@@ -1415,7 +1429,7 @@ const TabUnikoPaint = () => {
     <div style={{ maxWidth: 620, margin: '40px auto', background: cardBg, border: `1px solid ${T.border}`,
       borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
       <style>{PAINT_CSS}</style>
-      <Mascote size={96} style={{ margin: '0 auto 12px' }} />
+      <Mascote size={120} style={{ margin: '0 auto 12px' }} />
       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>
         Falta rodar a migração
       </div>
