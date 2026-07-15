@@ -442,9 +442,15 @@ const PAINT_CSS = `
 .up-scroll::-webkit-scrollbar-track { background: rgba(128,128,128,.14); border-radius: 99px; margin: 4px 0; }
 .up-scroll::-webkit-scrollbar-thumb { background: ${UP.pink}99; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
 .up-scroll::-webkit-scrollbar-thumb:hover { background: ${UP.pink}; border: 2px solid transparent; background-clip: content-box; }
-/* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima. */
+/* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima.
+   `.up-hd-center` é exceção: precisa continuar absolute pra ficar centralizado
+   na barra INTEIRA (e não no espaço que sobra entre o nome e os botões). */
 .up-hd > svg { z-index: 0; }
-.up-hd > *:not(svg) { position: relative; z-index: 1; }
+.up-hd > *:not(svg):not(.up-hd-center) { position: relative; z-index: 1; }
+.up-hd-center {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 1; pointer-events: none; text-align: center; max-width: 46%;
+}
 /* Entradas suaves */
 @keyframes upFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes upPop    { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
@@ -1345,13 +1351,32 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
         {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
         <Mascote size={68} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: '#fff',
+        {/* Nome da sala NÃO cresce (o spacer abaixo é que empurra os botões): com
+            flex:1 ele se esticava por baixo do tema e, com nome longo, o texto
+            invadia o centro. O teto de 24% garante que não encoste. */}
+        <div style={{ minWidth: 0, maxWidth: '24%' }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#fff',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {state?.nome || (roomId === GLOBAL_ROOM ? 'Sala Geral' : 'Sala')}
           </div>
-          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.85)' }}>
-            Tema: {temaAtual.emoji} {temaAtual.nome}
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.8)', fontWeight: 600,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Sala · {players.length} {players.length === 1 ? 'jogador' : 'jogadores'}
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 8 }} />{/* empurra os botões pra direita */}
+
+        {/* TEMA em destaque, centralizado na barra inteira */}
+        <div className="up-hd-center">
+          <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.28em',
+            color: 'rgba(255,255,255,.85)', textShadow: '0 1px 6px rgba(0,0,0,.3)' }}>
+            TEMA
+          </div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 30, fontWeight: 800, lineHeight: 1.1,
+            color: '#fff', letterSpacing: '.03em', textTransform: 'uppercase',
+            textShadow: '0 3px 14px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {temaAtual.emoji} {temaAtual.nome}
           </div>
         </div>
         <button className="up-btn" onClick={() => { setSomOn(v => !v); if (!somOn) SFX.clique(); }}
