@@ -219,6 +219,27 @@ const THEMES = [
     'onça-pintada', 'arara', 'mico-leão-dourado', 'boto cor-de-rosa', 'saci',
     'curupira', 'iara', 'lobisomem', 'mula sem cabeça', 'pantanal', 'sertão',
     'favela', 'lençóis maranhenses'] },
+  { id: 'objetos', nome: 'Objetos', emoji: '📦', words: [
+    'tesoura', 'martelo', 'chave', 'guarda-chuva', 'óculos', 'relógio', 'mochila',
+    'escada', 'vassoura', 'balde', 'lâmpada', 'espelho', 'cadeado', 'chaveiro',
+    'caneta', 'lápis', 'borracha', 'régua', 'apontador', 'grampeador', 'clipe',
+    'livro', 'jornal', 'revista', 'carta', 'envelope', 'selo', 'caixa', 'presente',
+    'balão', 'vela', 'isqueiro', 'fósforo', 'lanterna', 'pilha', 'corda', 'prego',
+    'parafuso', 'chave de fenda', 'serrote', 'alicate', 'fita métrica', 'pincel',
+    'rolo de tinta', 'lata de tinta', 'agulha', 'linha de costura', 'botão',
+    'zíper', 'cinto', 'carteira', 'mala', 'garrafa', 'copo', 'funil', 'peneira',
+    'ampulheta', 'binóculo', 'lupa', 'bússola', 'termômetro', 'guarda-sol'] },
+  { id: 'verbos', nome: 'Verbos', emoji: '🏃', words: [
+    'correr', 'pular', 'dormir', 'comer', 'beber', 'chorar', 'rir', 'gritar',
+    'cantar', 'dançar', 'nadar', 'voar', 'cair', 'escalar', 'cavar', 'empurrar',
+    'puxar', 'carregar', 'jogar', 'chutar', 'pescar', 'cozinhar', 'lavar',
+    'varrer', 'pintar', 'desenhar', 'escrever', 'ler', 'estudar', 'trabalhar',
+    'dirigir', 'pedalar', 'caminhar', 'sentar', 'levantar', 'abraçar', 'beijar',
+    'apontar', 'aplaudir', 'assobiar', 'espirrar', 'bocejar', 'acordar',
+    'tomar banho', 'escovar os dentes', 'pentear o cabelo', 'vestir', 'costurar',
+    'martelar', 'serrar', 'regar', 'plantar', 'colher', 'varrer o chão',
+    'tirar foto', 'telefonar', 'esperar', 'procurar', 'esconder', 'fugir',
+    'perseguir', 'derrubar', 'quebrar', 'consertar', 'medir', 'pesar'] },
   { id: 'casa', nome: 'Casa', emoji: '🏠', words: [
     'geladeira', 'sofá', 'chuveiro', 'vassoura', 'panela', 'abajur', 'ventilador',
     'escada', 'chave', 'guarda-chuva', 'espelho', 'relógio', 'travesseiro',
@@ -242,6 +263,7 @@ const COR_TEMA = {
   geral: UP.pink,     escritorio: UP.cyan,  comida:  UP.orange, animais: UP.lime,
   filmes: UP.purple,  esportes: UP.red,     musica:  UP.pink,   natureza: UP.lime,
   tecnologia: UP.cyan, brasil: UP.yellow,   casa:    UP.orange,
+  objetos: UP.purple, verbos: UP.red,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
@@ -559,6 +581,85 @@ const floodFill = (cx, px, py, hex) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    LOBBY — lista as salas, quem está em cada uma, e deixa criar sala nova.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* Tabela não existe (migração não rodada)? O PostgREST responde PGRST205
+   ("Could not find the table"), não o 42P01 do Postgres cru — verificado contra
+   a API real. Aceita os dois porque o 42P01 aparece em RPC/SQL direto. */
+const semTabela = (erro) => !!erro && (erro.code === 'PGRST205' || erro.code === '42P01'
+  || /Could not find the table|does not exist/i.test(erro.message || ''));
+
+/* ── Ranking geral (lobby) ──────────────────────────────────────────────────
+   Soma dos pontos de todas as partidas. Ver supabase_uniko_paint_ranking.sql. */
+const RankingGeral = ({ name, cardBg }) => {
+  const [linhas, setLinhas] = useState(null);   // null = carregando
+  const [faltaSql, setFaltaSql] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    const carregar = async () => {
+      const { data, error } = await supabase.from('uniko_paint_ranking')
+        .select('player, pontos, partidas, vitorias').order('pontos', { ascending: false }).limit(20);
+      if (!vivo) return;
+      // Tabela ausente: o PostgREST devolve PGRST205 ("Could not find the table"),
+      // NÃO o 42P01 do Postgres cru — conferido contra a API real. Com o código
+      // errado o aviso nunca aparecia e a tela ficava "Carregando..." pra sempre.
+      if (semTabela(error)) { setFaltaSql(true); return; }
+      if (error) { console.error('[uniko-paint] ranking:', error.message); return; }
+      setLinhas(data || []);
+    };
+    carregar();
+    const t = setInterval(carregar, 15000);     // atualiza quando partidas terminam
+    return () => { vivo = false; clearInterval(t); };
+  }, []);
+
+  const medalha = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`);
+
+  return (
+    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14,
+      boxShadow: T.sh, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 11, flexShrink: 0 }}>
+        <span style={{ fontSize: 17 }}>🏆</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.07em' }}>RANKING GERAL</span>
+      </div>
+      {faltaSql ? (
+        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>
+          Falta rodar <b style={{ color: T.text }}>supabase_uniko_paint_ranking.sql</b> no Supabase.
+        </div>
+      ) : linhas === null ? (
+        <div style={{ fontSize: 12, color: T.textD }}>Carregando...</div>
+      ) : !linhas.length ? (
+        <div style={{ fontSize: 12, color: T.textD, lineHeight: 1.5 }}>
+          Ninguém pontuou ainda. Jogue uma partida e apareça aqui!
+        </div>
+      ) : (
+        <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {linhas.map((l, i) => {
+            const eu = l.player === name;
+            return (
+              <div key={l.player} className="up-fade" style={{ display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 8px', borderRadius: 9, background: eu ? `${A}12` : 'transparent',
+                border: eu ? `1px solid ${A}44` : '1px solid transparent' }}>
+                <span style={{ fontSize: i < 3 ? 15 : 11, fontWeight: 800, color: i < 3 ? T.text : T.textD,
+                  width: 22, textAlign: 'center', flexShrink: 0 }}>{medalha(i)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: eu ? 800 : 700, color: T.text,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {l.player.split(' ')[0]}{eu && ' (você)'}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: T.textT }}>
+                    {l.partidas} {l.partidas === 1 ? 'partida' : 'partidas'}
+                    {l.vitorias > 0 && ` · ${l.vitorias} 🏅`}
+                  </div>
+                </div>
+                <span style={{ fontSize: 13.5, fontWeight: 800, color: A, flexShrink: 0 }}>{l.pontos}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [rooms, setRooms] = useState([]);
   const [criando, setCriando] = useState(false);
@@ -688,8 +789,12 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         </div>
       )}
 
+      {/* Salas + ranking lado a lado. minmax(0,1fr) na linha pelo mesmo motivo de
+          sempre: sem isso a linha cresce com o conteúdo e estica a página. */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 268px',
+        gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
       {/* Lista de salas */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+      <div className="up-scroll" style={{ overflowY: 'auto', minHeight: 0, position: 'relative', paddingRight: 4 }}>
         {/* respingos coloridos bem sutis no fundo da lista */}
         <Splat x="-3%"  y="14%" size={190} cor={UP.cyan}   rot={18}  op={0.05} forma={1} />
         <Splat x="72%"  y="52%" size={230} cor={UP.pink}   rot={200} op={0.045} forma={2} />
@@ -815,6 +920,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
             Carregando salas...
           </div>
         )}
+      </div>
+
+      <RankingGeral name={name} cardBg={cardBg} />
       </div>
     </div>
   );
@@ -1138,6 +1246,24 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       elenco: elenco || [...new Set(queue)],
     });
   };
+  /* Fim de partida → soma os pontos no ranking geral (só o host grava).
+     `rankSalvo` no estado evita somar duas vezes: o motor roda num intervalo e
+     o host pode trocar no meio, então sem essa marca a mesma partida entraria
+     de novo a cada tick. A soma acontece no Postgres (RPC atômica) porque duas
+     salas terminando juntas se sobrescreveriam num update lido-e-escrito aqui. */
+  const salvarRanking = (s) => {
+    if (!s || s.rankSalvo) return;
+    const scores = s.scores || {};
+    const nomes = Object.keys(scores);
+    if (!nomes.length) return;
+    const campeao = nomes.reduce((a, b) => (scores[b] > scores[a] ? b : a), nomes[0]);
+    nomes.forEach((quem) => {
+      supabase.rpc('uniko_paint_add_score', {
+        p_player: quem, p_pontos: scores[quem] || 0, p_venceu: quem === campeao,
+      }).then(({ error }) => { if (error) console.error('[uniko-paint] ranking:', error.message); });
+    });
+  };
+
   const startGame = () => {
     if (!state) return;                 // sem o state da sala não há tema — ver startRound
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
@@ -1160,6 +1286,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (s.phase === 'drawing') {
         pushState({ ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) });
       } else if (s.phase === 'reveal') {
+        // (a transição pra 'over' já grava o ranking — ver salvarRanking)
         // Tira da fila quem já saiu da sala...
         const restante = (s.queue || []).slice(1).filter(n => players.some(p => p.name === n));
         // ...e ACOLHE quem entrou depois do início: sem isso quem chega no meio
@@ -1172,7 +1299,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         // disso, a vez dele simplesmente nunca chegava. Na frente, ele desenha
         // já na próxima rodada.
         const queue = [...novos, ...restante];
-        if (!queue.length) pushState({ ...s, phase: 'over', endsAt: null });
+        if (!queue.length) { salvarRanking(s); pushState({ ...s, phase: 'over', endsAt: null, rankSalvo: true }); }
         else startRound(queue, s.scores || {}, (s.round || 1) + 1,
           (s.totalRounds || 0) + novos.length, s.usadas || [], s.themeId, s.nome,
           [...elenco, ...novos]);
@@ -1775,7 +1902,7 @@ const TabUnikoPaint = () => {
   // Migração rodada?
   useEffect(() => {
     supabase.from('uniko_paint_state').select('id').limit(1).then(({ error }) => {
-      if (error?.code === '42P01' || /uniko_paint_state/.test(error?.message || '')) setSqlMissing(true);
+      if (semTabela(error)) setSqlMissing(true);
     });
   }, []);
 
