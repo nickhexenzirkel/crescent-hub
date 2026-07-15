@@ -45,6 +45,8 @@ const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
 const GLOBAL_ROOM = 'global';
+/* Mascote oficial do Uniko Paint (gato-robô de boina, respingado de tinta). */
+const MASCOTE = '/uniko-paint.png';
 /* Sala sem ninguém e parada há mais de 20min é lixo — o lobby faz a faxina. */
 const ROOM_TTL_MS = 20 * 60_000;
 
@@ -150,6 +152,100 @@ const maskWord = (w, revelar = 0) => {
   return [...(w || '')].map((c, i) => (c === ' ' ? ' ' : abrir.has(i) ? c : '_')).join(' ');
 };
 
+/* ── SOM ────────────────────────────────────────────────────────────────────
+   Sintetizado na hora com WebAudio (oscilador + envelope) em vez de arquivos:
+   são bipes curtos, e assim não entra nenhum asset de áudio no bundle nem
+   depende de rede. O AudioContext nasce suspenso até um gesto do usuário — o
+   clique de "Entrar na sala" já serve de destravador. */
+let _ac = null;
+const audioCtx = () => {
+  if (!_ac) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) _ac = new AC(); }
+  if (_ac?.state === 'suspended') _ac.resume().catch(() => {});
+  return _ac;
+};
+const beep = (freq, dur = 0.12, type = 'sine', vol = 0.14, delay = 0) => {
+  try {
+    const c = audioCtx(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    o.connect(g); g.connect(c.destination);
+    const t = c.currentTime + delay;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.012);          // ataque curto
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);    // decaimento
+    o.start(t); o.stop(t + dur + 0.03);
+  } catch { /* aba sem áudio / autoplay bloqueado: o jogo funciona igual */ }
+};
+const SFX = {
+  vez:    () => [523, 659, 784].forEach((f, i) => beep(f, 0.2, 'triangle', 0.12, i * 0.09)),   // dó-mi-sol
+  minhaVez: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.22, 'triangle', 0.14, i * 0.08)),
+  acerto: () => { beep(880, 0.1, 'sine', 0.12); beep(1175, 0.15, 'sine', 0.12, 0.08); },
+  euAcertei: () => [784, 988, 1319].forEach((f, i) => beep(f, 0.17, 'sine', 0.15, i * 0.07)),
+  tick:   () => beep(1000, 0.045, 'square', 0.05),
+  fimRodada: () => [440, 330].forEach((f, i) => beep(f, 0.24, 'triangle', 0.1, i * 0.13)),
+  vitoria: () => [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.24, 'triangle', 0.13, i * 0.12)),
+  entrou: () => beep(660, 0.07, 'sine', 0.07),
+  clique: () => beep(520, 0.05, 'sine', 0.05),
+};
+const SOUND_KEY = 'up_sound';
+
+/* Animações — o arco-íris do glow é o mesmo das orelhas/olhos do mascote. */
+const PAINT_CSS = `
+@keyframes upFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-5px) rotate(2deg); } }
+@keyframes upGlow {
+  0%,100% { filter: drop-shadow(0 3px 10px rgba(0,0,0,.35)) drop-shadow(0 0 12px #ff3ba766); }
+  33%     { filter: drop-shadow(0 3px 10px rgba(0,0,0,.35)) drop-shadow(0 0 14px #3bd7ff77); }
+  66%     { filter: drop-shadow(0 3px 10px rgba(0,0,0,.35)) drop-shadow(0 0 14px #7dff3b66); }
+}
+@keyframes upSpin { to { transform: rotate(360deg); } }
+.up-mascote { animation: upFloat 4.5s ease-in-out infinite, upGlow 6s ease-in-out infinite; }
+.up-mascote-big { animation: upFloat 5s ease-in-out infinite, upGlow 7s ease-in-out infinite; }
+/* Halo cônico girando atrás do mascote. */
+.up-halo::before {
+  content: ''; position: absolute; inset: -18%; border-radius: 50%; z-index: -1;
+  background: conic-gradient(#ff3ba7, #ffb03b, #7dff3b, #3bd7ff, #a83bff, #ff3ba7);
+  filter: blur(17px); opacity: .32; animation: upSpin 9s linear infinite;
+}
+/* Tela "é a vez de fulano" */
+@keyframes upTurnIn  { 0% { opacity: 0; transform: scale(.8); } 60% { transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes upTurnOut { to { opacity: 0; transform: scale(1.1); } }
+@keyframes upAvatarIn { 0% { transform: scale(.4) rotate(-14deg); opacity: 0; } 70% { transform: scale(1.08) rotate(4deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes upRing { 0% { transform: scale(.9); opacity: .8; } 100% { transform: scale(1.5); opacity: 0; } }
+.up-turn   { animation: upTurnIn .45s cubic-bezier(.2,1.3,.4,1) both; }
+.up-turn-out { animation: upTurnOut .35s ease-in both; }
+.up-avatar { animation: upAvatarIn .55s cubic-bezier(.2,1.4,.4,1) both; }
+.up-ring   { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid currentColor; animation: upRing 1.6s ease-out infinite; }
+.up-ring2  { animation-delay: .55s; }
+/* Entradas suaves */
+@keyframes upFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes upPop    { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes upChatIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes upPulse  { 0%,100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+@keyframes upShake  { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+.up-fade  { animation: upFadeUp .35s ease both; }
+.up-pop   { animation: upPop .3s cubic-bezier(.2,1.4,.4,1) both; }
+.up-chat  { animation: upChatIn .22s ease both; }
+.up-card  { transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.up-card:hover { transform: translateY(-3px); }
+.up-btn   { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+.up-btn:hover:not(:disabled)  { transform: translateY(-1px); filter: brightness(1.06); }
+.up-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+.up-urgent { animation: upShake .5s ease-in-out infinite; }
+.up-drawing-badge { animation: upPulse 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .up-mascote, .up-mascote-big, .up-halo::before, .up-ring, .up-urgent, .up-drawing-badge { animation: none !important; }
+}
+`;
+
+/* Mascote com brilho. `halo` liga o anel cônico girando atrás. */
+const Mascote = ({ size = 42, halo = false, big = false, style }) => (
+  <div style={{ position: 'relative', width: size, height: size, flexShrink: 0, zIndex: 0, ...style }}
+    className={halo ? 'up-halo' : undefined}>
+    <img src={MASCOTE} alt="Uniko Paint" className={big ? 'up-mascote-big' : 'up-mascote'}
+      style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+  </div>
+);
+
 const Svg = ({ children, size = 16, ...p }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} {...p}>{children}</svg>
@@ -169,6 +265,8 @@ const IcoBulb   = (p) => <Svg {...p}><path d="M9 18h6M10 22h4"/><path d="M12 2a7
 const IcoExit   = (p) => <Svg {...p}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Svg>;
 const IcoPlus   = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Svg>;
 const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></Svg>;
+const IcoSom    = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></Svg>;
+const IcoMudo   = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></Svg>;
 const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle };
 
 /* ── Balde de tinta ─────────────────────────────────────────────────────────
@@ -229,7 +327,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [nomeSala, setNomeSala] = useState('');
   const [temaSala, setTemaSala] = useState('geral');
   const [erro, setErro] = useState('');
+  const [confirmarEx, setConfirmarEx] = useState(null);  // id da sala a excluir
   const cardBg = T.surface || '#fff';
+  const isAdmin = getAuthUser()?.role === 'admin';
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('uniko_paint_state')
@@ -269,15 +369,25 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
     onEnter(id);
   };
 
+  // Excluir sala: só quem criou (ou admin), e nunca a Sala Geral.
+  const excluirSala = async (id) => {
+    setConfirmarEx(null);
+    const { error } = await supabase.from('uniko_paint_state').delete().eq('id', id);
+    if (error) { setErro('Não deu pra excluir a sala.'); console.error('[uniko-paint] excluir:', error); return; }
+    setRooms(rs => rs.filter(r => r.id !== id));
+  };
+  const podeExcluir = (r) => r.id !== GLOBAL_ROOM && (isAdmin || r.state?.criador === name);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
+      <style>{PAINT_CSS}</style>
       {/* Cabeçalho */}
-      <div style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 13,
+      <div style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14,
         background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
         boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
           background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
-        <img src="/UNIKO_NEW.png" alt="" style={{ width: 40, height: 40, objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.3))' }} />
+        <Mascote size={52} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
           <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
@@ -346,9 +456,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
             const fixa = r.id === GLOBAL_ROOM;
             const jogando = st.phase === 'drawing' || st.phase === 'reveal';
             return (
-              <div key={r.id}
+              <div key={r.id} className="up-card up-fade"
                 style={{ background: cardBg, border: `1px solid ${fixa ? `${T.gold}55` : T.border}`, borderRadius: 14,
-                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex',
                     alignItems: 'center', justifyContent: 'center', fontSize: 20,
@@ -366,6 +476,15 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                   {jogando && (
                     <div style={{ padding: '3px 8px', borderRadius: 999, background: '#28a06018', color: '#28a060',
                       fontSize: 9.5, fontWeight: 800, whiteSpace: 'nowrap' }}>EM JOGO</div>
+                  )}
+                  {podeExcluir(r) && (
+                    <button onClick={() => setConfirmarEx(r.id)} title="Excluir esta sala"
+                      style={{ width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: `1px solid ${T.border}`, background: 'transparent', color: T.textT, cursor: 'pointer', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#E63946'; e.currentTarget.style.borderColor = '#E6394655'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = T.textT; e.currentTarget.style.borderColor = T.border; }}>
+                      <IcoTrash size={13} />
+                    </button>
                   )}
                 </div>
 
@@ -392,12 +511,34 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                   )}
                 </div>
 
-                <button onClick={() => onEnter(r.id)}
+                <button className="up-btn" onClick={() => { SFX.entrou(); onEnter(r.id); }}
                   style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff',
                     fontSize: 13, fontWeight: 800, cursor: 'pointer',
                     background: `linear-gradient(135deg, ${T.gold}, ${T.goldL})`, boxShadow: `0 4px 14px ${T.goldGl}` }}>
                   Entrar
                 </button>
+
+                {/* Confirmação de exclusão — cobre o próprio card */}
+                {confirmarEx === r.id && (
+                  <div className="up-pop" style={{ position: 'absolute', inset: 0, borderRadius: 14, zIndex: 2,
+                    background: 'rgba(255,255,255,.97)', border: '1px solid #E6394655', padding: 14,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A2E' }}>Excluir esta sala?</div>
+                    <div style={{ fontSize: 11.5, color: '#6b7280', lineHeight: 1.45 }}>
+                      {gente.length
+                        ? `Tem ${gente.length} ${gente.length === 1 ? 'pessoa jogando' : 'pessoas jogando'} aí dentro agora!`
+                        : 'A sala some pra todo mundo. Não dá pra desfazer.'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="up-btn" onClick={() => excluirSala(r.id)}
+                        style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#E63946',
+                          color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
+                      <button className="up-btn" onClick={() => setConfirmarEx(null)}
+                        style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: 'transparent',
+                          color: '#374151', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -421,6 +562,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [guess, setGuess] = useState('');
   const [now, setNow]     = useState(() => Date.now());
   const [laps, setLaps]   = useState(DEFAULT_LAPS);
+  const [vez, setVez]     = useState(null);   // overlay "é a vez de fulano"
+  const [somOn, setSomOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
+  const somRef = useRef(somOn);
+  useEffect(() => { somRef.current = somOn; try { localStorage.setItem(SOUND_KEY, somOn ? '1' : '0'); } catch { /* sem localStorage */ } }, [somOn]);
+  const sfx = useCallback((k) => { if (somRef.current) SFX[k]?.(); }, []);
 
   const [tool, setTool]     = useState('brush');
   const [color, setColor]   = useState(COLORS[0]);
@@ -517,6 +663,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const revelar  = state?.phase === 'drawing'
     ? Math.min(maxHints(word), autoHints(word, frac) + (state?.hints || 0)) : 0;
 
+  // Tique-taque nos 5s finais — um bipe por segundo, sem repetir no mesmo.
+  useEffect(() => {
+    if (state?.phase !== 'drawing' || secsLeft > 5 || secsLeft <= 0) return;
+    if (ultTick.current === secsLeft) return;
+    ultTick.current = secsLeft;
+    sfx('tick');
+  }, [secsLeft, state?.phase, sfx]);
+
   useEffect(() => { isDrawerRef.current = isDrawer; }, [isDrawer]);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
@@ -548,12 +702,50 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
 
-  /* ── Chat / palpites ─────────────────────────────────────────────────────
-     eslint react-hooks/purity: as funções desta seção e do "motor da partida"
-     usam Date.now()/Math.random(), mas só rodam em HANDLER ou TIMER (clique,
-     broadcast recebido, tick do host) — nunca durante o render. O compiler não
-     consegue provar isso e marca a definição da função, não a chamada. */
-  /* eslint-disable react-hooks/purity */
+  /* ── Sons + tela "é a vez de fulano" ─────────────────────────────────────
+     Tudo detectado LOCALMENTE por transição de estado — nada disso precisa
+     trafegar, cada cliente percebe a mudança e reage. ── */
+  const ultRodada = useRef(null);
+  const ultAcertos = useRef(0);
+  const ultFase = useRef(null);
+  const ultTick = useRef(0);
+
+  // Rodada nova → mostra de quem é a vez, com o Uniko da pessoa bem grande.
+  useEffect(() => {
+    if (state?.phase !== 'drawing') return;
+    const chave = `${state.round}|${state.drawer}`;
+    if (ultRodada.current === chave) return;
+    ultRodada.current = chave;
+    const p = players.find(x => x.name === state.drawer);
+    const euQueDesenho = state.drawer === name;
+    setVez({ nome: state.drawer, photo: p?.photo || (euQueDesenho ? photo : null), eu: euQueDesenho });
+    sfx(euQueDesenho ? 'minhaVez' : 'vez');
+    const t = setTimeout(() => setVez(null), 2800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.phase, state?.round, state?.drawer]);
+
+  // Acertos, fim de rodada e vitória.
+  useEffect(() => {
+    const n = state?.hits?.length || 0;
+    if (n > ultAcertos.current) {
+      const novo = state.hits[n - 1];
+      sfx(novo === name ? 'euAcertei' : 'acerto');
+    }
+    ultAcertos.current = n;
+  }, [state?.hits, name, sfx]);
+
+  useEffect(() => {
+    const f = state?.phase;
+    if (f !== ultFase.current) {
+      if (f === 'reveal') sfx('fimRodada');
+      if (f === 'over') sfx('vitoria');
+      if (f === 'lobby') { ultRodada.current = null; ultAcertos.current = 0; }
+      ultFase.current = f;
+    }
+  }, [state?.phase, sfx]);
+
+  /* ── Chat / palpites ─────────────────────────────────────────────────── */
   const addChat = (m) => setChat(c => [...c.slice(-60), { id: Math.random().toString(36).slice(2), ...m }]);
   const onGuessMsg = (p) => {
     const s = stateRef.current;
@@ -590,28 +782,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   };
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
 
-  /* ── Votação de tema (dentro da sala, antes de começar) ──────────────── */
-  // useMemo aqui não é firula: `state?.votes || {}` cria um objeto NOVO a cada
-  // render, o que refaria o useMemo do themeVencedor toda vez.
-  const votes = useMemo(() => state?.votes || {}, [state?.votes]);
-  const myVote = votes[name];
-  const voteTheme = (id) => {
-    chanRef.current?.send({ type: 'broadcast', event: 'vote', payload: { name, theme: id } });
-    if (hostRef.current) applyVote(name, id);
-  };
-  // Só o host escreve (mesma regra do resto: um escritor só).
-  const applyVote = (quem, id) => {
-    const s = stateRef.current; if (!s) return;
-    pushState({ ...s, votes: { ...(s.votes || {}), [quem]: id } });
-  };
-  // Vencedor: mais votado; ninguém votou → o tema com que a sala foi criada.
-  const themeVencedor = useMemo(() => {
-    const cont = {};
-    Object.values(votes).forEach(v => { cont[v] = (cont[v] || 0) + 1; });
-    const top = Object.entries(cont).sort((a, b) => b[1] - a[1])[0];
-    return top ? themeById(top[0]) : themeById(state?.themeId);
-  }, [votes, state?.themeId]);
-
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
   const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome) => {
     const drawer = queue[0];
@@ -625,15 +795,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       nome, criador: stateRef.current?.criador,
       phase: 'drawing', round, drawer, wordEnc: enc(w),
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
-      usadas: [...usadas, w], themeId, hints: 0, votes: stateRef.current?.votes || {},
+      usadas: [...usadas, w], themeId, hints: 0,
     });
   };
   const startGame = () => {
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
     const queue = Array.from({ length: laps }, () => ordem).flat();
-    startRound(queue, {}, 1, queue.length, [], themeVencedor.id, state?.nome);
+    // Tema é o que a sala definiu na criação — não se vota, não muda.
+    startRound(queue, {}, 1, queue.length, [], state?.themeId, state?.nome);
   };
-  /* eslint-enable react-hooks/purity */
 
   useEffect(() => {
     if (!isHost || !state) return;
@@ -739,9 +909,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       acts.current = payload?.acts || []; replay();
     });
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
-    ch.on('broadcast', { event: 'vote' }, ({ payload }) => {
-      if (hostRef.current) applyVote(payload.name, payload.theme);
-    });
     ch.subscribe((st) => {
       if (st !== 'SUBSCRIBED') return;
       ch.send({ type: 'broadcast', event: 'sync-req', payload: { from: name } });
@@ -785,13 +952,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      <style>{PAINT_CSS}</style>
       {/* Cabeçalho */}
       <div style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
         background: `linear-gradient(135deg, ${T.gold} 0%, ${T.goldL} 55%, ${T.goldV || T.goldL} 100%)`,
         boxShadow: `0 8px 26px ${T.goldGl || 'rgba(0,0,0,.12)'}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .18, pointerEvents: 'none',
           background: 'radial-gradient(circle at 12% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 88% 80%, #fff 0%, transparent 40%)' }} />
-        <img src="/UNIKO_NEW.png" alt="" style={{ width: 38, height: 38, objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.3))' }} />
+        <Mascote size={46} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#fff',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -801,13 +969,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             Tema: {temaAtual.emoji} {temaAtual.nome}
           </div>
         </div>
-        <button onClick={onAbrirPicker} title="Escolher meu Uniko"
+        <button className="up-btn" onClick={() => { setSomOn(v => !v); if (!somOn) SFX.clique(); }}
+          title={somOn ? 'Desligar sons' : 'Ligar sons'}
+          style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', color: '#fff', cursor: 'pointer' }}>
+          {somOn ? <IcoSom size={16} /> : <IcoMudo size={16} />}
+        </button>
+        <button className="up-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', cursor: 'pointer' }}>
           <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Meu Uniko</span>
         </button>
-        <button onClick={onLeave} title="Sair da partida"
+        <button className="up-btn" onClick={onLeave} title="Sair da partida"
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)', color: '#fff',
             fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -886,9 +1060,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <IcoBulb size={13} />Dar dica
                   </button>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
-                  background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub,
-                  color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5, minWidth: 54, justifyContent: 'center' }}>
+                <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
+                    background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub, transition: 'background .3s, color .3s',
+                    color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5, minWidth: 54, justifyContent: 'center' }}>
                   {secsLeft}s
                 </div>
               </>
@@ -912,7 +1087,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: 20,
                 overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
-                <img src="/UNIKO_NEW.png" alt="" style={{ width: 54, height: 54, objectFit: 'contain' }} />
+                <Mascote size={72} halo big />
                 {state?.phase === 'over' ? (
                   <>
                     <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
@@ -932,35 +1107,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </div>
                 )}
 
-                {/* Votação de tema */}
+                {/* O tema é o da sala, definido na criação — não se vota. */}
                 {noLobby && (
-                  <div style={{ width: '100%', maxWidth: 560 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.06em', marginBottom: 7 }}>
-                      VOTE NO TEMA {myVote && <span style={{ color: T.gold }}>· você votou em {themeById(myVote).nome}</span>}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                      {ALL_THEMES.map(t => {
-                        const n = Object.values(votes).filter(v => v === t.id).length;
-                        const on = myVote === t.id;
-                        return (
-                          <button key={t.id} onClick={() => voteTheme(t.id)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 999,
-                              cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all .12s',
-                              border: on ? `2px solid ${T.gold}` : `1px solid ${T.border}`,
-                              background: on ? `${T.gold}18` : cardBg, color: on ? T.gold : T.text }}>
-                            <span>{t.emoji}</span>{t.nome}
-                            {n > 0 && (
-                              <span style={{ minWidth: 16, padding: '1px 5px', borderRadius: 999, fontSize: 10, fontWeight: 800,
-                                background: T.gold, color: '#fff' }}>{n}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div style={{ fontSize: 11, color: T.textD, marginTop: 7 }}>
-                      Vale: {themeVencedor.emoji} <b>{themeVencedor.nome}</b>
-                      {!Object.keys(votes).length && ' (tema da sala — vote pra mudar)'}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
+                    background: `${T.gold}12`, border: `1px solid ${T.gold}44` }}>
+                    <span style={{ fontSize: 16 }}>{temaAtual.emoji}</span>
+                    <span style={{ fontSize: 12.5, color: T.text, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
                   </div>
                 )}
 
@@ -1005,10 +1157,42 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             )}
 
             {state?.phase === 'drawing' && !isDrawer && (
-              <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+              <div className="up-drawing-badge" style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
                 padding: '4px 12px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff',
                 fontSize: 11.5, fontWeight: 700, pointerEvents: 'none' }}>
                 {iHit ? '✓ você acertou!' : `${state.drawer?.split(' ')[0]} está desenhando`}
+              </div>
+            )}
+
+            {/* ── "Agora é a vez de fulano" — Uniko grande + nome ── */}
+            {vez && (
+              <div className="up-turn" style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
+                flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, pointerEvents: 'none',
+                background: `linear-gradient(160deg, ${T.gold}f2, ${T.goldL}ee 60%, ${T.goldV || T.goldL}f2)` }}>
+                <div style={{ position: 'absolute', inset: 0, opacity: .2,
+                  background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
+                {/* Avatar gigante com anéis pulsando */}
+                <div className="up-avatar" style={{ position: 'relative', color: '#fff' }}>
+                  <div className="up-ring" />
+                  <div className="up-ring up-ring2" />
+                  <img src={vez.photo || MASCOTE} alt=""
+                    style={{ width: 132, height: 132, borderRadius: '50%', objectFit: 'cover',
+                      border: '5px solid rgba(255,255,255,.95)', background: '#fff',
+                      boxShadow: '0 14px 44px rgba(0,0,0,.4)' }} />
+                </div>
+                <div style={{ textAlign: 'center', zIndex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,.9)', letterSpacing: '.14em',
+                    textTransform: 'uppercase', marginBottom: 5 }}>
+                    {vez.eu ? 'Sua vez de desenhar!' : 'Agora é a vez de'}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 38, fontWeight: 800, color: '#fff',
+                    textShadow: '0 4px 20px rgba(0,0,0,.35)', lineHeight: 1.1 }}>
+                    {vez.eu ? name.split(' ')[0] : vez.nome.split(' ')[0]}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.9)', marginTop: 8 }}>
+                    {vez.eu ? 'Capriche — a galera tá esperando 🎨' : 'Adivinhe a palavra no chat!'}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1081,7 +1265,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </div>
             )}
             {chat.map(m => (
-              <div key={m.id} style={{ fontSize: 12.5, lineHeight: 1.45,
+              <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
                 color: m.kind === 'hit' ? '#28a060' : m.kind === 'sys' ? T.textT : T.text,
                 fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
                 background: m.kind === 'hit' ? '#28a06012' : 'transparent',
@@ -1161,6 +1345,15 @@ const TabUnikoPaint = () => {
     return m;
   }, [todos]);
 
+  // Eu SEMPRE estou na minha sala — não espero o eco da presence pra saber disso.
+  // Sem isto, entre o entrar e o presence sync chegar (uns instantes), a lista vem
+  // vazia, o host é eleito como `undefined` e a sala mostra "esperando o host..."
+  // pro próprio dono da sala, sem botão de começar.
+  const naSala = useMemo(() => {
+    const l = porSala[room] || [];
+    return l.some(p => p.name === name) ? l : [{ name, photo, room }, ...l];
+  }, [porSala, room, name, photo]);
+
   /* ── Seletor de foto (compartilhado por lobby e sala) ────────────────── */
   const [owned, setOwned] = useState(() => getCapturedCollection());
   useEffect(() => { syncCollectionFromServer().then(l => Array.isArray(l) && setOwned(l)); }, []);
@@ -1197,7 +1390,8 @@ const TabUnikoPaint = () => {
   if (sqlMissing) return (
     <div style={{ maxWidth: 620, margin: '40px auto', background: cardBg, border: `1px solid ${T.border}`,
       borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
-      <img src="/UNIKO_NEW.png" alt="" style={{ width: 84, height: 84, objectFit: 'contain', marginBottom: 12 }} />
+      <style>{PAINT_CSS}</style>
+      <Mascote size={96} style={{ margin: '0 auto 12px' }} />
       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>
         Falta rodar a migração
       </div>
@@ -1212,7 +1406,7 @@ const TabUnikoPaint = () => {
   return (
     <>
       {room
-        ? <Sala roomId={room} name={name} photo={photo} players={porSala[room] || []}
+        ? <Sala roomId={room} name={name} photo={photo} players={naSala}
             onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
         : <Lobby name={name} photo={photo} porSala={porSala}
             onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
