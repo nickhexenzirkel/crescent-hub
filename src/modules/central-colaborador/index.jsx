@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
 import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete } from '../../contexts/user';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { NAV } from './Sidebar';
+import { NAV_FOR } from './Sidebar';
 import { SettingsModal } from '../../shared/SettingsModal';
 import { Sidebar, TopBar } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
@@ -17,6 +17,7 @@ import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
+import { TabUnikoPaint } from './tabs/TabUnikoPaint';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 
@@ -127,6 +128,9 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     if(tab==='unikowave')   return <TabUnikoWave/>;
+    // Uniko Paint está EM DESENVOLVIMENTO: escondido da sidebar pra não-admin e
+    // barrado aqui também — esconder o item de menu não impede chegar pelo estado.
+    if(tab==='unikopaint')  return getAuthUser()?.role === 'admin' ? <TabUnikoPaint/> : null;
     return null;
   };
 
@@ -212,7 +216,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
             <div style={{width:36,height:4,borderRadius:99,background:T.border,margin:'0 auto 16px'}}/>
             <div style={{fontSize:11,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',
               padding:'0 4px 10px',fontWeight:600}}>Navegação</div>
-            {NAV.map(n=>{
+            {NAV_FOR(getAuthUser()?.role==='admin').map(n=>{
               const locked = n.id==='uniko' && !profileComplete;
               return(
                 <div key={n.id}

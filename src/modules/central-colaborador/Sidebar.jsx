@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { T, THEMES } from '../../contexts/theme';
-import { USER, supabase as _supabase } from '../../contexts/user';
+import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -38,7 +38,14 @@ const NAV=[
   {id:'uniko',      label:'Coleção',        icon:<I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>},
   {id:'games',      label:'Games',          icon:<I><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M8 12h2m-1-1v2M14 12h2"/></I>},
   {id:'unikowave',  label:'Uniko Wave',     icon:<I><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></I>},
+  /* Em desenvolvimento — adminOnly esconde de todo mundo menos admin (ver NAV_FOR abaixo).
+     Mantido por ÚLTIMO de propósito: os dividers do map são por índice (6 e 10), então
+     um item no fim não desloca os grupos quando some pra quem não é admin. */
+  {id:'unikopaint', label:'Uniko Paint',    adminOnly:true, icon:<I><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></I>},
 ];
+
+/* Só admin enxerga os itens marcados adminOnly (features em desenvolvimento). */
+const NAV_FOR = (isAdmin) => NAV.filter(n => !n.adminOnly || isAdmin);
 
 const LockIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}>
@@ -50,6 +57,7 @@ const LockIcon = () => (
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed}) => {
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
+  const nav = NAV_FOR(getAuthUser()?.role === 'admin');
   if (isMobile) return null;
   return(
     <div style={{width:collapsed?76:252,minHeight:'100vh',
@@ -110,7 +118,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
         {!collapsed && <div style={{fontSize:11.5,color:T.textD,letterSpacing:'.09em',
           textTransform:'uppercase',padding:'2px 8px 6px',fontWeight:600}}>NAVEGAÇÃO</div>}
 
-        {NAV.map((n,idx)=>{
+        {nav.map((n,idx)=>{
           const a=tab===n.id;
           const locked = n.id==='uniko' && !profileComplete;
           const showDivider = idx===6 || idx===10; /* dividers between logical groups */
@@ -202,7 +210,7 @@ const TopBar = ({tab,onBack}) => {
     ponto:'Ponto Eletrônico',
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
-    uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave'};
+    uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
@@ -294,4 +302,4 @@ const TopBar = ({tab,onBack}) => {
   );
 };
 
-export { I, NAV, Sidebar, TopBar };
+export { I, NAV, NAV_FOR, Sidebar, TopBar };
