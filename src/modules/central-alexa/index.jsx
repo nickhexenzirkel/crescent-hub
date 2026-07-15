@@ -27,20 +27,32 @@ function guessGender(name) {
 // Busca a foto do artista (música) pela API pública do Deezer via JSONP (sem backend/CORS).
 // Cacheado em memória; resolve com a URL da imagem ou null.
 //
-// CONFERE O NOME ANTES DE ACEITAR A FOTO. A busca do Deezer é APROXIMADA: quando
-// não acha o artista exato, ela devolve o parecido mais próximo — e pegar o
-// primeiro resultado às cegas (como era antes, com limit=1) colocava a cara de
-// outra pessoa no pódio. Casos reais medidos no acervo da empresa:
-//   "Adele"    → devolvia "Adèle & Zalem" (duo francês obscuro)
-//   "Rondiney" → devolvia "Don Dinero"
-// Agora pede alguns resultados e só aceita o que bate com o nome pedido; se
-// nenhum bater, devolve null e a UI mostra as iniciais — melhor sem foto do que
-// com a foto errada.
+// NÃO CONFIE NO PRIMEIRO RESULTADO. A busca do Deezer é aproximada e cheia de
+// homônimos/perfis vazios; pegar o [0] às cegas dava dois estragos, ambos
+// medidos no acervo da empresa:
+//   "Adele"  → "Adèle & Zalem" (duo francês obscuro) — cara de outra pessoa
+//   "Anitta" → um dos 5 "Anitta", com 151 fãs e SEM foto — pódio vazio, sendo
+//              que a cantora (7,3 mi de fãs) estava na mesma lista
+// Por isso a escolha passa por três filtros (ver _melhorArtista): nome igual,
+// foto de verdade e o mais popular. Sem candidato, devolve null e a UI mostra as
+// iniciais — melhor sem foto do que com a foto errada.
 const _artistImgCache = {};
 // Compara nomes ignorando acento, caixa e pontuação ("JAŸ-Z" = "JAY Z",
 // "LUDMILLA" = "Ludmilla", "MAGIC!" = "Magic!").
 const _normArtist = (s) => (s || '').toLowerCase().normalize('NFD')
   .replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
+// O Deezer serve um placeholder quando o artista NÃO TEM foto, e o caminho dele
+// é sempre o mesmo hash (md5 da string vazia). Sem descartar isso, um perfil
+// homônimo vazio ganha do artista de verdade e o pódio fica com um buraco.
+const _DZ_SEM_FOTO = 'd41d8cd98f00b204e9800998ecf8427e';
+// Escolhe o artista certo entre os resultados: nome igual, foto de verdade e o
+// MAIS POPULAR. Homônimo é comum — "Anitta" devolve 5 artistas, e a cantora
+// (7,3 mi de fãs) não é a primeira da lista; a primeira é um perfil com 151 fãs
+// e sem foto.
+const _melhorArtista = (lista, nome) => (lista || [])
+  .filter(a => _normArtist(a?.name) === _normArtist(nome))
+  .filter(a => !String(a?.picture_big || a?.picture || '').includes(_DZ_SEM_FOTO))
+  .sort((a, b) => (b?.nb_fan || 0) - (a?.nb_fan || 0))[0];
 function fetchArtistImage(name) {
   return new Promise((resolve) => {
     const key = (name || '').trim();
@@ -58,8 +70,8 @@ function fetchArtistImage(name) {
     };
     const timer = setTimeout(() => done(null), 6000);
     window[cb] = (data) => {
-      // O certo é o que TEM O MESMO NOME — não o primeiro da lista.
-      const a = (data?.data || []).find(x => _normArtist(x?.name) === _normArtist(key));
+      // Nome igual + foto real + mais popular — não o primeiro da lista.
+      const a = _melhorArtista(data?.data, key);
       // Prefere picture_big (500x500) — picture_medium (250) ficava borrado nas
       // fotos grandes do pódio (124px, ~248px em telas retina). 500 é nítido e leve;
       // o zoom sobe pra 1000 via hdArtistImage. Cai pra menores só se faltar.
