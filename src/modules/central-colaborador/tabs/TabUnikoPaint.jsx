@@ -1316,10 +1316,6 @@ const TabUnikoPaint = () => {
   const [sqlMissing, setSqlMissing] = useState(false);
   const [picker, setPicker] = useState(false);
   const lobbyChan = useRef(null);
-  const roomRef = useRef(null);
-  const photoRef = useRef(photo);
-  useEffect(() => { roomRef.current = room; }, [room]);
-  useEffect(() => { photoRef.current = photo; }, [photo]);
 
   // Migração rodada?
   useEffect(() => {
@@ -1328,23 +1324,36 @@ const TabUnikoPaint = () => {
     });
   }, []);
 
-  /* Presence ÚNICA pra todo o jogo: cada um publica em que sala está. É assim
-     que o lobby mostra quem está em cada sala sem assinar o canal de todas. */
-  // Relê o estado do canal e joga na UI. `presenceState()` é LOCAL (o SDK mantém
-  // o mapa em memória), então chamar isso é de graça — não vai à rede.
+  /* ── Presence ÚNICA pra todo o jogo ──────────────────────────────────────
+     Cada um publica { name, photo, room }; é daí que o lobby sabe quem está em
+     cada sala sem assinar o canal de todas.
+
+     POR QUE O CANAL É RECRIADO A CADA MUDANÇA (e não um track() novo):
+     `track()` repetido no mesmo canal NÃO atualiza os outros — medido: o valor
+     velho continua no presenceState deles, e untrack()+track() cria uma SEGUNDA
+     entrada sem remover a primeira. Efeito: você entra numa sala e todo mundo
+     continua te vendo no lobby; a lista da sala fica errada pros outros e só um
+     F5 conserta — porque o F5 recria o canal, que é o que fazemos aqui de
+     propósito. Trocar de sala/Uniko é raro, então reconectar sai barato. ── */
+  // Relê o estado do canal. `presenceState()` é LOCAL (o SDK mantém o mapa em
+  // memória), então chamar isso não vai à rede.
   const refreshPresence = useCallback(() => {
     const ch = lobbyChan.current; if (!ch) return;
-    const list = Object.values(ch.presenceState()).flat()
+    // A ÚLTIMA entrada de cada key, nunca a primeira: quando sobra entrada velha
+    // (acontece), a primeira é a desatualizada — era ela que a UI mostrava.
+    const list = Object.values(ch.presenceState())
+      .map(arr => arr[arr.length - 1])
+      .filter(Boolean)
       .map(p => ({ name: p.name, photo: p.photo, room: p.room }));
     const seen = new Set();
-    setTodos(list.filter(p => (seen.has(p.name) ? false : (seen.add(p.name), true))));
+    setTodos(list.filter(p => p?.name && (seen.has(p.name) ? false : (seen.add(p.name), true))));
   }, []);
 
   useEffect(() => {
     const ch = supabase.channel('uniko-paint-presence', { config: { presence: { key: name } } });
     lobbyChan.current = ch;
     // Os TRÊS eventos, não só o 'sync': sozinho ele não dispara de forma confiável
-    // quando OUTRA pessoa entra/sai (era por isso que só aparecia gente após F5).
+    // quando OUTRA pessoa entra/sai.
     ch.on('presence', { event: 'sync' },  refreshPresence)
       .on('presence', { event: 'join' },  refreshPresence)
       .on('presence', { event: 'leave' }, refreshPresence);
@@ -1353,23 +1362,14 @@ const TabUnikoPaint = () => {
       // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
       // no console em vez de sumir calado (foi assim que o payload gigante da
       // foto passou despercebido).
-      const r = await ch.track({ name, photo: photoRef.current, room: roomRef.current });
+      const r = await ch.track({ name, photo, room });
       if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
       refreshPresence();
     });
-    // Rede de segurança: se algum evento se perder, isso conserta em ≤2s. Barato
-    // porque presenceState() não vai à rede.
+    // Rede de segurança: se algum evento se perder, conserta em ≤2s (sem rede).
     const t = setInterval(refreshPresence, 2000);
     return () => { clearInterval(t); supabase.removeChannel(ch); lobbyChan.current = null; };
-  }, [name, refreshPresence]);
-
-  // Reanuncia ao trocar de sala / trocar a foto.
-  useEffect(() => {
-    const ch = lobbyChan.current; if (!ch) return;
-    Promise.resolve(ch.track({ name, photo, room }))
-      .then(r => { if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r); })
-      .catch(e => console.error('[uniko-paint] presence track:', e));
-  }, [room, photo, name]);
+  }, [name, photo, room, refreshPresence]);
 
   // Agrupa por sala — o lobby e a sala consomem isso.
   const porSala = useMemo(() => {
