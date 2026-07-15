@@ -124,52 +124,112 @@ const SPLATS_HEADER = [
 const ROOM_TTL_MS = 20 * 60_000;
 
 /* ── TEMAS ─────────────────────────────────────────────────────────────────── */
+/* Cada tema tem ~45 palavras de propósito: uma partida de 5 jogadores × 3 voltas
+   são 15 rodadas, e com os 2 pulos por rodada o pior caso consome até 45. Com os
+   ~20 de antes o baralho ESGOTAVA no meio e as palavras começavam a repetir. */
 const THEMES = [
   { id: 'escritorio', nome: 'Escritório', emoji: '💼', words: [
     'headset', 'fone de ouvido', 'teclado', 'notebook', 'gelágua', 'mesa', 'café',
     'geladeira', 'crachá', 'impressora', 'grampeador', 'cafeteira', 'mouse',
     'cadeira de escritório', 'reunião', 'holerite', 'ponto eletrônico', 'monitor',
-    'clipe de papel', 'post-it', 'ar-condicionado', 'garrafa térmica'] },
+    'clipe de papel', 'post-it', 'ar-condicionado', 'garrafa térmica',
+    'caneta', 'lápis', 'borracha', 'régua', 'caderno', 'agenda', 'calculadora',
+    'grampo', 'pasta', 'armário', 'lixeira', 'telefone', 'crachá de visitante',
+    'quadro branco', 'projetor', 'apresentação', 'planilha', 'e-mail', 'senha',
+    'cabo de rede', 'tomada', 'estagiário', 'chefe', 'café expresso', 'bebedouro',
+    'copo descartável', 'elevador', 'escritório vazio'] },
   { id: 'comida', nome: 'Comida', emoji: '🍕', words: [
     'pizza', 'brigadeiro', 'açaí', 'coxinha', 'pastel', 'churrasco', 'sorvete',
     'melancia', 'pipoca', 'hambúrguer', 'sushi', 'bolo de aniversário', 'feijoada',
     'pão de queijo', 'cachorro-quente', 'tapioca', 'ovo frito', 'espaguete',
-    'cupcake', 'abacaxi', 'banana', 'churros'] },
+    'cupcake', 'abacaxi', 'banana', 'churros',
+    'batata frita', 'sanduíche', 'lasanha', 'panqueca', 'donut', 'pudim',
+    'milkshake', 'refrigerante', 'suco de laranja', 'cerveja', 'vinho', 'queijo',
+    'pão francês', 'bolacha', 'chocolate', 'sorvete de casquinha', 'morango',
+    'uva', 'maçã', 'cenoura', 'brócolis', 'arroz e feijão', 'salada', 'sopa',
+    'churrasquinho', 'pizza de calabresa', 'mandioca', 'pamonha', 'canjica'] },
   { id: 'animais', nome: 'Animais', emoji: '🐾', words: [
     'gato', 'cachorro', 'pinguim', 'elefante', 'girafa', 'tubarão', 'polvo',
     'borboleta', 'caracol', 'dinossauro', 'coruja', 'tartaruga', 'abelha', 'sapo',
-    'cavalo', 'macaco', 'leão', 'cobra', 'peixe', 'aranha', 'preguiça', 'tucano'] },
+    'cavalo', 'macaco', 'leão', 'cobra', 'peixe', 'aranha', 'preguiça', 'tucano',
+    'zebra', 'urso', 'panda', 'coelho', 'rato', 'porco', 'vaca', 'galinha',
+    'pato', 'ovelha', 'cabra', 'camelo', 'canguru', 'golfinho', 'baleia',
+    'estrela-do-mar', 'caranguejo', 'formiga', 'joaninha', 'mosquito', 'morcego',
+    'papagaio', 'pavão', 'flamingo', 'jacaré', 'lagarto', 'esquilo', 'raposa',
+    'lobo', 'tigre', 'hipopótamo', 'rinoceronte'] },
   { id: 'filmes', nome: 'Filmes e Séries', emoji: '🎬', words: [
     'titanic', 'homem-aranha', 'batman', 'star wars', 'harry potter', 'rei leão',
     'procurando nemo', 'jurassic park', 'toy story', 'shrek', 'frozen', 'matrix',
     'pantera negra', 'minions', 'e.t.', 'king kong', 'chaves', 'os vingadores',
-    'de volta para o futuro', 'a bela e a fera'] },
+    'de volta para o futuro', 'a bela e a fera',
+    'homem de ferro', 'superman', 'mulher-maravilha', 'hulk', 'thor', 'coringa',
+    'darth vader', 'yoda', 'r2-d2', 'gollum', 'senhor dos anéis', 'piratas do caribe',
+    'tubarão', 'os incríveis', 'up altas aventuras', 'wall-e', 'ratatouille',
+    'divertida mente', 'moana', 'cinderela', 'branca de neve', 'pinóquio',
+    'stranger things', 'game of thrones', 'the office', 'friends', 'round 6',
+    'homem-formiga', 'capitão américa', 'velozes e furiosos'] },
   { id: 'esportes', nome: 'Esportes', emoji: '⚽', words: [
     'futebol', 'basquete', 'vôlei', 'natação', 'tênis', 'skate', 'surfe', 'boxe',
     'ciclismo', 'corrida', 'judô', 'golfe', 'patins', 'medalha', 'troféu',
-    'apito', 'cartão vermelho', 'gol', 'academia', 'halteres'] },
+    'apito', 'cartão vermelho', 'gol', 'academia', 'halteres',
+    'bola de futebol', 'chuteira', 'goleiro', 'pênalti', 'juiz', 'torcida',
+    'estádio', 'cesta de basquete', 'raquete', 'rede', 'piscina', 'maratona',
+    'tênis de corrida', 'capacete', 'bicicleta', 'skatista', 'prancha de surfe',
+    'luva de boxe', 'ringue', 'tatame', 'faixa preta', 'arco e flecha',
+    'ginástica', 'trave', 'salto em distância', 'vôlei de praia', 'pebolim',
+    'ping-pong', 'boliche', 'xadrez', 'pódio', 'cronômetro'] },
   { id: 'musica', nome: 'Música', emoji: '🎵', words: [
     'guitarra', 'violão', 'bateria', 'piano', 'microfone', 'pandeiro', 'flauta',
     'saxofone', 'caixa de som', 'fone de ouvido', 'disco de vinil', 'karaokê',
-    'show', 'partitura', 'triângulo', 'cavaquinho', 'sanfona', 'tambor', 'dj'] },
+    'show', 'partitura', 'triângulo', 'cavaquinho', 'sanfona', 'tambor', 'dj',
+    'baixo', 'teclado musical', 'harpa', 'violino', 'trompete', 'gaita',
+    'ukulele', 'berimbau', 'agogô', 'chocalho', 'maracas', 'xilofone',
+    'nota musical', 'clave de sol', 'metrônomo', 'amplificador', 'palheta',
+    'cantor', 'banda', 'orquestra', 'maestro', 'coral', 'palco', 'holofote',
+    'radio', 'walkman', 'caixa de música', 'apito', 'batuque', 'roda de samba',
+    'guitarra elétrica'] },
   { id: 'natureza', nome: 'Natureza', emoji: '🌳', words: [
     'praia', 'montanha', 'cachoeira', 'arco-íris', 'vulcão', 'ilha', 'floresta',
     'chuva', 'sol', 'lua', 'estrela', 'nuvem', 'árvore', 'flor', 'cacto',
-    'deserto', 'rio', 'neve', 'furacão', 'girassol', 'folha', 'pôr do sol'] },
+    'deserto', 'rio', 'neve', 'furacão', 'girassol', 'folha', 'pôr do sol',
+    'trovão', 'relâmpago', 'tempestade', 'nevoeiro', 'orvalho', 'geada',
+    'lago', 'lagoa', 'caverna', 'penhasco', 'vale', 'colina', 'campo',
+    'bambu', 'palmeira', 'coqueiro', 'pinheiro', 'rosa', 'margarida', 'tulipa',
+    'cogumelo', 'trevo de quatro folhas', 'semente', 'raiz', 'tronco',
+    'cometa', 'planeta', 'eclipse', 'aurora boreal', 'oceano', 'onda'] },
   { id: 'tecnologia', nome: 'Tecnologia', emoji: '💻', words: [
     'celular', 'notebook', 'robô', 'satélite', 'foguete', 'drone', 'wi-fi',
     'câmera', 'pen drive', 'carregador', 'controle de videogame', 'realidade virtual',
-    'antena', 'bateria', 'tablet', 'smartwatch', 'nuvem', 'senha', 'código de barras'] },
+    'antena', 'bateria', 'tablet', 'smartwatch', 'nuvem', 'senha', 'código de barras',
+    'mouse', 'teclado', 'monitor', 'impressora', 'fone bluetooth', 'caixa de som',
+    'roteador', 'cabo usb', 'disquete', 'cd', 'hd externo', 'chip', 'placa-mãe',
+    'ventoinha', 'joystick', 'fliperama', 'realidade aumentada', 'inteligência artificial',
+    'qr code', 'gps', 'radar', 'telescópio', 'microscópio', 'calculadora',
+    'lâmpada led', 'painel solar', 'carro elétrico', 'foguete espacial',
+    'estação espacial', 'astronauta', 'alienígena'] },
   { id: 'brasil', nome: 'Brasil', emoji: '🇧🇷', words: [
     'carnaval', 'festa junina', 'cristo redentor', 'pão de açúcar', 'samba',
     'capoeira', 'chinelo', 'praia de copacabana', 'boi-bumbá', 'caipirinha',
     'churrasco', 'bandeira do brasil', 'tucano', 'amazônia', 'futebol',
-    'cataratas do iguaçu', 'feijoada', 'jangada'] },
+    'cataratas do iguaçu', 'feijoada', 'jangada',
+    'pelé', 'garrincha', 'maracanã', 'escola de samba', 'bateria de escola',
+    'fantasia de carnaval', 'quadrilha', 'fogueira', 'balão', 'pipa',
+    'peteca', 'bumba meu boi', 'frevo', 'forró', 'sanfona', 'baião',
+    'açaí', 'guaraná', 'pão de queijo', 'brigadeiro', 'coxinha', 'tapioca',
+    'onça-pintada', 'arara', 'mico-leão-dourado', 'boto cor-de-rosa', 'saci',
+    'curupira', 'iara', 'lobisomem', 'mula sem cabeça', 'pantanal', 'sertão',
+    'favela', 'lençóis maranhenses'] },
   { id: 'casa', nome: 'Casa', emoji: '🏠', words: [
     'geladeira', 'sofá', 'chuveiro', 'vassoura', 'panela', 'abajur', 'ventilador',
     'escada', 'chave', 'guarda-chuva', 'espelho', 'relógio', 'travesseiro',
     'balde', 'tesoura', 'martelo', 'lâmpada', 'porta', 'janela', 'tapete',
-    'máquina de lavar', 'micro-ondas'] },
+    'máquina de lavar', 'micro-ondas',
+    'cama', 'cobertor', 'cadeira', 'mesa de jantar', 'televisão', 'controle remoto',
+    'fogão', 'pia', 'torneira', 'vaso sanitário', 'papel higiênico', 'escova de dente',
+    'sabonete', 'toalha', 'cortina', 'quadro na parede', 'vaso de planta',
+    'churrasqueira', 'varal', 'ferro de passar', 'aspirador', 'rodo', 'esponja',
+    'garfo', 'faca', 'colher', 'prato', 'copo', 'xícara', 'chaleira', 'liquidificador',
+    'guarda-roupa', 'cabide', 'gaveta', 'campainha', 'caixa de correio'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
@@ -205,6 +265,55 @@ const dec = (s) => { try { return decodeURIComponent(escape(atob(s || ''))); } c
 /* Compara palpite com a palavra ignorando acento, caixa e espaço extra. */
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/\s+/g, ' ').trim();
+/* Pra "quase lá": ignora TAMBÉM hífen e pontuação, colando tudo. É o que faz
+   "boto cor de rosa" bater com "boto cor-de-rosa" — a pessoa sabe a resposta,
+   só escreveu com outra pontuação. */
+const normFolgado = (s) => norm(s).replace(/[^a-z0-9]/g, '');
+
+/* Distância de edição (Levenshtein) — quantas letras faltam pra ser igual.
+   Usada só pra dizer "quase!", nunca pra dar o ponto: acerto continua exato. */
+const distancia = (a, b) => {
+  if (a === b) return 0;
+  if (!a.length || !b.length) return Math.max(a.length, b.length);
+  let linha = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const nova = [i];
+    for (let j = 1; j <= b.length; j++) {
+      nova[j] = Math.min(
+        linha[j] + 1,                                   // remoção
+        nova[j - 1] + 1,                                // inserção
+        linha[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1), // troca
+      );
+    }
+    linha = nova;
+  }
+  return linha[b.length];
+};
+
+const mesmasLetras = (a, b) => [...a].sort().join('') === [...b].sort().join('');
+
+/* "Quase lá" = a pessoa SABE a palavra e errou a ESCRITA. Não é "chegou perto".
+   A diferença importa: dizer "quase" pra quem chutou OUTRA palavra entrega a
+   resposta — bastaria chutar até o jogo dizer "quase" e você saberia que a
+   palavra é parecida com aquela. Por isso não dá pra usar distância de edição
+   pura: "rato" fica a 1 letra de "gato", mas é outra palavra.
+   Só conta como quase: */
+const quaseLa = (palpite, alvo) => {
+  const p = normFolgado(palpite), a = normFolgado(alvo);
+  if (!p || !a || p.length < 3) return false;
+  // 1) mesma palavra, só pontuação/acento diferente
+  //    "boto cor de rosa" ≈ "boto cor-de-rosa"
+  if (p === a) return true;
+  // 2) plural/singular
+  if (p === `${a}s` || a === `${p}s` || p === `${a}es` || a === `${p}es`) return true;
+  // 3) letras trocadas de lugar (dedo escorregou): MESMAS letras, ordem diferente
+  //    "geladeria" ≈ "geladeira" — e "rato" NÃO tem as mesmas letras de "gato"
+  if (p.length === a.length && mesmasLetras(p, a) && distancia(p, a) <= 2) return true;
+  // 4) uma letra a mais ou a menos ("geladera" ≈ "geladeira") — inserção/remoção,
+  //    nunca TROCA de letra, que é o que faz virar outra palavra
+  if (Math.abs(p.length - a.length) === 1 && distancia(p, a) === 1) return true;
+  return false;
+};
 
 const myName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
@@ -273,6 +382,7 @@ const SFX = {
   euAcertei: () => [784, 988, 1319].forEach((f, i) => beep(f, 0.17, 'sine', 0.15, i * 0.07)),
   tick:   () => beep(1000, 0.045, 'square', 0.05),
   pulou:  () => { beep(520, 0.09, 'triangle', 0.1); beep(392, 0.14, 'triangle', 0.1, 0.07); },
+  quase:  () => { beep(700, 0.07, 'sine', 0.09); beep(840, 0.09, 'sine', 0.09, 0.06); },  // "tá quente!"
   fimRodada: () => [440, 330].forEach((f, i) => beep(f, 0.24, 'triangle', 0.1, i * 0.13)),
   vitoria: () => [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.24, 'triangle', 0.13, i * 0.12)),
   entrou: () => beep(660, 0.07, 'sine', 0.07),
@@ -790,7 +900,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const isDrawer = state?.phase === 'drawing' && state?.drawer === name;
   const word     = useMemo(() => dec(state?.wordEnc), [state?.wordEnc]);
-  const host     = useMemo(() => players.map(p => p.name).sort((a, b) => a.localeCompare(b))[0], [players]);
+  /* HOST — quem criou a sala manda; se ele não está, o mais antigo na sala.
+     Era `sort()[0]` (menor nome alfabético), o que fazia o host TROCAR SOZINHO
+     no meio da partida: você é host, entra o "Alan", e ele rouba o comando só
+     por vir antes no alfabeto. Como o host é quem toca o relógio e grava o
+     placar, isso trocava o dono da partida no meio do jogo.
+     `entrouEm` (relógio de quem entrou) é só desempate — relógios de máquinas
+     diferentes divergem, então não dá pra confiar nele como critério principal;
+     o nome fecha o empate pra decisão ser igual em todos os clientes. */
+  const host = useMemo(() => {
+    if (!players.length) return undefined;
+    const criador = state?.criador;
+    if (criador && players.some(p => p.name === criador)) return criador;
+    return [...players].sort((a, b) =>
+      (a.entrouEm || 0) - (b.entrouEm || 0) || a.name.localeCompare(b.name))[0]?.name;
+  }, [players, state?.criador]);
   const isHost   = host === name;
   const iHit     = !!state?.hits?.includes(name);
   const secsLeft = state?.endsAt ? Math.max(0, Math.ceil((state.endsAt - now) / 1000)) : 0;
@@ -807,34 +931,61 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   }, [secsLeft, state?.phase, sfx]);
 
   useEffect(() => { isDrawerRef.current = isDrawer; }, [isDrawer]);
-  useEffect(() => { stateRef.current = state; }, [state]);
+  // Rede de segurança: `aplicaEstado` já mantém o stateRef em dia de forma
+  // síncrona (é o caminho de TODA mudança de estado). Isto só cobre o caso de
+  // alguém setar `state` por fora dele no futuro.
+  useEffect(() => { if (state) stateRef.current = state; }, [state]);
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
   useEffect(() => { playersRef.current = players; }, [players]);
 
-  /* ── Estado da sala ──────────────────────────────────────────────────── */
+  /* ── Estado da sala ──────────────────────────────────────────────────────
+     Todo estado carrega um `ts` (relógio da própria partida) e passa por
+     `aplicaEstado`, que faz duas coisas essenciais:
+
+     1. DESCARTA ESTADO VELHO. O poll de 4s e o realtime podem entregar uma
+        resposta que saiu do banco ANTES da última mudança — e aplicar isso
+        rebobinava a partida pra rodada anterior. Foi o que fez "TABLET" não
+        acertar "tablet": o palpite era comparado com a palavra da rodada
+        PASSADA, que o poll tinha acabado de restaurar por baixo dos panos. É
+        também o que fazia o tema piscar e voltar.
+     2. Atualiza o `stateRef` NA HORA. O ref alimentava-se por useEffect, ou
+        seja, só depois do render — e é ele que o acerto consulta. ── */
+  const aplicaEstado = useCallback((st) => {
+    if (!st) return;
+    const atual = stateRef.current;
+    // Só descarta quando dá pra ter CERTEZA de que é atrasado — ou seja, quando
+    // os dois lados têm `ts`. Estado sem carimbo (sala recém-criada, ou alguém
+    // ainda com o bundle antigo no ar durante um deploy) passa: ignorá-lo
+    // dessincronizaria a partida, que é pior do que o que estamos evitando.
+    if (atual?.ts && st.ts && st.ts < atual.ts) return;
+    stateRef.current = st;                                  // síncrono, antes do render
+    setState(st);
+  }, []);
+
   const pushState = useCallback(async (next) => {
+    const carimbado = { ...next, ts: Date.now() };
+    aplicaEstado(carimbado);            // otimista: já vale localmente
     try {
       await supabase.from('uniko_paint_state')
-        .update({ state: next, updated_at: new Date().toISOString() }).eq('id', roomId);
-      setState(next); // otimista
+        .update({ state: carimbado, updated_at: new Date().toISOString() }).eq('id', roomId);
     } catch (e) { console.error('[uniko-paint] pushState:', e); }
-  }, [roomId]);
+  }, [roomId, aplicaEstado]);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const { data } = await supabase.from('uniko_paint_state').select('state').eq('id', roomId).maybeSingle();
       if (!alive) return;
-      if (data?.state) setState(data.state);
+      aplicaEstado(data?.state);
     };
     load();
     const ch = supabase.channel(`uniko-paint-state-${roomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_paint_state', filter: `id=eq.${roomId}` },
-        ({ new: row }) => { if (row?.state) setState(row.state); })
+        ({ new: row }) => aplicaEstado(row?.state))
       .subscribe();
     const poll = setInterval(load, 4000);
     return () => { alive = false; supabase.removeChannel(ch); clearInterval(poll); };
-  }, [roomId]);
+  }, [roomId, aplicaEstado]);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
 
@@ -894,6 +1045,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       return;
     }
     addChat({ name: p.name, text: p.text, kind: s?.hits?.includes(p.name) ? 'muted' : 'chat' });
+    // "Quase lá!" — só pra QUEM chutou, e só se a rodada ainda está rolando.
+    // Se fosse pra todos, entregaria a resposta: ver o palpite de outro marcado
+    // como "quase" já diz que a palavra é praticamente aquela.
+    if (p.name === name && s?.phase === 'drawing' && w && !acertou
+        && p.name !== s.drawer && !s.hits?.includes(p.name) && quaseLa(p.text, w)) {
+      addChat({ name: 'UNIKO', text: 'quase lá! 🔥 confira a escrita', kind: 'quase' });
+      sfx('quase');
+    }
   };
   const registerHit = (who) => {
     const s = stateRef.current;
@@ -923,28 +1082,43 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
   const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco) => {
+    const base = stateRef.current || {};
+    // O TEMA NUNCA PODE SE PERDER. Antes este objeto era montado do ZERO, sem o
+    // estado anterior: bastava `themeId` chegar undefined (ex.: host aperta
+    // "Começar" antes do state da sala carregar) pra sala ficar sem tema — o
+    // cabeçalho trocava sozinho pra "Geral" e as palavras (inclusive as do botão
+    // Pular) passavam a vir do baralho errado. Uma vez perdido, nunca voltava,
+    // porque cada rodada repassava o undefined pra seguinte.
+    const tema = themeId || base.themeId || GERAL.id;
     const drawer = queue[0];
-    const pool0 = themeById(themeId).words;
+    const pool0 = themeById(tema).words;
     const livres = pool0.filter(w => !usadas.includes(w));
     const pool = livres.length ? livres : pool0;   // acabou o baralho → recomeça
     const w = pool[Math.floor(Math.random() * pool.length)];
     chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
     clearAll();
     pushState({
-      nome, criador: stateRef.current?.criador,
+      ...base,                                     // preserva nome/criador/tema
+      nome: nome || base.nome,
+      themeId: tema,
       phase: 'drawing', round, drawer, wordEnc: enc(w),
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
-      usadas: [...usadas, w], themeId, hints: 0,
+      usadas: [...usadas, w],
+      hints: 0,
+      skips: 0,                                    // pulos são POR RODADA — com o
+                                                   // spread acima, sem zerar aqui
+                                                   // eles vazariam pra próxima
       // quem já estava quando a partida começou (+ quem entrou depois e já foi
       // encaixado na fila) — sem isso não dá pra saber quem é "novo"
       elenco: elenco || [...new Set(queue)],
     });
   };
   const startGame = () => {
+    if (!state) return;                 // sem o state da sala não há tema — ver startRound
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
     const queue = Array.from({ length: laps }, () => ordem).flat();
     // Tema é o que a sala definiu na criação — não se vota, não muda.
-    startRound(queue, {}, 1, queue.length, [], state?.themeId, state?.nome, ordem);
+    startRound(queue, {}, 1, queue.length, [], state.themeId, state.nome, ordem);
   };
 
   useEffect(() => {
@@ -1344,12 +1518,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                           {' '}(~{Math.round(laps * Math.max(players.length, 1) * (ROUND_MS + REVEAL_MS) / 60000)} min)
                         </span>
                       </div>
-                      <button onClick={startGame} disabled={players.length < MIN_PLAYERS}
+                      {/* `!state` também trava: começar antes do state da sala
+                          carregar deixava a partida SEM TEMA (ver startRound). */}
+                      <button className="up-btn" onClick={startGame} disabled={players.length < MIN_PLAYERS || !state}
                         style={{ padding: '11px 26px', borderRadius: 999, border: 'none',
-                          background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
-                          color: '#fff', fontSize: 14, fontWeight: 800, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
-                          boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${AG}` }}>
-                        {state?.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
+                          background: (players.length < MIN_PLAYERS || !state) ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
+                          color: '#fff', fontSize: 14, fontWeight: 800,
+                          cursor: (players.length < MIN_PLAYERS || !state) ? 'not-allowed' : 'pointer',
+                          boxShadow: (players.length < MIN_PLAYERS || !state) ? 'none' : `0 6px 18px ${AG}` }}>
+                        {!state ? 'Carregando sala...' : state.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
                       </button>
                       {players.length < MIN_PLAYERS && (
                         <div style={{ fontSize: 12, color: T.textT }}>
@@ -1480,13 +1657,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             )}
             {chat.map(m => (
               <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
-                color: m.kind === 'hit' ? '#28a060' : m.kind === 'sys' ? T.textT : T.text,
+                color: m.kind === 'hit' ? '#28a060' : m.kind === 'quase' ? UP.orange
+                  : m.kind === 'sys' ? T.textT : T.text,
                 fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
-                background: m.kind === 'hit' ? '#28a06012' : 'transparent',
-                borderRadius: m.kind === 'hit' ? 7 : 0, padding: m.kind === 'hit' ? '4px 7px' : 0,
+                fontWeight: m.kind === 'quase' ? 700 : 400,
+                background: m.kind === 'hit' ? '#28a06012' : m.kind === 'quase' ? `${UP.orange}14` : 'transparent',
+                border: m.kind === 'quase' ? `1px solid ${UP.orange}44` : 'none',
+                borderRadius: (m.kind === 'hit' || m.kind === 'quase') ? 7 : 0,
+                padding: (m.kind === 'hit' || m.kind === 'quase') ? '4px 7px' : 0,
                 opacity: m.kind === 'muted' ? .5 : 1 }}>
                 {m.kind === 'hit' && <IcoCheck size={12} />}{' '}
-                <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>{' '}
+                {m.kind !== 'quase' && <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>}{' '}
                 <span>{m.text}</span>
               </div>
             ))}
@@ -1525,6 +1706,18 @@ const TabUnikoPaint = () => {
   const [sqlMissing, setSqlMissing] = useState(false);
   const [picker, setPicker] = useState(false);
   const lobbyChan = useRef(null);
+  /* Quando entrei NESTA sala — desempata quem é o host. Renova ao trocar de sala
+     (é uma entrada nova), mas NÃO ao trocar de Uniko: como a troca de foto
+     recria o canal, sem esse cuidado a pessoa "acabaria de chegar" a cada troca
+     de Uniko e perderia a antiguidade (e o host junto). */
+  const [entrouEm, setEntrouEm] = useState(() => Date.now());
+  const jaMontou = useRef(false);
+  useEffect(() => {
+    // Na montagem o valor do useState já serve; recarimbar aqui só causaria um
+    // render extra e recriaria o canal de presence à toa.
+    if (!jaMontou.current) { jaMontou.current = true; return; }
+    setEntrouEm(Date.now());
+  }, [room]);
 
   // Migração rodada?
   useEffect(() => {
@@ -1553,7 +1746,7 @@ const TabUnikoPaint = () => {
     const list = Object.values(ch.presenceState())
       .map(arr => arr[arr.length - 1])
       .filter(Boolean)
-      .map(p => ({ name: p.name, photo: p.photo, room: p.room }));
+      .map(p => ({ name: p.name, photo: p.photo, room: p.room, entrouEm: p.entrouEm }));
     const seen = new Set();
     setTodos(list.filter(p => p?.name && (seen.has(p.name) ? false : (seen.add(p.name), true))));
   }, []);
@@ -1571,14 +1764,14 @@ const TabUnikoPaint = () => {
       // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
       // no console em vez de sumir calado (foi assim que o payload gigante da
       // foto passou despercebido).
-      const r = await ch.track({ name, photo, room });
+      const r = await ch.track({ name, photo, room, entrouEm });
       if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
       refreshPresence();
     });
     // Rede de segurança: se algum evento se perder, conserta em ≤2s (sem rede).
     const t = setInterval(refreshPresence, 2000);
     return () => { clearInterval(t); supabase.removeChannel(ch); lobbyChan.current = null; };
-  }, [name, photo, room, refreshPresence]);
+  }, [name, photo, room, entrouEm, refreshPresence]);
 
   // Agrupa por sala — o lobby e a sala consomem isso.
   const porSala = useMemo(() => {
