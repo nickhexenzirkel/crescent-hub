@@ -43,9 +43,6 @@ const REVEAL_MS = 5_000;    // tela de "a palavra era..."
 const MIN_PLAYERS = 2;
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
-/* Pulos por rodada: 2 é o suficiente pra escapar de uma palavra impossível sem
-   virar "fico trocando até vir uma fácil". */
-const MAX_SKIPS = 2;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
 const GLOBAL_ROOM = 'global';
 /* Mascote oficial do Uniko Paint (gato-robô de boina, respingado de tinta). */
@@ -944,6 +941,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [now, setNow]     = useState(() => Date.now());
   const [laps, setLaps]   = useState(DEFAULT_LAPS);
   const [vez, setVez]     = useState(null);   // overlay "é a vez de fulano"
+  const [confirmPular, setConfirmPular] = useState(false);
   const [somOn, setSomOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
   const somRef = useRef(somOn);
   useEffect(() => { somRef.current = somOn; try { localStorage.setItem(SOUND_KEY, somOn ? '1' : '0'); } catch { /* sem localStorage */ } }, [somOn]);
@@ -1244,9 +1242,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
       usadas: [...usadas, w],
       hints: 0,
-      skips: 0,                                    // pulos são POR RODADA — com o
-                                                   // spread acima, sem zerar aqui
-                                                   // eles vazariam pra próxima
+      pulada: false,        // o spread acima traria a marca da rodada anterior
       // quem já estava quando a partida começou (+ quem entrou depois e já foi
       // encaixado na fila) — sem isso não dá pra saber quem é "novo"
       elenco: elenco || [...new Set(queue)],
@@ -1372,35 +1368,26 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     pushState({ ...s, hints: (s.hints || 0) + 1 });
   };
 
-  /* ── Pular a palavra ─────────────────────────────────────────────────────
-     Troca a palavra e reinicia o tempo, mantendo a vez de quem desenha — é o
-     caso "peguei algo impossível de desenhar". Regras pra não virar abuso:
-     • no máximo MAX_SKIPS por rodada;
-     • NÃO dá pra pular depois que alguém já acertou (a palavra já foi
-       descoberta — trocar puniria quem acertou e zeraria a rodada dos outros).
+  /* ── Pular a VEZ ─────────────────────────────────────────────────────────
+     Abre mão de desenhar: a rodada encerra na hora e passa pro próximo da fila.
+     Quem pula não desenha e não pontua (o desenhista só ganharia pelos acertos,
+     que não vão existir). Regra: NÃO dá pra pular depois que alguém já acertou —
+     isso apagaria os pontos de quem acertou.
      Quem escreve aqui é o DESENHISTA, não o host — mesmo caminho do "Dar dica",
-     já que a rodada é dele. */
-  const podePular = isDrawer && state?.phase === 'drawing'
-    && (state?.skips || 0) < MAX_SKIPS && !(state?.hits?.length);
-  const pularPalavra = () => {
+     já que a rodada é dele. O host cuida de avançar a fila normalmente, como faz
+     quando o tempo acaba. */
+  const podePular = isDrawer && state?.phase === 'drawing' && !(state?.hits?.length);
+  const pularVez = () => {
     const s = stateRef.current;
-    if (!isDrawer || !s || s.phase !== 'drawing') return;
-    if ((s.skips || 0) >= MAX_SKIPS || s.hits?.length) return;
-    const pool0 = themeById(s.themeId).words;
-    const usadas = s.usadas || [];
-    const livres = pool0.filter(w => !usadas.includes(w));
-    const pool = livres.length ? livres : pool0;    // acabou o baralho → recomeça
-    const nova = pool[Math.floor(Math.random() * pool.length)];
-    chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
+    if (!isDrawer || !s || s.phase !== 'drawing' || s.hits?.length) return;
     chanRef.current?.send({ type: 'broadcast', event: 'pulou', payload: { name } });
-    clearAll();
-    addChat({ name, text: 'pulou a palavra 🔄', kind: 'sys' });
+    addChat({ name, text: 'passou a vez ⏭', kind: 'sys' });
     sfx('pulou');
+    setConfirmPular(false);
+    // Vira 'reveal' — o host avança pro próximo daí, igual ao fim do tempo.
     pushState({
-      ...s, wordEnc: enc(nova), usadas: [...usadas, nova],
-      hints: 0,                                     // dicas recomeçam do zero
-      skips: (s.skips || 0) + 1,
-      endsAt: Date.now() + ROUND_MS,                // palavra nova, tempo cheio
+      ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS,
+      lastWord: dec(s.wordEnc), pulada: true,
     });
   };
 
@@ -1429,7 +1416,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
     ch.on('broadcast', { event: 'pulou' }, ({ payload }) => {
       if (payload?.name === name) return;         // quem pulou já viu o aviso
-      addChat({ name: payload.name, text: 'pulou a palavra 🔄', kind: 'sys' });
+      addChat({ name: payload.name, text: 'passou a vez ⏭', kind: 'sys' });
       sfx('pulou');
     });
     ch.subscribe((st) => {
@@ -1615,19 +1602,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </button>
                 )}
                 {isDrawer && (
-                  <button className="up-btn" onClick={pularPalavra} disabled={!podePular}
-                    title={state?.hits?.length ? 'Alguém já acertou — não dá mais pra trocar'
-                      : (state?.skips || 0) >= MAX_SKIPS ? 'Você já usou seus pulos nesta rodada'
-                      : `Trocar por outra palavra (${MAX_SKIPS - (state?.skips || 0)} restante${MAX_SKIPS - (state?.skips || 0) > 1 ? 's' : ''})`}
+                  /* Dois cliques de propósito: pular custa a vez INTEIRA (não
+                     desenha e não pontua), então um clique sem querer seria caro. */
+                  <button className="up-btn" onClick={() => (confirmPular ? pularVez() : setConfirmPular(true))}
+                    disabled={!podePular}
+                    onBlur={() => setConfirmPular(false)}
+                    title={state?.hits?.length ? 'Alguém já acertou — não dá mais pra pular'
+                      : 'Passar a vez pro próximo (você não desenha nem pontua nesta rodada)'}
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
-                      border: `1px solid ${podePular ? UP.orange : T.border}`,
+                      border: `1px solid ${!podePular ? T.border : confirmPular ? UP.red : UP.orange}`,
                       cursor: podePular ? 'pointer' : 'not-allowed',
-                      background: podePular ? `${UP.orange}14` : 'transparent',
-                      color: podePular ? UP.orange : T.textD, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <IcoSkip size={13} />Pular
-                    {podePular && MAX_SKIPS - (state?.skips || 0) < MAX_SKIPS && (
-                      <span style={{ opacity: .7 }}>({MAX_SKIPS - (state?.skips || 0)})</span>
-                    )}
+                      background: !podePular ? 'transparent' : confirmPular ? `${UP.red}18` : `${UP.orange}14`,
+                      color: !podePular ? T.textD : confirmPular ? UP.red : UP.orange,
+                      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <IcoSkip size={13} />{confirmPular ? 'Confirmar?' : 'Pular vez'}
                   </button>
                 )}
                 <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
@@ -1668,8 +1656,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     </div>
                   </>
                 ) : state?.phase === 'reveal' ? (
-                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
-                    A palavra era <span style={{ color: A }}>{state.lastWord}</span>
+                  <div style={{ textAlign: 'center' }}>
+                    {state.pulada && (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: UP.orange, marginBottom: 5 }}>
+                        ⏭ {state.drawer?.split(' ')[0]} passou a vez
+                      </div>
+                    )}
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
+                      A palavra era <span style={{ color: A }}>{state.lastWord}</span>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>
