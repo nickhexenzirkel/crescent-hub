@@ -28,10 +28,16 @@ import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
 const GLOBAL_ROOM = 'global';
+const SORTEIO_MS = 3_400;     // roleta girando antes de liberar o formulário
 const ROUND_MS   = 120_000;   // teto da rodada se ninguém der STOP
 const STOP_MS    = 8_000;     // depois do STOP, quem ficou pra trás tem isto
 const VALIDA_MS  = 22_000;    // janela pra contestar
 const RESULT_MS  = 9_000;     // tela de pontos
+/* Escrever com a letra errada agora CUSTA pontos, não só deixa de ganhar: sem
+   isso, chutar qualquer coisa era de graça (0 pontos, mesmo de deixar em branco)
+   e não havia motivo pra não encher tudo de lixo. Deixar em branco continua 0 —
+   quem não sabe não é punido, quem chuta é. */
+const PENALIDADE = -5;
 const MIN_PLAYERS = 2;
 const ROOM_TTL_MS = 20 * 60_000;
 const LAP_OPTIONS = [3, 5, 8, 10];
@@ -97,8 +103,17 @@ const STOP_CSS = `
   background: conic-gradient(${US.roxo}, ${US.azul}, ${US.verde}, ${US.amarelo}, ${US.roxo});
   filter: blur(18px); opacity: .38; animation: usSpin 9s linear infinite;
 }
+/* Roleta do sorteio */
+@keyframes usRolar { 0% { transform: translateY(-14px) scale(.9); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes usAnel { 0% { transform: rotate(0) scale(1); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes usRevela { 0% { transform: scale(.5) rotate(-18deg); } 55% { transform: scale(1.35) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes usRaio { 0% { opacity: .8; transform: scale(.6); } 100% { opacity: 0; transform: scale(2.4); } }
+.us-rolando { animation: usRolar .07s ease-out; }
+.us-revela  { animation: usRevela .6s cubic-bezier(.2,1.5,.4,1) both; }
+.us-anel    { animation: usAnel 1.1s linear infinite; }
+.us-raio    { animation: usRaio .7s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .us-pulse, .us-urgent, .us-halo::before, .us-letra { animation: none !important; }
+  .us-pulse, .us-urgent, .us-halo::before, .us-letra, .us-anel, .us-rolando, .us-raio { animation: none !important; }
 }
 `;
 
@@ -135,7 +150,9 @@ const beep = (freq, dur = 0.12, type = 'sine', vol = 0.14, delay = 0) => {
   } catch { /* sem áudio: o jogo funciona igual */ }
 };
 const SFX = {
-  letra:  () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, 'triangle', 0.12, i * 0.07)),
+  giro:   () => beep(300 + Math.random() * 500, 0.035, 'square', 0.035),  // tique da roleta
+  letra:  () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.2, 'triangle', 0.13, i * 0.06)),
+  vai:    () => { beep(784, 0.1, 'triangle', 0.13); beep(1047, 0.2, 'triangle', 0.13, 0.09); },
   stop:   () => { beep(880, 0.1, 'square', 0.14); beep(660, 0.1, 'square', 0.14, 0.09); beep(440, 0.22, 'square', 0.14, 0.18); },
   tick:   () => beep(1000, 0.045, 'square', 0.05),
   pontos: () => [659, 784, 988].forEach((f, i) => beep(f, 0.16, 'sine', 0.12, i * 0.07)),
@@ -472,6 +489,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   const [now, setNow] = useState(() => Date.now());
   const [laps, setLaps] = useState(DEFAULT_LAPS);
   const [minhas, setMinhas] = useState({});      // o que EU escrevi nesta rodada
+  const [roleta, setRoleta] = useState('?');     // letra que a roleta mostra agora
   const [somOn, setSomOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
   const somRef = useRef(somOn);
   useEffect(() => { somRef.current = somOn; try { localStorage.setItem(SOUND_KEY, somOn ? '1' : '0'); } catch { /* sem localStorage */ } }, [somOn]);
@@ -546,12 +564,33 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     // Rodada nova: limpa o formulário. Roda uma vez por transição de fase (o
     // `ultFase` garante), não é cascata de render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (f === 'jogando') { sfx('letra'); setMinhas({}); }
+    if (f === 'sorteando') setMinhas({});
+    if (f === 'jogando') sfx('vai');
     if (f === 'parando') sfx('stop');
     if (f === 'resultado') sfx('pontos');
     if (f === 'over') sfx('vitoria');
     ultFase.current = f;
   }, [state?.phase, sfx]);
+
+  /* ── Roleta: as letras giram e vão desacelerando até parar na sorteada ──
+     A letra final já veio no estado (todos sorteiam junto, no host); isto aqui é
+     só o suspense — e ele termina na letra certa em qualquer máquina, porque a
+     animação NÃO decide nada. */
+  useEffect(() => {
+    if (state?.phase !== 'sorteando' || !state?.letra) return;
+    const t0 = Date.now();
+    let timer;
+    const girar = () => {
+      const frac = Math.min(1, (Date.now() - t0) / (SORTEIO_MS - 500));
+      if (frac >= 1) { setRoleta(state.letra); sfx('letra'); return; }   // pousa na certa
+      setRoleta(LETRAS[Math.floor(Math.random() * LETRAS.length)]);
+      sfx('giro');
+      timer = setTimeout(girar, 45 + frac * frac * 300);                 // freia no fim
+    };
+    girar();
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.phase, state?.letra]);
 
   useEffect(() => {
     if (state?.phase !== 'jogando' || secsLeft > 5 || secsLeft <= 0) return;
@@ -581,9 +620,13 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     const pool = livres.length ? livres : LETRAS;     // acabou o alfabeto → recomeça
     const letra = pool[Math.floor(Math.random() * pool.length)];
     const base = stateRef.current || {};
+    // Fase 'sorteando': a roleta gira pra todo mundo ao mesmo tempo e o relógio
+    // da rodada só começa depois — senão o tempo correria enquanto a letra ainda
+    // está girando, e quem tem a máquina mais lenta sairia perdendo.
     pushState({
-      ...base, phase: 'jogando', round, letra, endsAt: Date.now() + ROUND_MS,
+      ...base, phase: 'sorteando', round, letra, endsAt: Date.now() + SORTEIO_MS,
       scores, usadas: [...usadas, letra], respostas: {}, contest: {}, stopPor: null,
+      ganhos: null, detalhe: null,
     });
   };
   const comecar = () => {
@@ -628,8 +671,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         const chave = `${p}|${cat}`;
         const contra = Object.keys(contest[chave] || {}).length;
         let pts = 0, motivo;
-        if (!v) motivo = 'vazio';
-        else if (!valeResposta(txt, s.letra)) motivo = `não começa com ${s.letra}`;
+        if (!v) motivo = 'vazio';                       // em branco: 0, sem punir
+        else if (!valeResposta(txt, s.letra)) { pts = PENALIDADE; motivo = `não é com ${s.letra}!`; }
         else if (contra > votantes / 2) motivo = 'contestada';
         else if (cont[v] > 1) { pts = 5; motivo = 'repetida'; }
         else { pts = 10; motivo = 'única'; }
@@ -640,22 +683,39 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     return { pontos, detalhe };
   };
 
+  /* Fecha a validação e soma os pontos. Chamado pelo fim do tempo OU quando todo
+     mundo já clicou "estou pronto". */
+  const apurarAgora = (s) => {
+    const { pontos, detalhe } = apurar(s);
+    const scores = { ...(s.scores || {}) };
+    Object.entries(pontos).forEach(([p, v]) => { scores[p] = (scores[p] || 0) + v; });
+    pushState({ ...s, phase: 'resultado', scores, ganhos: pontos, detalhe,
+      prontos: {}, endsAt: Date.now() + RESULT_MS });
+  };
+
   useEffect(() => {
     if (!isHost || !state) return;
     const t = setInterval(() => {
       const s = stateRef.current;
-      if (!s?.endsAt || Date.now() < s.endsAt) return;
-      if (s.phase === 'jogando') {
+      if (!s) return;
+      // Todos clicaram "estou pronto" → apura agora, sem esperar o relógio.
+      if (s.phase === 'validando') {
+        const presentes = playersRef.current.map(p => p.name);
+        const prontos = Object.keys(s.prontos || {}).filter(n => presentes.includes(n));
+        if (presentes.length && prontos.length >= presentes.length) { apurarAgora(s); return; }
+      }
+      if (!s.endsAt || Date.now() < s.endsAt) return;
+      if (s.phase === 'sorteando') {
+        // Roleta acabou → agora sim vale o cronômetro da rodada.
+        pushState({ ...s, phase: 'jogando', endsAt: Date.now() + ROUND_MS });
+      } else if (s.phase === 'jogando') {
         // Tempo acabou sem STOP — todo mundo manda o que tem.
         enviarRespostas();
         pushState({ ...s, phase: 'parando', stopPor: null, endsAt: Date.now() + STOP_MS });
       } else if (s.phase === 'parando') {
         pushState({ ...s, phase: 'validando', endsAt: Date.now() + VALIDA_MS });
       } else if (s.phase === 'validando') {
-        const { pontos, detalhe } = apurar(s);
-        const scores = { ...(s.scores || {}) };
-        Object.entries(pontos).forEach(([p, v]) => { scores[p] = (scores[p] || 0) + v; });
-        pushState({ ...s, phase: 'resultado', scores, ganhos: pontos, detalhe, endsAt: Date.now() + RESULT_MS });
+        apurarAgora(s);
       } else if (s.phase === 'resultado') {
         if ((s.round || 1) >= (s.totalRounds || 1)) {
           salvarRanking(s);
@@ -692,6 +752,13 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       if (payload.tirar) delete desse[payload.de]; else desse[payload.de] = true;
       pushState({ ...s, contest: { ...atual, [chave]: desse } });
     });
+    ch.on('broadcast', { event: 'pronto' }, ({ payload }) => {
+      if (!hostRef.current) return;
+      const s = stateRef.current; if (!s) return;
+      const p = { ...(s.prontos || {}) };
+      if (payload.tirar) delete p[payload.name]; else p[payload.name] = true;
+      pushState({ ...s, prontos: p });
+    });
     ch.subscribe();
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -707,6 +774,22 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       const desse = { ...(atual[chave] || {}) };
       if (jaContestei) delete desse[name]; else desse[name] = true;
       pushState({ ...s, contest: { ...atual, [chave]: desse } });
+    }
+  };
+
+  /* "Estou pronto": quando TODO MUNDO revisou, a rodada anda na hora, sem
+     esperar os 22s no vazio. Quem não clicar não trava nada — o tempo fecha
+     sozinho (senão um ausente seguraria a partida inteira). */
+  const euPronto = !!state?.prontos?.[name];
+  const nProntos = Object.keys(state?.prontos || {}).length;
+  const marcarPronto = () => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'validando') return;
+    chanRef.current?.send({ type: 'broadcast', event: 'pronto', payload: { name, tirar: euPronto } });
+    if (isHost) {
+      const p = { ...(s.prontos || {}) };
+      if (euPronto) delete p[name]; else p[name] = true;
+      pushState({ ...s, prontos: p });
     }
   };
 
@@ -781,15 +864,25 @@ const Sala = ({ roomId, name, players, onLeave }) => {
           {ranked.map((p, i) => {
             const mandou = !!state?.respostas?.[p.name];
             const ganho = state?.ganhos?.[p.name];
+            const prontinho = state?.phase === 'validando' && !!state?.prontos?.[p.name];
             return (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 7px',
                 borderRadius: 10, marginBottom: 3, background: p.name === state?.stopPor ? `${US.vermelho}12` : 'transparent' }}>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <img src={p.photo || '/UNIKO_NEW.png'} alt=""
                     style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
-                      border: `2.5px solid ${p.name === state?.stopPor ? US.vermelho : mandou && state?.phase === 'parando' ? US.verde : 'transparent'}` }} />
+                      border: `2.5px solid ${p.name === state?.stopPor ? US.vermelho
+                        : prontinho ? US.verde
+                        : mandou && state?.phase === 'parando' ? US.verde : 'transparent'}` }} />
                   {i === 0 && p.pts > 0 && (
                     <div style={{ position: 'absolute', top: -7, right: -5, color: '#F0B429' }}><IcoCrown size={16} /></div>
+                  )}
+                  {prontinho && (
+                    <div className="us-pop" style={{ position: 'absolute', bottom: -2, right: -2, width: 17, height: 17,
+                      borderRadius: '50%', background: US.verde, color: '#fff', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', border: `2px solid ${cardBg}` }}>
+                      <IcoCheck size={9} />
+                    </div>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -880,6 +973,46 @@ const Sala = ({ roomId, name, players, onLeave }) => {
             </div>
           )}
 
+          {/* SORTEANDO — a roleta */}
+          {state?.phase === 'sorteando' && (() => {
+            const pousou = roleta === state.letra;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                minHeight: 320, gap: 18, textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.textT, letterSpacing: '.2em' }}>
+                  {pousou ? 'A LETRA É...' : 'SORTEANDO A LETRA'}
+                </div>
+                <div style={{ position: 'relative', width: 190, height: 190, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center' }}>
+                  {/* anel girando */}
+                  <div className={pousou ? undefined : 'us-anel'} style={{ position: 'absolute', inset: 0,
+                    borderRadius: '50%', border: `5px dashed ${pousou ? US.verde : A}`, opacity: pousou ? 1 : .5 }} />
+                  {/* estouro no momento em que pousa */}
+                  {pousou && <div className="us-raio" style={{ position: 'absolute', inset: 10, borderRadius: '50%',
+                    background: `radial-gradient(circle, ${US.verde}66, transparent 70%)` }} />}
+                  <div key={roleta} className={pousou ? 'us-revela' : 'us-rolando'}
+                    style={{ fontFamily: 'var(--font-brand)', fontSize: 96, fontWeight: 800, lineHeight: 1,
+                      color: pousou ? US.verde : T.text,
+                      textShadow: pousou ? `0 8px 34px ${US.verde}66` : 'none' }}>
+                    {roleta}
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, color: T.textT }}>
+                  {pousou ? 'Prepara os dedos... 🔥' : 'girando...'}
+                </div>
+                {/* prévia das categorias que vêm aí */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center', maxWidth: 460 }}>
+                  {cats.map(c => (
+                    <span key={c} style={{ padding: '4px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                      background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, color: T.textT }}>
+                      {catById(c).emoji} {catById(c).nome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* JOGANDO / PARANDO — o formulário */}
           {(jogando || state?.phase === 'parando') && (
             <>
@@ -914,20 +1047,32 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                       <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, display: 'flex',
                         alignItems: 'center', gap: 5, marginBottom: 4 }}>
                         <span>{cat.emoji}</span>{cat.nome}
+                        {ok && <IcoCheck size={12} style={{ color: US.verde }} />}
                       </label>
                       <input value={v} disabled={!jogando}
                         onChange={e => setMinhas(m => ({ ...m, [c]: e.target.value }))}
                         placeholder={`${state.letra}...`} maxLength={40}
                         style={{ width: '100%', padding: '10px 12px', borderRadius: 9, fontSize: 14,
                           fontFamily: 'var(--font-body)', outline: 'none', color: T.text,
-                          background: T.surfaceInput || 'rgba(0,0,0,.025)',
+                          background: ruim ? `${US.vermelho}0a` : T.surfaceInput || 'rgba(0,0,0,.025)',
                           border: `1.5px solid ${ruim ? US.vermelho : ok ? US.verde : T.border}` }} />
+                      {/* Avisa ANTES de valer ponto: a penalidade existe pra punir
+                          chute, não pra pegar quem digitou rápido e não viu. */}
+                      {ruim && (
+                        <div className="us-pop" style={{ fontSize: 10.5, color: US.vermelho, fontWeight: 700,
+                          marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <IcoX size={11} />não começa com {state.letra} · {PENALIDADE} pts!
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div style={{ fontSize: 11, color: T.textD, marginTop: 12, textAlign: 'center' }}>
-                10 pts se ninguém repetir · 5 se repetir · 0 se não começar com {state.letra}
+                <b style={{ color: US.verde }}>10</b> se ninguém repetir ·{' '}
+                <b style={{ color: US.amarelo }}>5</b> se repetir ·{' '}
+                <b style={{ color: T.textT }}>0</b> em branco ·{' '}
+                <b style={{ color: US.vermelho }}>{PENALIDADE}</b> se não for com {state.letra}
               </div>
             </>
           )}
@@ -941,6 +1086,20 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                 </div>
                 <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>
                   Clique no ✗ pra contestar. Se a maioria contestar, a resposta zera. ({secsLeft}s)
+                </div>
+                <button className={`us-btn${euPronto ? '' : ' us-pulse'}`} onClick={marcarPronto}
+                  style={{ marginTop: 11, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 24px',
+                    borderRadius: 999, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                    border: euPronto ? `2px solid ${US.verde}` : 'none',
+                    background: euPronto ? `${US.verde}18` : `linear-gradient(135deg, ${US.verde}, #34D399)`,
+                    color: euPronto ? US.verde : '#fff',
+                    boxShadow: euPronto ? 'none' : `0 5px 16px ${US.verde}55` }}>
+                  <IcoCheck size={15} />
+                  {euPronto ? 'Pronto! (clique pra voltar)' : 'Estou pronto'}
+                  <span style={{ opacity: .75, fontWeight: 700 }}>{nProntos}/{players.length}</span>
+                </button>
+                <div style={{ fontSize: 10.5, color: T.textD, marginTop: 5 }}>
+                  Quando todos estiverem prontos, a rodada anda na hora.
                 </div>
               </div>
               {cats.map(c => {
