@@ -464,6 +464,11 @@ const PAINT_CSS = `
 .up-scroll::-webkit-scrollbar-track { background: rgba(128,128,128,.14); border-radius: 99px; margin: 4px 0; }
 .up-scroll::-webkit-scrollbar-thumb { background: ${UP.pink}99; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
 .up-scroll::-webkit-scrollbar-thumb:hover { background: ${UP.pink}; border: 2px solid transparent; background-clip: content-box; }
+/* Rola, mas SEM barra à vista — pro lobby, onde nunca haverá muitas salas e a
+   barra só polui. O overflow fica: se um dia passarem da tela, ainda dá pra
+   chegar nelas pela roda do mouse, em vez de ficarem inalcançáveis. */
+.up-sembarra { scrollbar-width: none; -ms-overflow-style: none; }
+.up-sembarra::-webkit-scrollbar { width: 0; height: 0; display: none; }
 /* Cabeçalho: os respingos (svg) ficam no fundo, todo o resto por cima.
    A regra up-hd-center é exceção: precisa continuar absolute pra ficar
    centralizada na barra INTEIRA (e não no espaço que sobra entre nome e botões).
@@ -793,8 +798,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           sempre: sem isso a linha cresce com o conteúdo e estica a página. */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 268px',
         gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
-      {/* Lista de salas */}
-      <div className="up-scroll" style={{ overflowY: 'auto', minHeight: 0, position: 'relative', paddingRight: 4 }}>
+      {/* Lista de salas — sem barra de rolagem (não vai ter sala demais), mas
+          ainda rolável pela roda se um dia passar da tela. */}
+      <div className="up-sembarra" style={{ overflowY: 'auto', minHeight: 0, position: 'relative' }}>
         {/* respingos coloridos bem sutis no fundo da lista */}
         <Splat x="-3%"  y="14%" size={190} cor={UP.cyan}   rot={18}  op={0.05} forma={1} />
         <Splat x="72%"  y="52%" size={230} cor={UP.pink}   rot={200} op={0.045} forma={2} />
