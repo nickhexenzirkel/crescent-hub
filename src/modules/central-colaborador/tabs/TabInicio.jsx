@@ -34,7 +34,14 @@ const PHSK   = _auth?.cpf ? `uniko_photo_scale_${_auth.cpf}`: 'uniko_photo_scale
 
 const loadLS = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
 const barCol = v => v >= 60 ? '#28A870' : v >= 30 ? '#E8A020' : '#C04050';
-const fmtT   = t => { if (!t) return ''; const [h,m]=t.split(':'); return `${+h}:${m}`; };
+/* Tira o zero à esquerda de "09:05" → "9:05". Só mexe quando é HH:MM puro: os
+   eventos da empresa usam faixa ("08:00 AS 12:00"), e o split(':') cru comia o
+   final, virando "8:00 AS 12" — o horário de término sumia do widget. */
+const fmtT   = t => {
+  if (!t) return '';
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim());
+  return m ? `${+m[1]}:${m[2]}` : String(t).trim();
+};
 const fmtDS  = d => { if (!d) return ''; return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'}); };
 
 /* ── Banner por tema (auto-sync) ─────────────────────────────────── */
@@ -252,7 +259,24 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       return String(a.time || '').localeCompare(String(b.time || ''));
     })
     .slice(0, 4);
-  const todayEvts = evts.filter(e=>e.event_date===today);
+  /* Eventos do widget: de HOJE até o fim do mês, não só os de hoje. Mostrar só o
+     dia atual deixava o card quase sempre vazio ("Nenhum evento hoje") e escondia
+     coisas importantes logo ali — uma reunião geral daqui a 3 dias não aparecia. */
+  const fimDoMes = (() => {
+    const ultimo = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return `${ultimo.getFullYear()}-${String(ultimo.getMonth()+1).padStart(2,'0')}-${String(ultimo.getDate()).padStart(2,'0')}`;
+  })();
+  const mesEvts   = evts.filter(e => e.event_date >= today && e.event_date <= fimDoMes);
+  const todayEvts = evts.filter(e => e.event_date === today);
+  /* "Hoje" / "Amanhã" / "sex, 18 jul" — data relativa é mais fácil de ler de
+     relance do que a data crua. */
+  const diaLabel = (d) => {
+    if (d === today) return 'Hoje';
+    const amanha = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const iso = `${amanha.getFullYear()}-${String(amanha.getMonth()+1).padStart(2,'0')}-${String(amanha.getDate()).padStart(2,'0')}`;
+    if (d === iso) return 'Amanhã';
+    return fmtDS(d);
+  };
   const { fome=75,energia=70,sono=70,dormindo=false,skin='tecnico' } = uniko;
   const avg = (fome+energia)/2;
   const uS  = dormindo?{l:'Dormindo',c:'#8B6FD4',e:'😴',s:'Recuperando sono...'}
@@ -645,26 +669,35 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           })()}
         </Card>
 
-        {/* Eventos Hoje */}
+        {/* Próximos Eventos (do dia de hoje até o fim do mês) */}
         <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
-            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Eventos Hoje</span>
+            <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>
+              Próximos Eventos
+              {mesEvts.length>3&&<span style={{fontSize:10,color:T.textT,fontWeight:500}}> ({mesEvts.length})</span>}
+            </span>
             <BtnVer tab="eventos"/>
           </div>
-          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:todayEvts.length===0?'center':'flex-start'}}>
-          {todayEvts.length===0
-            ?<EmptyW icon={<Ico size={26} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>} text="Nenhum evento hoje" sub="Aproveite o dia!"/>
-            :todayEvts.slice(0,3).map(ev=>(
-              <div key={ev.id} style={{display:'flex',gap:8,padding:'6px 8px',borderRadius:8,marginBottom:6,background:T.surface,border:`1px solid ${T.border}`}}>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:mesEvts.length===0?'center':'flex-start'}}>
+          {mesEvts.length===0
+            ?<EmptyW icon={<Ico size={26} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>} text="Nenhum evento este mês" sub="Agenda livre por aqui!"/>
+            :mesEvts.slice(0,3).map(ev=>{
+              const ehHoje = ev.event_date===today;
+              return (
+              <div key={ev.id} style={{display:'flex',gap:8,padding:'6px 8px',borderRadius:8,marginBottom:6,
+                background:ehHoje?T.goldGl:T.surface,border:`1px solid ${ehHoje?`${T.gold}44`:T.border}`}}>
                 <div style={{width:26,height:26,borderRadius:6,background:T.goldGl,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
                   <Ico size={11} stroke={T.gold} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:11.5,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.title}</div>
-                  <div style={{fontSize:10,color:T.textT,marginTop:1}}>{ev.event_time?`◷ ${fmtT(ev.event_time)}`:'Dia todo'}</div>
+                  <div style={{fontSize:10,color:T.textT,marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    <b style={{color:ehHoje?T.gold:T.textS}}>{diaLabel(ev.event_date)}</b>
+                    {ev.event_time?` · ◷ ${fmtT(ev.event_time)}`:' · Dia todo'}
+                  </div>
                 </div>
               </div>
-            ))
+            );})
           }
           </div>
         </Card>
