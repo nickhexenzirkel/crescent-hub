@@ -139,13 +139,22 @@ function montarPista() {
     const x = [-0.55, 0, 0.55][k % 3], comp = 12;
     for (let i = ini; i < ini + comp && i < segs.length - 6; i++) segs[i].turbo = { x, w: 0.34 };
   }
-  // pequenos OBSTÁCULOS pra desviar (cones), RAROS — nunca logo na largada, nem
-  // dois seguidos, nem em cima de uma rampa de turbo.
+  // pequenos OBSTÁCULOS pra desviar (cones/pneus), RAROS — nunca logo na largada,
+  // nem dois seguidos, nem em cima de uma rampa de turbo.
   let ultimo = -99;
   for (let i = 120; i < segs.length - 10; i += Math.floor(rnd(30, 48))) {
     if (i - ultimo < 24 || segs[i].turbo) continue;
     segs[i].obstaculos = [{ x: rnd(-0.65, 0.65) }];
     ultimo = i;
+  }
+  // CENÁRIO de beira de pista: árvores frequentes alternando os lados; placas do
+  // Uniko Faster em alguns pontos marcantes. Ficam FORA da pista (não atrapalham).
+  for (let i = 24; i < segs.length; i += Math.floor(rnd(6, 12))) {
+    segs[i].cenario = { tipo: 'arvore', lado: Math.random() < 0.5 ? -1 : 1 };
+  }
+  for (let k = 1; k <= 5; k++) {
+    const i = Math.floor((segs.length / 6) * k);
+    segs[i].cenario = { tipo: 'placa', lado: k % 2 ? 1 : -1 };
   }
   return segs;
 }
@@ -321,11 +330,18 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const rivais = montarRivais();
     const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
     rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
+    const sprCone = carregarSprite('cone');
+    const sprFundo = carregarSprite('fundo');
+    const sprGrama = carregarSprite('grama');
+    const sprArvore = carregarSprite('cenario-arvore');
+    const sprPlaca = carregarSprite('cenario-placa');
+    let gramaPat = null;   // pattern da grama (criado quando o PNG carrega)
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
       turbo: 0,                         // impulso ativo de rampa (segundos restantes)
       traveled: 0, rank: 1,             // distância total e colocação
+      bgOffset: 0,                      // parallax do fundo (desliza nas curvas)
       largada: 3.2,                     // contagem regressiva antes de liberar (3,2,1,JÁ!)
     };
     estado.current = st;
@@ -384,11 +400,14 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.fillRect(cx - w * 0.5, cy - h * 0.05, w, h * 0.06);
     };
 
-    // Rival com SPRITE (visto por trás), ancorado pela base no ponto da pista.
-    const drawSpriteRival = (spr, cx, cyBase, larg) => {
+    // Sprite genérico ancorado pela BASE num ponto da pista (rivais, cones,
+    // árvores, placas). Respeita a proporção original (rz) e escala pela largura.
+    const drawBillboard = (spr, cx, cyBase, larg, sombra = true) => {
       const w2 = larg, h2 = w2 / (spr.rz || 1.4);
-      ctx.fillStyle = 'rgba(0,0,0,.28)';
-      ctx.beginPath(); ctx.ellipse(cx, cyBase, w2 * 0.44, h2 * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      if (sombra) {
+        ctx.fillStyle = 'rgba(0,0,0,.26)';
+        ctx.beginPath(); ctx.ellipse(cx, cyBase, w2 * 0.42, h2 * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.drawImage(spr.img, cx - w2 / 2, cyBase - h2, w2, h2);
     };
 
@@ -434,15 +453,22 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     };
 
     const drawCeu = (w, h, curveAccum) => {
+      // FUNDO por IMAGEM (paisagem panorâmica), deslizando com as curvas e em loop.
+      if (sprFundo.ok) {
+        const bh = h * 0.6;
+        const bw = bh * (sprFundo.rz || 3);
+        let off = (-st.bgOffset - curveAccum) % bw; if (off > 0) off -= bw;
+        for (let bx = off; bx < w + bw; bx += bw) ctx.drawImage(sprFundo.img, bx, 0, bw, bh);
+        return;
+      }
+      // fallback: céu retrowave desenhado
       const g = ctx.createLinearGradient(0, 0, 0, h * 0.62);
       g.addColorStop(0, COR.ceu1); g.addColorStop(0.6, COR.ceu2); g.addColorStop(1, COR.ceu3);
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h * 0.62);
-      // sol
       const sx = w / 2 - curveAccum * 0.5, sy = h * 0.36;
       const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, h * 0.3);
       sg.addColorStop(0, 'rgba(255,220,120,.95)'); sg.addColorStop(0.5, 'rgba(255,120,180,.5)'); sg.addColorStop(1, 'rgba(255,120,180,0)');
       ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, h * 0.3, 0, Math.PI * 2); ctx.fill();
-      // listras do sol (retrowave)
       ctx.fillStyle = 'rgba(20,10,40,.5)';
       for (let i = 0; i < 6; i++) ctx.fillRect(sx - h * 0.2, sy - h * 0.02 + i * h * 0.03, h * 0.4, h * 0.012);
     };
@@ -502,6 +528,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         st.pos = (st.pos + st.speed * dt) % trackLen;
         if (st.pos < 0) st.pos += trackLen;
         st.traveled += st.speed * dt;
+        st.bgOffset += (segNaCam.curve || 0) * velRel * dt * 140;   // fundo desliza na curva
         // VOLTAS: cada trackLen percorrido = 1 volta. Completou TOTAL_VOLTAS → fim.
         st.volta = Math.min(TOTAL_VOLTAS, Math.floor(st.traveled / trackLen) + 1);
         if (largou && st.traveled >= trackLen * TOTAL_VOLTAS) {
@@ -548,8 +575,18 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
 
       drawCeu(w, h, pista[baseSeg % pista.length].curve * 40);
       // base de grama cobrindo tudo abaixo do horizonte — evita cantos pretos onde
-      // a pista (por causa de ladeira/curva) não chega até o rodapé.
-      ctx.fillStyle = COR.grama[1];
+      // a pista (por causa de ladeira/curva) não chega até o rodapé. Usa a TEXTURA
+      // de grama (pattern) se o PNG existir; senão cor lisa.
+      if (sprGrama.ok) {
+        if (!gramaPat) {
+          const oc = document.createElement('canvas'); oc.width = 200; oc.height = 200;
+          oc.getContext('2d').drawImage(sprGrama.img, 0, 0, 200, 200);
+          gramaPat = ctx.createPattern(oc, 'repeat');
+        }
+        ctx.fillStyle = gramaPat;
+      } else {
+        ctx.fillStyle = COR.grama[1];
+      }
       ctx.fillRect(0, h * 0.44, w, h * 0.56);
 
       let maxY = h;
@@ -579,9 +616,14 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (p1.z <= CAM_D || p2.sy >= maxY) continue;
         maxY = p2.sy;
         const escuro = seg.cor === 'dark';
-        // grama
-        ctx.fillStyle = COR.grama[escuro ? 0 : 1];
-        ctx.fillRect(0, p2.sy, w, p1.sy - p2.sy + 1);
+        // grama: com textura, só uma FAIXA de sombra semitransparente (dá o senso de
+        // movimento sem tampar a textura); sem textura, cor lisa cobrindo a faixa.
+        if (sprGrama.ok) {
+          if (escuro) { ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(0, p2.sy, w, p1.sy - p2.sy + 1); }
+        } else {
+          ctx.fillStyle = COR.grama[escuro ? 0 : 1];
+          ctx.fillRect(0, p2.sy, w, p1.sy - p2.sy + 1);
+        }
         // zebra lateral
         quad(p1.sx, p1.sy, p1.sw * 1.15, p2.sx, p2.sy, p2.sw * 1.15, COR.zebra[escuro ? 0 : 1]);
         // pista
@@ -634,15 +676,26 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (nSeg >= 0 && nSeg < pontos.length) (spritesPorSeg[nSeg] = spritesPorSeg[nSeg] || []).push(r);
       });
 
-      // Obstáculos (cones) + rivais, de LONGE pra PERTO (perto por cima).
+      // Cenário lateral + obstáculos + rivais, de LONGE pra PERTO (perto por cima).
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
         if (p1.z <= CAM_D) continue;
-        // cones
+        // CENÁRIO de beira de pista (árvore/placa) — fica FORA da pista, no lado dele
+        if (seg.cenario && p1.sw > 5) {
+          const { tipo, lado } = seg.cenario;
+          const spr = tipo === 'placa' ? sprPlaca : sprArvore;
+          if (spr.ok) {
+            const cx = p1.sx + lado * p1.sw * 1.5;                       // logo fora da pista
+            const larg = Math.min(w * 0.42, p1.sw * (tipo === 'placa' ? 0.7 : 0.9));
+            if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
+          }
+        }
+        // obstáculos (pneu/cone)
         (seg.obstaculos || []).forEach(o => {
           const cx = p1.sx + o.x * p1.sw, larg = Math.min(w * 0.16, p1.sw * 0.28);
           if (larg < 2) return;
-          drawCone(cx, p1.sy, larg);
+          if (sprCone.ok) drawBillboard(sprCone, cx, p1.sy, larg);
+          else drawCone(cx, p1.sy, larg);
           if (n < 3 && Math.abs(o.x - st.playerX) < 0.28 && st.batendo <= 0 && !pausadoRef.current) st.batendo = 0.45;
         });
         // rivais — largura escala com a distância, mas com TETO (~30% da tela) pra
@@ -651,7 +704,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         (spritesPorSeg[n] || []).forEach(r => {
           const cx = p1.sx + r.x * p1.sw, larg = Math.min(w * 0.3, p1.sw * 0.3);
           if (larg < 2) return;
-          if (r.sprite?.ok) drawSpriteRival(r.sprite, cx, p1.sy, larg);
+          if (r.sprite?.ok) drawBillboard(r.sprite, cx, p1.sy, larg);
           else drawCarro(cx, p1.sy, larg, r.cor);
         });
       }
