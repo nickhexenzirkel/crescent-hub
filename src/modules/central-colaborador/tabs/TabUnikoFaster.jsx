@@ -48,7 +48,7 @@ const ROAD_W = 2200;          // meia-largura da pista
 const LANES = 3;
 const CAM_H = 1000;           // altura da câmera
 const CAM_D = 0.84;           // distância da câmera ao plano (fov)
-const DRAW_N = 260;           // segmentos desenhados à frente
+const DRAW_N = 300;           // segmentos desenhados à frente
 const MAX_SPEED = SEG_LEN * 60;
 const ACCEL = MAX_SPEED / 4.5;
 const BRAKE = -MAX_SPEED / 2.2;
@@ -56,11 +56,18 @@ const DECEL = -MAX_SPEED / 5.5;
 const OFFROAD_DECEL = -MAX_SPEED / 2;
 const OFFROAD_MAX = MAX_SPEED / 4.2;
 const CENTRIFUGAL = 0.32;
+// Nitro (boost estilo Speedstorm): medidor 0..1, gasta rápido, recarrega devagar.
+const NITRO_MAX = 1;
+const NITRO_DRAIN = 0.42;     // por segundo em uso
+const NITRO_FILL = 0.075;     // recarrega por segundo correndo
+const BOOST_MULT = 1.45;      // teto de velocidade durante o nitro
+const RIVAIS_N = 5;
 
+// Paleta vibrante estilo Disney Speedstorm (arcade kart colorido).
 const COR = {
-  ceu1: '#2a1a55', ceu2: '#7c3aed', ceu3: '#ec4899',
-  grama: ['#1f7a4d', '#1a6b43'], zebra: ['#ffffff', '#e63946'],
-  pista: ['#4a4a5a', '#414150'], linha: '#f4f4f8',
+  ceu1: '#1b1470', ceu2: '#2f8bff', ceu3: '#ff67c7',
+  grama: ['#18c85e', '#13b452'], zebra: ['#ffffff', '#ff2e63'],
+  pista: ['#5a6480', '#515b74'], linha: '#ffffff',
 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -73,7 +80,6 @@ function montarPista() {
     segs.push({
       index: n, curve, p1y: lastY(), p2y: y,
       cor: Math.floor(n / RUMBLE) % 2 ? 'dark' : 'light',
-      carros: [],
     });
   };
   function lastY() { return segs.length ? segs[segs.length - 1].p2y : 0; }
@@ -84,40 +90,57 @@ function montarPista() {
       add(curve * (Math.sin((i / n) * Math.PI)), y);   // curva sobe e desce suave
     }
   };
-  // sequência: reta, curva dir, subida, curva esq, reta longa, descida...
-  trecho(70, 0, 0);         // largada reta e limpa
-  trecho(50, 4, 300);
-  trecho(45, -3, 0);
-  trecho(60, 0, -200);
-  trecho(50, -5, 400);
-  trecho(45, 3, 0);
-  trecho(70, 2, -300);
-  trecho(50, -4, 150);
+  // Circuito GRANDE e variado (reta, curvas pros dois lados, subidas e descidas).
+  trecho(90, 0, 0);          // largada reta e limpa
+  trecho(60, 4, 300);
+  trecho(50, -3, 0);
+  trecho(70, 0, -200);
+  trecho(60, -5, 400);
+  trecho(50, 3, 0);
+  trecho(90, 2, -300);
+  trecho(60, -4, 150);
+  trecho(70, 5, 250);        // volta longa — mais pista
+  trecho(55, -4, -350);
+  trecho(80, 0, 0);
+  trecho(60, 3, 200);
+  trecho(70, -6, -150);
+  trecho(90, 0, 100);
   // FECHA O LOOP suave: traz a altura de volta a 0 (senão há um DEGRAU entre o
   // último segmento e o primeiro, e a pista "reseta"/salta ao dar a volta). As
   // curvas já voltam a 0 sozinhas (sin), só a altura acumulava.
-  trecho(60, 0, -segs[segs.length - 1].p2y);
-  // pequenos OBSTÁCULOS pra desviar (cones), espalhados e RAROS — antes eram 28
-  // carros e a pista ficava intransitável. Poucos, e nunca dois seguidos.
+  trecho(70, 0, -segs[segs.length - 1].p2y);
+  // LINHA DE LARGADA/CHEGADA (xadrez) nos primeiros segmentos.
+  for (let i = 0; i < 4; i++) segs[i].start = true;
+  // pequenos OBSTÁCULOS pra desviar (cones), RAROS — nunca logo na largada nem
+  // dois seguidos. Espaçamento grande porque a pista agora é longa.
   let ultimo = -99;
-  for (let i = 50; i < segs.length - 8; i += Math.floor(rnd(14, 26))) {
-    if (i - ultimo < 12) continue;
-    segs[i].obstaculos = [{ x: rnd(-0.7, 0.7) }];
+  for (let i = 120; i < segs.length - 10; i += Math.floor(rnd(30, 48))) {
+    if (i - ultimo < 24) continue;
+    segs[i].obstaculos = [{ x: rnd(-0.65, 0.65) }];
     ultimo = i;
   }
   return segs;
 }
 
-// Rivais que CORREM comigo (têm posição e velocidade próprias na pista).
-function montarRivais(trackLen) {
+// Rivais que CORREM comigo (posição, velocidade e progresso próprios na pista).
+function montarRivais() {
   const cores = ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#e879f9', '#06b6d4'];
-  return Array.from({ length: 5 }, (_, i) => ({
-    pos: (i + 1) * (trackLen * 0.012),          // largam logo à frente
-    x: rnd(-0.6, 0.6),
-    cor: cores[i % cores.length],
-    speed: MAX_SPEED * rnd(0.72, 0.9),          // cada um num ritmo
-    nome: `Rival ${i + 1}`,
-  }));
+  const nomes = ['Turbo', 'Blaze', 'Nitro', 'Volt', 'Ace', 'Rex'];
+  // GRID DE LARGADA: fileiras alternadas (esquerda/direita), logo à frente da
+  // linha de partida, escalonados como num grid de kart.
+  return Array.from({ length: RIVAIS_N }, (_, i) => {
+    const fila = Math.floor(i / 2);
+    return {
+      pos: SEG_LEN * (6 + fila * 4),            // escalonados à frente da largada
+      x: (i % 2 === 0 ? -0.5 : 0.5),            // duas colunas
+      cor: cores[i % cores.length],
+      nome: nomes[i % nomes.length],
+      base: MAX_SPEED * rnd(0.78, 0.94),        // ritmo natural de cada um
+      speed: 0,
+      traveled: 0,                              // distância total (p/ ranking)
+      lento: 0,                                 // timer de "tomou dano" (bateu em cone)
+    };
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -129,7 +152,7 @@ const TabUnikoFaster = () => {
   const [link, setLink] = useState('');
   const [erroLink, setErroLink] = useState('');
   const [pausado, setPausado] = useState(false);
-  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0 });
+  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1 });
   const cardBg = T.surface || '#fff';
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
@@ -254,8 +277,13 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const ctx = canvas.getContext('2d');
     const pista = montarPista();
     const trackLen = pista.length * SEG_LEN;
-    const rivais = montarRivais(trackLen);
-    const st = { pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0 };
+    const rivais = montarRivais();
+    const st = {
+      pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
+      nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
+      traveled: 0, rank: 1,             // distância total e colocação
+      largada: 3.2,                     // contagem regressiva antes de liberar (3,2,1,JÁ!)
+    };
     estado.current = st;
 
     const dpr = () => Math.min(devicePixelRatio || 1, 2);
@@ -360,37 +388,70 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
 
       if (!pausadoRef.current) {
         st.tempo += dt;
-        // aceleração / freio
-        const acelerando = teclas.current.up || teclas.current.w || (!teclas.current.down && !teclas.current.s);
-        if (teclas.current.down || teclas.current.s) st.speed += BRAKE * dt;
+        // ── CONTAGEM DE LARGADA: 3,2,1,JÁ! Ninguém anda antes do "JÁ!". ──
+        const largou = st.largada <= 0;
+        if (!largou) st.largada -= dt;
+
+        // ── NITRO / BOOST ──
+        const querBoost = (teclas.current.boost || teclas.current.shift) && largou;
+        const podeBoost = querBoost && st.nitro > 0.02 && st.speed > MAX_SPEED * 0.2;
+        if (podeBoost) {
+          st.nitro = Math.max(0, st.nitro - NITRO_DRAIN * dt);
+          st.boost = Math.min(1, st.boost + dt * 4);
+        } else {
+          st.nitro = Math.min(NITRO_MAX, st.nitro + NITRO_FILL * dt);
+          st.boost = Math.max(0, st.boost - dt * 3);
+        }
+        const tetoVel = MAX_SPEED * (podeBoost ? BOOST_MULT : 1);
+
+        // aceleração / freio (travados durante a contagem)
+        const acelerando = largou && (teclas.current.up || teclas.current.w || (!teclas.current.down && !teclas.current.s));
+        if (!largou) st.speed += DECEL * 1.5 * dt;
+        else if (teclas.current.down || teclas.current.s) st.speed += BRAKE * dt;
+        else if (podeBoost) st.speed += ACCEL * 1.8 * dt;
         else if (acelerando) st.speed += ACCEL * dt;
         else st.speed += DECEL * dt;
         // fora da pista freia
         const fora = Math.abs(st.playerX) > 1;
         if (fora && st.speed > OFFROAD_MAX) st.speed += OFFROAD_DECEL * dt;
         if (st.batendo > 0) { st.batendo -= dt; st.speed = Math.min(st.speed, MAX_SPEED * 0.35); }
-        st.speed = clamp(st.speed, 0, MAX_SPEED);
+        st.speed = clamp(st.speed, 0, tetoVel);
         // direção
         const dx = dt * 2 * (st.speed / MAX_SPEED);
-        if (teclas.current.left || teclas.current.a) st.playerX -= dx;
-        if (teclas.current.right || teclas.current.d) st.playerX += dx;
+        if (largou && (teclas.current.left || teclas.current.a)) st.playerX -= dx;
+        if (largou && (teclas.current.right || teclas.current.d)) st.playerX += dx;
         // centrífuga na curva
         const segAtual = pista[Math.floor(st.pos / SEG_LEN) % pista.length];
         st.playerX -= dx * CENTRIFUGAL * (st.speed / MAX_SPEED) * (segAtual.curve || 0);
         st.playerX = clamp(st.playerX, -2, 2);
-        // anda
+        // anda (e acumula distância total pro ranking)
         st.pos = (st.pos + st.speed * dt) % trackLen;
         if (st.pos < 0) st.pos += trackLen;
-        // RIVAIS correm: cada um avança na sua velocidade e vagueia de leve na
-        // pista. Colisão traseira: se eu encostar num rival, os dois perdem ritmo.
+        st.traveled += st.speed * dt;
+
+        // ── RIVAIS ──
         rivais.forEach(r => {
+          // "tomou dano" ao bater num cone → fica lento por um tempo
+          if (r.lento > 0) r.lento -= dt;
+          const alvo = r.base * (r.lento > 0 ? 0.45 : 1);
+          r.speed += (alvo - r.speed) * Math.min(1, dt * 2.5);   // acelera/desacelera suave
+          if (!largou) r.speed = 0;                              // esperam a largada também
           r.pos = (r.pos + r.speed * dt) % trackLen;
-          r.x = clamp(r.x + Math.sin(st.tempo * 0.6 + r.pos) * 0.004, -0.85, 0.85);
+          r.traveled += r.speed * dt;
+          r.x = clamp(r.x + Math.sin(st.tempo * 0.6 + r.pos) * 0.004, -0.8, 0.8);
+          // colisão do rival com CONE: perde aceleração (dano), igual a mim
+          const segR = pista[Math.floor(r.pos / SEG_LEN) % pista.length];
+          if (r.lento <= 0 && segR.obstaculos) {
+            for (const o of segR.obstaculos) if (Math.abs(o.x - r.x) < 0.3) { r.lento = 1.1; break; }
+          }
+          // colisão comigo: os dois perdem ritmo
           let dz = r.pos - st.pos; if (dz < -trackLen / 2) dz += trackLen; if (dz > trackLen / 2) dz -= trackLen;
           if (Math.abs(dz) < SEG_LEN * 1.2 && Math.abs(r.x - st.playerX) < 0.45 && st.batendo <= 0) {
-            st.batendo = 0.5; r.speed = Math.min(r.speed, MAX_SPEED * 0.6);
+            st.batendo = 0.5; r.lento = Math.max(r.lento, 0.6);
           }
         });
+        // COLOCAÇÃO: 1º + quantos rivais percorreram mais que eu
+        st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
       }
 
       const baseSeg = Math.floor(st.pos / SEG_LEN);
@@ -404,15 +465,18 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.fillRect(0, h * 0.44, w, h * 0.56);
 
       let maxY = h;
-      // desenha os segmentos de trás pra frente
+      // Projeta DRAW_N segmentos à frente. A profundidade z é sempre contínua:
+      // z = (índice corrido) * SEG_LEN - st.pos. O CONTEÚDO do segmento dá a volta
+      // (% pista.length), mas o z NUNCA reinicia — por isso a pista é infinita e
+      // não há mais aquele "buraco" na virada da volta (o bug antigo subtraía
+      // trackLen do camZbase e contava a distância em dobro, empurrando os
+      // segmentos da virada pra fora da tela).
       const pontos = [];
       for (let n = 0; n < DRAW_N; n++) {
         const seg = pista[(baseSeg + n) % pista.length];
-        const loop = baseSeg + n >= pista.length;
-        const camZbase = st.pos - (loop ? trackLen : 0);
-        const p1 = { x: x, y: seg.p1y, z: (baseSeg + n) * SEG_LEN - camZbase };
+        const p1 = { x: x, y: seg.p1y, z: (baseSeg + n) * SEG_LEN - st.pos };
         x += dx2; dx2 += seg.curve;
-        const p2 = { x: x, y: seg.p2y, z: (baseSeg + n + 1) * SEG_LEN - camZbase };
+        const p2 = { x: x, y: seg.p2y, z: (baseSeg + n + 1) * SEG_LEN - st.pos };
         project(p1, st.playerX * ROAD_W, camH, 0, w, h, ROAD_W);
         project(p2, st.playerX * ROAD_W, camH, 0, w, h, ROAD_W);
         pontos.push({ seg, p1, p2 });
@@ -434,8 +498,20 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         quad(p1.sx, p1.sy, p1.sw * 1.15, p2.sx, p2.sy, p2.sw * 1.15, COR.zebra[escuro ? 0 : 1]);
         // pista
         quad(p1.sx, p1.sy, p1.sw, p2.sx, p2.sy, p2.sw, COR.pista[escuro ? 0 : 1]);
-        // faixas de divisão de pista
-        if (!escuro) {
+        // LINHA DE LARGADA/CHEGADA: tabuleiro xadrez atravessando a pista
+        if (seg.start) {
+          const cols = 10;
+          for (let c = 0; c < cols; c++) {
+            const t1 = -1 + (2 * c) / cols, t2 = -1 + (2 * (c + 1)) / cols;
+            const preto = (c + (seg.index % 2)) % 2 === 0;
+            ctx.fillStyle = preto ? '#12121a' : '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(p1.sx + t1 * p1.sw, p1.sy); ctx.lineTo(p1.sx + t2 * p1.sw, p1.sy);
+            ctx.lineTo(p2.sx + t2 * p2.sw, p2.sy); ctx.lineTo(p2.sx + t1 * p2.sw, p2.sy);
+            ctx.closePath(); ctx.fill();
+          }
+        } else if (!escuro) {
+          // faixas de divisão de pista
           for (let l = 1; l < LANES; l++) {
             const lx1 = p1.sx - p1.sw + (2 * p1.sw) * (l / LANES);
             const lx2 = p2.sx - p2.sw + (2 * p2.sw) * (l / LANES);
@@ -482,6 +558,41 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         ctx.fillRect(0, 0, w, h);
       }
 
+      // ── BOOST: linhas de velocidade radiais saindo do centro + vinheta azul ──
+      if (st.boost > 0.02) {
+        ctx.save();
+        const cx = w / 2, cy = h * 0.42, b = st.boost;
+        const vg = ctx.createRadialGradient(cx, cy, h * 0.1, cx, cy, w * 0.7);
+        vg.addColorStop(0, 'rgba(0,200,255,0)');
+        vg.addColorStop(1, `rgba(40,140,255,${0.28 * b})`);
+        ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = `rgba(180,240,255,${0.5 * b})`; ctx.lineWidth = 2;
+        for (let i = 0; i < 26; i++) {
+          const a = (i / 26) * Math.PI * 2 + st.tempo * 3;
+          const r0 = h * 0.18 + (Math.sin(i * 12.9 + st.tempo * 30) * 0.5 + 0.5) * h * 0.1;
+          const r1 = r0 + h * (0.16 + 0.14 * b);
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+          ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // ── CONTAGEM DE LARGADA: 3 · 2 · 1 · JÁ! ──
+      if (st.largada > 0) {
+        const n = Math.ceil(st.largada - 0.2);
+        const txt = n <= 0 ? 'JÁ!' : String(n);
+        const frac = 1 - (st.largada % 1);   // "pulsa" a cada número
+        ctx.save();
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `800 ${Math.min(w, h) * (0.22 + frac * 0.05)}px var(--font-brand), sans-serif`;
+        ctx.fillStyle = n <= 0 ? '#22e06a' : '#fff';
+        ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 20;
+        ctx.fillText(txt, w / 2, h * 0.4);
+        ctx.restore();
+      }
+
       // ── MINIMAPA REDONDO (canto inf. dir.): o circuito é um loop, então vira um
       //    anel; cada carro é um ponto na sua volta (progresso → ângulo). Dá pra
       //    ver quem está na frente. ──
@@ -499,19 +610,23 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
       ctx.restore();
 
-      // HUD (atualiza o React ~4x/s)
-      if (!pausadoRef.current && Math.floor(st.tempo * 4) !== Math.floor((st.tempo - dt) * 4)) {
-        const distM = Math.floor(st.pos / 100);   // "metros"
+      // HUD (atualiza o React ~8x/s — nitro/posição pedem mais fluidez)
+      if (!pausadoRef.current && Math.floor(st.tempo * 8) !== Math.floor((st.tempo - dt) * 8)) {
+        const distM = Math.floor(st.traveled / 100);   // "metros" percorridos no total
         const b = Math.max(bestRef.current, distM);
         if (b > bestRef.current) { bestRef.current = b; setBest(b); try { localStorage.setItem('uf_best', String(b)); } catch { /* sem storage */ } }
-        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b });
+        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro });
       }
 
       rafRef.current = requestAnimationFrame(frame);
     };
     rafRef.current = requestAnimationFrame(frame);
 
-    const kd = (e) => { setTecla(e, true); if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault(); };
+    const kd = (e) => {
+      if (e.key === 'Escape') { setPausado(p => !p); return; }
+      setTecla(e, true);
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+    };
     const ku = (e) => setTecla(e, false);
     const setTecla = (e, v) => {
       const k = e.key.toLowerCase();
@@ -519,6 +634,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       if (k === 'arrowdown') teclas.current.down = v;
       if (k === 'arrowleft') teclas.current.left = v;
       if (k === 'arrowright') teclas.current.right = v;
+      if (k === 'shift' || k === ' ') teclas.current.shift = v;   // nitro
       if ('wasd'.includes(k)) teclas.current[k] = v;
     };
     window.addEventListener('keydown', kd);
@@ -527,7 +643,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       cancelAnimationFrame(rafRef.current); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
     };
-  }, [bestRef, setBest, setHud]);
+  }, [bestRef, setBest, setHud, setPausado]);
 
   // botões de toque (celular) — setam as mesmas flags
   const touch = (dir, v) => { teclas.current[dir] = v; };
@@ -556,6 +672,26 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
           <div style={{ fontSize: 13, color: '#22d3ee', fontWeight: 800, marginTop: 4, textShadow: '0 2px 8px rgba(0,0,0,.6)' }}>
             {hud.dist.toLocaleString('pt-BR')} m · 🏁 {hud.best.toLocaleString('pt-BR')} m
           </div>
+          {/* barra de NITRO */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#ffd166', textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>⚡</span>
+            <div style={{ width: 120, height: 9, borderRadius: 999, background: 'rgba(0,0,0,.45)',
+              border: '1px solid rgba(255,255,255,.25)', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round(hud.nitro * 100)}%`, height: '100%',
+                background: hud.nitro > 0.15 ? 'linear-gradient(90deg,#22d3ee,#3b82f6)' : '#ef4444',
+                transition: 'width .12s linear' }} />
+            </div>
+          </div>
+        </div>
+        {/* COLOCAÇÃO */}
+        <div style={{ textAlign: 'center', lineHeight: 1 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, color: '#ffd166',
+            fontSize: 44, textShadow: '0 2px 14px rgba(0,0,0,.7)' }}>
+            {hud.rank}º
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.9)', textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
+            de {RIVAIS_N + 1}
+          </div>
         </div>
         <div style={{ pointerEvents: 'auto', display: 'flex', gap: 8 }}>
           <button className="uf-btn" onClick={() => setPausado(p => !p)}
@@ -582,7 +718,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         </div>
       )}
 
-      {/* controles de toque (celular) */}
+      {/* controles de toque (celular) — direção à direita */}
       <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', gap: 12, pointerEvents: 'none' }}>
         {[['left', '◀'], ['right', '▶']].map(([dir, ic]) => (
           <button key={dir} className="uf-touch"
@@ -593,13 +729,26 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
               color: '#fff', fontSize: 22, cursor: 'pointer', touchAction: 'none' }}>{ic}</button>
         ))}
       </div>
+      {/* botão de NITRO à esquerda */}
+      <div style={{ position: 'absolute', bottom: 70, left: 16, pointerEvents: 'none' }}>
+        <button className="uf-touch"
+          onPointerDown={() => touch('shift', true)} onPointerUp={() => touch('shift', false)}
+          onPointerLeave={() => touch('shift', false)} onContextMenu={e => e.preventDefault()}
+          style={{ pointerEvents: 'auto', width: 70, height: 70, borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,.4)', background: 'linear-gradient(135deg,#06b6d4,#3b82f6)',
+            color: '#fff', fontSize: 26, fontWeight: 800, cursor: 'pointer', touchAction: 'none',
+            boxShadow: '0 4px 16px rgba(6,182,212,.5)' }}>⚡</button>
+      </div>
 
       {/* overlay de pausa */}
       {pausado && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', gap: 14, background: 'rgba(10,6,22,.72)', backdropFilter: 'blur(3px)' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 30, fontWeight: 800, color: '#fff' }}>Pausado</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.8)' }}>Setas ou A/D pra virar · ↑ acelera · ↓ freia</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.8)', textAlign: 'center', lineHeight: 1.6 }}>
+            Setas ou A/D pra virar · ↑ acelera · ↓ freia<br />
+            <b style={{ color: '#22d3ee' }}>Shift ou Espaço</b> = nitro ⚡ · <b style={{ color: '#ffd166' }}>Esc</b> = pausar
+          </div>
           <button className="uf-btn" onClick={() => setPausado(false)}
             style={{ padding: '11px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
               cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Continuar</button>
