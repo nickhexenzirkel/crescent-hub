@@ -63,7 +63,6 @@ const COR = {
   pista: ['#4a4a5a', '#414150'], linha: '#f4f4f8',
 };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // Constrói a pista: retas, curvas e ladeiras encadeadas (loopável).
@@ -86,21 +85,39 @@ function montarPista() {
     }
   };
   // sequência: reta, curva dir, subida, curva esq, reta longa, descida...
-  trecho(60, 0, 0);
-  trecho(50, 4, 400);
-  trecho(40, -3, 0);
-  trecho(60, 0, -300);
-  trecho(50, -5, 600);
-  trecho(40, 3, 0);
-  trecho(70, 2, -400);
-  trecho(50, -4, 200);
-  trecho(60, 0, 0);
-  // espalha carros adversários em segmentos aleatórios (longe do começo)
-  for (let i = 0; i < 28; i++) {
-    const s = segs[Math.floor(rnd(40, segs.length - 5))];
-    s.carros.push({ x: rnd(-0.8, 0.8), cor: pick(['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#e879f9']), z: 0 });
+  trecho(70, 0, 0);         // largada reta e limpa
+  trecho(50, 4, 300);
+  trecho(45, -3, 0);
+  trecho(60, 0, -200);
+  trecho(50, -5, 400);
+  trecho(45, 3, 0);
+  trecho(70, 2, -300);
+  trecho(50, -4, 150);
+  // FECHA O LOOP suave: traz a altura de volta a 0 (senão há um DEGRAU entre o
+  // último segmento e o primeiro, e a pista "reseta"/salta ao dar a volta). As
+  // curvas já voltam a 0 sozinhas (sin), só a altura acumulava.
+  trecho(60, 0, -segs[segs.length - 1].p2y);
+  // pequenos OBSTÁCULOS pra desviar (cones), espalhados e RAROS — antes eram 28
+  // carros e a pista ficava intransitável. Poucos, e nunca dois seguidos.
+  let ultimo = -99;
+  for (let i = 50; i < segs.length - 8; i += Math.floor(rnd(14, 26))) {
+    if (i - ultimo < 12) continue;
+    segs[i].obstaculos = [{ x: rnd(-0.7, 0.7) }];
+    ultimo = i;
   }
   return segs;
+}
+
+// Rivais que CORREM comigo (têm posição e velocidade próprias na pista).
+function montarRivais(trackLen) {
+  const cores = ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#e879f9', '#06b6d4'];
+  return Array.from({ length: 5 }, (_, i) => ({
+    pos: (i + 1) * (trackLen * 0.012),          // largam logo à frente
+    x: rnd(-0.6, 0.6),
+    cor: cores[i % cores.length],
+    speed: MAX_SPEED * rnd(0.72, 0.9),          // cada um num ritmo
+    nome: `Rival ${i + 1}`,
+  }));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -237,6 +254,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const ctx = canvas.getContext('2d');
     const pista = montarPista();
     const trackLen = pista.length * SEG_LEN;
+    const rivais = montarRivais(trackLen);
     const st = { pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0 };
     estado.current = st;
 
@@ -280,6 +298,18 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.fillStyle = '#ffe08a';
       ctx.fillRect(cx - w * 0.4, cy - h * 0.14, w * 0.12, h * 0.1);
       ctx.fillRect(cx + w * 0.28, cy - h * 0.14, w * 0.12, h * 0.1);
+    };
+
+    // Cone de obstáculo (pequeno, dá pra desviar).
+    const drawCone = (cx, cy, larg) => {
+      const w = larg * 0.5, h = w * 1.5;
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.beginPath(); ctx.ellipse(cx, cy, w * 0.7, w * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff6a00';
+      ctx.beginPath(); ctx.moveTo(cx, cy - h); ctx.lineTo(cx - w * 0.55, cy); ctx.lineTo(cx + w * 0.55, cy); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(cx - w * 0.42, cy - h * 0.55, w * 0.84, h * 0.16);
+      ctx.fillRect(cx - w * 0.5, cy - h * 0.05, w, h * 0.06);
     };
 
     // Capô do jogador (1ª pessoa) — desenhado no rodapé, inclina na curva.
@@ -351,6 +381,16 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         // anda
         st.pos = (st.pos + st.speed * dt) % trackLen;
         if (st.pos < 0) st.pos += trackLen;
+        // RIVAIS correm: cada um avança na sua velocidade e vagueia de leve na
+        // pista. Colisão traseira: se eu encostar num rival, os dois perdem ritmo.
+        rivais.forEach(r => {
+          r.pos = (r.pos + r.speed * dt) % trackLen;
+          r.x = clamp(r.x + Math.sin(st.tempo * 0.6 + r.pos) * 0.004, -0.85, 0.85);
+          let dz = r.pos - st.pos; if (dz < -trackLen / 2) dz += trackLen; if (dz > trackLen / 2) dz -= trackLen;
+          if (Math.abs(dz) < SEG_LEN * 1.2 && Math.abs(r.x - st.playerX) < 0.45 && st.batendo <= 0) {
+            st.batendo = 0.5; r.speed = Math.min(r.speed, MAX_SPEED * 0.6);
+          }
+        });
       }
 
       const baseSeg = Math.floor(st.pos / SEG_LEN);
@@ -404,19 +444,30 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         }
       }
 
-      // carros adversários (de trás pra frente) + colisão
+      // Distribui os RIVAIS nos segmentos visíveis (bucket por profundidade).
+      const spritesPorSeg = {};
+      rivais.forEach(r => {
+        let dz = r.pos - st.pos; if (dz < 0) dz += trackLen;
+        const nSeg = Math.round(dz / SEG_LEN);
+        if (nSeg >= 0 && nSeg < pontos.length) (spritesPorSeg[nSeg] = spritesPorSeg[nSeg] || []).push(r);
+      });
+
+      // Obstáculos (cones) + rivais, de LONGE pra PERTO (perto por cima).
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
-        if (!seg.carros.length || p1.z <= CAM_D) continue;
-        seg.carros.forEach(c => {
-          const cx = p1.sx + c.x * p1.sw;
-          const larg = p1.sw * 0.5;
+        if (p1.z <= CAM_D) continue;
+        // cones
+        (seg.obstaculos || []).forEach(o => {
+          const cx = p1.sx + o.x * p1.sw, larg = p1.sw * 0.42;
           if (larg < 2) return;
-          drawCarro(cx, p1.sy, larg, c.cor);
-          // colisão: mesmo segmento próximo + x sobrepondo
-          if (n < 3 && Math.abs(c.x - st.playerX) < 0.55 && st.batendo <= 0 && !pausadoRef.current) {
-            st.batendo = 0.6;
-          }
+          drawCone(cx, p1.sy, larg);
+          if (n < 3 && Math.abs(o.x - st.playerX) < 0.28 && st.batendo <= 0 && !pausadoRef.current) st.batendo = 0.45;
+        });
+        // rivais
+        (spritesPorSeg[n] || []).forEach(r => {
+          const cx = p1.sx + r.x * p1.sw, larg = p1.sw * 0.5;
+          if (larg < 2) return;
+          drawCarro(cx, p1.sy, larg, r.cor);
         });
       }
 
@@ -430,6 +481,23 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         ctx.fillStyle = `rgba(255,40,40,${st.batendo * 0.4})`;
         ctx.fillRect(0, 0, w, h);
       }
+
+      // ── MINIMAPA REDONDO (canto inf. dir.): o circuito é um loop, então vira um
+      //    anel; cada carro é um ponto na sua volta (progresso → ângulo). Dá pra
+      //    ver quem está na frente. ──
+      const mmR = Math.min(w, h) * 0.11, mmX = w - mmR - 22, mmY = h - mmR - 22;
+      const ang = (p) => (p / trackLen) * Math.PI * 2 - Math.PI / 2;   // 0 no topo
+      const ponto = (p) => [mmX + Math.cos(ang(p)) * mmR, mmY + Math.sin(ang(p)) * mmR];
+      ctx.save();
+      ctx.beginPath(); ctx.arc(mmX, mmY, mmR + 9, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(10,6,22,.6)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(mmX, mmY, mmR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(3, mmR * 0.16); ctx.stroke();
+      rivais.forEach(r => { const [px, py] = ponto(r.pos); ctx.fillStyle = r.cor; ctx.beginPath(); ctx.arc(px, py, mmR * 0.12, 0, Math.PI * 2); ctx.fill(); });
+      const [ex, ey] = ponto(st.pos);   // você = ponto branco maior com anel ciano
+      ctx.fillStyle = '#22d3ee'; ctx.beginPath(); ctx.arc(ex, ey, mmR * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
 
       // HUD (atualiza o React ~4x/s)
       if (!pausadoRef.current && Math.floor(st.tempo * 4) !== Math.floor((st.tempo - dt) * 4)) {
