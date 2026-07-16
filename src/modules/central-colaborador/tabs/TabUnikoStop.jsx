@@ -789,6 +789,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   const darStop = () => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando') return;
+    // trava: só dá STOP com todos os campos preenchidos
+    const cs = s.cats || CATS_PADRAO;
+    const meu = minhasRef.current || {};
+    if (cs.some(c => !(meu[c] || '').trim())) return;
     chanRef.current?.send({ type: 'broadcast', event: 'stop', payload: { name } });
     if (hostRef.current) irParaParando(name);   // host fecha na hora; senão o host fecha ao receber o 'stop'
   };
@@ -1263,15 +1267,31 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                   Palavras com <b style={{ color: A, fontSize: 16 }}>{state.letra}</b>
                 </div>
                 <div style={{ flex: 1 }} />
-                {jogando ? (
-                  <button className="us-btn us-pulse" onClick={darStop}
-                    style={{ padding: '12px 34px', borderRadius: 999, border: 'none', color: '#fff',
-                      fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, cursor: 'pointer',
-                      background: `linear-gradient(135deg, ${US.vermelho}, #FF7A85)`,
-                      boxShadow: `0 6px 20px ${US.vermelho}66`, letterSpacing: '.06em' }}>
-                    STOP!
-                  </button>
-                ) : (
+                {jogando ? (() => {
+                  // Só pode dar STOP com TODOS os campos preenchidos — evita parar a
+                  // rodada deixando os outros na mão enquanto você mesmo não terminou.
+                  const faltam = cats.filter(c => !(minhas[c] || '').trim()).length;
+                  const podeStop = faltam === 0;
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      <button className={podeStop ? 'us-btn us-pulse' : 'us-btn'} disabled={!podeStop}
+                        onClick={() => podeStop && darStop()}
+                        title={podeStop ? 'Parar a rodada!' : 'Preencha todos os campos primeiro'}
+                        style={{ padding: '12px 34px', borderRadius: 999, border: 'none', color: '#fff',
+                          fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800,
+                          cursor: podeStop ? 'pointer' : 'not-allowed', opacity: podeStop ? 1 : .55,
+                          background: podeStop ? `linear-gradient(135deg, ${US.vermelho}, #FF7A85)` : T.textD,
+                          boxShadow: podeStop ? `0 6px 20px ${US.vermelho}66` : 'none', letterSpacing: '.06em' }}>
+                        STOP!
+                      </button>
+                      {!podeStop && (
+                        <span style={{ fontSize: 10.5, color: T.textT, fontWeight: 700 }}>
+                          faltam {faltam} campo{faltam > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })() : (
                   <div className="us-pop" style={{ padding: '8px 16px', borderRadius: 999, background: `${US.vermelho}18`,
                     color: US.vermelho, fontWeight: 800, fontSize: 14 }}>
                     ✋ {state.stopPor ? `${state.stopPor.split(' ')[0]} parou!` : 'Tempo esgotado!'} — enviando...
