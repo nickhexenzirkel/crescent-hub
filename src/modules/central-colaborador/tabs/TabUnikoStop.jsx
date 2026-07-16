@@ -29,7 +29,6 @@ import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
 const GLOBAL_ROOM = 'global';
 const SORTEIO_MS = 3_400;     // roleta girando antes de liberar o formulário
-const ROUND_MS   = 120_000;   // teto da rodada se ninguém der STOP
 const STOP_MS    = 8_000;     // depois do STOP, quem ficou pra trás tem isto
 const VALIDA_CAT_MS = 15_000; // janela pra avaliar UMA categoria (avança sozinho)
 const RESULT_MS  = 9_000;     // tela de pontos
@@ -42,11 +41,21 @@ const MIN_PLAYERS = 2;
 const ROOM_TTL_MS = 20 * 60_000;
 const LAP_OPTIONS = [3, 5, 8, 10];
 const DEFAULT_LAPS = 5;
-/* Sem K/W/X/Y/Z: em português quase não há palavra comum com elas e a rodada
-   vira 0 pra todo mundo, o que não tem graça. */
+/* Tempo por rodada (teto se ninguém der STOP). O host escolhe. */
+const TEMPOS = [
+  { id: 'rapido',   nome: 'Rápido',      emoji: '⚡', ms: 60_000 },
+  { id: 'medio',    nome: 'Médio',       emoji: '⏱️', ms: 120_000 },
+  { id: 'lento',    nome: 'Lento',       emoji: '🐢', ms: 180_000 },
+  { id: 'mtlento',  nome: 'Muito lento', emoji: '🦥', ms: 300_000 },
+];
+const DEFAULT_TEMPO = 'medio';
+const tempoMs = (id) => (TEMPOS.find(t => t.id === id) || TEMPOS[1]).ms;
+/* Sem K/W/X/Y/Z por padrão: em português quase não há palavra comum com elas e a
+   rodada vira 0 pra todo mundo. Mas o host PODE habilitá-las (ALFABETO tem todas). */
 const LETRAS = 'ABCDEFGHIJLMNOPQRSTUV'.split('');
+const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
-/* Categorias — o criador escolhe quais entram na sala. */
+/* Categorias — o criador escolhe quais entram na sala (+ pode criar as suas). */
 const CATEGORIAS = [
   { id: 'nome',      nome: 'Nome',            emoji: '🙋' },
   { id: 'lugar',     nome: 'Lugar',           emoji: '📍' },
@@ -56,17 +65,25 @@ const CATEGORIAS = [
   { id: 'comida',    nome: 'Comida',          emoji: '🍕' },
   { id: 'filme',     nome: 'Filme/Série',     emoji: '🎬' },
   { id: 'marca',     nome: 'Marca',           emoji: '™️' },
+  { id: 'midia',     nome: 'Mídia/App',       emoji: '📱' },
+  { id: 'cep',       nome: 'CEP/Bairro',      emoji: '🏘️' },
+  { id: 'pch',       nome: 'PCH (parte do corpo humano)', emoji: '🦵' },
   { id: 'profissao', nome: 'Profissão',       emoji: '💼' },
   { id: 'fruta',     nome: 'Fruta',           emoji: '🍎' },
   { id: 'pais',      nome: 'País',            emoji: '🌎' },
   { id: 'carro',     nome: 'Carro',           emoji: '🚗' },
   { id: 'sogra',     nome: 'Minha sogra é...', emoji: '😅' },
   { id: 'famoso',    nome: 'Famoso',          emoji: '⭐' },
-  { id: 'parte',     nome: 'Parte do corpo',  emoji: '🦴' },
   { id: 'banda',     nome: 'Banda/Cantor',    emoji: '🎵' },
+  { id: 'objmusica', nome: 'Objeto musical',  emoji: '🎸' },
+  { id: 'esporte',   nome: 'Esporte',         emoji: '⚽' },
 ];
 const CATS_PADRAO = ['nome', 'lugar', 'objeto', 'cor', 'animal', 'comida', 'filme', 'sogra'];
-const catById = (id) => CATEGORIAS.find(c => c.id === id) || { id, nome: id, emoji: '❓' };
+/* Categoria por id — aceita um mapa de rótulos CUSTOM (categorias que o host
+   escreveu, guardadas no estado da sala) além das fixas acima. */
+const catById = (id, custom) => custom?.[id] || CATEGORIAS.find(c => c.id === id) || { id, nome: id, emoji: '✏️' };
+const slugCat = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 
 /* Paleta própria (mesma ideia do Paint: o jogo tem identidade, o resto do app
    segue o tema). Textos usam T.text — cor viva em texto quebra no tema escuro. */
@@ -81,6 +98,13 @@ const STOP_CSS = `
 @keyframes usShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 @keyframes usLetra { 0% { transform: scale(.3) rotate(-25deg); opacity: 0; } 60% { transform: scale(1.2) rotate(6deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 @keyframes usSpin { to { transform: rotate(360deg); } }
+/* Alarme de STOP: tela vermelha piscando + zoom da mensagem */
+@keyframes usAlarme { 0%,100% { background: rgba(200,20,30,.86); } 50% { background: rgba(255,40,55,.94); } }
+@keyframes usAlarmeIn { 0% { transform: scale(.5); opacity: 0; } 55% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes usAlarmeLuz { 0%,100% { opacity: .25; } 50% { opacity: .7; } }
+.us-alarme { animation: usAlarme .6s ease-in-out infinite; }
+.us-alarme-msg { animation: usAlarmeIn .45s cubic-bezier(.2,1.5,.4,1) both; }
+.us-alarme-luz { animation: usAlarmeLuz .6s ease-in-out infinite; }
 .us-pop { animation: usPop .3s cubic-bezier(.2,1.4,.4,1) both; }
 .us-fade { animation: usFade .35s ease both; }
 .us-pulse { animation: usPulse 1.6s ease-in-out infinite; }
@@ -290,6 +314,10 @@ const Lobby = ({ name, porSala, onEnter }) => {
   const [criando, setCriando] = useState(false);
   const [nomeSala, setNomeSala] = useState('');
   const [cats, setCats] = useState(CATS_PADRAO);
+  const [catNomes, setCatNomes] = useState({});          // categorias custom: id -> {nome, emoji}
+  const [novaCat, setNovaCat] = useState('');            // texto da categoria sendo digitada
+  const [letras, setLetras] = useState(LETRAS);          // letras habilitadas
+  const [tempo, setTempo] = useState(DEFAULT_TEMPO);     // ritmo da rodada
   const [erro, setErro] = useState('');
   const [confirmDel, setConfirmDel] = useState(null);
   const cardBg = T.surface || '#fff';
@@ -332,15 +360,33 @@ const Lobby = ({ name, porSala, onEnter }) => {
   }, [load]);
 
   const toggleCat = (id) => setCats(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
+  const toggleLetra = (l) => setLetras(ls => (ls.includes(l) ? ls.filter(x => x !== l) : [...ls, l].sort()));
+
+  // Adiciona uma categoria escrita pelo host (id gerado do texto). Já entra
+  // selecionada e vira um rótulo custom guardado com a sala.
+  const addCatCustom = () => {
+    const nome = novaCat.trim();
+    if (!nome) return;
+    const id = 'x-' + slugCat(nome);
+    if (!id || id === 'x-') { setNovaCat(''); return; }
+    setCatNomes(m => ({ ...m, [id]: { nome, emoji: '✏️' } }));
+    setCats(c => (c.includes(id) ? c : [...c, id]));
+    setNovaCat('');
+  };
 
   const criarSala = async () => {
     if (cats.length < 3) { setErro('Escolha pelo menos 3 categorias.'); return; }
-    if (cats.length > 10) { setErro('No máximo 10 categorias — senão a rodada não acaba nunca.'); return; }
+    if (cats.length > 12) { setErro('No máximo 12 categorias — senão a rodada não acaba nunca.'); return; }
+    if (letras.length < 3) { setErro('Habilite pelo menos 3 letras.'); return; }
     const nome = nomeSala.trim() || `Sala do ${name.split(' ')[0]}`;
     const id = Math.random().toString(36).slice(2, 8);
+    // guarda só os rótulos custom que estão realmente em uso
+    const catNomesUsados = {};
+    cats.forEach(c => { if (catNomes[c]) catNomesUsados[c] = catNomes[c]; });
     setErro('');
     const { error } = await supabase.from('uniko_stop_state').insert({
-      id, state: { phase: 'lobby', round: 0, scores: {}, nome, cats, criador: name },
+      id, state: { phase: 'lobby', round: 0, scores: {}, nome, cats, criador: name,
+        catNomes: catNomesUsados, letras, tempo },
     });
     if (error) { setErro('Não deu pra criar a sala.'); console.error('[uniko-stop] criar:', error); return; }
     onEnter(id);
@@ -389,17 +435,19 @@ const Lobby = ({ name, porSala, onEnter }) => {
 
       {/* Criar sala */}
       {criando && (
-        <div className="us-fade" style={{ background: cardBg, border: `1px solid ${A}55`, borderRadius: 14,
-          padding: 16, boxShadow: T.sh, flexShrink: 0 }}>
+        <div className="us-fade us-scroll" style={{ background: cardBg, border: `1px solid ${A}55`, borderRadius: 14,
+          padding: 16, boxShadow: T.sh, flexShrink: 0, maxHeight: '62vh', overflowY: 'auto' }}>
           <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, marginBottom: 11 }}>Nova sala</div>
           <input value={nomeSala} onChange={e => setNomeSala(e.target.value)} maxLength={28}
             onKeyDown={e => e.key === 'Enter' && criarSala()}
-            placeholder={`Sala do ${name.split(' ')[0]}`} style={{ ...inputCss, marginBottom: 12 }} />
+            placeholder={`Sala do ${name.split(' ')[0]}`} style={{ ...inputCss, marginBottom: 14 }} />
+
+          {/* Categorias (fixas + custom) */}
           <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>
             CATEGORIAS ({cats.length})
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {CATEGORIAS.map(c => {
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {[...CATEGORIAS, ...Object.entries(catNomes).map(([id, v]) => ({ id, ...v }))].map(c => {
               const on = cats.includes(c.id);
               return (
                 <button key={c.id} className="us-btn" onClick={() => toggleCat(c.id)}
@@ -412,6 +460,61 @@ const Lobby = ({ name, porSala, onEnter }) => {
               );
             })}
           </div>
+          {/* Criar categoria própria */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            <input value={novaCat} onChange={e => setNovaCat(e.target.value)} maxLength={24}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCatCustom())}
+              placeholder="Criar categoria própria (ex.: Série, Bebida...)"
+              style={{ ...inputCss, flex: 1 }} />
+            <button className="us-btn" onClick={addCatCustom}
+              style={{ padding: '9px 14px', borderRadius: 9, border: 'none', color: '#fff', fontSize: 12.5, fontWeight: 800,
+                cursor: 'pointer', background: A, whiteSpace: 'nowrap' }}>+ add</button>
+          </div>
+
+          {/* Tempo por rodada */}
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>
+            TEMPO POR RODADA
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {TEMPOS.map(tp => {
+              const on = tempo === tp.id;
+              return (
+                <button key={tp.id} className="us-btn" onClick={() => setTempo(tp.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 999,
+                    cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                    border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
+                    background: on ? `${A}18` : 'transparent', color: T.text }}>
+                  <span>{tp.emoji}</span>{tp.nome}
+                  <span style={{ opacity: .6, fontSize: 10.5 }}>{Math.round(tp.ms / 1000)}s</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Letras habilitadas */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em' }}>
+              LETRAS ({letras.length})
+            </span>
+            <button onClick={() => setLetras(LETRAS)} style={{ fontSize: 10.5, color: A, background: 'none', border: 'none', cursor: 'pointer' }}>padrão</button>
+            <button onClick={() => setLetras([...ALFABETO])} style={{ fontSize: 10.5, color: T.textT, background: 'none', border: 'none', cursor: 'pointer' }}>tudo (A-Z)</button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 14 }}>
+            {ALFABETO.map(l => {
+              const on = letras.includes(l);
+              const dificil = 'KWXYZ'.includes(l);
+              return (
+                <button key={l} className="us-btn" onClick={() => toggleLetra(l)}
+                  title={dificil ? 'letra difícil em português' : undefined}
+                  style={{ width: 30, height: 30, borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 800,
+                    border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
+                    background: on ? A : 'transparent', color: on ? '#fff' : (dificil ? T.textD : T.text) }}>
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+
           {erro && <div style={{ fontSize: 12, color: '#E63946', marginBottom: 8 }}>{erro}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="us-btn" onClick={criarSala}
@@ -456,7 +559,7 @@ const Lobby = ({ name, porSala, onEnter }) => {
                       </div>
                       <div style={{ fontSize: 11, color: T.textT, marginTop: 2, whiteSpace: 'nowrap',
                         overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {cs.length} categorias: {cs.slice(0, 3).map(c => catById(c).nome).join(', ')}{cs.length > 3 && '...'}
+                        {cs.length} categorias: {cs.slice(0, 3).map(c => catById(c, st.catNomes).nome).join(', ')}{cs.length > 3 && '...'}
                       </div>
                     </div>
                     {jogando && (
@@ -557,6 +660,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   const cardBg = T.surface || '#fff';
 
   const cats = useMemo(() => state?.cats || CATS_PADRAO, [state?.cats]);
+  const catN = (id) => catById(id, state?.catNomes);   // resolve rótulos custom da sala
   /* HOST: quem criou manda; se não está, o mais antigo. (Ordem alfabética fazia
      o host trocar sozinho quando alguém entrava — bug já vivido no Paint.) */
   const host = useMemo(() => {
@@ -688,8 +792,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
 
   /* ── Motor (só o host escreve) ── */
   const novaRodada = (round, scores, usadas) => {
-    const livres = LETRAS.filter(l => !usadas.includes(l));
-    const pool = livres.length ? livres : LETRAS;     // acabou o alfabeto → recomeça
+    const habilitadas = (stateRef.current?.letras?.length ? stateRef.current.letras : LETRAS);
+    const livres = habilitadas.filter(l => !usadas.includes(l));
+    const pool = livres.length ? livres : habilitadas;   // acabou as letras → recomeça
     const letra = pool[Math.floor(Math.random() * pool.length)];
     const base = stateRef.current || {};
     // Fase 'sorteando': a roleta gira pra todo mundo ao mesmo tempo e o relógio
@@ -807,8 +912,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       }
       if (!s.endsAt || Date.now() < s.endsAt) return;
       if (s.phase === 'sorteando') {
-        // Roleta acabou → agora sim vale o cronômetro da rodada.
-        pushState({ ...s, phase: 'jogando', endsAt: Date.now() + ROUND_MS });
+        // Roleta acabou → agora sim vale o cronômetro da rodada (tempo escolhido).
+        pushState({ ...s, phase: 'jogando', endsAt: Date.now() + tempoMs(s.tempo) });
       } else if (s.phase === 'jogando') {
         // Tempo acabou sem STOP → 'parando'. O envio das respostas (inclusive as
         // do host) acontece no effect de fase quando todos veem 'parando'.
@@ -910,6 +1015,33 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>{STOP_CSS}</style>
+
+      {/* ── ALARME DE STOP — tela grande vermelha piscando quando alguém parou ── */}
+      {state?.phase === 'parando' && state?.stopPor && (
+        <div className="us-alarme" style={{ position: 'fixed', inset: 0, zIndex: 9000,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
+          textAlign: 'center', pointerEvents: 'none' }}>
+          {/* faróis de alarme nos cantos */}
+          <div className="us-alarme-luz" style={{ position: 'absolute', top: '-10%', left: '-10%', width: '55%', height: '55%',
+            background: 'radial-gradient(circle, #ffef99 0%, transparent 60%)' }} />
+          <div className="us-alarme-luz" style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '55%', height: '55%',
+            background: 'radial-gradient(circle, #ffef99 0%, transparent 60%)', animationDelay: '.3s' }} />
+          <div className="us-alarme-msg" style={{ position: 'relative' }}>
+            <div style={{ fontSize: 'clamp(60px, 14vw, 180px)', lineHeight: 1 }}>🚨</div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 9vw, 110px)', fontWeight: 800,
+              color: '#fff', letterSpacing: '.05em', textShadow: '0 4px 24px rgba(0,0,0,.5)', lineHeight: 1 }}>
+              STOP!
+            </div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(20px, 4vw, 44px)', fontWeight: 800,
+              color: '#fff', marginTop: 14, textShadow: '0 2px 12px rgba(0,0,0,.5)' }}>
+              {state.stopPor.split(' ')[0]} parou!
+            </div>
+            <div style={{ fontSize: 'clamp(13px, 2vw, 20px)', color: 'rgba(255,255,255,.9)', marginTop: 10 }}>
+              Larga o teclado! ✋
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cabeçalho */}
       <div style={{ borderRadius: 16, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 13,
@@ -1044,7 +1176,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                 {cats.map(c => (
                   <span key={c} style={{ padding: '5px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700,
                     background: `${A}12`, border: `1px solid ${A}33`, color: T.text }}>
-                    {catById(c).emoji} {catById(c).nome}
+                    {catN(c).emoji} {catN(c).nome}
                   </span>
                 ))}
               </div>
@@ -1112,7 +1244,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                   {cats.map(c => (
                     <span key={c} style={{ padding: '4px 9px', borderRadius: 999, fontSize: 11, fontWeight: 700,
                       background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, color: T.textT }}>
-                      {catById(c).emoji} {catById(c).nome}
+                      {catN(c).emoji} {catN(c).nome}
                     </span>
                   ))}
                 </div>
@@ -1145,7 +1277,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                 {cats.map(c => {
-                  const cat = catById(c);
+                  const cat = catN(c);
                   const v = minhas[c] || '';
                   const ok = v && valeResposta(v, state.letra);
                   const ruim = v && !ok;
@@ -1190,7 +1322,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
             const fila = validaFila;
             const idx = Math.min(state.validaIdx ?? 0, Math.max(fila.length - 1, 0));
             const c = fila[idx];
-            const cat = catById(c);
+            const cat = catN(c);
             // Agrupa respostas IDÊNTICAS (normalizadas) num card só — anônimo, e de
             // quebra deixa claro quais repetiram. Cada grupo guarda quem escreveu
             // (só pra saber a quem aplicar a contestação), mas o nome NÃO aparece.
@@ -1320,10 +1452,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                       if (!d) return null;
                       const cor = d.pts === 10 ? US.verde : d.pts === 5 ? US.amarelo : US.vermelho;
                       return (
-                        <span key={c} title={`${catById(c).nome}: ${d.motivo}`}
+                        <span key={c} title={`${catN(c).nome}: ${d.motivo}`}
                           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 7,
                             fontSize: 11.5, background: `${cor}12`, border: `1px solid ${cor}44`, color: T.text }}>
-                          <span style={{ opacity: .7 }}>{catById(c).emoji}</span>
+                          <span style={{ opacity: .7 }}>{catN(c).emoji}</span>
                           {d.txt || <i style={{ color: T.textD }}>—</i>}
                           <b style={{ color: cor }}>{d.pts}</b>
                         </span>
