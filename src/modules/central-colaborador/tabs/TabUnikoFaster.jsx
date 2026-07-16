@@ -158,7 +158,7 @@ function montarRivais() {
   return Array.from({ length: RIVAIS_N }, (_, i) => {
     const fila = Math.floor(i / 2);
     return {
-      pos: SEG_LEN * (6 + fila * 4),            // escalonados à frente da largada
+      pos: SEG_LEN * (14 + fila * 6),           // escalonados à frente da largada
       x: (i % 2 === 0 ? -0.5 : 0.5),            // duas colunas
       cor: cores[i % cores.length],
       nome: nomes[i % nomes.length],
@@ -608,14 +608,16 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (p1.z <= CAM_D) continue;
         // cones
         (seg.obstaculos || []).forEach(o => {
-          const cx = p1.sx + o.x * p1.sw, larg = p1.sw * 0.42;
+          const cx = p1.sx + o.x * p1.sw, larg = Math.min(w * 0.16, p1.sw * 0.28);
           if (larg < 2) return;
           drawCone(cx, p1.sy, larg);
           if (n < 3 && Math.abs(o.x - st.playerX) < 0.28 && st.batendo <= 0 && !pausadoRef.current) st.batendo = 0.45;
         });
-        // rivais
+        // rivais — largura escala com a distância, mas com TETO (~30% da tela) pra
+        // não virar um blocão gigante quando estão colados na câmera. Fica na
+        // mesma proporção do carro do jogador (chase cam, ~34%).
         (spritesPorSeg[n] || []).forEach(r => {
-          const cx = p1.sx + r.x * p1.sw, larg = p1.sw * 0.5;
+          const cx = p1.sx + r.x * p1.sw, larg = Math.min(w * 0.3, p1.sw * 0.3);
           if (larg < 2) return;
           drawCarro(cx, p1.sy, larg, r.cor);
         });
