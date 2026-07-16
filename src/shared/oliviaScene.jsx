@@ -239,18 +239,13 @@ function drawTitulo(ctx, cx, cy, s, seed) {
   let r = seed >>> 0;
   const rnd = () => (r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 4294967296;
   const gap = s * 0.14;
+  const larguraLetra = s * 0.78;   // largura fixa por letra (caixinha quadradona)
   linhas.forEach((linha, li) => {
-    // largura da linha pra centralizar
-    const larguras = [];
-    for (const ch of linha) {
-      ctx.font = TITULO_FONTES[0].replace('{s}', s);
-      larguras.push(s * 0.78);
-    }
-    const totalW = larguras.reduce((a, b) => a + b + gap, -gap);
+    const totalW = linha.length * (larguraLetra + gap) - gap;
     let x = cx - totalW / 2;
     const y = cy + li * (s * 1.32);
     for (let i = 0; i < linha.length; i++) {
-      const ch = linha[i], w = larguras[i];
+      const ch = linha[i], w = larguraLetra;
       const fonte = TITULO_FONTES[Math.floor(rnd() * TITULO_FONTES.length)];
       const box = TITULO_BOXES[Math.floor(rnd() * TITULO_BOXES.length)];
       const rot = (rnd() - 0.5) * 0.34;
@@ -375,7 +370,7 @@ export default function OliviaScene({ fixed = false, dark = false }) {
 
     frame();
     return () => { cancelAnimationFrame(rafId); ro.disconnect(); };
-  }, [fixed]);
+  }, [fixed, dark]);   // re-cria a cena ao trocar tela-cheia/card ou claro/escuro
 
   return (
     <div style={{ position: fixed ? 'fixed' : 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: fixed ? 1 : 0 }}>
