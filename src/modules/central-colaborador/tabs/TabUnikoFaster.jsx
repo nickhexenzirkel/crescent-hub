@@ -44,8 +44,8 @@ const bibliotecaSalva = () => {
 /* ── Pista (pseudo-3D) ───────────────────────────────────────────────────── */
 const SEG_LEN = 200;          // comprimento de um segmento no "mundo"
 const RUMBLE = 3;             // segmentos por faixa de zebra
-const ROAD_W = 2200;          // meia-largura da pista
-const LANES = 3;
+const ROAD_W = 3100;          // meia-largura da pista (mais larga = mais espaço p/ ultrapassar)
+const LANES = 4;
 const CAM_H = 1000;           // altura da câmera
 const CAM_D = 0.84;           // distância da câmera ao plano (fov)
 const DRAW_N = 300;           // segmentos desenhados à frente
@@ -61,6 +61,9 @@ const NITRO_MAX = 1;
 const NITRO_DRAIN = 0.42;     // por segundo em uso
 const NITRO_FILL = 0.075;     // recarrega por segundo correndo
 const BOOST_MULT = 1.45;      // teto de velocidade durante o nitro
+// Rampas de TURBO na pista (atalho de velocidade pra ultrapassar): pisou, disparou.
+const TURBO_MULT = 1.6;       // teto de velocidade em cima/logo após a rampa
+const TURBO_DUR = 1.1;        // segundos que o impulso dura depois de sair da rampa
 const RIVAIS_N = 5;
 
 // Paleta vibrante estilo Disney Speedstorm (arcade kart colorido).
@@ -111,11 +114,20 @@ function montarPista() {
   trecho(70, 0, -segs[segs.length - 1].p2y);
   // LINHA DE LARGADA/CHEGADA (xadrez) nos primeiros segmentos.
   for (let i = 0; i < 4; i++) segs[i].start = true;
-  // pequenos OBSTÁCULOS pra desviar (cones), RAROS — nunca logo na largada nem
-  // dois seguidos. Espaçamento grande porque a pista agora é longa.
+  // RAMPAS DE TURBO: faixas brilhantes que dão um impulso de velocidade (atalho
+  // pra ultrapassar). Cada rampa ocupa uma sequência de segmentos numa faixa
+  // lateral (x, largura w), espalhadas pelo circuito.
+  const NPADS = 9, passoPad = Math.floor(segs.length / NPADS);
+  for (let k = 0; k < NPADS; k++) {
+    const ini = 90 + k * passoPad + Math.floor(rnd(0, passoPad * 0.4));
+    const x = [-0.55, 0, 0.55][k % 3], comp = 12;
+    for (let i = ini; i < ini + comp && i < segs.length - 6; i++) segs[i].turbo = { x, w: 0.34 };
+  }
+  // pequenos OBSTÁCULOS pra desviar (cones), RAROS — nunca logo na largada, nem
+  // dois seguidos, nem em cima de uma rampa de turbo.
   let ultimo = -99;
   for (let i = 120; i < segs.length - 10; i += Math.floor(rnd(30, 48))) {
-    if (i - ultimo < 24) continue;
+    if (i - ultimo < 24 || segs[i].turbo) continue;
     segs[i].obstaculos = [{ x: rnd(-0.65, 0.65) }];
     ultimo = i;
   }
@@ -139,6 +151,7 @@ function montarRivais() {
       speed: 0,
       traveled: 0,                              // distância total (p/ ranking)
       lento: 0,                                 // timer de "tomou dano" (bateu em cone)
+      turbo: 0,                                 // timer de impulso (pegou rampa)
     };
   });
 }
@@ -281,6 +294,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
+      turbo: 0,                         // impulso ativo de rampa (segundos restantes)
       traveled: 0, rank: 1,             // distância total e colocação
       largada: 3.2,                     // contagem regressiva antes de liberar (3,2,1,JÁ!)
     };
@@ -392,22 +406,27 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         const largou = st.largada <= 0;
         if (!largou) st.largada -= dt;
 
+        // ── RAMPA DE TURBO: piso numa faixa brilhante → impulso de velocidade ──
+        const segNaCam = pista[Math.floor(st.pos / SEG_LEN) % pista.length];
+        if (largou && segNaCam.turbo && Math.abs(st.playerX - segNaCam.turbo.x) < segNaCam.turbo.w) {
+          st.turbo = TURBO_DUR;
+        } else if (st.turbo > 0) st.turbo -= dt;
+
         // ── NITRO / BOOST ──
         const querBoost = (teclas.current.boost || teclas.current.shift) && largou;
         const podeBoost = querBoost && st.nitro > 0.02 && st.speed > MAX_SPEED * 0.2;
-        if (podeBoost) {
-          st.nitro = Math.max(0, st.nitro - NITRO_DRAIN * dt);
-          st.boost = Math.min(1, st.boost + dt * 4);
-        } else {
-          st.nitro = Math.min(NITRO_MAX, st.nitro + NITRO_FILL * dt);
-          st.boost = Math.max(0, st.boost - dt * 3);
-        }
-        const tetoVel = MAX_SPEED * (podeBoost ? BOOST_MULT : 1);
+        if (podeBoost) st.nitro = Math.max(0, st.nitro - NITRO_DRAIN * dt);
+        else st.nitro = Math.min(NITRO_MAX, st.nitro + NITRO_FILL * dt);
+        // intensidade visual do boost: sobe se nitro OU rampa ativos
+        const impulso = podeBoost || st.turbo > 0;
+        st.boost = impulso ? Math.min(1, st.boost + dt * 4) : Math.max(0, st.boost - dt * 3);
+        const tetoVel = MAX_SPEED * (st.turbo > 0 ? TURBO_MULT : podeBoost ? BOOST_MULT : 1);
 
         // aceleração / freio (travados durante a contagem)
         const acelerando = largou && (teclas.current.up || teclas.current.w || (!teclas.current.down && !teclas.current.s));
         if (!largou) st.speed += DECEL * 1.5 * dt;
         else if (teclas.current.down || teclas.current.s) st.speed += BRAKE * dt;
+        else if (st.turbo > 0) st.speed += ACCEL * 2.4 * dt;
         else if (podeBoost) st.speed += ACCEL * 1.8 * dt;
         else if (acelerando) st.speed += ACCEL * dt;
         else st.speed += DECEL * dt;
@@ -421,8 +440,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (largou && (teclas.current.left || teclas.current.a)) st.playerX -= dx;
         if (largou && (teclas.current.right || teclas.current.d)) st.playerX += dx;
         // centrífuga na curva
-        const segAtual = pista[Math.floor(st.pos / SEG_LEN) % pista.length];
-        st.playerX -= dx * CENTRIFUGAL * (st.speed / MAX_SPEED) * (segAtual.curve || 0);
+        st.playerX -= dx * CENTRIFUGAL * (st.speed / MAX_SPEED) * (segNaCam.curve || 0);
         st.playerX = clamp(st.playerX, -2, 2);
         // anda (e acumula distância total pro ranking)
         st.pos = (st.pos + st.speed * dt) % trackLen;
@@ -433,16 +451,23 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         rivais.forEach(r => {
           // "tomou dano" ao bater num cone → fica lento por um tempo
           if (r.lento > 0) r.lento -= dt;
-          const alvo = r.base * (r.lento > 0 ? 0.45 : 1);
+          if (r.turbo > 0) r.turbo -= dt;
+          // alvo de velocidade: base, reduzido no dano, ampliado no turbo
+          const alvo = r.base * (r.lento > 0 ? 0.45 : 1) * (r.turbo > 0 ? TURBO_MULT : 1);
           r.speed += (alvo - r.speed) * Math.min(1, dt * 2.5);   // acelera/desacelera suave
           if (!largou) r.speed = 0;                              // esperam a largada também
           r.pos = (r.pos + r.speed * dt) % trackLen;
           r.traveled += r.speed * dt;
           r.x = clamp(r.x + Math.sin(st.tempo * 0.6 + r.pos) * 0.004, -0.8, 0.8);
-          // colisão do rival com CONE: perde aceleração (dano), igual a mim
           const segR = pista[Math.floor(r.pos / SEG_LEN) % pista.length];
+          // colisão do rival com CONE: perde aceleração (dano), igual a mim
           if (r.lento <= 0 && segR.obstaculos) {
             for (const o of segR.obstaculos) if (Math.abs(o.x - r.x) < 0.3) { r.lento = 1.1; break; }
+          }
+          // rival pega RAMPA DE TURBO: também dispara (a IA tende a mirar a rampa)
+          if (segR.turbo) {
+            if (Math.abs(r.x - segR.turbo.x) < segR.turbo.w) r.turbo = TURBO_DUR;
+            else r.x += Math.sign(segR.turbo.x - r.x) * 0.01;   // desvia de leve pra pegar
           }
           // colisão comigo: os dois perdem ritmo
           let dz = r.pos - st.pos; if (dz < -trackLen / 2) dz += trackLen; if (dz > trackLen / 2) dz -= trackLen;
@@ -516,6 +541,24 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
             const lx1 = p1.sx - p1.sw + (2 * p1.sw) * (l / LANES);
             const lx2 = p2.sx - p2.sw + (2 * p2.sw) * (l / LANES);
             quad(lx1, p1.sy, p1.sw * 0.012, lx2, p2.sy, p2.sw * 0.012, COR.linha);
+          }
+        }
+        // RAMPA DE TURBO: faixa ciano brilhante + setas amarelas animadas apontando
+        // pra frente (some quando muito longe pra não poluir o horizonte).
+        if (seg.turbo && p1.sw > 6) {
+          const { x: tx, w: tw } = seg.turbo;
+          const xL1 = p1.sx + (tx - tw) * p1.sw, xR1 = p1.sx + (tx + tw) * p1.sw;
+          const xL2 = p2.sx + (tx - tw) * p2.sw, xR2 = p2.sx + (tx + tw) * p2.sw;
+          ctx.fillStyle = 'rgba(34,211,238,.4)';
+          ctx.beginPath();
+          ctx.moveTo(xL1, p1.sy); ctx.lineTo(xR1, p1.sy); ctx.lineTo(xR2, p2.sy); ctx.lineTo(xL2, p2.sy);
+          ctx.closePath(); ctx.fill();
+          // seta (chevron) rolando: acende 1 a cada 3 segmentos, alternando no tempo
+          if (seg.index % 3 === Math.floor(st.tempo * 9) % 3) {
+            ctx.fillStyle = 'rgba(255,236,120,.95)';
+            ctx.beginPath();
+            ctx.moveTo(xL1, p1.sy); ctx.lineTo((xL2 + xR2) / 2, p2.sy); ctx.lineTo(xR1, p1.sy);
+            ctx.closePath(); ctx.fill();
           }
         }
       }
@@ -747,7 +790,8 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 30, fontWeight: 800, color: '#fff' }}>Pausado</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,.8)', textAlign: 'center', lineHeight: 1.6 }}>
             Setas ou A/D pra virar · ↑ acelera · ↓ freia<br />
-            <b style={{ color: '#22d3ee' }}>Shift ou Espaço</b> = nitro ⚡ · <b style={{ color: '#ffd166' }}>Esc</b> = pausar
+            <b style={{ color: '#22d3ee' }}>Shift ou Espaço</b> = nitro ⚡ · <b style={{ color: '#ffd166' }}>Esc</b> = pausar<br />
+            Pise nas <b style={{ color: '#22d3ee' }}>rampas azuis</b> pra ganhar turbo e ultrapassar 🏎️💨
           </div>
           <button className="uf-btn" onClick={() => setPausado(false)}
             style={{ padding: '11px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
