@@ -65,6 +65,7 @@ const BOOST_MULT = 1.45;      // teto de velocidade durante o nitro
 const TURBO_MULT = 1.6;       // teto de velocidade em cima/logo após a rampa
 const TURBO_DUR = 1.1;        // segundos que o impulso dura depois de sair da rampa
 const RIVAIS_N = 5;
+const TOTAL_VOLTAS = 3;       // completou isso → acabou a corrida
 
 // Paleta vibrante estilo Disney Speedstorm (arcade kart colorido).
 const COR = {
@@ -188,7 +189,8 @@ const TabUnikoFaster = () => {
   const [link, setLink] = useState('');
   const [erroLink, setErroLink] = useState('');
   const [pausado, setPausado] = useState(false);
-  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1 });
+  const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
+  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
   const cardBg = T.surface || '#fff';
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
@@ -291,8 +293,9 @@ const TabUnikoFaster = () => {
 
   /* ── CORRIDA ── */
   return (
-    <Corrida trilha={trilha} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
+    <Corrida key={corridaKey} trilha={trilha} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
       pausado={pausado} setPausado={setPausado}
+      onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
       onSair={() => { setTela('menu'); setPausado(false); }} />
   );
 };
@@ -300,13 +303,15 @@ const TabUnikoFaster = () => {
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRIDA — canvas pseudo-3D + iframe de música
    ═══════════════════════════════════════════════════════════════════════════ */
-const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, onSair }) => {
+const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
   const estado = useRef(null);
   const rafRef = useRef(0);
   const pausadoRef = useRef(pausado);
   useEffect(() => { pausadoRef.current = pausado; }, [pausado]);
+  const [fim, setFim] = useState(null);      // {rank} quando cruza a linha na última volta
+  const fimRef = useRef(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -448,7 +453,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       const w = W(), h = H(), d = dpr();
       ctx.setTransform(d, 0, 0, d, 0, 0);
 
-      if (!pausadoRef.current) {
+      if (!pausadoRef.current && !fimRef.current) {
         st.tempo += dt;
         // ── CONTAGEM DE LARGADA: 3,2,1,JÁ! Ninguém anda antes do "JÁ!". ──
         const largou = st.largada <= 0;
@@ -497,6 +502,13 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         st.pos = (st.pos + st.speed * dt) % trackLen;
         if (st.pos < 0) st.pos += trackLen;
         st.traveled += st.speed * dt;
+        // VOLTAS: cada trackLen percorrido = 1 volta. Completou TOTAL_VOLTAS → fim.
+        st.volta = Math.min(TOTAL_VOLTAS, Math.floor(st.traveled / trackLen) + 1);
+        if (largou && st.traveled >= trackLen * TOTAL_VOLTAS) {
+          st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
+          fimRef.current = true;
+          setFim({ rank: st.rank });
+        }
 
         // ── RIVAIS ──
         rivais.forEach(r => {
@@ -715,7 +727,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         const distM = Math.floor(st.traveled / 100);   // "metros" percorridos no total
         const b = Math.max(bestRef.current, distM);
         if (b > bestRef.current) { bestRef.current = b; setBest(b); try { localStorage.setItem('uf_best', String(b)); } catch { /* sem storage */ } }
-        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro });
+        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1 });
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -743,7 +755,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       cancelAnimationFrame(rafRef.current); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
     };
-  }, [bestRef, setBest, setHud, setPausado]);
+  }, [bestRef, setBest, setHud, setPausado, setFim]);
 
   // botões de toque (celular) — setam as mesmas flags
   const touch = (dir, v) => { teclas.current[dir] = v; };
@@ -783,7 +795,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
             </div>
           </div>
         </div>
-        {/* COLOCAÇÃO */}
+        {/* COLOCAÇÃO + VOLTA */}
         <div style={{ textAlign: 'center', lineHeight: 1 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, color: '#ffd166',
             fontSize: 44, textShadow: '0 2px 14px rgba(0,0,0,.7)' }}>
@@ -791,6 +803,9 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
           </div>
           <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.9)', textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
             de {RIVAIS_N + 1}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#22d3ee', marginTop: 6, textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
+            🏁 Volta {hud.volta || 1}/{TOTAL_VOLTAS}
           </div>
         </div>
         <div style={{ pointerEvents: 'auto', display: 'flex', gap: 8 }}>
@@ -855,6 +870,37 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
               cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Continuar</button>
         </div>
       )}
+
+      {/* TELA DE CHEGADA — cruzou a linha na última volta */}
+      {fim && (() => {
+        const venceu = fim.rank === 1;
+        const medalha = fim.rank === 1 ? '🥇' : fim.rank === 2 ? '🥈' : fim.rank === 3 ? '🥉' : '🏁';
+        return (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', gap: 12, textAlign: 'center', padding: 20,
+            background: 'rgba(10,6,22,.82)', backdropFilter: 'blur(4px)' }}>
+            <div style={{ fontSize: 64, lineHeight: 1 }}>{medalha}</div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800,
+              color: venceu ? '#ffd166' : '#fff' }}>
+              {venceu ? 'VOCÊ VENCEU!' : 'Corrida encerrada!'}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#22d3ee' }}>
+              Você chegou em <b style={{ color: '#fff' }}>{fim.rank}º</b> de {RIVAIS_N + 1}
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)' }}>
+              {TOTAL_VOLTAS} voltas concluídas · 🏁 recorde {hud.best.toLocaleString('pt-BR')} m
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button className="uf-btn" onClick={onReiniciar}
+                style={{ padding: '12px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
+                  cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Correr de novo</button>
+              <button className="uf-btn" onClick={onSair}
+                style={{ padding: '12px 28px', borderRadius: 999, border: '1px solid rgba(255,255,255,.3)', color: '#fff',
+                  fontSize: 15, fontWeight: 800, cursor: 'pointer', background: 'rgba(0,0,0,.4)' }}>✕ Sair</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
