@@ -12,7 +12,24 @@ const rng = (a, b) => Math.random() * (b - a) + a;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // Paleta SOUR: roxos, lilás, rosa, azul-borboleta, amarelo-sorriso.
-const ROXO_FUNDO = ['#8b6fd6', '#9d7fe0', '#7c5fc9'];
+const ROXO_FUNDO = ['#8b6fd6', '#9d7fe0', '#7c5fc9'];        // fundo de tela cheia (claro)
+const ROXO_ESCURO = ['#3a2465', '#2c1a52', '#1e1240'];      // fundo do card (roxo escuro)
+
+// Título "OLIVIA RODRIGO" estilo colagem/ransom-note: cada letra numa fonte,
+// cor e inclinação diferentes, recortada num quadradinho — como as letras de
+// revista dos moodboards SOUR. Fontes genéricas do canvas (serif/mono/cursive/
+// fantasy) + as do app, misturadas de propósito pra não ficar uniforme.
+const TITULO_FONTES = [
+  '900 {s}px Poppins, sans-serif',
+  'italic 800 {s}px Georgia, serif',
+  '700 {s}px "Courier New", monospace',
+  '800 {s}px Impact, "Arial Black", fantasy',
+  'italic 700 {s}px "Times New Roman", serif',
+  '900 {s}px Arial, sans-serif',
+  'bold {s}px "Comic Sans MS", "Segoe UI", cursive',
+  '800 {s}px Verdana, sans-serif',
+];
+const TITULO_BOXES = ['#ffffff', '#ffd166', '#ff8fd6', '#a06bff', '#6bd3ff', '#ff5d8f', '#c9f26b', '#ffffff'];
 const FLOR_CORES = ['#ff8fd6', '#ffd166', '#a06bff', '#ff5d8f', '#6bd3ff', '#ffb3e6', '#c56bff'];
 const BORBO_CORES = ['#a06bff', '#7b5fe0', '#6bb0ff', '#ff8fd6', '#c56bff', '#8f9bff'];
 const JOIA_CORES = ['#ff5d8f', '#6bd3ff', '#a06bff', '#5be08f', '#ffd166'];
@@ -213,8 +230,62 @@ function drawBorboleta(ctx, x, y, r, cor, asa) {
   ctx.restore();
 }
 
+// Título ransom-note "OLIVIA RODRIGO" (duas linhas de letras recortadas).
+// `seed` fixa a aparência (fonte/cor/rotação por letra) pra não piscar a cada
+// frame. cx/cy = centro; s = altura da letra em px.
+function drawTitulo(ctx, cx, cy, s, seed) {
+  const linhas = ['OLIVIA', 'RODRIGO'];
+  // gerador determinístico (a mesma seed → sempre o mesmo visual)
+  let r = seed >>> 0;
+  const rnd = () => (r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const gap = s * 0.14;
+  linhas.forEach((linha, li) => {
+    // largura da linha pra centralizar
+    const larguras = [];
+    for (const ch of linha) {
+      ctx.font = TITULO_FONTES[0].replace('{s}', s);
+      larguras.push(s * 0.78);
+    }
+    const totalW = larguras.reduce((a, b) => a + b + gap, -gap);
+    let x = cx - totalW / 2;
+    const y = cy + li * (s * 1.32);
+    for (let i = 0; i < linha.length; i++) {
+      const ch = linha[i], w = larguras[i];
+      const fonte = TITULO_FONTES[Math.floor(rnd() * TITULO_FONTES.length)];
+      const box = TITULO_BOXES[Math.floor(rnd() * TITULO_BOXES.length)];
+      const rot = (rnd() - 0.5) * 0.34;
+      const bob = (rnd() - 0.5) * s * 0.12;
+      ctx.save();
+      ctx.translate(x + w / 2, y + bob);
+      ctx.rotate(rot);
+      // quadradinho recortado (com sombra sutil)
+      const bw = w * 1.02, bh = s * 1.12;
+      ctx.shadowColor = 'rgba(0,0,0,0.28)'; ctx.shadowBlur = s * 0.14; ctx.shadowOffsetY = s * 0.05;
+      ctx.fillStyle = box;
+      const rr = s * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(-bw / 2 + rr, -bh / 2);
+      ctx.arcTo(bw / 2, -bh / 2, bw / 2, bh / 2, rr);
+      ctx.arcTo(bw / 2, bh / 2, -bw / 2, bh / 2, rr);
+      ctx.arcTo(-bw / 2, bh / 2, -bw / 2, -bh / 2, rr);
+      ctx.arcTo(-bw / 2, -bh / 2, bw / 2, -bh / 2, rr);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      // letra (escura em box claro, branca em box escuro)
+      const clara = box === '#ffffff' || box === '#ffd166' || box === '#c9f26b' || box === '#6bd3ff';
+      ctx.fillStyle = clara ? '#2a1150' : '#ffffff';
+      ctx.font = fonte.replace('{s}', s);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ch, 0, s * 0.04);
+      ctx.restore();
+      x += w + gap;
+    }
+  });
+}
+
 // `fixed`: position:fixed;inset:0 (fundo de tela cheia) vs position:absolute (card).
-export default function OliviaScene({ fixed = false }) {
+// `dark`: fundo roxo ESCURO (pro card do Uniko) em vez do roxo claro da tela cheia.
+export default function OliviaScene({ fixed = false, dark = false }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -232,18 +303,19 @@ export default function OliviaScene({ fixed = false }) {
 
     const BORBOLETAS = makeBorboletas(fixed ? 12 : 7);
 
+    const PAL = dark ? ROXO_ESCURO : ROXO_FUNDO;
     const drawFundo = (w, h) => {
       const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, ROXO_FUNDO[0]);
-      g.addColorStop(0.55, ROXO_FUNDO[1]);
-      g.addColorStop(1, ROXO_FUNDO[2]);
+      g.addColorStop(0, PAL[0]);
+      g.addColorStop(0.55, PAL[1]);
+      g.addColorStop(1, PAL[2]);
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       // manchas de brilho suaves
       const b1 = ctx.createRadialGradient(w * 0.2, h * 0.2, 0, w * 0.2, h * 0.2, Math.max(w, h) * 0.5);
-      b1.addColorStop(0, 'rgba(255,255,255,0.14)'); b1.addColorStop(1, 'rgba(255,255,255,0)');
+      b1.addColorStop(0, `rgba(255,255,255,${dark ? 0.08 : 0.14})`); b1.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = b1; ctx.fillRect(0, 0, w, h);
       const b2 = ctx.createRadialGradient(w * 0.85, h * 0.85, 0, w * 0.85, h * 0.85, Math.max(w, h) * 0.5);
-      b2.addColorStop(0, 'rgba(255,150,220,0.12)'); b2.addColorStop(1, 'rgba(255,150,220,0)');
+      b2.addColorStop(0, `rgba(255,150,220,${dark ? 0.10 : 0.12})`); b2.addColorStop(1, 'rgba(255,150,220,0)');
       ctx.fillStyle = b2; ctx.fillRect(0, 0, w, h);
     };
 
@@ -284,6 +356,11 @@ export default function OliviaScene({ fixed = false }) {
         drawEstrela(ctx, s.x * w, s.y * h, s.r * (sc / 320) * (0.7 + tw * 0.6), s.cor, s.pontas);
         ctx.globalAlpha = 1;
       });
+
+      // adesivo "OLIVIA RODRIGO" ransom-note — só na tela cheia, no canto inferior
+      // esquerdo (área visível fora dos painéis). POR CIMA dos stickers pra ficar
+      // legível (senão as flores cobrem as letras).
+      if (fixed) drawTitulo(ctx, w * 0.155, h * 0.7, Math.max(20, sc * 0.05), 1337);
 
       // borboletas por cima de tudo
       BORBOLETAS.forEach(b => {

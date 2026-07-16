@@ -2828,6 +2828,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       </div>
                     )}
 
+                    {/* Colagem SOUR artesanal — Uniko Olivia Rodrigo. `dark` deixa o
+                        fundo do card ROXO ESCURO (não preto), com flores/borboletas/
+                        arco-íris por cima. */}
+                    {isCustomCard && uni?.theme?.sceneType === 'olivia' && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
+                        <OliviaScene dark />
+                      </div>
+                    )}
+
                     <div style={{ position:'relative', zIndex:2 }}>
                       <UnikoMascot
                         track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
