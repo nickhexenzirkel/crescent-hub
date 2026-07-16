@@ -41,6 +41,7 @@ const NAV=[
   {id:'unikopaint', label:'Uniko Paint',    icon:<I><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></I>},
   {id:'quizmm',     label:'Quiz do M&M',    icon:<I><circle cx="12" cy="12" r="9"/><path d="M9.1 9.5a3 3 0 015.8 1c0 2-3 2.5-3 4"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></I>},
   {id:'unikostop',  label:'Uniko Stop!',    icon:<I><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></I>},
+  {id:'unikofaster',label:'Uniko Faster',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
 ];
 
 /* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
@@ -212,7 +213,7 @@ const TopBar = ({tab,onBack}) => {
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',games:'Games',
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint',
-    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!'};
+    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Faster'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
