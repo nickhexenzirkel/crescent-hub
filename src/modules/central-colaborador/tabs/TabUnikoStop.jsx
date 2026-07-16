@@ -200,6 +200,9 @@ const semTabela = (e) => !!e && (e.code === 'PGRST205' || e.code === '42P01'
 /* Compara ignorando acento/caixa — "Ácaro" e "acaro" são a mesma resposta. */
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/\s+/g, ' ').trim();
+/* Exibição unificada: tira espaços das pontas e deixa a 1ª letra maiúscula, pra
+   "banana" e "Banana" (que já são o MESMO grupo) também aparecerem iguais. */
+const capInicial = (s) => { const t = (s || '').trim(); return t ? t[0].toUpperCase() + t.slice(1) : t; };
 /* Vale? Precisa começar com a letra sorteada e ter ao menos 2 letras.
    ("A" sozinho não é resposta; e a comparação ignora acento, então "Índia"
    conta pra letra I.) */
@@ -1376,8 +1379,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                     const invalidada = autoInvalida || maioriaContestou(contra, votantes);
                     const souAutor = g.quens.includes(name);
                     const clicavel = !souAutor && !autoInvalida;   // não invalida a própria nem a já-errada
-                    // VERDE = vale (vai pontuar) · VERMELHO = invalidada (não pontua)
-                    const cor = invalidada ? US.vermelho : US.verde;
+                    // VERMELHO se: letra errada, maioria contestou, OU eu mesmo cliquei
+                    // (feedback imediato do meu voto). VERDE = ainda vale.
+                    const vermelho = invalidada || euCliquei;
+                    const cor = vermelho ? US.vermelho : US.verde;
                     return (
                       <button key={i} className="us-btn" disabled={!clicavel}
                         // eslint-disable-next-line react-hooks/refs
@@ -1389,20 +1394,21 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                           padding: '16px 12px', borderRadius: 14, cursor: clicavel ? 'pointer' : 'default',
                           border: `2px solid ${cor}`, background: `${cor}14`,
-                          opacity: invalidada ? .75 : 1 }}>
+                          opacity: vermelho ? .75 : 1 }}>
                         <span style={{ fontSize: 17, fontWeight: 800, textAlign: 'center', width: '100%',
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          color: invalidada ? US.vermelho : T.text,
-                          textDecoration: invalidada ? 'line-through' : 'none' }}>
-                          {g.txt}
+                          color: vermelho ? US.vermelho : T.text,
+                          textDecoration: vermelho ? 'line-through' : 'none' }}>
+                          {capInicial(g.txt)}
                         </span>
                         <span style={{ fontSize: 11, color: T.textT, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center' }}>
                           {autoInvalida ? <span style={{ color: US.vermelho, fontWeight: 700 }}>letra errada</span>
                             : maioriaContestou(contra, votantes) ? <span style={{ color: US.vermelho, fontWeight: 700 }}>invalidada · {contra} ✗</span>
+                            : euCliquei ? <span style={{ color: US.vermelho, fontWeight: 700 }}>você marcou ✗{contra > 1 ? ` · ${contra}` : ''}</span>
                             : contra > 0 ? <span style={{ color: US.amarelo, fontWeight: 800 }}>{contra} ✗</span>
                             : souAutor ? <span style={{ color: US.verde, fontWeight: 700 }}>sua · vale</span>
                             : <span style={{ color: US.verde, fontWeight: 700 }}>vale · toque se não</span>}
-                          {g.quens.length > 1 && !invalidada && <span style={{ color: US.amarelo, fontWeight: 700 }}>· {g.quens.length}×</span>}
+                          {g.quens.length > 1 && !vermelho && <span style={{ color: US.amarelo, fontWeight: 700 }}>· {g.quens.length}×</span>}
                         </span>
                       </button>
                     );
@@ -1456,7 +1462,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 7,
                             fontSize: 11.5, background: `${cor}12`, border: `1px solid ${cor}44`, color: T.text }}>
                           <span style={{ opacity: .7 }}>{catN(c).emoji}</span>
-                          {d.txt || <i style={{ color: T.textD }}>—</i>}
+                          {capInicial(d.txt) || <i style={{ color: T.textD }}>—</i>}
                           <b style={{ color: cor }}>{d.pts}</b>
                         </span>
                       );
