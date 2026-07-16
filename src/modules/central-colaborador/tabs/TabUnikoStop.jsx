@@ -183,6 +183,12 @@ const valeResposta = (txt, letra) => {
   const n = norm(txt);
   return n.length >= 2 && n[0] === norm(letra);
 };
+/* A maioria contestou? Conta sobre os OUTROS jogadores (o autor não vota na
+   própria). Antes era `contra > votantes/2`, incluindo o autor no total — num
+   jogo de 2, exigia 2 votos mas só 1 era possível, então a contestação NUNCA
+   funcionava e a pessoa pontuava mesmo marcada como errada. Agora: 2 jogadores
+   → 1 voto zera; 4 → 2; 5 → 3 (maioria estrita dos outros). */
+const maioriaContestou = (contra, totalJogadores) => contra > (totalJogadores - 1) / 2;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RANKING (lobby)
@@ -739,7 +745,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         let pts = 0, motivo;
         if (!v) motivo = 'vazio';                       // em branco: 0, sem punir
         else if (!valeResposta(txt, s.letra)) { pts = PENALIDADE; motivo = `não é com ${s.letra}!`; }
-        else if (contra > votantes / 2) motivo = 'contestada';
+        else if (maioriaContestou(contra, votantes)) motivo = 'contestada';
         else if (cont[v] > 1) { pts = 5; motivo = 'repetida'; }
         else { pts = 10; motivo = 'única'; }
         pontos[p] += pts;
@@ -1234,10 +1240,12 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                     chaves.forEach(ch => Object.keys(state.contest?.[ch] || {}).forEach(v => votos.add(v)));
                     const contra = votos.size;
                     const euCliquei = votos.has(name);
-                    const zerada = autoInvalida || contra > votantes / 2;
+                    // invalidada = letra errada OU a maioria contestou (mesma regra do placar)
+                    const invalidada = autoInvalida || maioriaContestou(contra, votantes);
                     const souAutor = g.quens.includes(name);
-                    // dá pra invalidar se não é sua e não é auto-inválida
-                    const clicavel = !souAutor && !autoInvalida;
+                    const clicavel = !souAutor && !autoInvalida;   // não invalida a própria nem a já-errada
+                    // VERDE = vale (vai pontuar) · VERMELHO = invalidada (não pontua)
+                    const cor = invalidada ? US.vermelho : US.verde;
                     return (
                       <button key={i} className="us-btn" disabled={!clicavel}
                         // eslint-disable-next-line react-hooks/refs
@@ -1248,21 +1256,21 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                           : 'clique se achar que não vale'}
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                           padding: '16px 12px', borderRadius: 14, cursor: clicavel ? 'pointer' : 'default',
-                          border: `2px solid ${zerada ? T.border : euCliquei ? US.vermelho : souAutor ? `${A}55` : T.border}`,
-                          background: zerada ? (T.surfaceSub || 'rgba(0,0,0,.04)')
-                            : euCliquei ? `${US.vermelho}12` : souAutor ? `${A}0d` : cardBg,
-                          opacity: zerada ? .5 : 1 }}>
-                        <span style={{ fontSize: 17, fontWeight: 800, color: T.text, textAlign: 'center', width: '100%',
+                          border: `2px solid ${cor}`, background: `${cor}14`,
+                          opacity: invalidada ? .75 : 1 }}>
+                        <span style={{ fontSize: 17, fontWeight: 800, textAlign: 'center', width: '100%',
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          textDecoration: zerada ? 'line-through' : 'none' }}>
+                          color: invalidada ? US.vermelho : T.text,
+                          textDecoration: invalidada ? 'line-through' : 'none' }}>
                           {g.txt}
                         </span>
-                        <span style={{ fontSize: 11, color: T.textT, display: 'flex', alignItems: 'center', gap: 5 }}>
-                          {g.quens.length > 1 && <span style={{ color: US.amarelo, fontWeight: 700 }}>{g.quens.length}× repetida</span>}
-                          {autoInvalida && <span style={{ color: US.vermelho, fontWeight: 700 }}>letra errada</span>}
-                          {!autoInvalida && contra > 0 && <span style={{ color: US.vermelho, fontWeight: 800 }}>{contra} ✗</span>}
-                          {!autoInvalida && !contra && !souAutor && <span style={{ opacity: .6 }}>toque pra invalidar</span>}
-                          {souAutor && !autoInvalida && <span style={{ color: A, fontWeight: 700 }}>sua</span>}
+                        <span style={{ fontSize: 11, color: T.textT, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {autoInvalida ? <span style={{ color: US.vermelho, fontWeight: 700 }}>letra errada</span>
+                            : maioriaContestou(contra, votantes) ? <span style={{ color: US.vermelho, fontWeight: 700 }}>invalidada · {contra} ✗</span>
+                            : contra > 0 ? <span style={{ color: US.amarelo, fontWeight: 800 }}>{contra} ✗</span>
+                            : souAutor ? <span style={{ color: US.verde, fontWeight: 700 }}>sua · vale</span>
+                            : <span style={{ color: US.verde, fontWeight: 700 }}>vale · toque se não</span>}
+                          {g.quens.length > 1 && !invalidada && <span style={{ color: US.amarelo, fontWeight: 700 }}>· {g.quens.length}×</span>}
                         </span>
                       </button>
                     );
