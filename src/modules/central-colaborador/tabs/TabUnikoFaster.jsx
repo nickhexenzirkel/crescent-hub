@@ -75,6 +75,21 @@ const COR = {
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+/* ── Sprites personalizados (PNG em /public/unikofaster/) ──────────────────────
+   Carrega uma vez e guarda em cache. Cada sprite tem .ok (carregou) — o desenho
+   só usa a imagem quando .ok; senão cai no desenho procedural (fallback). Assim
+   o jogador vai soltando os PNGs e cada um aparece sozinho, sem quebrar nada. */
+const SPRITE_CACHE = {};
+const carregarSprite = (nome) => {
+  if (SPRITE_CACHE[nome]) return SPRITE_CACHE[nome];
+  const rec = { ok: false, img: new Image() };
+  rec.img.onload = () => { rec.ok = true; rec.rz = rec.img.naturalWidth / rec.img.naturalHeight; };
+  rec.img.onerror = () => { rec.ok = false; };   // sem PNG → fallback silencioso
+  rec.img.src = `/unikofaster/${nome}.png`;
+  SPRITE_CACHE[nome] = rec;
+  return rec;
+};
+
 // Constrói a pista: retas, curvas e ladeiras encadeadas (loopável).
 function montarPista() {
   const segs = [];
@@ -291,6 +306,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const pista = montarPista();
     const trackLen = pista.length * SEG_LEN;
     const rivais = montarRivais();
+    const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
@@ -352,6 +368,21 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.fillStyle = '#fff';
       ctx.fillRect(cx - w * 0.42, cy - h * 0.55, w * 0.84, h * 0.16);
       ctx.fillRect(cx - w * 0.5, cy - h * 0.05, w, h * 0.06);
+    };
+
+    // Carro do jogador em CHASE CAM (sprite visto por trás), no centro de baixo.
+    // Desliza pros lados com a direção e balança de leve; inclina na curva.
+    const drawCarroJogador = (w, h, steer, tremor) => {
+      const cw = w * 0.34, ch = cw / (sprCarro.rz || 1.4);
+      const cx = w / 2 + steer * w * 0.05;
+      const cy = h - ch * 0.5 - h * 0.02 + tremor;
+      ctx.save();
+      // sombra no chão
+      ctx.fillStyle = 'rgba(0,0,0,.3)';
+      ctx.beginPath(); ctx.ellipse(cx, cy + ch * 0.42, cw * 0.44, ch * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(cx, cy); ctx.rotate(steer * 0.03);      // inclina na curva
+      ctx.drawImage(sprCarro.img, -cw / 2, -ch / 2, cw, ch);
+      ctx.restore();
     };
 
     // Capô do jogador (1ª pessoa) — desenhado no rodapé, inclina na curva.
@@ -590,10 +621,13 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         });
       }
 
-      // capô do jogador
+      // carro do jogador: sprite chase cam se o PNG existir; senão o capô desenhado
       const steer = (teclas.current.left || teclas.current.a ? -1 : 0) + (teclas.current.right || teclas.current.d ? 1 : 0);
       const tremor = st.speed > MAX_SPEED * 0.7 ? Math.sin(st.tempo * 40) * 1.5 : 0;
-      drawCapo(w, h, steer + st.playerX * 0.3, tremor + (st.batendo > 0 ? Math.sin(st.tempo * 60) * 4 : 0));
+      const inclina = steer + st.playerX * 0.3;
+      const bal = tremor + (st.batendo > 0 ? Math.sin(st.tempo * 60) * 4 : 0);
+      if (sprCarro.ok) drawCarroJogador(w, h, inclina, bal);
+      else drawCapo(w, h, inclina, bal);
 
       // flash de batida
       if (st.batendo > 0) {

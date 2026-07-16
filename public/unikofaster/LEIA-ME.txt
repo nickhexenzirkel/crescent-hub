@@ -1,0 +1,31 @@
+UNIKO FASTER — imagens personalizadas
+======================================
+
+Solte aqui os PNGs (fundo transparente) com estes nomes EXATOS.
+Cada um aparece sozinho no jogo assim que o arquivo existir; enquanto
+faltar, o jogo usa o desenho padrao.
+
+CARRO DO JOGADOR (chase cam, visto por tras):
+  carro-jogador.png
+
+CARROS RIVAIS (visto por tras) — ate 5:
+  rival-1.png
+  rival-2.png
+  rival-3.png
+  rival-4.png
+  rival-5.png
+
+OBSTACULO (cone/barril, de frente):
+  cone.png
+
+FUNDO / HORIZONTE (panorama, SEM transparencia):
+  fundo.png
+
+CENARIO DE BEIRA DE PISTA (de frente) — quantos quiser:
+  cenario-arvore.png
+  cenario-placa.png
+  cenario-arco.png
+  ... (qualquer nome comecando com "cenario-")
+
+TEXTURA LATERAL DE GRAMA (opcional, sem emenda/tileavel):
+  grama.png
