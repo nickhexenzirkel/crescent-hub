@@ -55,7 +55,7 @@ const BRAKE = -MAX_SPEED / 2.2;
 const DECEL = -MAX_SPEED / 5.5;
 const OFFROAD_DECEL = -MAX_SPEED / 2;
 const OFFROAD_MAX = MAX_SPEED / 4.2;
-const CENTRIFUGAL = 0.32;
+const CENTRIFUGAL = 0.22;
 // Nitro (boost estilo Speedstorm): medidor 0..1, gasta rápido, recarrega devagar.
 const NITRO_MAX = 1;
 const NITRO_DRAIN = 0.42;     // por segundo em uso
@@ -150,18 +150,26 @@ function montarPista() {
 }
 
 // Rivais que CORREM comigo (posição, velocidade e progresso próprios na pista).
+// Cada um tem uma COR (ponto do minimapa + fallback desenhado) e um SPRITE PNG.
+const RIVAL_DEFS = [
+  { cor: '#ef4444', spr: 'rival-vermelho', nome: 'Blaze' },
+  { cor: '#3b82f6', spr: 'rival-azul', nome: 'Volt' },
+  { cor: '#f59e0b', spr: 'rival-amarelo', nome: 'Turbo' },
+  { cor: '#22c55e', spr: 'rival-verde', nome: 'Rex' },
+  { cor: '#e879f9', spr: 'rival-rosa', nome: 'Ace' },
+];
 function montarRivais() {
-  const cores = ['#ef4444', '#3b82f6', '#f59e0b', '#22c55e', '#e879f9', '#06b6d4'];
-  const nomes = ['Turbo', 'Blaze', 'Nitro', 'Volt', 'Ace', 'Rex'];
   // GRID DE LARGADA: fileiras alternadas (esquerda/direita), logo à frente da
   // linha de partida, escalonados como num grid de kart.
   return Array.from({ length: RIVAIS_N }, (_, i) => {
     const fila = Math.floor(i / 2);
+    const def = RIVAL_DEFS[i % RIVAL_DEFS.length];
     return {
       pos: SEG_LEN * (14 + fila * 6),           // escalonados à frente da largada
       x: (i % 2 === 0 ? -0.5 : 0.5),            // duas colunas
-      cor: cores[i % cores.length],
-      nome: nomes[i % nomes.length],
+      cor: def.cor,
+      spr: def.spr,
+      nome: def.nome,
       base: MAX_SPEED * rnd(0.78, 0.94),        // ritmo natural de cada um
       speed: 0,
       traveled: 0,                              // distância total (p/ ranking)
@@ -307,6 +315,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const trackLen = pista.length * SEG_LEN;
     const rivais = montarRivais();
     const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
+    rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
@@ -368,6 +377,14 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       ctx.fillStyle = '#fff';
       ctx.fillRect(cx - w * 0.42, cy - h * 0.55, w * 0.84, h * 0.16);
       ctx.fillRect(cx - w * 0.5, cy - h * 0.05, w, h * 0.06);
+    };
+
+    // Rival com SPRITE (visto por trás), ancorado pela base no ponto da pista.
+    const drawSpriteRival = (spr, cx, cyBase, larg) => {
+      const w2 = larg, h2 = w2 / (spr.rz || 1.4);
+      ctx.fillStyle = 'rgba(0,0,0,.28)';
+      ctx.beginPath(); ctx.ellipse(cx, cyBase, w2 * 0.44, h2 * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.drawImage(spr.img, cx - w2 / 2, cyBase - h2, w2, h2);
     };
 
     // Carro do jogador em CHASE CAM (sprite visto por trás), no centro de baixo.
@@ -466,13 +483,16 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (fora && st.speed > OFFROAD_MAX) st.speed += OFFROAD_DECEL * dt;
         if (st.batendo > 0) { st.batendo -= dt; st.speed = Math.min(st.speed, MAX_SPEED * 0.35); }
         st.speed = clamp(st.speed, 0, tetoVel);
-        // direção
-        const dx = dt * 2 * (st.speed / MAX_SPEED);
+        // Direção e centrífuga usam a velocidade RELATIVA travada em 1 — sem isso,
+        // no turbo (speed até 1.6×) tanto o giro quanto a centrífuga eram
+        // amplificados e jogavam o carro pra fora do caminho (o "bug da rampa").
+        const velRel = Math.min(1, st.speed / MAX_SPEED);
+        const dx = dt * 2 * velRel;
         if (largou && (teclas.current.left || teclas.current.a)) st.playerX -= dx;
         if (largou && (teclas.current.right || teclas.current.d)) st.playerX += dx;
-        // centrífuga na curva
-        st.playerX -= dx * CENTRIFUGAL * (st.speed / MAX_SPEED) * (segNaCam.curve || 0);
-        st.playerX = clamp(st.playerX, -2, 2);
+        // centrífuga na curva (mais suave e sem estourar no turbo)
+        st.playerX -= dx * CENTRIFUGAL * velRel * (segNaCam.curve || 0);
+        st.playerX = clamp(st.playerX, -1.6, 1.6);
         // anda (e acumula distância total pro ranking)
         st.pos = (st.pos + st.speed * dt) % trackLen;
         if (st.pos < 0) st.pos += trackLen;
@@ -619,7 +639,8 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         (spritesPorSeg[n] || []).forEach(r => {
           const cx = p1.sx + r.x * p1.sw, larg = Math.min(w * 0.3, p1.sw * 0.3);
           if (larg < 2) return;
-          drawCarro(cx, p1.sy, larg, r.cor);
+          if (r.sprite?.ok) drawSpriteRival(r.sprite, cx, p1.sy, larg);
+          else drawCarro(cx, p1.sy, larg, r.cor);
         });
       }
 

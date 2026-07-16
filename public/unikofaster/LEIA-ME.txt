@@ -8,12 +8,12 @@ faltar, o jogo usa o desenho padrao.
 CARRO DO JOGADOR (chase cam, visto por tras):
   carro-jogador.png
 
-CARROS RIVAIS (visto por tras) — ate 5:
-  rival-1.png
-  rival-2.png
-  rival-3.png
-  rival-4.png
-  rival-5.png
+CARROS RIVAIS (visto por tras) — a cor casa com o ponto do minimapa:
+  rival-vermelho.png
+  rival-azul.png
+  rival-amarelo.png
+  rival-verde.png
+  rival-rosa.png
 
 OBSTACULO (cone/barril, de frente):
   cone.png
