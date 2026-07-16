@@ -7,6 +7,7 @@ import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/
 import CosmosScene from '../../shared/cosmosScene';
 import SakuraScene from '../../shared/sakuraScene';
 import FairyScene from '../../shared/fairyScene';
+import OliviaScene from '../../shared/oliviaScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -595,6 +596,7 @@ const CentralSakura = () => <SakuraScene fixed />;
 //    canvas do card (fixed=false) e da tela cheia (fixed=true): sol, árvores grandes,
 //    rio, flores coloridas, fadinhas voando e brilhos.
 const CentralFairy = () => <FairyScene fixed />;
+const CentralOlivia = () => <OliviaScene fixed />;
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
@@ -2616,6 +2618,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Jardim encantado de fundo da página (Uniko Rainha das Fadas) — flores,
            fadinhas, rio, árvores e sol. Gate pelo sceneType, sem gate de tema. ── */}
       {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
+
+      {/* ── Colagem SOUR de fundo (Uniko Olivia Rodrigo) — fundo roxo, borboletas,
+           flores que sorriem, arco-íris, corações, estrelas e joias. Gate pelo
+           sceneType, sem gate de tema (bonito em claro ou escuro). ── */}
+      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}

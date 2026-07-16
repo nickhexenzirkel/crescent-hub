@@ -17,6 +17,7 @@ import OceanScene from './oceanScene';
 import CosmosScene from './cosmosScene';
 import SakuraScene from './sakuraScene';
 import FairyScene from './fairyScene';
+import OliviaScene from './oliviaScene';
 import {
   getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
@@ -397,6 +398,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
             : th.sceneType === 'cosmos' ? <CosmosScene />
             : th.sceneType === 'sakura' ? <SakuraScene />
             : th.sceneType === 'fairy' ? <FairyScene />
+            : th.sceneType === 'olivia' ? <OliviaScene />
             : null /* Unikos sem cenário artesanal (comuns/Oficina) usam só o fundo (th.scene) */}
 
           <div style={{ position: 'absolute', left: '50%', top: 138, width: 116, height: 116, border: `3px solid ${th.glow}`, borderRadius: '50%', transform: 'translate(-50%,-50%) scale(.4)', animation: 'cuRing 2s ease-out infinite', pointerEvents: 'none', zIndex: 2 }}/>
