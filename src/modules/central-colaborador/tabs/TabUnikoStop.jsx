@@ -557,6 +557,23 @@ const Sala = ({ roomId, name, players, onLeave }) => {
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
 
+  /* ── Enviar minhas respostas (no STOP ou no fim do tempo) ──────────────────
+     BUG que existia: o broadcast do Supabase NÃO volta pra quem enviou. Se EU
+     sou o host, minhas respostas iam por broadcast, eu não recebia o próprio
+     evento e elas nunca entravam no estado — então na validação faltava só a
+     minha. O host tem que aplicar as suas DIRETO, sem passar pelo broadcast
+     (mesmo padrão que `contestar`/`marcarPronto` já usavam).
+     Declarado ANTES do effect de fase de propósito: o effect a usa (TDZ). */
+  const enviarRespostas = useCallback(() => {
+    const resp = minhasRef.current || {};
+    if (hostRef.current) {
+      const s = stateRef.current; if (!s) return;
+      pushState({ ...s, respostas: { ...(s.respostas || {}), [name]: resp } });
+    } else {
+      chanRef.current?.send({ type: 'broadcast', event: 'respostas', payload: { name, respostas: resp } });
+    }
+  }, [name, pushState]);
+
   /* ── Sons por transição de fase ── */
   useEffect(() => {
     const f = state?.phase;
@@ -566,11 +583,13 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (f === 'sorteando') setMinhas({});
     if (f === 'jogando') sfx('vai');
-    if (f === 'parando') sfx('stop');
+    // Entrou em 'parando' (STOP ou tempo esgotado): TODOS mandam o que têm. É
+    // aqui que a resposta de cada um chega ao host — inclusive a do próprio host.
+    if (f === 'parando') { sfx('stop'); enviarRespostas(); }
     if (f === 'resultado') sfx('pontos');
     if (f === 'over') sfx('vitoria');
     ultFase.current = f;
-  }, [state?.phase, sfx]);
+  }, [state?.phase, sfx, enviarRespostas]);
 
   /* ── Roleta: as letras giram e vão desacelerando até parar na sorteada ──
      A letra final já veio no estado (todos sorteiam junto, no host); isto aqui é
@@ -599,19 +618,20 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     sfx('tick');
   }, [secsLeft, state?.phase, sfx]);
 
-  /* ── Enviar minhas respostas (no STOP ou no fim do tempo) ── */
-  const enviarRespostas = useCallback(() => {
-    chanRef.current?.send({ type: 'broadcast', event: 'respostas', payload: { name, respostas: minhasRef.current } });
-  }, [name]);
-
+  /* Só o HOST transiciona pra 'parando' — se cada um que desse STOP escrevesse a
+     fase, os pushStates concorrentes apagariam as respostas uns dos outros. Quem
+     não é host apenas avisa; o host fecha a rodada. O envio das respostas é feito
+     por TODOS no effect de fase (quando veem 'parando'), não aqui. */
+  const irParaParando = (quemParou) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando') return;
+    pushState({ ...s, phase: 'parando', stopPor: quemParou || null, endsAt: Date.now() + STOP_MS });
+  };
   const darStop = () => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando') return;
     chanRef.current?.send({ type: 'broadcast', event: 'stop', payload: { name } });
-    enviarRespostas();
-    // Quem apertou STOP encerra a rodada; os outros têm STOP_MS pra mandar o que
-    // já tinham escrito (senão perderiam tudo por causa da latência).
-    pushState({ ...s, phase: 'parando', stopPor: name, endsAt: Date.now() + STOP_MS });
+    if (hostRef.current) irParaParando(name);   // host fecha na hora; senão o host fecha ao receber o 'stop'
   };
 
   /* ── Motor (só o host escreve) ── */
@@ -709,9 +729,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         // Roleta acabou → agora sim vale o cronômetro da rodada.
         pushState({ ...s, phase: 'jogando', endsAt: Date.now() + ROUND_MS });
       } else if (s.phase === 'jogando') {
-        // Tempo acabou sem STOP — todo mundo manda o que tem.
-        enviarRespostas();
-        pushState({ ...s, phase: 'parando', stopPor: null, endsAt: Date.now() + STOP_MS });
+        // Tempo acabou sem STOP → 'parando'. O envio das respostas (inclusive as
+        // do host) acontece no effect de fase quando todos veem 'parando'.
+        irParaParando(null);
       } else if (s.phase === 'parando') {
         pushState({ ...s, phase: 'validando', endsAt: Date.now() + VALIDA_MS });
       } else if (s.phase === 'validando') {
@@ -735,8 +755,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     chanRef.current = ch;
     ch.on('broadcast', { event: 'stop' }, ({ payload }) => {
       if (payload?.name === name) return;
-      enviarRespostas();          // alguém parou: manda o que eu tinha
-      sfx('stop');
+      // Só o host fecha a rodada (um escritor só). O envio das respostas fica pro
+      // effect de fase, quando todos virem 'parando' — evita corrida de escrita.
+      if (hostRef.current) irParaParando(payload?.name);
     });
     ch.on('broadcast', { event: 'respostas' }, ({ payload }) => {
       if (!hostRef.current) return;         // só o host junta
@@ -1077,79 +1098,96 @@ const Sala = ({ roomId, name, players, onLeave }) => {
             </>
           )}
 
-          {/* VALIDANDO — contestação */}
+          {/* VALIDANDO — clique na palavra pra invalidar (fica cinza) */}
           {state?.phase === 'validando' && (
             <>
-              <div style={{ textAlign: 'center', marginBottom: 14 }}>
-                <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>
-                  Alguma resposta não vale?
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text }}>
+                  Letra <span style={{ color: A }}>{state.letra}</span> — validação
                 </div>
-                <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>
-                  Clique no ✗ pra contestar. Se a maioria contestar, a resposta zera. ({secsLeft}s)
-                </div>
-                <button className={`us-btn${euPronto ? '' : ' us-pulse'}`} onClick={marcarPronto}
-                  style={{ marginTop: 11, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 24px',
-                    borderRadius: 999, cursor: 'pointer', fontSize: 14, fontWeight: 800,
-                    border: euPronto ? `2px solid ${US.verde}` : 'none',
-                    background: euPronto ? `${US.verde}18` : `linear-gradient(135deg, ${US.verde}, #34D399)`,
-                    color: euPronto ? US.verde : '#fff',
-                    boxShadow: euPronto ? 'none' : `0 5px 16px ${US.verde}55` }}>
-                  <IcoCheck size={15} />
-                  {euPronto ? 'Pronto! (clique pra voltar)' : 'Estou pronto'}
-                  <span style={{ opacity: .75, fontWeight: 700 }}>{nProntos}/{players.length}</span>
-                </button>
-                <div style={{ fontSize: 10.5, color: T.textD, marginTop: 5 }}>
-                  Quando todos estiverem prontos, a rodada anda na hora.
+                <div style={{ fontSize: 12.5, color: T.textT, marginTop: 4, lineHeight: 1.5 }}>
+                  Achou que alguma resposta não vale? <b style={{ color: T.text }}>Clique na palavra</b> — ela fica
+                  cinza. Se a maioria clicar, ela não pontua. ({secsLeft}s)
                 </div>
               </div>
+
               {cats.map(c => {
                 const cat = catById(c);
+                const respdc = Object.entries(state.respostas || {}).filter(([, r]) => r?.[c]);
                 return (
-                  <div key={c} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: T.textT, marginBottom: 5,
-                      display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span>{cat.emoji}</span>{cat.nome}
+                  <div key={c} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: T.textS, marginBottom: 7,
+                      display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                      <span style={{ fontSize: 15 }}>{cat.emoji}</span>{cat.nome}
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {Object.entries(state.respostas || {}).map(([quem, r]) => {
-                        const txt = r?.[c];
-                        if (!txt) return null;
-                        const chave = `${quem}|${c}`;
-                        const contra = Object.keys(state.contest?.[chave] || {}).length;
-                        const euContestei = !!state.contest?.[chave]?.[name];
-                        const invalida = !valeResposta(txt, state.letra);
-                        return (
-                          <div key={quem} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-                            borderRadius: 999, fontSize: 12.5,
-                            background: invalida ? `${US.vermelho}10` : contra ? `${US.amarelo}14` : T.surfaceSub || 'rgba(0,0,0,.03)',
-                            border: `1px solid ${invalida ? `${US.vermelho}44` : contra ? `${US.amarelo}66` : T.border}`,
-                            textDecoration: invalida ? 'line-through' : 'none', opacity: invalida ? .6 : 1 }}>
-                            <b style={{ color: T.text }}>{txt}</b>
-                            <span style={{ color: T.textT, fontSize: 11 }}>{quem.split(' ')[0]}</span>
-                            {contra > 0 && (
-                              <span style={{ color: US.amarelo, fontWeight: 800, fontSize: 11 }}>{contra}✗</span>
-                            )}
-                            {quem !== name && !invalida && (
-                              <button className="us-btn" onClick={() => contestar(quem, c)}
-                                title={euContestei ? 'Tirar contestação' : 'Contestar'}
-                                style={{ width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', display: 'flex',
-                                  alignItems: 'center', justifyContent: 'center',
-                                  border: `1px solid ${euContestei ? US.vermelho : T.border}`,
-                                  background: euContestei ? US.vermelho : 'transparent',
-                                  color: euContestei ? '#fff' : T.textT }}>
-                                {euContestei ? <IcoCheck size={11} /> : <IcoX size={11} />}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {!Object.values(state.respostas || {}).some(r => r?.[c]) && (
-                        <span style={{ fontSize: 12, color: T.textD, fontStyle: 'italic' }}>ninguém respondeu</span>
-                      )}
-                    </div>
+                    {!respdc.length ? (
+                      <span style={{ fontSize: 12, color: T.textD, fontStyle: 'italic' }}>ninguém respondeu</span>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                        {respdc.map(([quem, r]) => {
+                          const txt = r[c];
+                          const chave = `${quem}|${c}`;
+                          const contra = Object.keys(state.contest?.[chave] || {}).length;
+                          const euCliquei = !!state.contest?.[chave]?.[name];
+                          const autoInvalida = !valeResposta(txt, state.letra);   // não é com a letra → já não vale
+                          const votantes = Math.max(players.length, 1);
+                          const zerada = autoInvalida || contra > votantes / 2;
+                          const meu = quem === name;
+                          // Só dá pra invalidar respostas dos OUTROS (não a sua) e que
+                          // não sejam automaticamente inválidas.
+                          const clicavel = !meu && !autoInvalida;
+                          return (
+                            <button key={quem} className="us-btn" disabled={!clicavel}
+                              onClick={() => clicavel && contestar(quem, c)}
+                              title={autoInvalida ? `não começa com ${state.letra}`
+                                : meu ? 'sua resposta'
+                                : euCliquei ? 'você marcou como inválida — clique pra desmarcar'
+                                : 'clique se achar que não vale'}
+                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                                padding: '9px 12px', borderRadius: 11, textAlign: 'left', minWidth: 0,
+                                cursor: clicavel ? 'pointer' : 'default',
+                                border: `1.5px solid ${zerada ? T.border : euCliquei ? US.amarelo : meu ? `${A}55` : T.border}`,
+                                background: zerada ? (T.surfaceSub || 'rgba(0,0,0,.04)')
+                                  : euCliquei ? `${US.amarelo}14` : meu ? `${A}0d` : cardBg,
+                                opacity: zerada ? .55 : 1 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: T.text, width: '100%',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                textDecoration: zerada ? 'line-through' : 'none' }}>
+                                {txt}
+                              </span>
+                              <span style={{ fontSize: 10.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                {quem.split(' ')[0]}{meu && ' (você)'}
+                                {contra > 0 && !autoInvalida && (
+                                  <span style={{ color: US.amarelo, fontWeight: 800 }}>· {contra}✗</span>
+                                )}
+                                {autoInvalida && <span style={{ color: US.vermelho, fontWeight: 700 }}>· letra errada</span>}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
+
+              {/* Botão grande "Estou pronto" no fim */}
+              <div style={{ textAlign: 'center', marginTop: 8, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                <button className={`us-btn${euPronto ? '' : ' us-pulse'}`} onClick={marcarPronto}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 32px',
+                    borderRadius: 999, cursor: 'pointer', fontSize: 15, fontWeight: 800,
+                    border: euPronto ? `2px solid ${US.verde}` : 'none',
+                    background: euPronto ? `${US.verde}18` : `linear-gradient(135deg, ${US.verde}, #34D399)`,
+                    color: euPronto ? US.verde : '#fff',
+                    boxShadow: euPronto ? 'none' : `0 6px 18px ${US.verde}55` }}>
+                  <IcoCheck size={17} />
+                  {euPronto ? 'Pronto! (clique pra voltar)' : 'Estou pronto'}
+                  <span style={{ opacity: .8, fontWeight: 800 }}>{nProntos}/{players.length}</span>
+                </button>
+                <div style={{ fontSize: 10.5, color: T.textD, marginTop: 6 }}>
+                  Quando todos estiverem prontos, a rodada anda na hora.
+                </div>
+              </div>
             </>
           )}
 
