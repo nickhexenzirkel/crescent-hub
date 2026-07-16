@@ -190,6 +190,9 @@ const valeResposta = (txt, letra) => {
 const RankingStop = ({ name, cardBg }) => {
   const [linhas, setLinhas] = useState(null);
   const [faltaSql, setFaltaSql] = useState(false);
+  const [confirmZerar, setConfirmZerar] = useState(false);
+  const isAdmin = getAuthUser()?.role === 'admin';
+  const carregarRef = useRef(null);
   useEffect(() => {
     let vivo = true;
     const carregar = async () => {
@@ -200,10 +203,18 @@ const RankingStop = ({ name, cardBg }) => {
       if (error) { console.error('[uniko-stop] ranking:', error.message); return; }
       setLinhas(data || []);
     };
+    carregarRef.current = carregar;
     carregar();
     const t = setInterval(carregar, 15000);
     return () => { vivo = false; clearInterval(t); };
   }, []);
+  const zerar = async () => {
+    setConfirmZerar(false);
+    // Precisa da policy de DELETE de supabase_uniko_ranking_fix.sql.
+    const { error } = await supabase.from('uniko_stop_ranking').delete().neq('player', '__nunca__');
+    if (error) console.error('[uniko-stop] zerar ranking:', error.message);
+    carregarRef.current?.();
+  };
   const medalha = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`);
   return (
     <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14,
@@ -211,6 +222,20 @@ const RankingStop = ({ name, cardBg }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 11, flexShrink: 0 }}>
         <span style={{ fontSize: 17 }}>🏆</span>
         <span style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.07em' }}>RANKING GERAL</span>
+        <div style={{ flex: 1 }} />
+        {isAdmin && !!linhas?.length && !confirmZerar && (
+          <button onClick={() => setConfirmZerar(true)} title="Zerar ranking (admin)"
+            style={{ fontSize: 10.5, color: T.textD, background: 'none', border: 'none', cursor: 'pointer',
+              textDecoration: 'underline' }}>zerar</button>
+        )}
+        {isAdmin && confirmZerar && (
+          <span style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+            <button onClick={zerar} style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: '#E63946',
+              border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>zerar tudo</button>
+            <button onClick={() => setConfirmZerar(false)} style={{ fontSize: 10.5, color: T.textT, background: 'none',
+              border: 'none', cursor: 'pointer' }}>não</button>
+          </span>
+        )}
       </div>
       {faltaSql ? (
         <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>
@@ -254,7 +279,8 @@ const RankingStop = ({ name, cardBg }) => {
    LOBBY
    ═══════════════════════════════════════════════════════════════════════════ */
 const Lobby = ({ name, porSala, onEnter }) => {
-  const [rooms, setRooms] = useState([]);
+  const [rooms, setRooms] = useState(null);   // null = carregando; [] = vazio de verdade
+  const [erroSala, setErroSala] = useState('');
   const [criando, setCriando] = useState(false);
   const [nomeSala, setNomeSala] = useState('');
   const [cats, setCats] = useState(CATS_PADRAO);
@@ -264,16 +290,28 @@ const Lobby = ({ name, porSala, onEnter }) => {
   const isAdmin = getAuthUser()?.role === 'admin';
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from('uniko_stop_state')
-      .select('id, state, updated_at').order('updated_at', { ascending: false });
-    if (error) { console.error('[uniko-stop] lobby:', error.message); return; }
+    // Antes o erro era engolido (só console + return) e `rooms` ficava travado no
+    // estado inicial vazio → a tela mostrava "Carregando salas..." PRA SEMPRE, sem
+    // dizer o que houve. Agora o erro vira mensagem na tela.
+    let data, error;
+    try {
+      ({ data, error } = await supabase.from('uniko_stop_state')
+        .select('id, state, updated_at').order('updated_at', { ascending: false }));
+    } catch (e) { error = e; }
+    if (error) {
+      console.error('[uniko-stop] lobby:', error.message || error);
+      setErroSala(semTabela(error) ? 'Falta rodar supabase_uniko_stop.sql no Supabase.'
+        : 'Não deu pra carregar as salas. Tentando de novo...');
+      return;                       // o poll de 5s tenta de novo sozinho
+    }
+    setErroSala('');
     setRooms(data || []);
     const velhas = (data || []).filter(r =>
       r.id !== GLOBAL_ROOM && !(porSala[r.id]?.length) &&
       Date.now() - new Date(r.updated_at).getTime() > ROOM_TTL_MS);
     if (velhas.length) {
       await supabase.from('uniko_stop_state').delete().in('id', velhas.map(r => r.id));
-      setRooms(rs => rs.filter(r => !velhas.some(v => v.id === r.id)));
+      setRooms(rs => (rs || []).filter(r => !velhas.some(v => v.id === r.id)));
     }
   }, [porSala]);
 
@@ -387,11 +425,11 @@ const Lobby = ({ name, porSala, onEnter }) => {
         gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
         <div className="us-sembarra" style={{ overflowY: 'auto', minHeight: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10 }}>
-            SALAS ({rooms.length})
+            SALAS ({(rooms || []).length})
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 340px))',
             justifyContent: 'start', gap: 12 }}>
-            {rooms.map(r => {
+            {(rooms || []).map(r => {
               const st = r.state || {};
               const gente = porSala[r.id] || [];
               const fixa = r.id === GLOBAL_ROOM;
@@ -471,9 +509,17 @@ const Lobby = ({ name, porSala, onEnter }) => {
               );
             })}
           </div>
-          {!rooms.length && (
+          {erroSala ? (
+            <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13, lineHeight: 1.6 }}>
+              {erroSala}
+            </div>
+          ) : rooms === null ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>Carregando salas...</div>
-          )}
+          ) : !rooms.length ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
+              Nenhuma sala. Crie a primeira! 👆
+            </div>
+          ) : null}
         </div>
         <RankingStop name={name} cardBg={cardBg} />
       </div>
