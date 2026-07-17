@@ -65,7 +65,7 @@ const BOOST_MULT = 1.45;      // teto de velocidade durante o nitro
 const TURBO_MULT = 1.6;       // teto de velocidade em cima/logo após a rampa
 const TURBO_DUR = 1.1;        // segundos que o impulso dura depois de sair da rampa
 const RIVAIS_N = 5;
-const TOTAL_VOLTAS = 3;       // completou isso → acabou a corrida
+const VOLTA_MAX = 60;         // teto de SEGURANÇA (a corrida acaba junto com a música)
 
 // Paleta vibrante estilo Disney Speedstorm (arcade kart colorido).
 const COR = {
@@ -128,25 +128,21 @@ function montarPista() {
       add(curve * (Math.sin((i / n) * Math.PI)), y);   // curva sobe e desce suave
     }
   };
-  // Circuito GRANDE e variado (reta, curvas pros dois lados, subidas e descidas).
-  trecho(90, 0, 0);          // largada reta e limpa
-  trecho(60, 4, 300);
-  trecho(50, -3, 0);
-  trecho(70, 0, -200);
-  trecho(60, -5, 400);
-  trecho(50, 3, 0);
-  trecho(90, 2, -300);
-  trecho(60, -4, 150);
-  trecho(70, 5, 250);        // volta longa — mais pista
-  trecho(55, -4, -350);
-  trecho(80, 0, 0);
-  trecho(60, 3, 200);
-  trecho(70, -6, -150);
-  trecho(90, 0, 100);
+  // Circuito com POUCAS curvas: retas longas + curvas suaves (magnitude baixa),
+  // subidas/descidas leves. Bem mais tranquilo de pilotar que o anterior.
+  trecho(150, 0, 0);         // largada: reta bem longa e limpa
+  trecho(80, 2.4, 200);      // curva suave à direita
+  trecho(170, 0, 0);         // reta longa
+  trecho(80, -2.4, -200);    // curva suave à esquerda
+  trecho(150, 0, 150);       // reta com leve subida
+  trecho(80, 2, 0);
+  trecho(180, 0, -150);      // reta longa (descida leve)
+  trecho(80, -2, 100);
+  trecho(150, 0, 0);
   // FECHA O LOOP suave: traz a altura de volta a 0 (senão há um DEGRAU entre o
   // último segmento e o primeiro, e a pista "reseta"/salta ao dar a volta). As
   // curvas já voltam a 0 sozinhas (sin), só a altura acumulava.
-  trecho(70, 0, -segs[segs.length - 1].p2y);
+  trecho(80, 0, -segs[segs.length - 1].p2y);
   // LINHA DE LARGADA/CHEGADA (xadrez) nos primeiros segmentos.
   for (let i = 0; i < 4; i++) segs[i].start = true;
   // RAMPAS DE TURBO: faixas brilhantes que dão um impulso de velocidade (atalho
@@ -180,6 +176,37 @@ function montarPista() {
   return segs;
 }
 
+// Formato TOP-DOWN da pista (pra prévia): integra as curvas num caminho 2D.
+function pontosDaForma() {
+  const segs = montarPista();
+  let ang = 0, x = 0, y = 0;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  const pts = [];
+  for (let i = 0; i < segs.length; i++) {
+    ang += (segs[i].curve || 0) * 0.03;
+    x += Math.sin(ang); y += Math.cos(ang);
+    if (i % 5 === 0) pts.push([x, y]);           // amostra pra caminho leve
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  return { pts, minX, maxX, minY, maxY };
+}
+
+// Carrega a IFrame API do YouTube uma única vez (mesma da Central Alexa).
+function loadYouTubeApi() {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) return resolve();
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+    if (!document.getElementById('yt-iframe-api')) {
+      const s = document.createElement('script');
+      s.id = 'yt-iframe-api';
+      s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+    }
+  });
+}
+
 // Rivais que CORREM comigo (posição, velocidade e progresso próprios na pista).
 // Cada um tem uma COR (ponto do minimapa + fallback desenhado) e um SPRITE PNG.
 const RIVAL_DEFS = [
@@ -209,6 +236,27 @@ function montarRivais() {
     };
   });
 }
+
+/* Prévia do formato da pista (traçado top-down) — desenhada em SVG. */
+const PreviaPista = ({ cor = US_ACCENT }) => {
+  const { pts, minX, maxX, minY, maxY } = useMemo(() => pontosDaForma(), []);
+  const W = 300, H = 150, pad = 18;
+  const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
+  const sc = Math.min((W - 2 * pad) / sx, (H - 2 * pad) / sy);
+  const ox = (W - sx * sc) / 2 - minX * sc, oy = (H - sy * sc) / 2 - minY * sc;
+  const proj = ([x, y]) => [x * sc + ox, y * sc + oy];
+  const d = pts.map((p, i) => { const [X, Y] = proj(p); return `${i ? 'L' : 'M'}${X.toFixed(1)},${Y.toFixed(1)}`; }).join(' ') + ' Z';
+  const [lx, ly] = proj(pts[0] || [0, 0]);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', maxHeight: 170, display: 'block' }}>
+      <path d={d} fill="none" stroke={`${cor}33`} strokeWidth={13} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} fill="none" stroke={cor} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" />
+      {/* linha de largada/chegada */}
+      <circle cx={lx} cy={ly} r={7} fill="#fff" stroke={cor} strokeWidth={3} />
+      <text x={lx} y={ly - 12} textAnchor="middle" fontSize={12} fontWeight="800" fill={cor}>🏁</text>
+    </svg>
+  );
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTE
@@ -293,6 +341,15 @@ const TabUnikoFaster = () => {
           </div>
         </div>
 
+        {/* Prévia do formato da pista */}
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🏁 Prévia da pista</div>
+          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 10 }}>
+            O traçado do circuito (as voltas duram até a sua música acabar).
+          </div>
+          <PreviaPista cor="#22d3ee" />
+        </div>
+
         {/* Link do YouTube */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
           <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 9 }}>🔗 Cole um link do YouTube</div>
@@ -364,8 +421,30 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
   const rafRef = useRef(0);
   const pausadoRef = useRef(pausado);
   useEffect(() => { pausadoRef.current = pausado; }, [pausado]);
-  const [fim, setFim] = useState(null);      // {rank} quando cruza a linha na última volta
+  const [fim, setFim] = useState(null);      // {rank, voltas} quando a corrida acaba
   const fimRef = useRef(false);
+  const ytHolder = useRef(null);             // <div> que a API do YouTube vira player
+
+  // Música via IFrame API: toca UMA vez (sem loop) e, quando ACABA, sinaliza o
+  // fim da corrida (st.acabar). É o que faz "as voltas durarem até a música".
+  useEffect(() => {
+    if (!trilha?.vid) return;
+    let player, cancelado = false;
+    loadYouTubeApi().then(() => {
+      if (cancelado || !ytHolder.current) return;
+      player = new window.YT.Player(ytHolder.current, {
+        width: '1', height: '1', videoId: trilha.vid,
+        playerVars: { autoplay: 1, controls: 0, playsinline: 1, modestbranding: 1, rel: 0, iv_load_policy: 3 },
+        events: {
+          onReady: (e) => { try { e.target.playVideo(); } catch { /* */ } },
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.ENDED && estado.current) estado.current.acabar = true;
+          },
+        },
+      });
+    });
+    return () => { cancelado = true; try { player?.destroy(); } catch { /* */ } };
+  }, [trilha?.vid]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -575,12 +654,14 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
         if (st.pos < 0) st.pos += trackLen;
         st.traveled += st.speed * dt;
         st.bgOffset += (segNaCam.curve || 0) * velRel * dt * 140;   // fundo desliza na curva
-        // VOLTAS: cada trackLen percorrido = 1 volta. Completou TOTAL_VOLTAS → fim.
-        st.volta = Math.min(TOTAL_VOLTAS, Math.floor(st.traveled / trackLen) + 1);
-        if (largou && st.traveled >= trackLen * TOTAL_VOLTAS) {
+        // VOLTAS: cada trackLen percorrido = 1 volta. A corrida acaba quando a
+        // MÚSICA termina (st.acabar, vindo da API do YouTube) — ou no teto de
+        // segurança VOLTA_MAX, caso a música não sinalize o fim.
+        st.volta = Math.floor(st.traveled / trackLen) + 1;
+        if (largou && (st.acabar || st.traveled >= trackLen * VOLTA_MAX) && !fimRef.current) {
           st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
           fimRef.current = true;
-          setFim({ rank: st.rank });
+          setFim({ rank: st.rank, voltas: st.volta });
         }
 
         // ── RIVAIS ──
@@ -871,12 +952,9 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
       <style>{FASTER_CSS}</style>
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', touchAction: 'none' }} />
 
-      {/* Música — iframe oculto (autoplay + loop) */}
-      {trilha?.vid && (
-        <iframe title="trilha" aria-hidden width="1" height="1" allow="autoplay"
-          style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0 }}
-          src={`https://www.youtube.com/embed/${trilha.vid}?autoplay=1&controls=0&loop=1&playlist=${trilha.vid}&playsinline=1&modestbranding=1`} />
-      )}
+      {/* Música — player oculto criado pela IFrame API (toca 1x; ao acabar, encerra a corrida) */}
+      <div ref={ytHolder} aria-hidden
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0 }} />
 
       {/* HUD */}
       <div style={{ position: 'absolute', top: 12, left: 14, right: 14, display: 'flex', alignItems: 'flex-start',
@@ -910,7 +988,7 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
             de {RIVAIS_N + 1}
           </div>
           <div style={{ fontSize: 13, fontWeight: 800, color: '#22d3ee', marginTop: 6, textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
-            🏁 Volta {hud.volta || 1}/{TOTAL_VOLTAS}
+            🏁 Volta {hud.volta || 1}
           </div>
         </div>
         <div style={{ pointerEvents: 'auto', display: 'flex', gap: 8 }}>
@@ -993,7 +1071,7 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
               Você chegou em <b style={{ color: '#fff' }}>{fim.rank}º</b> de {RIVAIS_N + 1}
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)' }}>
-              {TOTAL_VOLTAS} voltas concluídas · 🏁 recorde {hud.best.toLocaleString('pt-BR')} m
+              🎵 a música acabou · {fim.voltas || hud.volta || 1} volta{(fim.voltas || 1) > 1 ? 's' : ''} · 🏁 recorde {hud.best.toLocaleString('pt-BR')} m
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
               <button className="uf-btn" onClick={onReiniciar}
