@@ -7,7 +7,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { T } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { SERVER_URL, supabase as sb, getAuthUser } from '../../contexts/user';
+import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -29,10 +29,19 @@ const timeAgo = (iso) => {
 };
 
 const initials = (name) => (name || '?').trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
+const firstName = (name) => (name || '').trim().split(/\s+/)[0] || '—';
 const avatarColor = (name) => {
   let h = 0; for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
   return `hsl(${h} 62% 52%)`;
 };
+// Avatar: usa a foto de perfil (Supabase) quando existe, senão iniciais coloridas.
+const Avatar = ({ name, photo, size = 24, ring, ml }) => (
+  photo
+    ? <img src={photo} alt="" title={name}
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: ring ? `2px solid ${ring}` : 'none', marginLeft: ml || 0 }} />
+    : <div title={name}
+        style={{ width: size, height: size, borderRadius: '50%', background: avatarColor(name), color: '#fff', fontSize: Math.round(size * 0.4), fontWeight: 700, display: 'grid', placeItems: 'center', flexShrink: 0, border: ring ? `2px solid ${ring}` : 'none', marginLeft: ml || 0 }}>{initials(name)}</div>
+);
 
 const toLocalInput = (iso) => {
   if (!iso) return '';
@@ -79,6 +88,7 @@ const ICON_PATHS = {
   bellOff: <><path d="M18 8a6 6 0 0 0-9.3-5" /><path d="M6 8c0 7-3 9-3 9h13" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /><path d="M3 3l18 18" /></>,
   clock:   <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   check:   <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 12l3 3 5-6" /></>,
+  checkMark: <><path d="M20 6L9 17l-5-5" /></>,
   comment: <><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" /></>,
   image:   <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></>,
   plus:    <><path d="M12 5v14" /><path d="M5 12h14" /></>,
@@ -107,6 +117,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [people, setPeople] = useState([]);        // nomes dos colegas (responsáveis)
+  const [photos, setPhotos] = useState({});        // nome -> foto de perfil (base64/url) ou null
   const [selectedId, setSelectedId] = useState(null); // card aberto no modal
 
   // composers / edição
@@ -120,7 +131,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   // filtros
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState('');
-  const [filterAssignee, setFilterAssignee] = useState(null);
+  const [filterCreator, setFilterCreator] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
 
   // notificações
@@ -231,6 +242,20 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     return () => { clearInterval(id); clearTimeout(t); };
   }, [fireNotif]);
 
+  // ── Fotos de perfil dos colegas/criadores ───────────────────
+  useEffect(() => {
+    const names = [...new Set([...people, ...cards.map(c => c.created_by)])].filter(Boolean);
+    const missing = names.filter(n => !(n in photos));
+    if (!missing.length) return;
+    let alive = true;
+    (async () => {
+      const entries = await Promise.all(missing.map(async n => [n, await fetchPhotoByName(n)]));
+      if (!alive) return;
+      setPhotos(p => { const next = { ...p }; for (const [n, url] of entries) next[n] = url; return next; });
+    })();
+    return () => { alive = false; };
+  }, [people, cards, photos]);
+
   // ── Mutations ───────────────────────────────────────────────
   const patchCard = async (id, patch) => {
     setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)); // otimista
@@ -272,6 +297,17 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   };
   const unarchiveCard = async (id) => {
     await patchLog(id, { archived: false }, 'desarquivou o card');
+  };
+  // Coluna "Concluído" (por nome, sem depender de acento/maiúscula).
+  const doneList = lists.find(l => /conclu/i.test(l.title || ''));
+  const completeCard = async (id) => {
+    if (!doneList) { setToast({ title: 'Sem coluna "Concluído"', message: 'Crie uma coluna chamada Concluído para usar o atalho.' }); setTimeout(() => setToast(null), 4000); return; }
+    const cur = cardsRef.current.find(c => c.id === id);
+    if (!cur || cur.list_id === doneList.id) return;
+    const inDone = cardsRef.current.filter(c => c.list_id === doneList.id && c.id !== id);
+    const pos = inDone.length ? Math.max(...inDone.map(c => c.position)) + 1000 : 1000;
+    await patchCard(id, { list_id: doneList.id, position: pos }); // move (não depende da v2)
+    logHistory(id, 'concluiu o card');                            // histórico (best-effort)
   };
   const copyCard = async (id) => {
     const src = cardsRef.current.find(c => c.id === id);
@@ -351,10 +387,11 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const passesFilter = (c) => {
     if (c.archived) return false;   // arquivados não aparecem no quadro
     if (filterText && !(`${c.title} ${c.description}`.toLowerCase().includes(filterText.toLowerCase()))) return false;
-    if (filterAssignee && !(c.assignees || []).includes(filterAssignee)) return false;
+    if (filterCreator && c.created_by !== filterCreator) return false;
     return true;
   };
-  const filterActive = filterText || filterAssignee;
+  const filterActive = filterText || filterCreator;
+  const creators = [...new Set(cards.filter(c => !c.archived).map(c => c.created_by).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const archivedCards = cards.filter(c => c.archived).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const archivedCount = archivedCards.length;
 
@@ -427,12 +464,12 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '10px 22px', borderBottom: `1px solid ${brd}`, background: T.surface, animation: 'csPop .2s ease' }}>
           <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar título/descrição…"
             style={{ flex: '1 1 220px', minWidth: 160, padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
-          <select value={filterAssignee || ''} onChange={e => setFilterAssignee(e.target.value || null)}
+          <select value={filterCreator || ''} onChange={e => setFilterCreator(e.target.value || null)}
             style={{ padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13 }}>
-            <option value="">Todos responsáveis</option>
-            {people.map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="">Todos os criadores</option>
+            {creators.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          {filterActive && <button className="cs-btn cs-ghost" onClick={() => { setFilterText(''); setFilterAssignee(null); }} style={{ background: 'transparent', color: T.textT, fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 8 }}>Limpar ✕</button>}
+          {filterActive && <button className="cs-btn cs-ghost" onClick={() => { setFilterText(''); setFilterCreator(null); }} style={{ background: 'transparent', color: T.textT, fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 8 }}>Limpar ✕</button>}
         </div>
       )}
 
@@ -444,6 +481,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
           <>
             {lists.map(list => {
               const listCards = cards.filter(c => c.list_id === list.id && passesFilter(c)).sort((a, b) => a.position - b.position);
+              const isDoneList = /conclu/i.test(list.title || '');
               return (
                 <div key={list.id}
                   onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
@@ -477,26 +515,44 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
-                            style={{ background: cardBg, borderRadius: 14, border: `1px solid ${brd}`, padding: '14px 15px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
+                            style={{ position: 'relative', background: cardBg, borderRadius: 14, border: isDoneList ? '2px solid #22C55E' : `1px solid ${brd}`, padding: isDoneList ? '13px 14px' : '14px 15px', cursor: 'pointer', boxShadow: isDoneList ? '0 2px 12px rgba(34,197,94,.18)' : '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
                             {imgs.length > 0 && (
-                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: '-14px -15px 11px', background: T.surfaceSub }} />
+                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: isDoneList ? '-13px -14px 11px' : '-14px -15px 11px', background: T.surfaceSub }} />
                             )}
-                            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: T.text }}>{c.title}</div>
-                            {descPrev && (
-                              <div style={{ fontSize: 13, color: T.textS, marginTop: 6, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{descPrev}</div>
-                            )}
-                            {(imgs.length > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 11, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                              {/* Bolinha de concluir */}
+                              <button
+                                onClick={e => { e.stopPropagation(); completeCard(c.id); }}
+                                title={isDoneList ? 'Concluído' : 'Marcar como concluído'}
+                                style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', display: 'grid', placeItems: 'center', border: isDoneList ? 'none' : `2px solid ${T.textT || '#aaa'}`, background: isDoneList ? '#22C55E' : 'transparent', color: '#fff', padding: 0, transition: 'all .15s' }}>
+                                {isDoneList && <Ic n="checkMark" size={12} sw={3} />}
+                              </button>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: T.text, textDecoration: isDoneList ? 'line-through' : 'none', textDecorationColor: 'rgba(34,197,94,.6)' }}>{c.title}</div>
+                                {descPrev && (
+                                  <div style={{ fontSize: 13, color: T.textS, marginTop: 6, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{descPrev}</div>
+                                )}
+                              </div>
+                            </div>
+                            {/* Rodapé: criador + contadores + responsáveis */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }} title={`Criado por ${c.created_by || '—'}`}>
+                                <Avatar name={c.created_by} photo={photos[c.created_by]} size={22} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 90 }}>{firstName(c.created_by)}</span>
+                              </div>
+                              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 9 }}>
                                 {imgs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: T.textT }}><Ic n="image" size={13} /> {imgs.length}</span>}
                                 {(c.comments || []).length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: T.textT }}><Ic n="comment" size={13} /> {(c.comments || []).length}</span>}
-                                <div style={{ marginLeft: 'auto', display: 'flex' }}>
-                                  {(c.assignees || []).slice(0, 3).map((n, i) => (
-                                    <div key={n} title={n} style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: i ? -8 : 0, border: `2px solid ${cardBg}` }}>{initials(n)}</div>
-                                  ))}
-                                  {(c.assignees || []).length > 3 && <div style={{ width: 26, height: 26, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -8, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 3}</div>}
-                                </div>
+                                {(c.assignees || []).length > 0 && (
+                                  <div style={{ display: 'flex' }}>
+                                    {(c.assignees || []).slice(0, 3).map((n, i) => (
+                                      <Avatar key={n} name={n} photo={photos[n]} size={24} ring={cardBg} ml={i ? -8 : 0} />
+                                    ))}
+                                    {(c.assignees || []).length > 3 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -8, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 3}</div>}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </React.Fragment>
                       );
