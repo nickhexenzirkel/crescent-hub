@@ -299,6 +299,20 @@ const TabUnikoFaster = () => {
   const [best, setBest] = useState(() => { try { return Number(localStorage.getItem('uf_best') || 0); } catch { return 0; } });
   const bestRef = useRef(best);
 
+  // Tela cheia: envolve TODO o jogo (menu + corrida) num root estável, então
+  // continua em tela cheia ao clicar em JOGAR.
+  const rootRef = useRef(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  useEffect(() => {
+    const onFsc = () => setTelaCheia(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsc);
+    return () => document.removeEventListener('fullscreenchange', onFsc);
+  }, []);
+  const toggleTelaCheia = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else rootRef.current?.requestFullscreen?.().catch(() => { /* bloqueado */ });
+  };
+
   // Música de fundo da tela inicial (uma aleatória por sessão, estilo Uniko Wave).
   const menuAudio = useRef(null);
   const [menuTrack] = useState(() => MUSICAS_MENU[Math.floor(Math.random() * MUSICAS_MENU.length)]);
@@ -326,6 +340,7 @@ const TabUnikoFaster = () => {
   const comecar = () => setTela('correndo');   // botão final do wizard
 
   /* ── MENU ── */
+  let conteudo = null;
   if (tela === 'menu') {
     // Segue o tema do app (T.dark), mantendo o visual premium chrome + neon.
     const dark = !!T.dark;
@@ -380,7 +395,7 @@ const TabUnikoFaster = () => {
     };
     const tituloEstilo = { fontFamily: 'var(--font-brand)', fontWeight: 800, letterSpacing: '.01em',
       backgroundImage: pal.titleGrad, backgroundSize: '250% 100%' };
-    return (
+    conteudo = (
       <div style={{ height: '100%', overflowY: 'auto' }}>
         <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12, background: pal.bg }}>
           <style>{FASTER_CSS}</style>
@@ -394,43 +409,50 @@ const TabUnikoFaster = () => {
 
             {/* ══ ETAPA 0 — HERO largo com MOLDURA em volta ══ */}
             {etapa === 0 && (
-              <div className="uf-hero-frame" style={{ position: 'relative', width: '100%', margin: '0 auto' }}>
-                {/* card interno preenche a caixa (aspect-ratio da moldura); conteúdo centralizado */}
+              <div className="uf-hero-frame" style={{ position: 'relative' }}>
+                {/* card interno: conteúdo em cima, controles empurrados pro rodapé (slot) */}
                 <div style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden',
                   background: pal.panelBg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-                  padding: '7% 9% 13%', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  padding: '5% 8% 6%', textAlign: 'center', display: 'flex', flexDirection: 'column' }}>
                   <div className="uf-grid" style={{ opacity: 0.1 }} />
+                  {/* CONTEÚDO */}
                   <div style={{ position: 'relative' }}>
                     <div style={{ display: 'inline-block', padding: '3px 13px', borderRadius: 999, fontSize: 11, fontWeight: 800,
-                      letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 6, border: `1px solid ${pal.badgeBd}` }}>
+                      letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 4, border: `1px solid ${pal.badgeBd}` }}>
                       EM DESENVOLVIMENTO
                     </div>
-                    {/* mascote centralizado acima do nome */}
                     <img src="/uniko-speed.png" alt="" className="uf-float"
-                      style={{ display: 'block', margin: '2px auto 0', width: 'min(140px, 22vw)', height: 'auto', objectFit: 'contain',
+                      style={{ display: 'block', margin: '2px auto 0', width: 'min(120px, 18vw)', height: 'auto', objectFit: 'contain',
                         filter: `drop-shadow(0 8px 22px ${pal.mascotSh})` }} />
-                    <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(38px, 6vw, 68px)', lineHeight: 0.95 }}>
+                    <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(34px, 5.5vw, 62px)', lineHeight: 0.95 }}>
                       UNIKO SPEED
                     </div>
-                    <div style={{ height: 3, width: 220, maxWidth: '60%', margin: '9px auto 0', borderRadius: 999,
+                    <div style={{ height: 3, width: 210, maxWidth: '56%', margin: '8px auto 0', borderRadius: 999,
                       background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
-                    <div style={{ fontSize: 13.5, color: pal.txt2, maxWidth: 520, margin: '9px auto 0', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 13, color: pal.txt2, maxWidth: 500, margin: '8px auto 0', lineHeight: 1.45 }}>
                       Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
                     </div>
-                    <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 120 }}>
-                      <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '58%', height: 54,
-                        background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(16px)' }} />
+                    <div style={{ position: 'relative', marginTop: 4, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 100 }}>
+                      <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '54%', height: 48,
+                        background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
                       <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
-                        style={{ position: 'relative', width: 'min(44%, 420px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
+                        style={{ position: 'relative', width: 'min(40%, 360px)', filter: `drop-shadow(0 14px 24px ${pal.carSh})` }} />
                     </div>
-                    {/* JOGAR dentro da moldura */}
-                    <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
-                      style={{ ...ctaStyle, fontSize: 19, padding: '15px 56px', marginTop: 12 }}>▶ JOGAR</button>
                     {best > 0 && (
-                      <div style={{ fontSize: 12.5, color: pal.txtSub, marginTop: 10 }}>
-                        🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
+                      <div style={{ fontSize: 12, color: pal.txtSub, marginTop: 6 }}>
+                        🏁 Recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
                       </div>
                     )}
+                  </div>
+                  {/* CONTROLES no rodapé (tela cheia acima, JOGAR no slot) */}
+                  <div style={{ position: 'relative', marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <button className="uf-btn" onClick={toggleTelaCheia}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
+                        fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
+                      ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
+                    </button>
+                    <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
+                      style={{ ...ctaStyle, fontSize: 'clamp(15px, 1.9vw, 20px)', padding: '13px clamp(44px, 6vw, 72px)', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
                   </div>
                 </div>
 
@@ -569,14 +591,21 @@ const TabUnikoFaster = () => {
         </div>
       </div>
     );
+  } else {
+    /* ── CORRIDA ── */
+    conteudo = (
+      <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
+        pausado={pausado} setPausado={setPausado}
+        onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
+        onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
+    );
   }
 
-  /* ── CORRIDA ── */
+  // Root estável (alvo do fullscreen) que envolve menu e corrida.
   return (
-    <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
-      pausado={pausado} setPausado={setPausado}
-      onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
-      onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
+    <div ref={rootRef} style={{ height: '100%', background: '#0a0616' }}>
+      {conteudo}
+    </div>
   );
 };
 
@@ -1321,8 +1350,8 @@ const FASTER_CSS = `
 .uf-cta { animation: ufCta 2.6s ease-in-out infinite; }
 /* moldura da tela inicial: mantém a proporção da imagem (não distorce) e enche a
    largura. No mobile vira mais alta pra o conteúdo caber. */
-.uf-hero-frame { aspect-ratio: 1487 / 1058; }
-@media (max-width: 620px) { .uf-hero-frame { aspect-ratio: 4 / 5; } }
+.uf-hero-frame { aspect-ratio: 1487 / 1058; width: min(100%, 1180px, calc((100vh - 140px) * 1.4)); margin: 0 auto; }
+@media (max-width: 620px) { .uf-hero-frame { aspect-ratio: 4 / 5; width: 100%; } }
 /* Texto NITRO (slam neon) durante o boost */
 @keyframes ufNitroIn { 0% { transform: scale(.5) skewX(-12deg); opacity: 0; } 55% { transform: scale(1.15) skewX(-12deg); opacity: 1; } 100% { transform: scale(1) skewX(-12deg); opacity: 1; } }
 .uf-nitro-txt { font-family: var(--font-brand), sans-serif; font-weight: 900; font-style: italic; line-height: 1;
