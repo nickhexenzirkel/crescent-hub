@@ -397,7 +397,7 @@ const TabUnikoFaster = () => {
       backgroundImage: pal.titleGrad, backgroundSize: '250% 100%' };
     conteudo = (
       <div style={{ height: '100%', overflowY: 'auto' }}>
-        <div style={{ position: 'relative', height: etapa === 0 ? '100%' : undefined, minHeight: '100%', overflow: 'hidden', padding: 12, background: pal.bg }}>
+        <div style={{ position: 'relative', height: etapa === 0 ? '100%' : undefined, minHeight: '100%', overflow: 'hidden', padding: etapa === 0 ? 0 : 12, background: pal.bg }}>
           <style>{FASTER_CSS}</style>
           <audio ref={menuAudio} src={menuTrack} loop preload="auto" />
           {/* brilhos neon de fundo */}
@@ -416,46 +416,46 @@ const TabUnikoFaster = () => {
                   <div className="uf-grid" style={{ opacity: 0.1 }} />
                 </div>
                 {/* CONTEÚDO — dentro da abertura da moldura (atrás dela). */}
-                <div style={{ position: 'absolute', top: '11%', left: '9%', right: '9%', textAlign: 'center', zIndex: 2 }}>
+                <div style={{ position: 'absolute', top: '13%', left: '7%', right: '7%', textAlign: 'center', zIndex: 2 }}>
                   <div style={{ display: 'inline-block', padding: '3px 13px', borderRadius: 999, fontSize: 11, fontWeight: 800,
-                    letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 4, border: `1px solid ${pal.badgeBd}` }}>
+                    letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 3, border: `1px solid ${pal.badgeBd}` }}>
                     EM DESENVOLVIMENTO
                   </div>
                   <img src="/uniko-speed.png" alt="" className="uf-float"
-                    style={{ display: 'block', margin: '2px auto 0', width: 'min(112px, 15vw)', height: 'auto', objectFit: 'contain',
+                    style={{ display: 'block', margin: '2px auto 0', width: 'min(96px, 12vw)', height: 'auto', objectFit: 'contain',
                       filter: `drop-shadow(0 8px 22px ${pal.mascotSh})` }} />
-                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(32px, 5vw, 60px)', lineHeight: 0.95 }}>
+                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(30px, 4.5vw, 54px)', lineHeight: 0.95 }}>
                     UNIKO SPEED
                   </div>
-                  <div style={{ height: 3, width: 200, maxWidth: '50%', margin: '8px auto 0', borderRadius: 999,
+                  <div style={{ height: 3, width: 190, maxWidth: '46%', margin: '7px auto 0', borderRadius: 999,
                     background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
-                  <div style={{ fontSize: 13, color: pal.txt2, maxWidth: 500, margin: '8px auto 0', lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 12.5, color: pal.txt2, maxWidth: 480, margin: '7px auto 0', lineHeight: 1.4 }}>
                     Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
                   </div>
-                  <div style={{ position: 'relative', marginTop: 4, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 90 }}>
-                    <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '50%', height: 44,
-                      background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
+                  <div style={{ position: 'relative', marginTop: 2, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 80 }}>
+                    <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '46%', height: 40,
+                      background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(14px)' }} />
                     <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
-                      style={{ position: 'relative', width: 'min(34%, 320px)', filter: `drop-shadow(0 14px 24px ${pal.carSh})` }} />
+                      style={{ position: 'relative', width: 'min(28%, 280px)', filter: `drop-shadow(0 14px 24px ${pal.carSh})` }} />
                   </div>
                   {best > 0 && (
-                    <div style={{ fontSize: 12, color: pal.txtSub, marginTop: 6 }}>
+                    <div style={{ fontSize: 12, color: pal.txtSub, marginTop: 5 }}>
                       🏁 Recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
                     </div>
                   )}
                 </div>
                 {/* TELA CHEIA — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
                 <button className="uf-btn" onClick={toggleTelaCheia}
-                  style={{ position: 'absolute', left: '50%', bottom: '25%', transform: 'translateX(-50%)', zIndex: 2,
+                  style={{ position: 'absolute', left: '50%', bottom: '23%', transform: 'translateX(-50%)', zIndex: 2,
                     display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
                     fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
                   ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
                 </button>
-                {/* JOGAR — dentro do slot (ATRÁS da moldura; a borda emoldura ele) */}
+                {/* JOGAR — preenchido e centralizado no slot (ATRÁS da moldura) */}
                 <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
-                  style={{ position: 'absolute', left: '50%', bottom: '8%', transform: 'translateX(-50%)', zIndex: 2,
-                    ...ctaStyle, width: 'min(32%, 500px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 'clamp(14px, 1.6vw, 20px)', padding: 'clamp(9px, 1.4vh, 15px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
+                  style={{ position: 'absolute', left: '50%', bottom: '8.5%', transform: 'translateX(-50%)', zIndex: 2,
+                    ...ctaStyle, width: 'min(35%, 560px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 'clamp(15px, 1.7vw, 21px)', padding: 'clamp(12px, 1.9vh, 18px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
 
                 {/* MOLDURA por cima (centro transparente) — sempre na frente do conteúdo */}
                 <img src="/unikofaster/borda-inicial.png" alt="" aria-hidden
