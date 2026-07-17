@@ -121,6 +121,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [filterAssignee, setFilterAssignee] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // notificações
   const [notifOn, setNotifOn] = useState(() => localStorage.getItem('cs_notif') !== '0');
@@ -269,6 +270,9 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     await patchLog(id, { archived: true }, 'arquivou o card');
     setSelectedId(null);
   };
+  const unarchiveCard = async (id) => {
+    await patchLog(id, { archived: false }, 'desarquivou o card');
+  };
   const copyCard = async (id) => {
     const src = cardsRef.current.find(c => c.id === id);
     if (!src) return;
@@ -351,6 +355,8 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     return true;
   };
   const filterActive = filterText || filterAssignee;
+  const archivedCards = cards.filter(c => c.archived).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  const archivedCount = archivedCards.length;
 
   const toggleNotif = async () => {
     const next = !notifOn;
@@ -372,6 +378,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
         @keyframes csFade{from{opacity:0}to{opacity:1}}
         @keyframes csUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        @keyframes csSlideIn{from{transform:translateX(100%)}to{transform:none}}
         .cs-scroll::-webkit-scrollbar{height:10px;width:10px}
         .cs-card{transition:transform .14s cubic-bezier(.2,1,.3,1), box-shadow .14s, border-color .14s}
         .cs-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(120,60,180,.2)}
@@ -403,6 +410,11 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
           style={{ background: filterActive ? UNIKO_GRAD : (T.surfaceSub || colBg), color: filterActive ? '#fff' : T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
           <Ic n="search" size={15} /> {filterActive ? 'Filtrando' : 'Filtrar'}
+        </button>
+        <button className="cs-btn" onClick={() => setShowArchived(true)} title="Cards arquivados"
+          style={{ background: T.surfaceSub || colBg, color: T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
+          <Ic n="archive" size={15} /> {!isMobile && 'Arquivados'}
+          {archivedCount > 0 && <span style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 999, fontSize: 11, fontWeight: 800, padding: '1px 7px', minWidth: 18, textAlign: 'center' }}>{archivedCount}</span>}
         </button>
         <button className="cs-btn" onClick={toggleNotif} title="Notificações desktop + som"
           style={{ background: notifOn ? UNIKO_GRAD : (T.surfaceSub || colBg), color: notifOn ? '#fff' : T.textT, borderRadius: 12, padding: '9px 12px', fontWeight: 700, border: `1px solid ${brd}`, display: 'grid', placeItems: 'center' }}>
@@ -540,6 +552,52 @@ export default function ConexaoSetorial({ onBack, authUser }) {
           <div>
             <div style={{ fontWeight: 800, fontSize: 13.5, color: T.text }}>{toast.title}</div>
             <div style={{ fontSize: 12.5, color: T.textS, marginTop: 2 }}>{toast.message}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Painel de arquivados ── */}
+      {showArchived && (
+        <div onClick={() => setShowArchived(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(10,6,20,.55)', backdropFilter: 'blur(3px)', zIndex: 60, display: 'flex', justifyContent: 'flex-end', animation: 'csFade .2s ease' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: isMobile ? '100%' : 420, maxWidth: '100%', height: '100%', background: T.surface, borderLeft: `1px solid ${brd}`, display: 'flex', flexDirection: 'column', boxShadow: '-12px 0 40px rgba(0,0,0,.3)', animation: 'csSlideIn .25s cubic-bezier(.2,1,.3,1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px', borderBottom: `1px solid ${brd}` }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: T.surfaceSub || colBg, display: 'grid', placeItems: 'center', color: T.text, border: `1px solid ${brd}` }}><Ic n="archive" size={18} /></div>
+              <div style={{ marginRight: 'auto' }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>Arquivados</div>
+                <div style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>{archivedCount} {archivedCount === 1 ? 'card' : 'cards'}</div>
+              </div>
+              <button className="cs-btn cs-ghost" onClick={() => setShowArchived(false)} style={{ background: 'transparent', color: T.textT, width: 34, height: 34, borderRadius: 9, display: 'grid', placeItems: 'center' }}><Ic n="x" size={18} /></button>
+            </div>
+            <div className="cs-scroll" style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {archivedCount === 0 ? (
+                <div style={{ margin: 'auto', textAlign: 'center', color: T.textT, fontSize: 13, padding: '30px 20px' }}>
+                  <div style={{ opacity: .5, marginBottom: 8 }}><Ic n="archive" size={30} /></div>
+                  Nenhum card arquivado.
+                </div>
+              ) : archivedCards.map(c => {
+                const list = lists.find(l => l.id === c.list_id);
+                const prev = stripHtml(c.description);
+                return (
+                  <div key={c.id} className="cs-fade" style={{ background: T.page, border: `1px solid ${brd}`, borderRadius: 12, padding: 12 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: prev ? 4 : 0 }}>{c.title}</div>
+                    {prev && <div style={{ fontSize: 12.5, color: T.textS, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{prev}</div>}
+                    <div style={{ fontSize: 11, color: T.textT, marginTop: 6, fontWeight: 600 }}>{list ? list.title : 'Sem coluna'}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button className="cs-btn" onClick={() => unarchiveCard(c.id)}
+                        style={{ flex: 1, background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '8px 10px', fontWeight: 700, fontSize: 12.5, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ic n="history" size={14} /> Restaurar
+                      </button>
+                      <button className="cs-btn cs-ghost" onClick={() => { if (window.confirm('Excluir este card de vez? Não dá pra desfazer.')) deleteCard(c.id); }}
+                        style={{ background: 'transparent', color: '#E0345A', borderRadius: 9, padding: '8px 12px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${brd}`, display: 'grid', placeItems: 'center' }}>
+                        <Ic n="trash" size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
