@@ -284,7 +284,6 @@ const TabUnikoFaster = () => {
   const [tracado, setTracado] = useState(TRACADO_PADRAO);   // 0..3 — formato da pista
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
-  const cardBg = T.surface || '#fff';
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
   const biblioteca = useMemo(() => {
@@ -307,134 +306,148 @@ const TabUnikoFaster = () => {
 
   /* ── MENU ── */
   if (tela === 'menu') {
+    const painel = {
+      position: 'relative', borderRadius: 18, padding: 18,
+      background: 'rgba(20,11,44,.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+      border: '1px solid rgba(255,255,255,.14)',
+      boxShadow: '0 14px 38px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.14)',
+    };
+    const secTitle = { fontSize: 13, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 7, textShadow: '0 2px 10px rgba(0,0,0,.5)' };
+    const secSub = { fontSize: 11.5, color: 'rgba(255,255,255,.62)' };
+    const selCard = (sel, glow = '#22d3ee') => ({
+      cursor: 'pointer', color: '#fff', borderRadius: 13,
+      background: sel ? 'rgba(124,58,237,.28)' : 'rgba(255,255,255,.05)',
+      border: `2px solid ${sel ? glow : 'rgba(255,255,255,.14)'}`,
+      boxShadow: sel ? `0 0 20px ${glow}66, inset 0 1px 0 rgba(255,255,255,.1)` : 'inset 0 1px 0 rgba(255,255,255,.06)',
+    });
+    const sparks = [[8, 16], [23, 58], [41, 11], [57, 72], [73, 28], [88, 52], [15, 82], [66, 90], [34, 40], [92, 20]];
     return (
-      // rola dentro do container (que é de altura fixa por causa da fase de corrida)
-      <div style={{ height: '100%', overflowY: 'auto', padding: '2px' }}>
-      <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 20 }}>
-        <style>{FASTER_CSS}</style>
-        {/* Cabeçalho neon */}
-        <div style={{ borderRadius: 18, padding: '22px 24px', position: 'relative', overflow: 'hidden',
-          background: `linear-gradient(120deg, #1a0b3d 0%, #4c1d95 55%, #db2777 130%)`,
-          boxShadow: '0 12px 34px rgba(120,40,200,.35)' }}>
-          <div className="uf-grid" />
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 18 }}>
-            {/* Ícone/mascote do Uniko Speed — destacado */}
-            <img src="/uniko-speed.png" alt="Uniko Speed" className="uf-icone"
-              style={{ width: 96, height: 96, objectFit: 'contain', flexShrink: 0,
-                filter: 'drop-shadow(0 6px 18px rgba(0,0,0,.55))' }} />
-            <div>
-              <div style={{ display: 'inline-block', padding: '3px 11px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-                letterSpacing: '.08em', background: 'rgba(0,0,0,.28)', color: '#ffd166', marginBottom: 8 }}>
-                EM DESENVOLVIMENTO
-              </div>
-              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800, color: '#fff',
-                letterSpacing: '.02em', lineHeight: 1, textShadow: '0 3px 20px rgba(0,0,0,.5)' }}>
-                UNIKO <span style={{ color: '#22d3ee' }}>SPEED</span>
-              </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.85)', marginTop: 8, maxWidth: 460, lineHeight: 1.5 }}>
-                Corrida em 1ª pessoa com a sua música no volume máximo. Escolha a trilha e acelera! 🏎️💨
+      <div style={{ height: '100%', overflowY: 'auto' }}>
+        <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12,
+          background: 'radial-gradient(120% 80% at 50% -10%, #3b1268 0%, #1c0b3f 55%, #12082e 100%)' }}>
+          <style>{FASTER_CSS}</style>
+          {/* brilhos de fundo animados */}
+          <div className="uf-blob" style={{ width: 460, height: 460, top: -150, left: -120, background: 'radial-gradient(circle, rgba(236,72,153,.5), transparent 70%)' }} />
+          <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 60, right: -180, background: 'radial-gradient(circle, rgba(34,211,238,.4), transparent 70%)' }} />
+          <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -200, left: '26%', background: 'radial-gradient(circle, rgba(124,58,237,.5), transparent 70%)' }} />
+          {sparks.map(([l, t], i) => (
+            <span key={i} className="uf-spark" style={{ left: `${l}%`, top: `${t}%`, width: 3 + (i % 3), height: 3 + (i % 3), animationDelay: `${(i * 0.35).toFixed(2)}s` }} />
+          ))}
+
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
+            {/* ── HERO ── */}
+            <div style={{ ...painel, padding: '22px 22px 8px', textAlign: 'center', overflow: 'hidden' }}>
+              <div className="uf-grid" style={{ opacity: 0.1 }} />
+              <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: 'drop-shadow(0 6px 16px rgba(0,0,0,.5))' }} />
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
+                  letterSpacing: '.1em', background: 'rgba(0,0,0,.35)', color: '#ffd166', marginBottom: 10, border: '1px solid rgba(255,209,102,.35)' }}>
+                  EM DESENVOLVIMENTO
+                </div>
+                <div className="uf-title" style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 10vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: '.01em' }}>
+                  UNIKO SPEED
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,.82)', marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
+                  Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
+                </div>
+                {/* palco do carro */}
+                <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
+                  <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
+                    background: 'radial-gradient(ellipse, rgba(34,211,238,.6), rgba(236,72,153,.28) 55%, transparent 74%)', filter: 'blur(15px)' }} />
+                  <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
+                    style={{ position: 'relative', width: 'min(74%, 400px)', filter: 'drop-shadow(0 16px 26px rgba(0,0,0,.55))' }} />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Seletor de MAPA */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 10 }}>🗺️ Escolha o mapa</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-            {Object.values(MAPAS).map(m => {
-              const sel = mapa === m.id;
-              return (
-                <button key={m.id} className="uf-btn" onClick={() => setMapa(m.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', borderRadius: 12,
-                    cursor: 'pointer', textAlign: 'left', background: sel ? `${US_ACCENT}14` : (T.surfaceSub || 'rgba(0,0,0,.02)'),
-                    border: `2px solid ${sel ? US_ACCENT : T.border}` }}>
-                  <span style={{ fontSize: 26 }}>{m.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>{m.nome}</div>
-                    <div style={{ fontSize: 11, color: T.textT }}>{m.desc}</div>
-                  </div>
-                  {sel && <span style={{ fontSize: 12, fontWeight: 800, color: US_ACCENT }}>✓</span>}
+            {/* ── MAPA ── */}
+            <div style={painel}>
+              <div style={{ ...secTitle, marginBottom: 10 }}>🗺️ Escolha o mapa</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                {Object.values(MAPAS).map(m => {
+                  const sel = mapa === m.id;
+                  return (
+                    <button key={m.id} className="uf-btn uf-panel-btn" onClick={() => setMapa(m.id)}
+                      style={{ ...selCard(sel), display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', textAlign: 'left' }}>
+                      <span style={{ fontSize: 26 }}>{m.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800 }}>{m.nome}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>{m.desc}</div>
+                      </div>
+                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: '#22d3ee' }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── TRAÇADO ── */}
+            <div style={painel}>
+              <div style={secTitle}>🏁 Escolha o traçado</div>
+              <div style={{ ...secSub, margin: '4px 0 12px' }}>4 formatos de pista (as voltas duram até a sua música acabar).</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                {TRACADOS.map(t => {
+                  const sel = tracado === t.id;
+                  return (
+                    <button key={t.id} className="uf-btn uf-panel-btn" onClick={() => setTracado(t.id)}
+                      style={{ ...selCard(sel), display: 'flex', flexDirection: 'column', gap: 6, padding: 10 }}>
+                      <div style={{ background: 'rgba(0,0,0,.28)', borderRadius: 9, padding: 4 }}>
+                        <PreviaPista tracado={t.id} cor={sel ? '#22d3ee' : 'rgba(255,255,255,.5)'} />
+                      </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? '#fff' : 'rgba(255,255,255,.85)' }}>
+                        {t.emoji} {t.nome}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── LINK DO YOUTUBE ── */}
+            <div style={painel}>
+              <div style={{ ...secTitle, marginBottom: 9 }}>🔗 Cole um link do YouTube</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={link} onChange={e => setLink(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && jogarLink()}
+                  placeholder="https://youtube.com/watch?v=..."
+                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: '1px solid rgba(255,255,255,.16)',
+                    background: 'rgba(0,0,0,.28)', color: '#fff', fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
+                <button className="uf-btn uf-cta" onClick={jogarLink}
+                  style={{ padding: '11px 24px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
+                    cursor: 'pointer', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)' }}>
+                  Correr ▸
                 </button>
-              );
-            })}
+              </div>
+              {erroLink && <div style={{ fontSize: 12, color: '#ff9db0', marginTop: 7 }}>{erroLink}</div>}
+            </div>
+
+            {/* ── BIBLIOTECA ── */}
+            <div style={painel}>
+              <div style={secTitle}>🎵 Ou escolha da biblioteca</div>
+              <div style={{ ...secSub, margin: '4px 0 12px' }}>Músicas iniciais + o que você salvou no Uniko Wave.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 9 }}>
+                {biblioteca.map(m => (
+                  <button key={m.vid} className="uf-btn uf-panel-btn uf-song" onClick={() => jogar(m)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: '#fff',
+                      border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)', textAlign: 'left' }}>
+                    <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
+                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0004' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
+                      <div style={{ fontSize: 11, color: '#22d3ee', fontWeight: 800, marginTop: 2 }}>▸ correr</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {best > 0 && (
+              <div style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,.7)' }}>
+                🏁 Seu recorde: <b style={{ color: '#ffd166' }}>{best.toLocaleString('pt-BR')} m</b>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Seletor de TRAÇADO (4 formatos, com prévia) */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🏁 Escolha o traçado</div>
-          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
-            4 formatos de pista (as voltas duram até a sua música acabar).
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-            {TRACADOS.map(t => {
-              const sel = tracado === t.id;
-              return (
-                <button key={t.id} className="uf-btn" onClick={() => setTracado(t.id)}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 12, cursor: 'pointer',
-                    background: sel ? `${US_ACCENT}14` : (T.surfaceSub || 'rgba(0,0,0,.02)'),
-                    border: `2px solid ${sel ? US_ACCENT : T.border}` }}>
-                  <div style={{ background: 'rgba(0,0,0,.06)', borderRadius: 8, padding: 4 }}>
-                    <PreviaPista tracado={t.id} cor={sel ? '#22d3ee' : T.textT} />
-                  </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: sel ? US_ACCENT : T.text, textAlign: 'center' }}>
-                    {t.emoji} {t.nome}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Link do YouTube */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 9 }}>🔗 Cole um link do YouTube</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={link} onChange={e => setLink(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && jogarLink()}
-              placeholder="https://youtube.com/watch?v=..."
-              style={{ flex: 1, padding: '11px 13px', borderRadius: 10, border: `1px solid ${T.border}`,
-                background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13.5,
-                fontFamily: 'var(--font-body)', outline: 'none' }} />
-            <button className="uf-btn" onClick={jogarLink}
-              style={{ padding: '11px 22px', borderRadius: 10, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
-                cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)', whiteSpace: 'nowrap' }}>
-              Correr ▸
-            </button>
-          </div>
-          {erroLink && <div style={{ fontSize: 12, color: '#E63946', marginTop: 7 }}>{erroLink}</div>}
-        </div>
-
-        {/* Biblioteca */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🎵 Ou escolha da biblioteca</div>
-          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
-            Músicas iniciais + o que você salvou no Uniko Wave.
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 9 }}>
-            {biblioteca.map(m => (
-              <button key={m.vid} className="uf-btn uf-song" onClick={() => jogar(m)}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 11, cursor: 'pointer',
-                  border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.02)', textAlign: 'left' }}>
-                <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
-                  style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0002' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap',
-                    overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
-                  <div style={{ fontSize: 11, color: US_ACCENT, fontWeight: 700, marginTop: 2 }}>▸ correr</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {best > 0 && (
-          <div style={{ textAlign: 'center', fontSize: 12.5, color: T.textT }}>
-            🏁 Seu recorde: <b style={{ color: T.text }}>{best.toLocaleString('pt-BR')} m</b>
-          </div>
-        )}
-      </div>
       </div>
     );
   }
@@ -1152,7 +1165,27 @@ const FASTER_CSS = `
 .uf-note { display: inline-block; animation: ufNote .6s ease-in-out infinite; }
 @keyframes ufFloat { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
 .uf-icone { animation: ufFloat 3s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .uf-grid, .uf-note, .uf-icone { animation: none !important; } }
+/* ── tela inicial Arcade brilhante ── */
+@keyframes ufBlob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(26px,-22px) scale(1.14); } }
+.uf-blob { position: absolute; border-radius: 50%; filter: blur(46px); pointer-events: none; animation: ufBlob 14s ease-in-out infinite; z-index: 0; }
+.uf-blob2 { animation-duration: 18s; animation-direction: reverse; }
+.uf-blob3 { animation-duration: 16s; }
+@keyframes ufHue { to { background-position: 250% 0; } }
+.uf-title { background: linear-gradient(90deg, #22d3ee, #a78bfa, #ec4899, #ffd166, #22d3ee); background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: ufHue 7s linear infinite; filter: drop-shadow(0 3px 18px rgba(236,72,153,.45)); }
+@keyframes ufFloatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.uf-float { animation: ufFloatY 3.4s ease-in-out infinite; }
+.uf-float-2 { animation: ufFloatY 4.4s ease-in-out infinite; }
+@keyframes ufSpark { 0%,100% { opacity: .2; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+.uf-spark { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 8px #fff; pointer-events: none; z-index: 0; animation: ufSpark 2.4s ease-in-out infinite; }
+.uf-panel-btn { transition: transform .14s, box-shadow .14s, border-color .14s; }
+.uf-panel-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(34,211,238,.4) !important; }
+@keyframes ufCta { 0%,100% { box-shadow: 0 6px 20px rgba(124,58,237,.5); } 50% { box-shadow: 0 6px 30px rgba(34,211,238,.75); } }
+.uf-cta { animation: ufCta 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .uf-grid, .uf-note, .uf-icone, .uf-blob, .uf-title, .uf-float, .uf-float-2, .uf-spark, .uf-cta { animation: none !important; }
+}
 `;
 
 export { TabUnikoFaster };
