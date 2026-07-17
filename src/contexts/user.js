@@ -1,7 +1,9 @@
 import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 
 // ─── FESTIVAL INTEGRATION ────────────────────────────────────────────────────
-const SERVER_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'http://localhost:3001';
+// Padrão = backend de produção na VPS (HTTPS). Pra dev local com backend na
+// própria máquina, crie um .env.local com VITE_SERVER_URL=http://localhost:3001
+const SERVER_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'https://api.centraluniko.com.br';
 const SUPABASE_URL = 'https://iqsufxvuufkaswellisy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c';
 const _supabase  = _createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);

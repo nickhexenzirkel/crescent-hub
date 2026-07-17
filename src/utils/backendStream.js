@@ -1,4 +1,5 @@
-export const BACKEND = 'http://localhost:3001';
+// Padrão = backend de produção na VPS (HTTPS); override local via VITE_SERVER_URL.
+export const BACKEND = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'https://api.centraluniko.com.br';
 
 export const checkBackend = () =>
   fetch(`${BACKEND}/api/ping`, { signal: AbortSignal.timeout(2000) })
