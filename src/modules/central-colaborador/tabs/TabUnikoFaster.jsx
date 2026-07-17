@@ -306,33 +306,30 @@ const TabUnikoFaster = () => {
 
   /* ── MENU ── */
   if (tela === 'menu') {
+    // Tema LIGHT premium: vidro branco, cromado no título, acentos neon (ciano/magenta).
     const painel = {
       position: 'relative', borderRadius: 18, padding: 18,
-      background: 'rgba(20,11,44,.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-      border: '1px solid rgba(255,255,255,.14)',
-      boxShadow: '0 14px 38px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.14)',
+      background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      border: '1px solid rgba(148,163,184,.28)',
+      boxShadow: '0 14px 34px rgba(30,41,90,.12), inset 0 1px 0 rgba(255,255,255,.9)',
     };
-    const secTitle = { fontSize: 13, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 7, textShadow: '0 2px 10px rgba(0,0,0,.5)' };
-    const secSub = { fontSize: 11.5, color: 'rgba(255,255,255,.62)' };
-    const selCard = (sel, glow = '#22d3ee') => ({
-      cursor: 'pointer', color: '#fff', borderRadius: 13,
-      background: sel ? 'rgba(124,58,237,.28)' : 'rgba(255,255,255,.05)',
-      border: `2px solid ${sel ? glow : 'rgba(255,255,255,.14)'}`,
-      boxShadow: sel ? `0 0 20px ${glow}66, inset 0 1px 0 rgba(255,255,255,.1)` : 'inset 0 1px 0 rgba(255,255,255,.06)',
+    const secTitle = { fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7 };
+    const secSub = { fontSize: 11.5, color: '#64748b' };
+    const selCard = (sel, glow = '#06b6d4') => ({
+      cursor: 'pointer', color: '#0f172a', borderRadius: 13,
+      background: sel ? 'rgba(6,182,212,.08)' : 'rgba(255,255,255,.62)',
+      border: `2px solid ${sel ? glow : 'rgba(148,163,184,.3)'}`,
+      boxShadow: sel ? `0 0 0 1px ${glow}, 0 8px 22px ${glow}44` : '0 2px 8px rgba(30,41,90,.06)',
     });
-    const sparks = [[8, 16], [23, 58], [41, 11], [57, 72], [73, 28], [88, 52], [15, 82], [66, 90], [34, 40], [92, 20]];
     return (
       <div style={{ height: '100%', overflowY: 'auto' }}>
         <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12,
-          background: 'radial-gradient(120% 80% at 50% -10%, #3b1268 0%, #1c0b3f 55%, #12082e 100%)' }}>
+          background: 'radial-gradient(130% 90% at 50% -20%, #ffffff 0%, #eef2fb 52%, #e5e9f6 100%)' }}>
           <style>{FASTER_CSS}</style>
-          {/* brilhos de fundo animados */}
-          <div className="uf-blob" style={{ width: 460, height: 460, top: -150, left: -120, background: 'radial-gradient(circle, rgba(236,72,153,.5), transparent 70%)' }} />
-          <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 60, right: -180, background: 'radial-gradient(circle, rgba(34,211,238,.4), transparent 70%)' }} />
-          <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -200, left: '26%', background: 'radial-gradient(circle, rgba(124,58,237,.5), transparent 70%)' }} />
-          {sparks.map(([l, t], i) => (
-            <span key={i} className="uf-spark" style={{ left: `${l}%`, top: `${t}%`, width: 3 + (i % 3), height: 3 + (i % 3), animationDelay: `${(i * 0.35).toFixed(2)}s` }} />
-          ))}
+          {/* brilhos neon suaves de fundo */}
+          <div className="uf-blob" style={{ width: 460, height: 460, top: -160, left: -130, background: 'radial-gradient(circle, rgba(217,70,239,.18), transparent 70%)' }} />
+          <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 40, right: -190, background: 'radial-gradient(circle, rgba(34,211,238,.2), transparent 70%)' }} />
+          <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -220, left: '26%', background: 'radial-gradient(circle, rgba(124,58,237,.16), transparent 70%)' }} />
 
           <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
             {/* ── HERO ── */}
@@ -341,19 +338,22 @@ const TabUnikoFaster = () => {
               <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: 'drop-shadow(0 6px 16px rgba(0,0,0,.5))' }} />
               <div style={{ position: 'relative' }}>
                 <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-                  letterSpacing: '.1em', background: 'rgba(0,0,0,.35)', color: '#ffd166', marginBottom: 10, border: '1px solid rgba(255,209,102,.35)' }}>
+                  letterSpacing: '.1em', background: 'rgba(6,182,212,.1)', color: '#0e7490', marginBottom: 10, border: '1px solid rgba(6,182,212,.35)' }}>
                   EM DESENVOLVIMENTO
                 </div>
                 <div className="uf-title" style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 10vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: '.01em' }}>
                   UNIKO SPEED
                 </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,.82)', marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
+                {/* filete neon sob o título */}
+                <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
+                  background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
+                <div style={{ fontSize: 13, color: '#475569', marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
                   Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
                 </div>
                 {/* palco do carro */}
                 <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
                   <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
-                    background: 'radial-gradient(ellipse, rgba(34,211,238,.6), rgba(236,72,153,.28) 55%, transparent 74%)', filter: 'blur(15px)' }} />
+                    background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
                   <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
                     style={{ position: 'relative', width: 'min(74%, 400px)', filter: 'drop-shadow(0 16px 26px rgba(0,0,0,.55))' }} />
                 </div>
@@ -372,9 +372,9 @@ const TabUnikoFaster = () => {
                       <span style={{ fontSize: 26 }}>{m.emoji}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 800 }}>{m.nome}</div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>{m.desc}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>{m.desc}</div>
                       </div>
-                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: '#22d3ee' }}>✓</span>}
+                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: '#06b6d4' }}>✓</span>}
                     </button>
                   );
                 })}
@@ -391,10 +391,10 @@ const TabUnikoFaster = () => {
                   return (
                     <button key={t.id} className="uf-btn uf-panel-btn" onClick={() => setTracado(t.id)}
                       style={{ ...selCard(sel), display: 'flex', flexDirection: 'column', gap: 6, padding: 10 }}>
-                      <div style={{ background: 'rgba(0,0,0,.28)', borderRadius: 9, padding: 4 }}>
-                        <PreviaPista tracado={t.id} cor={sel ? '#22d3ee' : 'rgba(255,255,255,.5)'} />
+                      <div style={{ background: 'rgba(15,23,42,.05)', borderRadius: 9, padding: 4 }}>
+                        <PreviaPista tracado={t.id} cor={sel ? '#06b6d4' : '#94a3b8'} />
                       </div>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? '#fff' : 'rgba(255,255,255,.85)' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? '#0f172a' : '#475569' }}>
                         {t.emoji} {t.nome}
                       </div>
                     </button>
@@ -410,8 +410,8 @@ const TabUnikoFaster = () => {
                 <input value={link} onChange={e => setLink(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && jogarLink()}
                   placeholder="https://youtube.com/watch?v=..."
-                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: '1px solid rgba(255,255,255,.16)',
-                    background: 'rgba(0,0,0,.28)', color: '#fff', fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
+                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: '1px solid rgba(148,163,184,.45)',
+                    background: '#fff', color: '#0f172a', fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
                 <button className="uf-btn uf-cta" onClick={jogarLink}
                   style={{ padding: '11px 24px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
                     cursor: 'pointer', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)' }}>
@@ -428,13 +428,13 @@ const TabUnikoFaster = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 9 }}>
                 {biblioteca.map(m => (
                   <button key={m.vid} className="uf-btn uf-panel-btn uf-song" onClick={() => jogar(m)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: '#fff',
-                      border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)', textAlign: 'left' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: '#0f172a',
+                      border: '1px solid rgba(148,163,184,.3)', background: 'rgba(255,255,255,.62)', textAlign: 'left' }}>
                     <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
-                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0004' }} />
+                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0002' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
-                      <div style={{ fontSize: 11, color: '#22d3ee', fontWeight: 800, marginTop: 2 }}>▸ correr</div>
+                      <div style={{ fontSize: 11, color: '#0891b2', fontWeight: 800, marginTop: 2 }}>▸ correr</div>
                     </div>
                   </button>
                 ))}
@@ -442,8 +442,8 @@ const TabUnikoFaster = () => {
             </div>
 
             {best > 0 && (
-              <div style={{ textAlign: 'center', fontSize: 12.5, color: 'rgba(255,255,255,.7)' }}>
-                🏁 Seu recorde: <b style={{ color: '#ffd166' }}>{best.toLocaleString('pt-BR')} m</b>
+              <div style={{ textAlign: 'center', fontSize: 12.5, color: '#64748b' }}>
+                🏁 Seu recorde: <b style={{ color: '#7c3aed' }}>{best.toLocaleString('pt-BR')} m</b>
               </div>
             )}
           </div>
@@ -1171,9 +1171,9 @@ const FASTER_CSS = `
 .uf-blob2 { animation-duration: 18s; animation-direction: reverse; }
 .uf-blob3 { animation-duration: 16s; }
 @keyframes ufHue { to { background-position: 250% 0; } }
-.uf-title { background: linear-gradient(90deg, #22d3ee, #a78bfa, #ec4899, #ffd166, #22d3ee); background-size: 250% 100%;
+.uf-title { background: linear-gradient(100deg, #1e293b 0%, #64748b 30%, #f8fafc 47%, #64748b 63%, #1e293b 100%); background-size: 250% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
-  animation: ufHue 7s linear infinite; filter: drop-shadow(0 3px 18px rgba(236,72,153,.45)); }
+  animation: ufHue 6.5s linear infinite; filter: drop-shadow(0 1px 0 rgba(255,255,255,.7)) drop-shadow(0 6px 18px rgba(34,211,238,.4)); }
 @keyframes ufFloatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 .uf-float { animation: ufFloatY 3.4s ease-in-out infinite; }
 .uf-float-2 { animation: ufFloatY 4.4s ease-in-out infinite; }
