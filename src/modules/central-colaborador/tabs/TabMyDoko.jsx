@@ -50,6 +50,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
   const [search, setSearch] = useState(''); // busca por nome na coleção
+  const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
   const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
   // Atualização funcional — clique duplo/rápido não deve usar um `assistantScale` da
   // closure já desatualizado (senão dois cliques em sequência "empatam" no mesmo valor).
@@ -98,7 +99,12 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
   const q = normSearch(search);
-  const visibleRoster = q ? roster.filter(u => normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q)) : roster;
+  const visibleRoster = roster.filter(u => {
+    if (q && !(normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q))) return false;
+    if (filtro === 'obtidos' && !owns(u)) return false;   // só os já obtidos
+    if (filtro === 'faltam' && owns(u)) return false;      // só os que faltam
+    return true;
+  });
 
   return (
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
@@ -153,10 +159,32 @@ const TabMyDoko = ({ onPhotoChange }) => {
         )}
       </div>
 
+      {/* Filtro: todos / obtidos / faltam */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {[['todos', 'Todos', roster.length], ['obtidos', '✓ Obtidos', ownedCount], ['faltam', 'Faltam', roster.length - ownedCount]].map(([id, label, n]) => {
+          const sel = filtro === id;
+          return (
+            <button key={id} onClick={() => setFiltro(id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${sel ? T.text : T.border}`,
+                background: sel ? T.text : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                color: sel ? T.surface : T.textS }}>
+              {label}
+              <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 999,
+                background: sel ? 'rgba(255,255,255,.2)' : T.border, color: sel ? T.surface : T.textT }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Grade da coleção */}
       {visibleRoster.length === 0 && (
         <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: T.textT }}>
-          Nenhum Uniko encontrado pra "{search}".
+          {search ? `Nenhum Uniko encontrado pra "${search}".`
+            : filtro === 'obtidos' ? 'Você ainda não obteve nenhum Uniko — capture no Portal! 🎯'
+            : filtro === 'faltam' ? '🎉 Parabéns! Você já obteve todos os Unikos.'
+            : 'Nenhum Uniko na coleção.'}
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
