@@ -1,31 +1,29 @@
-UNIKO FASTER — imagens personalizadas
-======================================
+UNIKO SPEED — imagens personalizadas
+=====================================
 
-Solte aqui os PNGs (fundo transparente) com estes nomes EXATOS.
-Cada um aparece sozinho no jogo assim que o arquivo existir; enquanto
-faltar, o jogo usa o desenho padrao.
+Solte aqui os PNGs (fundo transparente onde indicado) com estes nomes EXATOS.
+Cada um aparece sozinho no jogo assim que o arquivo existir; enquanto faltar,
+o jogo usa o desenho padrao.
 
 CARRO DO JOGADOR (chase cam, visto por tras):
   carro-jogador.png
 
 CARROS RIVAIS (visto por tras) — a cor casa com o ponto do minimapa:
-  rival-vermelho.png
-  rival-azul.png
-  rival-amarelo.png
-  rival-verde.png
-  rival-rosa.png
+  rival-vermelho.png  rival-azul.png  rival-amarelo.png  rival-verde.png  rival-rosa.png
 
-OBSTACULO (cone/barril, de frente):
+OBSTACULO (visto de frente):
   cone.png
 
-FUNDO / HORIZONTE (panorama, SEM transparencia):
-  fundo.png
-
-CENARIO DE BEIRA DE PISTA (de frente) — quantos quiser:
-  cenario-arvore.png
+PLACA "Uniko" (compartilhada nos dois mapas, de frente):
   cenario-placa.png
-  cenario-arco.png
-  ... (qualquer nome comecando com "cenario-")
 
-TEXTURA LATERAL DE GRAMA (opcional, sem emenda/tileavel):
-  grama.png
+── MAPA "CIDADE FUTURISTA" (padrao) ──
+  fundo-cidade.png        (panorama, SEM transparencia)
+  chao-cidade.png         (textura sem emenda, SEM transparencia)
+  cenario-predio-1.png    (predios de beira de pista, transparente)
+  cenario-predio-2.png
+
+── MAPA "CAMPO" ──
+  fundo.png               (panorama, SEM transparencia)
+  grama.png               (textura sem emenda, SEM transparencia)
+  cenario-arvore.png      (arvore de beira de pista, transparente)

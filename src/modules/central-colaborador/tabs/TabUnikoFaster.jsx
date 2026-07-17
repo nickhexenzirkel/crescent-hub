@@ -91,6 +91,25 @@ const carregarSprite = (nome) => {
   return rec;
 };
 
+/* ── Mapas (temas visuais) ────────────────────────────────────────────────────
+   Cada mapa troca o FUNDO, o CHÃO das laterais e os OBJETOS de beira de pista.
+   Pista, carros, pneu e placas são compartilhados. */
+const MAPAS = {
+  cidade: {
+    id: 'cidade', nome: 'Cidade Futurista', emoji: '🏙️',
+    desc: 'Neon, arranha-céus e lua cheia',
+    fundo: 'fundo-cidade', chao: 'chao-cidade',
+    cenarios: ['cenario-predio-1', 'cenario-predio-2'], cenarioLarg: 1.15,
+  },
+  campo: {
+    id: 'campo', nome: 'Campo', emoji: '🌳',
+    desc: 'Pôr do sol retrowave e árvores',
+    fundo: 'fundo', chao: 'grama',
+    cenarios: ['cenario-arvore'], cenarioLarg: 0.9,
+  },
+};
+const MAPA_PADRAO = 'cidade';
+
 // Constrói a pista: retas, curvas e ladeiras encadeadas (loopável).
 function montarPista() {
   const segs = [];
@@ -147,14 +166,16 @@ function montarPista() {
     segs[i].obstaculos = [{ x: rnd(-0.65, 0.65) }];
     ultimo = i;
   }
-  // CENÁRIO de beira de pista: árvores frequentes alternando os lados; placas do
-  // Uniko Faster em alguns pontos marcantes. Ficam FORA da pista (não atrapalham).
+  // CENÁRIO de beira de pista (genérico — o MAPA decide o sprite): objetos
+  // frequentes alternando os lados; placas em pontos marcantes. Ficam FORA da
+  // pista (não atrapalham).
+  let vk = 0;
   for (let i = 24; i < segs.length; i += Math.floor(rnd(6, 12))) {
-    segs[i].cenario = { tipo: 'arvore', lado: Math.random() < 0.5 ? -1 : 1 };
+    segs[i].cenario = { lado: Math.random() < 0.5 ? -1 : 1, variante: vk++ };
   }
   for (let k = 1; k <= 5; k++) {
     const i = Math.floor((segs.length / 6) * k);
-    segs[i].cenario = { tipo: 'placa', lado: k % 2 ? 1 : -1 };
+    segs[i].placa = { lado: k % 2 ? 1 : -1 };
   }
   return segs;
 }
@@ -198,6 +219,7 @@ const TabUnikoFaster = () => {
   const [link, setLink] = useState('');
   const [erroLink, setErroLink] = useState('');
   const [pausado, setPausado] = useState(false);
+  const [mapa, setMapa] = useState(MAPA_PADRAO);      // cidade (padrão) | campo
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
   const cardBg = T.surface || '#fff';
@@ -240,11 +262,34 @@ const TabUnikoFaster = () => {
             </div>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800, color: '#fff',
               letterSpacing: '.02em', lineHeight: 1, textShadow: '0 3px 20px rgba(0,0,0,.5)' }}>
-              UNIKO <span style={{ color: '#22d3ee' }}>FASTER</span>
+              UNIKO <span style={{ color: '#22d3ee' }}>SPEED</span>
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,.85)', marginTop: 8, maxWidth: 460, lineHeight: 1.5 }}>
               Corrida em 1ª pessoa com a sua música no volume máximo. Escolha a trilha e acelera! 🏎️💨
             </div>
+          </div>
+        </div>
+
+        {/* Seletor de MAPA */}
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 10 }}>🗺️ Escolha o mapa</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            {Object.values(MAPAS).map(m => {
+              const sel = mapa === m.id;
+              return (
+                <button key={m.id} className="uf-btn" onClick={() => setMapa(m.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', borderRadius: 12,
+                    cursor: 'pointer', textAlign: 'left', background: sel ? `${US_ACCENT}14` : (T.surfaceSub || 'rgba(0,0,0,.02)'),
+                    border: `2px solid ${sel ? US_ACCENT : T.border}` }}>
+                  <span style={{ fontSize: 26 }}>{m.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>{m.nome}</div>
+                    <div style={{ fontSize: 11, color: T.textT }}>{m.desc}</div>
+                  </div>
+                  {sel && <span style={{ fontSize: 12, fontWeight: 800, color: US_ACCENT }}>✓</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -302,7 +347,7 @@ const TabUnikoFaster = () => {
 
   /* ── CORRIDA ── */
   return (
-    <Corrida key={corridaKey} trilha={trilha} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
+    <Corrida key={corridaKey} trilha={trilha} mapa={mapa} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
       pausado={pausado} setPausado={setPausado}
       onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
       onSair={() => { setTela('menu'); setPausado(false); }} />
@@ -312,7 +357,7 @@ const TabUnikoFaster = () => {
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRIDA — canvas pseudo-3D + iframe de música
    ═══════════════════════════════════════════════════════════════════════════ */
-const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
+const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
   const estado = useRef(null);
@@ -331,11 +376,12 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
     const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
     rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
     const sprCone = carregarSprite('cone');
-    const sprFundo = carregarSprite('fundo');
-    const sprGrama = carregarSprite('grama');
-    const sprArvore = carregarSprite('cenario-arvore');
+    const tema = MAPAS[mapa] || MAPAS[MAPA_PADRAO];
+    const sprFundo = carregarSprite(tema.fundo);
+    const sprChao = carregarSprite(tema.chao);
+    const sprCenarios = tema.cenarios.map(carregarSprite);   // objetos de beira de pista
     const sprPlaca = carregarSprite('cenario-placa');
-    let gramaPat = null;   // pattern da grama (criado quando o PNG carrega)
+    let chaoPat = null;   // pattern do chão (criado quando o PNG carrega)
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
@@ -577,13 +623,13 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       // base de grama cobrindo tudo abaixo do horizonte — evita cantos pretos onde
       // a pista (por causa de ladeira/curva) não chega até o rodapé. Usa a TEXTURA
       // de grama (pattern) se o PNG existir; senão cor lisa.
-      if (sprGrama.ok) {
-        if (!gramaPat) {
-          const oc = document.createElement('canvas'); oc.width = 200; oc.height = 200;
-          oc.getContext('2d').drawImage(sprGrama.img, 0, 0, 200, 200);
-          gramaPat = ctx.createPattern(oc, 'repeat');
+      if (sprChao.ok) {
+        if (!chaoPat) {
+          const oc = document.createElement('canvas'); oc.width = 220; oc.height = 220;
+          oc.getContext('2d').drawImage(sprChao.img, 0, 0, 220, 220);
+          chaoPat = ctx.createPattern(oc, 'repeat');
         }
-        ctx.fillStyle = gramaPat;
+        ctx.fillStyle = chaoPat;
       } else {
         ctx.fillStyle = COR.grama[1];
       }
@@ -616,9 +662,9 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
         if (p1.z <= CAM_D || p2.sy >= maxY) continue;
         maxY = p2.sy;
         const escuro = seg.cor === 'dark';
-        // grama: com textura, só uma FAIXA de sombra semitransparente (dá o senso de
+        // chão: com textura, só uma FAIXA de sombra semitransparente (dá o senso de
         // movimento sem tampar a textura); sem textura, cor lisa cobrindo a faixa.
-        if (sprGrama.ok) {
+        if (sprChao.ok) {
           if (escuro) { ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(0, p2.sy, w, p1.sy - p2.sy + 1); }
         } else {
           ctx.fillStyle = COR.grama[escuro ? 0 : 1];
@@ -680,15 +726,21 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
         if (p1.z <= CAM_D) continue;
-        // CENÁRIO de beira de pista (árvore/placa) — fica FORA da pista, no lado dele
-        if (seg.cenario && p1.sw > 5) {
-          const { tipo, lado } = seg.cenario;
-          const spr = tipo === 'placa' ? sprPlaca : sprArvore;
-          if (spr.ok) {
+        // CENÁRIO de beira de pista — fica FORA da pista, no lado dele.
+        if (seg.cenario && p1.sw > 5 && sprCenarios.length) {
+          const { lado, variante } = seg.cenario;
+          const spr = sprCenarios[variante % sprCenarios.length];
+          if (spr?.ok) {
             const cx = p1.sx + lado * p1.sw * 1.5;                       // logo fora da pista
-            const larg = Math.min(w * 0.42, p1.sw * (tipo === 'placa' ? 0.7 : 0.9));
+            const larg = Math.min(w * 0.46, p1.sw * tema.cenarioLarg);
             if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
           }
+        }
+        // PLACA "Uniko" (sprite compartilhado entre os mapas)
+        if (seg.placa && p1.sw > 5 && sprPlaca.ok) {
+          const cx = p1.sx + seg.placa.lado * p1.sw * 1.5;
+          const larg = Math.min(w * 0.42, p1.sw * 0.7);
+          if (larg >= 3) drawBillboard(sprPlaca, cx, p1.sy, larg, false);
         }
         // obstáculos (pneu/cone)
         (seg.obstaculos || []).forEach(o => {
@@ -808,7 +860,7 @@ const Corrida = ({ trilha, bestRef, setBest, hud, setHud, pausado, setPausado, o
       cancelAnimationFrame(rafRef.current); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
     };
-  }, [bestRef, setBest, setHud, setPausado, setFim]);
+  }, [mapa, bestRef, setBest, setHud, setPausado, setFim]);
 
   // botões de toque (celular) — setam as mesmas flags
   const touch = (dir, v) => { teclas.current[dir] = v; };
