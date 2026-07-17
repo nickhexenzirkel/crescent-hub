@@ -392,39 +392,46 @@ const TabUnikoFaster = () => {
 
           <div style={{ position: 'relative', zIndex: 1, maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
 
-            {/* ══ ETAPA 0 — HERO + JOGAR ══ */}
+            {/* ══ ETAPA 0 — HERO (card) + JOGAR (abaixo do card) ══ */}
             {etapa === 0 && (
-              <div style={{ ...painel, padding: '22px 22px 22px', textAlign: 'center', overflow: 'hidden' }}>
-                <div className="uf-grid" style={{ opacity: 0.1 }} />
-                <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${pal.mascotSh})` }} />
-                <div style={{ position: 'relative' }}>
-                  <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-                    letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 10, border: `1px solid ${pal.badgeBd}` }}>
-                    EM DESENVOLVIMENTO
-                  </div>
-                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(40px, 10vw, 66px)', lineHeight: 0.95 }}>
-                    UNIKO SPEED
-                  </div>
-                  <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
-                    background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
-                  <div style={{ fontSize: 13, color: pal.txt2, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
-                    Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
-                  </div>
-                  <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
-                    <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
-                      background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
-                    <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
-                      style={{ position: 'relative', width: 'min(72%, 380px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
-                  </div>
-                  <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
-                    style={{ ...ctaStyle, fontSize: 19, padding: '15px 52px', marginTop: 8 }}>▶ JOGAR</button>
-                  {best > 0 && (
-                    <div style={{ fontSize: 12.5, color: pal.txtSub, marginTop: 14 }}>
-                      🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
+              <>
+                <div style={{ ...painel, padding: '20px 22px 22px', textAlign: 'center', overflow: 'hidden' }}>
+                  <div className="uf-grid" style={{ opacity: 0.1 }} />
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
+                      letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 6, border: `1px solid ${pal.badgeBd}` }}>
+                      EM DESENVOLVIMENTO
                     </div>
-                  )}
+                    {/* mascote GRANDE, centralizado, acima do nome */}
+                    <img src="/uniko-speed.png" alt="" className="uf-float"
+                      style={{ display: 'block', margin: '4px auto 0', width: 'min(150px, 42vw)', height: 'auto', objectFit: 'contain',
+                        filter: `drop-shadow(0 8px 22px ${pal.mascotSh})` }} />
+                    <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(40px, 10vw, 66px)', lineHeight: 0.95 }}>
+                      UNIKO SPEED
+                    </div>
+                    <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
+                      background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
+                    <div style={{ fontSize: 13, color: pal.txt2, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
+                      Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
+                    </div>
+                    <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
+                      <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
+                        background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
+                      <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
+                        style={{ position: 'relative', width: 'min(72%, 380px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
+                    </div>
+                  </div>
                 </div>
-              </div>
+
+                {/* botão JOGAR — abaixo do card branco, centralizado */}
+                <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
+                  style={{ ...ctaStyle, fontSize: 20, padding: '16px 60px', alignSelf: 'center' }}>▶ JOGAR</button>
+                {best > 0 && (
+                  <div style={{ textAlign: 'center', fontSize: 12.5, color: pal.txtSub }}>
+                    🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
+                  </div>
+                )}
+              </>
             )}
 
             {/* ══ ETAPAS 1-4 — WIZARD ══ */}
