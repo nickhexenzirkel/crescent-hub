@@ -13,29 +13,20 @@ import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const UNIKO_GRAD = 'linear-gradient(135deg,#E0559A 0%,#A24CE0 100%)';
 
-const LABELS = [
-  { id: 'urgente',     name: 'Urgente',     color: '#E0345A' },
-  { id: 'faturamento', name: 'Faturamento', color: '#2560C4' },
-  { id: 'financeiro',  name: 'Financeiro',  color: '#16A085' },
-  { id: 'cobranca',    name: 'Cobrança',    color: '#C0392B' },
-  { id: 'rh',          name: 'RH',          color: '#E67E22' },
-  { id: 'ti',          name: 'TI',          color: '#8E44AD' },
-  { id: 'suporte',     name: 'Suporte',     color: '#27AE60' },
-  { id: 'aguardando',  name: 'Aguardando',  color: '#7F8C8D' },
-];
-const LABEL_BY_ID = Object.fromEntries(LABELS.map(l => [l.id, l]));
-
-const PRIORITIES = [
-  { id: 'baixa',   name: 'Baixa',   color: '#7F8C8D' },
-  { id: 'media',   name: 'Média',   color: '#2560C4' },
-  { id: 'alta',    name: 'Alta',    color: '#E67E22' },
-  { id: 'urgente', name: 'Urgente', color: '#E0345A' },
-];
-const PRIO_BY_ID = Object.fromEntries(PRIORITIES.map(p => [p.id, p]));
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const nowIso = () => new Date().toISOString();
+// Texto puro a partir do HTML da descrição (pra prévia no card e no filtro).
+const stripHtml = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+// "há X" curtinho pro histórico.
+const timeAgo = (iso) => {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'agora';
+  const m = Math.floor(s / 60); if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60); if (h < 24) return `há ${h} h`;
+  const d = Math.floor(h / 24); if (d < 30) return `há ${d} d`;
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
 
 const initials = (name) => (name || '?').trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
 const avatarColor = (name) => {
@@ -94,6 +85,13 @@ const ICON_PATHS = {
   x:       <><path d="M18 6L6 18" /><path d="M6 6l12 12" /></>,
   trash:   <><path d="M3 6h18" /><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></>,
   upload:  <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v13" /></>,
+  dots:    <><circle cx="12" cy="5" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="19" r="1.4" /></>,
+  archive: <><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" /><path d="M10 12h4" /></>,
+  copy:    <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></>,
+  history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 8v4l3 2" /></>,
+  bold:    <><path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" /><path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" /></>,
+  italic:  <><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4L9 20" /></>,
+  edit:    <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
 };
 const Ic = ({ n, size = 16, sw = 2, style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw}
@@ -123,7 +121,6 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const [showFilters, setShowFilters] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [filterAssignee, setFilterAssignee] = useState(null);
-  const [filterLabel, setFilterLabel] = useState(null);
 
   // notificações
   const [notifOn, setNotifOn] = useState(() => localStorage.getItem('cs_notif') !== '0');
@@ -255,6 +252,37 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     scheduleReload();
   };
 
+  // Histórico de alterações (append seguro no jsonb).
+  const logHistory = async (id, text) => {
+    const { data } = await sb.from('conexao_cards').select('history').eq('id', id).single();
+    const history = [...(data?.history || []), { id: uid(), who: me, text, at: nowIso() }];
+    await patchCard(id, { history });
+  };
+  // Patch + registro no histórico numa tacada só.
+  const patchLog = async (id, patch, text) => {
+    const { data } = await sb.from('conexao_cards').select('history').eq('id', id).single();
+    const history = [...(data?.history || []), { id: uid(), who: me, text, at: nowIso() }];
+    await patchCard(id, { ...patch, history });
+  };
+
+  const archiveCard = async (id) => {
+    await patchLog(id, { archived: true }, 'arquivou o card');
+    setSelectedId(null);
+  };
+  const copyCard = async (id) => {
+    const src = cardsRef.current.find(c => c.id === id);
+    if (!src) return;
+    const inList = cardsRef.current.filter(c => c.list_id === src.list_id && !c.archived);
+    const pos = inList.length ? Math.max(...inList.map(c => c.position)) + 1000 : 1000;
+    await sb.from('conexao_cards').insert({
+      list_id: src.list_id, title: (src.title || '') + ' (cópia)', description: src.description || '',
+      assignees: src.assignees || [], comments: [], images: [], position: pos, created_by: me,
+      history: [{ id: uid(), who: me, text: 'criou (cópia de outro card)', at: nowIso() }],
+    });
+    scheduleReload();
+    setSelectedId(null);
+  };
+
   // append seguro em jsonb (relê a linha p/ não perder edição concorrente)
   const appendComment = async (id, text) => {
     const t = text.trim(); if (!t) return;
@@ -317,12 +345,12 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
   // ── Filtro ──────────────────────────────────────────────────
   const passesFilter = (c) => {
+    if (c.archived) return false;   // arquivados não aparecem no quadro
     if (filterText && !(`${c.title} ${c.description}`.toLowerCase().includes(filterText.toLowerCase()))) return false;
     if (filterAssignee && !(c.assignees || []).includes(filterAssignee)) return false;
-    if (filterLabel && !(c.labels || []).includes(filterLabel)) return false;
     return true;
   };
-  const filterActive = filterText || filterAssignee || filterLabel;
+  const filterActive = filterText || filterAssignee;
 
   const toggleNotif = async () => {
     const next = !notifOn;
@@ -342,12 +370,26 @@ export default function ConexaoSetorial({ onBack, authUser }) {
       <style>{`
         @keyframes csPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+        @keyframes csFade{from{opacity:0}to{opacity:1}}
+        @keyframes csUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         .cs-scroll::-webkit-scrollbar{height:10px;width:10px}
-        .cs-card{transition:transform .12s, box-shadow .12s, border-color .12s}
-        .cs-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(120,60,180,.18)}
-        .cs-btn{cursor:pointer;border:none;font-family:inherit;transition:filter .15s, background .15s}
+        .cs-card{transition:transform .14s cubic-bezier(.2,1,.3,1), box-shadow .14s, border-color .14s}
+        .cs-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(120,60,180,.2)}
+        .cs-card:active{transform:scale(.99)}
+        .cs-btn{cursor:pointer;border:none;font-family:inherit;transition:filter .15s, background .15s, transform .12s}
         .cs-btn:hover{filter:brightness(1.08)}
+        .cs-btn:active{transform:scale(.96)}
         .cs-ghost:hover{background:${T.itemHover || 'rgba(120,60,180,.08)'}}
+        .cs-chip{transition:transform .12s, background .15s}
+        .cs-chip:hover{transform:translateY(-1px);filter:brightness(.97)}
+        .cs-mi{transition:background .12s}
+        .cs-mi:hover{background:${T.itemHover || 'rgba(120,60,180,.08)'}}
+        .cs-tb{transition:background .12s, transform .1s}
+        .cs-tb:hover{background:${T.itemHover || 'rgba(120,60,180,.1)'}}
+        .cs-tb:active{transform:scale(.9)}
+        .cs-fade{animation:csUp .22s ease both}
+        .cs-desc b,.cs-desc strong{color:${T.text}}
+        .cs-desc:hover{background:${T.itemHover || 'rgba(120,60,180,.05)'};border-radius:8px}
       `}</style>
 
       {/* ── Header ── */}
@@ -378,13 +420,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
             <option value="">Todos responsáveis</option>
             {people.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {LABELS.map(l => (
-              <button key={l.id} className="cs-btn" onClick={() => setFilterLabel(filterLabel === l.id ? null : l.id)}
-                style={{ background: filterLabel === l.id ? l.color : `${l.color}22`, color: filterLabel === l.id ? '#fff' : l.color, borderRadius: 20, padding: '5px 11px', fontSize: 11.5, fontWeight: 700, border: `1px solid ${l.color}55` }}>{l.name}</button>
-            ))}
-          </div>
-          {filterActive && <button className="cs-btn cs-ghost" onClick={() => { setFilterText(''); setFilterAssignee(null); setFilterLabel(null); }} style={{ background: 'transparent', color: T.textT, fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 8 }}>Limpar ✕</button>}
+          {filterActive && <button className="cs-btn cs-ghost" onClick={() => { setFilterText(''); setFilterAssignee(null); }} style={{ background: 'transparent', color: T.textT, fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 8 }}>Limpar ✕</button>}
         </div>
       )}
 
@@ -418,11 +454,8 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                   {/* Cards */}
                   <div className="cs-scroll" style={{ flex: 1, overflowY: 'auto', padding: '2px 10px 8px', display: 'flex', flexDirection: 'column', gap: 9, minHeight: 8 }}>
                     {listCards.map((c, idx) => {
-                      const di = dueInfo(c.due_date);
-                      const done = (c.checklist || []).filter(i => i.done).length;
-                      const total = (c.checklist || []).length;
                       const imgs = c.images || [];
-                      const prio = c.priority ? PRIO_BY_ID[c.priority] : null;
+                      const descPrev = stripHtml(c.description);
                       const showLine = dragOver && dragOver.listId === list.id && dragOver.index === idx;
                       return (
                         <React.Fragment key={c.id}>
@@ -432,29 +465,23 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
-                            style={{ background: cardBg, borderRadius: 12, border: `1px solid ${brd}`, borderLeft: prio ? `4px solid ${prio.color}` : `1px solid ${brd}`, padding: '10px 12px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,.05)', overflow: 'hidden' }}>
+                            style={{ background: cardBg, borderRadius: 14, border: `1px solid ${brd}`, padding: '14px 15px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
                             {imgs.length > 0 && (
-                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 24px)', height: 128, objectFit: 'cover', margin: '-10px -12px 8px', background: T.surfaceSub }} />
+                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: '-14px -15px 11px', background: T.surfaceSub }} />
                             )}
-                            {(c.labels || []).length > 0 && (
-                              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 7 }}>
-                                {(c.labels || []).map(id => LABEL_BY_ID[id] && (
-                                  <span key={id} style={{ background: LABEL_BY_ID[id].color, color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px' }}>{LABEL_BY_ID[id].name}</span>
-                                ))}
-                              </div>
+                            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: T.text }}>{c.title}</div>
+                            {descPrev && (
+                              <div style={{ fontSize: 13, color: T.textS, marginTop: 6, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{descPrev}</div>
                             )}
-                            <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: T.text }}>{c.title}</div>
-                            {(di || total > 0 || imgs.length > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
-                                {di && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: di.color, background: `${di.color}1e`, borderRadius: 6, padding: '2px 7px' }}><Ic n="clock" size={11} /> {di.label}</span>}
-                                {total > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: done === total ? '#27AE60' : T.textT }}><Ic n="check" size={12} /> {done}/{total}</span>}
-                                {imgs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: T.textT }}><Ic n="image" size={12} /> {imgs.length}</span>}
-                                {(c.comments || []).length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: T.textT }}><Ic n="comment" size={12} /> {(c.comments || []).length}</span>}
+                            {(imgs.length > 0 || (c.comments || []).length > 0 || (c.assignees || []).length > 0) && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 11, flexWrap: 'wrap' }}>
+                                {imgs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: T.textT }}><Ic n="image" size={13} /> {imgs.length}</span>}
+                                {(c.comments || []).length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: T.textT }}><Ic n="comment" size={13} /> {(c.comments || []).length}</span>}
                                 <div style={{ marginLeft: 'auto', display: 'flex' }}>
                                   {(c.assignees || []).slice(0, 3).map((n, i) => (
-                                    <div key={n} title={n} style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: i ? -7 : 0, border: `2px solid ${cardBg}` }}>{initials(n)}</div>
+                                    <div key={n} title={n} style={{ width: 26, height: 26, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: i ? -8 : 0, border: `2px solid ${cardBg}` }}>{initials(n)}</div>
                                   ))}
-                                  {(c.assignees || []).length > 3 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -7, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 3}</div>}
+                                  {(c.assignees || []).length > 3 && <div style={{ width: 26, height: 26, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -8, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 3}</div>}
                                 </div>
                               </div>
                             )}
@@ -520,35 +547,29 @@ export default function ConexaoSetorial({ onBack, authUser }) {
       {/* ── Modal do card ── */}
       {selectedCard && (
         <CardModal card={selectedCard} me={me} people={people} onClose={() => setSelectedId(null)}
-          lists={lists} onPatch={patchCard} onDelete={deleteCard} onComment={appendComment}
+          lists={lists} onPatch={patchCard} onPatchLog={patchLog} onLog={logHistory}
+          onDelete={deleteCard} onArchive={archiveCard} onCopy={copyCard} onComment={appendComment}
           onAddImages={addImages} onRemoveImage={removeImage} isMobile={isMobile} />
       )}
     </div>
   );
 }
 
-// Seção rotulada dentro do modal (escopo de módulo p/ não recriar componente a cada render).
-const Section = ({ title, children }) => (
-  <div style={{ marginBottom: 18 }}>
-    <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: T.textT, marginBottom: 8 }}>{title}</div>
-    {children}
-  </div>
-);
-
-// ─── Modal de detalhes do card ─────────────────────────────────────────────────
-function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComment, onAddImages, onRemoveImage, isMobile }) {
+// ─── Modal de detalhes do card (layout horizontal estilo Trello) ───────────────
+function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onArchive, onCopy, onComment, onAddImages, onRemoveImage, isMobile }) {
   const [title, setTitle] = useState(card.title);
-  const [desc, setDesc] = useState(card.description || '');
   const [comment, setComment] = useState('');
-  const [checkText, setCheckText] = useState('');
   const [showAssign, setShowAssign] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [editDesc, setEditDesc] = useState(false);
+  const [fontLevel, setFontLevel] = useState(3);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const fileRef = useRef(null);
+  const descRef = useRef(null);
 
-  useEffect(() => { setTitle(card.title); }, [card.id]); // eslint-disable-line
-  useEffect(() => { setDesc(card.description || ''); }, [card.id]); // eslint-disable-line
+  useEffect(() => { setTitle(card.title); setEditDesc(false); setShowMenu(false); }, [card.id]); // eslint-disable-line
 
   const images = card.images || [];
 
@@ -587,103 +608,124 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
   const surf = T.surface || '#fff';
   const sub = T.surfaceSub || (T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)');
 
-  const labels = card.labels || [];
   const assignees = card.assignees || [];
-  const checklist = card.checklist || [];
   const comments = card.comments || [];
-  const doneCount = checklist.filter(i => i.done).length;
+  const history = card.history || [];
 
-  const toggleLabel = (id) => onPatch(card.id, { labels: labels.includes(id) ? labels.filter(x => x !== id) : [...labels, id] });
-  const setPriority = (id) => onPatch(card.id, { priority: card.priority === id ? null : id });
-  const toggleAssignee = (n) => onPatch(card.id, { assignees: assignees.includes(n) ? assignees.filter(x => x !== n) : [...assignees, n] });
-  const addCheck = () => { const t = checkText.trim(); if (!t) return; onPatch(card.id, { checklist: [...checklist, { id: uid(), text: t, done: false }] }); setCheckText(''); };
-  const toggleCheck = (id) => onPatch(card.id, { checklist: checklist.map(i => i.id === id ? { ...i, done: !i.done } : i) });
-  const delCheck = (id) => onPatch(card.id, { checklist: checklist.filter(i => i.id !== id) });
+  const toggleAssignee = (n) => onPatchLog(card.id,
+    { assignees: assignees.includes(n) ? assignees.filter(x => x !== n) : [...assignees, n] },
+    assignees.includes(n) ? `removeu ${n} dos membros` : `adicionou ${n} aos membros`);
+
+  // Rich text da descrição (negrito/itálico via execCommand; A+/A− muda o tamanho).
+  const exec = (cmd, val) => { if (descRef.current) descRef.current.focus(); document.execCommand(cmd, false, val); };
+  const changeFont = (delta) => { const lvl = Math.max(1, Math.min(7, fontLevel + delta)); setFontLevel(lvl); exec('fontSize', String(lvl)); };
+  const saveDesc = () => {
+    const html = descRef.current ? descRef.current.innerHTML : (card.description || '');
+    if (html !== (card.description || '')) onPatchLog(card.id, { description: html }, 'alterou a descrição');
+    setEditDesc(false);
+  };
+
+  // Feed da direita = comentários + histórico juntos, do mais antigo pro mais novo.
+  const feed = [
+    ...comments.map(c => ({ kind: 'comment', at: c.at, author: c.author, text: c.text, id: 'c' + c.id })),
+    ...history.map(h => ({ kind: 'history', at: h.at, author: h.who, text: h.text, id: 'h' + h.id })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at));
+  const listTitle = lists.find(l => l.id === card.list_id)?.title || '—';
+
+  const miStyle = { display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: 600, color: T.text, cursor: 'pointer' };
+  const tbStyle = { background: 'transparent', color: T.text, borderRadius: 7, minWidth: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', border: 'none' };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,8,30,.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
-      <div onClick={e => e.stopPropagation()} className="cs-scroll" style={{ width: isMobile ? '100%' : 640, maxWidth: '100%', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .2s ease' }}>
-        {/* Faixa Uniko */}
-        <div style={{ height: 6, background: UNIKO_GRAD }} />
-        <div style={{ padding: isMobile ? 18 : 24 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatch(card.id, { title: title.trim() })}
-              style={{ flex: 1, fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-brand)', color: T.text, background: 'transparent', border: 'none', outline: 'none', borderBottom: `2px solid transparent` }} />
-            <button className="cs-btn cs-ghost" onClick={onClose} style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, display: 'grid', placeItems: 'center', flexShrink: 0 }}><Ic n="x" size={16} /></button>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,8,30,.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: isMobile ? '100%' : 950, maxWidth: '100%', maxHeight: isMobile ? '100%' : '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .24s cubic-bezier(.2,1.25,.35,1)' }}>
+        <div style={{ height: 6, background: UNIKO_GRAD, flexShrink: 0 }} />
+
+        {/* HEADER: coluna · três-pontos · fechar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${brd}`, flexShrink: 0 }}>
+          <select value={card.list_id} onChange={e => onPatchLog(card.id, { list_id: e.target.value }, `moveu para "${lists.find(l => l.id === e.target.value)?.title || ''}"`)}
+            style={{ padding: '7px 11px', borderRadius: 9, border: `1px solid ${brd}`, background: sub, color: T.text, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', maxWidth: '55%' }}>
+            {lists.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
+          </select>
+          <div style={{ flex: 1 }} />
+          <div style={{ position: 'relative' }}>
+            <button className="cs-btn cs-ghost" title="Mais opções" onClick={() => setShowMenu(s => !s)}
+              style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, display: 'grid', placeItems: 'center' }}><Ic n="dots" size={18} /></button>
+            {showMenu && (
+              <>
+                <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 4 }} />
+                <div style={{ position: 'absolute', right: 0, top: 42, zIndex: 5, background: surf, border: `1px solid ${brd}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,.22)', padding: 6, minWidth: 176, animation: 'csPop .16s ease' }}>
+                  <button className="cs-mi" onClick={() => { setShowMenu(false); onCopy(card.id); }} style={miStyle}><Ic n="copy" size={15} /> Copiar card</button>
+                  <button className="cs-mi" onClick={() => { setShowMenu(false); onArchive(card.id); }} style={miStyle}><Ic n="archive" size={15} /> Arquivar</button>
+                  <div style={{ height: 1, background: brd, margin: '4px 2px' }} />
+                  <button className="cs-mi" onClick={() => { setShowMenu(false); onDelete(card.id); }} style={{ ...miStyle, color: '#E0345A' }}><Ic n="trash" size={15} /> Excluir</button>
+                </div>
+              </>
+            )}
           </div>
-          <div style={{ fontSize: 12, color: T.textT, marginTop: 4, marginBottom: 20 }}>
-            em <b style={{ color: T.textS }}>{lists.find(l => l.id === card.list_id)?.title || '—'}</b> · criado por {card.created_by || '—'}
-          </div>
+          <button className="cs-btn cs-ghost" onClick={onClose} style={{ background: sub, color: T.text, borderRadius: 10, width: 34, height: 34, display: 'grid', placeItems: 'center' }}><Ic n="x" size={16} /></button>
+        </div>
 
-          {/* Mover / Prazo / Prioridade */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, marginBottom: 5 }}>COLUNA</div>
-              <select value={card.list_id} onChange={e => onPatch(card.id, { list_id: e.target.value })} style={{ padding: '8px 10px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, fontWeight: 600 }}>
-                {lists.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, marginBottom: 5 }}>PRAZO</div>
-              <input type="datetime-local" value={toLocalInput(card.due_date)} onChange={e => onPatch(card.id, { due_date: fromLocalInput(e.target.value) })}
-                style={{ padding: '8px 10px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13 }} />
-            </div>
-          </div>
+        {/* BODY: 2 colunas (esquerda = detalhes · direita = atividade) */}
+        <div className="cs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+          {/* ── ESQUERDA ── */}
+          <div style={{ flex: '1.7 1 0', minWidth: 0, padding: isMobile ? 16 : 24, borderRight: isMobile ? 'none' : `1px solid ${brd}` }}>
+            <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatchLog(card.id, { title: title.trim() }, 'alterou o título')}
+              style={{ width: '100%', fontSize: 23, fontWeight: 800, fontFamily: 'var(--font-brand)', color: T.text, background: 'transparent', border: 'none', outline: 'none' }} />
+            <div style={{ fontSize: 12, color: T.textT, marginTop: 4, marginBottom: 20 }}>em <b style={{ color: T.textS }}>{listTitle}</b> · criado por {card.created_by || '—'}</div>
 
-          {/* Prioridade */}
-          <Section title="Prioridade">
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {PRIORITIES.map(p => (
-                <button key={p.id} className="cs-btn" onClick={() => setPriority(p.id)}
-                  style={{ background: card.priority === p.id ? p.color : `${p.color}1e`, color: card.priority === p.id ? '#fff' : p.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${p.color}55` }}>{p.name}</button>
-              ))}
-            </div>
-          </Section>
-
-          {/* Etiquetas */}
-          <Section title="Etiquetas">
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {LABELS.map(l => (
-                <button key={l.id} className="cs-btn" onClick={() => toggleLabel(l.id)}
-                  style={{ background: labels.includes(l.id) ? l.color : `${l.color}1e`, color: labels.includes(l.id) ? '#fff' : l.color, borderRadius: 9, padding: '7px 13px', fontWeight: 700, fontSize: 12.5, border: `1px solid ${l.color}55`, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {labels.includes(l.id) && <Ic n="check" size={13} />}{l.name}
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          {/* Responsáveis */}
-          <Section title="Responsáveis">
+            {/* Membros */}
+            <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, marginBottom: 8, letterSpacing: '.04em' }}>MEMBROS</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
               {assignees.map(n => (
-                <span key={n} onClick={() => toggleAssignee(n)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: sub, borderRadius: 20, padding: '4px 10px 4px 4px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 9.5, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(n)}</span>
+                <span key={n} onClick={() => toggleAssignee(n)} className="cs-chip" style={{ display: 'flex', alignItems: 'center', gap: 6, background: sub, borderRadius: 20, padding: '4px 10px 4px 4px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                  <span style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(n), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(n)}</span>
                   {n} <span style={{ color: T.textT, display: 'grid', placeItems: 'center' }}><Ic n="x" size={12} /></span>
                 </span>
               ))}
-              <button className="cs-btn" onClick={() => setShowAssign(s => !s)} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 20, padding: '6px 13px', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5 }}><Ic n="plus" size={13} /> Atribuir</button>
+              <button className="cs-btn" onClick={() => setShowAssign(s => !s)} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 20, padding: '7px 14px', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5 }}><Ic n="plus" size={13} /> Membro</button>
             </div>
             {showAssign && (
-              <div className="cs-scroll" style={{ marginTop: 10, maxHeight: 190, overflowY: 'auto', border: `1px solid ${brd}`, borderRadius: 10, background: T.page }}>
+              <div className="cs-scroll" style={{ marginTop: 10, maxHeight: 200, overflowY: 'auto', border: `1px solid ${brd}`, borderRadius: 10, background: T.page }}>
                 {people.filter(p => !assignees.includes(p)).map(p => (
-                  <div key={p} onClick={() => { toggleAssignee(p); }} className="cs-ghost" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13 }}>
+                  <div key={p} onClick={() => toggleAssignee(p)} className="cs-ghost" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13 }}>
                     <span style={{ width: 24, height: 24, borderRadius: '50%', background: avatarColor(p), color: '#fff', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(p)}</span>{p}
                   </div>
                 ))}
-                {people.filter(p => !assignees.includes(p)).length === 0 && <div style={{ padding: 12, color: T.textT, fontSize: 12 }}>Todos já atribuídos.</div>}
+                {people.filter(p => !assignees.includes(p)).length === 0 && <div style={{ padding: 12, color: T.textT, fontSize: 12 }}>Todos já são membros.</div>}
               </div>
             )}
-          </Section>
 
-          {/* Descrição */}
-          <Section title="Descrição">
-            <textarea value={desc} onChange={e => setDesc(e.target.value)} onBlur={() => desc !== (card.description || '') && onPatch(card.id, { description: desc })}
-              placeholder="Detalhes da tarefa…" rows={3}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13.5, resize: 'vertical', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }} />
-          </Section>
+            {/* Descrição (rich text, grande) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 0 10px' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>Descrição</div>
+              {!editDesc && <button className="cs-btn cs-ghost" onClick={() => setEditDesc(true)} style={{ background: sub, color: T.text, borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'inline-flex', gap: 5, alignItems: 'center' }}><Ic n="edit" size={13} /> Editar</button>}
+            </div>
+            {editDesc ? (
+              <div style={{ border: `1px solid ${brd}`, borderRadius: 12, overflow: 'hidden', background: T.page }}>
+                <div style={{ display: 'flex', gap: 3, padding: 6, borderBottom: `1px solid ${brd}`, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => exec('bold')} title="Negrito" style={tbStyle}><Ic n="bold" size={15} /></button>
+                  <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => exec('italic')} title="Itálico" style={tbStyle}><Ic n="italic" size={15} /></button>
+                  <div style={{ width: 1, height: 20, background: brd, margin: '0 5px' }} />
+                  <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => changeFont(-1)} title="Diminuir letra" style={{ ...tbStyle, fontSize: 12, fontWeight: 800 }}>A−</button>
+                  <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => changeFont(1)} title="Aumentar letra" style={{ ...tbStyle, fontSize: 16, fontWeight: 800 }}>A+</button>
+                </div>
+                <div ref={descRef} contentEditable suppressContentEditableWarning
+                  dangerouslySetInnerHTML={{ __html: card.description || '' }}
+                  style={{ minHeight: 170, maxHeight: 320, overflowY: 'auto', padding: '14px 16px', fontSize: 15.5, lineHeight: 1.6, color: T.text, outline: 'none', wordBreak: 'break-word' }} />
+                <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${brd}` }}>
+                  <button className="cs-btn" onClick={saveDesc} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '8px 18px', fontWeight: 700, fontSize: 13 }}>Salvar</button>
+                  <button className="cs-btn cs-ghost" onClick={() => setEditDesc(false)} style={{ background: 'transparent', color: T.textT, borderRadius: 9, padding: '8px 12px', fontWeight: 700, fontSize: 13 }}>Cancelar</button>
+                </div>
+              </div>
+            ) : (stripHtml(card.description) ? (
+              <div onClick={() => setEditDesc(true)} className="cs-desc" dangerouslySetInnerHTML={{ __html: card.description }}
+                style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word' }} />
+            ) : (
+              <div onClick={() => setEditDesc(true)} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
+            ))}
 
-          {/* Imagens / anexos — arrastar, colar (Ctrl+V) ou escolher arquivo */}
-          <Section title={`Imagens${images.length ? ` · ${images.length}` : ''}`}>
+            {/* Imagens */}
+            <div style={{ fontSize: 14, fontWeight: 800, color: T.text, margin: '24px 0 10px' }}>Imagens{images.length ? ` · ${images.length}` : ''}</div>
             <div
               onDragOver={e => { e.preventDefault(); if (!dragActive) setDragActive(true); }}
               onDragLeave={e => { if (e.currentTarget === e.target) setDragActive(false); }}
@@ -693,67 +735,48 @@ function CardModal({ card, me, people, onClose, lists, onPatch, onDelete, onComm
               <div style={{ color: dragActive ? '#A24CE0' : T.textT, display: 'flex', justifyContent: 'center', marginBottom: 6 }}><Ic n="upload" size={22} /></div>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: T.textS }}>{uploading ? 'Enviando…' : 'Arraste imagens, cole (Ctrl+V) ou clique'}</div>
               <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>PNG, JPG, GIF, WEBP</div>
-              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-                onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
             </div>
             {images.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8, marginTop: 10 }}>
                 {images.map(img => (
                   <div key={img.path} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `1px solid ${brd}`, aspectRatio: '1', background: sub }}>
                     <img src={img.url} alt={img.name} onClick={() => setLightbox(img.url)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in', display: 'block' }} />
-                    <button className="cs-btn" onClick={() => onRemoveImage(card.id, img)} title="Remover"
-                      style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 8, background: 'rgba(20,8,30,.7)', color: '#fff', display: 'grid', placeItems: 'center' }}><Ic n="x" size={13} /></button>
+                    <button className="cs-btn" onClick={() => onRemoveImage(card.id, img)} title="Remover" style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 8, background: 'rgba(20,8,30,.7)', color: '#fff', display: 'grid', placeItems: 'center' }}><Ic n="x" size={13} /></button>
                   </div>
                 ))}
               </div>
             )}
-          </Section>
+          </div>
 
-          {/* Checklist */}
-          <Section title={`Checklist${checklist.length ? ` · ${doneCount}/${checklist.length}` : ''}`}>
-            {checklist.length > 0 && (
-              <div style={{ height: 6, borderRadius: 4, background: sub, marginBottom: 10, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: UNIKO_GRAD, transition: 'width .3s' }} />
-              </div>
-            )}
-            {checklist.map(i => (
-              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 0' }}>
-                <input type="checkbox" checked={i.done} onChange={() => toggleCheck(i.id)} style={{ width: 17, height: 17, accentColor: '#A24CE0', cursor: 'pointer' }} />
-                <span style={{ flex: 1, fontSize: 13.5, textDecoration: i.done ? 'line-through' : 'none', color: i.done ? T.textT : T.text }}>{i.text}</span>
-                <button className="cs-btn cs-ghost" onClick={() => delCheck(i.id)} style={{ background: 'transparent', color: T.textT, borderRadius: 6, width: 24, height: 24, display: 'grid', placeItems: 'center' }}><Ic n="x" size={12} /></button>
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input value={checkText} onChange={e => setCheckText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCheck()} placeholder="Adicionar item…"
-                style={{ flex: 1, padding: '8px 11px', borderRadius: 9, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
-              <button className="cs-btn" onClick={addCheck} style={{ background: sub, color: T.text, borderRadius: 9, padding: '8px 13px', display: 'grid', placeItems: 'center' }}><Ic n="plus" size={15} /></button>
+          {/* ── DIREITA: comentários e atividade (histórico) ── */}
+          <div style={{ flex: '1 1 0', minWidth: isMobile ? 0 : 300, padding: isMobile ? 16 : 20, background: T.dark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.018)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, marginBottom: 12 }}><Ic n="comment" size={16} /> Comentários e atividade</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && comment.trim()) { onComment(card.id, comment); setComment(''); } }}
+                placeholder={`Comentar como ${me.split(' ')[0]}…`} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: surf, color: T.text, fontSize: 13, outline: 'none' }} />
+              <button className="cs-btn" onClick={() => { if (comment.trim()) { onComment(card.id, comment); setComment(''); } }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: 12.5 }}>Enviar</button>
             </div>
-          </Section>
-
-          {/* Comentários */}
-          <Section title={`Comentários${comments.length ? ` · ${comments.length}` : ''}`}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-              {comments.map(cm => (
-                <div key={cm.id} style={{ display: 'flex', gap: 9 }}>
-                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: avatarColor(cm.author), color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(cm.author)}</div>
-                  <div style={{ flex: 1, background: sub, borderRadius: 12, padding: '8px 12px' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{cm.author} <span style={{ color: T.textT, fontWeight: 500 }}>· {new Date(cm.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>
-                    <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.45 }}>{cm.text}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+              {[...feed].reverse().map(f => (
+                <div key={f.id} className="cs-fade" style={{ display: 'flex', gap: 9 }}>
+                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: avatarColor(f.author), color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(f.author)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {f.kind === 'comment' ? (
+                      <div style={{ background: surf, border: `1px solid ${brd}`, borderRadius: 12, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{f.author} <span style={{ color: T.textT, fontWeight: 500 }}>· {timeAgo(f.at)}</span></div>
+                        <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{f.text}</div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12.5, color: T.textS, paddingTop: 5, lineHeight: 1.4 }}>
+                        <b style={{ color: T.text }}>{f.author}</b> {f.text} <span style={{ color: T.textT }}>· {timeAgo(f.at)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
-              {comments.length === 0 && <div style={{ fontSize: 12.5, color: T.textT }}>Sem comentários ainda.</div>}
+              {feed.length === 0 && <div style={{ fontSize: 12.5, color: T.textT }}>Sem atividade ainda.</div>}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && comment.trim()) { onComment(card.id, comment); setComment(''); } }}
-                placeholder={`Comentar como ${me.split(' ')[0]}…`} style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
-              <button className="cs-btn" onClick={() => { if (comment.trim()) { onComment(card.id, comment); setComment(''); } }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13 }}>Enviar</button>
-            </div>
-          </Section>
-
-          {/* Excluir */}
-          <div style={{ borderTop: `1px solid ${brd}`, paddingTop: 14, marginTop: 4 }}>
-            <button className="cs-btn" onClick={() => onDelete(card.id)} style={{ background: '#E0345A18', color: '#E0345A', borderRadius: 10, padding: '9px 16px', fontWeight: 700, fontSize: 13, border: '1px solid #E0345A44', display: 'flex', alignItems: 'center', gap: 6 }}><Ic n="trash" size={15} /> Excluir card</button>
           </div>
         </div>
       </div>
