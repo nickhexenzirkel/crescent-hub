@@ -4,6 +4,7 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { UnikoOrigin } from './UnikoOrigin';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { podeConexaoSetorial } from '../contexts/user';
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
    AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
@@ -127,7 +128,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Mensagens internas · Comunicados', icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'lobby-estelar',    label:'Lobby Estelar',         sub:'Espaço social · Andar e conversar', icon:IcoLobby,      color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
   ];
-  const mods = allMods.filter(m => !m.adminOnly || isAdmin);
+  const mods = allMods.filter(m => !m.adminOnly || isAdmin
+    || (m.id === 'conexao-setorial' && podeConexaoSetorial(authUser)));
 
   // ─── MOBILE ────────────────────────────────────────────────────────────────
   if (isMobile) {

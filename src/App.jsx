@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
-import { SERVER_URL, supabase as _supabase, loadUserPhoto } from './contexts/user';
+import { SERVER_URL, supabase as _supabase, loadUserPhoto, podeConexaoSetorial } from './contexts/user';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
@@ -112,7 +112,9 @@ export default function CrescentHub() {
 
   const handleModuleSelect = (id) => {
     const adminOnly = ['dashboard','ponto','conexao-setorial','lobby-estelar'];
-    if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
+    // conexao-setorial também é liberado por CPF (além de admins)
+    const liberado = authUser?.role === 'admin' || (id === 'conexao-setorial' && podeConexaoSetorial(authUser));
+    if (adminOnly.includes(id) && !liberado) return;
     navPush(id);
   };
 
@@ -334,7 +336,7 @@ export default function CrescentHub() {
           {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={handleGoBack} adminName={authUser.name}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
-          {screen==='conexao-setorial' && authUser?.role==='admin' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='conexao-setorial' && podeConexaoSetorial(authUser) && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='lobby-estelar' && authUser?.role==='admin' && <LobbyEstelar onBack={handleGoBack} authUser={authUser}/>}
         </div>

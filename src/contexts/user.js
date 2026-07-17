@@ -110,6 +110,23 @@ const isProfileComplete = () => {
   return needed.every(f => f && f !== '—' && String(f).trim() !== '');
 };
 
+// CPFs (só dígitos) liberados pro Conexão Setorial ALÉM dos admins.
+const CONEXAO_SETORIAL_CPFS = new Set([
+  '61812060351', '08750448323', '60548743304',
+  '09666186373', '05083092395', '01778594310',
+]);
+// Pode ver/usar o Conexão Setorial? Admins sempre; ou CPF na lista acima.
+// O CPF vem do usuário passado OU, como fallback, do token (JWT) — o objeto do
+// /api/auth/me nem sempre traz cpf, mas o JWT decodificado sempre traz.
+const podeConexaoSetorial = (u) => {
+  const jwt = getAuthUser();
+  const user = u || jwt;
+  if (!user && !jwt) return false;
+  if (user?.role === 'admin' || jwt?.role === 'admin') return true;
+  const cpf = String(user?.cpf || jwt?.cpf || '').replace(/\D/g, '');
+  return CONEXAO_SETORIAL_CPFS.has(cpf);
+};
+
 export {
   SERVER_URL,
   SUPABASE_URL,
@@ -129,4 +146,5 @@ export {
   saveUserPhoto,
   fetchPhotoByName,
   isProfileComplete,
+  podeConexaoSetorial,
 };
