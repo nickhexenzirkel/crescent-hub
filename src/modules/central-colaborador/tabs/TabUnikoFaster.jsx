@@ -287,7 +287,7 @@ const TabUnikoFaster = () => {
   const [tracado, setTracado] = useState(TRACADO_PADRAO);   // 0..3 — formato da pista
   const [etapa, setEtapa] = useState(0);   // wizard: 0 início · 1 música · 2 mapa · 3 traçado · 4 confirmar
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
-  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
+  const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1, boost: false });
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
   const biblioteca = useMemo(() => {
@@ -1077,7 +1077,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         const distM = Math.floor(st.traveled / 100);   // "metros" percorridos no total
         const b = Math.max(bestRef.current, distM);
         if (b > bestRef.current) { bestRef.current = b; setBest(b); try { localStorage.setItem('uf_best', String(b)); } catch { /* sem storage */ } }
-        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1 });
+        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1, boost: st.boost > 0.15 });
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -1115,6 +1115,19 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       borderRadius: 16, overflow: 'hidden', background: '#0a0616' }}>
       <style>{FASTER_CSS}</style>
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', touchAction: 'none' }} />
+
+      {/* MOLDURA DE NITRO — aparece durante nitro/rampa. mix-blend-mode:screen faz o
+          centro preto da imagem sumir e a moldura neon brilhar sobre a tela. */}
+      <img src="/unikofaster/borda-nitro.png" alt="" aria-hidden
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill',
+          mixBlendMode: 'screen', pointerEvents: 'none', opacity: hud.boost ? 1 : 0, transition: 'opacity .12s' }} />
+      {/* Texto NITRO gigante */}
+      {hud.boost && (
+        <div key="nitro" className="uf-nitro-txt" aria-hidden
+          style={{ position: 'absolute', top: '16%', left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
+          NITRO
+        </div>
+      )}
 
       {/* Música — player oculto criado pela IFrame API (toca 1x; ao acabar, encerra a corrida) */}
       <div ref={ytHolder} aria-hidden
@@ -1296,8 +1309,16 @@ const FASTER_CSS = `
 .uf-panel-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(34,211,238,.4) !important; }
 @keyframes ufCta { 0%,100% { box-shadow: 0 6px 20px rgba(124,58,237,.5); } 50% { box-shadow: 0 6px 30px rgba(34,211,238,.75); } }
 .uf-cta { animation: ufCta 2.6s ease-in-out infinite; }
+/* Texto NITRO (slam neon) durante o boost */
+@keyframes ufNitroIn { 0% { transform: scale(.5) skewX(-12deg); opacity: 0; } 55% { transform: scale(1.15) skewX(-12deg); opacity: 1; } 100% { transform: scale(1) skewX(-12deg); opacity: 1; } }
+.uf-nitro-txt { font-family: var(--font-brand), sans-serif; font-weight: 900; font-style: italic; line-height: 1;
+  font-size: clamp(46px, 13vw, 118px); letter-spacing: .03em;
+  background: linear-gradient(180deg, #a5f3fc, #22d3ee 42%, #ec4899);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  filter: drop-shadow(0 3px 0 rgba(0,0,0,.35)) drop-shadow(0 0 26px rgba(34,211,238,.9)) drop-shadow(0 0 46px rgba(236,72,153,.65));
+  animation: ufNitroIn .32s cubic-bezier(.2,1.4,.4,1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .uf-grid, .uf-note, .uf-icone, .uf-blob, .uf-title, .uf-float, .uf-float-2, .uf-spark, .uf-cta { animation: none !important; }
+  .uf-grid, .uf-note, .uf-icone, .uf-blob, .uf-title, .uf-float, .uf-float-2, .uf-spark, .uf-cta, .uf-nitro-txt { animation: none !important; }
 }
 `;
 
