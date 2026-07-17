@@ -110,6 +110,9 @@ const MAPAS = {
 };
 const MAPA_PADRAO = 'cidade';
 
+// Trilhas que tocam de fundo na TELA INICIAL (uma aleatória por sessão).
+const MUSICAS_MENU = ['/unikofaster/menu-lifestyle.mp3', '/unikofaster/menu-vroom.mp3', '/unikofaster/menu-nfs.mp3'];
+
 /* ── Traçados (4 formatos de pista, valem pra qualquer mapa) ───────────────────
    Cada traçado é uma lista de trechos [comprimento, curva, variação de altura].
    A curva sobe e volta a 0 sozinha (sin), então o loop sempre fecha na direção;
@@ -282,6 +285,7 @@ const TabUnikoFaster = () => {
   const [pausado, setPausado] = useState(false);
   const [mapa, setMapa] = useState(MAPA_PADRAO);      // cidade (padrão) | campo
   const [tracado, setTracado] = useState(TRACADO_PADRAO);   // 0..3 — formato da pista
+  const [etapa, setEtapa] = useState(0);   // wizard: 0 início · 1 música · 2 mapa · 3 traçado · 4 confirmar
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
 
@@ -295,14 +299,31 @@ const TabUnikoFaster = () => {
   const [best, setBest] = useState(() => { try { return Number(localStorage.getItem('uf_best') || 0); } catch { return 0; } });
   const bestRef = useRef(best);
 
+  // Música de fundo da tela inicial (uma aleatória por sessão, estilo Uniko Wave).
+  const menuAudio = useRef(null);
+  const [menuTrack] = useState(() => MUSICAS_MENU[Math.floor(Math.random() * MUSICAS_MENU.length)]);
+  useEffect(() => {
+    const a = menuAudio.current;
+    if (!a || tela !== 'menu') return;
+    a.volume = 0.45;
+    const tocar = () => { a.play().catch(() => { /* autoplay bloqueado */ }); };
+    tocar();
+    // fallback: se o autoplay foi bloqueado, toca no 1º clique/toque
+    const noGesto = () => { tocar(); window.removeEventListener('pointerdown', noGesto); };
+    window.addEventListener('pointerdown', noGesto);
+    return () => window.removeEventListener('pointerdown', noGesto);
+  }, [tela]);
+
+  // No wizard, escolher a música AVANÇA pro passo do mapa (não começa a corrida).
   const jogarLink = () => {
     const vid = getYTId(link);
     if (!vid) { setErroLink('Link do YouTube inválido — cole a URL do vídeo.'); return; }
     setErroLink('');
     setTrilha({ vid, title: 'Sua música do YouTube' });
-    setTela('correndo');
+    setEtapa(2);
   };
-  const jogar = (m) => { setTrilha(m); setTela('correndo'); };
+  const jogar = (m) => { setTrilha(m); setEtapa(2); };
+  const comecar = () => setTela('correndo');   // botão final do wizard
 
   /* ── MENU ── */
   if (tela === 'menu') {
@@ -348,128 +369,187 @@ const TabUnikoFaster = () => {
       border: `2px solid ${sel ? pal.glow : pal.unselBorder}`,
       boxShadow: sel ? `0 0 0 1px ${pal.glow}, 0 8px 22px ${pal.glow}44` : pal.unselSh,
     });
+    const ctaStyle = {
+      padding: '13px 34px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 16, fontWeight: 800,
+      cursor: 'pointer', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)',
+      boxShadow: `0 8px 24px ${pal.glow}55`,
+    };
+    const voltarStyle = {
+      padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 800,
+      color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`,
+    };
+    const tituloEstilo = { fontFamily: 'var(--font-brand)', fontWeight: 800, letterSpacing: '.01em',
+      backgroundImage: pal.titleGrad, backgroundSize: '250% 100%' };
     return (
       <div style={{ height: '100%', overflowY: 'auto' }}>
         <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12, background: pal.bg }}>
           <style>{FASTER_CSS}</style>
+          <audio ref={menuAudio} src={menuTrack} loop preload="auto" />
           {/* brilhos neon de fundo */}
           <div className="uf-blob" style={{ width: 460, height: 460, top: -160, left: -130, background: `radial-gradient(circle, ${pal.blob1}, transparent 70%)` }} />
           <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 40, right: -190, background: `radial-gradient(circle, ${pal.blob2}, transparent 70%)` }} />
           <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -220, left: '26%', background: `radial-gradient(circle, ${pal.blob3}, transparent 70%)` }} />
 
-          <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
-            {/* ── HERO ── */}
-            <div style={{ ...painel, padding: '22px 22px 8px', textAlign: 'center', overflow: 'hidden' }}>
-              <div className="uf-grid" style={{ opacity: 0.1 }} />
-              <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${pal.mascotSh})` }} />
-              <div style={{ position: 'relative' }}>
-                <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-                  letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 10, border: `1px solid ${pal.badgeBd}` }}>
-                  EM DESENVOLVIMENTO
-                </div>
-                <div className="uf-title" style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 10vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: '.01em', background: pal.titleGrad, backgroundSize: '250% 100%' }}>
-                  UNIKO SPEED
-                </div>
-                {/* filete neon sob o título */}
-                <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
-                  background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
-                <div style={{ fontSize: 13, color: pal.txt2, marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
-                  Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
-                </div>
-                {/* palco do carro */}
-                <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
-                  <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
-                    background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
-                  <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
-                    style={{ position: 'relative', width: 'min(74%, 400px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
-                </div>
-              </div>
-            </div>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
 
-            {/* ── MAPA ── */}
-            <div style={painel}>
-              <div style={{ ...secTitle, marginBottom: 10 }}>🗺️ Escolha o mapa</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                {Object.values(MAPAS).map(m => {
-                  const sel = mapa === m.id;
-                  return (
-                    <button key={m.id} className="uf-btn uf-panel-btn" onClick={() => setMapa(m.id)}
-                      style={{ ...selCard(sel), display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', textAlign: 'left' }}>
-                      <span style={{ fontSize: 26 }}>{m.emoji}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 800 }}>{m.nome}</div>
-                        <div style={{ fontSize: 11, color: pal.txtSub }}>{m.desc}</div>
-                      </div>
-                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: pal.glow }}>✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── TRAÇADO ── */}
-            <div style={painel}>
-              <div style={secTitle}>🏁 Escolha o traçado</div>
-              <div style={{ ...secSub, margin: '4px 0 12px' }}>4 formatos de pista (as voltas duram até a sua música acabar).</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-                {TRACADOS.map(t => {
-                  const sel = tracado === t.id;
-                  return (
-                    <button key={t.id} className="uf-btn uf-panel-btn" onClick={() => setTracado(t.id)}
-                      style={{ ...selCard(sel), display: 'flex', flexDirection: 'column', gap: 6, padding: 10 }}>
-                      <div style={{ background: pal.previewBox, borderRadius: 9, padding: 4 }}>
-                        <PreviaPista tracado={t.id} cor={sel ? pal.glow : pal.previewLine} />
-                      </div>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? pal.txt : pal.txt2 }}>
-                        {t.emoji} {t.nome}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── LINK DO YOUTUBE ── */}
-            <div style={painel}>
-              <div style={{ ...secTitle, marginBottom: 9 }}>🔗 Cole um link do YouTube</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input value={link} onChange={e => setLink(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && jogarLink()}
-                  placeholder="https://youtube.com/watch?v=..."
-                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: `1px solid ${pal.inputBd}`,
-                    background: pal.inputBg, color: pal.txt, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
-                <button className="uf-btn uf-cta" onClick={jogarLink}
-                  style={{ padding: '11px 24px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
-                    cursor: 'pointer', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)' }}>
-                  Correr ▸
-                </button>
-              </div>
-              {erroLink && <div style={{ fontSize: 12, color: '#ff9db0', marginTop: 7 }}>{erroLink}</div>}
-            </div>
-
-            {/* ── BIBLIOTECA ── */}
-            <div style={painel}>
-              <div style={secTitle}>🎵 Ou escolha da biblioteca</div>
-              <div style={{ ...secSub, margin: '4px 0 12px' }}>Músicas iniciais + o que você salvou no Uniko Wave.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 9 }}>
-                {biblioteca.map(m => (
-                  <button key={m.vid} className="uf-btn uf-panel-btn uf-song" onClick={() => jogar(m)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: pal.txt,
-                      border: `1px solid ${pal.unselBorder}`, background: pal.unselBg, textAlign: 'left' }}>
-                    <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
-                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0003' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
-                      <div style={{ fontSize: 11, color: pal.glow, fontWeight: 800, marginTop: 2 }}>▸ correr</div>
+            {/* ══ ETAPA 0 — HERO + JOGAR ══ */}
+            {etapa === 0 && (
+              <div style={{ ...painel, padding: '22px 22px 22px', textAlign: 'center', overflow: 'hidden' }}>
+                <div className="uf-grid" style={{ opacity: 0.1 }} />
+                <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${pal.mascotSh})` }} />
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
+                    letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 10, border: `1px solid ${pal.badgeBd}` }}>
+                    EM DESENVOLVIMENTO
+                  </div>
+                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 'clamp(40px, 10vw, 66px)', lineHeight: 0.95 }}>
+                    UNIKO SPEED
+                  </div>
+                  <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
+                    background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
+                  <div style={{ fontSize: 13, color: pal.txt2, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
+                    Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
+                  </div>
+                  <div style={{ position: 'relative', marginTop: 6, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 130 }}>
+                    <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
+                      background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
+                    <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
+                      style={{ position: 'relative', width: 'min(72%, 380px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
+                  </div>
+                  <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
+                    style={{ ...ctaStyle, fontSize: 19, padding: '15px 52px', marginTop: 8 }}>▶ JOGAR</button>
+                  {best > 0 && (
+                    <div style={{ fontSize: 12.5, color: pal.txtSub, marginTop: 14 }}>
+                      🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
                     </div>
-                  </button>
-                ))}
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {best > 0 && (
-              <div style={{ textAlign: 'center', fontSize: 12.5, color: pal.txtSub }}>
-                🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
+            {/* ══ ETAPAS 1-4 — WIZARD ══ */}
+            {etapa >= 1 && (
+              <div style={painel}>
+                {/* topo: voltar · logo · passo */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                  <button className="uf-btn" style={voltarStyle} onClick={() => setEtapa(e => e - 1)}>◂ Voltar</button>
+                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 21 }}>UNIKO SPEED</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: pal.txtSub, whiteSpace: 'nowrap' }}>Passo {etapa}/4</div>
+                </div>
+                {/* barra de progresso */}
+                <div style={{ height: 6, borderRadius: 999, background: pal.unselBg, overflow: 'hidden', marginBottom: 16 }}>
+                  <div style={{ width: `${(etapa / 4) * 100}%`, height: '100%', transition: 'width .3s',
+                    background: 'linear-gradient(90deg, #22d3ee, #7c3aed, #ec4899)' }} />
+                </div>
+
+                {/* ETAPA 1 — MÚSICA */}
+                {etapa === 1 && (
+                  <>
+                    <div style={secTitle}>🎵 Escolha a música</div>
+                    <div style={{ ...secSub, margin: '4px 0 12px' }}>Clique numa faixa da biblioteca, ou cole um link do YouTube.</div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                      <input value={link} onChange={e => setLink(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && jogarLink()}
+                        placeholder="https://youtube.com/watch?v=..."
+                        style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: `1px solid ${pal.inputBd}`,
+                          background: pal.inputBg, color: pal.txt, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
+                      <button className="uf-btn uf-cta" onClick={jogarLink}
+                        style={{ padding: '11px 20px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
+                          cursor: 'pointer', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)' }}>
+                        Usar ▸
+                      </button>
+                    </div>
+                    {erroLink && <div style={{ fontSize: 12, color: '#ff9db0', margin: '4px 0 8px' }}>{erroLink}</div>}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 9,
+                      maxHeight: 280, overflowY: 'auto', marginTop: 10, paddingRight: 4 }}>
+                      {biblioteca.map(m => (
+                        <button key={m.vid} className="uf-btn uf-panel-btn uf-song" onClick={() => jogar(m)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: pal.txt,
+                            border: `1px solid ${pal.unselBorder}`, background: pal.unselBg, textAlign: 'left' }}>
+                          <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
+                            style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0003' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
+                            <div style={{ fontSize: 11, color: pal.glow, fontWeight: 800, marginTop: 2 }}>▸ escolher</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* ETAPA 2 — MAPA */}
+                {etapa === 2 && (
+                  <>
+                    <div style={secTitle}>🗺️ Escolha o mapa</div>
+                    <div style={{ ...secSub, margin: '4px 0 14px' }}>O cenário da sua corrida.</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                      {Object.values(MAPAS).map(m => {
+                        const sel = mapa === m.id;
+                        return (
+                          <button key={m.id} className="uf-btn uf-panel-btn" onClick={() => setMapa(m.id)}
+                            style={{ ...selCard(sel), display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', textAlign: 'left' }}>
+                            <span style={{ fontSize: 26 }}>{m.emoji}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13.5, fontWeight: 800 }}>{m.nome}</div>
+                              <div style={{ fontSize: 11, color: pal.txtSub }}>{m.desc}</div>
+                            </div>
+                            {sel && <span style={{ fontSize: 13, fontWeight: 800, color: pal.glow }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ textAlign: 'right', marginTop: 18 }}>
+                      <button className="uf-btn uf-cta" style={ctaStyle} onClick={() => setEtapa(3)}>Próximo ▸</button>
+                    </div>
+                  </>
+                )}
+
+                {/* ETAPA 3 — TRAÇADO */}
+                {etapa === 3 && (
+                  <>
+                    <div style={secTitle}>🏁 Escolha o traçado</div>
+                    <div style={{ ...secSub, margin: '4px 0 14px' }}>4 formatos de pista (as voltas duram até a música acabar).</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                      {TRACADOS.map(t => {
+                        const sel = tracado === t.id;
+                        return (
+                          <button key={t.id} className="uf-btn uf-panel-btn" onClick={() => setTracado(t.id)}
+                            style={{ ...selCard(sel), display: 'flex', flexDirection: 'column', gap: 6, padding: 10 }}>
+                            <div style={{ background: pal.previewBox, borderRadius: 9, padding: 4 }}>
+                              <PreviaPista tracado={t.id} cor={sel ? pal.glow : pal.previewLine} />
+                            </div>
+                            <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? pal.txt : pal.txt2 }}>
+                              {t.emoji} {t.nome}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ textAlign: 'right', marginTop: 18 }}>
+                      <button className="uf-btn uf-cta" style={ctaStyle} onClick={() => setEtapa(4)}>Próximo ▸</button>
+                    </div>
+                  </>
+                )}
+
+                {/* ETAPA 4 — CONFIRMAR */}
+                {etapa === 4 && (
+                  <div style={{ textAlign: 'center', padding: '4px 0' }}>
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 800, color: pal.txt }}>Tudo pronto! 🚦</div>
+                    <div style={{ ...secSub, marginTop: 6 }}>Confira e acelera.</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', margin: '18px 0' }}>
+                      {[['🎵', trilha?.title || 'Música'], ['🗺️', MAPAS[mapa]?.nome], ['🏁', TRACADOS[tracado]?.nome]].map(([e, l], i) => (
+                        <span key={i} style={{ padding: '8px 14px', borderRadius: 999, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`,
+                          color: pal.txt, fontSize: 12.5, fontWeight: 700, maxWidth: 230, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {e} {l}
+                        </span>
+                      ))}
+                    </div>
+                    <button className="uf-btn uf-cta" onClick={comecar}
+                      style={{ ...ctaStyle, fontSize: 18, padding: '15px 46px' }}>🏁 Começar corrida!</button>
+                    <div style={{ ...secSub, marginTop: 12 }}>Toque em <b style={{ color: pal.txt2 }}>Voltar</b> pra trocar algo.</div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -483,7 +563,7 @@ const TabUnikoFaster = () => {
     <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
       pausado={pausado} setPausado={setPausado}
       onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
-      onSair={() => { setTela('menu'); setPausado(false); }} />
+      onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
   );
 };
 
