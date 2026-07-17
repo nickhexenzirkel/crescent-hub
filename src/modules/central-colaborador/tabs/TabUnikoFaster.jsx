@@ -1116,6 +1116,14 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       <style>{FASTER_CSS}</style>
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', touchAction: 'none' }} />
 
+      {/* Música — player oculto criado pela IFrame API (toca 1x; ao acabar, encerra a
+          corrida). Fica num WRAPPER estável: a API do YouTube SUBSTITUI a div interna
+          por um <iframe> por fora do React; sem o wrapper, mostrar/esconder o NITRO ao
+          lado quebrava a reconciliação (erro insertBefore). */}
+      <div aria-hidden style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div ref={ytHolder} />
+      </div>
+
       {/* MOLDURA DE NITRO — aparece durante nitro/rampa. mix-blend-mode:screen faz o
           centro preto da imagem sumir e a moldura neon brilhar sobre a tela. */}
       <img src="/unikofaster/borda-nitro.png" alt="" aria-hidden
@@ -1128,10 +1136,6 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
           NITRO
         </div>
       )}
-
-      {/* Música — player oculto criado pela IFrame API (toca 1x; ao acabar, encerra a corrida) */}
-      <div ref={ytHolder} aria-hidden
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0 }} />
 
       {/* HUD */}
       <div style={{ position: 'absolute', top: 12, left: 14, right: 14, display: 'flex', alignItems: 'flex-start',
