@@ -415,8 +415,8 @@ const TabUnikoFaster = () => {
                   background: pal.panelBg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
                   <div className="uf-grid" style={{ opacity: 0.1 }} />
                 </div>
-                {/* CONTEÚDO — ancorado no topo, centralizado */}
-                <div style={{ position: 'absolute', top: '6%', left: '8%', right: '8%', textAlign: 'center', zIndex: 2 }}>
+                {/* CONTEÚDO — dentro da abertura da moldura (atrás dela). */}
+                <div style={{ position: 'absolute', top: '11%', left: '9%', right: '9%', textAlign: 'center', zIndex: 2 }}>
                   <div style={{ display: 'inline-block', padding: '3px 13px', borderRadius: 999, fontSize: 11, fontWeight: 800,
                     letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 4, border: `1px solid ${pal.badgeBd}` }}>
                     EM DESENVOLVIMENTO
@@ -444,20 +444,20 @@ const TabUnikoFaster = () => {
                     </div>
                   )}
                 </div>
-                {/* TELA CHEIA — acima do JOGAR (% da altura) */}
+                {/* TELA CHEIA — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
                 <button className="uf-btn" onClick={toggleTelaCheia}
-                  style={{ position: 'absolute', left: '50%', bottom: '20%', transform: 'translateX(-50%)', zIndex: 4,
+                  style={{ position: 'absolute', left: '50%', bottom: '25%', transform: 'translateX(-50%)', zIndex: 2,
                     display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
                     fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
                   ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
                 </button>
-                {/* JOGAR — encaixado no slot (% da altura, largura ~ do slot) */}
+                {/* JOGAR — dentro do slot (ATRÁS da moldura; a borda emoldura ele) */}
                 <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
-                  style={{ position: 'absolute', left: '50%', bottom: '7%', transform: 'translateX(-50%)', zIndex: 4,
-                    ...ctaStyle, width: 'min(36%, 560px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 'clamp(15px, 1.8vw, 22px)', padding: 'clamp(11px, 1.6vh, 18px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
+                  style={{ position: 'absolute', left: '50%', bottom: '8%', transform: 'translateX(-50%)', zIndex: 2,
+                    ...ctaStyle, width: 'min(32%, 500px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 'clamp(14px, 1.6vw, 20px)', padding: 'clamp(9px, 1.4vh, 15px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
 
-                {/* MOLDURA por cima (centro transparente) */}
+                {/* MOLDURA por cima (centro transparente) — sempre na frente do conteúdo */}
                 <img src="/unikofaster/borda-inicial.png" alt="" aria-hidden
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none', zIndex: 3 }} />
               </div>
