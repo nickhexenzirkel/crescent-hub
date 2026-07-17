@@ -520,6 +520,30 @@ const TabQuizMM = () => {
   const nome = useMemo(() => meuNome(), []);
   const cardBg = T.surface || '#fff';
   const vivoRef = useRef(true);
+  const [notifStatus, setNotifStatus] = useState(''); // '' | 'enviando' | 'ok'
+
+  // Notifica TODO MUNDO com o site aberto (insere na tabela `notifications` →
+  // o realtime do App.jsx mostra popup in-site + notificação no desktop).
+  const notificarQuiz = async () => {
+    if (notifStatus === 'enviando') return;
+    if (!window.confirm('Enviar um aviso do Quiz do M&M para TODOS que estiverem com o site aberto agora?')) return;
+    setNotifStatus('enviando');
+    try {
+      const { error } = await supabase.from('notifications').insert({
+        type: 'lembrete',
+        title: 'Quiz do M&M 🍫',
+        message: 'Quiz do M&M disponível para todos, vão conferir!',
+        active: true,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setNotifStatus('ok');
+      setTimeout(() => vivoRef.current && setNotifStatus(''), 3500);
+    } catch {
+      setNotifStatus('');
+      alert('Não deu pra enviar a notificação. Tente de novo.');
+    }
+  };
 
   const carregar = useCallback(async () => {
     const { data, error } = await supabase.from('mm_quiz')
@@ -607,13 +631,24 @@ const TabQuizMM = () => {
           </div>
         </div>
         {podeCriar && (
-          <button className="mm-btn" onClick={() => setCriando(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '11px 18px', borderRadius: 999, border: 'none',
-              background: `linear-gradient(135deg, ${MMC.prataL}, ${MMC.prata})`, color: MMC.escuro,
-              fontSize: 13.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 5px 16px rgba(0,0,0,.3)',
-              position: 'relative', whiteSpace: 'nowrap' }}>
-            <IcoMais size={15} />Criar quiz
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button className="mm-btn" onClick={notificarQuiz} disabled={notifStatus === 'enviando'}
+              title="Avisa todo mundo que estiver com o site aberto"
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '11px 16px', borderRadius: 999,
+                border: `1px solid ${notifStatus === 'ok' ? '#22c55e' : 'rgba(255,255,255,.4)'}`,
+                background: notifStatus === 'ok' ? 'rgba(34,197,94,.18)' : 'rgba(0,0,0,.28)',
+                color: '#fff', fontSize: 13.5, fontWeight: 800, cursor: notifStatus === 'enviando' ? 'default' : 'pointer',
+                whiteSpace: 'nowrap', opacity: notifStatus === 'enviando' ? .7 : 1 }}>
+              {notifStatus === 'ok' ? '✅ Avisados!' : notifStatus === 'enviando' ? '⏳ Enviando...' : '🔔 Notificar quiz'}
+            </button>
+            <button className="mm-btn" onClick={() => setCriando(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '11px 18px', borderRadius: 999, border: 'none',
+                background: `linear-gradient(135deg, ${MMC.prataL}, ${MMC.prata})`, color: MMC.escuro,
+                fontSize: 13.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 5px 16px rgba(0,0,0,.3)',
+                position: 'relative', whiteSpace: 'nowrap' }}>
+              <IcoMais size={15} />Criar quiz
+            </button>
+          </div>
         )}
       </div>
 
