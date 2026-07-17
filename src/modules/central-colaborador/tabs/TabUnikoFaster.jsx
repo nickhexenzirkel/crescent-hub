@@ -110,8 +110,31 @@ const MAPAS = {
 };
 const MAPA_PADRAO = 'cidade';
 
-// Constrói a pista: retas, curvas e ladeiras encadeadas (loopável).
-function montarPista() {
+/* ── Traçados (4 formatos de pista, valem pra qualquer mapa) ───────────────────
+   Cada traçado é uma lista de trechos [comprimento, curva, variação de altura].
+   A curva sobe e volta a 0 sozinha (sin), então o loop sempre fecha na direção;
+   só a altura é fechada por um trecho final. Todos com POUCAS curvas suaves. */
+const TRACADOS = [
+  { id: 0, nome: 'Clássico', emoji: '🏁', trechos: [
+    [150, 0, 0], [80, 2.4, 200], [170, 0, 0], [80, -2.4, -200], [150, 0, 150],
+    [80, 2, 0], [180, 0, -150], [80, -2, 100], [150, 0, 0],
+  ] },
+  { id: 1, nome: 'Reta Veloz', emoji: '🚀', trechos: [
+    [260, 0, 0], [90, 1.8, 250], [280, 0, -250], [90, -1.8, 0], [260, 0, 0],
+  ] },
+  { id: 2, nome: 'Sinuoso', emoji: '🐍', trechos: [
+    [90, 0, 0], [70, 3, 120], [70, -3, -120], [70, 3, 120], [70, -3, -120],
+    [90, 0, 0], [70, -3, 150], [70, 3, -150], [70, -3, 100], [70, 3, -100], [90, 0, 0],
+  ] },
+  { id: 3, nome: 'Técnico', emoji: '🏎️', trechos: [
+    [120, 0, 0], [60, 3, 200], [90, 0, 0], [60, -3, -100], [80, 0, 100],
+    [70, 2.5, -200], [90, 0, 0], [70, -2.5, 250], [120, 0, -250],
+  ] },
+];
+const TRACADO_PADRAO = 0;
+
+// Constrói a pista a partir de um traçado (lista de trechos). Loopável.
+function montarPista(trechos = TRACADOS[TRACADO_PADRAO].trechos) {
   const segs = [];
   const add = (curve, y) => {
     const n = segs.length;
@@ -128,20 +151,9 @@ function montarPista() {
       add(curve * (Math.sin((i / n) * Math.PI)), y);   // curva sobe e desce suave
     }
   };
-  // Circuito com POUCAS curvas: retas longas + curvas suaves (magnitude baixa),
-  // subidas/descidas leves. Bem mais tranquilo de pilotar que o anterior.
-  trecho(150, 0, 0);         // largada: reta bem longa e limpa
-  trecho(80, 2.4, 200);      // curva suave à direita
-  trecho(170, 0, 0);         // reta longa
-  trecho(80, -2.4, -200);    // curva suave à esquerda
-  trecho(150, 0, 150);       // reta com leve subida
-  trecho(80, 2, 0);
-  trecho(180, 0, -150);      // reta longa (descida leve)
-  trecho(80, -2, 100);
-  trecho(150, 0, 0);
+  for (const [n, curve, dy] of trechos) trecho(n, curve, dy);
   // FECHA O LOOP suave: traz a altura de volta a 0 (senão há um DEGRAU entre o
-  // último segmento e o primeiro, e a pista "reseta"/salta ao dar a volta). As
-  // curvas já voltam a 0 sozinhas (sin), só a altura acumulava.
+  // último segmento e o primeiro, e a pista "reseta"/salta ao dar a volta).
   trecho(80, 0, -segs[segs.length - 1].p2y);
   // LINHA DE LARGADA/CHEGADA (xadrez) nos primeiros segmentos.
   for (let i = 0; i < 4; i++) segs[i].start = true;
@@ -177,8 +189,8 @@ function montarPista() {
 }
 
 // Formato TOP-DOWN da pista (pra prévia): integra as curvas num caminho 2D.
-function pontosDaForma() {
-  const segs = montarPista();
+function pontosDaForma(trechos) {
+  const segs = montarPista(trechos);
   let ang = 0, x = 0, y = 0;
   let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
   const pts = [];
@@ -238,8 +250,9 @@ function montarRivais() {
 }
 
 /* Prévia do formato da pista (traçado top-down) — desenhada em SVG. */
-const PreviaPista = ({ cor = US_ACCENT }) => {
-  const { pts, minX, maxX, minY, maxY } = useMemo(() => pontosDaForma(), []);
+const PreviaPista = ({ tracado = 0, cor = US_ACCENT }) => {
+  const { pts, minX, maxX, minY, maxY } = useMemo(
+    () => pontosDaForma(TRACADOS[tracado]?.trechos), [tracado]);
   const W = 300, H = 150, pad = 18;
   const sx = (maxX - minX) || 1, sy = (maxY - minY) || 1;
   const sc = Math.min((W - 2 * pad) / sx, (H - 2 * pad) / sy);
@@ -268,6 +281,7 @@ const TabUnikoFaster = () => {
   const [erroLink, setErroLink] = useState('');
   const [pausado, setPausado] = useState(false);
   const [mapa, setMapa] = useState(MAPA_PADRAO);      // cidade (padrão) | campo
+  const [tracado, setTracado] = useState(TRACADO_PADRAO);   // 0..3 — formato da pista
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1 });
   const cardBg = T.surface || '#fff';
@@ -303,17 +317,23 @@ const TabUnikoFaster = () => {
           background: `linear-gradient(120deg, #1a0b3d 0%, #4c1d95 55%, #db2777 130%)`,
           boxShadow: '0 12px 34px rgba(120,40,200,.35)' }}>
           <div className="uf-grid" />
-          <div style={{ position: 'relative' }}>
-            <div style={{ display: 'inline-block', padding: '3px 11px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-              letterSpacing: '.08em', background: 'rgba(0,0,0,.28)', color: '#ffd166', marginBottom: 8 }}>
-              EM DESENVOLVIMENTO
-            </div>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800, color: '#fff',
-              letterSpacing: '.02em', lineHeight: 1, textShadow: '0 3px 20px rgba(0,0,0,.5)' }}>
-              UNIKO <span style={{ color: '#22d3ee' }}>SPEED</span>
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.85)', marginTop: 8, maxWidth: 460, lineHeight: 1.5 }}>
-              Corrida em 1ª pessoa com a sua música no volume máximo. Escolha a trilha e acelera! 🏎️💨
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 18 }}>
+            {/* Ícone/mascote do Uniko Speed — destacado */}
+            <img src="/uniko-speed.png" alt="Uniko Speed" className="uf-icone"
+              style={{ width: 96, height: 96, objectFit: 'contain', flexShrink: 0,
+                filter: 'drop-shadow(0 6px 18px rgba(0,0,0,.55))' }} />
+            <div>
+              <div style={{ display: 'inline-block', padding: '3px 11px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
+                letterSpacing: '.08em', background: 'rgba(0,0,0,.28)', color: '#ffd166', marginBottom: 8 }}>
+                EM DESENVOLVIMENTO
+              </div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800, color: '#fff',
+                letterSpacing: '.02em', lineHeight: 1, textShadow: '0 3px 20px rgba(0,0,0,.5)' }}>
+                UNIKO <span style={{ color: '#22d3ee' }}>SPEED</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.85)', marginTop: 8, maxWidth: 460, lineHeight: 1.5 }}>
+                Corrida em 1ª pessoa com a sua música no volume máximo. Escolha a trilha e acelera! 🏎️💨
+              </div>
             </div>
           </div>
         </div>
@@ -341,13 +361,30 @@ const TabUnikoFaster = () => {
           </div>
         </div>
 
-        {/* Prévia do formato da pista */}
+        {/* Seletor de TRAÇADO (4 formatos, com prévia) */}
         <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🏁 Prévia da pista</div>
-          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 10 }}>
-            O traçado do circuito (as voltas duram até a sua música acabar).
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🏁 Escolha o traçado</div>
+          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
+            4 formatos de pista (as voltas duram até a sua música acabar).
           </div>
-          <PreviaPista cor="#22d3ee" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+            {TRACADOS.map(t => {
+              const sel = tracado === t.id;
+              return (
+                <button key={t.id} className="uf-btn" onClick={() => setTracado(t.id)}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 12, cursor: 'pointer',
+                    background: sel ? `${US_ACCENT}14` : (T.surfaceSub || 'rgba(0,0,0,.02)'),
+                    border: `2px solid ${sel ? US_ACCENT : T.border}` }}>
+                  <div style={{ background: 'rgba(0,0,0,.06)', borderRadius: 8, padding: 4 }}>
+                    <PreviaPista tracado={t.id} cor={sel ? '#22d3ee' : T.textT} />
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: sel ? US_ACCENT : T.text, textAlign: 'center' }}>
+                    {t.emoji} {t.nome}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Link do YouTube */}
@@ -404,7 +441,7 @@ const TabUnikoFaster = () => {
 
   /* ── CORRIDA ── */
   return (
-    <Corrida key={corridaKey} trilha={trilha} mapa={mapa} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
+    <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
       pausado={pausado} setPausado={setPausado}
       onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
       onSair={() => { setTela('menu'); setPausado(false); }} />
@@ -414,7 +451,7 @@ const TabUnikoFaster = () => {
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRIDA — canvas pseudo-3D + iframe de música
    ═══════════════════════════════════════════════════════════════════════════ */
-const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
+const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
   const estado = useRef(null);
@@ -449,7 +486,7 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const pista = montarPista();
+    const pista = montarPista(TRACADOS[tracado]?.trechos);
     const trackLen = pista.length * SEG_LEN;
     const rivais = montarRivais();
     const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
@@ -686,9 +723,9 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
             if (Math.abs(r.x - segR.turbo.x) < segR.turbo.w) r.turbo = TURBO_DUR;
             else r.x += Math.sign(segR.turbo.x - r.x) * 0.01;   // desvia de leve pra pegar
           }
-          // colisão comigo: os dois perdem ritmo
+          // colisão comigo: os dois perdem ritmo (hitbox justo — encostou de verdade)
           let dz = r.pos - st.pos; if (dz < -trackLen / 2) dz += trackLen; if (dz > trackLen / 2) dz -= trackLen;
-          if (Math.abs(dz) < SEG_LEN * 1.2 && Math.abs(r.x - st.playerX) < 0.45 && st.batendo <= 0) {
+          if (Math.abs(dz) < SEG_LEN * 0.8 && Math.abs(r.x - st.playerX) < 0.26 && st.batendo <= 0) {
             st.batendo = 0.5; r.lento = Math.max(r.lento, 0.6);
           }
         });
@@ -807,19 +844,20 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
         if (p1.z <= CAM_D) continue;
-        // CENÁRIO de beira de pista — fica FORA da pista, no lado dele.
+        // CENÁRIO de beira de pista — BEM afastado da pista (2.2× a meia-largura)
+        // pra nunca invadir/cobrir a pista (senão parece que o carro os atropela).
         if (seg.cenario && p1.sw > 5 && sprCenarios.length) {
           const { lado, variante } = seg.cenario;
           const spr = sprCenarios[variante % sprCenarios.length];
           if (spr?.ok) {
-            const cx = p1.sx + lado * p1.sw * 1.5;                       // logo fora da pista
+            const cx = p1.sx + lado * p1.sw * 2.2;                       // longe da pista
             const larg = Math.min(w * 0.46, p1.sw * tema.cenarioLarg);
             if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
           }
         }
         // PLACA "Uniko" (sprite compartilhado entre os mapas)
         if (seg.placa && p1.sw > 5 && sprPlaca.ok) {
-          const cx = p1.sx + seg.placa.lado * p1.sw * 1.5;
+          const cx = p1.sx + seg.placa.lado * p1.sw * 2.2;
           const larg = Math.min(w * 0.42, p1.sw * 0.7);
           if (larg >= 3) drawBillboard(sprPlaca, cx, p1.sy, larg, false);
         }
@@ -829,7 +867,7 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
           if (larg < 2) return;
           if (sprCone.ok) drawBillboard(sprCone, cx, p1.sy, larg);
           else drawCone(cx, p1.sy, larg);
-          if (n < 3 && Math.abs(o.x - st.playerX) < 0.28 && st.batendo <= 0 && !pausadoRef.current) st.batendo = 0.45;
+          if (n < 2 && Math.abs(o.x - st.playerX) < 0.17 && st.batendo <= 0 && !pausadoRef.current) st.batendo = 0.45;
         });
         // rivais — largura escala com a distância, mas com TETO (~30% da tela) pra
         // não virar um blocão gigante quando estão colados na câmera. Fica na
@@ -941,7 +979,7 @@ const Corrida = ({ trilha, mapa, bestRef, setBest, hud, setHud, pausado, setPaus
       cancelAnimationFrame(rafRef.current); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
     };
-  }, [mapa, bestRef, setBest, setHud, setPausado, setFim]);
+  }, [mapa, tracado, bestRef, setBest, setHud, setPausado, setFim]);
 
   // botões de toque (celular) — setam as mesmas flags
   const touch = (dir, v) => { teclas.current[dir] = v; };
@@ -1112,7 +1150,9 @@ const FASTER_CSS = `
 .uf-touch:active { background: rgba(124,58,237,.85) !important; }
 @keyframes ufNote { 0%,100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-2px) rotate(6deg); } }
 .uf-note { display: inline-block; animation: ufNote .6s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .uf-grid, .uf-note { animation: none !important; } }
+@keyframes ufFloat { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
+.uf-icone { animation: ufFloat 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .uf-grid, .uf-note, .uf-icone { animation: none !important; } }
 `;
 
 export { TabUnikoFaster };
