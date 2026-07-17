@@ -306,48 +306,74 @@ const TabUnikoFaster = () => {
 
   /* ── MENU ── */
   if (tela === 'menu') {
-    // Tema LIGHT premium: vidro branco, cromado no título, acentos neon (ciano/magenta).
+    // Segue o tema do app (T.dark), mantendo o visual premium chrome + neon.
+    const dark = !!T.dark;
+    const pal = dark ? {
+      bg: 'radial-gradient(130% 90% at 50% -20%, #1c2742 0%, #131b31 52%, #0b1020 100%)',
+      panelBg: 'rgba(255,255,255,.055)', panelBorder: 'rgba(255,255,255,.12)',
+      panelSh: '0 16px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08)',
+      txt: '#f1f5f9', txt2: 'rgba(255,255,255,.78)', txtSub: 'rgba(255,255,255,.58)',
+      selBg: 'rgba(34,211,238,.14)', unselBg: 'rgba(255,255,255,.05)', unselBorder: 'rgba(255,255,255,.14)',
+      unselSh: 'inset 0 1px 0 rgba(255,255,255,.05)', glow: '#22d3ee', accent: '#22d3ee',
+      titleGrad: 'linear-gradient(100deg, #e2e8f0 0%, #94a3b8 30%, #ffffff 47%, #94a3b8 63%, #e2e8f0 100%)',
+      badgeBg: 'rgba(34,211,238,.14)', badgeTx: '#67e8f9', badgeBd: 'rgba(34,211,238,.4)',
+      inputBg: 'rgba(0,0,0,.3)', inputBd: 'rgba(255,255,255,.16)',
+      previewBox: 'rgba(0,0,0,.28)', previewLine: 'rgba(255,255,255,.5)',
+      blob1: 'rgba(217,70,239,.28)', blob2: 'rgba(34,211,238,.3)', blob3: 'rgba(124,58,237,.26)',
+      carSh: 'rgba(0,0,0,.6)', mascotSh: 'rgba(0,0,0,.55)',
+    } : {
+      bg: 'radial-gradient(130% 90% at 50% -20%, #ffffff 0%, #eef2fb 52%, #e5e9f6 100%)',
+      panelBg: 'rgba(255,255,255,.72)', panelBorder: 'rgba(148,163,184,.28)',
+      panelSh: '0 14px 34px rgba(30,41,90,.12), inset 0 1px 0 rgba(255,255,255,.9)',
+      txt: '#0f172a', txt2: '#475569', txtSub: '#64748b',
+      selBg: 'rgba(6,182,212,.08)', unselBg: 'rgba(255,255,255,.62)', unselBorder: 'rgba(148,163,184,.3)',
+      unselSh: '0 2px 8px rgba(30,41,90,.06)', glow: '#06b6d4', accent: '#7c3aed',
+      titleGrad: 'linear-gradient(100deg, #1e293b 0%, #64748b 30%, #f8fafc 47%, #64748b 63%, #1e293b 100%)',
+      badgeBg: 'rgba(6,182,212,.1)', badgeTx: '#0e7490', badgeBd: 'rgba(6,182,212,.35)',
+      inputBg: '#fff', inputBd: 'rgba(148,163,184,.45)',
+      previewBox: 'rgba(15,23,42,.05)', previewLine: '#94a3b8',
+      blob1: 'rgba(217,70,239,.18)', blob2: 'rgba(34,211,238,.2)', blob3: 'rgba(124,58,237,.16)',
+      carSh: 'rgba(0,0,0,.4)', mascotSh: 'rgba(0,0,0,.35)',
+    };
     const painel = {
       position: 'relative', borderRadius: 18, padding: 18,
-      background: 'rgba(255,255,255,.72)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-      border: '1px solid rgba(148,163,184,.28)',
-      boxShadow: '0 14px 34px rgba(30,41,90,.12), inset 0 1px 0 rgba(255,255,255,.9)',
+      background: pal.panelBg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      border: `1px solid ${pal.panelBorder}`, boxShadow: pal.panelSh,
     };
-    const secTitle = { fontSize: 13, fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 7 };
-    const secSub = { fontSize: 11.5, color: '#64748b' };
-    const selCard = (sel, glow = '#06b6d4') => ({
-      cursor: 'pointer', color: '#0f172a', borderRadius: 13,
-      background: sel ? 'rgba(6,182,212,.08)' : 'rgba(255,255,255,.62)',
-      border: `2px solid ${sel ? glow : 'rgba(148,163,184,.3)'}`,
-      boxShadow: sel ? `0 0 0 1px ${glow}, 0 8px 22px ${glow}44` : '0 2px 8px rgba(30,41,90,.06)',
+    const secTitle = { fontSize: 13, fontWeight: 800, color: pal.txt, display: 'flex', alignItems: 'center', gap: 7 };
+    const secSub = { fontSize: 11.5, color: pal.txtSub };
+    const selCard = (sel) => ({
+      cursor: 'pointer', color: pal.txt, borderRadius: 13,
+      background: sel ? pal.selBg : pal.unselBg,
+      border: `2px solid ${sel ? pal.glow : pal.unselBorder}`,
+      boxShadow: sel ? `0 0 0 1px ${pal.glow}, 0 8px 22px ${pal.glow}44` : pal.unselSh,
     });
     return (
       <div style={{ height: '100%', overflowY: 'auto' }}>
-        <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12,
-          background: 'radial-gradient(130% 90% at 50% -20%, #ffffff 0%, #eef2fb 52%, #e5e9f6 100%)' }}>
+        <div style={{ position: 'relative', minHeight: '100%', overflow: 'hidden', padding: 12, background: pal.bg }}>
           <style>{FASTER_CSS}</style>
-          {/* brilhos neon suaves de fundo */}
-          <div className="uf-blob" style={{ width: 460, height: 460, top: -160, left: -130, background: 'radial-gradient(circle, rgba(217,70,239,.18), transparent 70%)' }} />
-          <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 40, right: -190, background: 'radial-gradient(circle, rgba(34,211,238,.2), transparent 70%)' }} />
-          <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -220, left: '26%', background: 'radial-gradient(circle, rgba(124,58,237,.16), transparent 70%)' }} />
+          {/* brilhos neon de fundo */}
+          <div className="uf-blob" style={{ width: 460, height: 460, top: -160, left: -130, background: `radial-gradient(circle, ${pal.blob1}, transparent 70%)` }} />
+          <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 40, right: -190, background: `radial-gradient(circle, ${pal.blob2}, transparent 70%)` }} />
+          <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -220, left: '26%', background: `radial-gradient(circle, ${pal.blob3}, transparent 70%)` }} />
 
           <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 20 }}>
             {/* ── HERO ── */}
             <div style={{ ...painel, padding: '22px 22px 8px', textAlign: 'center', overflow: 'hidden' }}>
               <div className="uf-grid" style={{ opacity: 0.1 }} />
-              <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: 'drop-shadow(0 6px 16px rgba(0,0,0,.5))' }} />
+              <img src="/uniko-speed.png" alt="" className="uf-float" style={{ position: 'absolute', top: 10, right: 12, width: 76, height: 76, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${pal.mascotSh})` }} />
               <div style={{ position: 'relative' }}>
                 <div style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 999, fontSize: 10.5, fontWeight: 800,
-                  letterSpacing: '.1em', background: 'rgba(6,182,212,.1)', color: '#0e7490', marginBottom: 10, border: '1px solid rgba(6,182,212,.35)' }}>
+                  letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 10, border: `1px solid ${pal.badgeBd}` }}>
                   EM DESENVOLVIMENTO
                 </div>
-                <div className="uf-title" style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 10vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: '.01em' }}>
+                <div className="uf-title" style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 10vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: '.01em', background: pal.titleGrad, backgroundSize: '250% 100%' }}>
                   UNIKO SPEED
                 </div>
                 {/* filete neon sob o título */}
                 <div style={{ height: 3, width: 210, maxWidth: '70%', margin: '8px auto 0', borderRadius: 999,
                   background: 'linear-gradient(90deg, transparent, #22d3ee, #d946ef, transparent)', boxShadow: '0 0 12px rgba(34,211,238,.6)' }} />
-                <div style={{ fontSize: 13, color: '#475569', marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13, color: pal.txt2, marginTop: 8, maxWidth: 480, margin: '8px auto 0', lineHeight: 1.5 }}>
                   Corrida em 1ª pessoa com a sua música no volume máximo. 🏎️💨
                 </div>
                 {/* palco do carro */}
@@ -355,7 +381,7 @@ const TabUnikoFaster = () => {
                   <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '66%', height: 56,
                     background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(15px)' }} />
                   <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
-                    style={{ position: 'relative', width: 'min(74%, 400px)', filter: 'drop-shadow(0 16px 26px rgba(0,0,0,.55))' }} />
+                    style={{ position: 'relative', width: 'min(74%, 400px)', filter: `drop-shadow(0 16px 26px ${pal.carSh})` }} />
                 </div>
               </div>
             </div>
@@ -372,9 +398,9 @@ const TabUnikoFaster = () => {
                       <span style={{ fontSize: 26 }}>{m.emoji}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 800 }}>{m.nome}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{m.desc}</div>
+                        <div style={{ fontSize: 11, color: pal.txtSub }}>{m.desc}</div>
                       </div>
-                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: '#06b6d4' }}>✓</span>}
+                      {sel && <span style={{ fontSize: 13, fontWeight: 800, color: pal.glow }}>✓</span>}
                     </button>
                   );
                 })}
@@ -391,10 +417,10 @@ const TabUnikoFaster = () => {
                   return (
                     <button key={t.id} className="uf-btn uf-panel-btn" onClick={() => setTracado(t.id)}
                       style={{ ...selCard(sel), display: 'flex', flexDirection: 'column', gap: 6, padding: 10 }}>
-                      <div style={{ background: 'rgba(15,23,42,.05)', borderRadius: 9, padding: 4 }}>
-                        <PreviaPista tracado={t.id} cor={sel ? '#06b6d4' : '#94a3b8'} />
+                      <div style={{ background: pal.previewBox, borderRadius: 9, padding: 4 }}>
+                        <PreviaPista tracado={t.id} cor={sel ? pal.glow : pal.previewLine} />
                       </div>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? '#0f172a' : '#475569' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, textAlign: 'center', color: sel ? pal.txt : pal.txt2 }}>
                         {t.emoji} {t.nome}
                       </div>
                     </button>
@@ -410,8 +436,8 @@ const TabUnikoFaster = () => {
                 <input value={link} onChange={e => setLink(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && jogarLink()}
                   placeholder="https://youtube.com/watch?v=..."
-                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: '1px solid rgba(148,163,184,.45)',
-                    background: '#fff', color: '#0f172a', fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
+                  style={{ flex: 1, padding: '11px 13px', borderRadius: 11, border: `1px solid ${pal.inputBd}`,
+                    background: pal.inputBg, color: pal.txt, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
                 <button className="uf-btn uf-cta" onClick={jogarLink}
                   style={{ padding: '11px 24px', borderRadius: 11, border: 'none', color: '#fff', fontSize: 14, fontWeight: 800,
                     cursor: 'pointer', whiteSpace: 'nowrap', background: 'linear-gradient(135deg, #22d3ee, #7c3aed 55%, #ec4899)' }}>
@@ -428,13 +454,13 @@ const TabUnikoFaster = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 9 }}>
                 {biblioteca.map(m => (
                   <button key={m.vid} className="uf-btn uf-panel-btn uf-song" onClick={() => jogar(m)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: '#0f172a',
-                      border: '1px solid rgba(148,163,184,.3)', background: 'rgba(255,255,255,.62)', textAlign: 'left' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 9, borderRadius: 12, cursor: 'pointer', color: pal.txt,
+                      border: `1px solid ${pal.unselBorder}`, background: pal.unselBg, textAlign: 'left' }}>
                     <img src={`https://i.ytimg.com/vi/${m.vid}/mqdefault.jpg`} alt="" loading="lazy"
-                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0002' }} />
+                      style={{ width: 54, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#0003' }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.title}</div>
-                      <div style={{ fontSize: 11, color: '#0891b2', fontWeight: 800, marginTop: 2 }}>▸ correr</div>
+                      <div style={{ fontSize: 11, color: pal.glow, fontWeight: 800, marginTop: 2 }}>▸ correr</div>
                     </div>
                   </button>
                 ))}
@@ -442,8 +468,8 @@ const TabUnikoFaster = () => {
             </div>
 
             {best > 0 && (
-              <div style={{ textAlign: 'center', fontSize: 12.5, color: '#64748b' }}>
-                🏁 Seu recorde: <b style={{ color: '#7c3aed' }}>{best.toLocaleString('pt-BR')} m</b>
+              <div style={{ textAlign: 'center', fontSize: 12.5, color: pal.txtSub }}>
+                🏁 Seu recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
               </div>
             )}
           </div>
