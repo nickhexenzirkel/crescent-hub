@@ -175,6 +175,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false,
     valor_hora: '', status: 'aprovado',
   };
+  // filtros da aba Banco Extra
+  const BANCO_FILTROS0 = {
+    texto:'', colaborador:'', status:'', dataDe:'', dataAte:'',
+    horaDe:'', horaAte:'', valorMin:'', valorMax:'', feriado:'',
+  };
+  const [bancoFiltros, setBancoFiltros] = useState(BANCO_FILTROS0);
+
   const [bancoModal, setBancoModal] = useState(false);
   const [bancoForm,  setBancoForm]  = useState(BANCO_FORM0);
   const [bancoSaving,setBancoSaving]= useState(false);
@@ -1645,11 +1652,37 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             const fmtH = h => { if(!h||h<=0) return '0h'; const hh=Math.floor(h); const mm=Math.round((h-hh)*60); return mm>0?`${hh}h${mm.toString().padStart(2,'0')}`:`${hh}h`; };
             const fmtD = iso => iso ? new Date(iso+'T00:00:00').toLocaleDateString('pt-BR') : '—';
             const BRL  = v => 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-            const pendentes  = bancoHoras.filter(b=>b.status==='pendente');
-            const aprovados  = bancoHoras.filter(b=>b.status==='aprovado');
-            const rejeitados = bancoHoras.filter(b=>b.status==='rejeitado');
+            const F  = bancoFiltros;
+            const setF = (k,v)=>setBancoFiltros(p=>({...p,[k]:v}));
+            const num  = s => s==='' ? null : (Number(String(s).replace(',','.')) || 0);
+
+            // ── aplica os filtros ──
+            const q = F.texto.trim().toLowerCase();
+            const vMin = num(F.valorMin), vMax = num(F.valorMax);
+            const lista = bancoHoras.filter(b=>{
+              if(q && !`${b.created_by||''} ${b.descricao||''}`.toLowerCase().includes(q)) return false;
+              if(F.colaborador && b.created_by!==F.colaborador) return false;
+              if(F.status && b.status!==F.status) return false;
+              if(F.dataDe  && (b.data||'') < F.dataDe)  return false;
+              if(F.dataAte && (b.data||'') > F.dataAte) return false;
+              if(F.horaDe  && (b.hora_inicio||'') < F.horaDe)  return false;
+              if(F.horaAte && (b.hora_fim   ||'') > F.horaAte) return false;
+              if(vMin!==null && Number(b.valor_total||0) < vMin) return false;
+              if(vMax!==null && Number(b.valor_total||0) > vMax) return false;
+              if(F.feriado==='sim' && !b.feriado_domingo) return false;
+              if(F.feriado==='nao' &&  b.feriado_domingo) return false;
+              return true;
+            });
+            const filtrosAtivos = Object.values(F).some(v=>v!=='');
+
+            const colaboradores = [...new Set(bancoHoras.map(b=>b.created_by).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+            const pendentes  = lista.filter(b=>b.status==='pendente');
+            const aprovados  = lista.filter(b=>b.status==='aprovado');
+            const rejeitados = lista.filter(b=>b.status==='rejeitado');
             const totalHorasAprov = aprovados.reduce((a,b)=>a+Number(b.horas_calculadas||0),0);
             const totalValorAprov = aprovados.reduce((a,b)=>a+Number(b.valor_total||0),0);
+            const totalValorPend  = pendentes.reduce((a,b)=>a+Number(b.valor_total||0),0);
             return (
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
                 <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -1668,27 +1701,107 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
 
                 {/* cards de resumo */}
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12}}>
                   {[
-                    {l:'Pendentes',   v:pendentes.length,  c:'#D89030'},
-                    {l:'Aprovados',   v:aprovados.length,  c:'#1A9C70'},
-                    {l:'Rejeitados',  v:rejeitados.length, c:'#C04050'},
-                    {l:'Horas aprovadas', v:fmtH(totalHorasAprov), c:T.blue||'#2A6FB5'},
-                  ].map(({l,v,c})=>(
-                    <Card key={l} style={{padding:'16px 20px'}} elevated>
-                      <div style={{fontSize:26,fontWeight:700,color:c}}>{v}</div>
+                    {k:'pend', l:'Pendentes',   v:pendentes.length,  c:'#D89030', sub:totalValorPend>0?BRL(totalValorPend):null},
+                    {k:'apro', l:'Aprovados',   v:aprovados.length,  c:'#1A9C70', sub:totalValorAprov>0?BRL(totalValorAprov):null},
+                    {k:'reje', l:'Rejeitados',  v:rejeitados.length, c:'#C04050'},
+                    {k:'horas',l:'Horas aprovadas', v:fmtH(totalHorasAprov), c:T.blue||'#2A6FB5'},
+                    {k:'pagar',l:'Falta pagar', v:BRL(totalValorAprov), c:'#1A9C70', sub:'Soma dos aprovados', small:true},
+                  ].map(({k,l,v,c,sub,small})=>(
+                    <Card key={k} style={{padding:'16px 20px'}} elevated>
+                      <div style={{fontSize:small?21:26,fontWeight:700,color:c}}>{v}</div>
                       <div style={{fontSize:12,color:T.textT,marginTop:3}}>{l}</div>
-                      {l==='Aprovados'&&totalValorAprov>0&&<div style={{fontSize:11,color:'#1A9C70',marginTop:2,fontWeight:600}}>{BRL(totalValorAprov)}</div>}
+                      {sub&&<div style={{fontSize:11,color:small?T.textD:c,marginTop:2,fontWeight:small?400:600}}>{sub}</div>}
                     </Card>
                   ))}
                 </div>
+
+                {/* ── FILTROS ── */}
+                {(()=>{
+                  const inSt = {padding:'7px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',width:'100%'};
+                  const lbSt = {fontSize:10.5,fontWeight:600,color:T.textD,letterSpacing:'.05em',textTransform:'uppercase',marginBottom:4};
+                  const Campo = ({label,children,span}) => (
+                    <div style={{gridColumn:span?`span ${span}`:undefined}}>
+                      <div style={lbSt}>{label}</div>
+                      {children}
+                    </div>
+                  );
+                  return (
+                    <Card style={{padding:'16px 20px',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                          <span style={{fontSize:13,fontWeight:600,color:T.text}}>Filtros</span>
+                          <span style={{fontSize:11.5,color:T.textT}}>{lista.length} de {bancoHoras.length} registro{bancoHoras.length===1?'':'s'}</span>
+                        </div>
+                        {filtrosAtivos&&(
+                          <button onClick={()=>setBancoFiltros(BANCO_FILTROS0)}
+                            style={{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 11px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:11.5,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            Limpar filtros
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+                        <Campo label="Buscar (nome ou descrição)" span={2}>
+                          <input value={F.texto} onChange={e=>setF('texto',e.target.value)} placeholder="Ex: plantão, relatório, Maria..." style={inSt}/>
+                        </Campo>
+                        <Campo label="Colaborador">
+                          <select value={F.colaborador} onChange={e=>setF('colaborador',e.target.value)} style={inSt}>
+                            <option value="">Todos</option>
+                            {colaboradores.map(n=><option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </Campo>
+                        <Campo label="Status">
+                          <select value={F.status} onChange={e=>setF('status',e.target.value)} style={inSt}>
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="aprovado">Aprovado</option>
+                            <option value="rejeitado">Rejeitado</option>
+                          </select>
+                        </Campo>
+
+                        <Campo label="Data de">
+                          <input type="date" value={F.dataDe} onChange={e=>setF('dataDe',e.target.value)} style={inSt}/>
+                        </Campo>
+                        <Campo label="Data até">
+                          <input type="date" value={F.dataAte} onChange={e=>setF('dataAte',e.target.value)} style={inSt}/>
+                        </Campo>
+                        <Campo label="Início a partir de">
+                          <input type="time" value={F.horaDe} onChange={e=>setF('horaDe',e.target.value)} style={inSt}/>
+                        </Campo>
+                        <Campo label="Fim até">
+                          <input type="time" value={F.horaAte} onChange={e=>setF('horaAte',e.target.value)} style={inSt}/>
+                        </Campo>
+
+                        <Campo label="Valor mín. (R$)">
+                          <input value={F.valorMin} onChange={e=>setF('valorMin',e.target.value)} placeholder="0,00" style={inSt}/>
+                        </Campo>
+                        <Campo label="Valor máx. (R$)">
+                          <input value={F.valorMax} onChange={e=>setF('valorMax',e.target.value)} placeholder="0,00" style={inSt}/>
+                        </Campo>
+                        <Campo label="Feriado / Domingo">
+                          <select value={F.feriado} onChange={e=>setF('feriado',e.target.value)} style={inSt}>
+                            <option value="">Todos</option>
+                            <option value="sim">Somente feriado/domingo</option>
+                            <option value="nao">Somente dias normais</option>
+                          </select>
+                        </Campo>
+                      </div>
+                    </Card>
+                  );
+                })()}
 
                 {/* tabela */}
                 <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
                   {bancoLoading
                     ? <div style={{textAlign:'center',padding:48,color:T.textT}}>Carregando...</div>
-                    : bancoHoras.length===0
-                      ? <div style={{textAlign:'center',padding:48,color:T.textT,fontSize:13}}>Nenhum registro ainda.</div>
+                    : lista.length===0
+                      ? <div style={{textAlign:'center',padding:48,color:T.textT,fontSize:13}}>
+                          {bancoHoras.length===0 ? 'Nenhum registro ainda.' : 'Nenhum registro corresponde aos filtros.'}
+                        </div>
                       : <div style={{overflowX:'auto'}}>
                           <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',minWidth:900}}>
                             <thead><tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
@@ -1697,7 +1810,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                               ))}
                             </tr></thead>
                             <tbody>
-                              {bancoHoras.map(b=>{
+                              {lista.map(b=>{
                                 const ss = b.status==='pendente'
                                   ? {bg:'rgba(216,144,48,0.15)',c:'#D89030'}
                                   : b.status==='aprovado'
