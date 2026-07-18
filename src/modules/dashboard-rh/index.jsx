@@ -176,8 +176,24 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     valor_hora: '', status: 'aprovado',
   };
   // filtros da aba Banco Extra
-  const BANCO_FILTROS0 = { texto:'', status:'' };
+  const BANCO_FILTROS0 = { texto:'', status:'', ordem:'recentes' };
   const [bancoFiltros, setBancoFiltros] = useState(BANCO_FILTROS0);
+
+  // seleção múltipla na tabela do Banco Extra
+  const [bancoSel, setBancoSel] = useState([]);   // ids selecionados
+  const [bancoLote, setBancoLote] = useState(false);
+  const toggleBancoSel = (id) => setBancoSel(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
+
+  const aprovarSelecionados = async () => {
+    if (bancoSel.length === 0) return;
+    setBancoLote(true);
+    await _supabase.from('banco_horas')
+      .update({ status:'aprovado', updated_at:new Date().toISOString() })
+      .in('id', bancoSel);
+    setBancoSel([]);
+    await loadBancoHoras();
+    setBancoLote(false);
+  };
 
   const [bancoModal, setBancoModal] = useState(false);
   const [bancoForm,  setBancoForm]  = useState(BANCO_FORM0);
@@ -1658,8 +1674,21 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               if(q && !`${b.created_by||''} ${b.descricao||''}`.toLowerCase().includes(q)) return false;
               if(F.status && b.status!==F.status) return false;
               return true;
+            }).sort((a,b)=>{
+              if(F.ordem==='az') return (a.created_by||'').localeCompare(b.created_by||'','pt-BR');
+              if(F.ordem==='za') return (b.created_by||'').localeCompare(a.created_by||'','pt-BR');
+              return 0; // 'recentes' — já vem ordenado por created_at desc do banco
             });
-            const filtrosAtivos = Object.values(F).some(v=>v!=='');
+            const filtrosAtivos = F.texto!=='' || F.status!=='' || F.ordem!=='recentes';
+
+            // ── seleção ──
+            const selRows   = lista.filter(b=>bancoSel.includes(b.id));
+            const selValor  = selRows.reduce((a,b)=>a+Number(b.valor_total||0),0);
+            const selHoras  = selRows.reduce((a,b)=>a+Number(b.horas_calculadas||0),0);
+            const selPend   = selRows.filter(b=>b.status!=='aprovado');
+            const selNomes  = [...new Set(selRows.map(b=>b.created_by).filter(Boolean))];
+            const todosSel  = lista.length>0 && lista.every(b=>bancoSel.includes(b.id));
+            const toggleTodos = () => setBancoSel(todosSel ? [] : lista.map(b=>b.id));
 
             const pendentes  = lista.filter(b=>b.status==='pendente');
             const aprovados  = lista.filter(b=>b.status==='aprovado');
@@ -1701,16 +1730,45 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   ))}
                 </div>
 
+                {/* ── RESUMO DA SELEÇÃO ── */}
+                {selRows.length>0&&(
+                  <Card style={{padding:'14px 20px',border:'1px solid rgba(78,143,168,0.35)',background:'rgba(78,143,168,0.07)'}} elevated>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:22,flexWrap:'wrap'}}>
+                        <div>
+                          <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Selecionados</div>
+                          <div style={{fontSize:19,fontWeight:700,color:T.text}}>{selRows.length}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Horas</div>
+                          <div style={{fontSize:19,fontWeight:700,color:T.blue||'#2A6FB5'}}>{fmtH(selHoras)}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,color:T.textD,marginBottom:2}}>
+                            Total a pagar{selNomes.length===1?` — ${selNomes[0]}`:selNomes.length>1?` — ${selNomes.length} pessoas`:''}
+                          </div>
+                          <div style={{fontSize:22,fontWeight:700,color:'#1A9C70'}}>{BRL(selValor)}</div>
+                        </div>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <button onClick={()=>setBancoSel([])}
+                          style={{padding:'8px 14px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12.5,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                          Limpar seleção
+                        </button>
+                        <button onClick={aprovarSelecionados} disabled={bancoLote||selPend.length===0}
+                          style={{display:'inline-flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:9,border:'none',cursor:(bancoLote||selPend.length===0)?'not-allowed':'pointer',background:selPend.length===0?'rgba(0,0,0,0.10)':'linear-gradient(135deg,#1A9C70,#28BA88)',color:selPend.length===0?T.textD:'#fff',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)',outline:'none'}}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          {bancoLote ? 'Aprovando...' : selPend.length===0 ? 'Já aprovados' : `Aprovar ${selPend.length} selecionado${selPend.length===1?'':'s'}`}
+                        </button>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
                 {/* ── FILTROS ── */}
                 {(()=>{
                   const inSt = {padding:'7px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',width:'100%'};
                   const lbSt = {fontSize:10.5,fontWeight:600,color:T.textD,letterSpacing:'.05em',textTransform:'uppercase',marginBottom:4};
-                  const Campo = ({label,children}) => (
-                    <div>
-                      <div style={lbSt}>{label}</div>
-                      {children}
-                    </div>
-                  );
                   return (
                     <Card style={{padding:'16px 20px',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
@@ -1728,18 +1786,28 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         )}
                       </div>
 
-                      <div style={{display:'grid',gridTemplateColumns:'3fr 1fr',gap:10}}>
-                        <Campo label="Buscar (colaborador ou descrição)">
+                      <div style={{display:'grid',gridTemplateColumns:'2.5fr 1fr 1fr',gap:10}}>
+                        <div>
+                          <div style={lbSt}>Buscar (colaborador ou descrição)</div>
                           <input value={F.texto} onChange={e=>setF('texto',e.target.value)} placeholder="Ex: plantão, relatório, Maria..." style={inSt}/>
-                        </Campo>
-                        <Campo label="Status">
+                        </div>
+                        <div>
+                          <div style={lbSt}>Status</div>
                           <select value={F.status} onChange={e=>setF('status',e.target.value)} style={inSt}>
                             <option value="">Todos</option>
                             <option value="pendente">Pendente</option>
                             <option value="aprovado">Aprovado</option>
                             <option value="rejeitado">Rejeitado</option>
                           </select>
-                        </Campo>
+                        </div>
+                        <div>
+                          <div style={lbSt}>Ordenar por</div>
+                          <select value={F.ordem} onChange={e=>setF('ordem',e.target.value)} style={inSt}>
+                            <option value="recentes">Mais recentes</option>
+                            <option value="az">Colaborador A → Z</option>
+                            <option value="za">Colaborador Z → A</option>
+                          </select>
+                        </div>
                       </div>
                     </Card>
                   );
@@ -1756,6 +1824,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       : <div style={{overflowX:'auto'}}>
                           <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)',minWidth:900}}>
                             <thead><tr style={{background:T.surfaceSub||'rgba(0,0,0,0.025)'}}>
+                              <th style={{padding:'10px 0 10px 14px',width:34}}>
+                                <div onClick={toggleTodos} title={todosSel?'Desmarcar todos':'Selecionar todos'}
+                                  style={{width:17,height:17,borderRadius:'50%',border:`2px solid ${todosSel?(T.blue||'#2A6FB5'):T.border}`,background:todosSel?(T.blue||'#2A6FB5'):'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                                  {todosSel&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                </div>
+                              </th>
                               {['Colaborador','Data','Descrição','Horário','Horas','Cálculo','Valor','Status','Ações'].map(h=>(
                                 <th key={h} style={{textAlign:'left',fontSize:11,color:T.textD,fontWeight:600,letterSpacing:'.07em',textTransform:'uppercase',padding:'10px 14px',whiteSpace:'nowrap'}}>{h}</th>
                               ))}
@@ -1768,8 +1842,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                                     ? {bg:'rgba(26,156,112,0.12)',c:'#1A9C70'}
                                     : {bg:'rgba(192,64,80,0.12)',c:'#C04050'};
                                 const emAcao = bancoAcaoId===b.id;
+                                const sel = bancoSel.includes(b.id);
                                 return (
-                                  <tr key={b.id} style={{borderTop:`1px solid ${T.border}`}}>
+                                  <tr key={b.id} style={{borderTop:`1px solid ${T.border}`,background:sel?'rgba(78,143,168,0.07)':'transparent'}}>
+                                    <td style={{padding:'11px 0 11px 14px',width:34}}>
+                                      <div onClick={()=>toggleBancoSel(b.id)}
+                                        style={{width:17,height:17,borderRadius:'50%',border:`2px solid ${sel?(T.blue||'#2A6FB5'):T.border}`,background:sel?(T.blue||'#2A6FB5'):'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                                        {sel&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                      </div>
+                                    </td>
                                     <td style={{padding:'11px 14px',fontSize:13,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{b.created_by}</td>
                                     <td style={{padding:'11px 14px',fontSize:12,color:T.textS,whiteSpace:'nowrap'}}>{fmtD(b.data)}</td>
                                     <td style={{padding:'11px 14px',fontSize:12,color:T.text,maxWidth:200}}>
