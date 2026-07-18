@@ -176,10 +176,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     valor_hora: '', status: 'aprovado',
   };
   // filtros da aba Banco Extra
-  const BANCO_FILTROS0 = {
-    texto:'', colaborador:'', status:'', dataDe:'', dataAte:'',
-    horaDe:'', horaAte:'', valorMin:'', valorMax:'', feriado:'',
-  };
+  const BANCO_FILTROS0 = { texto:'', status:'' };
   const [bancoFiltros, setBancoFiltros] = useState(BANCO_FILTROS0);
 
   const [bancoModal, setBancoModal] = useState(false);
@@ -1654,28 +1651,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
             const BRL  = v => 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
             const F  = bancoFiltros;
             const setF = (k,v)=>setBancoFiltros(p=>({...p,[k]:v}));
-            const num  = s => s==='' ? null : (Number(String(s).replace(',','.')) || 0);
 
             // ── aplica os filtros ──
             const q = F.texto.trim().toLowerCase();
-            const vMin = num(F.valorMin), vMax = num(F.valorMax);
             const lista = bancoHoras.filter(b=>{
               if(q && !`${b.created_by||''} ${b.descricao||''}`.toLowerCase().includes(q)) return false;
-              if(F.colaborador && b.created_by!==F.colaborador) return false;
               if(F.status && b.status!==F.status) return false;
-              if(F.dataDe  && (b.data||'') < F.dataDe)  return false;
-              if(F.dataAte && (b.data||'') > F.dataAte) return false;
-              if(F.horaDe  && (b.hora_inicio||'') < F.horaDe)  return false;
-              if(F.horaAte && (b.hora_fim   ||'') > F.horaAte) return false;
-              if(vMin!==null && Number(b.valor_total||0) < vMin) return false;
-              if(vMax!==null && Number(b.valor_total||0) > vMax) return false;
-              if(F.feriado==='sim' && !b.feriado_domingo) return false;
-              if(F.feriado==='nao' &&  b.feriado_domingo) return false;
               return true;
             });
             const filtrosAtivos = Object.values(F).some(v=>v!=='');
-
-            const colaboradores = [...new Set(bancoHoras.map(b=>b.created_by).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
 
             const pendentes  = lista.filter(b=>b.status==='pendente');
             const aprovados  = lista.filter(b=>b.status==='aprovado');
@@ -1704,10 +1688,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12}}>
                   {[
                     {k:'pend', l:'Pendentes',   v:pendentes.length,  c:'#D89030', sub:totalValorPend>0?BRL(totalValorPend):null},
-                    {k:'apro', l:'Aprovados',   v:aprovados.length,  c:'#1A9C70', sub:totalValorAprov>0?BRL(totalValorAprov):null},
+                    {k:'apro', l:'Aprovados',   v:aprovados.length,  c:'#1A9C70', sub:totalValorAprov>0?`${BRL(totalValorAprov)} pagos`:null},
                     {k:'reje', l:'Rejeitados',  v:rejeitados.length, c:'#C04050'},
                     {k:'horas',l:'Horas aprovadas', v:fmtH(totalHorasAprov), c:T.blue||'#2A6FB5'},
-                    {k:'pagar',l:'Falta pagar', v:BRL(totalValorAprov), c:'#1A9C70', sub:'Soma dos aprovados', small:true},
+                    {k:'pagar',l:'Falta pagar', v:BRL(totalValorPend), c:totalValorPend>0?'#D89030':'#1A9C70', sub:'Soma dos pendentes', small:true},
                   ].map(({k,l,v,c,sub,small})=>(
                     <Card key={k} style={{padding:'16px 20px'}} elevated>
                       <div style={{fontSize:small?21:26,fontWeight:700,color:c}}>{v}</div>
@@ -1721,8 +1705,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 {(()=>{
                   const inSt = {padding:'7px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',width:'100%'};
                   const lbSt = {fontSize:10.5,fontWeight:600,color:T.textD,letterSpacing:'.05em',textTransform:'uppercase',marginBottom:4};
-                  const Campo = ({label,children,span}) => (
-                    <div style={{gridColumn:span?`span ${span}`:undefined}}>
+                  const Campo = ({label,children}) => (
+                    <div>
                       <div style={lbSt}>{label}</div>
                       {children}
                     </div>
@@ -1744,15 +1728,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         )}
                       </div>
 
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
-                        <Campo label="Buscar (nome ou descrição)" span={2}>
+                      <div style={{display:'grid',gridTemplateColumns:'3fr 1fr',gap:10}}>
+                        <Campo label="Buscar (colaborador ou descrição)">
                           <input value={F.texto} onChange={e=>setF('texto',e.target.value)} placeholder="Ex: plantão, relatório, Maria..." style={inSt}/>
-                        </Campo>
-                        <Campo label="Colaborador">
-                          <select value={F.colaborador} onChange={e=>setF('colaborador',e.target.value)} style={inSt}>
-                            <option value="">Todos</option>
-                            {colaboradores.map(n=><option key={n} value={n}>{n}</option>)}
-                          </select>
                         </Campo>
                         <Campo label="Status">
                           <select value={F.status} onChange={e=>setF('status',e.target.value)} style={inSt}>
@@ -1760,33 +1738,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                             <option value="pendente">Pendente</option>
                             <option value="aprovado">Aprovado</option>
                             <option value="rejeitado">Rejeitado</option>
-                          </select>
-                        </Campo>
-
-                        <Campo label="Data de">
-                          <input type="date" value={F.dataDe} onChange={e=>setF('dataDe',e.target.value)} style={inSt}/>
-                        </Campo>
-                        <Campo label="Data até">
-                          <input type="date" value={F.dataAte} onChange={e=>setF('dataAte',e.target.value)} style={inSt}/>
-                        </Campo>
-                        <Campo label="Início a partir de">
-                          <input type="time" value={F.horaDe} onChange={e=>setF('horaDe',e.target.value)} style={inSt}/>
-                        </Campo>
-                        <Campo label="Fim até">
-                          <input type="time" value={F.horaAte} onChange={e=>setF('horaAte',e.target.value)} style={inSt}/>
-                        </Campo>
-
-                        <Campo label="Valor mín. (R$)">
-                          <input value={F.valorMin} onChange={e=>setF('valorMin',e.target.value)} placeholder="0,00" style={inSt}/>
-                        </Campo>
-                        <Campo label="Valor máx. (R$)">
-                          <input value={F.valorMax} onChange={e=>setF('valorMax',e.target.value)} placeholder="0,00" style={inSt}/>
-                        </Campo>
-                        <Campo label="Feriado / Domingo">
-                          <select value={F.feriado} onChange={e=>setF('feriado',e.target.value)} style={inSt}>
-                            <option value="">Todos</option>
-                            <option value="sim">Somente feriado/domingo</option>
-                            <option value="nao">Somente dias normais</option>
                           </select>
                         </Campo>
                       </div>
