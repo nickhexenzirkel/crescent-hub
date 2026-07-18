@@ -169,6 +169,53 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     await loadBancoHoras();
   };
 
+  // ── Lançamento manual de horas pelo RH (para outro colaborador) ──
+  const BANCO_FORM0 = {
+    colaborador: '', data: new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'}),
+    descricao: '', hora_inicio: '', hora_fim: '', feriado_domingo: false,
+    valor_hora: '', status: 'aprovado',
+  };
+  const [bancoModal, setBancoModal] = useState(false);
+  const [bancoForm,  setBancoForm]  = useState(BANCO_FORM0);
+  const [bancoSaving,setBancoSaving]= useState(false);
+  const [bancoMsg,   setBancoMsg]   = useState('');
+
+  const abrirBancoModal = () => {
+    if (empList.length === 0) loadEmployees();
+    setBancoForm(BANCO_FORM0); setBancoMsg(''); setBancoModal(true);
+  };
+
+  const lancarBancoHoras = async () => {
+    const f = bancoForm;
+    if (!f.colaborador)               { setBancoMsg('Selecione o colaborador'); return; }
+    if (!f.descricao.trim())          { setBancoMsg('Informe a descrição / observação'); return; }
+    if (!f.hora_inicio || !f.hora_fim){ setBancoMsg('Informe hora início e hora fim'); return; }
+    const [h1,m1] = f.hora_inicio.split(':').map(Number);
+    const [h2,m2] = f.hora_fim.split(':').map(Number);
+    const total = Math.max(0, ((h2*60+m2) - (h1*60+m1)) / 60);
+    if (total <= 0) { setBancoMsg('Hora fim deve ser maior que hora início'); return; }
+    setBancoSaving(true); setBancoMsg('');
+    const mult = f.feriado_domingo ? 2.0 : 1.5;
+    const vH   = bancoValorHora > 0 ? bancoValorHora : null;
+    const { error } = await _supabase.from('banco_horas').insert({
+      created_by:       f.colaborador,
+      data:             f.data,
+      descricao:        f.descricao,
+      hora_inicio:      f.hora_inicio,
+      hora_fim:         f.hora_fim,
+      total_horas:      total,
+      feriado_domingo:  f.feriado_domingo,
+      horas_calculadas: total * (f.feriado_domingo ? 2 : 1),
+      valor_hora:       vH,
+      valor_total:      vH ? total * vH * mult : null,
+      status:           f.status,
+    });
+    setBancoSaving(false);
+    if (error) { setBancoMsg('Erro: ' + error.message); return; }
+    setBancoModal(false);
+    await loadBancoHoras();
+  };
+
   const [empSearch, setEmpSearch] = useState('');
   const [gerSearch, setGerSearch] = useState('');
   const [changePw, setChangePw] = useState({old:'',new1:'',new2:''});
@@ -317,7 +364,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const maskCpfDisp = (v) => v; // já vem mascarado do servidor
 
   useEffect(()=>{ if(tab==='funcionarios') loadEmployees(); }, [tab]);
-  useEffect(()=>{ if(tab==='banco') loadBancoHoras(); }, [tab]);
+  useEffect(()=>{ if(tab==='banco'){ loadBancoHoras(); if(empList.length===0) loadEmployees(); } }, [tab]); // eslint-disable-line
+
+  // Lançamento manual — valor/hora sugerido = (salário base + 1K Service) ÷ 240
+  const bancoEmp        = empList.find(e => e.name === bancoForm.colaborador);
+  const bancoSalario    = Number(bancoEmp?.salary || 0) + Number(bancoEmp?.salary_1k || 0);
+  const bancoValorHoraS = bancoSalario > 0 ? bancoSalario / 240 : 0;
+  const bancoValorHora  = bancoForm.valor_hora !== '' ? (Number(String(bancoForm.valor_hora).replace(',', '.')) || 0) : bancoValorHoraS;
   // Trofeus e Capture o Uniko tambem precisam da lista de colaboradores (empList),
   // mas ninguem carrega ela se o admin nunca abriu a aba "Funcionarios" antes --
   // sem isso os selects dessas abas ficavam sempre vazios.
@@ -1604,7 +1657,14 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Banco de Horas</div>
                     <div style={{fontSize:13,color:T.textS,marginTop:2}}>Registros enviados pelos colaboradores · {bancoHoras.length} no total</div>
                   </div>
-                  <Moon size={24} color={T.goldL} opacity={0.35} float/>
+                  <div style={{display:'flex',alignItems:'center',gap:14}}>
+                    <button onClick={abrirBancoModal}
+                      style={{display:'inline-flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.blue},${T.blueL})`,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Lançar horas
+                    </button>
+                    <Moon size={24} color={T.goldL} opacity={0.35} float/>
+                  </div>
                 </div>
 
                 {/* cards de resumo */}
@@ -1692,6 +1752,133 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         </div>
                   }
                 </Card>
+
+                {/* ── MODAL: lançar horas para outro colaborador ── */}
+                {bancoModal&&(()=>{
+                  const f = bancoForm;
+                  const set = (k,v) => setBancoForm(p=>({...p,[k]:v}));
+                  const inputSt = {width:'100%',padding:'9px 12px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'};
+                  const labelSt = {fontSize:12,fontWeight:600,color:T.textS,marginBottom:4};
+                  const h1m1 = (f.hora_inicio||'').split(':').map(Number);
+                  const h2m2 = (f.hora_fim||'').split(':').map(Number);
+                  const pvTotal = (f.hora_inicio&&f.hora_fim) ? Math.max(0,((h2m2[0]*60+h2m2[1])-(h1m1[0]*60+h1m1[1]))/60) : 0;
+                  const pvCalc  = pvTotal * (f.feriado_domingo?2:1);
+                  const pvMult  = f.feriado_domingo?2.0:1.5;
+                  const pvValor = bancoValorHora>0 ? pvTotal*bancoValorHora*pvMult : null;
+                  return (
+                    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999}}>
+                      <div style={{background:T.surface||'white',borderRadius:20,padding:32,width:480,boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`,maxHeight:'90vh',overflowY:'auto'}}>
+                        <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text,marginBottom:4}}>Lançar Horas Extras</div>
+                        <div style={{fontSize:12,color:T.textT,marginBottom:18}}>Registro feito pelo RH em nome de outro colaborador</div>
+
+                        <div style={{marginBottom:12}}>
+                          <div style={labelSt}>Colaborador *</div>
+                          <select value={f.colaborador} onChange={e=>set('colaborador',e.target.value)} style={inputSt}>
+                            <option value="">Selecione...</option>
+                            {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
+                              <option key={e.id} value={e.name}>{e.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{marginBottom:12}}>
+                          <div style={labelSt}>Data</div>
+                          <input type="date" value={f.data} onChange={e=>set('data',e.target.value)} style={inputSt}/>
+                        </div>
+
+                        <div style={{marginBottom:12}}>
+                          <div style={labelSt}>Descrição / observação *</div>
+                          <input value={f.descricao} onChange={e=>set('descricao',e.target.value)}
+                            placeholder="Ex: Plantão, reunião extra, ajuste retroativo..." style={inputSt}/>
+                        </div>
+
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                          <div>
+                            <div style={labelSt}>Hora início *</div>
+                            <input type="time" value={f.hora_inicio} onChange={e=>set('hora_inicio',e.target.value)} style={inputSt}/>
+                          </div>
+                          <div>
+                            <div style={labelSt}>Hora fim *</div>
+                            <input type="time" value={f.hora_fim} onChange={e=>set('hora_fim',e.target.value)} style={inputSt}/>
+                          </div>
+                        </div>
+
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+                          <div>
+                            <div style={labelSt}>Valor da hora (R$)</div>
+                            <input value={f.valor_hora} onChange={e=>set('valor_hora',e.target.value)}
+                              placeholder={bancoValorHoraS>0?bancoValorHoraS.toFixed(2).replace('.',','):'Sem salário cadastrado'} style={inputSt}/>
+                            <div style={{fontSize:10.5,color:T.textD,marginTop:3}}>
+                              {bancoValorHoraS>0
+                                ? `Sugerido pelo salário: ${BRL(bancoValorHoraS)} — edite para sobrescrever`
+                                : 'Salário não configurado — informe o valor manualmente'}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={labelSt}>Status</div>
+                            <select value={f.status} onChange={e=>set('status',e.target.value)} style={inputSt}>
+                              <option value="aprovado">Aprovado</option>
+                              <option value="pendente">Pendente</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Toggle Feriado/Domingo */}
+                        <div onClick={()=>set('feriado_domingo',!f.feriado_domingo)}
+                          style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:10,background:'rgba(216,144,48,0.08)',border:'1px solid rgba(216,144,48,0.22)',marginBottom:16,cursor:'pointer'}}>
+                          <div style={{width:38,height:22,borderRadius:11,flexShrink:0,background:f.feriado_domingo?'#D89030':'rgba(0,0,0,0.15)',position:'relative',transition:'background .2s'}}>
+                            <div style={{position:'absolute',top:3,width:16,height:16,borderRadius:'50%',background:'white',transition:'left .2s',left:f.feriado_domingo?19:3,boxShadow:'0 1px 4px rgba(0,0,0,0.2)'}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:600,color:'#D89030'}}>Feriado / Domingo</div>
+                            <div style={{fontSize:11,color:T.textS}}>Horas contadas em dobro no banco (×2) e pagas a 200%</div>
+                          </div>
+                        </div>
+
+                        {/* Prévia do cálculo */}
+                        {pvTotal>0&&(
+                          <div style={{padding:'14px 16px',borderRadius:10,background:'rgba(78,143,168,0.08)',border:'1px solid rgba(78,143,168,0.22)',marginBottom:16}}>
+                            <div style={{fontSize:11,fontWeight:700,color:T.blue||'#2A6FB5',marginBottom:10,textTransform:'uppercase',letterSpacing:'.06em'}}>Estimativa do cálculo</div>
+                            {bancoValorHora>0&&(
+                              <div style={{fontSize:12.5,color:T.text,marginBottom:12,padding:'8px 10px',background:'rgba(26,156,112,0.07)',borderRadius:7,border:'1px solid rgba(26,156,112,0.18)',fontFamily:'monospace',lineHeight:1.7}}>
+                                {f.hora_inicio} — {f.hora_fim} = <strong>{pvTotal.toFixed(2)}h</strong> × <strong>{BRL(bancoValorHora)}</strong> × <strong style={{color:f.feriado_domingo?'#D89030':T.blue}}>{f.feriado_domingo?'200% (base + 100%)':'150% (base + 50%)'}</strong> = <strong style={{color:'#1A9C70',fontSize:14}}>{BRL(pvValor)}</strong>
+                              </div>
+                            )}
+                            <div style={{display:'flex',gap:18,flexWrap:'wrap'}}>
+                              <div>
+                                <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Horas trabalhadas</div>
+                                <div style={{fontSize:18,fontWeight:700,color:T.text}}>{fmtH(pvTotal)}</div>
+                              </div>
+                              <div>
+                                <div style={{fontSize:11,color:T.textD,marginBottom:2}}>No banco {f.feriado_domingo?'(×2)':'(×1)'}</div>
+                                <div style={{fontSize:18,fontWeight:700,color:f.feriado_domingo?'#D89030':T.text}}>{fmtH(pvCalc)}</div>
+                              </div>
+                              {pvValor!==null&&(
+                                <div>
+                                  <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Valor a receber</div>
+                                  <div style={{fontSize:18,fontWeight:700,color:'#1A9C70'}}>{BRL(pvValor)}</div>
+                                </div>
+                              )}
+                            </div>
+                            {bancoValorHora<=0&&(
+                              <div style={{fontSize:11,color:T.textD,marginTop:8,opacity:.7}}>Sem valor de hora — o registro entra só como horas no banco.</div>
+                            )}
+                          </div>
+                        )}
+
+                        {bancoMsg&&<div style={{fontSize:12,color:'#C04050',marginBottom:10,padding:'7px 12px',borderRadius:7,background:'rgba(192,64,80,0.06)'}}>{bancoMsg}</div>}
+                        <div style={{display:'flex',gap:8}}>
+                          <button onClick={()=>setBancoModal(false)}
+                            style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                          <button onClick={lancarBancoHoras} disabled={bancoSaving}
+                            style={{flex:1,padding:'11px',borderRadius:10,border:'none',cursor:bancoSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.blue},${T.blueL})`,color:'white',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                            {bancoSaving?'Lançando...':'Lançar'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}
