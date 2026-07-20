@@ -271,6 +271,8 @@ function loadYouTubeApi() {
 
 // Rivais que CORREM comigo (posição, velocidade e progresso próprios na pista).
 // Cada um tem uma COR (ponto do minimapa + fallback desenhado) e um SPRITE PNG.
+// SÓ pra bots — carros de JOGADOR de verdade vêm de CARROS (ver abaixo), pra dar
+// pra diferenciar gente de bot só de olhar o carro.
 const RIVAL_DEFS = [
   { cor: '#ef4444', spr: 'rival-vermelho', nome: 'Blaze' },
   { cor: '#3b82f6', spr: 'rival-azul', nome: 'Volt' },
@@ -278,6 +280,23 @@ const RIVAL_DEFS = [
   { cor: '#22c55e', spr: 'rival-verde', nome: 'Rex' },
   { cor: '#e879f9', spr: 'rival-rosa', nome: 'Ace' },
 ];
+
+/* ── Carros do JOGADOR (chase cam no solo, sprite dos outros humanos no
+   multiplayer — mesmo formato de imagem, visto de trás) ── */
+const CARROS = [
+  { id: 'padrao',  nome: 'Padrão',        spr: 'carro-jogador', cor: '#22d3ee' },
+  { id: 'kawaii',  nome: 'Kawaii Deadly', spr: 'carro-kawaii',  cor: '#ff2e9f' },
+  { id: 'nature',  nome: 'Nature Smiles', spr: 'carro-nature',  cor: '#34d399' },
+  { id: 'vampire', nome: 'Vampire Robot', spr: 'carro-vampire', cor: '#dc2626' },
+];
+const CARRO_PADRAO = CARROS[0].id;
+const getCarroEscolhido = () => {
+  try {
+    const id = localStorage.getItem('uf_carro');
+    return CARROS.find(c => c.id === id) || CARROS[0];
+  } catch { return CARROS[0]; }
+};
+const setCarroEscolhido = (id) => { try { localStorage.setItem('uf_carro', id); } catch { /* sem storage */ } };
 // `seed`: como em montarPista, só usado no multiplayer — garante que o ritmo
 // (`base`) de cada bot seja o MESMO em todo cliente da sala (o `rank` de todos
 // depende da posição desses bots, então eles não podem divergir por cliente).
@@ -341,6 +360,8 @@ const TabUnikoFaster = () => {
   const [etapa, setEtapa] = useState(0);   // wizard: 0 início · 1 música · 2 mapa · 3 traçado · 4 confirmar
   const [corridaKey, setCorridaKey] = useState(0);   // muda pra reiniciar a corrida limpa
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1, boost: false });
+  const [carroModal, setCarroModal] = useState(false);
+  const [meuCarro, setMeuCarro] = useState(() => getCarroEscolhido().id);
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
   const biblioteca = useMemo(() => {
@@ -488,7 +509,7 @@ const TabUnikoFaster = () => {
                   <div style={{ position: 'relative', marginTop: 2, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', minHeight: 80 }}>
                     <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', width: '46%', height: 40,
                       background: 'radial-gradient(ellipse, rgba(34,211,238,.4), rgba(217,70,239,.22) 55%, transparent 74%)', filter: 'blur(14px)' }} />
-                    <img src="/unikofaster/carro-jogador.png" alt="" className="uf-float-2"
+                    <img src={`/unikofaster/${(CARROS.find(c => c.id === meuCarro) || CARROS[0]).spr}.png`} alt="" className="uf-float-2"
                       style={{ position: 'relative', width: 'min(28%, 280px)', filter: `drop-shadow(0 14px 24px ${pal.carSh})` }} />
                   </div>
                   {best > 0 && (
@@ -496,6 +517,11 @@ const TabUnikoFaster = () => {
                       🏁 Recorde: <b style={{ color: pal.accent }}>{best.toLocaleString('pt-BR')} m</b>
                     </div>
                   )}
+                  <button className="uf-btn" onClick={() => setCarroModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '4px 13px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 11.5, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}` }}>
+                    🚗 Trocar carro
+                  </button>
                 </div>
                 {/* TELA CHEIA + MULTIPLAYER — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
                 <div style={{ position: 'absolute', left: '50%', bottom: '15%', transform: 'translateX(-50%)', zIndex: 2,
@@ -522,6 +548,33 @@ const TabUnikoFaster = () => {
 
                 {/* MOLDURA por cima (centro vazado) — desenhada em vetor, não é mais imagem */}
                 <SpeedFrame style={{ zIndex: 3 }} />
+              </div>
+            )}
+
+            {/* MODAL: trocar de carro — aparece no chase cam (solo) e é o que os
+                outros humanos veem de você no multiplayer (mesmo sprite). */}
+            {carroModal && (
+              <div onClick={() => setCarroModal(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'grid', placeItems: 'center', zIndex: 50 }}>
+                <div onClick={e => e.stopPropagation()}
+                  style={{ background: pal.panelBg, backdropFilter: 'blur(14px)', borderRadius: 20, padding: 24,
+                    width: 'min(520px, 92vw)', maxHeight: '86vh', overflowY: 'auto', border: `1px solid ${pal.unselBorder}` }}>
+                  <div className="uf-title" style={{ ...tituloEstilo, fontSize: 20, marginBottom: 16 }}>Escolha seu carro</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                    {CARROS.map(c => (
+                      <button key={c.id} className="uf-btn" onClick={() => { setCarroEscolhido(c.id); setMeuCarro(c.id); setCarroModal(false); }}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 10px',
+                          borderRadius: 14, cursor: 'pointer', background: meuCarro === c.id ? `${c.cor}22` : pal.unselBg,
+                          border: meuCarro === c.id ? `1.5px solid ${c.cor}` : `1px solid ${pal.unselBorder}` }}>
+                        <img src={`/unikofaster/${c.spr}.png`} alt="" style={{ width: '70%', filter: `drop-shadow(0 6px 14px ${c.cor}66)` }} />
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: meuCarro === c.id ? c.cor : pal.txt2 }}>{c.nome}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: pal.txtSub, marginTop: 14, textAlign: 'center' }}>
+                    No multiplayer, é assim que os colegas veem seu carro na pista.
+                  </div>
+                </div>
               </div>
             )}
 
@@ -774,7 +827,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       };
     });
     const rivais = multiplayer ? [...bots, ...rivaisHumanos] : bots;
-    const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
+    const sprCarro = carregarSprite(getCarroEscolhido().spr);   // chase cam do jogador (carro escolhido)
     rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
     const sprCone = carregarSprite('cone');
     const tema = MAPAS[mapa] || MAPAS[MAPA_PADRAO];
@@ -1284,7 +1337,13 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       ctx.fillStyle = 'rgba(10,6,22,.6)'; ctx.fill();
       ctx.beginPath(); ctx.arc(mmX, mmY, mmR, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(3, mmR * 0.16); ctx.stroke();
-      rivais.forEach(r => { const [px, py] = ponto(r.pos); ctx.fillStyle = r.cor; ctx.beginPath(); ctx.arc(px, py, mmR * 0.12, 0, Math.PI * 2); ctx.fill(); });
+      rivais.forEach(r => {
+        const [px, py] = ponto(r.pos);
+        ctx.fillStyle = r.cor; ctx.beginPath(); ctx.arc(px, py, mmR * 0.12, 0, Math.PI * 2); ctx.fill();
+        // anel branco SÓ nos humanos — é o que diferencia "gente de verdade"
+        // de bot no minimapa, além do carro em si ser visualmente diferente.
+        if (r.isHuman) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+      });
       const [ex, ey] = ponto(st.pos);   // você = ponto branco maior com anel ciano
       ctx.fillStyle = '#22d3ee'; ctx.beginPath(); ctx.arc(ex, ey, mmR * 0.2, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
@@ -1295,7 +1354,15 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         const distM = Math.floor(st.traveled / 100);   // "metros" percorridos no total
         const b = Math.max(bestRef.current, distM);
         if (b > bestRef.current) { bestRef.current = b; setBest(b); try { localStorage.setItem('uf_best', String(b)); } catch { /* sem storage */ } }
-        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1, boost: st.boost > 0.15, campo: rivais.length + 1 });
+        // Painel de posição (só multiplayer): quem está em que lugar da
+        // corrida AGORA, com nome — resolve não dar pra ver onde o outro
+        // jogador está só de olhar um ponto pequeno no minimapa.
+        const leaderboard = multiplayer
+          ? [{ nome: 'Você', traveled: st.traveled, isHuman: true, souEu: true },
+              ...rivais.map(r => ({ nome: r.nome || r.name || 'Bot', traveled: r.traveled, isHuman: !!r.isHuman, souEu: false }))]
+              .sort((a, b) => b.traveled - a.traveled)
+          : null;
+        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1, boost: st.boost > 0.15, campo: rivais.length + 1, leaderboard });
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -1404,6 +1471,25 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
           </button>
         </div>
       </div>
+
+      {/* PAINEL DE POSIÇÃO (só multiplayer): quem está em que lugar da corrida
+          AGORA, por nome — sem isso só dava pra ver um pontinho pequeno no
+          minimapa, difícil de ler "onde" o outro colega realmente está. 🤖
+          marca bot, sem ícone é gente de verdade (reforça o anel branco do
+          minimapa e o carro visualmente diferente). */}
+      {multiplayer && hud.leaderboard && (
+        <div style={{ position: 'absolute', top: 118, left: 14, display: 'flex', flexDirection: 'column', gap: 3,
+          padding: '8px 10px', borderRadius: 10, background: 'rgba(10,6,22,.55)', pointerEvents: 'none', minWidth: 150 }}>
+          {hud.leaderboard.map((p, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+              fontWeight: p.souEu ? 800 : 600, color: p.souEu ? '#22d3ee' : 'rgba(255,255,255,.85)' }}>
+              <span style={{ width: 16, textAlign: 'right', opacity: .7 }}>{i + 1}º</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
+              {!p.isHuman && <span style={{ marginLeft: 'auto', opacity: .6 }}>🤖</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* faixa da música tocando */}
       {trilha?.title && (
@@ -1556,6 +1642,7 @@ const FASTER_CSS = `
 
 // Exports usados só pelo SpeedRoom.jsx (lobby/rede do multiplayer) — reaproveita
 // a mesma pista/rivais/tela de corrida do solo em vez de duplicar.
-export { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, RIVAL_DEFS, TRILHAS, hashSeed, PreviaPista };
+export { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, RIVAL_DEFS, TRILHAS, hashSeed, PreviaPista,
+  CARROS, CARRO_PADRAO, getCarroEscolhido, setCarroEscolhido };
 export { TabUnikoFaster };
 export default TabUnikoFaster;

@@ -24,7 +24,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
-import { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, RIVAL_DEFS, TRILHAS, hashSeed, PreviaPista } from './TabUnikoFaster';
+import { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, TRILHAS, hashSeed, PreviaPista,
+  CARROS, getCarroEscolhido } from './TabUnikoFaster';
 
 const TABLE = 'uniko_speed_state';
 const GERAL = 'geral';
@@ -70,7 +71,12 @@ export default function SpeedRoom({ onSair }) {
     });
   }, []);
 
-  const shellSt = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+  // position:'relative' (não 'absolute') de propósito: o pai (rootRef, em
+  // TabUnikoFaster.jsx) não define position nenhum, então um filho absolute
+  // aqui ancorava num ancestral mais acima na árvore (o container da aba no
+  // Portal) em vez desta tela — é isso que cortava os botões pela margem.
+  // 'relative' + 100%/100% se auto-contém, igual ao que a <Corrida> já faz.
+  const shellSt = { position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
     background: 'radial-gradient(ellipse at 50% -10%, #241a4a, #0a0616 60%)', color: '#fff',
     fontFamily: 'var(--font-body)', overflow: 'hidden' };
 
@@ -152,13 +158,13 @@ function Lobby({ onEntrar, onSair }) {
   return (
     <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: '26px 22px 40px' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
-          <button style={btnGhost} onClick={onSair}>◂ Voltar</button>
-          <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+          <button style={{ ...btnGhost, flexShrink: 0 }} onClick={onSair}>◂ Voltar</button>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 22 }}>Uniko Speed — Multiplayer</div>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.6)' }}>Entre numa sala ou crie a sua e chame os colegas.</div>
           </div>
-          <button style={{ ...btnPrimario, marginLeft: 'auto' }} onClick={() => setCriando(true)}>＋ Nova sala</button>
+          <button style={{ ...btnPrimario, marginLeft: 'auto', flexShrink: 0 }} onClick={() => setCriando(true)}>＋ Nova sala</button>
         </div>
 
         {carregando ? (
@@ -282,6 +288,52 @@ function CriarSalaModal({ onFechar, onCriada, erro, setErro }) {
   );
 }
 
+/* ── Config da corrida, editável pelo host dentro da sala de espera (não só
+   na criação) — é isso que corrige a Sala Geral: ela nasce sem traçado/mapa/
+   música/voltas definidos (linha semeada só com phase/nome), e sem uma forma
+   de configurar isso DEPOIS de criada, a corrida caía sempre nos valores
+   padrão escondidos dentro da Corrida — inclusive o nº de voltas, que sem
+   valor nenhum nunca fazia a corrida terminar (ficava "presa" contando volta
+   atrás de volta). Cada clique grava direto na sala (pushState). ── */
+function ConfigCorrida({ state, onMudar }) {
+  const tracado = state?.tracado ?? TRACADO_PADRAO;
+  const mapa = state?.mapa || MAPA_PADRAO;
+  const laps = state?.laps || DEFAULT_LAPS;
+  const trilhaIdx = Math.max(0, TRILHAS.findIndex(t => t.vid === state?.trilha?.vid));
+  const pillSt = (ativo) => ({
+    padding: '6px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+    border: ativo ? `1.5px solid ${ACCENT}` : '1px solid rgba(255,255,255,.2)',
+    background: ativo ? `${ACCENT}22` : 'transparent', color: '#fff',
+  });
+  return (
+    <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,.14)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.55)', marginBottom: 8 }}>
+        CONFIGURAR CORRIDA (host)
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {TRACADOS.map(t => (
+          <button key={t.id} style={pillSt(tracado === t.id)} onClick={() => onMudar({ tracado: t.id })}>{t.emoji} {t.nome}</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {Object.values(MAPAS).map(m => (
+          <button key={m.id} style={pillSt(mapa === m.id)} onClick={() => onMudar({ mapa: m.id })}>{m.emoji} {m.nome}</button>
+        ))}
+      </div>
+      <select value={trilhaIdx} onChange={e => onMudar({ trilha: TRILHAS[Number(e.target.value)] })}
+        style={{ ...inputSt, marginBottom: 10 }}>
+        {TRILHAS.map((t, i) => <option key={t.vid} value={i}>{t.title}</option>)}
+      </select>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {LAP_OPTIONS.map(n => (
+          <button key={n} style={{ ...pillSt(laps === n), minWidth: 40, padding: '7px 0', textAlign: 'center' }}
+            onClick={() => onMudar({ laps: n })}>{n}×</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SALA — depois de entrar: espera na sala (phase 'waiting') ou corrida rolando
    (phase 'racing'). Dona da presence, do canal de posição e da eleição de host.
@@ -358,7 +410,9 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
       .on('presence', { event: 'leave' }, refresh)
       .subscribe(async (status) => {
         if (status !== 'SUBSCRIBED') return;
-        const r = await ch.track({ name: nome, room: roomId, entrouEm: entrouEmRef.current });
+        // `carro` é só o ID curto (ex.: 'kawaii'), nunca a imagem em si — mesma
+        // regra do Uniko Paint pra payload de presence (nunca um blob grande).
+        const r = await ch.track({ name: nome, room: roomId, entrouEm: entrouEmRef.current, carro: getCarroEscolhido().id });
         if (r !== 'ok') console.error('[uniko-speed] presence track falhou:', r);
       });
     const poll = setInterval(refresh, 2000);   // rede de segurança (é leitura LOCAL, não vai à rede)
@@ -376,14 +430,24 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
   }, [players, state?.criador]);
   const isHost = host === nome;
 
-  /* ── Canal de broadcast da sala: posição de cada carro (efêmero). ── */
+  /* ── Canal de broadcast da sala: posição de cada carro (efêmero). Só marca
+     `chanRef.current` DEPOIS de 'SUBSCRIBED' — mandar (`send`) num canal que
+     ainda não terminou de inscrever pode ser descartado em silêncio pelo
+     cliente do Supabase; melhor perder o 1º pacote (autocorrige no próximo,
+     ~80ms depois) do que arriscar. Erro de inscrição vai pro console (mesmo
+     cuidado do Uniko Paint com o retorno do `track()` da presence). ── */
   useEffect(() => {
+    chanRef.current = null;
     const ch = supabase.channel(`uniko-speed-room-${roomId}`);
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (!payload?.name || payload.name === nome) return;   // meu próprio pacote já está aplicado localmente
       remoteRivaisRef.current[payload.name] = { ...payload, recebidoEm: performance.now() };
-    }).subscribe();
-    chanRef.current = ch;
+    }).subscribe((status) => {
+      if (status === 'SUBSCRIBED') chanRef.current = ch;
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.error('[uniko-speed] canal de posição da sala falhou:', status);
+      }
+    });
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
   }, [roomId, nome]);
 
@@ -393,22 +457,33 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
 
   const onRaceEnd = useCallback(() => { setMeuFimHouve(true); }, []);
 
-  /* ── Iniciar corrida (só o host): sorteia a seed compartilhada, escala os
-     jogadores presentes em cor/sprite (RIVAL_DEFS) e grava tudo na sala de
-     uma vez — é essa "foto" que vira `humanPlayers` pra TODO cliente, em vez
-     de cada um derivar "quem está aqui" da própria presence (que pode
-     divergir por alguns instantes entre clientes — a sala é a fonte única). ── */
+  /* ── Iniciar corrida (só o host): sorteia a seed compartilhada, monta a
+     lista de jogadores (cada um com o PRÓPRIO carro, não mais um sorteio
+     genérico de RIVAL_DEFS — isso é o que deixa dar pra diferenciar gente de
+     bot só de olhar o carro) e grava tudo na sala de uma vez — é essa "foto"
+     que vira `humanPlayers` pra TODO cliente, em vez de cada um derivar
+     "quem está aqui" da própria presence (que pode divergir por alguns
+     instantes entre clientes — a sala é a fonte única).
+     IMPORTANTE: preenche tracado/mapa/trilha/laps com um padrão explícito
+     aqui, mesmo que a sala já tenha algo salvo — a Sala Geral nasce sem
+     nenhum desses campos (linha semeada só com phase/nome), e sem esse
+     preenchimento a corrida nunca terminava no nº de voltas certo (laps
+     ficava undefined e a condição de fim nunca virava verdadeira). ── */
   const iniciarCorrida = async () => {
     if (!isHost || iniciando) return;
     setIniciando(true);
     const raceCounter = (state?.raceCounter || 0) + 1;
-    const seed = hashSeed(`${roomId}|${state?.tracado ?? TRACADO_PADRAO}|${raceCounter}`);
-    const jogadores = players.map((p, i) => {
-      const def = RIVAL_DEFS[i % RIVAL_DEFS.length];
-      return { name: p.name, cor: def.cor, spr: def.spr };
+    const tracado = state?.tracado ?? TRACADO_PADRAO;
+    const mapa = state?.mapa || MAPA_PADRAO;
+    const trilha = state?.trilha || TRILHAS[0];
+    const laps = state?.laps || DEFAULT_LAPS;
+    const seed = hashSeed(`${roomId}|${tracado}|${raceCounter}`);
+    const jogadores = players.map(p => {
+      const carro = CARROS.find(c => c.id === p.carro) || CARROS[0];
+      return { name: p.name, cor: carro.cor, spr: carro.spr };
     });
     await pushState({
-      phase: 'racing', raceCounter, seed,
+      phase: 'racing', raceCounter, seed, tracado, mapa, trilha, laps,
       countdownEndsAt: Date.now() + COUNTDOWN_MS,
       jogadores,
     });
@@ -458,10 +533,14 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
   return (
     <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: '26px 22px 40px' }}>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-          <button style={btnGhost} onClick={onSairDaSala}>◂ Salas</button>
-          <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 19 }}>{state?.nome || roomId}</div>
-          <button style={{ ...btnGhost, marginLeft: 'auto', fontSize: 12 }} onClick={onSairApp}>✕ Sair do multiplayer</button>
+        {/* flexWrap + minWidth:0 no título: nome de sala comprido ou tela
+            estreita quebra pra 2ª linha em vez de empurrar os botões pra fora
+            e cortar (era o bug reportado). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+          <button style={{ ...btnGhost, flexShrink: 0 }} onClick={onSairDaSala}>◂ Salas</button>
+          <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 19, flex: '1 1 auto', minWidth: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{state?.nome || roomId}</div>
+          <button style={{ ...btnGhost, fontSize: 12, flexShrink: 0 }} onClick={onSairApp}>✕ Sair do multiplayer</button>
         </div>
 
         <div style={cardSt}>
@@ -469,20 +548,33 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
             NA SALA — {players.length} {players.length === 1 ? 'pessoa' : 'pessoas'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {players.map(p => (
-              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                borderRadius: 10, background: 'rgba(255,255,255,.04)' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.name === host ? '#ffd166' : ACCENT }} />
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{p.name}</div>
-                {p.name === host && <div style={{ fontSize: 10.5, color: '#ffd166', fontWeight: 800, marginLeft: 'auto' }}>HOST</div>}
-              </div>
-            ))}
+            {players.map(p => {
+              const carro = CARROS.find(c => c.id === p.carro) || CARROS[0];
+              return (
+                <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                  borderRadius: 10, background: 'rgba(255,255,255,.04)' }}>
+                  <img src={`/unikofaster/${carro.spr}.png`} alt="" style={{ width: 26, height: 26, objectFit: 'contain',
+                    filter: `drop-shadow(0 0 5px ${carro.cor}88)` }} />
+                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{p.name}</div>
+                  <div style={{ fontSize: 10.5, color: carro.cor, fontWeight: 700 }}>{carro.nome}</div>
+                  {p.name === host && <div style={{ fontSize: 10.5, color: '#ffd166', fontWeight: 800, marginLeft: 'auto' }}>HOST</div>}
+                </div>
+              );
+            })}
           </div>
 
-          <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${brd}`, fontSize: 12.5, color: 'rgba(255,255,255,.6)', lineHeight: 1.7 }}>
-            🏁 {TRACADOS.find(t => t.id === state?.tracado)?.nome || '—'} · {MAPAS[state?.mapa]?.nome || '—'} ·{' '}
-            {state?.laps || DEFAULT_LAPS}× voltas · 🎵 {state?.trilha?.title || 'música do host'}
-          </div>
+          {/* Config da corrida: só o HOST edita (grava direto na sala); os
+              demais só veem o resumo. Existe pra Sala Geral (e qualquer sala)
+              poder trocar traçado/mapa/música/voltas sem precisar recriar a
+              sala do zero. */}
+          {isHost ? (
+            <ConfigCorrida state={state} onMudar={pushState} />
+          ) : (
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${brd}`, fontSize: 12.5, color: 'rgba(255,255,255,.6)', lineHeight: 1.7 }}>
+              🏁 {TRACADOS.find(t => t.id === state?.tracado)?.nome || '—'} · {MAPAS[state?.mapa]?.nome || '—'} ·{' '}
+              {state?.laps || DEFAULT_LAPS}× voltas · 🎵 {state?.trilha?.title || 'música do host'}
+            </div>
+          )}
 
           <div style={{ marginTop: 18 }}>
             {isHost ? (

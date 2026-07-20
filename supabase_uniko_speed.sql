@@ -26,10 +26,21 @@ create table if not exists public.uniko_speed_state (
 );
 
 -- Sala Geral: fixa, sempre disponível no lobby, nunca apagada (assim o lobby
--- nunca fica vazio) — mesmo papel da "Sala Geral" do Uniko Paint.
+-- nunca fica vazio) — mesmo papel da "Sala Geral" do Uniko Paint. Já nasce com
+-- traçado/mapa/voltas padrão preenchidos (sem isso a corrida nunca terminava
+-- no nº de voltas certo — `laps` ficava undefined e a condição de fim nunca
+-- disparava; o app também preenche isso na hora de iniciar a corrida, mas
+-- deixamos aqui também pra sala nascer completa).
 insert into public.uniko_speed_state (id, state)
-values ('geral', '{"phase":"waiting","nome":"Sala Geral","raceCounter":0}'::jsonb)
+values ('geral', '{"phase":"waiting","nome":"Sala Geral","raceCounter":0,"tracado":0,"mapa":"cidade","laps":2}'::jsonb)
 on conflict (id) do nothing;
+
+-- Se a migração já tinha rodado antes (Sala Geral criada sem esses campos),
+-- preenche só o que estiver faltando, sem tocar em phase/raceCounter/jogadores.
+update public.uniko_speed_state
+   set state = state || jsonb_build_object('tracado', 0, 'mapa', 'cidade', 'laps', 2)
+ where id = 'geral'
+   and (state->>'tracado' is null or state->>'mapa' is null or state->>'laps' is null);
 
 alter table public.uniko_speed_state enable row level security;
 
