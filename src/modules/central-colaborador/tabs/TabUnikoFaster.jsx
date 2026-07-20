@@ -519,22 +519,22 @@ const TabUnikoFaster = () => {
                     </div>
                   )}
                   <button className="uf-btn" onClick={() => setCarroModal(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '4px 13px', borderRadius: 999, cursor: 'pointer',
-                      fontSize: 11.5, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}` }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '9px 22px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 15, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}` }}>
                     🚗 Trocar carro
                   </button>
                 </div>
                 {/* TELA CHEIA + MULTIPLAYER — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
                 <div style={{ position: 'absolute', left: '50%', bottom: '15%', transform: 'translateX(-50%)', zIndex: 2,
-                  display: 'flex', gap: 8 }}>
+                  display: 'flex', gap: 10 }}>
                   <button className="uf-btn" onClick={toggleTelaCheia}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
-                      fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '11px 24px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 15, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
                     ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
                   </button>
                   <button className="uf-btn" onClick={() => setTela('multiplayer')}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
-                      fontSize: 12, fontWeight: 800, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#db2777)', border: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '11px 24px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 15, fontWeight: 800, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#db2777)', border: 'none', whiteSpace: 'nowrap' }}>
                     👥 Multiplayer
                   </button>
                 </div>
