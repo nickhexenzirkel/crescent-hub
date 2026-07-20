@@ -2177,6 +2177,11 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
             <div class="wg-char-name">🔥 ASHEN</div>
             <div class="wg-char-desc">Cavaleiro das Cinzas. Finisher: Cinzas do Fim.</div>
           </button>
+          <button class="wg-char-card" id="wgCharIcy" onclick="selectWgChar('icydoll')">
+            <img class="wg-char-img" src="images/icy_passo2.png" alt="Icy the Doll" onerror="this.style.display='none'">
+            <div class="wg-char-name">💋 ICY THE DOLL</div>
+            <div class="wg-char-desc">Modelo luxuosa. Finisher: Holofote Fatal.</div>
+          </button>
         </div>
       </div>
       <div class="pv-dificuldade-inner" id="pvDificuldadeInner">
@@ -2669,6 +2674,13 @@ const WG_CHAR_FRAMES = {
     hold2:'images/ashen_segurar.png', hold3:'images/ashen_segurar.png',
     arrow:'images/ashen_segurar.png',                             // CINZAS DO FIM (sem frame próprio → usa a pose de conjurar)
   },
+  icydoll: {
+    run: ['images/icy_passo1.png','images/icy_passo2.png','images/icy_passo3.png','images/icy_passo4.png'], // 4 frames → ciclo de andar (loop)
+    jump:'images/icy_pulando.png', atk:'images/icy_chutando.png',       // chutando = bate minion de CHÃO; pulando = sobe pro de AR
+    chateada:'images/icy_passo1.png', alegre:'images/icy_passo1.png',
+    hold2:'images/icy_segurar.png', hold3:'images/icy_segurar.png',
+    arrow:'images/icy_segurar.png',                                    // HOLOFOTE FATAL (sem frame próprio → usa a pose de chute em voo)
+  },
 };
 const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
 function wgApplyChar(key){
@@ -2730,6 +2742,22 @@ const WG_MAGIC = {
     explShadow:'#b8b8b8', shard:['#d4d4d4','#4a4a4a'], shardShadow:'#e6e6e6',
     particles:['#ffffff','#cccccc','#8a8a8a','#e8e8e8','#4a4a4a'],
   },
+  icydoll: {
+    // Glamour de festa: dourado de holofote + vermelho do salto/batom (nunca as
+    // duas cores dos outros personagens — dourado é só dela)
+    say:'✨ HOLOFOTE FATAL! ✨',
+    hitBurstHi:'#fff3c4', hitBurstLo:'#ffcf3f',
+    ring1Hi:'#ffd76b', ring1Lo:'#d99a00', ring2:'#fff6d8',
+    judgeHi:'#ffd76b', judgeLo:'#ffe9a8',
+    projShadow:'#d99a00', projTrail:['rgba(217,154,0,0)','rgba(200,130,0,.65)','rgba(255,230,140,.9)'],
+    orb:['#fff6d8','#ffca3f','#7a4e00'],
+    chargeShadow:'#e0a100', chargeGrad:['#fff6d8','#ffca3f','#7a4e00','rgba(60,38,0,0)'],
+    fistTrail:['rgba(200,130,0,0)','rgba(255,230,140,.9)'],
+    explGlow:['rgba(255,246,216,.95)','rgba(255,202,63,.85)','rgba(150,95,0,.7)','rgba(20,12,0,0)'],
+    explRings:[['#ffe9a8',1.0],['#ffca3f',0.82],['#a86a00',0.62],['#1a1000',0.42]],
+    explShadow:'#d99a00', shard:['#ffca3f','#a86a00'], shardShadow:'#ffe9a8',
+    particles:['#ffd76b','#ff6a88','#ffe9a8','#ff2d55','#e0a100'],
+  },
 };
 function wgMagic(){ return WG_MAGIC[wgChar] || null; }
 // Escala VISUAL do sprite no jogo por personagem (1 = padrão). Só afeta o desenho
@@ -2769,11 +2797,12 @@ function selectWgSubmode(m){
 function selectWgChar(key){
   wgApplyChar(key); // normaliza wgChar e troca os sprites
   localStorage.setItem('dw_wgchar', wgChar);
-  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania'), a=document.getElementById('wgCharAshen');
+  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania'), a=document.getElementById('wgCharAshen'), ic=document.getElementById('wgCharIcy');
   if(m) m.classList.toggle('sel', wgChar==='mizuki');
   if(v) v.classList.toggle('sel', wgChar==='venebra');
   if(o) o.classList.toggle('sel', wgChar==='oceania');
   if(a) a.classList.toggle('sel', wgChar==='ashen');
+  if(ic) ic.classList.toggle('sel', wgChar==='icydoll');
 }
 
 function selectMode(m){
@@ -7868,6 +7897,26 @@ CHARACTERS.ashen = {
     miss:['Patético... 💔','Virou fumaça, mortal 🌫️','Decepcionante 🔥'],
   }
 };
+// ── Icy the Doll — jogável na Guerra Estelar + Audição (gacha). Mesma organização
+//    da Venebra/Oceania/Ashen (wargameOnly, previewImg = splashart). Modelo luxuosa
+//    que ama festas e holofotes — NÃO tem relação com a antiga "Icy Louboutin"
+//    (chave 'icy', removida do roster logo abaixo); por isso a chave aqui é 'icydoll'. ──
+CHARACTERS.icydoll = {
+  name: 'Icy the Doll',
+  desc: 'Modelo chiquérrima e luxuosa. Vive para os holofotes e as festas — e não perdoa quem tenta ofuscar seu brilho.',
+  tag: 'LENDÁRIO', tagClass: 'lendario', rarity: 'lendario',
+  gwPrice: 2500, alwaysUnlocked: false, wargameOnly: true,
+  previewImg: 'images/icy_splashart.png',
+  imgs: { wave:'images/icy_splashart.png', animado:'images/icy_splashart.png', dormindo:'images/icy_splashart.png', raiva:'images/icy_splashart.png', surpreso:'images/icy_splashart.png', tranquilo:'images/icy_splashart.png' },
+  filter: 'drop-shadow(0 0 16px rgba(255,215,90,.55)) drop-shadow(0 0 34px rgba(224,20,60,.35))',
+  dialogues: {
+    wave:['💋 Bem-vindos ao show.','✨ Luzes, câmera...','👑 Comece.'], animado:['SLAY!! 💃','ICÔNICA!! ✨','Perfeito, darling! 👑'],
+    dormindo:['...zZ 💅','A diva descansa','hmm... ✨'], raiva:['Que ousadia! 💢','Patético... 💋','Não ofusque meu brilho! 😤'],
+    surpreso:['Oh?! 💫','Interessante... ✨','Inesperado, darling! 👑'], tranquilo:['Fique no seu lugar 💅','Os holofotes observam ✨','Prossiga, mon chéri 💋'],
+    combo50:['50! Que espetáculo 💃','Continue brilhando ✨'], combo100:['100! ICÔNICA ABSOLUTA 👑','Isso sim é estrela 💫'],
+    miss:['Ugh, decepcionante 💔','Saiu do palco, mortal 💋','Nada glamouroso... 😩'],
+  }
+};
 // Removidas do roster (não-destrutivo: só somem do gacha/mascote; revertível): Icy, Stella, Natsumi
 delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
 
@@ -8143,6 +8192,7 @@ const BANNER_THEME = {
   venebra:'radial-gradient(ellipse at 50% 22%,#c81428 0%,#5a0a16 52%,#0a0205 100%)',
   oceania:'radial-gradient(ellipse at 50% 22%,#28c0ff 0%,#0a3a7a 52%,#041224 100%)',
   ashen:'radial-gradient(ellipse at 50% 22%,#ff9e3d 0%,#5a3a24 52%,#120e0a 100%)',
+  icydoll:'radial-gradient(ellipse at 50% 22%,#ffd76b 0%,#7a1f2a 52%,#1a0508 100%)',
 };
 
 function wishBanners(){
@@ -8552,6 +8602,12 @@ const WG_LINES = {
     hurt: ['Insolência! 🔥','Vai virar pó! 💢','Argh!','Você vai queimar! 🗡️'],
     finisher:'Reduza-se a cinzas. 🔥', victory:'Só as cinzas restam. 🌫️',
     bigMinion:'Um graúdo? Queime-o com W! 🔥', bigDefeated:'Vire pó! 🌫️',
+  },
+  icydoll: {
+    lines: ['Sai da minha luz! 💅','Iuck, que feio! 🙄','Isso é tudo? 💋','Nem holofote merece 😤','Combina com meu look? 👑','Patético, darling 💔','No stage, sem crise ✨'],
+    hurt: ['Ai, minha manicure! 💅','Cuidado com o cabelo!! 😱','Ugh, ousado! 💢','Isso vai custar caro! 💸'],
+    finisher:'Hora do encerramento, darling. 💋', victory:'Standing ovation, por favor. 👑',
+    bigMinion:'Um figurante grandão? Chuta com estilo! 💃', bigDefeated:'Corta! Cena encerrada. 🎬',
   },
 };
 function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!=null) ? c[key] : WG_LINES.mizuki[key]; }
