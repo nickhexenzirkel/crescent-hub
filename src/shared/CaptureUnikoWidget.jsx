@@ -23,7 +23,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, nowMs, syncServerClock, maxWinnersFor,
+  loadCustomUnikos, loadRewardOverrides, nowMs, syncServerClock, maxWinnersFor,
 } from './captureUniko';
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
@@ -70,7 +70,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   // na sequência, uma aba já aberta no Portal pode ainda estar com o cache velho
   // (getUniko cairia no Vampire-Robot por engano). Recarrega ao montar e força um
   // re-render pra `getUniko` (que roda a cada render, sem estado próprio) already achar.
-  useEffect(() => { loadCustomUnikos().then(() => forceRefresh(n => n + 1)); }, []);
+  useEffect(() => {
+    loadCustomUnikos().then(() => forceRefresh(n => n + 1));
+    loadRewardOverrides().then(() => forceRefresh(n => n + 1));
+  }, []);
 
   // Até maxWinners (o admin escolhe, 1 a 5, padrão 3) pessoas capturam o mesmo evento —
   // cada uma vê o PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro

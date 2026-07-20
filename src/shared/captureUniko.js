@@ -442,6 +442,35 @@ export const getCaptureReward = (uniko) => ({
   premium: uniko?.reward?.premium ?? CAPTURE_REWARD.premium,
 });
 
+/* ── Override de recompensa (prismas) pros Unikos FIXOS do roster acima
+   (vampire-robot, uniko-sereia, uniko-comum) — o valor "de fábrica" fica
+   hardcoded em CAPTURE_UNIKOS[id].reward, mas o admin precisa poder mudar
+   sem editar código. Tabela `uniko_reward_overrides` (rodar
+   supabase_uniko_reward_overrides.sql), uma linha por Uniko. Aplica DIRETO
+   em cima do objeto de CAPTURE_UNIKOS (mutação em memória) — como
+   getCaptureReward/getUniko/o roster inteiro sempre leem essa MESMA
+   referência, nenhum call site existente precisa mudar. Unikos da Oficina
+   (custom_unikos) já têm reward_comum/reward_premium próprios — isso aqui
+   é só pros fixos, que não têm linha em tabela nenhuma. ── */
+export async function loadRewardOverrides() {
+  try {
+    const { data } = await _supabase.from('uniko_reward_overrides').select('uniko_id,reward_comum,reward_premium');
+    for (const r of (data || [])) {
+      const base = CAPTURE_UNIKOS[r.uniko_id];
+      if (base) base.reward = { comum: r.reward_comum ?? base.reward.comum, premium: r.reward_premium ?? base.reward.premium };
+    }
+  } catch (e) { console.error('[capture-uniko] loadRewardOverrides falhou:', e); }
+}
+export async function saveRewardOverride(unikoId, comum, premium) {
+  const c = Math.max(0, Number(comum) || 0), p = Math.max(0, Number(premium) || 0);
+  await _supabase.from('uniko_reward_overrides').upsert(
+    { uniko_id: unikoId, reward_comum: c, reward_premium: p, updated_at: new Date().toISOString() },
+    { onConflict: 'uniko_id' }
+  );
+  const base = CAPTURE_UNIKOS[unikoId];
+  if (base) base.reward = { comum: c, premium: p };
+}
+
 /* ── Loja de Unikos — preço (Prisma Comum) definido pelo admin pra cada Uniko poder ser
    COMPRADO na Prisma Store (além de capturado no evento). Tabela `uniko_store_prices`,
    uma linha por Uniko; sem linha (ou price nulo/0) = não está à venda. ── */

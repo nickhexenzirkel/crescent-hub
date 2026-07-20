@@ -7,7 +7,7 @@ import UnikoQATab from './UnikoQATab';
 import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
-  giftUnikoToPlayer, themeWithScene,
+  giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
 } from '../../shared/captureUniko';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
@@ -600,6 +600,24 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const loadOficinaLib = async () => { const list = await loadCustomUnikos(); setOficinaLib(list); };
   useEffect(() => { if (tab === 'capture') loadOficinaLib(); }, [tab]);
+
+  // ── Editar prismas dos Unikos FIXOS do roster (vampire-robot, uniko-sereia) ──
+  // CAPTURE_UNIKOS[id].reward é mutado em memória por loadRewardOverrides/saveRewardOverride
+  // (ver captureUniko.js) — o tick força re-render pra pegar o valor atualizado.
+  const [rewardTick, setRewardTick] = useState(0);
+  const [rewardEdit, setRewardEdit] = useState({}); // id -> {comum, premium} (rascunho em edição)
+  const [rewardSaving, setRewardSaving] = useState(null);
+  useEffect(() => { if (tab === 'capture') loadRewardOverrides().then(() => setRewardTick(t => t + 1)); }, [tab]);
+  const salvarReward = async (id) => {
+    const draft = rewardEdit[id];
+    if (!draft) return;
+    setRewardSaving(id);
+    try {
+      await saveRewardOverride(id, draft.comum, draft.premium);
+      setRewardTick(t => t + 1);
+      setRewardEdit(e => { const next = { ...e }; delete next[id]; return next; });
+    } finally { setRewardSaving(null); }
+  };
   // Preview piscando — só pra dar uma ideia de como fica animado (aberto/fechado a cada 2s).
   useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
 
@@ -2326,17 +2344,42 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
                     {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
                       const rw = getCaptureReward(u);
+                      // Prismas editáveis só pros Unikos FIXOS "lendários" (vampire-robot,
+                      // uniko-sereia) — os da Oficina já têm o próprio campo de prismas
+                      // no formulário de criação/edição deles.
+                      const editavel = u.id==='vampire-robot' || u.id==='uniko-sereia';
+                      const draft = rewardEdit[u.id];
                       return (
-                      <button key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
-                        style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
+                      <div key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
+                        style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
                           border:`2px solid ${capCfg.unikoId===u.id?u.theme.accent:T.border}`,
                           background:capCfg.unikoId===u.id?`${u.theme.accent}18`:'transparent',transition:'all .15s'}}>
-                        <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
-                        <div>
-                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
-                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium</div>
+                        <div style={{display:'flex',alignItems:'center',gap:12}}>
+                          <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
+                            {!draft && <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium</div>}
+                          </div>
                         </div>
-                      </button>
+                        {editavel && (
+                          <div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            <input type="number" min={0} value={draft?draft.comum:rw.comum}
+                              onChange={e=>setRewardEdit(x=>({...x,[u.id]:{comum:e.target.value,premium:draft?draft.premium:rw.premium}}))}
+                              style={{width:62,padding:'5px 6px',borderRadius:7,border:`1px solid ${T.border}`,background:T.surface||'#fff',color:T.text,fontSize:11,fontFamily:'var(--font-body)'}}/>
+                            <span style={{fontSize:10,color:T.textT}}>comuns</span>
+                            <input type="number" min={0} value={draft?draft.premium:rw.premium}
+                              onChange={e=>setRewardEdit(x=>({...x,[u.id]:{comum:draft?draft.comum:rw.comum,premium:e.target.value}}))}
+                              style={{width:62,padding:'5px 6px',borderRadius:7,border:`1px solid ${T.border}`,background:T.surface||'#fff',color:T.text,fontSize:11,fontFamily:'var(--font-body)'}}/>
+                            <span style={{fontSize:10,color:T.textT}}>premium</span>
+                            {draft && (
+                              <button onClick={()=>salvarReward(u.id)} disabled={rewardSaving===u.id}
+                                style={{padding:'5px 10px',borderRadius:7,border:'none',cursor:rewardSaving===u.id?'default':'pointer',background:u.theme.accent,color:'#fff',fontWeight:700,fontSize:10,fontFamily:'var(--font-body)',opacity:rewardSaving===u.id?.6:1}}>
+                                {rewardSaving===u.id?'Salvando…':'Salvar'}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       );
                     })}
                   </div>
