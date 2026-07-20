@@ -16,6 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { T } from '../../../contexts/theme';
+import { SpeedFrame } from './SpeedFrame';
 
 /* ── Música ──────────────────────────────────────────────────────────────── */
 // Biblioteca embutida (mesmos IDs das músicas iniciais do Uniko Wave).
@@ -457,9 +458,8 @@ const TabUnikoFaster = () => {
                     ...ctaStyle, width: 'min(35%, 560px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 'clamp(15px, 1.7vw, 21px)', padding: 'clamp(12px, 1.9vh, 18px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
 
-                {/* MOLDURA por cima (centro transparente) — sempre na frente do conteúdo */}
-                <img src="/unikofaster/borda-inicial.png" alt="" aria-hidden
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none', zIndex: 3 }} />
+                {/* MOLDURA por cima (centro vazado) — desenhada em vetor, não é mais imagem */}
+                <SpeedFrame style={{ zIndex: 3 }} />
               </div>
             )}
 
@@ -1160,11 +1160,6 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         <div ref={ytHolder} />
       </div>
 
-      {/* MOLDURA DE NITRO — aparece durante nitro/rampa. mix-blend-mode:screen faz o
-          centro preto da imagem sumir e a moldura neon brilhar sobre a tela. */}
-      <img src="/unikofaster/borda-nitro.png" alt="" aria-hidden
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill',
-          mixBlendMode: 'screen', pointerEvents: 'none', opacity: hud.boost ? 1 : 0, transition: 'opacity .12s' }} />
       {/* Texto NITRO gigante */}
       {hud.boost && (
         <div key="nitro" className="uf-nitro-txt" aria-hidden
@@ -1349,8 +1344,7 @@ const FASTER_CSS = `
 .uf-panel-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(34,211,238,.4) !important; }
 @keyframes ufCta { 0%,100% { box-shadow: 0 6px 20px rgba(124,58,237,.5); } 50% { box-shadow: 0 6px 30px rgba(34,211,238,.75); } }
 .uf-cta { animation: ufCta 2.6s ease-in-out infinite; }
-/* moldura da tela inicial: mantém a proporção da imagem (não distorce) e enche a
-   largura. No mobile vira mais alta pra o conteúdo caber. */
+/* moldura da tela inicial: desenhada em vetor (SpeedFrame), acompanha a área toda */
 .uf-hero-frame { min-height: 0; }
 /* Texto NITRO (slam neon) durante o boost */
 @keyframes ufNitroIn { 0% { transform: scale(.5) skewX(-12deg); opacity: 0; } 55% { transform: scale(1.15) skewX(-12deg); opacity: 1; } 100% { transform: scale(1) skewX(-12deg); opacity: 1; } }
