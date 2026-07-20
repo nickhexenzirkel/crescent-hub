@@ -9,12 +9,28 @@ import { T } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
+import SalasLobby from './SalasLobby';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const UNIKO_GRAD = 'linear-gradient(135deg,#E0559A 0%,#A24CE0 100%)';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+
+// SHA-256 hex da senha da sala. Guardamos só o hash — a senha em si nunca vai
+// pro banco. Isso NÃO transforma a sala num cofre (a checagem é no cliente e a
+// tabela é legível pela chave anon), só evita expor a senha escrita.
+const sha256 = async (txt) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+};
+// Salas já destravadas nesta sessão (fecha a aba, pede senha de novo).
+const UNLOCKED_KEY = 'cs_salas_abertas';
+const lidasNaSessao = () => { try { return JSON.parse(sessionStorage.getItem(UNLOCKED_KEY) || '[]'); } catch { return []; } };
+const marcarAberta = (id) => {
+  const at = [...new Set([...lidasNaSessao(), id])];
+  try { sessionStorage.setItem(UNLOCKED_KEY, JSON.stringify(at)); } catch {}
+};
 const nowIso = () => new Date().toISOString();
 // Texto puro a partir do HTML da descrição (pra prévia no card e no filtro).
 const stripHtml = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -113,6 +129,20 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const isMobile = useIsMobile();
   const me = authUser?.name || getAuthUser()?.name || 'Colaborador';
 
+  const isAdmin = (authUser?.role || getAuthUser()?.role) === 'admin';
+
+  // ── Salas ── cada sala é um quadro próprio; sem sala escolhida, mostra o lobby.
+  const [rooms, setRooms] = useState([]);
+  const [roomId, setRoomId] = useState(null);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const room = rooms.find(r => r.id === roomId) || null;
+
+  const loadRooms = useCallback(async () => {
+    const { data } = await sb.from('conexao_rooms').select('*').order('position', { ascending: true });
+    setRooms(data || []);
+    setRoomsLoading(false);
+  }, []);
+
   const [lists, setLists] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,11 +196,16 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
   // ── Carrega o quadro ────────────────────────────────────────
   const load = useCallback(async () => {
-    const [{ data: ls }, { data: cs }] = await Promise.all([
-      sb.from('conexao_lists').select('*').order('position', { ascending: true }),
-      sb.from('conexao_cards').select('*').order('position', { ascending: true }),
-    ]);
-    const listsArr = ls || [], cardsArr = cs || [];
+    if (!roomId) return;                       // sem sala aberta não há quadro pra carregar
+    const { data: ls } = await sb.from('conexao_lists')
+      .select('*').eq('room_id', roomId).order('position', { ascending: true });
+    const listsArr = ls || [];
+    // só os cards das colunas desta sala
+    const ids = listsArr.map(l => l.id);
+    const { data: cs } = ids.length
+      ? await sb.from('conexao_cards').select('*').in('list_id', ids).order('position', { ascending: true })
+      : { data: [] };
+    const cardsArr = cs || [];
     setLists(listsArr); setCards(cardsArr); setLoading(false);
 
     // diff p/ notificar (pula na 1ª carga)
@@ -191,7 +226,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     }
     prevCardsRef.current = Object.fromEntries(cardsArr.map(c => [c.id, c]));
     firstLoadRef.current = false;
-  }, [fireNotif]);
+  }, [fireNotif, roomId]);
 
   const scheduleReload = useCallback(() => {
     clearTimeout(reloadTimer.current);
@@ -199,13 +234,31 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   }, [load]);
 
   // ── Boot: carrega, realtime, poll, colegas ──────────────────
+  // salas + realtime da lista de salas
   useEffect(() => {
+    loadRooms();
+    const ch = sb.channel('conexao-rooms')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_rooms' }, loadRooms)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [loadRooms]);
+
+  // quadro da sala aberta — recarrega do zero quando troca de sala
+  useEffect(() => {
+    if (!roomId) return;
+    setLoading(true);
+    firstLoadRef.current = true;      // não notifica os cards já existentes ao entrar
+    prevCardsRef.current = null;
     load();
-    const ch = sb.channel('conexao-board')
+    const ch = sb.channel('conexao-board-' + roomId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_cards' }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_lists' }, scheduleReload)
       .subscribe();
     const poll = setInterval(load, 20000);
+    return () => { sb.removeChannel(ch); clearInterval(poll); clearTimeout(reloadTimer.current); };
+  }, [roomId, load, scheduleReload]);
+
+  useEffect(() => {
     // colegas (responsáveis) — endpoint admin
     (async () => {
       try {
@@ -217,7 +270,6 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         setPeople([...new Set([me, ...names])].sort((a, b) => a.localeCompare(b)));
       } catch { setPeople([me]); }
     })();
-    return () => { sb.removeChannel(ch); clearInterval(poll); clearTimeout(reloadTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -342,10 +394,43 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     try { await sb.storage.from('conexao').remove([img.path]); } catch {}
   };
 
+  // ── Salas: criar / senha / excluir (só admin) ───────────────
+  const criarSala = async ({ name, descricao, senha, color }) => {
+    const pos = rooms.length ? Math.max(...rooms.map(r => r.position)) + 1000 : 1000;
+    const pass_hash = senha ? await sha256(senha) : null;
+    await sb.from('conexao_rooms').insert({
+      name: name.trim(), descricao: (descricao || '').trim(), color: color || '#A24CE0',
+      pass_hash, position: pos, created_by: me,
+    });
+    await loadRooms();
+  };
+  const definirSenhaSala = async (id, senha) => {
+    const pass_hash = senha ? await sha256(senha) : null;
+    await sb.from('conexao_rooms').update({ pass_hash }).eq('id', id);
+    await loadRooms();
+  };
+  const excluirSala = async (id) => {
+    const alvo = rooms.find(r => r.id === id);
+    if (!window.confirm(`Excluir a sala "${alvo?.name}" e TODAS as colunas e cards dela?\n\nIsso não tem volta.`)) return;
+    await sb.from('conexao_rooms').delete().eq('id', id);
+    if (roomId === id) setRoomId(null);
+    await loadRooms();
+  };
+  // valida a senha digitada contra o hash guardado
+  const abrirSala = async (sala, senha, jaLiberada = false) => {
+    if (sala.pass_hash && !jaLiberada) {
+      const h = await sha256(senha || '');
+      if (h !== sala.pass_hash) return false;
+    }
+    marcarAberta(sala.id);
+    setRoomId(sala.id);
+    return true;
+  };
+
   const addList = async (title) => {
     const t = title.trim(); if (!t) return;
     const pos = lists.length ? Math.max(...lists.map(l => l.position)) + 1000 : 1000;
-    await sb.from('conexao_lists').insert({ title: t, position: pos });
+    await sb.from('conexao_lists').insert({ title: t, position: pos, room_id: roomId });
     scheduleReload();
   };
   const renameList = async (id, title) => {
@@ -408,9 +493,15 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const colBg = T.dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
   const cardBg = T.surface || (T.dark ? '#1a1a2e' : '#fff');
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
-      <style>{`
+  const shellStyle = { position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' };
+  const Blobs = (
+    <div className="cs-blobs" aria-hidden>
+      <div className="cs-blob cs-blob1" />
+      <div className="cs-blob cs-blob2" />
+      <div className="cs-blob cs-blob3" />
+    </div>
+  );
+  const CS_CSS = `
         @keyframes csPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
         @keyframes csFade{from{opacity:0}to{opacity:1}}
@@ -454,22 +545,38 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         .cs-blob3{width:36vw;height:36vw;bottom:-16vh;left:28vw;
           background:radial-gradient(circle,#5B8DEF,transparent 68%);animation:csBlobC 38s ease-in-out infinite}
         @media (prefers-reduced-motion: reduce){ .cs-blob{animation:none !important} }
-      `}</style>
+  `;
+
+  // ── Sem sala aberta: lobby das salas ────────────────────────
+  if (!roomId) {
+    return (
+      <div style={shellStyle}>
+        <style>{CS_CSS}</style>
+        {Blobs}
+        <SalasLobby
+          rooms={rooms} loading={roomsLoading} isAdmin={isAdmin} brd={brd} onBack={onBack}
+          jaAberta={(id) => lidasNaSessao().includes(id)}
+          onEntrar={abrirSala} onCriar={criarSala} onSenha={definirSenhaSala} onExcluir={excluirSala} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={shellStyle}>
+      <style>{CS_CSS}</style>
 
       {/* fundo animado (atrás de tudo) */}
-      <div className="cs-blobs" aria-hidden>
-        <div className="cs-blob cs-blob1" />
-        <div className="cs-blob cs-blob2" />
-        <div className="cs-blob cs-blob3" />
-      </div>
+      {Blobs}
 
       {/* ── Header ── */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
-        <button className="cs-btn cs-ghost" onClick={onBack} style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
+        {/* voltar = sai da sala e volta pro lobby (não sai do módulo) */}
+        <button className="cs-btn cs-ghost" onClick={() => setRoomId(null)} title="Voltar para as salas"
+          style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: room?.color || UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
         <div style={{ marginRight: 'auto' }}>
-          <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>Conexão Setorial</div>
-          <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>Quadro do Financeiro · {cards.length} cards · {lists.length} colunas</div>
+          <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>{room?.name || 'Conexão Setorial'}</div>
+          <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>{cards.length} cards · {lists.length} colunas</div>
         </div>
         <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
           style={{ background: filterActive ? UNIKO_GRAD : (T.surfaceSub || colBg), color: filterActive ? '#fff' : T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
