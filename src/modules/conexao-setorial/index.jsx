@@ -34,6 +34,31 @@ const marcarAberta = (id) => {
 const nowIso = () => new Date().toISOString();
 // Texto puro a partir do HTML da descrição (pra prévia no card e no filtro).
 const stripHtml = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+// Diff palavra-a-palavra (LCS) entre dois textos — usado pra destacar no
+// histórico exatamente o trecho que a pessoa mudou. Retorna { before, after },
+// cada um uma lista de { t: token, same: bool } (tokens intercalam palavra/espaço).
+const diffWords = (before, after) => {
+  const a = String(before || '').split(/(\s+)/);
+  const b = String(after || '').split(/(\s+)/);
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const outBefore = [], outAfter = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { outBefore.push({ t: a[i], same: true }); outAfter.push({ t: b[j], same: true }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { outBefore.push({ t: a[i], same: false }); i++; }
+    else { outAfter.push({ t: b[j], same: false }); j++; }
+  }
+  while (i < n) { outBefore.push({ t: a[i], same: false }); i++; }
+  while (j < m) { outAfter.push({ t: b[j], same: false }); j++; }
+  return { before: outBefore, after: outAfter };
+};
 // "há X" curtinho pro histórico.
 const timeAgo = (iso) => {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -343,10 +368,14 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     const history = [...(data?.history || []), { id: uid(), who: me, text, at: nowIso() }];
     await patchCard(id, { history });
   };
-  // Patch + registro no histórico numa tacada só.
-  const patchLog = async (id, patch, text) => {
+  // Patch + registro no histórico numa tacada só. `diff` (opcional) guarda
+  // {before, after} pra poder mostrar "Clique para ver" no histórico e
+  // destacar exatamente o que mudou (título/descrição).
+  const patchLog = async (id, patch, text, diff) => {
     const { data } = await sb.from('conexao_cards').select('history').eq('id', id).single();
-    const history = [...(data?.history || []), { id: uid(), who: me, text, at: nowIso() }];
+    const entry = { id: uid(), who: me, text, at: nowIso() };
+    if (diff) entry.diff = diff;
+    const history = [...(data?.history || []), entry];
     await patchCard(id, { ...patch, history });
   };
 
@@ -906,6 +935,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [lightbox, setLightbox] = useState(null);
+  const [diffOpen, setDiffOpen] = useState(null); // id do item do histórico com o "antes/depois" aberto
   const fileRef = useRef(null);
   const descRef = useRef(null);
 
@@ -977,14 +1007,15 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const changeFont = (delta) => { const lvl = Math.max(1, Math.min(7, fontLevel + delta)); setFontLevel(lvl); exec('fontSize', String(lvl)); };
   const saveDesc = () => {
     const html = descRef.current ? descRef.current.innerHTML : (card.description || '');
-    if (html !== (card.description || '')) onPatchLog(card.id, { description: html }, 'alterou a descrição');
+    const antes = card.description || '';
+    if (html !== antes) onPatchLog(card.id, { description: html }, 'alterou a descrição', { before: stripHtml(antes), after: stripHtml(html) });
     setEditDesc(false);
   };
 
   // Feed da direita = comentários + histórico juntos, do mais antigo pro mais novo.
   const feed = [
     ...comments.map(c => ({ kind: 'comment', at: c.at, author: c.author, text: c.text, id: 'c' + c.id })),
-    ...history.map(h => ({ kind: 'history', at: h.at, author: h.who, text: h.text, id: 'h' + h.id })),
+    ...history.map(h => ({ kind: 'history', at: h.at, author: h.who, text: h.text, diff: h.diff, id: 'h' + h.id })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
   const listTitle = lists.find(l => l.id === card.list_id)?.title || '—';
 
@@ -1025,7 +1056,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
         <div className="cs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
           {/* ── ESQUERDA ── */}
           <div style={{ flex: '1.7 1 0', minWidth: 0, padding: isMobile ? 16 : 24, borderRight: isMobile ? 'none' : `1px solid ${brd}` }}>
-            <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatchLog(card.id, { title: title.trim() }, 'alterou o título')}
+            <input value={title} onChange={e => setTitle(e.target.value)} onBlur={() => title.trim() && title !== card.title && onPatchLog(card.id, { title: title.trim() }, 'alterou o título', { before: card.title || '', after: title.trim() })}
               style={{ width: '100%', fontSize: 23, fontWeight: 800, fontFamily: 'var(--font-brand)', color: T.text, background: 'transparent', border: 'none', outline: 'none' }} />
             <div style={{ fontSize: 12, color: T.textT, marginTop: 4, marginBottom: 20 }}>em <b style={{ color: T.textS }}>{listTitle}</b> · criado por {card.created_by || '—'}</div>
 
@@ -1124,7 +1155,33 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                       </div>
                     ) : (
                       <div style={{ fontSize: 12.5, color: T.textS, paddingTop: 5, lineHeight: 1.4 }}>
-                        <b style={{ color: T.text }}>{f.author}</b> {f.text} <span style={{ color: T.textT }}>· {timeAgo(f.at)}</span>
+                        <b style={{ color: T.text }}>{f.author}</b> {f.text}
+                        {f.diff && (
+                          <>{': '}<button onClick={() => setDiffOpen(o => o === f.id ? null : f.id)}
+                            style={{ background: 'transparent', border: 'none', padding: 0, color: '#A24CE0', fontWeight: 700, fontSize: 12.5, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            {diffOpen === f.id ? 'Ocultar' : 'Clique para ver'}
+                          </button></>
+                        )}
+                        {' '}<span style={{ color: T.textT }}>· {timeAgo(f.at)}</span>
+                        {f.diff && diffOpen === f.id && (() => {
+                          const d = diffWords(f.diff.before, f.diff.after);
+                          return (
+                            <div style={{ marginTop: 8, background: surf, border: `1px solid ${brd}`, borderRadius: 10, padding: 10, fontSize: 12.5, lineHeight: 1.55 }}>
+                              <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>ANTES</div>
+                              <div style={{ marginBottom: 8, wordBreak: 'break-word' }}>
+                                {d.before.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.before.map((tk, i) => tk.same
+                                  ? <span key={i}>{tk.t}</span>
+                                  : <span key={i} style={{ background: 'rgba(224,52,90,.18)', color: '#E0345A', textDecoration: 'line-through', borderRadius: 3 }}>{tk.t}</span>)}
+                              </div>
+                              <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>DEPOIS</div>
+                              <div style={{ wordBreak: 'break-word' }}>
+                                {d.after.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.after.map((tk, i) => tk.same
+                                  ? <span key={i}>{tk.t}</span>
+                                  : <span key={i} style={{ background: 'rgba(34,197,94,.22)', color: '#178A46', borderRadius: 3, fontWeight: 700 }}>{tk.t}</span>)}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
