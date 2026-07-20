@@ -917,6 +917,31 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       ctx.drawImage(spr.img, cx - w2 / 2, cyBase - h2, w2, h2);
     };
 
+    // Balãozinho com o NOME flutuando em cima do carro de um humano (nunca
+    // bot — é o que deixa claro "ali passou o Rondiney", sem precisar
+    // adivinhar olhando só o carro). `topoY` = topo do sprite na tela;
+    // o balão fica um pouco acima dele, sempre do mesmo tamanho (não escala
+    // com a distância, senão fica ilegível longe e gigante perto).
+    const drawNomeTag = (cx, topoY, nome, cor) => {
+      if (!nome) return;
+      ctx.save();
+      ctx.font = '700 12px var(--font-body), sans-serif';
+      const padX = 8, texto = nome;
+      const tw = ctx.measureText(texto).width;
+      const bw = tw + padX * 2, bh = 20;
+      const bx = cx - bw / 2, by = topoY - bh - 8;
+      rr(ctx, bx, by, bw, bh, bh / 2);
+      ctx.fillStyle = 'rgba(10,6,22,.72)'; ctx.fill();
+      ctx.lineWidth = 1.3; ctx.strokeStyle = cor || '#fff'; ctx.stroke();
+      // rabinho triangular apontando pro carro
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, by + bh); ctx.lineTo(cx + 5, by + bh); ctx.lineTo(cx, by + bh + 6);
+      ctx.closePath(); ctx.fillStyle = 'rgba(10,6,22,.72)'; ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(texto, cx, by + bh / 2 + 1);
+      ctx.restore();
+    };
+
     // Carro do jogador em CHASE CAM (sprite visto por trás), no centro de baixo.
     // Desliza pros lados com a direção e balança de leve; inclina na curva.
     const drawCarroJogador = (w, h, steer, tremor) => {
@@ -1272,8 +1297,11 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         (spritesPorSeg[n] || []).forEach(r => {
           const cx = p1.sx + r.x * p1.sw, larg = Math.min(w * 0.3, p1.sw * 0.3);
           if (larg < 2) return;
-          if (r.sprite?.ok) drawBillboard(r.sprite, cx, p1.sy, larg);
-          else drawCarro(cx, p1.sy, larg, r.cor);
+          let topoY;
+          if (r.sprite?.ok) { drawBillboard(r.sprite, cx, p1.sy, larg); topoY = p1.sy - larg / (r.sprite.rz || 1.4); }
+          else { drawCarro(cx, p1.sy, larg, r.cor); topoY = p1.sy - larg * 0.62; }
+          // Nome flutuando SÓ em cima de humano (bot não tem) — ver drawNomeTag.
+          if (r.isHuman) drawNomeTag(cx, topoY, r.nome, r.cor);
         });
       }
 
