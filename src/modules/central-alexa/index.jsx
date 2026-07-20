@@ -2282,15 +2282,34 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setBibCarregando(false);
   };
 
-  // Converte o array de bytes da capa (ID3 APIC) numa data-URL, sem passar
-  // por canvas — é só base64 puro do formato que já vem no próprio arquivo.
-  const bibCapaParaDataUrl = (picture) => {
-    if (!picture?.data?.length) return null;
+  // Converte o array de bytes da capa (ID3 APIC) numa data-URL PEQUENA. A capa
+  // embutida no MP3 pode vir enorme (nada raro passar de 1MB em base64) — isso
+  // sozinho já estourava o limite de tamanho do corpo da requisição no servidor
+  // (PayloadTooLargeError: o body-parser tem teto de 100kb por padrão) e inchava
+  // à toa a coluna `album_art` do banco, já que aqui ela só vira uma miniatura de
+  // 40-56px. Redesenha num canvas pequeno antes de guardar (mesma ideia do
+  // `frameFromFile` em dashboard-rh/index.jsx).
+  const bibCapaParaDataUrl = (picture) => new Promise((resolve) => {
+    if (!picture?.data?.length) { resolve(null); return; }
     let bin = '';
     const bytes = picture.data;
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return `data:${picture.format || 'image/jpeg'};base64,${btoa(bin)}`;
-  };
+    const dataUrlOriginal = `data:${picture.format || 'image/jpeg'};base64,${btoa(bin)}`;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const MAX = 300;
+        let { width, height } = img;
+        if (width >= height) { if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; } }
+        else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+        const c = document.createElement('canvas'); c.width = width; c.height = height;
+        c.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(c.toDataURL('image/jpeg', 0.82));
+      } catch { resolve(dataUrlOriginal); }
+    };
+    img.onerror = () => resolve(dataUrlOriginal);
+    img.src = dataUrlOriginal;
+  });
 
   const bibFmtDuracao = (ms) => {
     if (!ms || ms <= 0) return '--:--';
@@ -2319,11 +2338,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       if (isFinite(audioTemp.duration)) { durationMs = Math.round(audioTemp.duration * 1000); durationStr = bibFmtDuracao(durationMs); }
     });
     jsmediatags.read(file, {
-      onSuccess: (tag) => {
+      onSuccess: async (tag) => {
         const t = tag.tags || {};
+        const albumArt = await bibCapaParaDataUrl(t.picture);
         setBibPreview({
           file, title: t.title || nomeSemExtensao, artist: t.artist || '',
-          albumArt: bibCapaParaDataUrl(t.picture),
+          albumArt,
           durationMs, durationStr,
         });
         setBibExtraindo(false);
