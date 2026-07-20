@@ -2648,47 +2648,50 @@ let wgChar = localStorage.getItem('dw_wgchar') || 'mizuki';
 const WG_CHAR_FRAMES = {
   mizuki: {
     run: ['images/PersonagemLinnea.png'],                          // 1 frame (base/correndo)
-    jump:'images/MizukiPulo.png', atk:'images/MizukiAtaque.png',
+    jump:'images/MizukiPulo.png', atk:'images/MizukiAtaque.png', airAtk:'images/MizukiAtaque.png',
     chateada:'images/PersonagemLinnea_Chateada.png', alegre:'images/PersonagemLinnea_Alegre.png',
     hold2:'images/MizukiChuteEstelar_Frame2.png', hold3:'images/MizukiChuteEstelar_Frame3.png',
     arrow:'images/MizukiChuteLendarioFrame3.png',                  // FLECHA ESTELAR (pose do finisher)
   },
   venebra: {
     run: ['images/venebra_passo1.png','images/venebra_passo2.png'], // 2 frames → ciclo de andar (loop)
-    jump:'images/venebra_pulando.png', atk:'images/venebra_pulando.png',
+    jump:'images/venebra_pulando.png', atk:'images/venebra_pulando.png', airAtk:'images/venebra_pulando.png',
     chateada:'images/venebra_passo1.png', alegre:'images/venebra_passo1.png',
     hold2:'images/venebra_segurar.png', hold3:'images/venebra_segurar.png',
     arrow:'images/venebra_finalizacao.png',                        // EXPLOSÃO DE MAGIA SANGUÍNEA (pose)
   },
   oceania: {
     run: ['images/oceania_passo1.png','images/oceania_passo2.png'], // 2 frames → ciclo de andar (loop)
-    jump:'images/oceania_pulando.png', atk:'images/oceania_pulando.png',
+    jump:'images/oceania_pulando.png', atk:'images/oceania_pulando.png', airAtk:'images/oceania_pulando.png',
     chateada:'images/oceania_passo1.png', alegre:'images/oceania_passo1.png',
     hold2:'images/oceania_segurar.png', hold3:'images/oceania_segurar.png',
     arrow:'images/oceania_finalizacao.png',                        // MAREMOTO ABISSAL (pose)
   },
   ashen: {
     run: ['images/ashen_passo1.png','images/ashen_passo2.png'], // 2 frames → ciclo de andar (loop)
-    jump:'images/ashen_pulando.png', atk:'images/ashen_pulando.png',
+    jump:'images/ashen_pulando.png', atk:'images/ashen_pulando.png', airAtk:'images/ashen_pulando.png',
     chateada:'images/ashen_passo1.png', alegre:'images/ashen_passo1.png',
     hold2:'images/ashen_segurar.png', hold3:'images/ashen_segurar.png',
     arrow:'images/ashen_segurar.png',                             // CINZAS DO FIM (sem frame próprio → usa a pose de conjurar)
   },
   icydoll: {
     run: ['images/icy_passo1.png','images/icy_passo2.png','images/icy_passo3.png','images/icy_passo4.png'], // 4 frames → ciclo de andar (loop)
-    jump:'images/icy_pulando.png', atk:'images/icy_chutando.png',       // chutando = bate minion de CHÃO; pulando = sobe pro de AR
+    // chutando = bate minion de CHÃO (S); pulando = bate minion de AR (W) — o pulo
+    // fica ATIVO NO AR INTEIRO (airAtk = pulando), diferente da Mizuki, porque a pose
+    // de chute da Icy é rasteira (chuta pedra no chão) e não faz sentido flutuando.
+    jump:'images/icy_pulando.png', atk:'images/icy_chutando.png', airAtk:'images/icy_pulando.png',
     chateada:'images/icy_passo1.png', alegre:'images/icy_passo1.png',
     hold2:'images/icy_segurar.png', hold3:'images/icy_segurar.png',
     arrow:'images/icy_segurar.png',                                    // HOLOFOTE FATAL (sem frame próprio → usa a pose de chute em voo)
   },
 };
-const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
+const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), airAtk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
 function wgApplyChar(key){
   wgChar = WG_CHAR_FRAMES[key] ? key : 'mizuki';
   const c = WG_CHAR_FRAMES[wgChar];
   WG_SPR.runFrames = c.run.map(src=>{ const im=new Image(); im.src=src; return im; }); // ciclo de andar
   WG_SPR.run = WG_SPR.runFrames[0];
-  for(const k of ['jump','atk','chateada','alegre','hold2','hold3','arrow']) WG_SPR[k].src = c[k];
+  for(const k of ['jump','atk','airAtk','chateada','alegre','hold2','hold3','arrow']) WG_SPR[k].src = c[k];
 }
 wgApplyChar(wgChar);
 // Frame atual do "andar": cicla os frames do personagem (Venebra=2 → anda, Mizuki=1) ~5x/s (WG.runPhase).
@@ -2762,7 +2765,7 @@ const WG_MAGIC = {
 function wgMagic(){ return WG_MAGIC[wgChar] || null; }
 // Escala VISUAL do sprite no jogo por personagem (1 = padrão). Só afeta o desenho
 // (cresce a partir dos pés), não a lógica de acerto. Ashen um pouco maior.
-const WG_CHAR_SCALE = { ashen: 1.18 };
+const WG_CHAR_SCALE = { ashen: 1.18, icydoll: 1.3 };
 function wgCharScale(){ return WG_CHAR_SCALE[wgChar] || 1; }
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
@@ -9585,8 +9588,8 @@ function drawWargame(t){
       spr=(pick.complete&&pick.naturalWidth)?pick:((WG_SPR.hold2.complete&&WG_SPR.hold2.naturalWidth)?WG_SPR.hold2:WG_SPR.atk);
       if(wgMagic() && Math.random()<0.4) wgMagicBurst(WG.hitX, holdingAir?WG.airNoteY:WG.groundNoteY, 2); // magia ao segurar
     }
-    else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida → ATAQUE
-    else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.atk;
+    else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida (CHÃO) → ATAQUE
+    else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.airAtk; // batida no AR → pose própria (não usa o chute de chão)
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
     const tremble=(holding || (WG.phase==='special' && wgMagic()))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
     drawX=WG.charX; feet=WG.feetY-bob+tremble;
