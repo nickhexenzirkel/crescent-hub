@@ -118,6 +118,8 @@ const ICON_PATHS = {
   bold:    <><path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" /><path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" /></>,
   italic:  <><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4L9 20" /></>,
   edit:    <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
+  lock:    <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  unlock:  <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></>,
 };
 const Ic = ({ n, size = 16, sw = 2, style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw}
@@ -174,6 +176,8 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
   // menu de contexto (botão direito no card)
   const [ctxMenu, setCtxMenu] = useState(null);      // { cardId, x, y, sub }
+  // menu de contexto (botão direito no espaço vazio da coluna)
+  const [ctxMenuList, setCtxMenuList] = useState(null); // { listId, x, y }
 
   const notifOnRef = useRef(notifOn);
   const meRef = useRef(me);
@@ -442,11 +446,25 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     await sb.from('conexao_lists').update({ title: t }).eq('id', id);
   };
   const deleteList = async (id) => {
+    const l = lists.find(x => x.id === id);
+    if (l?.locked) {
+      setToast({ title: 'Coluna trancada', message: 'Destranque a coluna (botão direito no espaço vazio) antes de excluir.' });
+      setTimeout(() => setToast(null), 4500);
+      return;
+    }
     if (!window.confirm('Excluir esta coluna e TODOS os cards dela?')) return;
     setLists(prev => prev.filter(l => l.id !== id));
     setCards(prev => prev.filter(c => c.list_id !== id));
     await sb.from('conexao_lists').delete().eq('id', id);
     scheduleReload();
+  };
+  // Trava/destrava a coluna — enquanto trancada, o X de excluir não funciona.
+  const toggleLockList = async (id) => {
+    const l = lists.find(x => x.id === id);
+    if (!l) return;
+    const locked = !l.locked;
+    setLists(prev => prev.map(x => x.id === id ? { ...x, locked } : x));
+    await sb.from('conexao_lists').update({ locked }).eq('id', id);
   };
 
   // ── Drop de card ────────────────────────────────────────────
@@ -632,9 +650,11 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                 <div key={list.id}
                   onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
                   onDrop={() => performDrop(list.id)}
-                  style={{ flex: '0 0 auto', width: isMobile ? 268 : 300, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: `1px solid ${brd}` }}>
+                  onContextMenu={e => { e.preventDefault(); setCtxMenuList({ listId: list.id, x: e.clientX, y: e.clientY }); }}
+                  style={{ flex: '0 0 auto', width: isMobile ? 268 : 300, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}` }}>
                   {/* Cabeçalho da coluna */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' }}>
+                    {list.locked && <span title="Coluna trancada" style={{ color: '#E0A83A', display: 'grid', placeItems: 'center' }}><Ic n="lock" size={14} /></span>}
                     {editingList === list.id ? (
                       <input autoFocus value={editListText} onChange={e => setEditListText(e.target.value)}
                         onBlur={() => { renameList(list.id, editListText); setEditingList(null); }}
@@ -644,7 +664,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                       <div onClick={() => { setEditingList(list.id); setEditListText(list.title); }} style={{ flex: 1, fontWeight: 800, fontSize: 14.5, cursor: 'text', fontFamily: 'var(--font-brand)' }}>{list.title}</div>
                     )}
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.05)', borderRadius: 20, padding: '2px 9px' }}>{listCards.length}</span>
-                    <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="x" size={14} /></button>
+                    {!list.locked && <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="x" size={14} /></button>}
                   </div>
 
                   {/* Cards */}
@@ -661,7 +681,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
-                            onContextMenu={e => { e.preventDefault(); setCtxMenu({ cardId: c.id, x: e.clientX, y: e.clientY, sub: false }); }}
+                            onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ cardId: c.id, x: e.clientX, y: e.clientY, sub: false }); }}
                             style={{ position: 'relative', background: cardBg, borderRadius: 14, border: isDoneList ? '2px solid #22C55E' : `1px solid ${brd}`, padding: isDoneList ? '13px 14px' : '14px 15px', cursor: 'pointer', boxShadow: isDoneList ? '0 2px 12px rgba(34,197,94,.18)' : '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
                             {imgs.length > 0 && (
                               <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: isDoneList ? '-13px -14px 11px' : '-14px -15px 11px', background: T.surfaceSub }} />
@@ -838,6 +858,25 @@ export default function ConexaoSetorial({ onBack, authUser }) {
               <div style={{ height: 1, background: brd, margin: '4px 2px' }} />
               <button className="cs-mi" onClick={() => { if (window.confirm('Excluir este card de vez? Não dá pra desfazer.')) deleteCard(cCtx.id); setCtxMenu(null); }} style={{ ...miCtx, color: '#E0345A' }}>
                 <Ic n="trash" size={15} /> Excluir
+              </button>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ── Menu de contexto (botão direito no espaço vazio da coluna) ── */}
+      {ctxMenuList && (() => {
+        const lCtx = lists.find(l => l.id === ctxMenuList.listId);
+        if (!lCtx) return null;
+        const miCtx = { display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: 600, color: T.text, cursor: 'pointer' };
+        const menuLeft = Math.min(ctxMenuList.x, window.innerWidth - 216);
+        const menuTop = Math.min(ctxMenuList.y, window.innerHeight - 100);
+        return (
+          <>
+            <div onClick={() => setCtxMenuList(null)} onContextMenu={e => { e.preventDefault(); setCtxMenuList(null); }} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+            <div style={{ position: 'fixed', left: menuLeft, top: menuTop, zIndex: 91, background: cardBg, border: `1px solid ${brd}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 6, minWidth: 202, animation: 'csPop .14s ease' }}>
+              <button className="cs-mi" onClick={() => { toggleLockList(lCtx.id); setCtxMenuList(null); }} style={miCtx}>
+                <Ic n={lCtx.locked ? 'unlock' : 'lock'} size={15} /> {lCtx.locked ? 'Destravar coluna' : 'Trancar coluna'}
               </button>
             </div>
           </>
