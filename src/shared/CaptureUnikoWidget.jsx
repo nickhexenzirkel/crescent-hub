@@ -263,13 +263,17 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   // UMA tentativa só — captura sempre na primeira (sem chance de escapar).
   const resolveAttempt = async () => {
     resolvingRef.current = true;
-    // Recarrega os Unikos da Oficina AGORA (não confia no cache carregado só no mount) e
-    // resolve o `uniko` DE NOVO a partir dele — sem isso, um admin editando a recompensa
-    // (ex.: comum/premium) DEPOIS que alguém já tinha a aba aberta fazia essa pessoa
-    // creditar o valor VELHO na hora de capturar, enquanto quem abriu a aba depois da
-    // edição pegava o valor certo (bug real: Uniko Natureza editado pra 10/2, dois
-    // jogadores com aba aberta desde antes ainda creditaram o valor antigo, 50/50).
-    await loadCustomUnikos();
+    // Recarrega os Unikos da Oficina E os overrides de recompensa dos fixos
+    // (Vampire-Robot/Sereia) AGORA (não confia no cache carregado só no mount)
+    // e resolve o `uniko` DE NOVO a partir dele — sem isso, um admin editando a
+    // recompensa (ex.: comum/premium) DEPOIS que alguém já tinha a aba aberta
+    // fazia essa pessoa creditar o valor VELHO na hora de capturar, enquanto
+    // quem abriu a aba depois da edição pegava o valor certo (bug real: Uniko
+    // Natureza editado pra 10/2, dois jogadores com aba aberta desde antes
+    // ainda creditaram o valor antigo, 50/50 — e de novo com a Sereia editada
+    // na Dashboard: quem já estava com o Portal aberto desde antes da edição
+    // ainda creditou 100/100 em vez do valor novo).
+    await Promise.all([loadCustomUnikos(), loadRewardOverrides()]);
     const freshUniko = getUniko(cfg?.unikoId);
     const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
     if (networkError) {
