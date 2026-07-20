@@ -288,6 +288,7 @@ const CARROS = [
   { id: 'kawaii',  nome: 'Kawaii Deadly', spr: 'carro-kawaii',  cor: '#ff2e9f' },
   { id: 'nature',  nome: 'Nature Smiles', spr: 'carro-nature',  cor: '#34d399' },
   { id: 'vampire', nome: 'Vampire Robot', spr: 'carro-vampire', cor: '#dc2626' },
+  { id: 'candy',   nome: 'Candy Rush',    spr: 'carro-candy',   cor: '#f472b6' },
 ];
 const CARRO_PADRAO = CARROS[0].id;
 const getCarroEscolhido = () => {
@@ -724,12 +725,12 @@ const TabUnikoFaster = () => {
     /* ── MULTIPLAYER: salas com código, competindo com os colegas ──
        Reaproveita a mesma <Corrida> do solo por dentro (ver SpeedRoom.jsx) —
        não é um jogo à parte, só ganha uma camada de sala/rede em cima. */
-    conteudo = <SpeedRoom onSair={() => setTela('menu')} />;
+    conteudo = <SpeedRoom onSair={() => setTela('menu')} telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia} />;
   } else {
     /* ── CORRIDA (solo) ── */
     conteudo = (
       <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
-        pausado={pausado} setPausado={setPausado}
+        pausado={pausado} setPausado={setPausado} carro={meuCarro} telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia}
         onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
         onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
     );
@@ -766,7 +767,8 @@ const TabUnikoFaster = () => {
 //                 SpeedRoom decidir o que fazer (só o host grava o resultado)
 const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar,
   multiplayer = false, seed = null, laps = null, countdownEndsAt = null, humanPlayers = null,
-  remoteRivaisRef = null, onPosTick = null, onRaceEnd = null }) => {
+  remoteRivaisRef = null, onPosTick = null, onRaceEnd = null, carro = null,
+  telaCheia = false, toggleTelaCheia = null }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
   const estado = useRef(null);
@@ -827,7 +829,12 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       };
     });
     const rivais = multiplayer ? [...bots, ...rivaisHumanos] : bots;
-    const sprCarro = carregarSprite(getCarroEscolhido().spr);   // chase cam do jogador (carro escolhido)
+    // Carro do jogador (chase cam): usa o prop `carro` (vem do estado React que a
+    // tela de escolha já mantém em memória) em vez de reler o localStorage aqui
+    // dentro — evita qualquer descompasso de timing entre escolher o carro e o
+    // efeito de montagem da corrida ler o valor persistido.
+    const carroObj = (carro && CARROS.find(c => c.id === carro)) || getCarroEscolhido();
+    const sprCarro = carregarSprite(carroObj.spr);   // chase cam do jogador (carro escolhido)
     rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
     const sprCone = carregarSprite('cone');
     const tema = MAPAS[mapa] || MAPAS[MAPA_PADRAO];
@@ -1562,9 +1569,19 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
             <b style={{ color: '#22d3ee' }}>Shift ou Espaço</b> = nitro ⚡ · <b style={{ color: '#ffd166' }}>Esc</b> = pausar<br />
             Pise nas <b style={{ color: '#22d3ee' }}>rampas azuis</b> pra ganhar turbo e ultrapassar 🏎️💨
           </div>
-          <button className="uf-btn" onClick={() => setPausado(false)}
-            style={{ padding: '11px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
-              cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Continuar</button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button className="uf-btn" onClick={() => setPausado(false)}
+              style={{ padding: '11px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
+                cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Continuar</button>
+            {toggleTelaCheia && (
+              <button className="uf-btn" onClick={toggleTelaCheia}
+                style={{ padding: '11px 22px', borderRadius: 999, border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 14, fontWeight: 800,
+                  cursor: 'pointer', background: 'rgba(0,0,0,.4)' }}>⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}</button>
+            )}
+            <button className="uf-btn" onClick={onSair}
+              style={{ padding: '11px 22px', borderRadius: 999, border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 14, fontWeight: 800,
+                cursor: 'pointer', background: 'rgba(0,0,0,.4)' }}>✕ Sair da partida</button>
+          </div>
         </div>
       )}
 

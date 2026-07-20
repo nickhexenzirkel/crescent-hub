@@ -59,7 +59,7 @@ const inputSt = { width: '100%', padding: '10px 12px', borderRadius: 10, border:
    uma sala é só desmontar <Sala/> (mesmo truque do Uniko Paint: reseta canais
    e estado de graça, sem precisar limpar nada manualmente).
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function SpeedRoom({ onSair }) {
+export default function SpeedRoom({ onSair, telaCheia, toggleTelaCheia }) {
   const [sqlMissing, setSqlMissing] = useState(false);
   const [checando, setChecando] = useState(true);
   const [roomId, setRoomId] = useState(null);
@@ -104,7 +104,7 @@ export default function SpeedRoom({ onSair }) {
   return (
     <div style={shellSt}>
       {roomId
-        ? <Sala roomId={roomId} onSairDaSala={() => setRoomId(null)} onSairApp={onSair} />
+        ? <Sala roomId={roomId} onSairDaSala={() => setRoomId(null)} onSairApp={onSair} telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia} />
         : <Lobby onEntrar={setRoomId} onSair={onSair} />}
     </div>
   );
@@ -338,7 +338,7 @@ function ConfigCorrida({ state, onMudar }) {
    SALA — depois de entrar: espera na sala (phase 'waiting') ou corrida rolando
    (phase 'racing'). Dona da presence, do canal de posição e da eleição de host.
    ═══════════════════════════════════════════════════════════════════════════ */
-function Sala({ roomId, onSairDaSala, onSairApp }) {
+function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
   const nome = meuNome();
   const [state, setState] = useState(null);
   const [players, setPlayers] = useState([]);       // presence: quem está NESTA sala agora
@@ -517,7 +517,8 @@ function Sala({ roomId, onSairDaSala, onSairApp }) {
           remoteRivaisRef={remoteRivaisRef} onPosTick={onPosTick} onRaceEnd={onRaceEnd}
           trilha={state.trilha} mapa={state.mapa || MAPA_PADRAO} tracado={state.tracado ?? TRACADO_PADRAO}
           bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
-          pausado={pausado} setPausado={setPausado}
+          pausado={pausado} setPausado={setPausado} carro={getCarroEscolhido().id}
+          telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia}
           onSair={sairDaCorrida} onReiniciar={() => {}}
         />
         {isHost && meuFimHouve && (
