@@ -7950,7 +7950,15 @@ function loadWallet(){
   try { return JSON.parse(localStorage.getItem(GW_KEY)) || {gw:0,gc:0}; }
   catch(e){ return {gw:0,gc:0}; }
 }
-function saveWallet(w){ localStorage.setItem(GW_KEY, JSON.stringify(w)); cloudSave(); }
+// Carteira e personagens são pequenos, mas ficam no MESMO caminho crítico da
+// tela de resultado: se o localStorage estiver cheio (por culpa de qualquer
+// outra tela do portal), um throw aqui interrompia a premiação no meio. O
+// cloudSave() continua valendo — o Supabase é a fonte de verdade do save.
+function saveWallet(w){
+  try { localStorage.setItem(GW_KEY, JSON.stringify(w)); }
+  catch(e){ console.warn('[uniko-wave] carteira não gravou localmente:', e && e.name); }
+  cloudSave();
+}
 function getGW(){ return loadWallet().gw; }
 function getGC(){ return loadWallet().gc; }
 
@@ -7961,7 +7969,11 @@ function loadUnlocked(){
   } catch(e){}
   return ['dodoco'];
 }
-function saveUnlocked(arr){ localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); cloudSave(); }
+function saveUnlocked(arr){
+  try { localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); }
+  catch(e){ console.warn('[uniko-wave] personagens não gravaram localmente:', e && e.name); }
+  cloudSave();
+}
 
 function isUnlocked(id){
   if(TEMP_UNLOCK_ALL) return true; // ⚠️ TEMPORÁRIO: todos liberados (ver TEMP_UNLOCK_ALL)
@@ -10368,7 +10380,51 @@ const LIB_KEY = 'dw_library_v2';
 function libLoad(){
   try { return JSON.parse(localStorage.getItem(LIB_KEY)||'[]'); } catch(e){ return []; }
 }
-function libSave(entries){ localStorage.setItem(LIB_KEY, JSON.stringify(entries)); }
+const LIB_MAX = 50;
+
+// Grava a biblioteca SEM nunca deixar exceção subir. O localStorage é
+// compartilhado por todo o portal (perfil, carteira, My Uniko, caches do
+// React...), então ele pode encher por culpa de outra tela e sobrar pra cá:
+// antes, o QuotaExceededError subia por libSaveEntry até showResult e
+// derrubava a tela de resultado inteira — o jogador terminava a música e o
+// jogo quebrava. Agora, se faltar espaço, a biblioteca vai cedendo espaço
+// (corta as mais antigas) e, no pior caso, desiste em silêncio: perder o
+// histórico é aceitável, perder a tela de pontuação não.
+function libSave(entries){
+  let list = entries.slice(0, LIB_MAX);
+  for (let tentativa = 0; tentativa < 6; tentativa++) {
+    try {
+      localStorage.setItem(LIB_KEY, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      const semEspaco = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+      if (!semEspaco || list.length <= 1) {
+        console.warn('[uniko-wave] não deu pra salvar a biblioteca:', e && e.name);
+        return false;
+      }
+      // corta pela metade e tenta de novo (mantém as mais recentes)
+      list = list.slice(0, Math.max(1, Math.floor(list.length / 2)));
+    }
+  }
+  return false;
+}
+
+// Diagnóstico: quem está ocupando o localStorage deste domínio.
+// Rode `libStorageReport()` no console quando aparecer aviso de quota.
+function libStorageReport(){
+  const linhas = [];
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    const bytes = ((localStorage.getItem(k) || '').length + k.length) * 2; // UTF-16
+    total += bytes;
+    linhas.push({ chave: k, KB: +(bytes / 1024).toFixed(1) });
+  }
+  linhas.sort((a, b) => b.KB - a.KB);
+  console.table(linhas);
+  console.log('total ~' + (total / 1048576).toFixed(2) + ' MB (o limite costuma ser ~5 MB)');
+  return linhas;
+}
 
 function libSaveEntry(ytUrl, title, thumbUrl, scoreVal, gradeStr, gradeCol, starsCount, diff){
   const entries = libLoad();

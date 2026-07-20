@@ -80,7 +80,12 @@ const loadUserPhoto = async () => {
   const dynKey = _auth?.cpf ? `uniko_photo_${_auth.cpf}` : `uniko_photo_${name}`;
   try {
     const { data } = await _supabase.from('profile_photos').select('photo').eq('employee_name', name).maybeSingle();
-    if (data?.photo) { localStorage.setItem(dynKey, data.photo); return data.photo; }
+    // O cache local é só conveniência: a foto vem do Supabase de qualquer jeito.
+    // Sem o try, uma foto grande com o localStorage cheio derrubava o login.
+    if (data?.photo) {
+      try { localStorage.setItem(dynKey, data.photo); } catch {}
+      return data.photo;
+    }
   } catch {}
   // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver
   const cached = localStorage.getItem(dynKey) || null;
