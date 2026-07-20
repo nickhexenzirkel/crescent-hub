@@ -184,6 +184,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [bancoLote, setBancoLote] = useState(false);
   const toggleBancoSel = (id) => setBancoSel(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
 
+  // descrições longas: clicar na célula abre/fecha o texto inteiro
+  const [bancoDescAberta, setBancoDescAberta] = useState([]);
+  const toggleBancoDesc = (id) => setBancoDescAberta(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
+
   const aprovarSelecionados = async () => {
     if (bancoSel.length === 0) return;
     setBancoLote(true);
@@ -1857,9 +1861,26 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                                     </td>
                                     <td style={{padding:'11px 14px',fontSize:13,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{b.created_by}</td>
                                     <td style={{padding:'11px 14px',fontSize:12,color:T.textS,whiteSpace:'nowrap'}}>{fmtD(b.data)}</td>
-                                    <td style={{padding:'11px 14px',fontSize:12,color:T.text,maxWidth:200}}>
-                                      <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.descricao}</div>
-                                    </td>
+                                    {(()=>{
+                                      const aberta = bancoDescAberta.includes(b.id);
+                                      const longa  = (b.descricao||'').length > 34;
+                                      return (
+                                        <td onClick={()=>longa&&toggleBancoDesc(b.id)}
+                                          title={longa ? (aberta?'Clique para recolher':'Clique para ver a descrição completa') : undefined}
+                                          style={{padding:'11px 14px',fontSize:12,color:T.text,maxWidth:aberta?360:200,cursor:longa?'pointer':'default',verticalAlign:'top'}}>
+                                          <div style={aberta
+                                            ? {whiteSpace:'pre-wrap',wordBreak:'break-word',lineHeight:1.5}
+                                            : {overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                            {b.descricao}
+                                          </div>
+                                          {longa&&(
+                                            <div style={{fontSize:10.5,color:T.blue||'#2A6FB5',marginTop:3,fontWeight:600}}>
+                                              {aberta?'ver menos':'ver mais'}
+                                            </div>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
                                     <td style={{padding:'11px 14px',fontSize:12,color:T.textS,whiteSpace:'nowrap'}}>{b.hora_inicio} → {b.hora_fim}</td>
                                     <td style={{padding:'11px 14px',whiteSpace:'nowrap'}}>
                                       <div style={{fontSize:13,fontWeight:600,color:T.text}}>{fmtH(Number(b.total_horas))}</div>
