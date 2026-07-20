@@ -172,6 +172,9 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const [drag, setDrag] = useState(null);           // { cardId, fromList }
   const [dragOver, setDragOver] = useState(null);    // { listId, index }
 
+  // menu de contexto (botão direito no card)
+  const [ctxMenu, setCtxMenu] = useState(null);      // { cardId, x, y, sub }
+
   const notifOnRef = useRef(notifOn);
   const meRef = useRef(me);
   const prevCardsRef = useRef(null);
@@ -468,6 +471,15 @@ export default function ConexaoSetorial({ onBack, authUser }) {
     await patchCard(d.cardId, { list_id: listId, position: pos });
   };
 
+  // Move um card pro fim de outra coluna (usado pelo menu de contexto).
+  const moveCardToList = async (cardId, listId) => {
+    const cur = cardsRef.current.find(c => c.id === cardId);
+    if (!cur || cur.list_id === listId) return;
+    const inList = cardsRef.current.filter(c => c.list_id === listId);
+    const pos = inList.length ? Math.max(...inList.map(c => c.position)) + 1000 : 1000;
+    await patchCard(cardId, { list_id: listId, position: pos });
+  };
+
   // ── Filtro ──────────────────────────────────────────────────
   const passesFilter = (c) => {
     if (c.archived) return false;   // arquivados não aparecem no quadro
@@ -649,6 +661,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
+                            onContextMenu={e => { e.preventDefault(); setCtxMenu({ cardId: c.id, x: e.clientX, y: e.clientY, sub: false }); }}
                             style={{ position: 'relative', background: cardBg, borderRadius: 14, border: isDoneList ? '2px solid #22C55E' : `1px solid ${brd}`, padding: isDoneList ? '13px 14px' : '14px 15px', cursor: 'pointer', boxShadow: isDoneList ? '0 2px 12px rgba(34,197,94,.18)' : '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
                             {imgs.length > 0 && (
                               <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: isDoneList ? '-13px -14px 11px' : '-14px -15px 11px', background: T.surfaceSub }} />
@@ -791,6 +804,45 @@ export default function ConexaoSetorial({ onBack, authUser }) {
           </div>
         </div>
       )}
+
+      {/* ── Menu de contexto (botão direito no card) ── */}
+      {ctxMenu && (() => {
+        const cCtx = cards.find(c => c.id === ctxMenu.cardId);
+        if (!cCtx) return null;
+        const miCtx = { display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: 600, color: T.text, cursor: 'pointer' };
+        const outrasListas = lists.filter(l => l.id !== cCtx.list_id);
+        const menuLeft = Math.min(ctxMenu.x, window.innerWidth - 216);
+        const menuTop = Math.min(ctxMenu.y, window.innerHeight - 200);
+        return (
+          <>
+            <div onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+            <div style={{ position: 'fixed', left: menuLeft, top: menuTop, zIndex: 91, background: cardBg, border: `1px solid ${brd}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 6, minWidth: 202, animation: 'csPop .14s ease' }}>
+              <div style={{ position: 'relative' }}>
+                <button className="cs-mi" onClick={() => setCtxMenu(m => ({ ...m, sub: !m.sub }))} style={miCtx}>
+                  <Ic n="board" size={15} /> Mover para <span style={{ marginLeft: 'auto', color: T.textT }}>›</span>
+                </button>
+                {ctxMenu.sub && (
+                  <div className="cs-scroll" style={{ position: 'absolute', left: '100%', top: 0, marginLeft: 4, background: cardBg, border: `1px solid ${brd}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,.28)', padding: 6, minWidth: 172, maxHeight: 240, overflowY: 'auto' }}>
+                    {outrasListas.map(l => (
+                      <button key={l.id} className="cs-mi" onClick={() => { moveCardToList(cCtx.id, l.id); setCtxMenu(null); }} style={{ ...miCtx, display: 'block' }}>
+                        {l.title}
+                      </button>
+                    ))}
+                    {outrasListas.length === 0 && <div style={{ padding: 10, color: T.textT, fontSize: 12 }}>Sem outra coluna.</div>}
+                  </div>
+                )}
+              </div>
+              <button className="cs-mi" onClick={() => { archiveCard(cCtx.id); setCtxMenu(null); }} style={miCtx}>
+                <Ic n="archive" size={15} /> Arquivar
+              </button>
+              <div style={{ height: 1, background: brd, margin: '4px 2px' }} />
+              <button className="cs-mi" onClick={() => { if (window.confirm('Excluir este card de vez? Não dá pra desfazer.')) deleteCard(cCtx.id); setCtxMenu(null); }} style={{ ...miCtx, color: '#E0345A' }}>
+                <Ic n="trash" size={15} /> Excluir
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Modal do card ── */}
       {selectedCard && (
