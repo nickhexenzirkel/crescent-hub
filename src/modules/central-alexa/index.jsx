@@ -971,6 +971,32 @@ async function extractAlbumColors(imageUrl) {
   });
 }
 
+// Reduz uma data-URL de capa (base64) pra uma miniatura leve num canvas.
+// Idempotente: re-encolher uma capa já pequena é barato e inofensivo; se o
+// que chega NÃO é data-URL (ex.: URL remota do Spotify), devolve como está.
+// Usada na extração do ID3 (bibCapaParaDataUrl) E na hora de mandar pra fila
+// (addToQueue) — entradas ANTIGAS da Biblioteca guardaram a capa ORIGINAL
+// gigante (de antes do encolhimento existir), e mandar esse blob no
+// POST /api/queue estoura o limite do body-parser (PayloadTooLargeError).
+function shrinkCoverDataUrl(dataUrl, max = 300, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:')) { resolve(dataUrl || null); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (width >= height) { if (width > max) { height = Math.round(height * max / width); width = max; } }
+        else if (height > max) { width = Math.round(width * max / height); height = max; }
+        const c = document.createElement('canvas'); c.width = width; c.height = height;
+        c.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(c.toDataURL('image/jpeg', quality));
+      } catch { resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 // Carrega a IFrame API do YouTube uma única vez (compartilhada na página)
 function loadYouTubeApi() {
   return new Promise((resolve) => {
@@ -2253,9 +2279,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     // Faixa da Biblioteca Local (MP3 próprio, tocado via Alexa/SSML no servidor)
     // não tem uri/spotify_id — manda mp3_url + source:'local' em vez disso; o
     // servidor decide, na hora de tocar, qual dos dois caminhos usar.
+    // Encolhe a capa ANTES de mandar: entradas antigas da Biblioteca guardaram
+    // a capa original gigante (base64), que estoura o body-parser do servidor
+    // (PayloadTooLargeError). shrinkCoverDataUrl é no-op se já for pequena/URL.
+    const artSegura = track.source === 'local'
+      ? await shrinkCoverDataUrl(track.album_art)
+      : track.album_art;
     const corpo = track.source === 'local'
       ? { source: 'local', mp3_url: track.mp3_url, title: track.title, artist: track.artist,
-          album_art: track.album_art, requested_by: myName,
+          album_art: artSegura, requested_by: myName,
           duration_ms: track.duration_ms, duration_str: track.duration_str, is_admin: isAdmin }
       : { uri: track.uri, spotify_id: track.id,
           title: track.title, artist: track.artist,
@@ -2294,27 +2326,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // à toa a coluna `album_art` do banco, já que aqui ela só vira uma miniatura de
   // 40-56px. Redesenha num canvas pequeno antes de guardar (mesma ideia do
   // `frameFromFile` em dashboard-rh/index.jsx).
-  const bibCapaParaDataUrl = (picture) => new Promise((resolve) => {
-    if (!picture?.data?.length) { resolve(null); return; }
+  const bibCapaParaDataUrl = (picture) => {
+    if (!picture?.data?.length) return Promise.resolve(null);
     let bin = '';
     const bytes = picture.data;
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
     const dataUrlOriginal = `data:${picture.format || 'image/jpeg'};base64,${btoa(bin)}`;
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const MAX = 300;
-        let { width, height } = img;
-        if (width >= height) { if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; } }
-        else if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
-        const c = document.createElement('canvas'); c.width = width; c.height = height;
-        c.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(c.toDataURL('image/jpeg', 0.82));
-      } catch { resolve(dataUrlOriginal); }
-    };
-    img.onerror = () => resolve(dataUrlOriginal);
-    img.src = dataUrlOriginal;
-  });
+    return shrinkCoverDataUrl(dataUrlOriginal);
+  };
 
   const bibFmtDuracao = (ms) => {
     if (!ms || ms <= 0) return '--:--';
