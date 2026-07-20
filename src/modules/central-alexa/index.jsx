@@ -920,9 +920,14 @@ const QueueAvatar = ({ name, photo, onExpand }) => {
 async function extractAlbumColors(imageUrl) {
   return new Promise((resolve) => {
     if (!imageUrl) { resolve(null); return; }
-    const proxied = `${SERVER_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+    // Capa da Biblioteca Local já é um data-URL (base64 inline) — não tem CORS
+    // pra contornar (não é uma requisição de rede) e o proxy do servidor não
+    // sabe buscar um "data:" (só serve pra URL remota tipo CDN do Spotify).
+    // Mandar pro proxy dava um ERR_FAILED no console e nunca extraía a cor.
+    const isDataUrl = imageUrl.startsWith('data:');
+    const proxied = isDataUrl ? imageUrl : `${SERVER_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!isDataUrl) img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
         const W = 80, H = 80;
