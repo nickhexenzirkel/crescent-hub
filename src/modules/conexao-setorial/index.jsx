@@ -862,16 +862,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const [showAssign, setShowAssign] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [editDesc, setEditDesc] = useState(false);
-  // Prévia CONGELADA da descrição, capturada só no instante em que entra no
-  // modo de edição — NUNCA amarrada direto no `card.description` ao vivo.
-  // Sem isso, o polling/realtime do quadro (que atualiza `card` a cada poucos
-  // segundos) reaplicava o `dangerouslySetInnerHTML` com o valor antigo do
-  // banco por cima do que a pessoa estava digitando: o texto "voltava pro
-  // começo" e sumia a edição em andamento. `saveDesc` continua comparando
-  // contra o `card.description` AO VIVO (não este snapshot) pra decidir se
-  // salva — só a exibição durante a digitação precisa ficar congelada.
-  const [descSnapshot, setDescSnapshot] = useState(card.description || '');
-  const abrirEdicaoDesc = () => { setDescSnapshot(card.description || ''); setEditDesc(true); };
+  const abrirEdicaoDesc = () => setEditDesc(true);
   const [fontLevel, setFontLevel] = useState(3);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -880,6 +871,22 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const descRef = useRef(null);
 
   useEffect(() => { setTitle(card.title); setEditDesc(false); setShowMenu(false); }, [card.id]); // eslint-disable-line
+
+  // Preenche o innerHTML do editor SÓ no instante em que entra no modo de
+  // edição (nunca de novo depois disso). O polling/realtime do quadro
+  // atualiza `card` a cada poucos segundos (qualquer mudança em QUALQUER
+  // card da sala dispara um reload), e amarrar o innerHTML direto no
+  // `card.description` ao vivo (via dangerouslySetInnerHTML) reaplicava o
+  // valor antigo do banco por cima do que a pessoa estava digitando — o
+  // texto "voltava pro começo" e sumia a edição em andamento. Escrevendo o
+  // innerHTML imperativamente aqui, uma única vez por sessão de edição, o
+  // <div contentEditable> nunca mais é tocado por fora enquanto `editDesc`
+  // continuar true — não depende de nenhuma suposição sobre reconciliação
+  // do React pra dangerouslySetInnerHTML.
+  useEffect(() => {
+    if (editDesc && descRef.current) descRef.current.innerHTML = card.description || '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editDesc]);
 
   const images = card.images || [];
 
@@ -1020,7 +1027,6 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                   <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => changeFont(1)} title="Aumentar letra" style={{ ...tbStyle, fontSize: 16, fontWeight: 800 }}>A+</button>
                 </div>
                 <div ref={descRef} contentEditable suppressContentEditableWarning
-                  dangerouslySetInnerHTML={{ __html: descSnapshot }}
                   style={{ minHeight: 170, maxHeight: 320, overflowY: 'auto', padding: '14px 16px', fontSize: 15.5, lineHeight: 1.6, color: T.text, outline: 'none', wordBreak: 'break-word' }} />
                 <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${brd}` }}>
                   <button className="cs-btn" onClick={saveDesc} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '8px 18px', fontWeight: 700, fontSize: 13 }}>Salvar</button>
