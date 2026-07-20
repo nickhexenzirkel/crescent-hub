@@ -143,10 +143,13 @@ const MAPAS = {
     id: 'cidade', nome: 'Cidade Futurista', emoji: '🏙️',
     desc: 'Neon, arranha-céus e lua cheia',
     fundo: 'fundo-cidade', chao: 'chao-cidade',
-    // Prédios BEM altos e grandes (senão ficam parecendo arbustinho longe da
-    // pista) — cenarioOffset mais curto que o padrão pra eles ficarem mais
-    // perto da pista também, sem tanto chão vazio entre a via e os prédios.
-    cenarios: ['cenario-predio-1', 'cenario-predio-2'], cenarioLarg: 2.6, cenarioOffset: 1.6,
+    // Prédios grandes (senão ficam parecendo arbustinho longe da pista), mas
+    // SEM reduzir o offset — como a largura desenhada escala com cenarioLarg,
+    // um prédio largo (2.6) com offset curto (1.6) sobra pra dentro da pista
+    // (largura/2 > distância do centro até o prédio), daí ele "invade" a via.
+    // Com offset padrão (2.2) e cenarioLarg moderado, a borda do prédio fica
+    // acima da borda da pista com folga.
+    cenarios: ['cenario-predio-1', 'cenario-predio-2'], cenarioLarg: 2.0,
   },
   campo: {
     id: 'campo', nome: 'Campo', emoji: '🌳',
@@ -1276,17 +1279,14 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
         if (p1.z <= CAM_D) continue;
-        // CENÁRIO de beira de pista — afastado da pista (padrão 2.2× a meia-
-        // largura, mapas podem encurtar com cenarioOffset) pra nunca invadir/
-        // cobrir a pista (senão parece que o carro os atropela). Teto de
-        // tamanho bem alto (90% da tela) — senão prédio grande de propósito
-        // (cenarioLarg alto) fica cortado no zoom de perto e parece pequeno.
+        // CENÁRIO de beira de pista — BEM afastado da pista (2.2× a meia-largura)
+        // pra nunca invadir/cobrir a pista (senão parece que o carro os atropela).
         if (seg.cenario && p1.sw > 5 && sprCenarios.length) {
           const { lado, variante } = seg.cenario;
           const spr = sprCenarios[variante % sprCenarios.length];
           if (spr?.ok) {
-            const cx = p1.sx + lado * p1.sw * (tema.cenarioOffset ?? 2.2);   // longe da pista
-            const larg = Math.min(w * 0.9, p1.sw * tema.cenarioLarg);
+            const cx = p1.sx + lado * p1.sw * 2.2;                       // longe da pista
+            const larg = Math.min(w * 0.6, p1.sw * tema.cenarioLarg);
             if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
           }
         }
