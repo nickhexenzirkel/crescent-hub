@@ -398,7 +398,7 @@ const TabUnikoFaster = () => {
       backgroundImage: pal.titleGrad, backgroundSize: '250% 100%' };
     conteudo = (
       <div style={{ height: '100%', overflowY: 'auto' }}>
-        <div style={{ position: 'relative', height: etapa === 0 ? '100%' : undefined, minHeight: '100%', overflow: 'hidden', padding: etapa === 0 ? 0 : 12, background: pal.bg }}>
+        <div style={{ position: 'relative', height: '100%', minHeight: '100%', overflow: 'hidden', padding: 0, background: pal.bg }}>
           <style>{FASTER_CSS}</style>
           <audio ref={menuAudio} src={menuTrack} loop preload="auto" />
           {/* brilhos neon de fundo */}
@@ -406,7 +406,7 @@ const TabUnikoFaster = () => {
           <div className="uf-blob uf-blob2" style={{ width: 520, height: 520, top: 40, right: -190, background: `radial-gradient(circle, ${pal.blob2}, transparent 70%)` }} />
           <div className="uf-blob uf-blob3" style={{ width: 540, height: 540, bottom: -220, left: '26%', background: `radial-gradient(circle, ${pal.blob3}, transparent 70%)` }} />
 
-          <div style={{ position: 'relative', zIndex: 1, maxWidth: etapa === 0 ? '100%' : 760, height: etapa === 0 ? '100%' : undefined, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: etapa === 0 ? 0 : 20 }}>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '100%', height: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 0 }}>
 
             {/* ══ ETAPA 0 — HERO com MOLDURA preenchendo TODA a área do jogo ══ */}
             {etapa === 0 && (
@@ -447,25 +447,37 @@ const TabUnikoFaster = () => {
                 </div>
                 {/* TELA CHEIA — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
                 <button className="uf-btn" onClick={toggleTelaCheia}
-                  style={{ position: 'absolute', left: '50%', bottom: '23%', transform: 'translateX(-50%)', zIndex: 2,
+                  style={{ position: 'absolute', left: '50%', bottom: '15%', transform: 'translateX(-50%)', zIndex: 2,
                     display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
                     fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
                   ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
                 </button>
-                {/* JOGAR — preenchido e centralizado no slot (ATRÁS da moldura) */}
+                {/* JOGAR — encaixado DENTRO da pílula vazada da moldura.
+                    As medidas seguem o mask do SpeedFrame (x 558..1122, y 874..946
+                    num viewBox de 1680x950), por isso os percentuais quebrados. */}
                 <button className="uf-btn uf-cta" onClick={() => setEtapa(1)}
-                  style={{ position: 'absolute', left: '50%', bottom: '8.5%', transform: 'translateX(-50%)', zIndex: 2,
-                    ...ctaStyle, width: 'min(35%, 560px)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 'clamp(15px, 1.7vw, 21px)', padding: 'clamp(12px, 1.9vh, 18px) 16px', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
+                  style={{ position: 'absolute', left: '50%', top: '95.8%', transform: 'translate(-50%,-50%)', zIndex: 2,
+                    ...ctaStyle, width: '33.6%', height: '7.6%', minHeight: 34, padding: 0,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 'clamp(13px, 1.6vw, 20px)', whiteSpace: 'nowrap' }}>▶ JOGAR</button>
 
                 {/* MOLDURA por cima (centro vazado) — desenhada em vetor, não é mais imagem */}
                 <SpeedFrame style={{ zIndex: 3 }} />
               </div>
             )}
 
-            {/* ══ ETAPAS 1-4 — WIZARD ══ */}
+            {/* ══ ETAPAS 1-4 — WIZARD, dentro da mesma moldura da tela inicial ══ */}
             {etapa >= 1 && (
-              <div style={painel}>
+              <div className="uf-hero-frame" style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
+                {/* fundo dentro da abertura */}
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 30, overflow: 'hidden',
+                  background: pal.panelBg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+                  <div className="uf-grid" style={{ opacity: 0.1 }} />
+                </div>
+                {/* conteúdo do wizard rola dentro da abertura da moldura */}
+                <div style={{ position: 'absolute', top: '8%', left: '5.5%', right: '5.5%', bottom: '8%',
+                  overflowY: 'auto', zIndex: 2 }}>
+                  <div style={{ ...painel, maxWidth: 760, margin: '0 auto' }}>
                 {/* topo: voltar · logo · passo */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
                   <button className="uf-btn" style={voltarStyle} onClick={() => setEtapa(e => e - 1)}>◂ Voltar</button>
@@ -586,6 +598,10 @@ const TabUnikoFaster = () => {
                     <div style={{ ...secSub, marginTop: 12 }}>Toque em <b style={{ color: pal.txt2 }}>Voltar</b> pra trocar algo.</div>
                   </div>
                 )}
+                  </div>
+                </div>
+                {/* MOLDURA por cima — sem o vão do JOGAR nestas telas */}
+                <SpeedFrame slot={false} style={{ zIndex: 3 }} />
               </div>
             )}
           </div>
