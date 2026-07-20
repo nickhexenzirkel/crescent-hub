@@ -4,7 +4,6 @@ import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { UnikoOrigin } from './UnikoOrigin';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { podeConexaoSetorial } from '../contexts/user';
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
    AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
@@ -129,11 +128,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
-    {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Mensagens internas · Comunicados', icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'lobby-estelar',    label:'Lobby Estelar',         sub:'Espaço social · Andar e conversar', icon:IcoLobby,      color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
   ];
-  const mods = allMods.filter(m => !m.adminOnly || isAdmin
-    || (m.id === 'conexao-setorial' && podeConexaoSetorial(authUser)));
+  const mods = allMods.filter(m => !m.adminOnly || isAdmin);
 
   // ─── MOBILE ────────────────────────────────────────────────────────────────
   if (isMobile) {
