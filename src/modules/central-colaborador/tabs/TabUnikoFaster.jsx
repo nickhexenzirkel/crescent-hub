@@ -17,6 +17,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { T } from '../../../contexts/theme';
 import { SpeedFrame } from './SpeedFrame';
+// Import circular de propósito: SpeedRoom reaproveita Corrida/TRACADOS/etc.
+// exportados lá embaixo neste arquivo. Seguro aqui porque nenhum dos dois
+// lados usa o que importa do outro NO TOPO do módulo — só dentro do corpo de
+// componentes, que só rodam depois que os dois módulos já terminaram de
+// carregar (ESM resolve isso; testado com `vite build`).
+import SpeedRoom from './SpeedRoom';
 
 /* ── Música ──────────────────────────────────────────────────────────────── */
 // Biblioteca embutida (mesmos IDs das músicas iniciais do Uniko Wave).
@@ -58,13 +64,22 @@ const OFFROAD_DECEL = -MAX_SPEED / 2;
 const OFFROAD_MAX = MAX_SPEED / 4.2;
 const CENTRIFUGAL = 0.22;
 // Nitro (boost estilo Speedstorm): medidor 0..1, gasta rápido, recarrega devagar.
+// Balanceado pensando em corrida CONTRA GENTE (não só bots): sem NITRO_REGEN_DELAY,
+// dar toques curtos e frequentes ("pulsar" o boost) rendia mais tempo turbinado do
+// que segurar até zerar e esperar — porque o tanque voltava a encher no instante em
+// que soltava a tecla. Com a carência, soltar por menos que ela não regenera NADA,
+// então pulsar fica pior que um blefe deliberado (ver conta no comentário abaixo).
 const NITRO_MAX = 1;
-const NITRO_DRAIN = 0.42;     // por segundo em uso
-const NITRO_FILL = 0.075;     // recarrega por segundo correndo
-const BOOST_MULT = 1.45;      // teto de velocidade durante o nitro
+const NITRO_DRAIN = 0.5;      // por segundo em uso — tanque cheio dura ~2.0s contínuos
+const NITRO_FILL = 0.10;      // recarrega por segundo parado — 0→cheio em ~10s
+const NITRO_REGEN_DELAY = 0.4; // segundos sem NENHUM regen logo após soltar o boost
+const BOOST_MULT = 1.4;       // teto de velocidade durante o nitro
 // Rampas de TURBO na pista (atalho de velocidade pra ultrapassar): pisou, disparou.
-const TURBO_MULT = 1.6;       // teto de velocidade em cima/logo após a rampa
-const TURBO_DUR = 1.1;        // segundos que o impulso dura depois de sair da rampa
+// ~10% mais fracas que antes: numa corrida multiplayer a pista é COMPARTILHADA (ver
+// montarPista/seed), então as rampas deixam de ser "sorte do RNG de cada um" e viram
+// um recurso disputado de verdade — todo mundo passa pelas mesmas, todo volta.
+const TURBO_MULT = 1.5;       // teto de velocidade em cima/logo após a rampa
+const TURBO_DUR = 1.0;        // segundos que o impulso dura depois de sair da rampa
 const RIVAIS_N = 5;
 const VOLTA_MAX = 60;         // teto de SEGURANÇA (a corrida acaba junto com a música)
 
@@ -76,6 +91,34 @@ const COR = {
 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ── PRNG seedado (multiplayer) ────────────────────────────────────────────
+   No modo solo de sempre, `montarPista`/`montarRivais` usam Math.random() cru
+   (comportamento intocado). Numa SALA multiplayer, porém, rampas de turbo,
+   obstáculos, cenário e o ritmo de cada bot precisam ser IDÊNTICOS em todo
+   cliente — sem isso, cada navegador vê uma pista diferente e o "rank" de
+   todo mundo fica sem sentido. A solução é gerar tudo a partir de um único
+   número (a `seed`, derivada de sala+traçado+nº da corrida) que É a única
+   coisa que trafega pela rede: cada cliente reconstrói a pista/bots sozinho,
+   de forma determinística, a partir dele — nunca a pista inteira. */
+const hashSeed = (s) => {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+};
+const mulberry32 = (seed) => () => {
+  seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+// Fábrica de rnd(a,b): sem seed devolve o Math.random() de sempre; com seed,
+// devolve sempre a MESMA sequência para o mesmo número.
+const rndFactory = (seed) => {
+  if (seed == null) return rnd;
+  const gerar = mulberry32(seed);
+  return (a, b) => a + gerar() * (b - a);
+};
 
 /* ── Sprites personalizados (PNG em /public/unikofaster/) ──────────────────────
    Carrega uma vez e guarda em cache. Cada sprite tem .ok (carregou) — o desenho
@@ -138,7 +181,10 @@ const TRACADOS = [
 const TRACADO_PADRAO = 0;
 
 // Constrói a pista a partir de um traçado (lista de trechos). Loopável.
-function montarPista(trechos = TRACADOS[TRACADO_PADRAO].trechos) {
+// `seed`: só usado no multiplayer — com ele, rampas/obstáculos/cenário saem
+// IDÊNTICOS em qualquer cliente que passe o mesmo número (ver rndFactory).
+function montarPista(trechos = TRACADOS[TRACADO_PADRAO].trechos, seed = null) {
+  const rnd = rndFactory(seed);   // sombreia o rnd() do módulo só dentro desta função
   const segs = [];
   const add = (curve, y) => {
     const n = segs.length;
@@ -183,7 +229,7 @@ function montarPista(trechos = TRACADOS[TRACADO_PADRAO].trechos) {
   // pista (não atrapalham).
   let vk = 0;
   for (let i = 24; i < segs.length; i += Math.floor(rnd(6, 12))) {
-    segs[i].cenario = { lado: Math.random() < 0.5 ? -1 : 1, variante: vk++ };
+    segs[i].cenario = { lado: rnd(0, 1) < 0.5 ? -1 : 1, variante: vk++ };
   }
   for (let k = 1; k <= 5; k++) {
     const i = Math.floor((segs.length / 6) * k);
@@ -232,10 +278,16 @@ const RIVAL_DEFS = [
   { cor: '#22c55e', spr: 'rival-verde', nome: 'Rex' },
   { cor: '#e879f9', spr: 'rival-rosa', nome: 'Ace' },
 ];
-function montarRivais() {
+// `seed`: como em montarPista, só usado no multiplayer — garante que o ritmo
+// (`base`) de cada bot seja o MESMO em todo cliente da sala (o `rank` de todos
+// depende da posição desses bots, então eles não podem divergir por cliente).
+// `count`: quantos bots entram (no multiplayer, só o suficiente pra completar
+// o grid — quanto mais gente de verdade entrar, menos bots aparecem).
+function montarRivais(seed = null, count = RIVAIS_N) {
+  const rnd = rndFactory(seed);   // sombreia o rnd() do módulo só dentro desta função
   // GRID DE LARGADA: fileiras alternadas (esquerda/direita), logo à frente da
   // linha de partida, escalonados como num grid de kart.
-  return Array.from({ length: RIVAIS_N }, (_, i) => {
+  return Array.from({ length: count }, (_, i) => {
     const fila = Math.floor(i / 2);
     const def = RIVAL_DEFS[i % RIVAL_DEFS.length];
     return {
@@ -279,7 +331,7 @@ const PreviaPista = ({ tracado = 0, cor = US_ACCENT }) => {
    COMPONENTE
    ═══════════════════════════════════════════════════════════════════════════ */
 const TabUnikoFaster = () => {
-  const [tela, setTela] = useState('menu');   // menu | correndo
+  const [tela, setTela] = useState('menu');   // menu | correndo | multiplayer
   const [trilha, setTrilha] = useState(null); // {vid, title}
   const [link, setLink] = useState('');
   const [erroLink, setErroLink] = useState('');
@@ -445,13 +497,20 @@ const TabUnikoFaster = () => {
                     </div>
                   )}
                 </div>
-                {/* TELA CHEIA — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
-                <button className="uf-btn" onClick={toggleTelaCheia}
-                  style={{ position: 'absolute', left: '50%', bottom: '15%', transform: 'translateX(-50%)', zIndex: 2,
-                    display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
-                    fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
-                  ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
-                </button>
+                {/* TELA CHEIA + MULTIPLAYER — acima do JOGAR (ATRÁS da moldura, na área aberta) */}
+                <div style={{ position: 'absolute', left: '50%', bottom: '15%', transform: 'translateX(-50%)', zIndex: 2,
+                  display: 'flex', gap: 8 }}>
+                  <button className="uf-btn" onClick={toggleTelaCheia}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 12, fontWeight: 800, color: pal.txt2, background: pal.unselBg, border: `1px solid ${pal.unselBorder}`, whiteSpace: 'nowrap' }}>
+                    ⛶ {telaCheia ? 'Sair da tela cheia' : 'Tela cheia'}
+                  </button>
+                  <button className="uf-btn" onClick={() => setTela('multiplayer')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 15px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 12, fontWeight: 800, color: '#fff', background: 'linear-gradient(135deg,#7c3aed,#db2777)', border: 'none', whiteSpace: 'nowrap' }}>
+                    👥 Multiplayer
+                  </button>
+                </div>
                 {/* JOGAR — encaixado DENTRO da pílula vazada da moldura.
                     As medidas seguem o mask do SpeedFrame (x 558..1122, y 874..946
                     num viewBox de 1680x950), por isso os percentuais quebrados. */}
@@ -608,8 +667,13 @@ const TabUnikoFaster = () => {
         </div>
       </div>
     );
+  } else if (tela === 'multiplayer') {
+    /* ── MULTIPLAYER: salas com código, competindo com os colegas ──
+       Reaproveita a mesma <Corrida> do solo por dentro (ver SpeedRoom.jsx) —
+       não é um jogo à parte, só ganha uma camada de sala/rede em cima. */
+    conteudo = <SpeedRoom onSair={() => setTela('menu')} />;
   } else {
-    /* ── CORRIDA ── */
+    /* ── CORRIDA (solo) ── */
     conteudo = (
       <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
         pausado={pausado} setPausado={setPausado}
@@ -629,7 +693,27 @@ const TabUnikoFaster = () => {
 /* ═══════════════════════════════════════════════════════════════════════════
    CORRIDA — canvas pseudo-3D + iframe de música
    ═══════════════════════════════════════════════════════════════════════════ */
-const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar }) => {
+// Props de multiplayer (todas opcionais — ausentes, o comportamento é 100%
+// igual ao solo de sempre):
+//   multiplayer   liga o modo (pista/rivais seedados, fim por voltas, largada
+//                 sincronizada) em vez de reescrever o componente
+//   seed          número compartilhado pela sala — pista/ritmo dos bots saem
+//                 IDÊNTICOS em todo cliente (ver montarPista/montarRivais)
+//   laps          nº de voltas que encerra a corrida (em vez de "música acabou")
+//   countdownEndsAt  timestamp (Date.now()) em que a largada libera — todo
+//                 cliente calcula a MESMA contagem regressiva a partir dele
+//   humanPlayers  [{name, cor, spr}] — um rival por humano na sala (os bots
+//                 completam o resto do grid)
+//   remoteRivaisRef  ref mutável (dono é o SpeedRoom) com o ÚLTIMO pacote de
+//                 rede recebido de cada humano — Corrida só LÊ, a cada frame,
+//                 pra interpolar (nunca escreve física de rival remoto aqui)
+//   onPosTick     callback (throttled a ~12Hz) com a posição local, pro
+//                 SpeedRoom transmitir pelo canal de broadcast
+//   onRaceEnd     callback quando ESTE cliente termina (rank final), pro
+//                 SpeedRoom decidir o que fazer (só o host grava o resultado)
+const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar,
+  multiplayer = false, seed = null, laps = null, countdownEndsAt = null, humanPlayers = null,
+  remoteRivaisRef = null, onPosTick = null, onRaceEnd = null }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
   const estado = useRef(null);
@@ -664,9 +748,32 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const pista = montarPista(TRACADOS[tracado]?.trechos);
+    const pista = montarPista(TRACADOS[tracado]?.trechos, multiplayer ? seed : null);
     const trackLen = pista.length * SEG_LEN;
-    const rivais = montarRivais();
+    // Multiplayer: um rival por humano na sala + bots o suficiente pra completar
+    // o grid (CAMPO_ALVO no total, incluindo você). Menos gente de verdade,
+    // mais bots aparecem — nunca uma corrida vazia com só 2 pessoas.
+    const CAMPO_ALVO = 6;
+    const humanos = multiplayer && humanPlayers ? humanPlayers : [];
+    const botsN = multiplayer ? Math.max(0, CAMPO_ALVO - 1 - humanos.length) : RIVAIS_N;
+    const bots = montarRivais(multiplayer ? seed : null, botsN);
+    const rivaisHumanos = humanos.map((p, i) => {
+      const posInicial = SEG_LEN * (14 + Math.floor((botsN + i) / 2) * 6);   // mesmo grid escalonado dos bots
+      const xInicial = (botsN + i) % 2 === 0 ? -0.5 : 0.5;
+      return {
+        pos: posInicial, x: xInicial,
+        cor: p.cor, spr: p.spr, nome: p.name,
+        name: p.name,        // chave pra casar com os pacotes de rede recebidos
+        isHuman: true,
+        // alvo/atual de interpolação — atualizados pelos pacotes de rede, nunca
+        // pela IA (ver bloco "RIVAIS" no loop de física, mais abaixo). Começam
+        // iguais à posição inicial pra não "puxar" o carro assim que o 1º
+        // pacote real chegar.
+        targetPos: posInicial, targetX: xInicial, targetSpeed: 0, targetTraveled: 0, recebidoEm: 0,
+        base: 0, speed: 0, traveled: 0, lento: 0, turbo: 0,
+      };
+    });
+    const rivais = multiplayer ? [...bots, ...rivaisHumanos] : bots;
     const sprCarro = carregarSprite('carro-jogador');   // chase cam do jogador
     rivais.forEach(r => { r.sprite = carregarSprite(r.spr); });   // PNG de cada rival
     const sprCone = carregarSprite('cone');
@@ -679,10 +786,16 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
     const st = {
       pos: 0, playerX: 0, speed: 0, tempo: 0, batendo: 0,
       nitro: NITRO_MAX, boost: 0,       // medidor 0..1 e intensidade visual do boost
+      nitroReleasedAt: null,            // quando soltou o boost (carência de regen)
       turbo: 0,                         // impulso ativo de rampa (segundos restantes)
       traveled: 0, rank: 1,             // distância total e colocação
       bgOffset: 0,                      // parallax do fundo (desliza nas curvas)
-      largada: 3.2,                     // contagem regressiva antes de liberar (3,2,1,JÁ!)
+      // No multiplayer a largada vem de um instante de relógio COMPARTILHADO
+      // (countdownEndsAt, gravado pelo host) — assim o "JÁ!" cai no mesmo
+      // instante em toda tela, em vez de 3.2s depois de cada cliente montar a
+      // corrida em momentos ligeiramente diferentes. No solo, 3.2s fixo de sempre.
+      largada: (multiplayer && countdownEndsAt) ? Math.max(0, (countdownEndsAt - Date.now()) / 1000) : 3.2,
+      posSeq: 0,                        // nº sequencial dos pacotes de posição enviados
     };
     estado.current = st;
 
@@ -834,8 +947,18 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         // ── NITRO / BOOST ──
         const querBoost = (teclas.current.boost || teclas.current.shift) && largou;
         const podeBoost = querBoost && st.nitro > 0.02 && st.speed > MAX_SPEED * 0.2;
-        if (podeBoost) st.nitro = Math.max(0, st.nitro - NITRO_DRAIN * dt);
-        else st.nitro = Math.min(NITRO_MAX, st.nitro + NITRO_FILL * dt);
+        if (podeBoost) {
+          st.nitro = Math.max(0, st.nitro - NITRO_DRAIN * dt);
+          st.nitroReleasedAt = null;   // segurando — zera a carência de regen
+        } else {
+          // NITRO_REGEN_DELAY: só começa a encher um tanto DEPOIS de soltar a tecla,
+          // não no instante em que solta. Sem isso, dar toques curtos (pulsar) rendia
+          // mais tempo turbinado que segurar até zerar — ver comentário na constante.
+          if (st.nitroReleasedAt == null) st.nitroReleasedAt = st.tempo;
+          if (st.tempo - st.nitroReleasedAt >= NITRO_REGEN_DELAY) {
+            st.nitro = Math.min(NITRO_MAX, st.nitro + NITRO_FILL * dt);
+          }
+        }
         // intensidade visual do boost: sobe se nitro OU rampa ativos
         const impulso = podeBoost || st.turbo > 0;
         st.boost = impulso ? Math.min(1, st.boost + dt * 4) : Math.max(0, st.boost - dt * 3);
@@ -869,18 +992,51 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         if (st.pos < 0) st.pos += trackLen;
         st.traveled += st.speed * dt;
         st.bgOffset += (segNaCam.curve || 0) * velRel * dt * 140;   // fundo desliza na curva
-        // VOLTAS: cada trackLen percorrido = 1 volta. A corrida acaba quando a
-        // MÚSICA termina (st.acabar, vindo da API do YouTube) — ou no teto de
-        // segurança VOLTA_MAX, caso a música não sinalize o fim.
+        // VOLTAS: cada trackLen percorrido = 1 volta.
+        // Solo: a corrida acaba quando a MÚSICA termina (st.acabar, vindo da API
+        // do YouTube) — ou no teto de segurança VOLTA_MAX.
+        // Multiplayer: acaba num nº de VOLTAS fixo, igual pra sala inteira — a
+        // pista já é idêntica pra todos (seed), então não precisa de relógio de
+        // parede nenhum aqui; a música toca só como trilha, sem autoridade
+        // nenhuma sobre o fim (ver comentário no onStateChange do YouTube).
         st.volta = Math.floor(st.traveled / trackLen) + 1;
-        if (largou && (st.acabar || st.traveled >= trackLen * VOLTA_MAX) && !fimRef.current) {
+        const acabouMultiplayer = multiplayer && laps && st.traveled >= trackLen * laps;
+        const acabouSolo = !multiplayer && st.acabar;
+        const tetoSeguranca = st.traveled >= trackLen * VOLTA_MAX;   // vale pros dois modos
+        if (largou && (acabouMultiplayer || acabouSolo || tetoSeguranca) && !fimRef.current) {
           st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
           fimRef.current = true;
-          setFim({ rank: st.rank, voltas: st.volta });
+          setFim({ rank: st.rank, voltas: st.volta, campo: rivais.length + 1 });
+          if (onRaceEnd) onRaceEnd({ rank: st.rank, traveled: st.traveled });
         }
 
         // ── RIVAIS ──
         rivais.forEach(r => {
+          if (r.isHuman) {
+            // Rival REMOTO: nunca simula física própria aqui — só INTERPOLA o
+            // último pacote de rede recebido (ver SpeedRoom). `x` faz um lerp
+            // simples; `pos`/`traveled` avançam por dead-reckoning na última
+            // velocidade conhecida e se corrigem suavemente quando chega pacote
+            // novo, pra um soluço de rede não "teleportar" o carro na tela.
+            const pkt = remoteRivaisRef?.current?.[r.name];
+            if (pkt) {
+              if (pkt.recebidoEm !== r.recebidoEm) {
+                // pacote novo: adota como alvo (a correção suave já vem do lerp abaixo)
+                r.targetPos = pkt.pos; r.targetX = pkt.playerX;
+                r.targetSpeed = pkt.speed; r.targetTraveled = pkt.traveled;
+                r.recebidoEm = pkt.recebidoEm;
+              }
+            }
+            r.x += (r.targetX - r.x) * Math.min(1, dt * 12);
+            // dead-reckoning: anda na última velocidade conhecida...
+            r.pos = (r.pos + r.targetSpeed * dt) % trackLen;
+            r.traveled += r.targetSpeed * dt;
+            // ...e corrige suavemente rumo ao alvo real (nunca salto brusco)
+            r.pos += (r.targetPos - r.pos) * Math.min(1, dt * 6);
+            r.traveled += (r.targetTraveled - r.traveled) * Math.min(1, dt * 6);
+            r.speed = r.targetSpeed;
+            return;
+          }
           // "tomou dano" ao bater num cone → fica lento por um tempo
           if (r.lento > 0) r.lento -= dt;
           if (r.turbo > 0) r.turbo -= dt;
@@ -909,6 +1065,16 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         });
         // COLOCAÇÃO: 1º + quantos rivais percorreram mais que eu
         st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
+
+        // ── ENVIO DE POSIÇÃO (multiplayer): ~12x/s, não todo frame ──
+        if (multiplayer && onPosTick && largou) {
+          const agora12 = Math.floor(st.tempo * 12) !== Math.floor((st.tempo - dt) * 12);
+          if (agora12) {
+            st.posSeq++;
+            onPosTick({ pos: st.pos, playerX: st.playerX, speed: st.speed, traveled: st.traveled,
+              boost: st.boost > 0.15, nitro: st.nitro, seq: st.posSeq });
+          }
+        }
       }
 
       const baseSeg = Math.floor(st.pos / SEG_LEN);
@@ -1129,7 +1295,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         const distM = Math.floor(st.traveled / 100);   // "metros" percorridos no total
         const b = Math.max(bestRef.current, distM);
         if (b > bestRef.current) { bestRef.current = b; setBest(b); try { localStorage.setItem('uf_best', String(b)); } catch { /* sem storage */ } }
-        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1, boost: st.boost > 0.15 });
+        setHud({ vel: Math.floor(st.speed / SEG_LEN * 4), dist: distM, best: b, rank: st.rank, nitro: st.nitro, volta: st.volta || 1, boost: st.boost > 0.15, campo: rivais.length + 1 });
       }
 
       rafRef.current = requestAnimationFrame(frame);
@@ -1157,6 +1323,12 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       cancelAnimationFrame(rafRef.current); ro.disconnect();
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- multiplayer/seed/laps/
+    // countdownEndsAt/humanPlayers/remoteRivaisRef/onPosTick/onRaceEnd de propósito
+    // fora da lista: o SpeedRoom remonta <Corrida key={raceCounter}> a cada corrida
+    // nova (mesmo truque do corridaKey do solo), então dentro de UMA corrida esses
+    // valores já nascem estáveis — reagir a mudança deles aqui recriaria a pista/
+    // rivais no meio da partida sem necessidade.
   }, [mapa, tracado, bestRef, setBest, setHud, setPausado, setFim]);
 
   // botões de toque (celular) — setam as mesmas flags
@@ -1213,7 +1385,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
             {hud.rank}º
           </div>
           <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.9)', textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
-            de {RIVAIS_N + 1}
+            de {hud.campo || RIVAIS_N + 1}
           </div>
           <div style={{ fontSize: 13, fontWeight: 800, color: '#22d3ee', marginTop: 6, textShadow: '0 2px 6px rgba(0,0,0,.6)' }}>
             🏁 Volta {hud.volta || 1}
@@ -1296,18 +1468,25 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
               {venceu ? 'VOCÊ VENCEU!' : 'Corrida encerrada!'}
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#22d3ee' }}>
-              Você chegou em <b style={{ color: '#fff' }}>{fim.rank}º</b> de {RIVAIS_N + 1}
+              Você chegou em <b style={{ color: '#fff' }}>{fim.rank}º</b> de {fim.campo || RIVAIS_N + 1}
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)' }}>
-              🎵 a música acabou · {fim.voltas || hud.volta || 1} volta{(fim.voltas || 1) > 1 ? 's' : ''} · 🏁 recorde {hud.best.toLocaleString('pt-BR')} m
+              {multiplayer ? '🏁' : '🎵 a música acabou ·'} {fim.voltas || hud.volta || 1} volta{(fim.voltas || 1) > 1 ? 's' : ''} · 🏁 recorde {hud.best.toLocaleString('pt-BR')} m
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button className="uf-btn" onClick={onReiniciar}
-                style={{ padding: '12px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
-                  cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Correr de novo</button>
+              {/* "Correr de novo" reinicia sozinho (bump de key) — no multiplayer
+                  isso exigiria coordenar toda a sala de novo, então some daqui;
+                  é o host quem decide uma revanche, lá no lobby da sala. */}
+              {!multiplayer && (
+                <button className="uf-btn" onClick={onReiniciar}
+                  style={{ padding: '12px 28px', borderRadius: 999, border: 'none', color: '#fff', fontSize: 15, fontWeight: 800,
+                    cursor: 'pointer', background: 'linear-gradient(135deg, #7c3aed, #db2777)' }}>▸ Correr de novo</button>
+              )}
               <button className="uf-btn" onClick={onSair}
                 style={{ padding: '12px 28px', borderRadius: 999, border: '1px solid rgba(255,255,255,.3)', color: '#fff',
-                  fontSize: 15, fontWeight: 800, cursor: 'pointer', background: 'rgba(0,0,0,.4)' }}>✕ Sair</button>
+                  fontSize: 15, fontWeight: 800, cursor: 'pointer', background: 'rgba(0,0,0,.4)' }}>
+                {multiplayer ? '✕ Voltar à sala' : '✕ Sair'}
+              </button>
             </div>
           </div>
         );
@@ -1375,5 +1554,8 @@ const FASTER_CSS = `
 }
 `;
 
+// Exports usados só pelo SpeedRoom.jsx (lobby/rede do multiplayer) — reaproveita
+// a mesma pista/rivais/tela de corrida do solo em vez de duplicar.
+export { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, RIVAL_DEFS, TRILHAS, hashSeed, PreviaPista };
 export { TabUnikoFaster };
 export default TabUnikoFaster;
