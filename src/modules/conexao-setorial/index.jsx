@@ -1171,13 +1171,13 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                               <div style={{ marginBottom: 8, wordBreak: 'break-word' }}>
                                 {d.before.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.before.map((tk, i) => tk.same
                                   ? <span key={i}>{tk.t}</span>
-                                  : <span key={i} style={{ background: 'rgba(224,52,90,.18)', color: '#E0345A', textDecoration: 'line-through', borderRadius: 3 }}>{tk.t}</span>)}
+                                  : <mark key={i} style={{ background: '#FF8FA3', color: '#4A0011', textDecoration: 'line-through', textDecorationThickness: 2, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
                               </div>
                               <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>DEPOIS</div>
                               <div style={{ wordBreak: 'break-word' }}>
                                 {d.after.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.after.map((tk, i) => tk.same
                                   ? <span key={i}>{tk.t}</span>
-                                  : <span key={i} style={{ background: 'rgba(34,197,94,.22)', color: '#178A46', borderRadius: 3, fontWeight: 700 }}>{tk.t}</span>)}
+                                  : <mark key={i} style={{ background: '#7CF29C', color: '#063D18', fontWeight: 700, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
                               </div>
                             </div>
                           );
