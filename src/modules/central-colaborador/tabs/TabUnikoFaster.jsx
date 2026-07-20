@@ -1281,19 +1281,20 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         // CENÁRIO de beira de pista — a posição (`cx`) é calculada A PARTIR da
         // largura JÁ FINAL (`larg`, depois do teto) mais uma folga (`margem`),
         // então a borda mais próxima do prédio NUNCA fica mais perto do centro
-        // que `p1.sw + margem` — por construção, não tem como "invadir" a
+        // que `zebraEdge + margem` — por construção, não tem como "invadir" a
         // pista mesmo quando cenarioLarg é grande ou o teto de tamanho entra
-        // em ação (antes, offset e largura eram calculados por fórmulas
-        // separadas — numa faixa específica de distância da câmera, a
-        // largura crescia mais rápido que o offset e o prédio desenhava por
-        // cima da pista, sobretudo perto da linha de largada).
+        // em ação. A referência é a BORDA DA ZEBRA (faixa vermelha/branca,
+        // `p1.sw*1.15` — é o "chão" visível de verdade, mais largo que a
+        // pista lisa em si), não a pista crua — clarear só `p1.sw` deixava
+        // os prédios encostados bem em cima da faixa listrada.
         if (seg.cenario && p1.sw > 5 && sprCenarios.length) {
           const { lado, variante } = seg.cenario;
           const spr = sprCenarios[variante % sprCenarios.length];
           if (spr?.ok) {
             const larg = Math.min(w * 0.6, p1.sw * tema.cenarioLarg);
-            const margem = Math.max(p1.sw * 0.3, 6);                     // folga garantida além da borda da pista
-            const cx = p1.sx + lado * (p1.sw + margem + larg / 2);       // nunca invade, não importa a largura
+            const zebraEdge = p1.sw * 1.15;                              // borda da faixa vermelha/branca
+            const margem = Math.max(p1.sw * 0.45, 12);                   // folga garantida além dela
+            const cx = p1.sx + lado * (zebraEdge + margem + larg / 2);   // nunca invade, não importa a largura
             if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
           }
         }
