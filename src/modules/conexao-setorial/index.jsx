@@ -409,7 +409,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const cardBg = T.surface || (T.dark ? '#1a1a2e' : '#fff');
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
       <style>{`
         @keyframes csPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
@@ -434,10 +434,37 @@ export default function ConexaoSetorial({ onBack, authUser }) {
         .cs-fade{animation:csUp .22s ease both}
         .cs-desc b,.cs-desc strong{color:${T.text}}
         .cs-desc:hover{background:${T.itemHover || 'rgba(120,60,180,.05)'};border-radius:8px}
+
+        /* ── blobs de fundo: manchas coloridas desfocadas que vagam devagar ── */
+        .cs-blobs{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+          filter:blur(72px);opacity:.5;contain:paint}
+        .cs-blob{position:absolute;border-radius:50%;will-change:transform}
+        @keyframes csBlobA{0%,100%{transform:translate(0,0) scale(1)}
+          33%{transform:translate(9vw,7vh) scale(1.16)}
+          66%{transform:translate(-6vw,11vh) scale(.9)}}
+        @keyframes csBlobB{0%,100%{transform:translate(0,0) scale(1)}
+          40%{transform:translate(-11vw,8vh) scale(1.22)}
+          75%{transform:translate(7vw,-6vh) scale(.94)}}
+        @keyframes csBlobC{0%,100%{transform:translate(0,0) scale(1.05)}
+          50%{transform:translate(8vw,-10vh) scale(.86)}}
+        .cs-blob1{width:44vw;height:44vw;top:-12vh;left:-8vw;
+          background:radial-gradient(circle,#E0559A,transparent 68%);animation:csBlobA 26s ease-in-out infinite}
+        .cs-blob2{width:40vw;height:40vw;top:18vh;right:-10vw;
+          background:radial-gradient(circle,#A24CE0,transparent 68%);animation:csBlobB 32s ease-in-out infinite}
+        .cs-blob3{width:36vw;height:36vw;bottom:-16vh;left:28vw;
+          background:radial-gradient(circle,#5B8DEF,transparent 68%);animation:csBlobC 38s ease-in-out infinite}
+        @media (prefers-reduced-motion: reduce){ .cs-blob{animation:none !important} }
       `}</style>
 
+      {/* fundo animado (atrás de tudo) */}
+      <div className="cs-blobs" aria-hidden>
+        <div className="cs-blob cs-blob1" />
+        <div className="cs-blob cs-blob2" />
+        <div className="cs-blob cs-blob3" />
+      </div>
+
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
         <button className="cs-btn cs-ghost" onClick={onBack} style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
         <div style={{ width: 40, height: 40, borderRadius: 12, background: UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
         <div style={{ marginRight: 'auto' }}>
@@ -461,7 +488,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
 
       {/* ── Barra de filtros ── */}
       {showFilters && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '10px 22px', borderBottom: `1px solid ${brd}`, background: T.surface, animation: 'csPop .2s ease' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '10px 22px', borderBottom: `1px solid ${brd}`, background: T.surface, animation: 'csPop .2s ease' }}>
           <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar título/descrição…"
             style={{ flex: '1 1 220px', minWidth: 160, padding: '9px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: T.page, color: T.text, fontSize: 13, outline: 'none' }} />
           <select value={filterCreator || ''} onChange={e => setFilterCreator(e.target.value || null)}
@@ -474,7 +501,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
       )}
 
       {/* ── Board ── */}
-      <div className="cs-scroll" style={{ flex: 1, display: 'flex', gap: 16, padding: 18, overflowX: 'auto', overflowY: 'hidden', alignItems: 'flex-start' }}>
+      <div className="cs-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', gap: 16, padding: 18, overflowX: 'auto', overflowY: 'hidden', alignItems: 'flex-start' }}>
         {loading ? (
           <div style={{ margin: 'auto', color: T.textT, fontWeight: 600 }}>Carregando quadro…</div>
         ) : (

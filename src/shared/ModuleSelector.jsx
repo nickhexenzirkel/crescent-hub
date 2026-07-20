@@ -104,9 +104,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
     </svg>
   );
+  /* quadro Kanban — colunas com cartões, que é o que a Conexão Setorial virou */
   const IcoChat = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+      <rect x="2.5" y="3.5" width="19" height="17" rx="2.5"/>
+      <line x1="2.5" y1="7.5" x2="21.5" y2="7.5"/>
+      <rect x="5.5" y="10.5" width="4.5" height="7" rx="1"/>
+      <rect x="14" y="10.5" width="4.5" height="4" rx="1"/>
     </svg>
   );
   const IcoLobby = (
