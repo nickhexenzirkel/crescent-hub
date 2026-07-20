@@ -810,6 +810,16 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const [showAssign, setShowAssign] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [editDesc, setEditDesc] = useState(false);
+  // Prévia CONGELADA da descrição, capturada só no instante em que entra no
+  // modo de edição — NUNCA amarrada direto no `card.description` ao vivo.
+  // Sem isso, o polling/realtime do quadro (que atualiza `card` a cada poucos
+  // segundos) reaplicava o `dangerouslySetInnerHTML` com o valor antigo do
+  // banco por cima do que a pessoa estava digitando: o texto "voltava pro
+  // começo" e sumia a edição em andamento. `saveDesc` continua comparando
+  // contra o `card.description` AO VIVO (não este snapshot) pra decidir se
+  // salva — só a exibição durante a digitação precisa ficar congelada.
+  const [descSnapshot, setDescSnapshot] = useState(card.description || '');
+  const abrirEdicaoDesc = () => { setDescSnapshot(card.description || ''); setEditDesc(true); };
   const [fontLevel, setFontLevel] = useState(3);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -946,7 +956,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
             {/* Descrição (rich text, grande) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '24px 0 10px' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>Descrição</div>
-              {!editDesc && <button className="cs-btn cs-ghost" onClick={() => setEditDesc(true)} style={{ background: sub, color: T.text, borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'inline-flex', gap: 5, alignItems: 'center' }}><Ic n="edit" size={13} /> Editar</button>}
+              {!editDesc && <button className="cs-btn cs-ghost" onClick={abrirEdicaoDesc} style={{ background: sub, color: T.text, borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'inline-flex', gap: 5, alignItems: 'center' }}><Ic n="edit" size={13} /> Editar</button>}
             </div>
             {editDesc ? (
               <div style={{ border: `1px solid ${brd}`, borderRadius: 12, overflow: 'hidden', background: T.page }}>
@@ -958,7 +968,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                   <button className="cs-tb" onMouseDown={e => e.preventDefault()} onClick={() => changeFont(1)} title="Aumentar letra" style={{ ...tbStyle, fontSize: 16, fontWeight: 800 }}>A+</button>
                 </div>
                 <div ref={descRef} contentEditable suppressContentEditableWarning
-                  dangerouslySetInnerHTML={{ __html: card.description || '' }}
+                  dangerouslySetInnerHTML={{ __html: descSnapshot }}
                   style={{ minHeight: 170, maxHeight: 320, overflowY: 'auto', padding: '14px 16px', fontSize: 15.5, lineHeight: 1.6, color: T.text, outline: 'none', wordBreak: 'break-word' }} />
                 <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${brd}` }}>
                   <button className="cs-btn" onClick={saveDesc} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 9, padding: '8px 18px', fontWeight: 700, fontSize: 13 }}>Salvar</button>
@@ -966,10 +976,10 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                 </div>
               </div>
             ) : (stripHtml(card.description) ? (
-              <div onClick={() => setEditDesc(true)} className="cs-desc" dangerouslySetInnerHTML={{ __html: card.description }}
+              <div onClick={abrirEdicaoDesc} className="cs-desc" dangerouslySetInnerHTML={{ __html: card.description }}
                 style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word' }} />
             ) : (
-              <div onClick={() => setEditDesc(true)} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
+              <div onClick={abrirEdicaoDesc} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
             ))}
 
             {/* Imagens */}
