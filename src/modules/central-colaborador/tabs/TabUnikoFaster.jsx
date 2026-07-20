@@ -143,13 +143,12 @@ const MAPAS = {
     id: 'cidade', nome: 'Cidade Futurista', emoji: '🏙️',
     desc: 'Neon, arranha-céus e lua cheia',
     fundo: 'fundo-cidade', chao: 'chao-cidade',
-    // Prédios grandes (senão ficam parecendo arbustinho longe da pista), mas
-    // SEM reduzir o offset — como a largura desenhada escala com cenarioLarg,
-    // um prédio largo (2.6) com offset curto (1.6) sobra pra dentro da pista
-    // (largura/2 > distância do centro até o prédio), daí ele "invade" a via.
-    // Com offset padrão (2.2) e cenarioLarg moderado, a borda do prédio fica
-    // acima da borda da pista com folga.
-    cenarios: ['cenario-predio-1', 'cenario-predio-2'], cenarioLarg: 2.0,
+    // Prédios grandes (senão ficam parecendo arbustinho longe da pista) — ver
+    // o cálculo de `cx`/`margem` no loop de desenho, que garante por
+    // CONSTRUÇÃO que a borda do prédio nunca invade a pista, não importa o
+    // quão grande `cenarioLarg` fique.
+    cenarios: ['cenario-predio-1', 'cenario-predio-2', 'cenario-predio-3', 'cenario-predio-4', 'cenario-predio-5'],
+    cenarioLarg: 2.0,
   },
   campo: {
     id: 'campo', nome: 'Campo', emoji: '🌳',
@@ -1279,14 +1278,22 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
       for (let n = pontos.length - 1; n >= 0; n--) {
         const { seg, p1 } = pontos[n];
         if (p1.z <= CAM_D) continue;
-        // CENÁRIO de beira de pista — BEM afastado da pista (2.2× a meia-largura)
-        // pra nunca invadir/cobrir a pista (senão parece que o carro os atropela).
+        // CENÁRIO de beira de pista — a posição (`cx`) é calculada A PARTIR da
+        // largura JÁ FINAL (`larg`, depois do teto) mais uma folga (`margem`),
+        // então a borda mais próxima do prédio NUNCA fica mais perto do centro
+        // que `p1.sw + margem` — por construção, não tem como "invadir" a
+        // pista mesmo quando cenarioLarg é grande ou o teto de tamanho entra
+        // em ação (antes, offset e largura eram calculados por fórmulas
+        // separadas — numa faixa específica de distância da câmera, a
+        // largura crescia mais rápido que o offset e o prédio desenhava por
+        // cima da pista, sobretudo perto da linha de largada).
         if (seg.cenario && p1.sw > 5 && sprCenarios.length) {
           const { lado, variante } = seg.cenario;
           const spr = sprCenarios[variante % sprCenarios.length];
           if (spr?.ok) {
-            const cx = p1.sx + lado * p1.sw * 2.2;                       // longe da pista
             const larg = Math.min(w * 0.6, p1.sw * tema.cenarioLarg);
+            const margem = Math.max(p1.sw * 0.3, 6);                     // folga garantida além da borda da pista
+            const cx = p1.sx + lado * (p1.sw + margem + larg / 2);       // nunca invade, não importa a largura
             if (larg >= 3) drawBillboard(spr, cx, p1.sy, larg, false);
           }
         }
