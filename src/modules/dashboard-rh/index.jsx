@@ -1683,10 +1683,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
             // ── seleção ──
             const selRows   = lista.filter(b=>bancoSel.includes(b.id));
-            const selValor  = selRows.reduce((a,b)=>a+Number(b.valor_total||0),0);
-            const selHoras  = selRows.reduce((a,b)=>a+Number(b.horas_calculadas||0),0);
             const selPend   = selRows.filter(b=>b.status!=='aprovado');
-            const selNomes  = [...new Set(selRows.map(b=>b.created_by).filter(Boolean))];
+            // aprovado = já pago, então não entra no total a pagar
+            const selValor  = selPend.reduce((a,b)=>a+Number(b.valor_total||0),0);
+            const selHoras  = selPend.reduce((a,b)=>a+Number(b.horas_calculadas||0),0);
+            const selNomes  = [...new Set(selPend.map(b=>b.created_by).filter(Boolean))];
             const todosSel  = lista.length>0 && lista.every(b=>bancoSel.includes(b.id));
             const toggleTodos = () => setBancoSel(todosSel ? [] : lista.map(b=>b.id));
 
@@ -1738,9 +1739,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         <div>
                           <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Selecionados</div>
                           <div style={{fontSize:19,fontWeight:700,color:T.text}}>{selRows.length}</div>
+                          {selRows.length-selPend.length>0&&(
+                            <div style={{fontSize:10.5,color:'#1A9C70',marginTop:1}}>{selRows.length-selPend.length} já pago{selRows.length-selPend.length===1?'':'s'}</div>
+                          )}
                         </div>
                         <div>
-                          <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Horas</div>
+                          <div style={{fontSize:11,color:T.textD,marginBottom:2}}>Horas a pagar</div>
                           <div style={{fontSize:19,fontWeight:700,color:T.blue||'#2A6FB5'}}>{fmtH(selHoras)}</div>
                         </div>
                         <div>
