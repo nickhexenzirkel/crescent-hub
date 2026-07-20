@@ -53,17 +53,27 @@ const EXCHANGE_RATE = 10;
 // O dia do ciclo vem do "streak" (dias ÚTEIS seguidos). Errar 1 dia útil zera → volta ao dia 1.
 // Sábado/domingo não contam pra sequência nem pro ciclo (não tem check-in nesses dias).
 //
-// BUG CORRIGIDO (jul/2026): a versão anterior (70/90/120/160/200) somava 390 Premium + 250
-// Comum JÁ NUMA ÚNICA SEMANA — ou seja, o teto MENSAL (MONTHLY_CAP: 300/200) era batido
-// inteiro na primeira semana do mês, e o check-in ficava dando ZERO nas semanas seguintes até
-// o mês virar. Valores reduzidos pra um ritmo sustentável que dura o mês inteiro (o teto
-// mensal continua sendo o limite absoluto, aplicado no `doCheckin` via `capRemaining`).
+// BUG CORRIGIDO (jul/2026, 1ª rodada): a versão anterior (70/90/120/160/200) somava 390
+// Premium + 250 Comum JÁ NUMA ÚNICA SEMANA — ou seja, o teto MENSAL (MONTHLY_CAP: 300/200)
+// era batido inteiro na primeira semana do mês, e o check-in ficava dando ZERO nas semanas
+// seguintes até o mês virar.
+//
+// BUG CORRIGIDO (jul/2026, 2ª rodada): a redução pra 12/8/12/8/12 foi longe demais pro
+// outro lado — o objetivo é que fazer check-in TODO dia útil do mês (4 semanas = 20 dias,
+// 12 "premium" + 8 "comum" no ciclo) feche exatamente no teto mensal (300/200) no fim do
+// mês. Com 12/8/12/8/12, 4 semanas davam só 144 Premium + 64 Comum — bem menos que o teto,
+// então NINGUÉM alcançava os 300/200 mesmo com frequência perfeita o mês inteiro.
+// A proporção 3 dias "premium" : 2 dias "comum" por ciclo já bate exatamente com a
+// proporção do teto (300:200 = 3:2), então um valor ÚNICO por dia fecha a conta:
+// 12 dias-premium × 25 = 300 · 8 dias-comum × 25 = 200 (considerando 4 ciclos de 5 dias
+// úteis = 1 mês). Meses com mais de 20 dias úteis simplesmente batem o teto um pouco antes
+// do fim (capRemaining já trata isso, dando 0 no que exceder).
 const CHECKIN_CYCLE = [
-  { amount: 12, cur: 'premium' }, // dia 1 (segunda)
-  { amount: 8,  cur: 'comum'   }, // dia 2 (terça)
-  { amount: 12, cur: 'premium' }, // dia 3 (quarta)
-  { amount: 8,  cur: 'comum'   }, // dia 4 (quinta)
-  { amount: 12, cur: 'premium' }, // dia 5 (sexta)
+  { amount: 25, cur: 'premium' }, // dia 1 (segunda)
+  { amount: 25, cur: 'comum'   }, // dia 2 (terça)
+  { amount: 25, cur: 'premium' }, // dia 3 (quarta)
+  { amount: 25, cur: 'comum'   }, // dia 4 (quinta)
+  { amount: 25, cur: 'premium' }, // dia 5 (sexta)
 ];
 // Teto MENSAL de ganho do check-in por moeda (mesmo intercalando)
 const MONTHLY_CAP = { premium: 300, comum: 200 };
