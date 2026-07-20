@@ -102,8 +102,12 @@ function hdArtistImage(url) {
 // inteiro durante o "storm" de re-renders → vídeo liso. Também: SEM blur no
 // backdrop (fundo opaco) pelo mesmo motivo, e quando o vídeo acaba mostra a
 // capa ampliada em vez do último frame parado.
-const MSG_COVER = '/mensagem-especial-capa.png';
-const MSG_VIDEO = '/mensagem-especial-video.mp4';
+// Os arquivos têm sufixo de versão de propósito: ao trocar o vídeo mantendo o
+// MESMO nome, o navegador (e qualquer proxy no caminho) continua servindo o
+// arquivo antigo do cache — o vídeo novo chega misturado com bytes velhos e
+// engasga. Trocou a mídia? Suba o -vN junto.
+const MSG_COVER = '/mensagem-especial-capa-v2.png';
+const MSG_VIDEO = '/mensagem-especial-video-v2.mp4';
 const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold }) {
   const [ended, setEnded] = useState(false);
   useEffect(() => { if (open) setEnded(false); }, [open]);
@@ -1861,7 +1865,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               style={{borderRadius:16,background:cardBg,border:`1px solid ${T.gold}66`,boxShadow:`0 6px 20px ${T.gold}22`,cursor:"pointer",overflow:"hidden",transition:"transform .18s,box-shadow .18s"}}>
               {/* Capa grande do vídeo */}
               <div style={{position:"relative",width:"100%",height:200}}>
-                <img src="/mensagem-especial-capa.png" alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 20%",display:"block"}}/>
+                <img src={MSG_COVER} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"50% 20%",display:"block"}}/>
                 <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,.05) 55%,rgba(0,0,0,.22))"}}/>
                 <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:60,height:60,borderRadius:"50%",background:"rgba(0,0,0,.45)",border:"2px solid rgba(255,255,255,.9)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 18px rgba(0,0,0,.5)"}}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none" style={{marginLeft:3}}><polygon points="6 4 20 12 6 20 6 4"/></svg>
