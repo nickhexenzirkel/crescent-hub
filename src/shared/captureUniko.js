@@ -682,8 +682,30 @@ export async function giftUnikoToPlayer(player, uniko, comum, premium) {
 /* ── Coleção do My Uniko (localStorage por usuário) ──────────────────────────
    O uniko capturado vira um "skin" equipável no My Uniko. ─────────────────── */
 const COLLECTION_KEY = () => `uniko_captured_${userTag()}`;
+
+/* Espelho em MEMÓRIA da coleção — o localStorage aqui é só cache de conveniência.
+   Antes a memória não existia e o localStorage era a única fonte: com o storage do
+   navegador CHEIO (QuotaExceededError, visto em produção), o `setItem` estourava no
+   meio de syncCollectionFromServer/addToMyUnikoCollection, o evento
+   'uniko-collection:changed' nunca era disparado e a Coleção inteira parava de
+   atualizar na tela — inclusive um Uniko recém-capturado não aparecia. Agora a
+   escrita no storage é best-effort: se não couber, a coleção segue certa em memória
+   e a UI é avisada do mesmo jeito. */
+let _collectionMem = { key: '', list: null };
+
 export function getCapturedCollection() {
-  try { return JSON.parse(localStorage.getItem(COLLECTION_KEY()) || '[]'); } catch { return []; }
+  const key = COLLECTION_KEY();
+  if (_collectionMem.key === key && _collectionMem.list) return _collectionMem.list;
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+}
+
+// Fonte única de escrita da coleção: memória (sempre) + localStorage (se couber) + evento (sempre).
+function setCapturedCollection(list) {
+  const key = COLLECTION_KEY();
+  _collectionMem = { key, list };
+  try { localStorage.setItem(key, JSON.stringify(list)); }
+  catch (e) { console.warn('[capture-uniko] coleção não coube no localStorage (cache do navegador cheio) — seguindo só em memória:', e?.name || e); }
+  try { window.dispatchEvent(new CustomEvent('uniko-collection:changed')); } catch {}
 }
 // Busca a coleção de capturas de um colega (Supabase) — pra Colegas mostrar a coleção dele.
 export async function fetchCapturesFor(player) {
@@ -694,13 +716,14 @@ export async function fetchCapturesFor(player) {
   } catch { return []; }
 }
 
+// Sem `img`: quem desenha a coleção resolve a arte na hora com getUniko(c.id) (a img
+// gravada aqui era ignorada de propósito — ver TabInicio — porque podia ter congelado
+// o fallback errado). Guardar a URL à toa só engordava o cache.
 export function addToMyUnikoCollection(uniko) {
   try {
     const list = getCapturedCollection();
     if (list.some(u => u.id === uniko.id)) return;
-    list.push({ id: uniko.id, name: uniko.name, img: uniko.img, at: new Date().toISOString() });
-    localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
+    setCapturedCollection([...list, { id: uniko.id, name: uniko.name, at: new Date().toISOString() }]);
   } catch {}
 }
 
@@ -715,9 +738,8 @@ export async function syncCollectionFromServer() {
     // como "possuídos", sem precisar capturar/ganhar. Pega o roster inteiro em vez
     // das capturas do servidor (getAllUnikos já inclui os da Oficina carregados).
     if (a.role === 'admin') {
-      const list = getAllUnikos().map(u => ({ id: u.id, name: u.name, img: u.img, at: new Date().toISOString() }));
-      localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
+      const list = getAllUnikos().map(u => ({ id: u.id, name: u.name, at: new Date().toISOString() }));
+      setCapturedCollection(list);
       return list; // admin não sofre o "revert do assistente" abaixo (tem tudo)
     }
     const rows = await fetchCapturesFor(a.name);
@@ -727,10 +749,9 @@ export async function syncCollectionFromServer() {
       if (seen.has(r.uniko_id)) continue;
       seen.add(r.uniko_id);
       const u = getUniko(r.uniko_id);
-      list.push({ id: r.uniko_id, name: r.uniko_name || u.name, img: u.img, at: r.captured_at });
+      list.push({ id: r.uniko_id, name: r.uniko_name || u.name, at: r.captured_at });
     }
-    localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
+    setCapturedCollection(list);
     const active = getActiveAssistantSkinId();
     if (active && active !== 'default' && !list.some(x => x.id === active)) setActiveAssistantSkin('default');
     return list;
