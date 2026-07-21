@@ -108,7 +108,37 @@ const shrinkPhoto = (dataUrl) => new Promise((resolve) => {
   } catch { resolve(dataUrl); }
 });
 
+/* ── Faxina do cache de fotos ────────────────────────────────────────────────
+   Encolhe, NO NAVEGADOR, qualquer `uniko_photo_*` que ainda esteja gravada crua.
+   Não dá pra contar só com o loadUserPhoto pra isso: ele sobrescreve apenas a
+   chave do usuário atual e apenas quando a foto vem do Supabase — chaves de
+   outras sessões/formatos antigos (por nome em vez de CPF, outra pessoa que
+   entrou nessa máquina) ficam órfãs ocupando MBs pra sempre, e é o conjunto
+   delas que estoura a cota de ~5MB do navegador (limite do Chrome por site —
+   nada a ver com o plano do Supabase). Encolher em vez de apagar: se a foto só
+   existir aqui e ainda não tiver subido pro banco, ela não se perde. ── */
+const compactPhotoCache = async () => {
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('uniko_photo_'));
+    for (const k of keys) {
+      let val;
+      try { val = localStorage.getItem(k); } catch { continue; }
+      if (!val || val.length <= PHOTO_MAX_CHARS) continue;
+      const small = await shrinkPhoto(val);
+      try {
+        // Encolher é assíncrono (decodifica a imagem): se nesse meio-tempo o
+        // loadUserPhoto já gravou a foto boa vinda do banco nessa mesma chave,
+        // não sobrescreve — senão a foto ANTIGA voltaria por cima da atual.
+        if (localStorage.getItem(k) !== val) continue;
+        if (small && small.length < val.length) localStorage.setItem(k, small);
+        else localStorage.removeItem(k); // insalvável (não é imagem válida) — é só cache
+      } catch {}
+    }
+  } catch {}
+};
+
 const loadUserPhoto = async () => {
+  compactPhotoCache(); // best-effort, em paralelo — nunca segura o login
   // Lê o token atual (pode ter sido salvo após o carregamento do módulo)
   const _auth = getAuthUser();
   const name = _auth?.name || USER.name;
@@ -200,6 +230,7 @@ export {
   loadUserPhoto,
   saveUserPhoto,
   shrinkPhoto,
+  compactPhotoCache,
   fetchPhotoByName,
   isProfileComplete,
   podeConexaoSetorial,
