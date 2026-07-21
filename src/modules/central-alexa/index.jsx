@@ -616,10 +616,9 @@ const CentralOlivia = () => <OliviaScene fixed />;
 //    vídeo 2x — tela cheia + card — e era o que travava).
 const CentralBgVideo = memo(function CentralBgVideo({ url }) {
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none', transform:'translateZ(0)' }}>
       <video src={url} muted autoPlay loop playsInline preload="auto"
-        style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-      <div style={{ position:'absolute', inset:0, background:'rgba(6,4,16,0.38)' }} />
+        style={{ width:'100%', height:'100%', objectFit:'cover', transform:'translateZ(0)', willChange:'transform' }} />
     </div>
   );
 });
@@ -2483,9 +2482,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const cur     = currentSong || queue.find(s=>s.status==='playing') || queue[0];
   const curIdx  = queue.findIndex(s=>s.id===cur?.id);
 
+  // Vídeo de fundo ativo no Festival? Quando sim, desligamos o que mais pesa em
+  // cima de um vídeo tocando: (1) os `backdrop-filter: blur()` dos painéis de
+  // vidro (re-borram o vídeo QUADRO A QUADRO — é o que travava; o sintoma "fica
+  // liso quando abro o F12" é clássico disso: a área a re-borrar encolhe) e
+  // (2) as 8 blobs animadas `filter: blur(95px)` que ficavam por cima do vídeo.
+  const festBgVideo = tab==="festival" ? (getUniko(songSkin)?.bgVideoUrl || '') : '';
 
   return (
-    <div style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+    <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+      {festBgVideo && <style>{`.ca-bgvid-on [style*="blur"]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}`}</style>}
 
       {/* ── Bloqueio FIXO: Spotify indisponível (rate limit / ban / desconectado) ──
           Trava a Central inteira — nenhuma ação é possível além de voltar aos módulos.
@@ -2611,8 +2617,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         </div>
       )}
 
-      {/* ── Festival ambient background — Apple Music style ── */}
-      {tab==="festival"&&festColors&&(
+      {/* ── Festival ambient background — Apple Music style (some quando há vídeo de fundo) ── */}
+      {tab==="festival"&&festColors&&!festBgVideo&&(
         <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.9s ease"}}>
           {/* Base gradient wash usando todas as cores */}
           <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}55,${festColors[5]}40,${festColors[1]}45,${festColors[6]}35,${festColors[2]}40)`,transition:"background 2s ease"}}/>
@@ -2809,13 +2815,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     transition:"background .5s, border .5s",
                   }}>
 
-                    {/* Fundo do card quando há vídeo do Uniko: o card fica
-                        TRANSLÚCIDO (sem vídeo próprio) pra deixar o vídeo de tela
-                        cheia — o mesmo, um decode só — aparecer atrás do mascote.
-                        Decodificar o vídeo 2x (card + tela cheia) era o que travava. */}
-                    {cardBgVideo && (
-                      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, borderRadius:20, background:'rgba(6,4,16,0.32)' }}/>
-                    )}
+                    {/* Quando há vídeo do Uniko o card fica transparente (background
+                        já é 'transparent' acima) pra deixar o vídeo de tela cheia —
+                        um decode só — aparecer LIMPO atrás do mascote. Sem véu. */}
 
                     {/* Lua de sangue */}
                     {isVampCard && !cardBgVideo && (
