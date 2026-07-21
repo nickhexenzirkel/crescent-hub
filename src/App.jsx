@@ -12,7 +12,6 @@ import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
-import LobbyEstelar from './modules/lobby-estelar';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -112,7 +111,7 @@ export default function CrescentHub() {
 
   const handleModuleSelect = (id) => {
     // Conexão Setorial é liberada pra todo mundo — não entra na lista abaixo.
-    const adminOnly = ['dashboard','ponto','lobby-estelar'];
+    const adminOnly = ['dashboard','ponto'];
     if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
     navPush(id);
   };
@@ -337,7 +336,6 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
-          {screen==='lobby-estelar' && authUser?.role==='admin' && <LobbyEstelar onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
@@ -356,10 +354,8 @@ export default function CrescentHub() {
           </div>
         )}
 
-        {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ──
-             Escondido no Lobby Estelar: lá o "assistente" de cada um já aparece dentro do
-             cenário como avatar, não faz sentido o robô de dicas flutuando por cima também. */}
-        {screen!=='lobby-estelar' && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+        {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
+        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
