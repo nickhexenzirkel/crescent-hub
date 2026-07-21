@@ -56,16 +56,23 @@ const TabMyDoko = ({ onPhotoChange }) => {
   // closure já desatualizado (senão dois cliques em sequência "empatam" no mesmo valor).
   const bumpAssistantScale = (delta) => setAssistantScaleState(prev => setAssistantScale(prev + delta));
 
+  const [resyncing, setResyncing] = useState(false);
+  // Re-sincroniza a coleção com o servidor (fonte da verdade: reflete presentes
+  // do RH e reset do admin). Também recarrega os Unikos da Oficina, pra um
+  // presente de Uniko CUSTOM já entrar no roster. Usada no mount, no foco da
+  // aba, no realtime e no botão "Atualizar".
+  const resync = React.useCallback(async () => {
+    setResyncing(true);
+    try {
+      const [list, customs] = await Promise.all([syncCollectionFromServer(), loadCustomUnikos()]);
+      if (Array.isArray(list)) setCaptured(list);
+      if (Array.isArray(customs)) setCustomUnikos(customs);
+    } finally { setResyncing(false); }
+  }, []);
+
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
     window.addEventListener('uniko-collection:changed', refresh);
-    // Re-sincroniza a coleção com o servidor (fonte da verdade: reflete presentes
-    // do RH e reset do admin). Também recarrega os Unikos da Oficina, pra um
-    // presente de Uniko CUSTOM já entrar no roster.
-    const resync = () => {
-      syncCollectionFromServer().then(list => { if (Array.isArray(list)) setCaptured(list); });
-      loadCustomUnikos().then(list => { if (Array.isArray(list)) setCustomUnikos(list); });
-    };
     resync();
     // Sem isto, um presente enviado pelo RH só aparecia recarregando a página (a
     // sync só rodava no mount). Agora re-sincroniza quando o usuário volta pra
@@ -132,12 +139,24 @@ const TabMyDoko = ({ onPhotoChange }) => {
       <style>{`@keyframes colIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* Header */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '.02em' }}>Coleção de Unikos</div>
-        <div style={{ fontSize: 13, color: T.textT, marginTop: 3 }}>
-          Capture Unikos no Portal e use as vantagens visuais aqui — {ownedCount}/{roster.length} desbloqueado{ownedCount === 1 ? '' : 's'}.
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '.02em' }}>Coleção de Unikos</div>
+          <div style={{ fontSize: 13, color: T.textT, marginTop: 3 }}>
+            Capture Unikos no Portal e use as vantagens visuais aqui — {ownedCount}/{roster.length} desbloqueado{ownedCount === 1 ? '' : 's'}.
+          </div>
         </div>
+        {/* Força buscar a coleção no servidor de novo (ex.: acabou de ganhar um
+            presente do RH e não apareceu ainda). */}
+        <button onClick={resync} disabled={resyncing} title="Atualizar coleção"
+          style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10,
+            border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, cursor: resyncing ? 'wait' : 'pointer',
+            fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', opacity: resyncing ? 0.6 : 1 }}>
+          <span style={{ display: 'inline-block', transformOrigin: 'center', animation: resyncing ? 'colRot .8s linear infinite' : 'none' }}>↻</span>
+          {resyncing ? 'Atualizando…' : 'Atualizar'}
+        </button>
       </div>
+      <style>{`@keyframes colRot{to{transform:rotate(360deg)}}`}</style>
 
       {/* Assistente ativo */}
       <Card style={{ padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
