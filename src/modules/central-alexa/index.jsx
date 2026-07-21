@@ -615,10 +615,16 @@ const CentralOlivia = () => <OliviaScene fixed />;
 //    deixa ESTE vídeo aparecer atrás do mascote (antes eu decodificava o mesmo
 //    vídeo 2x — tela cheia + card — e era o que travava).
 const CentralBgVideo = memo(function CentralBgVideo({ url }) {
+  // IMPORTANTE: NÃO forçar GPU no <video> (nada de translateZ/will-change nele).
+  // Isso desliga o "video overlay" nativo do navegador e faz o vídeo virar uma
+  // textura de camada com resolução limitada → fica borrado/baixa qualidade,
+  // principalmente em tela grande/4K. Deixando o vídeo puro, ele toca na
+  // resolução NATIVA (máxima). O travamento já foi resolvido tirando o peso de
+  // CIMA do vídeo (backdrop-filter + blobs), não mexendo no vídeo em si.
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none', transform:'translateZ(0)' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none' }}>
       <video src={url} muted autoPlay loop playsInline preload="auto"
-        style={{ width:'100%', height:'100%', objectFit:'cover', transform:'translateZ(0)', willChange:'transform' }} />
+        style={{ width:'100%', height:'100%', objectFit:'cover' }} />
     </div>
   );
 });
