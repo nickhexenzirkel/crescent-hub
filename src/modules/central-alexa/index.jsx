@@ -1556,8 +1556,22 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   useEffect(() => { loadMensagemEspecial().then(setMsgEspecial); }, []);
   // Vídeos de fundo por Uniko: mutam os objetos do roster em memória (getUniko),
   // então força um re-render quando terminam de carregar pra a cena aparecer.
+  // Recarrega em REALTIME (+ poll de segurança) — sem isso, um cliente que já
+  // estava com a Central Alexa aberta quando o admin configura/troca o vídeo
+  // NÃO enxerga a mudança (o vídeo só aparecia pra quem carregou a página
+  // DEPOIS de configurado). O `songSkin` já é sincronizado pra todos; o que
+  // faltava era todo mundo ter o `bgVideoUrl` em memória atualizado.
   const [, setBgVideoTick] = useState(0);
-  useEffect(() => { loadUnikoBgVideos().then(() => setBgVideoTick(t => t + 1)); }, []);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => loadUnikoBgVideos().then(() => { if (alive) setBgVideoTick(t => t + 1); });
+    refresh();
+    const ch = _supabase.channel('uniko-bg-videos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_bg_videos' }, refresh)
+      .subscribe();
+    const poll = setInterval(refresh, 30000); // rede de segurança caso o realtime não esteja habilitado
+    return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
+  }, []);
   const closeMsgVideo = useCallback(() => setMsgVideoOpen(false), []); // estável p/ o memo do modal
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);

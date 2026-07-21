@@ -19,6 +19,12 @@ create policy "uniko_bg_videos update" on uniko_bg_videos for update using (true
 drop policy if exists "uniko_bg_videos delete" on uniko_bg_videos;
 create policy "uniko_bg_videos delete" on uniko_bg_videos for delete using (true);
 
+-- Realtime: pra todos os clientes com a Central Alexa aberta pegarem a troca de
+-- vídeo na hora (sem isso, só quem recarrega a página vê). Idempotente.
+do $$ begin
+  alter publication supabase_realtime add table uniko_bg_videos;
+exception when duplicate_object then null; end $$;
+
 -- Bucket público pros vídeos (até 80MB, boa qualidade).
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('uniko-videos', 'uniko-videos', true, 83886080)
