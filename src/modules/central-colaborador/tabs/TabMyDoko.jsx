@@ -64,9 +64,12 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const resync = React.useCallback(async () => {
     setResyncing(true);
     try {
-      const [list, customs] = await Promise.all([syncCollectionFromServer(), loadCustomUnikos()]);
-      if (Array.isArray(list)) setCaptured(list);
+      // Carrega os Unikos da Oficina PRIMEIRO — pra o admin (que tem tudo) e o
+      // syncCollectionFromServer (getAllUnikos) já verem o roster completo.
+      const customs = await loadCustomUnikos();
       if (Array.isArray(customs)) setCustomUnikos(customs);
+      const list = await syncCollectionFromServer();
+      if (Array.isArray(list)) setCaptured(list);
     } finally { setResyncing(false); }
   }, []);
 
@@ -119,7 +122,10 @@ const TabMyDoko = ({ onPhotoChange }) => {
     img.src = imgUrl;
   };
 
-  const owns = (u) => u.alwaysOwned || isCaptured(u.id);
+  // Admin tem TODA a coleção liberada (regra do RH). isAdminUser cobre o card na
+  // hora, além do syncCollectionFromServer já marcar tudo como possuído.
+  const isAdminUser = getAuthUser()?.role === 'admin';
+  const owns = (u) => isAdminUser || u.alwaysOwned || isCaptured(u.id);
   // 'uniko-comum' é o mesmo UNIKO clássico do DEFAULT_UNIKO (mesma arte) — existe só como
   // opção de recompensa "menor" pro admin escolher no evento (Dashboard RH), NÃO deve
   // aparecer aqui como um "???" bloqueado duplicado do padrão que todo mundo já tem.

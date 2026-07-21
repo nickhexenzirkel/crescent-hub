@@ -711,6 +711,15 @@ export async function syncCollectionFromServer() {
   try {
     const a = getAuthUser();
     if (!a?.name) return getCapturedCollection();
+    // ADMIN tem TODA a coleção liberada — todos os Unikos (fixos + Oficina) contam
+    // como "possuídos", sem precisar capturar/ganhar. Pega o roster inteiro em vez
+    // das capturas do servidor (getAllUnikos já inclui os da Oficina carregados).
+    if (a.role === 'admin') {
+      const list = getAllUnikos().map(u => ({ id: u.id, name: u.name, img: u.img, at: new Date().toISOString() }));
+      localStorage.setItem(COLLECTION_KEY(), JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('uniko-collection:changed'));
+      return list; // admin não sofre o "revert do assistente" abaixo (tem tudo)
+    }
     const rows = await fetchCapturesFor(a.name);
     const seen = new Set();
     const list = [];
