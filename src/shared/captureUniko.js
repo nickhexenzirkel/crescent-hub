@@ -260,6 +260,7 @@ export async function loadCustomUnikos() {
     _customUnikoRawCache = rawNext;
     // Skins do assistente ficam num módulo separado (assistantSkin.js) — registra lá.
     for (const row of data) registerCustomSkin(row.id, _buildCustomSkin(row));
+    applyBgVideos(); // reaplica os vídeos de fundo (o cache foi reconstruído acima)
     return Object.values(_customUnikoCache);
   } catch { return Object.values(_customUnikoCache); }
 }
@@ -470,6 +471,44 @@ export async function saveRewardOverride(unikoId, comum, premium) {
   const base = CAPTURE_UNIKOS[unikoId];
   if (base) base.reward = { comum: c, premium: p };
 }
+
+/* ── Vídeo de fundo por Uniko (Central Alexa) — o admin sobe um vídeo no
+   Dashboard e ele vira o fundo (mutado/loop/autoplay) do card do Uniko e do
+   cenário quando aquele Uniko é o DJ da música atual, SUBSTITUINDO o cenário
+   animado codado. Tabela `uniko_bg_videos` (uniko_id → video_url), vale pros
+   fixos E pros da Oficina (chave é só o uniko_id). Aplica `bgVideoUrl` DIRETO
+   no objeto do roster em memória (mesma ideia do reward override), pra
+   getUniko(id).bgVideoUrl funcionar em qualquer lugar. **Rodar
+   supabase_uniko_bg_videos.sql.** ── */
+let _bgVideoCache = {}; // uniko_id -> url ('' = sem vídeo)
+function applyBgVideos() {
+  for (const [id, url] of Object.entries(_bgVideoCache)) {
+    if (CAPTURE_UNIKOS[id]) CAPTURE_UNIKOS[id].bgVideoUrl = url || '';
+    if (_customUnikoCache[id]) _customUnikoCache[id].bgVideoUrl = url || '';
+  }
+}
+export async function loadUnikoBgVideos() {
+  try {
+    const { data } = await _supabase.from('uniko_bg_videos').select('uniko_id,video_url');
+    _bgVideoCache = {};
+    for (const r of (data || [])) _bgVideoCache[r.uniko_id] = r.video_url || '';
+    applyBgVideos();
+  } catch (e) { console.error('[capture-uniko] loadUnikoBgVideos falhou:', e); }
+}
+export async function saveUnikoBgVideo(unikoId, url) {
+  const v = url || null;
+  if (v) {
+    await _supabase.from('uniko_bg_videos').upsert(
+      { uniko_id: unikoId, video_url: v, updated_at: new Date().toISOString() },
+      { onConflict: 'uniko_id' }
+    );
+  } else {
+    await _supabase.from('uniko_bg_videos').delete().eq('uniko_id', unikoId);
+  }
+  _bgVideoCache[unikoId] = v || '';
+  applyBgVideos();
+}
+export const getUnikoBgVideo = (id) => _bgVideoCache[id] || '';
 
 /* ── Loja de Unikos — preço (Prisma Comum) definido pelo admin pra cada Uniko poder ser
    COMPRADO na Prisma Store (além de capturado no evento). Tabela `uniko_store_prices`,

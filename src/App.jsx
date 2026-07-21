@@ -16,7 +16,7 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
-import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, syncServerClock } from './shared/captureUniko';
+import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock } from './shared/captureUniko';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -44,7 +44,7 @@ export default function CrescentHub() {
   }, [authUser]);
   // Unikos criados na Oficina (Dashboard RH) — carrega o roster + skins de assistente
   // uma vez no login, pra getUniko/getAssistantSkin já encontrarem os customizados.
-  useEffect(() => { if (authUser) { loadCustomUnikos(); loadRewardOverrides(); } }, [authUser]);
+  useEffect(() => { if (authUser) { loadCustomUnikos(); loadRewardOverrides(); loadUnikoBgVideos(); } }, [authUser]);
   // Sincroniza o relógio com o servidor (offset salvo em memória) — sem isso, o spawn do
   // Capture o Uniko aparece em instantes ligeiramente diferentes em cada PC conforme o
   // quanto o relógio local está errado. Reforça de novo a cada 10min (deriva pouca coisa).

@@ -9,7 +9,7 @@ import SakuraScene from '../../shared/sakuraScene';
 import FairyScene from '../../shared/fairyScene';
 import OliviaScene from '../../shared/oliviaScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
-import { getUniko } from '../../shared/captureUniko';
+import { getUniko, loadUnikoBgVideos } from '../../shared/captureUniko';
 import { loadMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -604,6 +604,18 @@ const CentralSakura = () => <SakuraScene fixed />;
 //    rio, flores coloridas, fadinhas voando e brilhos.
 const CentralFairy = () => <FairyScene fixed />;
 const CentralOlivia = () => <OliviaScene fixed />;
+
+// ── Vídeo de fundo da página (por Uniko, configurado no Dashboard RH) — mutado,
+//    autoplay e loop, cobrindo a tela toda atrás do conteúdo. SUBSTITUI o
+//    cenário animado codado quando o Uniko do DJ atual tem vídeo. O véu escuro
+//    por cima mantém o texto/HUD legível sobre qualquer vídeo.
+const CentralBgVideo = ({ url }) => (
+  <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none' }}>
+    <video src={url} muted autoPlay loop playsInline preload="auto"
+      style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+    <div style={{ position:'absolute', inset:0, background:'rgba(6,4,16,0.38)' }} />
+  </div>
+);
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
@@ -1542,6 +1554,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // Tempo); enquanto não carrega, usa o fallback fixo.
   const [msgEspecial, setMsgEspecial] = useState(MSG_ESPECIAL_FALLBACK);
   useEffect(() => { loadMensagemEspecial().then(setMsgEspecial); }, []);
+  // Vídeos de fundo por Uniko: mutam os objetos do roster em memória (getUniko),
+  // então força um re-render quando terminam de carregar pra a cena aparecer.
+  const [, setBgVideoTick] = useState(0);
+  useEffect(() => { loadUnikoBgVideos().then(() => setBgVideoTick(t => t + 1)); }, []);
   const closeMsgVideo = useCallback(() => setMsgVideoOpen(false), []); // estável p/ o memo do modal
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
@@ -2620,21 +2636,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
            estiver no tema escuro (antes tinha o mesmo gate T.dark do vampiro, por
            engano — o vampiro é sombrio de propósito, mas o pedido aqui é aparecer
            sempre). ── */}
-      {tab==="festival" && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
+      {/* ── Vídeo de fundo por Uniko (configurado no Dashboard RH): quando o Uniko
+           do DJ atual tem vídeo, ele SUBSTITUI qualquer cenário animado codado. ── */}
+      {tab==="festival" && getUniko(songSkin)?.bgVideoUrl && <CentralBgVideo url={getUniko(songSkin).bgVideoUrl} />}
+
+      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
 
       {/* ── Floresta de sakura de fundo da página (Uniko Kitsune) — pétalas caindo,
            cachoeira, rio, névoas e torii. Gate pelo sceneType do Uniko (id da Oficina
            tem sufixo aleatório), sem gate de tema: suave e bonito em claro ou escuro. ── */}
-      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
+      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
 
       {/* ── Jardim encantado de fundo da página (Uniko Rainha das Fadas) — flores,
            fadinhas, rio, árvores e sol. Gate pelo sceneType, sem gate de tema. ── */}
-      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
+      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
 
       {/* ── Colagem SOUR de fundo (Uniko Olivia Rodrigo) — fundo roxo, borboletas,
            flores que sorriem, arco-íris, corações, estrelas e joias. Gate pelo
            sceneType, sem gate de tema (bonito em claro ou escuro). ── */}
-      {tab==="festival" && getUniko(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
+      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
@@ -2741,6 +2761,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 const skin = isThemedCard ? getAssistantSkin(songSkin) : null;
                 const uni  = isCustomCard ? getUniko(songSkin) : null;
                 const customAccent = uni?.theme?.accent || T.gold;
+                // Vídeo de fundo do card (por Uniko, config do RH) — vale pra
+                // qualquer skin não-padrão (vamp/sereia/Oficina). Quando existe,
+                // SUBSTITUI o cenário animado codado do card (só o `!cardBgVideo`
+                // dos blocos de cena abaixo cuida disso).
+                const cardBgVideo = songSkin !== 'default' ? (getUniko(songSkin)?.bgVideoUrl || '') : '';
                 return (
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
@@ -2763,8 +2788,17 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     transition:"background .5s, border .5s",
                   }}>
 
+                    {/* Vídeo de fundo do card (por Uniko, config do RH) — mutado/
+                        autoplay/loop, cobrindo o card inteiro atrás do mascote. */}
+                    {cardBgVideo && (
+                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:0, borderRadius:20 }}>
+                        <video src={cardBgVideo} muted autoPlay loop playsInline preload="auto"
+                          style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                      </div>
+                    )}
+
                     {/* Lua de sangue */}
-                    {isVampCard && (
+                    {isVampCard && !cardBgVideo && (
                       <div style={{
                         position:'absolute', top:10, right:14, width:40, height:40,
                         borderRadius:'50%', pointerEvents:'none',
@@ -2775,27 +2809,27 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     )}
 
                     {/* Nuvens perto da lua */}
-                    {isVampCard && <VampClouds />}
+                    {isVampCard && !cardBgVideo && <VampClouds />}
 
                     {/* Relâmpagos vermelhos saindo das nuvens (a cada 6s) */}
-                    {isVampCard && <VampStorm />}
+                    {isVampCard && !cardBgVideo && <VampStorm />}
 
                     {/* Morcegos — só na faixa superior, atrás do ícone (zIndex 1) */}
-                    {isVampCard && (
+                    {isVampCard && !cardBgVideo && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         {Array.from({ length: 5 }).map((_, i) => <VampBat key={i} />)}
                       </div>
                     )}
 
                     {/* Castelo de vampiro */}
-                    {isVampCard && <VampCastle />}
+                    {isVampCard && !cardBgVideo && <VampCastle />}
 
                     {/* Árvores secas nos cantos inferiores (laterais do castelo) */}
-                    {isVampCard && <SideTreeCluster side="left" />}
-                    {isVampCard && <SideTreeCluster side="right" />}
+                    {isVampCard && !cardBgVideo && <SideTreeCluster side="left" />}
+                    {isVampCard && !cardBgVideo && <SideTreeCluster side="right" />}
 
                     {/* Atmospheric glow */}
-                    {isVampCard && (
+                    {isVampCard && !cardBgVideo && (
                       <div style={{
                         position:'absolute', inset:0, pointerEvents:'none', zIndex:0,
                         background:'radial-gradient(ellipse at 65% 5%, #c41e3a1c 0%, transparent 60%)',
@@ -2803,7 +2837,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     )}
 
                     {/* Recife de corais — raios de luz, bolhas, água-vivas, peixinhos e corais */}
-                    {isSeaCard && (
+                    {isSeaCard && !cardBgVideo && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <OceanScene jellies={3} fish={4} bubbles={7} whales={false} dolphins={false} />
                       </div>
@@ -2820,21 +2854,21 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     )}
 
                     {/* Cenário cósmico artesanal — Unikos da Oficina com theme.sceneType='cosmos' (ex.: Destruidora de Mundos) */}
-                    {isCustomCard && uni?.theme?.sceneType === 'cosmos' && (
+                    {isCustomCard && !cardBgVideo && uni?.theme?.sceneType === 'cosmos' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <CosmosScene />
                       </div>
                     )}
 
                     {/* Cenário de floresta de sakura artesanal — Unikos da Oficina com theme.sceneType='sakura' (ex.: Kitsune) */}
-                    {isCustomCard && uni?.theme?.sceneType === 'sakura' && (
+                    {isCustomCard && !cardBgVideo && uni?.theme?.sceneType === 'sakura' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <SakuraScene />
                       </div>
                     )}
 
                     {/* Jardim encantado artesanal — Unikos da Oficina com theme.sceneType='fairy' (ex.: Rainha das Fadas) */}
-                    {isCustomCard && uni?.theme?.sceneType === 'fairy' && (
+                    {isCustomCard && !cardBgVideo && uni?.theme?.sceneType === 'fairy' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <FairyScene />
                       </div>
@@ -2843,7 +2877,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     {/* Colagem SOUR artesanal — Uniko Olivia Rodrigo. `dark` deixa o
                         fundo do card ROXO ESCURO (não preto), com flores/borboletas/
                         arco-íris por cima. */}
-                    {isCustomCard && uni?.theme?.sceneType === 'olivia' && (
+                    {isCustomCard && !cardBgVideo && uni?.theme?.sceneType === 'olivia' && (
                       <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:1, borderRadius:20 }}>
                         <OliviaScene dark />
                       </div>

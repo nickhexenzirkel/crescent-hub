@@ -8,6 +8,7 @@ import {
   loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
+  loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 
@@ -609,6 +610,33 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [rewardEdit, setRewardEdit] = useState({}); // id -> {comum, premium} (rascunho em edição)
   const [rewardSaving, setRewardSaving] = useState(null);
   useEffect(() => { if (tab === 'capture') loadRewardOverrides().then(() => setRewardTick(t => t + 1)); }, [tab]);
+  // Vídeo de fundo por Uniko (aplica em memória; tick força re-render).
+  const [bgVidUploading, setBgVidUploading] = useState(null); // uniko_id em upload
+  const [bgVidMsg, setBgVidMsg] = useState('');
+  useEffect(() => { if (tab === 'capture') loadUnikoBgVideos().then(() => setRewardTick(t => t + 1)); }, [tab]);
+  const subirBgVideo = async (unikoId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) { setBgVidMsg('Escolha um arquivo de vídeo.'); setTimeout(()=>setBgVidMsg(''),4000); return; }
+    if (file.size > 80 * 1024 * 1024) { setBgVidMsg('Vídeo maior que 80MB.'); setTimeout(()=>setBgVidMsg(''),4000); return; }
+    setBgVidUploading(unikoId); setBgVidMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `${unikoId}-${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('uniko-videos').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('uniko-videos').getPublicUrl(path);
+      await saveUnikoBgVideo(unikoId, data.publicUrl);
+      setRewardTick(t => t + 1);
+    } catch (e) { setBgVidMsg('Erro ao enviar: ' + (e.message || '')); setTimeout(()=>setBgVidMsg(''),5000); }
+    setBgVidUploading(null);
+  };
+  const removerBgVideo = async (unikoId) => {
+    setBgVidUploading(unikoId);
+    try { await saveUnikoBgVideo(unikoId, ''); setRewardTick(t => t + 1); }
+    catch (e) { setBgVidMsg('Erro ao remover: ' + (e.message || '')); setTimeout(()=>setBgVidMsg(''),5000); }
+    setBgVidUploading(null);
+  };
   const salvarReward = async (id) => {
     const draft = rewardEdit[id];
     if (!draft) return;
@@ -2479,9 +2507,29 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                             )}
                           </div>
                         )}
+                        {/* Vídeo de fundo (Central Alexa) — pra QUALQUER Uniko */}
+                        {(() => {
+                          const temVideo = !!getUnikoBgVideo(u.id);
+                          const carregando = bgVidUploading===u.id;
+                          return (
+                          <div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',borderTop:`1px solid ${T.border}`,paddingTop:8}}>
+                            <span style={{fontSize:10,fontWeight:700,color:T.textT}}>Vídeo de fundo:</span>
+                            <label style={{padding:'5px 10px',borderRadius:7,cursor:carregando?'wait':'pointer',background:temVideo?`${u.theme.accent}22`:(isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.05)'),color:temVideo?u.theme.accent:T.textS,fontWeight:700,fontSize:10,border:`1px solid ${T.border}`}}>
+                              {carregando?'Enviando…':temVideo?'Trocar':'Escolher'}
+                              <input type="file" accept="video/*" disabled={carregando} style={{display:'none'}}
+                                onChange={e=>{ subirBgVideo(u.id, e.target.files?.[0]); e.target.value=''; }}/>
+                            </label>
+                            {temVideo && !carregando && (
+                              <button onClick={()=>removerBgVideo(u.id)}
+                                style={{padding:'5px 8px',borderRadius:7,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:10}}>Remover</button>
+                            )}
+                          </div>
+                          );
+                        })()}
                       </div>
                       );
                     })}
+                    {bgVidMsg && <div style={{fontSize:11,fontWeight:600,color:'#C04050',width:'100%'}}>{bgVidMsg}</div>}
                   </div>
                 </div>
 
