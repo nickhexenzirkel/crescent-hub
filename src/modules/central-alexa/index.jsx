@@ -609,13 +609,20 @@ const CentralOlivia = () => <OliviaScene fixed />;
 //    autoplay e loop, cobrindo a tela toda atrás do conteúdo. SUBSTITUI o
 //    cenário animado codado quando o Uniko do DJ atual tem vídeo. O véu escuro
 //    por cima mantém o texto/HUD legível sobre qualquer vídeo.
-const CentralBgVideo = ({ url }) => (
-  <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none' }}>
-    <video src={url} muted autoPlay loop playsInline preload="auto"
-      style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-    <div style={{ position:'absolute', inset:0, background:'rgba(6,4,16,0.38)' }} />
-  </div>
-);
+//    memo + props estáveis: a Central Alexa re-renderiza a cada 200ms (timer da
+//    letra) — sem o memo o React ficaria reconciliando o <video> toda hora.
+//    Este é o ÚNICO decode de vídeo na tela: o card do Uniko fica translúcido e
+//    deixa ESTE vídeo aparecer atrás do mascote (antes eu decodificava o mesmo
+//    vídeo 2x — tela cheia + card — e era o que travava).
+const CentralBgVideo = memo(function CentralBgVideo({ url }) {
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:0, overflow:'hidden', pointerEvents:'none' }}>
+      <video src={url} muted autoPlay loop playsInline preload="auto"
+        style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+      <div style={{ position:'absolute', inset:0, background:'rgba(6,4,16,0.38)' }} />
+    </div>
+  );
+});
 
 // Animação rápida (~3s): enxame de morcegos surge do centro e voa em diagonal pra longe
 const BatBurstOverlay = () => {
@@ -2786,8 +2793,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   {isSeaCard && <style>{SEA_CARD_CSS}</style>}
 
                   <div style={{borderRadius:20,
-                    background: isVampCard ? '#090004' : isSeaCard ? '#03141a' : isCustomCard ? (uni?.theme?.deep || '#0a0a12') : cardBg,
-                    backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                    background: cardBgVideo ? 'transparent' : isVampCard ? '#090004' : isSeaCard ? '#03141a' : isCustomCard ? (uni?.theme?.deep || '#0a0a12') : cardBg,
+                    backdropFilter: cardBgVideo ? 'none' : "blur(20px)",WebkitBackdropFilter: cardBgVideo ? 'none' : "blur(20px)",
                     border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : isCustomCard ? `2px solid ${customAccent}` : `1px solid ${T.border}`,
                     padding:"14px 16px 22px",
                     boxShadow: isThemedCard ? undefined : T.shM,
@@ -2802,13 +2809,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     transition:"background .5s, border .5s",
                   }}>
 
-                    {/* Vídeo de fundo do card (por Uniko, config do RH) — mutado/
-                        autoplay/loop, cobrindo o card inteiro atrás do mascote. */}
+                    {/* Fundo do card quando há vídeo do Uniko: o card fica
+                        TRANSLÚCIDO (sem vídeo próprio) pra deixar o vídeo de tela
+                        cheia — o mesmo, um decode só — aparecer atrás do mascote.
+                        Decodificar o vídeo 2x (card + tela cheia) era o que travava. */}
                     {cardBgVideo && (
-                      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none', zIndex:0, borderRadius:20 }}>
-                        <video src={cardBgVideo} muted autoPlay loop playsInline preload="auto"
-                          style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                      </div>
+                      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:0, borderRadius:20, background:'rgba(6,4,16,0.32)' }}/>
                     )}
 
                     {/* Lua de sangue */}
