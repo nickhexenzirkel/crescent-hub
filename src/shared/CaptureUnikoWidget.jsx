@@ -23,7 +23,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, loadRewardOverrides, nowMs, syncServerClock, maxWinnersFor,
+  loadCustomUnikos, loadRewardOverrides, nowMs, syncServerClock, maxWinnersFor, captureEventId,
 } from './captureUniko';
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
@@ -95,6 +95,29 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const resolvingRef = useRef(false);
   const resolveAttemptRef = useRef(null); // sempre a versão mais recente de resolveAttempt (ver onCaptureThrow abaixo)
+
+  /* ── ZERA o estado quando começa um evento NOVO ─────────────────────────────
+       Este componente é montado UMA vez no App e nunca desmonta — só recebe um
+       `cfg` novo por realtime. Sem este reset, o estado do evento anterior ficava
+       grudado e o Uniko seguinte era impossível de pegar sem F5:
+       • `phase` continuava 'caught' pra quem já tinha capturado → o effect de
+         "ficar disponível" abaixo é pulado inteiro (`phase !== 'caught'`), então
+         não tocava o som, não avisava o assistente (emitCaptureState) e, o pior,
+         não registrava o alvo (registerCaptureTarget) — soltar o assistente em
+         cima do card não fazia nada. O handler de arremesso também barrava tudo
+         em `phaseRef.current !== 'idle'`.
+       • `winners` do evento velho ainda apontava myWin/isFull até o fetch novo
+         responder.
+       O eventId muda a cada spawn (é derivado do startAt, e o "Spawnar agora" do
+       Dashboard grava startAt = agora), então isso dispara uma vez por evento. ── */
+  const eventId = captureEventId(cfg);
+  useEffect(() => {
+    setPhase('idle');
+    resolvingRef.current = false;
+    setWinners([]);
+    setAvailable(false);
+    setChecked(false); // o fetch de vencedores logo abaixo devolve pra true
+  }, [eventId]);
 
   /* ── Desbloqueia o áudio no 1º clique (autoplay policy do navegador) ── */
   useEffect(() => {
