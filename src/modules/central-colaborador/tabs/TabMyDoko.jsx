@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
-import { USER, saveUserPhoto, getAuthUser } from '../../../contexts/user';
+import { USER, saveUserPhoto, getAuthUser, supabase } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
 import {
   hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations,
@@ -59,12 +59,33 @@ const TabMyDoko = ({ onPhotoChange }) => {
   useEffect(() => {
     const refresh = () => setCaptured(getCapturedCollection());
     window.addEventListener('uniko-collection:changed', refresh);
-    // sincroniza com o servidor ao abrir a coleção (reflete reset do admin)
-    syncCollectionFromServer().then(list => { if (Array.isArray(list)) setCaptured(list); });
-    // Unikos da Oficina já são carregados no login (App.jsx); recarrega aqui de novo pra
-    // pegar os que foram criados DEPOIS do login, sem precisar dar F5.
-    loadCustomUnikos().then(list => { if (Array.isArray(list)) setCustomUnikos(list); });
-    return () => window.removeEventListener('uniko-collection:changed', refresh);
+    // Re-sincroniza a coleção com o servidor (fonte da verdade: reflete presentes
+    // do RH e reset do admin). Também recarrega os Unikos da Oficina, pra um
+    // presente de Uniko CUSTOM já entrar no roster.
+    const resync = () => {
+      syncCollectionFromServer().then(list => { if (Array.isArray(list)) setCaptured(list); });
+      loadCustomUnikos().then(list => { if (Array.isArray(list)) setCustomUnikos(list); });
+    };
+    resync();
+    // Sem isto, um presente enviado pelo RH só aparecia recarregando a página (a
+    // sync só rodava no mount). Agora re-sincroniza quando o usuário volta pra
+    // aba/janela e em tempo real quando chega uma captura/presente pra ele.
+    const onVis = () => { if (document.visibilityState === 'visible') resync(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', resync);
+    const me = getAuthUser()?.name;
+    let ch;
+    try {
+      ch = supabase.channel('mydoko-captures')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'capture_uniko_captures', filter: me ? `player=eq.${me}` : undefined }, resync)
+        .subscribe();
+    } catch {}
+    return () => {
+      window.removeEventListener('uniko-collection:changed', refresh);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', resync);
+      try { supabase.removeChannel(ch); } catch {}
+    };
   }, []);
   useEffect(() => onAssistantSkinChange((id) => setActiveAssistant(id || 'default')), []);
 
