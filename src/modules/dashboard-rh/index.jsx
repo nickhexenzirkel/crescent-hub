@@ -134,6 +134,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // Dark mode detection (same pattern as PontoEletronico)
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
+  const inputBg  = isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : (T.surface||'white');
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||'rgba(255,255,255,0.82)');
   const tabsBg   = isDark ? `${T.surface}cc` : (T.surfaceW||'rgba(255,255,255,0.75)');
   const [tab, setTab]         = useState('funcionarios');
