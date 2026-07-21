@@ -8,6 +8,8 @@ const TabDados = ({ onProfileSaved }) => {
   const [saving,  setSaving]  = useState(false);
   const [msg,     setMsg]     = useState('');
   const [form, setForm] = useState({
+    birth:    USER.birth    || '',
+    rg:       USER.rg       || '',
     email:    USER.email    || '',
     phone:    USER.phone    || '',
     street:   USER.street   || '',
@@ -21,13 +23,17 @@ const TabDados = ({ onProfileSaved }) => {
     setSaving(true); setMsg('');
     try {
       const token = localStorage.getItem('ch_token');
+      // No servidor a coluna do nascimento é `birth_date` (o form usa `birth`).
+      const { birth, ...rest } = form;
       const r = await fetch(`${SERVER_URL}/api/auth/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...rest, birth_date: birth }),
       });
       const d = await r.json();
       if (!r.ok) { setMsg('Erro: ' + (d.error || 'Tente novamente')); setSaving(false); return; }
+      USER.birth    = form.birth;
+      USER.rg       = form.rg;
       USER.email    = form.email;
       USER.phone    = form.phone;
       USER.street   = form.street;
@@ -85,14 +91,16 @@ const TabDados = ({ onProfileSaved }) => {
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.blue},${T.blue}55)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Informações Pessoais</span>
-          <span style={{marginLeft:8,fontSize:11,color:T.textD,background:T.surfaceSub,padding:'2px 8px',borderRadius:4}}>gerenciado pelo RH</span>
+          {editing
+            ? <span style={{marginLeft:8,fontSize:11,color:T.gold}}>nascimento e RG editáveis</span>
+            : <span style={{marginLeft:8,fontSize:11,color:T.textD,background:T.surfaceSub,padding:'2px 8px',borderRadius:4}}>Nome e CPF pelo RH</span>}
         </div>
         <StarDivider my={0}/>
         <div style={{marginTop:18,display:'flex',flexWrap:'wrap',gap:'0 32px'}}>
           {readOnly('Nome Completo', USER.name)}
-          {readOnly('Data de Nascimento', USER.birth)}
+          {inp('Data de Nascimento', 'birth')}
           {readOnly('CPF', USER.cpf)}
-          {readOnly('RG', USER.rg)}
+          {inp('RG', 'rg')}
         </div>
       </Card>
 
