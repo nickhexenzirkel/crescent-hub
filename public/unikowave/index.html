@@ -2138,11 +2138,12 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       </div>
       <div id="modeHint" class="prev-hint"></div>
     </div>
-    <div class="pv-card pv-row1 pv-fundo" id="bgModeSection">
+    <!-- Seletor "Fundo da Partida" (Sem Clipe / Com Clipe) removido: o modo Com
+         Clipe travava muito, então ficou só "Sem Clipe" e não há mais o que escolher. -->
+    <div class="pv-card pv-row1 pv-fundo" id="bgModeSection" style="display:none">
       <div class="prev-diff-label">Fundo da Partida</div>
       <div class="prev-mode-grid">
         <button class="diff-btn normal mode-btn sel" id="bgOptEffectsPrev" data-bg="effects" onclick="setBgMode('effects')"><i class="pxi" data-pxicon="bolt"></i><span>SEM CLIPE</span><small>Só efeitos (padrão)</small></button>
-        <button class="diff-btn insane mode-btn" id="bgOptVideoPrev" data-bg="video" onclick="setBgMode('video')"><i class="pxi" data-pxicon="play"></i><span>COM CLIPE</span><small>Clipe do YouTube em blur</small></button>
       </div>
     </div>
     <div class="pv-card pv-row1 pv-submodo" id="wgSubmodeSection" style="display:none">
@@ -2309,7 +2310,9 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
         <div class="bg-mode-name">EFEITOS</div>
         <div class="bg-mode-desc">Vento, folhas, água e fogo animados em tempo real com a música</div>
       </button>
-      <button class="bg-mode-btn" id="bgOptVideo" onclick="setBgMode('video')">
+      <!-- Modo VÍDEO YT (Com Clipe) removido — travava muito. Botão escondido
+           (mantido no DOM só pra não quebrar referências de getElementById). -->
+      <button class="bg-mode-btn" id="bgOptVideo" onclick="setBgMode('effects')" style="display:none">
         <div class="bg-mode-icon">🎬</div>
         <div class="bg-mode-name">VÍDEO YT</div>
         <div class="bg-mode-desc">Clipe do YouTube em blur no fundo enquanto a música toca</div>
@@ -2639,7 +2642,10 @@ function closeSettings(){
 // Chave nova (v2): quem já tinha 'video' salvo de antes das correções de buffer
 // volta a começar em "Sem Clipe" (o padrão seguro) — ainda pode escolher "Com
 // Clipe" de novo manualmente, só não fica preso numa escolha antiga arriscada.
-let bgMode = localStorage.getItem('dw_bgmode_v2') || 'effects';
+// Modo "Com Clipe" (vídeo do YouTube no fundo) REMOVIDO — travava muito. bgMode
+// fica travado em 'effects'; todos os branches `bgMode==='video'` viram código
+// morto (nunca executam) e o seletor de fundo some da prévia.
+let bgMode = 'effects';
 
 // ─── MODO DE JOGO (clássico = Teclado Estelar / wargame = Guerra Estelar) ───
 let gameMode = localStorage.getItem('dw_gamemode') || 'classic';
@@ -2839,12 +2845,10 @@ function closeBgPicker(){
   updateBgMenuBtn();
 }
 function setBgMode(mode){
-  bgMode = mode;
-  localStorage.setItem('dw_bgmode_v2', mode);
+  // "Com Clipe" removido — sempre 'effects', ignora qualquer pedido de 'video'.
+  bgMode = 'effects';
+  localStorage.setItem('dw_bgmode_v2', 'effects');
   updateBgPickerUI();
-  // Trocou pra "Com Clipe" já na prévia de uma música → dispara o download agora
-  // (antes só rodava se já tivesse escolhido "vídeo" ao entrar na prévia).
-  if(mode==='video'){ const vid=getYTId(lastYtUrl||''); if(vid) _ytdlKickoff(vid); }
 }
 function updateBgPickerUI(){
   const eff=document.getElementById('bgOptEffects'), vid=document.getElementById('bgOptVideo');
@@ -7690,11 +7694,11 @@ const CHARACTERS = {
   linnea: {
     name: 'Mizuki',
     desc: 'Fada alegre da Guilda de Aventureiros. Sempre animada!',
-    tag: 'ÉPICO',
-    tagClass: 'epico',
-    rarity: 'epico',
-    gwPrice: 2500,
-    alwaysUnlocked: false,
+    tag: 'PADRÃO',
+    tagClass: 'default',
+    rarity: 'default',
+    gwPrice: 0,
+    alwaysUnlocked: true,   // Mizuki é a personagem PADRÃO: todo mundo já tem, fora do gacha
     previewImg: 'images/PersonagemLinnea.png',
     imgs: {
       wave:      'images/PersonagemLinnea.png',
@@ -7922,6 +7926,8 @@ CHARACTERS.icydoll = {
 };
 // Removidas do roster (não-destrutivo: só somem do gacha/mascote; revertível): Icy, Stella, Natsumi
 delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
+// Personagem "Dodoco" EXCLUÍDA — a padrão agora é a Mizuki (linnea, alwaysUnlocked).
+delete CHARACTERS.dodoco;
 
 // Personagens agora são conquistados via AUDIÇÃO (gacha). false = bloqueio normal
 // (só Dodoco + os obtidos em dw_unlocked). Mudar para true libera todos (debug).
@@ -7929,14 +7935,15 @@ const TEMP_UNLOCK_ALL = false;
 
 // selectedChar precisa vir DEPOIS de CHARACTERS para evitar TDZ
 let selectedChar = (function(){
-  const saved = localStorage.getItem('dw_char') || 'dodoco';
-  const unlocked = (function(){ try{ return JSON.parse(localStorage.getItem('dw_unlocked'))||['dodoco']; }catch(e){ return ['dodoco']; }})();
-  return (CHARACTERS[saved] && (TEMP_UNLOCK_ALL || CHARACTERS[saved].alwaysUnlocked || unlocked.includes(saved))) ? saved : 'dodoco';
+  const saved = localStorage.getItem('dw_char') || 'linnea';
+  const unlocked = (function(){ try{ return JSON.parse(localStorage.getItem('dw_unlocked'))||['linnea']; }catch(e){ return ['linnea']; }})();
+  return (CHARACTERS[saved] && (TEMP_UNLOCK_ALL || CHARACTERS[saved].alwaysUnlocked || unlocked.includes(saved))) ? saved : 'linnea';
 })();
 
 // Backwards-compat: DODOCO_IMGS agora aponta para o personagem selecionado
+// (fallback pra Mizuki/linnea, a padrão — Dodoco foi excluída).
 const DODOCO_IMGS = new Proxy({}, {
-  get(_, state){ return (CHARACTERS[selectedChar]?.imgs[state]) || CHARACTERS.dodoco.imgs[state]; }
+  get(_, state){ return (CHARACTERS[selectedChar]?.imgs[state]) || CHARACTERS.linnea.imgs[state]; }
 });
 
 
@@ -8019,7 +8026,7 @@ function loadUnlocked(){
     const arr = JSON.parse(localStorage.getItem(UNLOCKED_KEY));
     if(Array.isArray(arr)) return arr;
   } catch(e){}
-  return ['dodoco'];
+  return ['linnea'];
 }
 function saveUnlocked(arr){
   try { localStorage.setItem(UNLOCKED_KEY, JSON.stringify(arr)); }
@@ -8478,7 +8485,7 @@ function setDodoco(state,durationMs=0){
   dodocoState=state;
   const img=document.getElementById('dodocoImg');
   if(!img) return;
-  const ch=CHARACTERS[selectedChar]||CHARACTERS.dodoco;
+  const ch=CHARACTERS[selectedChar]||CHARACTERS.linnea;
   img.style.opacity='0';
   setTimeout(()=>{
     img.src=ch.imgs[state]||ch.imgs.wave;
@@ -10215,7 +10222,7 @@ function showResult(){
     if(gameOverByDeath) resultDodoState='raiva'; // morreu → Dodoco desapontado
     setTimeout(()=>{
       setDodoco(resultDodoState);
-      const ch=CHARACTERS[selectedChar]||CHARACTERS.dodoco;
+      const ch=CHARACTERS[selectedChar]||CHARACTERS.linnea;
       const m2=document.getElementById('mascot2');
       if(m2) m2.src=ch.imgs[resultDodoState]||ch.imgs.wave;
       charSay(resultDodoState);
@@ -11091,9 +11098,9 @@ gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI(); _applyHome
 (function initProfile(){
   profile = JSON.parse(localStorage.getItem('dw_profile') || 'null');
   if(!profile){
-    psetupSelectedAvatar = 'dodoco'; // default
+    psetupSelectedAvatar = 'linnea'; // default (Mizuki — Dodoco foi excluída)
     psetupSelectedBorder = 'default';
-    renderPsetupAvatarGrid('psetupAvatarGrid', 'dodoco', selectPsetupAvatar);
+    renderPsetupAvatarGrid('psetupAvatarGrid', 'linnea', selectPsetupAvatar);
     renderPsetupBorderGrid('psetupBorderGrid', 'default', selectPsetupBorder);
     updatePsetupPreview();
     document.getElementById('profileSetupScr').classList.remove('off');
@@ -11118,7 +11125,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const btn    = document.getElementById('psetupConfirmBtn');
   if(nameIn && btn){
     // Pre-select dodoco by default
-    if(!psetupSelectedAvatar){ psetupSelectedAvatar = 'dodoco'; renderPsetupAvatarGrid('psetupAvatarGrid','dodoco',selectPsetupAvatar); updatePsetupPreview(); }
+    if(!psetupSelectedAvatar){ psetupSelectedAvatar = 'linnea'; renderPsetupAvatarGrid('psetupAvatarGrid','linnea',selectPsetupAvatar); updatePsetupPreview(); }
     nameIn.addEventListener('input', ()=>{
       btn.disabled = !nameIn.value.trim();
     });
