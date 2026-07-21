@@ -10,6 +10,7 @@ import FairyScene from '../../shared/fairyScene';
 import OliviaScene from '../../shared/oliviaScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
+import { loadMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
@@ -106,12 +107,14 @@ function hdArtistImage(url) {
 // MESMO nome, o navegador (e qualquer proxy no caminho) continua servindo o
 // arquivo antigo do cache — o vídeo novo chega misturado com bytes velhos e
 // engasga. Trocou a mídia? Suba o -vN junto.
-const MSG_COVER = '/mensagem-especial-capa-v2.png';
-const MSG_VIDEO = '/mensagem-especial-video-v2.mp4';
-const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold }) {
+const MSG_COVER = MSG_ESPECIAL_FALLBACK.coverUrl;
+const MSG_VIDEO = MSG_ESPECIAL_FALLBACK.videoUrl;
+const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold, cover, video }) {
   const [ended, setEnded] = useState(false);
   useEffect(() => { if (open) setEnded(false); }, [open]);
   if (!open) return null;
+  const capa  = cover || MSG_COVER;
+  const clipe = video || MSG_VIDEO;
   const frameStyle = {
     maxWidth: 'min(96vw,720px)', maxHeight: '88vh', borderRadius: 16,
     border: `3px solid ${gold}`, boxShadow: `0 20px 70px rgba(0,0,0,0.6), 0 0 40px ${gold}55`,
@@ -122,9 +125,9 @@ const MsgVideoModal = memo(function MsgVideoModal({ open, onClose, gold }) {
       style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', gap: 14, background: 'rgba(6,4,16,0.92)', cursor: 'zoom-out', padding: 24 }}>
       {ended ? (
-        <img src={MSG_COVER} alt="Mensagem Especial" onClick={e => e.stopPropagation()} style={frameStyle} />
+        <img src={capa} alt="Mensagem Especial" onClick={e => e.stopPropagation()} style={frameStyle} />
       ) : (
-        <video src={MSG_VIDEO} controls autoPlay playsInline preload="auto"
+        <video src={clipe} controls autoPlay playsInline preload="auto"
           onEnded={() => setEnded(true)} onClick={e => e.stopPropagation()} style={frameStyle} />
       )}
       <button onClick={onClose}
@@ -1535,6 +1538,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [maquinaView, setMaquinaView]   = useState('geral'); // geral | mensal | djs | semaninha
   const [zoomArtist, setZoomArtist]     = useState(null); // {name, img} — foto do artista ampliada (lightbox)
   const [msgVideoOpen, setMsgVideoOpen] = useState(false); // modal do video "Mensagem Especial"
+  // Capa + vídeo da Mensagem Especial vêm da config do RH (Dashboard → Máquina do
+  // Tempo); enquanto não carrega, usa o fallback fixo.
+  const [msgEspecial, setMsgEspecial] = useState(MSG_ESPECIAL_FALLBACK);
+  useEffect(() => { loadMensagemEspecial().then(setMsgEspecial); }, []);
   const closeMsgVideo = useCallback(() => setMsgVideoOpen(false), []); // estável p/ o memo do modal
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
@@ -3571,7 +3578,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             )}
             {/* Modal do vídeo "Mensagem Especial" (abre pelo card abaixo do pódio) —
                 componente memoizado à parte pra não travar com os re-renders de 200ms */}
-            <MsgVideoModal open={msgVideoOpen} onClose={closeMsgVideo} gold={T.gold} />
+            <MsgVideoModal open={msgVideoOpen} onClose={closeMsgVideo} gold={T.gold} cover={msgEspecial.coverUrl} video={msgEspecial.videoUrl} />
             <div style={{marginBottom:20,display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
               <div>
                 <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>

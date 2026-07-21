@@ -9,6 +9,7 @@ import {
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
 } from '../../shared/captureUniko';
+import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -621,6 +622,47 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   // Preview piscando — só pra dar uma ideia de como fica animado (aberto/fechado a cada 2s).
   useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
 
+  // ── Máquina do Tempo: capa + vídeo da Mensagem Especial (Central Alexa) ──
+  const [msgEsp, setMsgEsp]           = useState(MSG_ESPECIAL_FALLBACK);
+  const [msgEspLoaded, setMsgEspLoaded] = useState(false);
+  const [msgEspUploading, setMsgEspUploading] = useState(null); // 'cover' | 'video' | null
+  const [msgEspSaving, setMsgEspSaving] = useState(false);
+  const [msgEspMsg, setMsgEspMsg]     = useState('');
+  useEffect(() => {
+    if (tab === 'maquina' && !msgEspLoaded) loadMensagemEspecial().then(c => { setMsgEsp(c); setMsgEspLoaded(true); });
+  }, [tab, msgEspLoaded]);
+  // Sobe o arquivo (imagem OU vídeo) pro bucket 'mensagem-especial' e guarda a
+  // URL no estado (só persiste de verdade no "Salvar"). Nome com timestamp +
+  // aleatório pra o navegador/CDN nunca servir cache velho ao trocar a mídia.
+  const msgEspUpload = async (kind, file) => {
+    if (!file) return;
+    const isVideo = kind === 'video';
+    if (isVideo && !file.type.startsWith('video/')) { setMsgEspMsg('Escolha um arquivo de vídeo.'); return; }
+    if (!isVideo && !file.type.startsWith('image/')) { setMsgEspMsg('Escolha um arquivo de imagem.'); return; }
+    const LIMITE_MB = isVideo ? 80 : 12;
+    if (file.size > LIMITE_MB * 1024 * 1024) { setMsgEspMsg(`Arquivo maior que ${LIMITE_MB}MB.`); return; }
+    setMsgEspUploading(kind); setMsgEspMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || (isVideo ? 'mp4' : 'png')).toLowerCase().replace(/[^a-z0-9]/g, '') || (isVideo ? 'mp4' : 'png');
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `${kind}-${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('mensagem-especial').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('mensagem-especial').getPublicUrl(path);
+      setMsgEsp(m => ({ ...m, [isVideo ? 'videoUrl' : 'coverUrl']: data.publicUrl }));
+    } catch (e) {
+      setMsgEspMsg('Erro ao enviar: ' + (e.message || 'tente de novo'));
+    }
+    setMsgEspUploading(null);
+  };
+  const salvarMsgEsp = async () => {
+    setMsgEspSaving(true); setMsgEspMsg('');
+    try { await saveMensagemEspecial(msgEsp); setMsgEspMsg('Salvo! Já vale na Central Alexa.'); }
+    catch (e) { setMsgEspMsg('Erro ao salvar: ' + (e.message || '')); }
+    setMsgEspSaving(false);
+    setTimeout(() => setMsgEspMsg(''), 4000);
+  };
+
   // Lê um arquivo de imagem, redimensiona (máx. `maxSize`px no lado maior, mantém
   // transparência), SOBE pro Supabase Storage (bucket 'uniko-fotos') e devolve a
   // URL pública — mesma ideia do canvas 300x300 já usado pra foto de perfil. Era
@@ -1158,6 +1200,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'comunicados',    label:'Comunicados',         icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>},
     {id:'uniko_ia',       label:'Perguntas do UNIKO',  icon:<><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8z"/></>},
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
+    {id:'maquina',        label:'Máquina do Tempo',   icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></>},
     {id:'capture',        label:'Capture o Uniko',     icon:<><circle cx="11" cy="11" r="8"/><line x1="11" y1="3" x2="11" y2="19"/><line x1="3" y1="11" x2="19" y2="11"/><circle cx="11" cy="11" r="2.5" fill="currentColor"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
@@ -2253,6 +2296,63 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </div>
             </div>
           );})()}
+
+          {/* ── TAB: MÁQUINA DO TEMPO (mensagem especial da Central Alexa) ── */}
+          {tab==='maquina'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14,maxWidth:720}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>Mensagem Especial</div>
+                <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
+                  A capa e o vídeo que aparecem no card <b>“Mensagem Especial!”</b> da Máquina do Tempo (Central Alexa). O vídeo toca automático quando alguém abre o card; ao terminar, mostra a capa.
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                {/* CAPA */}
+                <div style={{padding:16,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{fontSize:13,fontWeight:800,color:T.text}}>Capa (imagem)</div>
+                  <div style={{borderRadius:10,overflow:'hidden',background:isDark?'rgba(255,255,255,.05)':'rgba(0,0,0,.04)',aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {msgEsp.coverUrl
+                      ? <img src={msgEsp.coverUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                      : <span style={{fontSize:30,opacity:.4}}>🖼️</span>}
+                  </div>
+                  <label style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,padding:'9px 14px',borderRadius:9,cursor:msgEspUploading?'wait':'pointer',
+                    background:isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.05)',color:T.text,fontWeight:700,fontSize:12.5,border:`1px solid ${T.border}`}}>
+                    {msgEspUploading==='cover' ? 'Enviando…' : 'Trocar capa'}
+                    <input type="file" accept="image/*" disabled={!!msgEspUploading} style={{display:'none'}}
+                      onChange={e=>{ msgEspUpload('cover', e.target.files?.[0]); e.target.value=''; }}/>
+                  </label>
+                </div>
+
+                {/* VÍDEO */}
+                <div style={{padding:16,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{fontSize:13,fontWeight:800,color:T.text}}>Vídeo</div>
+                  <div style={{borderRadius:10,overflow:'hidden',background:'#000',aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {msgEsp.videoUrl
+                      ? <video src={msgEsp.videoUrl} muted autoPlay loop playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                      : <span style={{fontSize:30,opacity:.4}}>🎬</span>}
+                  </div>
+                  <label style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,padding:'9px 14px',borderRadius:9,cursor:msgEspUploading?'wait':'pointer',
+                    background:isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.05)',color:T.text,fontWeight:700,fontSize:12.5,border:`1px solid ${T.border}`}}>
+                    {msgEspUploading==='video' ? 'Enviando…' : 'Trocar vídeo'}
+                    <input type="file" accept="video/*" disabled={!!msgEspUploading} style={{display:'none'}}
+                      onChange={e=>{ msgEspUpload('video', e.target.files?.[0]); e.target.value=''; }}/>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+                <button onClick={salvarMsgEsp} disabled={msgEspSaving||!!msgEspUploading}
+                  style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:(msgEspSaving||msgEspUploading)?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:(msgEspSaving||msgEspUploading)?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                  {msgEspSaving?'Salvando…':'Salvar'}
+                </button>
+                {msgEspMsg && <div style={{fontSize:12.5,fontWeight:600,color:msgEspMsg.startsWith('Erro')?'#C04050':T.gold}}>{msgEspMsg}</div>}
+              </div>
+              <div style={{fontSize:11.5,color:T.textT}}>
+                Imagem até 12MB · vídeo até 80MB. O vídeo fica <b>mutado, em autoplay e loop</b> no fundo — mande em boa qualidade.
+              </div>
+            </div>
+          )}
 
           {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
           {tab==='capture'&&(()=>{
