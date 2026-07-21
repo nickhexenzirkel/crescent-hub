@@ -600,6 +600,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [oficinaMsg, setOficinaMsg]         = useState('');
   const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
   const [oficinaEditingId, setOficinaEditingId] = useState(null); // null = criando novo; id = editando um já existente
+  const [oficinaBgVideo, setOficinaBgVideo] = useState('');       // vídeo de fundo do Uniko (Central Alexa)
+  const [oficinaBgVidUp, setOficinaBgVidUp] = useState(false);    // upload do vídeo em andamento
 
   const loadOficinaLib = async () => { const list = await loadCustomUnikos(); setOficinaLib(list); };
   useEffect(() => { if (tab === 'capture') loadOficinaLib(); }, [tab]);
@@ -811,6 +813,25 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setOficinaEditingId(null);
     setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
     setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null, scene: null });
+    setOficinaBgVideo('');
+  };
+  // Vídeo de fundo (Central Alexa) direto na Oficina — sobe pro bucket
+  // uniko-videos e só guarda a URL no estado; persiste de verdade no "Salvar".
+  const handleOficinaBgVideo = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) { setOficinaMsg('⚠️ Escolha um arquivo de vídeo.'); return; }
+    if (file.size > 80 * 1024 * 1024) { setOficinaMsg('⚠️ Vídeo maior que 80MB.'); return; }
+    setOficinaBgVidUp(true); setOficinaMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `oficina-${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('uniko-videos').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('uniko-videos').getPublicUrl(path);
+      setOficinaBgVideo(data.publicUrl);
+    } catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao subir o vídeo')); }
+    setOficinaBgVidUp(false);
   };
   // Carrega um Uniko já criado de volta no formulário — os frames vêm exatamente como
   // foram salvos (sem cair no principal), pra não "perder" um frame vazio ao reeditar.
@@ -827,6 +848,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       prismaComum: row.img_prisma_comum, prismaPremium: row.img_prisma_premium, alexa: row.img_alexa, wave: row.img_wave,
       scene: row.img_scene,
     });
+    setOficinaBgVideo(getUnikoBgVideo(id) || '');
     setOficinaMsg('');
   };
   const saveOficina = async () => {
@@ -835,7 +857,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setOficinaSaving(true); setOficinaMsg('');
     try {
       const raw = oficinaEditingId ? getCustomUnikoRaw(oficinaEditingId) : null;
-      await saveCustomUniko({
+      const newId = await saveCustomUniko({
         id: oficinaEditingId || undefined,
         name: oficinaForm.name.trim(), tagline: oficinaForm.tagline.trim(), accent: oficinaForm.accent,
         rewardComum: Number(oficinaForm.rewardComum) || 0, rewardPremium: Number(oficinaForm.rewardPremium) || 0,
@@ -847,6 +869,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
         imgScene: oficinaFrames.scene,
         createdBy: raw?.created_by || getAuthUser()?.name, // edição mantém o criador original
       });
+      // Vídeo de fundo (Central Alexa): grava/limpa pra ESTE Uniko (id novo ou editado).
+      await saveUnikoBgVideo(newId, oficinaBgVideo || '');
       setOficinaMsg(oficinaEditingId ? '✅ Alterações salvas!' : '✅ Uniko adicionado à Biblioteca!');
       resetOficinaForm();
       await loadOficinaLib();
@@ -2825,6 +2849,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     {oficinaFrames.scene && (
                       <button onClick={()=>setOficinaFrames(fr=>({...fr,scene:null}))}
                         style={{fontSize:11,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>remover cenário</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vídeo de fundo — OPCIONAL. Se anexar, vira o fundo (mutado/loop) do
+                    card do Uniko + cenário na Central Alexa quando ele é o DJ, no lugar
+                    do cenário animado. Mesma coisa que dá pra fazer nos cards do evento. */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Vídeo de fundo (opcional)</label>
+                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar um vídeo, ele toca <b>mutado, em loop</b> como fundo do card e do cenário na Central Alexa quando esse Uniko é o DJ da música (substitui o cenário animado). Até 80MB — mande em boa qualidade.</div>
+                  <div style={{display:'flex',alignItems:'center',gap:14}}>
+                    <label style={{width:160,height:90,borderRadius:12,border:`2px dashed ${T.border}`,cursor:oficinaBgVidUp?'wait':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:oficinaBgVideo?'#000':'transparent',flexShrink:0}}>
+                      {oficinaBgVideo
+                        ? <video src={oficinaBgVideo} muted autoPlay loop playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                        : <span style={{fontSize:22,color:T.textT,opacity:.6}}>{oficinaBgVidUp?'…':'+'}</span>}
+                      <input type="file" accept="video/*" disabled={oficinaBgVidUp} style={{display:'none'}}
+                        onChange={e=>{ handleOficinaBgVideo(e.target.files?.[0]); e.target.value=''; }}/>
+                    </label>
+                    {oficinaBgVideo && !oficinaBgVidUp && (
+                      <button onClick={()=>setOficinaBgVideo('')}
+                        style={{fontSize:11,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>remover vídeo</button>
                     )}
                   </div>
                 </div>
