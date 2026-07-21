@@ -93,9 +93,25 @@ export async function loadMissionProgress({ userName, purchases, baseline } = {}
     const prevD = new Date(py, pm - 2, 1);
     const prevMonth = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
     const { data } = await supabase.from('maquina_monthly_djs').select('requested_by,plays').eq('month', prevMonth);
+    // Nome normalizado (sem espaço nas pontas, sem depender de maiúscula/minúscula) —
+    // `requested_by` na fila é digitado/gravado a partir do cadastro, e uma diferença
+    // boba de caixa faria a pessoa simplesmente não se achar no ranking.
+    const key = (s) => (s || '').trim().toLowerCase();
     const agg = {};
-    for (const d of (data || [])) { if (isSysDj(d.requested_by)) continue; const n = (d.requested_by || '').trim(); agg[n] = (agg[n] || 0) + (Number(d.plays) || 0); }
-    const rank = Object.entries(agg).sort((a, b) => b[1] - a[1]).map(([n]) => n).indexOf((userName || '').trim()) + 1;
+    for (const d of (data || [])) {
+      if (isSysDj(d.requested_by)) continue;
+      const k = key(d.requested_by);
+      if (!k) continue;
+      agg[k] = (agg[k] || 0) + (Number(d.plays) || 0);
+    }
+    // Posição por VALOR distinto de plays (dense rank), não por índice na lista ordenada.
+    // Com índice, um EMPATE (ex.: duas pessoas com 190 plays) dava 3º pra uma e 4º pra
+    // outra — e quem ficava com o 3º dependia da ordem em que o Postgres devolveu as
+    // linhas (a query não tem ORDER BY), ou seja, sorteio. Agora quem empata divide a
+    // mesma posição e as duas conseguem resgatar.
+    const mine = agg[key(userName)];
+    const rank = mine == null ? 0
+      : [...new Set(Object.values(agg).sort((a, b) => b - a))].indexOf(mine) + 1;
     prog.c_rank1 = rank === 1 ? 1 : 0;
     prog.c_rank2 = rank === 2 ? 1 : 0;
     prog.c_rank3 = rank === 3 ? 1 : 0;
