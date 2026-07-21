@@ -40,6 +40,22 @@ const TabUnikoWave = () => {
     let cancelled = false;
     const hydrate = async () => {
       const player = playerName();
+
+      // Personagens da Oficina (Dashboard RH → Oficina Uniko Wave): busca a
+      // tabela e escreve em localStorage ANTES de montar o iframe (mesma
+      // origem), pra o jogo injetá-las no roster/gacha/Guerra Estelar no load.
+      try {
+        const { data: chars } = await supabase
+          .from('uniko_wave_chars').select('*').order('created_at', { ascending: true });
+        const mapped = (chars || []).map(c => ({
+          id: c.id, name: c.name, desc: c.desc || '', color: c.color || '#ff00cc',
+          splashUrl: c.splash_url || null,
+          runUrls: Array.isArray(c.run_urls) ? c.run_urls.filter(Boolean) : [],
+          atkUrl: c.atk_url || null, jumpUrl: c.jump_url || null, holdUrl: c.hold_url || null,
+        })).filter(c => c.id && (c.splashUrl || c.runUrls.length));
+        localStorage.setItem('dw_custom_chars', JSON.stringify(mapped));
+      } catch { localStorage.setItem('dw_custom_chars', '[]'); }
+
       let row = null;
       try {
         const { data } = await supabase

@@ -637,6 +637,69 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     catch (e) { setBgVidMsg('Erro ao remover: ' + (e.message || '')); setTimeout(()=>setBgVidMsg(''),5000); }
     setBgVidUploading(null);
   };
+
+  // ── Oficina Uniko Wave: cria personagens pro jogo (roster/gacha/Guerra Estelar) ──
+  const OW_SLOTS = [
+    { k:'splash', label:'Splash art', req:true },
+    { k:'passo1', label:'Passo 1', req:true }, { k:'passo2', label:'Passo 2' },
+    { k:'passo3', label:'Passo 3' }, { k:'passo4', label:'Passo 4' }, { k:'passo5', label:'Passo 5 (opcional)' },
+    { k:'atacar', label:'Atacar', req:true }, { k:'pular', label:'Pular', req:true }, { k:'segurar', label:'Segurar', req:true },
+  ];
+  const [owLista, setOwLista]     = useState([]);
+  const [owForm, setOwForm]       = useState({ name:'', desc:'', color:'#ff00cc' });
+  const [owImgs, setOwImgs]       = useState({}); // slot -> url
+  const [owUploading, setOwUploading] = useState(null); // slot em upload
+  const [owSaving, setOwSaving]   = useState(false);
+  const [owMsg, setOwMsg]         = useState('');
+  const owLoad = async () => {
+    const { data } = await _supabase.from('uniko_wave_chars').select('*').order('created_at', { ascending:false });
+    setOwLista(data || []);
+  };
+  useEffect(() => { if (tab === 'oficina-wave') owLoad(); }, [tab]);
+  const owUpload = async (slot, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setOwMsg('Só imagens (PNG de preferência).'); setTimeout(()=>setOwMsg(''),4000); return; }
+    if (file.size > 12 * 1024 * 1024) { setOwMsg('Imagem maior que 12MB.'); setTimeout(()=>setOwMsg(''),4000); return; }
+    setOwUploading(slot); setOwMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'') || 'png';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `${slot}-${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('uniko-wave-chars').upload(path, file, { contentType:file.type, upsert:false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('uniko-wave-chars').getPublicUrl(path);
+      setOwImgs(m => ({ ...m, [slot]: data.publicUrl }));
+    } catch (e) { setOwMsg('Erro ao enviar: ' + (e.message||'')); setTimeout(()=>setOwMsg(''),5000); }
+    setOwUploading(null);
+  };
+  const owReset = () => { setOwForm({ name:'', desc:'', color:'#ff00cc' }); setOwImgs({}); };
+  const owSalvar = async () => {
+    if (!owForm.name.trim()) { setOwMsg('Dá um nome pra personagem.'); return; }
+    const faltando = OW_SLOTS.filter(s => s.req && !owImgs[s.k]);
+    if (faltando.length) { setOwMsg('Faltam imagens: ' + faltando.map(s=>s.label).join(', ')); return; }
+    setOwSaving(true); setOwMsg('');
+    try {
+      const slug = (owForm.name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'oficina');
+      const id = `${slug}-${Math.random().toString(36).slice(2,6)}`;
+      const run_urls = ['passo1','passo2','passo3','passo4','passo5'].map(k=>owImgs[k]).filter(Boolean);
+      const { error } = await _supabase.from('uniko_wave_chars').insert({
+        id, name: owForm.name.trim(), desc: owForm.desc.trim() || null, color: owForm.color,
+        splash_url: owImgs.splash, run_urls,
+        atk_url: owImgs.atacar, jump_url: owImgs.pular, hold_url: owImgs.segurar,
+        created_by: adminName || null,
+      });
+      if (error) throw error;
+      owReset(); setOwMsg('Personagem criada! Já entra no gacha do Uniko Wave.');
+      await owLoad();
+    } catch (e) { setOwMsg('Erro ao salvar: ' + (e.message||'')); }
+    setOwSaving(false);
+    setTimeout(() => setOwMsg(''), 5000);
+  };
+  const owExcluir = async (c) => {
+    if (!window.confirm(`Excluir a personagem "${c.name}" do Uniko Wave?`)) return;
+    try { await _supabase.from('uniko_wave_chars').delete().eq('id', c.id); await owLoad(); }
+    catch (e) { setOwMsg('Erro ao excluir: ' + (e.message||'')); setTimeout(()=>setOwMsg(''),5000); }
+  };
   const salvarReward = async (id) => {
     const draft = rewardEdit[id];
     if (!draft) return;
@@ -1230,6 +1293,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
     {id:'maquina',        label:'Máquina do Tempo',   icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></>},
     {id:'capture',        label:'Capture o Uniko',     icon:<><circle cx="11" cy="11" r="8"/><line x1="11" y1="3" x2="11" y2="19"/><line x1="3" y1="11" x2="19" y2="11"/><circle cx="11" cy="11" r="2.5" fill="currentColor"/></>},
+    {id:'oficina-wave',   label:'Oficina Uniko Wave',  icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
     {id:'perfis',         label:'Perfis',             icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>},
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
@@ -2378,6 +2442,90 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </div>
               <div style={{fontSize:11.5,color:T.textT}}>
                 Imagem até 12MB · vídeo até 80MB. O vídeo fica <b>mutado, em autoplay e loop</b> no fundo — mande em boa qualidade.
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: OFICINA UNIKO WAVE (personagens do jogo) ── */}
+          {tab==='oficina-wave'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14,maxWidth:860}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>Oficina Uniko Wave</div>
+                <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
+                  Crie personagens pro <b>Uniko Wave</b>. Elas entram no gacha da <b>Audição</b> (jogadores conquistam com GW) e valem nos dois modos — ritmo e Guerra Estelar. Só imagens PNG (fundo transparente) + nome, descrição e cor.
+                </div>
+              </div>
+
+              {/* Formulário */}
+              <div style={{padding:18,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
+                <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
+                  <div style={{flex:'1 1 200px'}}>
+                    <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Nome</label>
+                    <input value={owForm.name} onChange={e=>setOwForm(f=>({...f,name:e.target.value}))} placeholder="Ex.: Estela"
+                      style={{width:'100%',padding:'9px 12px',borderRadius:9,border:`1px solid ${T.border}`,background:inputBg,color:T.text,fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Cor</label>
+                    <input type="color" value={owForm.color} onChange={e=>setOwForm(f=>({...f,color:e.target.value}))}
+                      style={{width:54,height:38,borderRadius:9,border:`1px solid ${T.border}`,background:inputBg,cursor:'pointer'}}/>
+                  </div>
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Descrição</label>
+                  <input value={owForm.desc} onChange={e=>setOwForm(f=>({...f,desc:e.target.value}))} placeholder="Ex.: Guerreira das estrelas. Finisher: Chuva Estelar."
+                    style={{width:'100%',padding:'9px 12px',borderRadius:9,border:`1px solid ${T.border}`,background:inputBg,color:T.text,fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:10}}>
+                  {OW_SLOTS.map(s=>{
+                    const url = owImgs[s.k]; const carregando = owUploading===s.k;
+                    return (
+                    <div key={s.k} style={{display:'flex',flexDirection:'column',gap:6}}>
+                      <div style={{fontSize:11,fontWeight:700,color:s.req?T.text:T.textT}}>{s.label}{s.req&&<span style={{color:'#C04050'}}> *</span>}</div>
+                      <label style={{display:'block',aspectRatio:'1',borderRadius:10,cursor:carregando?'wait':'pointer',overflow:'hidden',
+                        border:`1.5px ${url?'solid':'dashed'} ${url?'#22C55E':T.border}`,background:isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.03)',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
+                        {url ? <img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+                             : <span style={{fontSize:11,color:T.textT}}>{carregando?'Enviando…':'+ imagem'}</span>}
+                        <input type="file" accept="image/*" disabled={!!owUploading} style={{display:'none'}}
+                          onChange={e=>{ owUpload(s.k, e.target.files?.[0]); e.target.value=''; }}/>
+                      </label>
+                    </div>
+                    );
+                  })}
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={owSalvar} disabled={owSaving||!!owUploading}
+                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:(owSaving||owUploading)?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:(owSaving||owUploading)?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                    {owSaving?'Salvando…':'Criar personagem'}
+                  </button>
+                  <button onClick={owReset} disabled={owSaving} style={{padding:'11px 16px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontWeight:600,fontSize:13}}>Limpar</button>
+                  {owMsg && <div style={{fontSize:12.5,fontWeight:600,color:owMsg.startsWith('Erro')||owMsg.startsWith('Falta')||owMsg.startsWith('Dá')||owMsg.startsWith('Só')?'#C04050':T.gold}}>{owMsg}</div>}
+                </div>
+              </div>
+
+              {/* Lista de personagens criadas */}
+              <div style={{padding:16,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:12}}>Personagens criadas{owLista.length?` · ${owLista.length}`:''}</div>
+                {owLista.length===0 ? (
+                  <div style={{fontSize:12.5,color:T.textT,padding:'12px 0'}}>Nenhuma personagem criada ainda.</div>
+                ) : (
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:12}}>
+                    {owLista.map(c=>(
+                      <div key={c.id} style={{borderRadius:12,border:`1px solid ${T.border}`,overflow:'hidden',background:isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)'}}>
+                        <div style={{aspectRatio:'1',background:`radial-gradient(ellipse at 50% 25%, ${c.color||'#ff00cc'}33, transparent 70%)`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          {c.splash_url ? <img src={c.splash_url} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/> : <span style={{fontSize:26,opacity:.4}}>🎭</span>}
+                        </div>
+                        <div style={{padding:'8px 10px'}}>
+                          <div style={{fontSize:13,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                          <div style={{fontSize:11,color:T.textT,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.desc||'—'}</div>
+                          <button onClick={()=>owExcluir(c)} style={{marginTop:8,width:'100%',padding:'6px',borderRadius:8,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:11}}>Excluir</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:11.5,color:T.textT}}>
+                Dica: use PNG com fundo transparente. Passo 1 é a pose base/andando; passos 2-5 fazem o ciclo de caminhada na Guerra Estelar. A cor define os efeitos de magia dela.
               </div>
             </div>
           )}

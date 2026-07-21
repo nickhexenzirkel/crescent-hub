@@ -2157,28 +2157,28 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
     <div class="pv-card pv-bottom">
       <div id="wgCharSection" style="display:none">
         <div class="prev-diff-label">Personagem (Guerra Estelar)</div>
-        <div class="wg-char-grid">
-          <button class="wg-char-card sel" id="wgCharMizuki" onclick="selectWgChar('mizuki')">
+        <div class="wg-char-grid" id="wgCharGrid">
+          <button class="wg-char-card sel" data-wgchar="mizuki" id="wgCharMizuki" onclick="selectWgChar('mizuki')">
             <img class="wg-char-img" src="images/PersonagemLinnea.png" alt="Mizuki" onerror="this.style.display='none'">
             <div class="wg-char-name">✦ MIZUKI</div>
             <div class="wg-char-desc">Fada alegre da guilda. Finisher: Flecha Estelar.</div>
           </button>
-          <button class="wg-char-card" id="wgCharVenebra" onclick="selectWgChar('venebra')">
+          <button class="wg-char-card" data-wgchar="venebra" id="wgCharVenebra" onclick="selectWgChar('venebra')">
             <img class="wg-char-img" src="images/venebra_passo2.png" alt="Lady Venebra" onerror="this.style.display='none'">
             <div class="wg-char-name">🩸 LADY VENEBRA</div>
             <div class="wg-char-desc">Vampira da realeza. Finisher: Explosão de Magia Sanguínea.</div>
           </button>
-          <button class="wg-char-card" id="wgCharOceania" onclick="selectWgChar('oceania')">
+          <button class="wg-char-card" data-wgchar="oceania" id="wgCharOceania" onclick="selectWgChar('oceania')">
             <img class="wg-char-img" src="images/oceania_passo2.png" alt="Oceania" onerror="this.style.display='none'">
             <div class="wg-char-name">🌊 OCEANIA</div>
             <div class="wg-char-desc">Rainha dos Mares. Finisher: Maremoto Abissal.</div>
           </button>
-          <button class="wg-char-card" id="wgCharAshen" onclick="selectWgChar('ashen')">
+          <button class="wg-char-card" data-wgchar="ashen" id="wgCharAshen" onclick="selectWgChar('ashen')">
             <img class="wg-char-img" src="images/ashen_passo2.png" alt="Ashen" onerror="this.style.display='none'">
             <div class="wg-char-name">🔥 ASHEN</div>
             <div class="wg-char-desc">Cavaleiro das Cinzas. Finisher: Cinzas do Fim.</div>
           </button>
-          <button class="wg-char-card" id="wgCharIcy" onclick="selectWgChar('icydoll')">
+          <button class="wg-char-card" data-wgchar="icydoll" id="wgCharIcy" onclick="selectWgChar('icydoll')">
             <img class="wg-char-img" src="images/icy_passo2.png" alt="Icy the Doll" onerror="this.style.display='none'">
             <div class="wg-char-name">💋 ICY THE DOLL</div>
             <div class="wg-char-desc">Modelo luxuosa. Finisher: Holofote Fatal.</div>
@@ -2802,16 +2802,34 @@ function selectWgSubmode(m){
     : 'Notas de bater e segurar pela música toda.';
 }
 
-// Personagem da Guerra Estelar (Mizuki ou Lady Venebra). Aplica os sprites e salva a escolha.
+// Personagem da Guerra Estelar. Aplica os sprites e salva a escolha. Genérico:
+// marca `.sel` no card cujo data-wgchar bate — cobre os fixos E os da Oficina.
 function selectWgChar(key){
   wgApplyChar(key); // normaliza wgChar e troca os sprites
   localStorage.setItem('dw_wgchar', wgChar);
-  const m=document.getElementById('wgCharMizuki'), v=document.getElementById('wgCharVenebra'), o=document.getElementById('wgCharOceania'), a=document.getElementById('wgCharAshen'), ic=document.getElementById('wgCharIcy');
-  if(m) m.classList.toggle('sel', wgChar==='mizuki');
-  if(v) v.classList.toggle('sel', wgChar==='venebra');
-  if(o) o.classList.toggle('sel', wgChar==='oceania');
-  if(a) a.classList.toggle('sel', wgChar==='ashen');
-  if(ic) ic.classList.toggle('sel', wgChar==='icydoll');
+  document.querySelectorAll('.wg-char-card').forEach(el=>{
+    el.classList.toggle('sel', el.dataset.wgchar === wgChar);
+  });
+}
+// Renderiza os cards das personagens da OFICINA que o jogador POSSUI (gacha) no
+// grid da Guerra Estelar, logo depois dos fixos. Idempotente (limpa os antigos).
+function renderCustomWgCards(){
+  const grid = document.getElementById('wgCharGrid');
+  if(!grid) return;
+  grid.querySelectorAll('.wg-char-card.custom').forEach(el=>el.remove());
+  for(const c of CUSTOM_WAVE_CHARS){
+    if(!c || !c.id || !WG_CHAR_FRAMES[c.id]) continue;
+    if(typeof isUnlocked==='function' && !isUnlocked(c.id)) continue; // só as que ele tem
+    const img = (c.runUrls && c.runUrls[0]) || c.splashUrl;
+    const btn = document.createElement('button');
+    btn.className = 'wg-char-card custom' + (wgChar===c.id?' sel':'');
+    btn.dataset.wgchar = c.id;
+    btn.onclick = ()=>selectWgChar(c.id);
+    btn.innerHTML = `<img class="wg-char-img" src="${img}" alt="${c.name||''}" onerror="this.style.display='none'">
+      <div class="wg-char-name">✦ ${(c.name||'OFICINA').toUpperCase()}</div>
+      <div class="wg-char-desc">${c.desc||'Personagem da Oficina.'}</div>`;
+    grid.appendChild(btn);
+  }
 }
 
 function selectMode(m){
@@ -4531,8 +4549,9 @@ function showMenuPanel(panelId, btn){
   document.querySelectorAll('.snav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   // Refresh panel contents
-  if(panelId==='panelChar') renderCharGrid();
+  if(panelId==='panelChar'){ renderCharGrid(); try{ renderCustomWgCards(); }catch(e){} }
   if(panelId==='panelWish') renderWishPanel();
+  if(panelId==='panelPlay'){ try{ renderCustomWgCards(); }catch(e){} } // refresca o grid da Guerra Estelar (novas personagens da Oficina/gacha)
   if(panelId==='panelLib'){ renderLibraryPanel(); gpLibIdx=0; if(gpConnected) setTimeout(()=>gpHighlightLib(),40); }
   if(panelId==='panelRank'){ renderRankTabs(); requestRank(); }
   if(panelId==='panelSettings'){ renderSettingsPanel(); syncMusicUI(); syncGfxUI(); }
@@ -7929,6 +7948,69 @@ delete CHARACTERS.icy; delete CHARACTERS.stella; delete CHARACTERS.natsumi;
 // Personagem "Dodoco" EXCLUÍDA — a padrão agora é a Mizuki (linnea, alwaysUnlocked).
 delete CHARACTERS.dodoco;
 
+// ─── PERSONAGENS DA OFICINA (RH) ──────────────────────────────────────────────
+// O wrapper React (TabUnikoWave.jsx) busca as personagens criadas no Dashboard
+// (tabela uniko_wave_chars) e grava em localStorage['dw_custom_chars'] ANTES de
+// montar este iframe. Aqui a gente injeta cada uma em:
+//  • CHARACTERS (modo ritmo + mascote + gacha — como não são alwaysUnlocked,
+//    entram sozinhas no poço da Audição via wishBanners)
+//  • WG_CHAR_FRAMES + WG_MAGIC (modo Guerra Estelar) — a "cor" vira toda a
+//    paleta de efeitos derivando tons mais claros/escuros.
+// Só a splash art é obrigatória; passo 2-5/atacar/pular/segurar caem pra ela.
+function _hexMix(hex, target, amt){
+  hex = String(hex||'#ff00cc').replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  const t = target.replace('#','');
+  const r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  const tr=parseInt(t.slice(0,2),16), tg=parseInt(t.slice(2,4),16), tb=parseInt(t.slice(4,6),16);
+  const m=(a,z)=>Math.round(a+(z-a)*amt);
+  return '#'+[m(r,tr),m(g,tg),m(b,tb)].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('');
+}
+const _lighten=(h,a)=>_hexMix(h,'#ffffff',a), _darken=(h,a)=>_hexMix(h,'#000000',a);
+function _rgba(hex, al){ hex=String(hex||'#ff00cc').replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join(''); const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16); return `rgba(${r},${g},${b},${al})`; }
+function _magicFromColor(cor){
+  const hi=_lighten(cor,.35), lo=_darken(cor,.35), deep=_darken(cor,.7), soft=_lighten(cor,.7);
+  return {
+    say:'✨ MAGIA ESTELAR! ✨',
+    hitBurstHi:hi, hitBurstLo:lo, ring1Hi:cor, ring1Lo:lo, ring2:soft, judgeHi:hi, judgeLo:soft,
+    projShadow:lo, projTrail:[_rgba(lo,0),_rgba(lo,.65),_rgba(hi,.9)],
+    orb:[soft,cor,deep], chargeShadow:cor, chargeGrad:[soft,cor,deep,_rgba(deep,0)],
+    fistTrail:[_rgba(lo,0),_rgba(hi,.9)],
+    explGlow:[_rgba(soft,.95),_rgba(cor,.85),_rgba(deep,.7),_rgba(deep,0)],
+    explRings:[[hi,1.0],[cor,.82],[deep,.62],['#0a0205',.42]],
+    explShadow:lo, shard:[cor,deep], shardShadow:hi,
+    particles:[cor,lo,deep,hi,soft],
+  };
+}
+let CUSTOM_WAVE_CHARS = [];
+(function injectCustomChars(){
+  try { CUSTOM_WAVE_CHARS = JSON.parse(localStorage.getItem('dw_custom_chars')||'[]') || []; } catch(e){ CUSTOM_WAVE_CHARS = []; }
+  for(const c of CUSTOM_WAVE_CHARS){
+    if(!c || !c.id) continue;
+    const splash = c.splashUrl || (c.runUrls && c.runUrls[0]);
+    if(!splash) continue;
+    const cor = c.color || '#ff00cc';
+    CHARACTERS[c.id] = {
+      name: c.name || 'Oficina', desc: c.desc || '', tag:'OFICINA', tagClass:'epico', rarity:'epico',
+      gwPrice: 2500, alwaysUnlocked:false, custom:true, color:cor, previewImg: splash,
+      imgs: { wave:splash, animado:(c.atkUrl||splash), dormindo:splash, raiva:(c.holdUrl||splash), surpreso:(c.jumpUrl||splash), tranquilo:splash },
+      filter:`drop-shadow(0 0 16px ${_rgba(cor,.55)}) drop-shadow(0 0 32px ${_rgba(cor,.28)})`,
+      dialogues:{ wave:['♪ ♫ ♬','✨','♩ ♬ ♩'], animado:['🎶 WOW!','COMBO!! 🔥','ISSO! 🎵'], dormindo:['zzz... 💤','...zZZ'],
+        raiva:['ERROU!! 😤','Atenção!! 🔴'], surpreso:['INCRÍVEL! 🌟','COMBO!! 🎆'], tranquilo:['Foca! ☆','...♪'],
+        combo50:['50 COMBO!! 🔥','ARRASANDO!! ✨'], combo100:['100 COMBO!!! 🌟','LENDÁRIO!! 💥'], miss:['Ops! 💔','Foca! 👀'] },
+    };
+    const runs = (c.runUrls && c.runUrls.length) ? c.runUrls : [splash];
+    WG_CHAR_FRAMES[c.id] = {
+      run: runs, jump:(c.jumpUrl||splash), atk:(c.atkUrl||splash), airAtk:(c.jumpUrl||splash),
+      chateada:runs[0], alegre:runs[0], hold2:(c.holdUrl||splash), hold3:(c.holdUrl||splash), arrow:(c.holdUrl||splash),
+    };
+    WG_MAGIC[c.id] = _magicFromColor(cor);
+  }
+  // Se a personagem salva da Guerra Estelar é uma da Oficina, reaplica os sprites
+  // agora que ela já existe em WG_CHAR_FRAMES (no wgApplyChar do topo ela ainda
+  // não existia e caía pra 'mizuki').
+  try { wgApplyChar(localStorage.getItem('dw_wgchar')||wgChar); } catch(e){}
+})();
+
 // Personagens agora são conquistados via AUDIÇÃO (gacha). false = bloqueio normal
 // (só Dodoco + os obtidos em dw_unlocked). Mudar para true libera todos (debug).
 const TEMP_UNLOCK_ALL = false;
@@ -11093,6 +11175,7 @@ function applyPxIcons(root){
 
 buildKeyLegend(); resize(); initMenuBg(); showScreen('menuScr'); updatePlayCharBadge(); applyPxIcons();
 gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI(); _applyHomeMedia();
+try { renderCustomWgCards(); } catch(e){}  // cards das personagens da Oficina no grid da Guerra Estelar
 
 // ─── PROFILE INIT ───
 (function initProfile(){
