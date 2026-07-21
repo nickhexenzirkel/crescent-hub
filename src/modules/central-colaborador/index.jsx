@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
-import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete } from '../../contexts/user';
+import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete, shrinkPhoto } from '../../contexts/user';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { NAV_FOR } from './Sidebar';
 import { SettingsModal } from '../../shared/SettingsModal';
@@ -322,7 +322,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
                     onChange={e=>{
                       const f=e.target.files?.[0]; if(!f) return;
                       const r=new FileReader();
-                      r.onload=ev=>setOnbPhoto(ev.target.result);
+                      // shrinkPhoto ANTES de guardar: o dataURL cru de uma foto de celular
+                      // tem vários MB e ia inteiro pro localStorage (era esta a origem da
+                      // chave uniko_photo_<cpf> de 4,7MB que estourava a cota do navegador).
+                      r.onload=ev=>shrinkPhoto(ev.target.result).then(setOnbPhoto);
                       r.readAsDataURL(f);
                     }}/>
                   <button onClick={()=>onbFileRef.current?.click()}

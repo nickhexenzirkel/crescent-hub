@@ -72,6 +72,42 @@ const getUserPhotoFromCache = () => {
   try { return localStorage.getItem(PHOTO_KEY) || null; } catch { return null; }
 };
 
+/* ── Foto de perfil enxuta (300x300 JPEG) ────────────────────────────────────
+   Toda foto de perfil PRECISA passar por aqui antes de ser guardada. Sem isso o
+   dataURL CRU do arquivo escolhido (foto de celular = vários MB) ia inteiro pro
+   localStorage e, pela sincronização logo abaixo, pro Supabase: em produção uma
+   chave `uniko_photo_<cpf>` chegou a 4,7MB e estourou sozinha a cota de ~5MB do
+   navegador — daí em diante QUALQUER outra gravação falhava com
+   QuotaExceededError (foi assim que a Coleção do Capture o Uniko parou de
+   atualizar). 300x300 JPEG 0.88 é o mesmo formato que o modal de foto do Portal
+   (TabInicio) já usava, e dá ~30KB. Recorte "cover" centralizado, igual ao
+   preview redondo. Se algo falhar, devolve a original (nunca perde a foto). ── */
+const PHOTO_MAX_CHARS = 300 * 1024; // acima disso é foto crua, não comprimida
+const shrinkPhoto = (dataUrl) => new Promise((resolve) => {
+  if (!dataUrl || typeof dataUrl !== 'string') return resolve(dataUrl);
+  try {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const SIZE = 300;
+        const c = document.createElement('canvas');
+        c.width = c.height = SIZE;
+        const ctx = c.getContext('2d');
+        const s = Math.max(SIZE / img.naturalWidth, SIZE / img.naturalHeight);
+        const w = img.naturalWidth * s, h = img.naturalHeight * s;
+        ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+        // PNG continua PNG: as fotos de perfil feitas a partir de um Uniko (Coleção /
+        // Uniko Paint) têm fundo transparente, e JPEG não tem canal alfa — sairiam com
+        // o fundo PRETO. Foto de câmera é JPEG e segue como JPEG, que comprime bem mais.
+        const isPng = /^data:image\/png/i.test(dataUrl);
+        resolve(isPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.88));
+      } catch { resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  } catch { resolve(dataUrl); }
+});
+
 const loadUserPhoto = async () => {
   // Lê o token atual (pode ter sido salvo após o carregamento do módulo)
   const _auth = getAuthUser();
@@ -83,14 +119,35 @@ const loadUserPhoto = async () => {
     // O cache local é só conveniência: a foto vem do Supabase de qualquer jeito.
     // Sem o try, uma foto grande com o localStorage cheio derrubava o login.
     if (data?.photo) {
+      // Foto antiga gravada CRUA (antes da compressão existir) — encolhe uma vez e
+      // devolve pro banco já pequena, senão ela continuaria enchendo o localStorage
+      // de todo mundo que a vê e trafegando MBs a cada abertura do Portal.
+      if (data.photo.length > PHOTO_MAX_CHARS) {
+        const small = await shrinkPhoto(data.photo);
+        if (small && small.length < data.photo.length) {
+          try { localStorage.setItem(dynKey, small); } catch {}
+          try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo: small, updated_at: new Date().toISOString() }); } catch {}
+          return small;
+        }
+      }
       try { localStorage.setItem(dynKey, data.photo); } catch {}
       return data.photo;
     }
   } catch {}
-  // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver
-  const cached = localStorage.getItem(dynKey) || null;
+  // Foto não está no Supabase — pega do cache local e sincroniza para que outros possam ver.
+  // Passa pelo shrinkPhoto se for crua: era por AQUI que a foto gigante do onboarding
+  // (só local) acabava virando uma linha de vários MB em profile_photos.
+  let cached = localStorage.getItem(dynKey) || null;
+  if (cached && cached.length > PHOTO_MAX_CHARS) {
+    const small = await shrinkPhoto(cached);
+    if (small && small.length < cached.length) {
+      cached = small;
+      try { localStorage.setItem(dynKey, small); } catch {}
+    }
+  }
   if (cached) {
-    (async () => { try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo: cached, updated_at: new Date().toISOString() }); } catch {} })();
+    const photo = cached;
+    (async () => { try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo, updated_at: new Date().toISOString() }); } catch {} })();
   }
   return cached;
 };
@@ -99,8 +156,11 @@ const saveUserPhoto = async (base64) => {
   const _auth = getAuthUser();
   const name = _auth?.name || USER.name;
   const dynKey = _auth?.cpf ? `uniko_photo_${_auth.cpf}` : `uniko_photo_${name}`;
-  try { localStorage.setItem(dynKey, base64); } catch {}
-  try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo: base64, updated_at: new Date().toISOString() }); } catch {}
+  // Rede de segurança pra QUALQUER caminho que salve foto (Portal, Coleção, Paint,
+  // onboarding): o que já vem comprimido passa direto (fica abaixo do limite).
+  const photo = base64 && base64.length > PHOTO_MAX_CHARS ? await shrinkPhoto(base64) : base64;
+  try { localStorage.setItem(dynKey, photo); } catch {}
+  try { await _supabase.from('profile_photos').upsert({ employee_name: name, photo, updated_at: new Date().toISOString() }); } catch {}
 };
 
 const fetchPhotoByName = async (name) => {
@@ -139,6 +199,7 @@ export {
   getUserPhotoFromCache,
   loadUserPhoto,
   saveUserPhoto,
+  shrinkPhoto,
   fetchPhotoByName,
   isProfileComplete,
   podeConexaoSetorial,
