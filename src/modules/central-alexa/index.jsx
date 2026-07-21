@@ -11,11 +11,6 @@ import OliviaScene from '../../shared/oliviaScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
 import { getUniko } from '../../shared/captureUniko';
 import { useIsMobile } from '../../hooks/useIsMobile';
-// Import direto do bundle de navegador (não o "main" do pacote): o "main"
-// de jsmediatags inclui os leitores de Node/React Native também, e o
-// Rolldown/Vite tenta resolver "react-native-fs" (que não está instalado)
-// e quebra o build. O bundle de dist/ já vem pronto pra rodar só no browser.
-import jsmediatags from 'jsmediatags/dist/jsmediatags.min.js';
 
 // Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
 const FEMALE_NAMES = new Set(['beatriz','isabel','isabela','raquel','rute','ruth','ester','esther','ines','lais','lays','iris','nicole','jaqueline','jacqueline','caroline','carol','rachel','denise','eloise','heloise','karen','karin','miriam','mirian','carmen','carmem','solange','mercedes','yasmin','yasmim','jasmin','liz','mabel','isis','cris','noemi','noemy','sarah','sara','hannah','deborah','debora','judith','lilian','marylin','sharon','estefani','estefany','gabrielly','emily','kimberly','ester','agnes','dulce','flor','pilar']);
@@ -971,32 +966,6 @@ async function extractAlbumColors(imageUrl) {
   });
 }
 
-// Reduz uma data-URL de capa (base64) pra uma miniatura leve num canvas.
-// Idempotente: re-encolher uma capa já pequena é barato e inofensivo; se o
-// que chega NÃO é data-URL (ex.: URL remota do Spotify), devolve como está.
-// Usada na extração do ID3 (bibCapaParaDataUrl) E na hora de mandar pra fila
-// (addToQueue) — entradas ANTIGAS da Biblioteca guardaram a capa ORIGINAL
-// gigante (de antes do encolhimento existir), e mandar esse blob no
-// POST /api/queue estoura o limite do body-parser (PayloadTooLargeError).
-function shrinkCoverDataUrl(dataUrl, max = 300, quality = 0.82) {
-  return new Promise((resolve) => {
-    if (!dataUrl || !dataUrl.startsWith('data:')) { resolve(dataUrl || null); return; }
-    const img = new Image();
-    img.onload = () => {
-      try {
-        let { width, height } = img;
-        if (width >= height) { if (width > max) { height = Math.round(height * max / width); width = max; } }
-        else if (height > max) { width = Math.round(width * max / height); height = max; }
-        const c = document.createElement('canvas'); c.width = width; c.height = height;
-        c.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(c.toDataURL('image/jpeg', quality));
-      } catch { resolve(dataUrl); }
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
-
 // Carrega a IFrame API do YouTube uma única vez (compartilhada na página)
 function loadYouTubeApi() {
   return new Promise((resolve) => {
@@ -1247,18 +1216,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
   // ── UI state ─────────────────────────────────────────────
   const [tab, setTab]             = useState("festival");
-  const changeTab = (id) => {
-    window.history.pushState({ screen: 'alexa', tab: id }, '', '#alexa/' + id);
-    setTab(id);
-  };
-  // Semeia a aba inicial no entry de histórico criado por navPush('alexa')
+  // As sub-abas (Festival/Máquina/Alexa) NÃO viram link próprio na URL — a
+  // Central Alexa inteira é uma tela só (`#alexa`). Trocar de aba só muda o
+  // estado local; a URL fica sempre `#alexa` e o "voltar" sai direto pra tela
+  // anterior (módulos), em vez de percorrer as sub-abas.
+  const changeTab = (id) => setTab(id);
+  // Normaliza a URL pra `#alexa` (navPush já criou esse entry; aqui só garante
+  // que nenhum `#alexa/xxx` antigo sobre no histórico ao entrar).
   useEffect(() => {
-    window.history.replaceState({ screen: 'alexa', tab: 'festival' }, '', '#alexa/festival');
-  }, []);
-  useEffect(() => {
-    const onPop = (e) => { if (e.state?.screen === 'alexa' && e.state.tab) setTab(e.state.tab); };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.history.replaceState({ screen: 'alexa' }, '', '#alexa');
   }, []);
   const [dokoMsg, setDokoMsg]     = useState(DOKO_MSGS_IDLE[0]);
   const [voiceVal, setVoiceVal]   = useState("");
@@ -1579,16 +1545,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [collageExpanded, setCollageExpanded] = useState(false);
 
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
-
-  // ── Biblioteca Local (MP3s enviados pelos colaboradores) ─
-  const [bibLista, setBibLista]           = useState([]);
-  const [bibCarregando, setBibCarregando] = useState(false);
-  const [bibBusca, setBibBusca]           = useState('');
-  const [bibPreview, setBibPreview]       = useState(null);   // {file, title, artist, albumArt, durationMs, durationStr}
-  const [bibExtraindo, setBibExtraindo]   = useState(false);
-  const [bibSalvando, setBibSalvando]     = useState(false);
-  const [bibMsg, setBibMsg]               = useState('');
-  const [bibExcluindoId, setBibExcluindoId] = useState(null);
 
   // ── Alexa rate limit ─────────────────────────────────────
   const auth = getAuthUser();
@@ -2015,7 +1971,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   };
 
   useEffect(() => { if (tab==='maquina')    loadMaquinaData(); }, [tab]);
-  useEffect(() => { if (tab==='biblioteca') loadBiblioteca(); }, [tab]); // eslint-disable-line
   useEffect(() => {
     if (tab==='maquina' && maquinaView==='semaninha' && collageData?.period!==collagePeriod) loadCollage(collagePeriod);
   }, [tab, maquinaView, collagePeriod]); // eslint-disable-line
@@ -2276,20 +2231,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     setIsAdding(track.id);
     setSearchResults([]);
     setVoiceVal('');
-    // Faixa da Biblioteca Local (MP3 próprio, tocado via Alexa/SSML no servidor)
-    // não tem uri/spotify_id — manda mp3_url + source:'local' em vez disso; o
-    // servidor decide, na hora de tocar, qual dos dois caminhos usar.
-    // Encolhe a capa ANTES de mandar: entradas antigas da Biblioteca guardaram
-    // a capa original gigante (base64), que estoura o body-parser do servidor
-    // (PayloadTooLargeError). shrinkCoverDataUrl é no-op se já for pequena/URL.
-    const artSegura = track.source === 'local'
-      ? await shrinkCoverDataUrl(track.album_art)
-      : track.album_art;
-    const corpo = track.source === 'local'
-      ? { source: 'local', mp3_url: track.mp3_url, title: track.title, artist: track.artist,
-          album_art: artSegura, requested_by: myName,
-          duration_ms: track.duration_ms, duration_str: track.duration_str, is_admin: isAdmin }
-      : { uri: track.uri, spotify_id: track.id,
+    const corpo = { uri: track.uri, spotify_id: track.id,
           title: track.title, artist: track.artist,
           album_art: track.album_art, requested_by: myName,
           duration_ms: track.duration_ms, duration_str: track.duration_str,
@@ -2306,121 +2248,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     }
     setIsAdding(null);
   };
-
-  /* ── BIBLIOTECA LOCAL ──────────────────────────────────────────────────
-     MP3 de verdade sobe pro Storage do Supabase; capa/nome/artista saem do
-     próprio arquivo (ID3, via jsmediatags) — o colaborador só confirma ou
-     corrige antes de salvar. Some daqui pra fila igual a uma faixa do
-     Spotify, só que com source:'local' (ver addToQueue acima). */
-  const loadBiblioteca = async () => {
-    setBibCarregando(true);
-    const { data } = await _supabase.from('biblioteca_local').select('*').order('created_at', { ascending: false });
-    setBibLista(data || []);
-    setBibCarregando(false);
-  };
-
-  // Converte o array de bytes da capa (ID3 APIC) numa data-URL PEQUENA. A capa
-  // embutida no MP3 pode vir enorme (nada raro passar de 1MB em base64) — isso
-  // sozinho já estourava o limite de tamanho do corpo da requisição no servidor
-  // (PayloadTooLargeError: o body-parser tem teto de 100kb por padrão) e inchava
-  // à toa a coluna `album_art` do banco, já que aqui ela só vira uma miniatura de
-  // 40-56px. Redesenha num canvas pequeno antes de guardar (mesma ideia do
-  // `frameFromFile` em dashboard-rh/index.jsx).
-  const bibCapaParaDataUrl = (picture) => {
-    if (!picture?.data?.length) return Promise.resolve(null);
-    let bin = '';
-    const bytes = picture.data;
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    const dataUrlOriginal = `data:${picture.format || 'image/jpeg'};base64,${btoa(bin)}`;
-    return shrinkCoverDataUrl(dataUrlOriginal);
-  };
-
-  const bibFmtDuracao = (ms) => {
-    if (!ms || ms <= 0) return '--:--';
-    const s = Math.round(ms / 1000);
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  };
-
-  // Escolheu o arquivo: extrai ID3 (título/artista/capa) + duração (via
-  // <audio>, já que tag de ID3 não traz duração confiável) e monta a prévia
-  // editável — nem todo MP3 tem tag limpa, então título cai pro nome do
-  // arquivo quando falta.
-  const bibArquivoEscolhido = (file) => {
-    if (!file) return;
-    if (!/\.mp3$/i.test(file.name) && file.type !== 'audio/mpeg') {
-      setBibMsg('Só arquivos .mp3, por favor.'); setTimeout(() => setBibMsg(''), 4000); return;
-    }
-    const LIMITE_MB = 20;
-    if (file.size > LIMITE_MB * 1024 * 1024) {
-      setBibMsg(`Arquivo maior que ${LIMITE_MB}MB — tente uma versão mais compacta.`); setTimeout(() => setBibMsg(''), 5000); return;
-    }
-    setBibExtraindo(true); setBibMsg('');
-    const nomeSemExtensao = file.name.replace(/\.mp3$/i, '');
-    const audioTemp = new Audio(URL.createObjectURL(file));
-    let durationMs = 0, durationStr = '--:--';
-    audioTemp.addEventListener('loadedmetadata', () => {
-      if (isFinite(audioTemp.duration)) { durationMs = Math.round(audioTemp.duration * 1000); durationStr = bibFmtDuracao(durationMs); }
-    });
-    jsmediatags.read(file, {
-      onSuccess: async (tag) => {
-        const t = tag.tags || {};
-        const albumArt = await bibCapaParaDataUrl(t.picture);
-        setBibPreview({
-          file, title: t.title || nomeSemExtensao, artist: t.artist || '',
-          albumArt,
-          durationMs, durationStr,
-        });
-        setBibExtraindo(false);
-      },
-      onError: () => {
-        // Sem tag legível — segue só com o nome do arquivo, campos editáveis.
-        setBibPreview({ file, title: nomeSemExtensao, artist: '', albumArt: null, durationMs, durationStr });
-        setBibExtraindo(false);
-      },
-    });
-  };
-
-  const bibConfirmarUpload = async () => {
-    if (!bibPreview?.file || bibSalvando) return;
-    if (!bibPreview.title.trim()) { setBibMsg('Dá um nome pra música.'); return; }
-    setBibSalvando(true); setBibMsg('');
-    try {
-      const ext = 'mp3';
-      const path = `${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}.${ext}`;
-      const { error: upErr } = await _supabase.storage.from('biblioteca-local')
-        .upload(path, bibPreview.file, { contentType: bibPreview.file.type || 'audio/mpeg', upsert: false });
-      if (upErr) throw upErr;
-      const { data: urlData } = _supabase.storage.from('biblioteca-local').getPublicUrl(path);
-      const { error: insErr } = await _supabase.from('biblioteca_local').insert({
-        title: bibPreview.title.trim(), artist: bibPreview.artist.trim() || null,
-        album_art: bibPreview.albumArt, mp3_path: path, mp3_url: urlData.publicUrl,
-        duration_ms: bibPreview.durationMs || null, duration_str: bibPreview.durationStr || null,
-        uploaded_by: myName,
-      });
-      if (insErr) throw insErr;
-      setBibPreview(null);
-      await loadBiblioteca();
-    } catch (e) {
-      setBibMsg('Erro ao enviar: ' + (e.message || 'tente de novo'));
-    }
-    setBibSalvando(false);
-  };
-
-  const bibExcluir = async (item) => {
-    if (item.uploaded_by !== myName && !isAdmin) return;
-    if (!window.confirm(`Excluir "${item.title}" da biblioteca?`)) return;
-    setBibExcluindoId(item.id);
-    await _supabase.storage.from('biblioteca-local').remove([item.mp3_path]);
-    await _supabase.from('biblioteca_local').delete().eq('id', item.id);
-    await loadBiblioteca();
-    setBibExcluindoId(null);
-  };
-
-  const bibFiltrada = bibLista.filter(b => {
-    const q = bibBusca.trim().toLowerCase();
-    if (!q) return true;
-    return (b.title || '').toLowerCase().includes(q) || (b.artist || '').toLowerCase().includes(q);
-  });
 
   // Reordena a fila (admin): troca a posição de duas músicas pending adjacentes.
   // direction: -1 = sobe, +1 = desce
@@ -2865,7 +2692,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
             {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
             {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
-            {id:"biblioteca",label:"Biblioteca Local",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M3 3v18"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>changeTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,flexShrink:0,
@@ -4153,97 +3979,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           </div>
         )}
 
-        {/* ══════════ BIBLIOTECA LOCAL TAB ══════════ */}
-        {tab==="biblioteca"&&(
-          <div style={{maxWidth:640,margin:"0 auto",display:"flex",flexDirection:"column",gap:16}}>
-            {/* Upload */}
-            <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:20,boxShadow:T.sh}}>
-              <div style={{fontFamily:"var(--font-brand)",fontSize:16,fontWeight:700,color:T.text,marginBottom:4}}>Biblioteca Local</div>
-              <div style={{fontSize:12,color:T.textS,marginBottom:14}}>
-                Suba um MP3 seu — capa, nome e artista saem sozinhos do arquivo. Depois é só buscar e adicionar na fila do Festival, igual uma música do Spotify.
-              </div>
-              <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 18px",borderRadius:10,cursor:bibExtraindo?"wait":"pointer",
-                background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"#fff",fontWeight:700,fontSize:13}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v13"/></svg>
-                {bibExtraindo ? "Lendo o arquivo..." : "Escolher .mp3"}
-                <input type="file" accept=".mp3,audio/mpeg" disabled={bibExtraindo} style={{display:"none"}}
-                  onChange={e=>{ bibArquivoEscolhido(e.target.files?.[0]); e.target.value=""; }}/>
-              </label>
-              {bibMsg && <div style={{marginTop:10,fontSize:12,color:"#C04050"}}>{bibMsg}</div>}
-            </div>
-
-            {/* Prévia editável antes de confirmar o envio */}
-            {bibPreview && (
-              <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.goldLine}55`,padding:18,boxShadow:T.sh}}>
-                <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:".06em",textTransform:"uppercase",marginBottom:10}}>Confirme antes de enviar</div>
-                <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
-                  {bibPreview.albumArt
-                    ? <img src={bibPreview.albumArt} alt="" style={{width:56,height:56,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
-                    : <div style={{width:56,height:56,borderRadius:10,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🎵</div>}
-                  <div style={{fontSize:11,color:T.textD}}>Duração: {bibPreview.durationStr}</div>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-                  <input value={bibPreview.title} onChange={e=>setBibPreview(p=>({...p,title:e.target.value}))}
-                    placeholder="Nome da música" style={{padding:"9px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:T.page||"transparent",color:T.text,fontSize:13,outline:"none"}}/>
-                  <input value={bibPreview.artist} onChange={e=>setBibPreview(p=>({...p,artist:e.target.value}))}
-                    placeholder="Artista (opcional)" style={{padding:"9px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:T.page||"transparent",color:T.text,fontSize:13,outline:"none"}}/>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setBibPreview(null)} disabled={bibSalvando}
-                    style={{flex:1,padding:"10px",borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",color:T.textS,cursor:"pointer",fontSize:13,fontWeight:600}}>Cancelar</button>
-                  <button onClick={bibConfirmarUpload} disabled={bibSalvando}
-                    style={{flex:1,padding:"10px",borderRadius:9,border:"none",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"#fff",cursor:bibSalvando?"wait":"pointer",fontSize:13,fontWeight:700}}>
-                    {bibSalvando ? "Enviando..." : "Enviar pra biblioteca"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Busca + lista */}
-            <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:16,boxShadow:T.sh}}>
-              <input value={bibBusca} onChange={e=>setBibBusca(e.target.value)} placeholder="Buscar por nome ou artista..."
-                style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1px solid ${T.border}`,background:T.page||"transparent",color:T.text,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:12}}/>
-              {bibCarregando ? (
-                <div style={{textAlign:"center",padding:24,color:T.textT,fontSize:13}}>Carregando...</div>
-              ) : bibFiltrada.length===0 ? (
-                <div style={{textAlign:"center",padding:24,color:T.textT,fontSize:13}}>
-                  {bibLista.length===0 ? "Nenhuma música na biblioteca ainda — suba a primeira acima." : "Nada encontrado com essa busca."}
-                </div>
-              ) : (
-                <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:420,overflowY:"auto"}}>
-                  {bibFiltrada.map(b=>(
-                    <div key={b.id} onClick={()=>addToQueue({ id:b.id, source:'local', mp3_url:b.mp3_url, title:b.title, artist:b.artist, album_art:b.album_art, duration_ms:b.duration_ms, duration_str:b.duration_str })}
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",cursor:"pointer",borderRadius:10,transition:"background .12s"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      {b.album_art
-                        ? <img src={b.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                        : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>}
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.title}</div>
-                        <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.artist || "Artista desconhecido"}</div>
-                      </div>
-                      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:10,color:T.textD}}>{b.duration_str}</span>
-                        {isAdding===b.id
-                          ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
-                          : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                            </div>}
-                        {(b.uploaded_by===myName || isAdmin) && (
-                          <button onClick={e=>{ e.stopPropagation(); bibExcluir(b); }} disabled={bibExcluindoId===b.id} title="Excluir"
-                            style={{width:24,height:24,borderRadius:6,border:`1px solid rgba(192,64,80,.3)`,background:"rgba(192,64,80,.08)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#C04050",outline:"none",flexShrink:0}}>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Rodapé Criado por Nicolas Andrade ── */}
