@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, TRILHAS, hashSeed, PreviaPista,
   CARROS, getCarroEscolhido } from './TabUnikoFaster';
 
@@ -358,6 +359,10 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
   const bestRef = useRef(best);
   const [hud, setHud] = useState({ vel: 0, dist: 0, best, rank: 1, nitro: 1, volta: 1, boost: false, campo: 0 });
   const [pausado, setPausado] = useState(false);
+
+  /* Tempo jogado (missões da Prisma Store): só enquanto a corrida está rolando —
+     esperar no lobby da sala não conta. Ver hooks/useGamePlaytime.js. */
+  useGamePlaytime('speed', state?.phase === 'racing' && !pausado);
 
   /* ── Estado da sala: postgres_changes + poll, com guarda de `ts` (mesmo
      motivo do Uniko Paint: uma resposta atrasada do banco pode "rebobinar" a

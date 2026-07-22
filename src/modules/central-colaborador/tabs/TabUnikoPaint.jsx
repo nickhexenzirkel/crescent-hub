@@ -37,6 +37,7 @@ import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
+import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
@@ -1899,6 +1900,10 @@ const TabUnikoPaint = () => {
     if (!jaMontou.current) { jaMontou.current = true; return; }
     setEntrouEm(Date.now());
   }, [room]);
+
+  /* Tempo jogado (missões da Prisma Store): conta só DENTRO de uma sala — ficar
+     olhando o lobby não é jogar. Ver hooks/useGamePlaytime.js. */
+  useGamePlaytime('paint', room !== null);
 
   // Migração rodada?
   useEffect(() => {

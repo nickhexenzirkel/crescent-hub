@@ -26,6 +26,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 
 const GLOBAL_ROOM = 'global';
 const SORTEIO_MS = 3_400;     // roleta girando antes de liberar o formulário
@@ -1514,6 +1515,10 @@ const TabUnikoStop = () => {
     if (!jaMontou.current) { jaMontou.current = true; return; }
     setEntrouEm(Date.now());
   }, [room]);
+
+  /* Tempo jogado (missões da Prisma Store): conta só DENTRO de uma sala — ficar
+     olhando o lobby não é jogar. Ver hooks/useGamePlaytime.js. */
+  useGamePlaytime('stop', room !== null);
 
   useEffect(() => {
     supabase.from('uniko_stop_state').select('id').limit(1).then(({ error }) => {

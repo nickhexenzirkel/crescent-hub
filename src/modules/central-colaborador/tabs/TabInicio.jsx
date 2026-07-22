@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser, saveUserPhoto } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
-import { PRISMA_MISSIONS, loadMissionProgress } from '../../../shared/prismaMissions';
+import { loadMissionDefs, loadMissionProgress } from '../../../shared/prismaMissions';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
@@ -234,10 +234,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           const { data: row } = await _supabase.from('mercado_state').select('data').eq('player', USER.name).maybeSingle();
           baseline = row?.data?.missionBaseline || {};
         } catch {}
-        const prog = await loadMissionProgress({ userName: USER.name, cpf: getAuthUser?.()?.cpf, baseline });
+        // Definições vêm do banco (o admin gerencia em Prisma Store → Administrador
+        // → Missões), não mais da lista fixa do código.
+        const defs = await loadMissionDefs({ seed: false });
+        const prog = await loadMissionProgress({ userName: USER.name, cpf: getAuthUser?.()?.cpf, baseline, missions: defs });
         if (!alive) return;
-        const list = PRISMA_MISSIONS
-          .filter(m => !m.maintenance)
+        const list = defs
+          .filter(m => !m.maintenance && m.active !== false)
           .map(m => ({ ...m, progress: Math.min(m.goal, prog[m.id] || 0) }))
           .filter(m => m.progress > 0 && m.progress < m.goal)        // em andamento (começou e não acabou)
           .sort((a, b) => (b.progress / b.goal) - (a.progress / a.goal)) // mais perto de concluir primeiro

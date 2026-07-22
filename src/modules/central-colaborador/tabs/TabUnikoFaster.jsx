@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { T } from '../../../contexts/theme';
 import { SpeedFrame } from './SpeedFrame';
+import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 // Import circular de propósito: SpeedRoom reaproveita Corrida/TRACADOS/etc.
 // exportados lá embaixo neste arquivo. Seguro aqui porque nenhum dos dois
 // lados usa o que importa do outro NO TOPO do módulo — só dentro do corpo de
@@ -368,6 +369,11 @@ const TabUnikoFaster = () => {
   const [hud, setHud] = useState({ vel: 0, dist: 0, best: 0, rank: 1, nitro: 1, volta: 1, boost: false });
   const [carroModal, setCarroModal] = useState(false);
   const [meuCarro, setMeuCarro] = useState(() => getCarroEscolhido().id);
+
+  /* Tempo jogado (missões da Prisma Store): só a corrida SOLO conta aqui e só
+     quando não está pausada. O multiplayer conta dentro da SpeedRoom, que sabe
+     quando a corrida realmente começou. Ver hooks/useGamePlaytime.js. */
+  useGamePlaytime('speed', tela === 'correndo' && !pausado);
 
   const salvas = useMemo(() => bibliotecaSalva(), []);
   const biblioteca = useMemo(() => {

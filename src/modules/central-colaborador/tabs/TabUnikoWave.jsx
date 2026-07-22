@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { addGamePlaytime } from '../../../shared/gamePlaytime';
 
 // Chaves do save do jogo que ficam atreladas à CONTA do usuário (não ao
 // navegador). Personagens/mascotes, carteira (GW/GC), personagem escolhido,
@@ -166,20 +167,9 @@ const TabUnikoWave = () => {
     };
 
     // Acumula o tempo jogado do dia (segundos) por jogador na tabela uniko_playtime.
-    const addPlaytime = async (sec) => {
-      const add = Math.round(Number(sec) || 0);
-      const player = playerName();
-      if (add <= 0 || !player) return;
-      const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (dia atual)
-      try {
-        const { data } = await supabase.from('uniko_playtime')
-          .select('seconds').eq('player', player).eq('day', day).maybeSingle();
-        const cur = data?.seconds || 0;
-        await supabase.from('uniko_playtime').upsert(
-          { player, day, seconds: cur + add, updated_at: new Date().toISOString() },
-          { onConflict: 'player,day' });
-      } catch {}
-    };
+    // A gravação agora é a compartilhada (shared/gamePlaytime), que carimba o JOGO —
+    // Speed/Stop/Paint gravam na mesma tabela, cada um no seu balde.
+    const addPlaytime = (sec) => addGamePlaytime('wave', sec, playerName());
 
     const handler = (e) => {
       const type = e.data?.type;

@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
-import { loadMissionProgress } from './prismaMissions';
+import { loadMissionProgress, loadMissionDefs, GAME_LABEL } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange } from './assistantSkin';
 
@@ -759,7 +759,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     return () => { alive = false; clearInterval(id); };
   }, [authUser, say]);
 
-  // ── PROATIVO 3: relembra o progresso da Maratona Uniko Wave (só quando há progresso) ──
+  // ── PROATIVO 3: relembra a missão de MINUTOS JOGADOS mais perto de fechar ──
+  // Antes as duas Maratonas do Uniko Wave estavam escritas na mão aqui (20/40 min,
+  // 100 comuns / 10 premium). Como agora o admin cria missões de tempo pra qualquer
+  // jogo com qualquer meta, a mensagem é montada a partir da própria missão.
   useEffect(() => {
     if (!authUser?.name) return;
     let alive = true; let last = '';
@@ -771,14 +774,25 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         baseline = row?.data?.missionBaseline || {};
       } catch {}
       if (!alive) return;
-      let prog;
-      try { prog = await loadMissionProgress({ userName: authUser.name, cpf: authUser?.cpf, baseline }); }
-      catch { return; }
+      let defs, prog;
+      try {
+        defs = await loadMissionDefs({ seed: false });
+        prog = await loadMissionProgress({ userName: authUser.name, cpf: authUser?.cpf, baseline, missions: defs });
+      } catch { return; }
       if (!alive) return;
-      const m20 = prog.c_uniko20 || 0, m40 = prog.c_uniko40 || 0;
+      // Só as de tempo que JÁ COMEÇARAM e ainda não fecharam; a mais adiantada primeiro.
+      const alvo = defs
+        .filter(m => m.metric === 'playtime' && m.active !== false && !m.maintenance)
+        .map(m => ({ ...m, feito: prog[m.id] || 0 }))
+        .filter(m => m.feito > 0 && m.feito < m.goal)
+        .sort((a, b) => (b.feito / b.goal) - (a.feito / a.goal))[0];
       let msg = '';
-      if (m20 > 0 && m20 < 20) msg = `Você já jogou ${m20}/20 min no Uniko Wave hoje — falta pouco pra Maratona (100 Prismas Comuns)! 🎮`;
-      else if (m20 >= 20 && m40 > 0 && m40 < 40) msg = `Mandou bem! ${m40}/40 min hoje — jogue mais um pouco pra fechar a Maratona de 40 min (10 Prismas Premium)! 🎮`;
+      if (alvo) {
+        const jogo = alvo.game === 'any' ? 'nos jogos' : `no ${GAME_LABEL[alvo.game] || alvo.game}`;
+        const quando = alvo.period === 'dia' ? ' hoje' : alvo.period === 'mes' ? ' neste mês' : '';
+        const premio = [alvo.comum && `${alvo.comum} Prismas Comuns`, alvo.premium && `${alvo.premium} Prismas Premium`].filter(Boolean).join(' + ');
+        msg = `Você já jogou ${alvo.feito}/${alvo.goal} min ${jogo}${quando} — falta pouco pra "${alvo.title}"${premio ? ` (${premio})` : ''}! 🎮`;
+      }
       if (msg && msg !== last) { last = msg; say(msg, { sprite: imgRef.current.WAVE }); }
     };
     const t = setTimeout(check, 45000);

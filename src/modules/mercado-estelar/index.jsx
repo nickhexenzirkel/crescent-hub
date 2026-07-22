@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
-import { PRISMA_MISSIONS, loadMissionProgress, snapshotMissionBaseline } from '../../shared/prismaMissions';
+import {
+  DEFAULT_MISSIONS, loadMissionDefs, saveMissionDefs, loadMissionProgress, snapshotMissionBaseline,
+  MISSION_METRICS, METRIC_META, MISSION_PERIODS, PLAYTIME_GAMES, GAME_LABEL,
+} from '../../shared/prismaMissions';
 import { Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import {
@@ -202,9 +205,12 @@ const DEFAULT_STATE = {
     { id: 'p_fone',    name: 'Fone QKZ AK6 Intra-auricular',   desc: 'Fone de ouvido intra-auricular QKZ AK6 com cabo.',                 price: 280, cur: 'comum',   stock: 5, rarity: 'Comum',    emoji: '🎧' },
     { id: 'p_body',    name: 'Body Splash WePink',             desc: 'Body splash WePink — perfumaria.',                                 price: 260, cur: 'comum',   stock: 3, rarity: 'Comum',    emoji: '🧴' },
   ],
-  // DESAFIOS (period: 'dia' | 'mes' | 'unica'). Progresso é mockado por enquanto
-  // (o acompanhamento real vem com o Supabase).
-  missions: PRISMA_MISSIONS.map(m => ({ ...m })),
+  // DESAFIOS — aqui ficam só os REGISTROS DE RESGATE do usuário ({ id, claimed,
+  // claimedAt }). A definição da missão (título/meta/recompensa) é GLOBAL e vem
+  // da tabela mercado_missions (ver missionDefs abaixo): guardar a definição
+  // dentro do save de cada pessoa fazia com que mudar o valor de uma missão no
+  // admin não chegasse a quem já tinha um save antigo.
+  missions: [],
   // Baseline de reset das missões acumulativas (admin "Zerar missões"): { [id]: { v, d } }.
   // O progresso ao vivo (Voz ativa/Maratona) conta só o que vier DEPOIS deste ponto.
   missionBaseline: {},
@@ -212,6 +218,12 @@ const DEFAULT_STATE = {
     { id: 'h0', kind: 'checkin', desc: 'Check-in diário', premium: 50, date: '2026-06-20' },
   ],
 };
+
+// Só o que é DO USUÁRIO numa missão: se resgatou e quando. O resto (título,
+// meta, recompensa) é global e mora em mercado_missions.
+const claimRecords = (arr) => (Array.isArray(arr) ? arr : [])
+  .filter(m => m && m.id)
+  .map(m => ({ id: m.id, claimed: !!m.claimed, claimedAt: m.claimedAt || '' }));
 
 const loadState = () => {
   try {
@@ -221,12 +233,10 @@ const loadState = () => {
       // Catálogo de itens: o admin gerencia (adiciona/edita/remove), então o save
       // é a fonte da verdade; só cai no DEFAULT na 1ª vez (sem itens salvos).
       const items = Array.isArray(s.items) && s.items.length ? s.items : DEFAULT_STATE.items;
-      // Missões: definição (título/recompensa/meta) vem do DEFAULT; só progresso/resgate são do usuário.
-      const savedMap = new Map((s.missions || []).map(x => [x.id, x]));
-      const missions = DEFAULT_STATE.missions.map(dm => {
-        const sv = savedMap.get(dm.id);
-        return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed, claimedAt: sv.claimedAt } : dm;
-      });
+      // Missões: fica só o resgate. Saves antigos guardavam a definição inteira
+      // junto — descartada aqui, senão uma missão apagada/reajustada no admin
+      // continuaria ressuscitando a partir do cache local.
+      const missions = claimRecords(s.missions);
       // Migra saves antigos (que tinham só lastCheckin) para a lista de check-ins
       const checkins = Array.isArray(s.checkins) ? s.checkins : (s.lastCheckin ? [s.lastCheckin] : []);
       return { ...DEFAULT_STATE, ...s, checkins, items, missions };
@@ -289,7 +299,7 @@ const PrismChip = ({ type, amount }) => {
 // comum/premium agora são creditados só via mercado_credit (RPC atômica, ver
 // supabase_mercado_credit_atomico.sql) e NUNCA fazem parte do save genérico — o
 // banco é a única fonte de verdade pra eles, ver `applyCredit`/hidratação abaixo.
-const USER_SLICE = (s) => ({ checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: s.missions || [], missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
+const USER_SLICE = (s) => ({ checkins: s.checkins || [], capMonth: s.capMonth || '', earned: s.earned || { premium: 0, comum: 0 }, collection: s.collection || [], missions: claimRecords(s.missions), missionBaseline: s.missionBaseline || {}, updatedAt: s.updatedAt || 0 });
 // Linha "fake" da tabela mercado_state usada só pra guardar config GLOBAL (ex.: expiração)
 const CONFIG_PLAYER = '__mercado_config__';
 const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, uniko_id: it.unikoId || null, updated_at: new Date().toISOString() });
@@ -302,6 +312,9 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   const [state, setState] = useState(loadState);
   const [toast, setToast] = useState('');
   const [loaded, setLoaded] = useState(false); // já hidratou do Supabase?
+  // Definições das missões (GLOBAIS, tabela mercado_missions) — o admin edita em
+  // Administrador → Missões. Começa nos padrões pra a aba nunca abrir vazia.
+  const [missionDefs, setMissionDefs] = useState(() => DEFAULT_MISSIONS.map(m => ({ ...m, active: true })));
 
   const cardBg = T.surface;
   const userName = authUser?.name || 'Colaborador';
@@ -340,11 +353,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         const local = loadState();
         const localNewer = (local.updatedAt || 0) > (user.updatedAt || 0);
         const chosen = localNewer ? local : user;
-        const savedMap = new Map((chosen.missions || []).map(x => [x.id, x]));
-        const missions = DEFAULT_STATE.missions.map(dm => {
-          const sv = savedMap.get(dm.id);
-          return sv ? { ...dm, progress: sv.progress ?? dm.progress, claimed: !!sv.claimed, claimedAt: sv.claimedAt } : dm;
-        });
+        const missions = claimRecords(chosen.missions);
         setState(s => ({ ...DEFAULT_STATE, ...chosen, comum: user.comum || 0, premium: user.premium || 0, missions, items, history: (hist || []).map(histFromRow), expiresAt }));
         if (localNewer) { try { await supabase.rpc('mercado_patch_state', { p_player: userName, p_patch: USER_SLICE(local) }); } catch {} }
       } catch {}
@@ -352,6 +361,13 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     })();
     return () => { alive = false; };
   }, []); // eslint-disable-line
+
+  // ── Definições das missões (tabela global mercado_missions) ──
+  useEffect(() => {
+    let alive = true;
+    loadMissionDefs().then(defs => { if (alive && defs?.length) setMissionDefs(defs); });
+    return () => { alive = false; };
+  }, []);
 
   // ── Unikos à venda: são itens normais do catálogo (item.unikoId setado) — só
   // precisamos saber quais o usuário JÁ possui (capture_uniko_captures), pra
@@ -419,33 +435,35 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   }, [loaded, state.items]); // eslint-disable-line
 
   // ── Tracking REAL das missões: progresso ao vivo a partir de dados do Supabase/histórico ──
-  // (compras, ranking do Uniko Wave e feedback). Playtime/ponto/setor entram quando houver fonte.
+  // (minutos jogados, compras, coleção, ranking da Alexa e feedback — ver a métrica
+  // de cada missão em prismaMissions.js).
   const [liveProg, setLiveProg] = useState({});
   useEffect(() => {
     if (!loaded) return;
     let alive = true;
     (async () => {
       const purchases = (state.history || []).filter(h => h.kind === 'compra' || h.kind === 'compra_uniko').length;
-      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline });
+      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline, missions: missionDefs });
       if (alive) setLiveProg(prog);
     })();
     return () => { alive = false; };
-  }, [loaded, state.history, userName, state.missionBaseline]); // eslint-disable-line
+  }, [loaded, state.history, userName, state.missionBaseline, missionDefs]); // eslint-disable-line
 
   // Missões com progresso AO VIVO + resgate que REINICIA por período (diária=por dia,
   // mensal=por mês, única=pra sempre). claimedAt guarda quando foi resgatada.
   const missionsLive = (() => {
     const td = todayStr(), mo = td.slice(0, 7);
-    const stillClaimed = (m) => {
-      if (!m.claimed) return false;
-      if (m.period === 'dia') return m.claimedAt === td;
-      if (m.period === 'mes') return (m.claimedAt || '').slice(0, 7) === mo;
+    const recs = new Map((state.missions || []).map(x => [x.id, x]));
+    const stillClaimed = (def, rec) => {
+      if (!rec?.claimed) return false;
+      if (def.period === 'dia') return rec.claimedAt === td;
+      if (def.period === 'mes') return (rec.claimedAt || '').slice(0, 7) === mo;
       return true; // única
     };
-    return state.missions.map(m => ({
-      ...m,
-      progress: liveProg[m.id] != null ? liveProg[m.id] : m.progress,
-      claimed: stillClaimed(m),
+    return missionDefs.filter(m => m.active !== false).map(def => ({
+      ...def,
+      progress: liveProg[def.id] || 0,
+      claimed: stillClaimed(def, recs.get(def.id)),
     }));
   })();
 
@@ -547,9 +565,17 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (m.progress < m.goal || m.claimed) return;
     let nextSnapshot = null;
     setState(s => {
+      // Upsert do registro: uma missão criada agora pelo admin ainda não tem
+      // linha no save da pessoa — sem o upsert, o resgate não era gravado e o
+      // botão voltava pra "Resgatar" no próximo carregamento.
+      const recs = s.missions || [];
+      const rec = { id: m.id, claimed: true, claimedAt: today };
+      const missions = recs.some(x => x.id === m.id)
+        ? recs.map(x => x.id === m.id ? { ...x, ...rec } : x)
+        : [...recs, rec];
       const next = {
         ...s, comum: s.comum + (m.comum || 0), premium: s.premium + (m.premium || 0),
-        missions: s.missions.map(x => x.id === m.id ? { ...x, claimed: true, claimedAt: today } : x),
+        missions,
         updatedAt: Date.now(),
       };
       nextSnapshot = next;
@@ -636,7 +662,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayIsWeekend={todayIsWeekend} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} />}
+        {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} missionDefs={missionDefs} setMissionDefs={setMissionDefs} />}
       </div>
 
       {/* ── Toast ── */}
@@ -1727,11 +1753,11 @@ const ItemEditor = ({ item, onSave, onCancel, flash, cardBg }) => {
 };
 
 // ═══════════════════════════════════════════ ADMINISTRADOR ══════════════════
-const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) => {
+const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player, missionDefs, setMissionDefs }) => {
   const blank = { name: '', desc: '', emoji: '🎁', rarity: 'Épico', cur: 'comum', price: '', stock: '', images: [] };
   const [form, setForm] = useState(blank);
   const [editId, setEditId] = useState(null); // item com editor aberto
-  const [sub, setSub] = useState('premios');  // premios | transacoes
+  const [sub, setSub] = useState('premios');  // premios | missoes | transacoes
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // ── Adicionar um Uniko à loja (mesma lista dos prêmios, não uma seção separada) ──
@@ -1796,7 +1822,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
 
       {/* Sub-abas */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }].map(t => {
+        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'missoes', label: 'Missões', Icon: IcoTarget }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }].map(t => {
           const on = sub === t.id;
           return (
             <button key={t.id} onClick={() => setSub(t.id)} style={{
@@ -1809,8 +1835,8 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
         })}
       </div>
 
-      {sub === 'transacoes'
-        ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
+      {sub === 'transacoes' ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} missionDefs={missionDefs} />
+        : sub === 'missoes' ? <AdminMissoes missions={missionDefs} setMissions={setMissionDefs} flash={flash} isMobile={isMobile} cardBg={cardBg} />
         : (
       <>
       {/* Duração / expiração dos prêmios deste mês (global) */}
@@ -1989,8 +2015,284 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player }) 
   );
 };
 
+/* ═══════════════════════════════════════════ ADMIN → MISSÕES ════════════════
+   Gerencia a DEFINIÇÃO das missões (tabela global mercado_missions): título,
+   descrição, período, o que é medido, a meta e a recompensa. Antes isso era
+   uma constante no código — mudar o valor de uma missão exigia deploy.
+
+   A parte que NÃO fica aqui é o progresso/resgate de cada pessoa: isso continua
+   no save do colaborador (mercado_state) e é calculado ao vivo pela métrica.
+   Por isso EDITAR uma missão é seguro — quem já resgatou continua marcado como
+   resgatado no período atual; só APAGAR faz o registro virar órfão (inofensivo).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const MISSION_GAME_OPTIONS = [{ id: 'any', label: 'Qualquer jogo' }, ...PLAYTIME_GAMES];
+
+// Frase curta explicando o que a missão mede — é o que o admin lê pra conferir
+// se configurou o que queria, sem precisar saber o nome interno da métrica.
+const missionRule = (m) => {
+  const per = m.period === 'dia' ? 'por dia' : m.period === 'mes' ? 'no mês' : 'no total';
+  switch (m.metric) {
+    case 'playtime': return `${m.goal} min em ${m.game === 'any' ? 'qualquer jogo' : (GAME_LABEL[m.game] || m.game)} ${per}`;
+    case 'compras':  return `${m.goal} compra${m.goal === 1 ? '' : 's'} na loja`;
+    case 'colecao':  return `${m.goal} Uniko${m.goal === 1 ? '' : 's'} na Coleção`;
+    case 'feedback': return `${m.goal} feedback${m.goal === 1 ? '' : 's'} ${per}`;
+    case 'rank_mes': return `Top ${m.param || 1} de músicas do mês passado`;
+    default:         return 'Sem medição automática';
+  }
+};
+
+const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
+  const [d, setD] = useState(() => ({
+    title: mission.title || '', desc: mission.desc || '', period: mission.period || 'dia',
+    metric: mission.metric || 'manual', game: mission.game || 'any', param: String(mission.param ?? 1),
+    goal: String(mission.goal ?? 1), comum: String(mission.comum ?? 0), premium: String(mission.premium ?? 0),
+    maintenance: !!mission.maintenance, active: mission.active !== false,
+  }));
+  const set = (k, v) => setD(x => ({ ...x, [k]: v }));
+  const meta = METRIC_META[d.metric] || METRIC_META.manual;
+  const fieldStyle = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+
+  const save = () => {
+    const goal = parseInt(d.goal, 10);
+    const comum = parseInt(d.comum, 10) || 0, premium = parseInt(d.premium, 10) || 0;
+    if (!d.title.trim()) { flash('Informe o título da missão'); return; }
+    if (!goal || goal <= 0) { flash('A meta precisa ser maior que zero'); return; }
+    if (comum <= 0 && premium <= 0) { flash('A missão precisa dar pelo menos um prisma'); return; }
+    onSave({
+      title: d.title.trim(), desc: d.desc.trim(), period: d.period, metric: d.metric,
+      game: meta.game ? d.game : 'any', param: meta.param ? (parseInt(d.param, 10) || 1) : 0,
+      goal, comum, premium, maintenance: d.maintenance, active: d.active,
+    });
+  };
+
+  const Toggle = ({ on, onClick, label, hint, color }) => (
+    <button onClick={onClick} style={{
+      flex: 1, textAlign: 'left', padding: '9px 11px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+      border: `1.5px solid ${on ? color : T.border}`, background: on ? color + '18' : 'transparent',
+    }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: on ? color : T.textS }}>{on ? '● ' : '○ '}{label}</div>
+      <div style={{ fontSize: 10.5, color: T.textT, marginTop: 1 }}>{hint}</div>
+    </button>
+  );
+
+  return (
+    <div style={{ padding: 12, borderTop: `1px dashed ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <label style={lbl}>Título</label>
+        <input value={d.title} onChange={e => set('title', e.target.value)} placeholder="Ex: Maratona Uniko Paint" style={fieldStyle} />
+      </div>
+      <div>
+        <label style={lbl}>Descrição <span style={{ textTransform: 'none', fontWeight: 500, color: T.textT }}>(é o que o colaborador lê no card)</span></label>
+        <textarea value={d.desc} onChange={e => set('desc', e.target.value)} rows={2} placeholder="Ex: Jogue 15 minutos no Uniko Paint" style={{ ...fieldStyle, resize: 'vertical' }} />
+      </div>
+
+      <div>
+        <label style={lbl}>Período</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {MISSION_PERIODS.map(p => {
+            const on = d.period === p.id; const c = PERIOD_META[p.id]?.color || T.gold;
+            return (
+              <button key={p.id} onClick={() => set('period', p.id)} style={{
+                flex: 1, padding: '8px 6px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${on ? c : T.border}`, background: on ? c + '18' : 'transparent', color: on ? c : T.textS,
+              }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700 }}>{p.label}</div>
+                <div style={{ fontSize: 10, color: T.textT }}>{p.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label style={lbl}>O que é medido</label>
+        <select value={d.metric} onChange={e => set('metric', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+          {MISSION_METRICS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </select>
+        <div style={{ fontSize: 11.5, color: T.textT, marginTop: 5, lineHeight: 1.45 }}>{meta.hint}</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        {meta.game && (
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Jogo</label>
+            <select value={d.game} onChange={e => set('game', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+              {MISSION_GAME_OPTIONS.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+            </select>
+          </div>
+        )}
+        {meta.param && (
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>{meta.param}</label>
+            <input type="number" min="1" value={d.param} onChange={e => set('param', e.target.value)} style={fieldStyle} />
+          </div>
+        )}
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Meta ({meta.unit})</label>
+          <input type="number" min="1" value={d.goal} onChange={e => set('goal', e.target.value)} style={fieldStyle} />
+        </div>
+      </div>
+
+      <div>
+        <label style={lbl}>Recompensa</label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[{ k: 'comum', label: 'Prisma Comum' }, { k: 'premium', label: 'Prisma Premium' }].map(({ k, label }) => (
+            <div key={k} style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: T.textT, marginBottom: 4 }}><PrismIcon type={k} size={14} />{label}</div>
+              <input type="number" min="0" value={d[k]} onChange={e => set(k, e.target.value)} style={fieldStyle} />
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 11.5, color: T.textT, marginTop: 5 }}>Pode dar as duas moedas na mesma missão. Deixe 0 na que não usar.</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Toggle on={d.active} color="#16a34a" label={d.active ? 'Ativa' : 'Desativada'}
+          hint={d.active ? 'Aparece pros colaboradores' : 'Escondida da aba Missões'}
+          onClick={() => set('active', !d.active)} />
+        <Toggle on={d.maintenance} color="#E8A020" label="Em manutenção"
+          hint="Aparece cinza e não pode ser resgatada"
+          onClick={() => set('maintenance', !d.maintenance)} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+        <button onClick={save} style={{ flex: 1, padding: 11, borderRadius: 9, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}bb)`, color: '#fff', fontWeight: 800, fontSize: 13.5, fontFamily: 'var(--font-body)' }}>Salvar missão</button>
+        <button onClick={onCancel} style={{ padding: '11px 16px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13.5, fontFamily: 'var(--font-body)', cursor: 'pointer' }}>Cancelar</button>
+      </div>
+    </div>
+  );
+};
+
+const NEW_MISSION = { id: '', title: '', desc: '', period: 'dia', metric: 'playtime', game: 'wave', param: 1, goal: 15, comum: 100, premium: 0, maintenance: false, active: true };
+
+const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
+  const [editId, setEditId] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Grava a lista inteira no Supabase. `removed` = ids que saíram (a tabela é a
+  // fonte da verdade, então o que sumiu da lista precisa ser DELETADO lá também,
+  // senão volta no próximo carregamento).
+  const commit = async (next, removed = []) => {
+    setMissions(next);
+    setSaving(true);
+    try { await saveMissionDefs(next, removed); }
+    catch (e) { console.error('[prisma-store] falha ao salvar missões:', e); flash('Não consegui salvar no servidor — veja o console'); }
+    setSaving(false);
+  };
+
+  const addMission = (data) => {
+    const id = 'm' + Date.now().toString(36);
+    commit([...missions, { ...data, id, progress: 0, claimed: false }]);
+    setCreating(false);
+    flash(`Missão "${data.title}" criada`);
+  };
+  const patchMission = (id, patch) => commit(missions.map(m => m.id === id ? { ...m, ...patch } : m));
+  const removeMission = (m) => {
+    if (!window.confirm(`Apagar a missão "${m.title}"? Ela some da aba Missões de todos os colaboradores.`)) return;
+    commit(missions.filter(x => x.id !== m.id), [m.id]);
+    flash('Missão apagada');
+  };
+  const moveMission = (id, dir) => {
+    const idx = missions.findIndex(m => m.id === id);
+    const swap = idx + dir;
+    if (idx < 0 || swap < 0 || swap >= missions.length) return;
+    const arr = [...missions];
+    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    commit(arr);
+  };
+
+  const totalComum = missions.filter(m => m.active !== false && !m.maintenance).reduce((a, m) => a + (m.comum || 0), 0);
+  const totalPremium = missions.filter(m => m.active !== false && !m.maintenance).reduce((a, m) => a + (m.premium || 0), 0);
+
+  return (
+    <div>
+      {/* Aviso de terreno preparado — as missões por minuto jogado já leem dados reais */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}><span style={{ fontSize: 17 }}>🎯</span>Gerenciar missões</div>
+        <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55 }}>
+          Cada missão escolhe <b style={{ color: T.text }}>o que é medido</b>, a <b style={{ color: T.text }}>meta</b> e a <b style={{ color: T.text }}>recompensa</b> — vale pra todos os colaboradores na hora.
+          O tempo de partida já é registrado em <b style={{ color: T.text }}>{PLAYTIME_GAMES.map(g => g.label).join(', ')}</b>, então dá pra criar missões de minutos jogados em qualquer um deles.
+        </div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 12, fontSize: 12.5, color: T.textT }}>
+          <span>{missions.filter(m => m.active !== false).length} ativa{missions.filter(m => m.active !== false).length === 1 ? '' : 's'} de {missions.length}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>Máx. por rodada: <PrismIcon type="comum" size={14} /><b style={{ color: COMUM.color }}>{fmt(totalComum)}</b></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PrismIcon type="premium" size={14} /><b style={prismText('premium')}>{fmt(totalPremium)}</b></span>
+          {saving && <span style={{ color: T.gold, fontWeight: 700 }}>salvando...</span>}
+        </div>
+      </div>
+
+      {/* Nova missão */}
+      <div style={{ background: cardBg, border: `1px solid ${creating ? T.goldLine + '88' : T.border}`, borderRadius: 16, boxShadow: T.sh, marginBottom: 16, overflow: 'hidden' }}>
+        <button onClick={() => { setCreating(c => !c); setEditId(null); }} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '16px 20px', background: 'transparent',
+          border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 700, color: T.text,
+        }}>
+          <span style={{ color: T.gold }}><IcoPlus size={17} /></span>{creating ? 'Cancelar nova missão' : 'Criar nova missão'}
+        </button>
+        {creating && <MissionEditor mission={NEW_MISSION} flash={flash} cardBg={cardBg} onCancel={() => setCreating(false)} onSave={addMission} />}
+      </div>
+
+      {/* Lista */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '18px 20px', boxShadow: T.sh }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}>Missões cadastradas ({missions.length})</div>
+        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Use as setas ↑↓ pra reordenar — é a ordem exata da aba Missões dos colaboradores.</div>
+        {missions.length === 0 ? (
+          <div style={{ color: T.textT, fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nenhuma missão cadastrada.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {missions.map((m, idx) => {
+              const open = editId === m.id;
+              const pm = PERIOD_META[m.period] || PERIOD_META.dia;
+              const off = m.active === false;
+              return (
+                <div key={m.id} style={{ borderRadius: 11, border: `1px solid ${open ? T.goldLine + '88' : T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', overflow: 'hidden', opacity: off ? 0.55 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                      <button onClick={() => moveMission(m.id, -1)} disabled={idx === 0} title="Mover pra cima" style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 5, border: `1px solid ${T.border}`, background: 'transparent', color: idx === 0 ? T.textD : T.textS, cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? .4 : 1, padding: 0 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+                      </button>
+                      <button onClick={() => moveMission(m.id, 1)} disabled={idx === missions.length - 1} title="Mover pra baixo" style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 5, border: `1px solid ${T.border}`, background: 'transparent', color: idx === missions.length - 1 ? T.textD : T.textS, cursor: idx === missions.length - 1 ? 'default' : 'pointer', opacity: idx === missions.length - 1 ? .4 : 1, padding: 0 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                      </button>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{m.title}</span>
+                        <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: pm.color, background: pm.color + '22', border: `1px solid ${pm.color}55`, padding: '1px 7px', borderRadius: 999 }}>{pm.label}</span>
+                        {m.maintenance && <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', color: '#E8A020' }}>🔧 manutenção</span>}
+                        {off && <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', color: T.textD }}>desativada</span>}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>{missionRule(m)}{m.desc ? ` · "${m.desc}"` : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      {!!m.comum && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 700, color: COMUM.color }}><PrismIcon type="comum" size={14} />{m.comum}</span>}
+                      {!!m.premium && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12.5, fontWeight: 700 }}><PrismIcon type="premium" size={14} /><span style={prismText('premium')}>{m.premium}</span></span>}
+                    </div>
+                    <button onClick={() => patchMission(m.id, { active: off })} title={off ? 'Ativar' : 'Desativar'} style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: off ? '#16a34a' : T.textS, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-body)', flexShrink: 0 }}>{off ? 'Ativar' : 'Pausar'}</button>
+                    <button onClick={() => { setEditId(open ? null : m.id); setCreating(false); }} title="Editar" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${open ? T.gold : T.border}`, background: open ? T.goldGl : 'transparent', color: open ? T.gold : T.textS, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                      {open ? 'Fechar' : 'Editar'}
+                    </button>
+                    <button onClick={() => removeMission(m)} title="Apagar" style={{ display: 'inline-flex', padding: 8, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C04050', cursor: 'pointer', flexShrink: 0 }}><IcoTrash size={15} /></button>
+                  </div>
+                  {open && (
+                    <MissionEditor mission={m} flash={flash} cardBg={cardBg}
+                      onCancel={() => setEditId(null)}
+                      onSave={(patch) => { patchMission(m.id, patch); setEditId(null); flash(`"${patch.title}" atualizada`); }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Controle de transações: vê o histórico de todos e transfere prismas
-const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
+const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, missionDefs }) => {
   const [hist, setHist] = useState([]);
   const [wallets, setWallets] = useState([]); // [{player, comum, premium}]
   const [busy, setBusy] = useState(true);
@@ -2111,10 +2413,10 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState }) =>
     // incluindo o admin → o progresso ao vivo passa a contar só o que vier DEPOIS do reset.
     const players = [...wallets.map(w => w.player), adminName];
     let baselines = {};
-    try { baselines = await snapshotMissionBaseline({ players }); } catch {}
+    try { baselines = await snapshotMissionBaseline({ players, missions: missionDefs }); } catch {}
     await bulkApply(
       (base, w) => ({
-        missions: PRISMA_MISSIONS.map(m => ({ ...m })),
+        missions: [],   // apaga os resgates → todas voltam a poder ser resgatadas
         missionBaseline: { ...(base?.missionBaseline || {}), ...(baselines[(w?.player || '').trim()] || {}) },
       }),
       'Missões resetadas pelo administrador',
