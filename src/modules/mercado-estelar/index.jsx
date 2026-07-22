@@ -2041,6 +2041,19 @@ const missionRule = (m) => {
   }
 };
 
+// Fica FORA do MissionEditor de propósito: definido lá dentro, ele virava um
+// componente novo a cada render, e o React remontava os dois botões a cada
+// tecla digitada no título.
+const MissionToggle = ({ on, onClick, label, hint, color }) => (
+  <button onClick={onClick} style={{
+    flex: 1, textAlign: 'left', padding: '9px 11px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+    border: `1.5px solid ${on ? color : T.border}`, background: on ? color + '18' : 'transparent',
+  }}>
+    <div style={{ fontSize: 12.5, fontWeight: 700, color: on ? color : T.textS }}>{on ? '● ' : '○ '}{label}</div>
+    <div style={{ fontSize: 10.5, color: T.textT, marginTop: 1 }}>{hint}</div>
+  </button>
+);
+
 const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
   const [d, setD] = useState(() => ({
     title: mission.title || '', desc: mission.desc || '', period: mission.period || 'dia',
@@ -2064,16 +2077,6 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
       goal, comum, premium, maintenance: d.maintenance, active: d.active,
     });
   };
-
-  const Toggle = ({ on, onClick, label, hint, color }) => (
-    <button onClick={onClick} style={{
-      flex: 1, textAlign: 'left', padding: '9px 11px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
-      border: `1.5px solid ${on ? color : T.border}`, background: on ? color + '18' : 'transparent',
-    }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: on ? color : T.textS }}>{on ? '● ' : '○ '}{label}</div>
-      <div style={{ fontSize: 10.5, color: T.textT, marginTop: 1 }}>{hint}</div>
-    </button>
-  );
 
   return (
     <div style={{ padding: 12, borderTop: `1px dashed ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2147,10 +2150,10 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <Toggle on={d.active} color="#16a34a" label={d.active ? 'Ativa' : 'Desativada'}
+        <MissionToggle on={d.active} color="#16a34a" label={d.active ? 'Ativa' : 'Desativada'}
           hint={d.active ? 'Aparece pros colaboradores' : 'Escondida da aba Missões'}
           onClick={() => set('active', !d.active)} />
-        <Toggle on={d.maintenance} color="#E8A020" label="Em manutenção"
+        <MissionToggle on={d.maintenance} color="#E8A020" label="Em manutenção"
           hint="Aparece cinza e não pode ser resgatada"
           onClick={() => set('maintenance', !d.maintenance)} />
       </div>
@@ -2173,11 +2176,18 @@ const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
   // Grava a lista inteira no Supabase. `removed` = ids que saíram (a tabela é a
   // fonte da verdade, então o que sumiu da lista precisa ser DELETADO lá também,
   // senão volta no próximo carregamento).
+  // Pinta na hora e o banco vai atrás. Se a gravação FALHAR, recarrega do
+  // servidor: sem isso a tela continuaria mostrando a edição que não foi salva
+  // e o admin acharia que deu certo apesar do aviso — só descobriria no F5.
   const commit = async (next, removed = []) => {
     setMissions(next);
     setSaving(true);
     try { await saveMissionDefs(next, removed); }
-    catch (e) { console.error('[prisma-store] falha ao salvar missões:', e); flash('Não consegui salvar no servidor — veja o console'); }
+    catch (e) {
+      console.error('[prisma-store] falha ao salvar missões:', e);
+      flash('Não consegui salvar no servidor — a lista voltou ao que está gravado');
+      try { const atual = await loadMissionDefs({ seed: false }); if (atual?.length) setMissions(atual); } catch {}
+    }
     setSaving(false);
   };
 

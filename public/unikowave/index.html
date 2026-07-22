@@ -2915,7 +2915,10 @@ function renderSceneGrid(){
   if(!list.length) return;
   const atual = pickedScene(gameMode);
   const salvo = localStorage.getItem(sceneKey(gameMode));
-  const card = (id, nome, img, desc, sel) => `<button class="wg-char-card scene-card${sel?' sel':''}" data-scene="${_escAttr(id)}" onclick="selectScene('${_escAttr(id)}')">`
+  // O clique é ligado DEPOIS (ver querySelectorAll no fim), não por onclick
+  // inline: o navegador decodifica as entidades do atributo antes do JS ler,
+  // então um apóstrofo no id sairia do literal e quebraria o card.
+  const card = (id, nome, img, desc, sel) => `<button class="wg-char-card scene-card${sel?' sel':''}" data-scene="${_escAttr(id)}">`
     + (img ? `<img class="wg-char-img" src="${_escAttr(img)}" alt="" onerror="this.style.display='none'">` : `<div class="scene-card-noimg">✦</div>`)
     + `<div class="wg-char-name">${_escAttr(nome)}</div><div class="wg-char-desc">${_escAttr(desc)}</div></button>`;
   const cards = [card(SCENE_ORIGINAL, 'ORIGINAL', '', 'O visual que vem com o jogo', salvo === SCENE_ORIGINAL)];
@@ -2928,6 +2931,7 @@ function renderSceneGrid(){
     cards.push(card(s.id, (s.name || 'MAPA').toUpperCase(), thumb, partes.join(' · ') || 'Mapa da Oficina', !!atual && atual.id === s.id));
   }
   grid.innerHTML = cards.join('');
+  grid.querySelectorAll('.scene-card').forEach(b => { b.onclick = () => selectScene(b.dataset.scene); });
 }
 
 /* ─── CAMADA DO CENÁRIO DE FUNDO (imagem/vídeo) ─── */
@@ -2940,18 +2944,23 @@ function showSceneBg(){
   wrap.innerHTML = '';
   const dim = Math.max(0, Math.min(90, s.bgDim == null ? 55 : s.bgDim));
   wrap.style.setProperty('--scene-dim', (dim/100).toFixed(2));
+  // Arquivo quebrado (link morto, upload apagado) → cai fora do cenário em vez
+  // de deixar a tela PRETA: no Teclado Estelar o canvas fica transparente por
+  // causa do cenário, então uma camada vazia comeria o fundo cósmico inteiro.
+  const desiste = () => { if(CURRENT_SCENE === s) hideSceneBg(); };
   if(s.bgKind === 'video'){
     const v = document.createElement('video');
     // muted + playsinline são OBRIGATÓRIOS pro autoplay não ser bloqueado
     // (o som da partida é a música — este vídeo é só cenário).
     v.muted = true; v.defaultMuted = true; v.loop = true; v.autoplay = true;
     v.setAttribute('muted',''); v.setAttribute('playsinline',''); v.playsInline = true;
+    v.onerror = desiste;
     v.src = s.bgUrl;
     wrap.appendChild(v);
     const go = v.play(); if(go && go.catch) go.catch(()=>{});
   } else {
     const im = document.createElement('img');
-    im.alt = ''; im.src = s.bgUrl;
+    im.alt = ''; im.onerror = desiste; im.src = s.bgUrl;
     wrap.appendChild(im);
   }
   wrap.classList.add('active');

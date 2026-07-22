@@ -31,8 +31,9 @@ export const useGamePlaytime = (game, active) => {
     };
     const startClock = () => { if (startedAt.current == null) startedAt.current = Date.now(); };
 
-    // `keepalive` no unload: sem isso, fechar a aba no meio da partida perdia
-    // o último trecho inteiro (até 1 minuto de jogo).
+    // Fechar a aba no meio de um trecho pode perder até 1 minuto: o `pagehide`
+    // dispara o envio, mas o navegador não garante que uma request assíncrona
+    // termine no unload. É perda aceitável — tempo jogado é métrica, não saldo.
     const flush = () => {
       stopClock();
       const secs = Math.floor(pending.current);

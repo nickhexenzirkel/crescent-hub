@@ -15,7 +15,15 @@ export const PLAYTIME_GAMES = [
 export const GAME_LABEL = Object.fromEntries(PLAYTIME_GAMES.map(g => [g.id, g.label]));
 const VALID_GAMES = new Set(PLAYTIME_GAMES.map(g => g.id));
 
-const today = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+// Dia LOCAL (YYYY-MM-DD), não UTC. Tem que ser o mesmo cálculo do
+// prismaMissions.js: como estamos em UTC-3, `toISOString()` já devolve o dia
+// SEGUINTE a partir das 21h — quem jogasse às 22h gravava na data de amanhã e
+// os minutos contavam de novo pra missão diária do dia seguinte. "Jogue 20 min
+// hoje" é o hoje de quem joga, não o de Londres.
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 const myName = () => (getAuthUser()?.name || USER?.name || '').trim();
 
 // Acumula `seconds` no total do jogador naquele JOGO, no dia de hoje.
