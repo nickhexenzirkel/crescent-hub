@@ -5,8 +5,8 @@ import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../..
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
 import {
-  loadCaptureConfig, saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
-  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
+  saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
+  getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
   loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
@@ -123,6 +123,50 @@ const FrameUploadSlot = ({ label, hint, value, onFile, onClear, required }) => {
         onChange={e => { const f = e.target.files?.[0]; onFile(f); e.target.value = ''; }} />
       {value && <button onClick={onClear} style={{ fontSize: 10, color: '#C04050', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>remover</button>}
       <div style={{ fontSize: 9.5, color: T.textT, textAlign: 'center', lineHeight: 1.3 }}>{hint}</div>
+    </div>
+  );
+};
+
+// Campo de BUSCA com sugestões — em vez de rolar um <select> gigante, digita-se o
+// nome (Uniko ou colaborador) e escolhe na listinha. `options`: [{id,label,sub,img,accent}].
+// Ignora acento/caixa na comparação ("sereia" acha "Uniko Sereia").
+const SearchPicker = ({ value, onPick, options, placeholder, isDark, minWidth = 180 }) => {
+  const [q, setQ]       = useState(null); // null = mostrando o escolhido; string = digitando
+  const [open, setOpen] = useState(false);
+  const sel  = options.find(o => o.id === value) || null;
+  const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const list = (q ? options.filter(o => norm(o.label).includes(norm(q))) : options).slice(0, 40);
+  const inpSt = {width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,
+    background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,
+    outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'};
+  return (
+    <div style={{ position:'relative', flex:1, minWidth }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        {sel?.img && <img src={sel.img} alt="" style={{width:30,height:30,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 6px ${sel.accent||T.gold}88)`}}/>}
+        <input value={q ?? (sel?.label || '')} placeholder={placeholder}
+          onChange={e => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => { setQ(''); setOpen(true); }}
+          // atraso pro clique numa sugestão acontecer antes da lista fechar
+          onBlur={() => setTimeout(() => { setOpen(false); setQ(null); }, 150)}
+          style={inpSt}/>
+      </div>
+      {open && (
+        <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,zIndex:50,maxHeight:230,overflowY:'auto',
+          borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surface||'#1b1b25'):'#fff',boxShadow:'0 10px 30px rgba(0,0,0,.22)'}}>
+          {list.length === 0 && <div style={{padding:'10px 12px',fontSize:12,color:T.textT}}>Nada encontrado.</div>}
+          {list.map(o => (
+            <div key={o.id} onMouseDown={() => { onPick(o.id); setQ(null); setOpen(false); }}
+              style={{display:'flex',alignItems:'center',gap:9,padding:'8px 11px',cursor:'pointer',
+                background:o.id===value?`${o.accent||T.gold}1a`:'transparent'}}>
+              {o.img && <img src={o.img} alt="" style={{width:26,height:26,objectFit:'contain',flexShrink:0}}/>}
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12.5,fontWeight:700,color:T.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.label}</div>
+                {o.sub && <div style={{fontSize:10.5,color:T.textT}}>{o.sub}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -523,12 +567,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   useEffect(() => { if (tab === 'comunicados') loadComunicados(); }, [tab]);
 
   // ── Capture o Uniko (evento) ────────────────────────────
-  // datetime-local <-> ISO. O input usa horário LOCAL; guardamos ISO no settings.
-  const isoToLocal = (iso) => { if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-  const localToIso = (loc) => { if(!loc) return ''; const d=new Date(loc); return isNaN(d)?'':d.toISOString(); };
-  const [capCfg, setCapCfg]       = useState({ enabled:false, startAt:'', endAt:'', unikoId:'vampire-robot', maxWinners:3, alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG });
-  const [capMsg, setCapMsg]       = useState('');
-  const [capSaving, setCapSaving] = useState(false);
+  // Não existe mais "evento ativo" editado à mão aqui: TUDO passa pela fila de spawns
+  // agendados (mais abaixo). O `capture_uniko_config` continua sendo o formato final —
+  // só que agora ele é escrito pela fila (ou pelo "⚡ Agora" de um item dela).
   // Sub-aba da tab "Capture o Uniko": evento/spawn vs. Oficina de Uniko (criação) vs. Enviar
   const [captureSubTab, setCaptureSubTab] = useState('evento');
 
@@ -550,48 +591,6 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       ? `✅ ${u.name} enviado pra ${giftTarget}!${res.alreadyHadUniko ? ' (já tinha o Uniko — só creditou os prismas)' : ''}`
       : '❌ Falha ao enviar — confira o console e tenta de novo.');
   };
-
-  const loadCapCfg = async () => {
-    const c = await loadCaptureConfig();
-    if (c) setCapCfg({ enabled:!!c.enabled, startAt:isoToLocal(c.startAt), endAt:isoToLocal(c.endAt), unikoId:c.unikoId||'vampire-robot', maxWinners:c.maxWinners||3, alexaMessage:c.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
-  };
-  const saveCapCfg = async () => {
-    if (capCfg.enabled && (!capCfg.startAt || !capCfg.endAt)) { setCapMsg('⚠️ Defina início e fim da janela'); return; }
-    if (capCfg.enabled && localToIso(capCfg.endAt) <= localToIso(capCfg.startAt)) { setCapMsg('⚠️ O fim deve ser depois do início'); return; }
-    setCapSaving(true); setCapMsg('');
-    try {
-      const startIso = localToIso(capCfg.startAt), endIso = localToIso(capCfg.endAt);
-      // Momento DENTRO da janela, fixado agora → todos veem surgir no mesmo instante.
-      // Não é uniforme: janela curta pesa a chance pro início, janela longa pesa pro
-      // meio/fim (evita o azar de spawnar 5min depois de uma janela de horas).
-      let spawnAt = startIso;
-      if (capCfg.enabled && startIso && endIso) {
-        spawnAt = pickSpawnAt(startIso, endIso);
-      }
-      await saveCaptureConfig({ enabled:capCfg.enabled, startAt:startIso, endAt:endIso, spawnAt, unikoId:capCfg.unikoId, maxWinners:Number(capCfg.maxWinners)||3, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG });
-      setCapMsg('✅ Configuração salva!');
-    } catch(e) { setCapMsg('❌ ' + (e.message||'Erro ao salvar')); }
-    setCapSaving(false);
-    setTimeout(()=>setCapMsg(''), 4000);
-  };
-  // Spawna AGORA: abre uma janela imediata (agora → +30min) com o uniko selecionado,
-  // gerando um evento novo. O widget faz o Uniko surgir em segundos para quem está no Portal
-  // — e o servidor (checkCaptureUnikoSpawn) faz a Alexa anunciar assim que o spawnAt chegar.
-  const spawnNow = async () => {
-    setCapSaving(true); setCapMsg('');
-    try {
-      const now = new Date();
-      const end = new Date(now.getTime() + 30 * 60 * 1000);      // janela de 30 min
-      const spawnAt = new Date(now.getTime() + 6 * 1000);        // +6s: dá tempo de todos receberem e revelarem juntos
-      const cfg = { enabled:true, startAt:now.toISOString(), endAt:end.toISOString(), spawnAt:spawnAt.toISOString(), unikoId:capCfg.unikoId || 'vampire-robot', maxWinners:Number(capCfg.maxWinners)||3, alexaMessage:capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG };
-      await saveCaptureConfig(cfg);
-      setCapCfg({ enabled:true, startAt:isoToLocal(cfg.startAt), endAt:isoToLocal(cfg.endAt), unikoId:cfg.unikoId, maxWinners:cfg.maxWinners, alexaMessage:cfg.alexaMessage });
-      setCapMsg('✅ Uniko liberado! Vai surgir em segundos para quem estiver no Portal (e a Alexa avisa).');
-    } catch (e) { setCapMsg('❌ ' + (e.message || 'Erro ao spawnar')); }
-    setCapSaving(false);
-    setTimeout(() => setCapMsg(''), 6000);
-  };
-  useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
 
   // ── Fila de spawns agendados ──────────────────────────────────────────────
   // Lista de eventos ("das 10:00 às 11:30 sai o Uniko X"), cada um diário ou de
@@ -627,9 +626,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       unikoId: f.unikoId, mode: f.mode, date: f.mode==='once' ? f.date : null,
       startTime: f.startTime, endTime: f.endTime,
       maxWinners: Number(f.maxWinners) || 3,
-      // Sempre grava uma mensagem: em branco, herda a do evento manual (ou a padrão) —
-      // assim o anúncio da Alexa nunca depende de um fallback lá no servidor.
-      alexaMessage: (f.alexaMessage||'').trim() || capCfg.alexaMessage || DEFAULT_CAPTURE_ALEXA_MSG,
+      // Sempre grava uma mensagem (em branco = a padrão) — assim o anúncio da Alexa
+      // nunca depende de um fallback lá no servidor.
+      alexaMessage: (f.alexaMessage||'').trim() || DEFAULT_CAPTURE_ALEXA_MSG,
       enabled: true,
     };
     await persistSched([...capSched, entry]);
@@ -648,6 +647,28 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     if (diff === -1) return `ontem às ${hora}`;
     return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} às ${hora}`;
   };
+  // Solta um item da fila AGORA, sem esperar o horário dele: abre uma janela imediata
+  // (agora → +30min) com aquele Uniko. O widget faz o Uniko surgir em segundos pra quem
+  // está no Portal — e o servidor (checkCaptureUnikoSpawn) faz a Alexa anunciar.
+  const spawnEntryNow = async (entry) => {
+    const u = getUniko(entry.unikoId);
+    if (!window.confirm(`Soltar o ${u.name} AGORA (janela de 30 min), sem esperar o horário agendado?`)) return;
+    setSchedBusy(true);
+    try {
+      const now = new Date();
+      await saveCaptureConfig({
+        enabled: true,
+        startAt: now.toISOString(),
+        endAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(), // janela de 30 min
+        spawnAt: new Date(now.getTime() + 6 * 1000).toISOString(),     // +6s: todos recebem e revelam juntos
+        unikoId: entry.unikoId,
+        maxWinners: Number(entry.maxWinners) || 3,
+        alexaMessage: entry.alexaMessage || DEFAULT_CAPTURE_ALEXA_MSG,
+      });
+      flashSched('✅ Uniko liberado! Surge em segundos pra quem estiver no Portal (e a Alexa avisa).');
+    } catch (e) { flashSched('❌ ' + (e.message || 'Erro ao spawnar')); }
+    setSchedBusy(false);
+  };
 
   // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
   const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
@@ -660,6 +681,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [oficinaBgVideo, setOficinaBgVideo] = useState('');       // vídeo de fundo do Uniko (Central Alexa)
   const [oficinaBgVidUp, setOficinaBgVidUp] = useState(false);    // upload do vídeo em andamento
 
+  const [libQuery, setLibQuery]             = useState('');  // busca da Biblioteca
   const loadOficinaLib = async () => { const list = await loadCustomUnikos(); setOficinaLib(list); };
   useEffect(() => { if (tab === 'capture') loadOficinaLib(); }, [tab]);
 
@@ -900,15 +922,32 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
       await scLoad();
     } catch (e) { scFlash('Erro ao excluir: ' + (e.message||'')); }
   };
+  // Salva os prismas de QUALQUER Uniko da Biblioteca. Os do roster fixo não têm linha em
+  // tabela nenhuma (o valor de fábrica é hardcoded) → vão pro `uniko_reward_overrides`;
+  // os da Oficina já têm colunas próprias na `custom_unikos` → regrava a linha deles.
   const salvarReward = async (id) => {
     const draft = rewardEdit[id];
     if (!draft) return;
     setRewardSaving(id);
     try {
-      await saveRewardOverride(id, draft.comum, draft.premium);
+      const raw = getCustomUnikoRaw(id);
+      if (raw) {
+        await saveCustomUniko({
+          id, name: raw.name, tagline: raw.tagline, accent: raw.accent,
+          rewardComum: Number(draft.comum) || 0, rewardPremium: Number(draft.premium) || 0,
+          iconSize: raw.icon_size, imgMain: raw.img_main, imgNotif: raw.img_notif, imgAlert: raw.img_alert,
+          imgClosed: raw.img_closed, imgCapture: raw.img_capture, imgPrismaComum: raw.img_prisma_comum,
+          imgPrismaPremium: raw.img_prisma_premium, imgAlexa: raw.img_alexa, imgWave: raw.img_wave,
+          imgScene: raw.img_scene, createdBy: raw.created_by,
+        });
+        await loadOficinaLib();
+      } else {
+        await saveRewardOverride(id, draft.comum, draft.premium);
+      }
       setRewardTick(t => t + 1);
       setRewardEdit(e => { const next = { ...e }; delete next[id]; return next; });
-    } finally { setRewardSaving(null); }
+    } catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao salvar os prismas')); setTimeout(()=>setOficinaMsg(''), 5000); }
+    finally { setRewardSaving(null); }
   };
   // Preview piscando — só pra dar uma ideia de como fica animado (aberto/fechado a cada 2s).
   useEffect(() => { const id = setInterval(() => setOficinaBlinkPreview(v => !v), 2000); return () => clearInterval(id); }, []);
@@ -1079,7 +1118,11 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     if (!window.confirm(`Remover "${name}" da Biblioteca? Isso não afeta quem já capturou esse Uniko antes.`)) return;
     try {
       await deleteCustomUniko(id); await loadOficinaLib();
-      if (capCfg.unikoId === id) setCapCfg(c => ({ ...c, unikoId: 'vampire-robot' }));
+      // Some da fila também — um agendamento apontando pro Uniko removido spawnaria o
+      // Vampire-Robot por engano (getUniko cai no padrão quando o id não existe mais).
+      const naFila = capSched.filter(e => e.unikoId === id);
+      if (naFila.length) await persistSched(capSched.filter(e => e.unikoId !== id));
+      if (schedForm.unikoId === id) setSchedForm(f => ({ ...f, unikoId: 'vampire-robot' }));
       if (oficinaEditingId === id) resetOficinaForm();
     }
     catch (e) { setOficinaMsg('❌ ' + (e.message || 'Erro ao remover')); }
@@ -2938,8 +2981,15 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
           {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
           {tab==='capture'&&(()=>{
-            const uni = getUniko(capCfg.unikoId);
             const rosterUnikos = [...Object.values(CAPTURE_UNIKOS), ...oficinaLib];
+            // Biblioteca filtrada pela busca (a lista passa fácil de 50 Unikos)
+            const _semAcento = (s)=>(s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'');
+            const libFiltrados = libQuery.trim()
+              ? rosterUnikos.filter(u=>_semAcento(u.name).includes(_semAcento(libQuery)))
+              : rosterUnikos;
+            // opções dos campos de busca (Uniko / colaborador)
+            const unikoOpts = rosterUnikos.map(u=>{ const rw=getCaptureReward(u); return { id:u.id, label:u.name, sub:`${rw.comum} comuns · ${rw.premium} premium`, img:u.img, accent:u.theme.accent }; });
+            const pessoaOpts = empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>({ id:e.name, label:e.name, sub:e.cargo||undefined }));
             const inpSt = {width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'};
             const lblSt = {fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6};
             return (
@@ -2949,9 +2999,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Uniko</div>
                 <div style={{fontSize:13,color:T.textS,marginTop:2}}>
                   {captureSubTab==='evento'
-                    ? 'Defina a janela em que um Uniko pode surgir aleatoriamente no Portal do Colaborador para os funcionários capturarem.'
+                    ? 'Agende os horários em que cada Uniko pode surgir no Portal do Colaborador para os funcionários capturarem.'
                     : captureSubTab==='oficina'
-                    ? 'Crie Unikos personalizados, fora do roster fixo, pra disponibilizar no evento.'
+                    ? 'Crie Unikos personalizados e cuide da Biblioteca: prismas, vídeo de fundo, edição e remoção.'
                     : 'Dê um Uniko + prismas direto pra um colaborador específico, sem depender do sorteio do evento.'}
                 </div>
               </div>
@@ -2976,186 +3026,23 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 })}
               </div>
 
-              {/* Card de configuração */}
               {captureSubTab==='evento' && (<>
-
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
-
-                {/* Ativar */}
-                <label style={{display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                  <span onClick={()=>setCapCfg(c=>({...c,enabled:!c.enabled}))} style={{position:'relative',width:46,height:26,borderRadius:99,background:capCfg.enabled?T.gold:T.border,transition:'background .2s',flexShrink:0}}>
-                    <span style={{position:'absolute',top:3,left:capCfg.enabled?23:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
-                  </span>
-                  <span>
-                    <div style={{fontSize:14,fontWeight:600,color:T.text}}>Evento ativo</div>
-                    <div style={{fontSize:12,color:T.textT}}>Quando ligado, o Uniko pode surgir dentro da janela abaixo.</div>
-                  </span>
-                </label>
-
-                {/* Janela */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                  <div>
-                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Início da janela</label>
-                    <input type="datetime-local" value={capCfg.startAt} onChange={e=>setCapCfg(c=>({...c,startAt:e.target.value}))}
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Fim da janela</label>
-                    <input type="datetime-local" value={capCfg.endAt} onChange={e=>setCapCfg(c=>({...c,endAt:e.target.value}))}
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
-                  </div>
-                </div>
-
-                {/* Vagas — quantas pessoas conseguem capturar esse Uniko */}
-                <div style={{maxWidth:260}}>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Vagas (quantas pessoas conseguem pegar)</label>
-                  <div style={{display:'flex',gap:8}}>
-                    {[1,2,3,4,5].map(n=>(
-                      <button key={n} onClick={()=>setCapCfg(c=>({...c,maxWinners:n}))}
-                        style={{flex:1,padding:'9px 0',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:700,
-                          border:`1.5px solid ${Number(capCfg.maxWinners)===n?T.gold:T.border}`,
-                          background:Number(capCfg.maxWinners)===n?(T.goldGl||`${T.gold}22`):'transparent',
-                          color:Number(capCfg.maxWinners)===n?T.gold:T.textS,transition:'all .15s'}}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{fontSize:11,color:T.textT,marginTop:6}}>{capCfg.maxWinners===1?'Só a 1ª pessoa a arrastar até o Uniko consegue capturar.':`As ${capCfg.maxWinners} primeiras pessoas que conseguirem capturar ganham.`}</div>
-                </div>
-
-                {/* Escolha do Uniko */}
-                <div>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko disponível</label>
-                  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                    {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
-                      const rw = getCaptureReward(u);
-                      // Prismas editáveis só pros Unikos FIXOS "lendários" (vampire-robot,
-                      // uniko-sereia) — os da Oficina já têm o próprio campo de prismas
-                      // no formulário de criação/edição deles.
-                      const editavel = u.id==='vampire-robot' || u.id==='uniko-sereia';
-                      const draft = rewardEdit[u.id];
-                      return (
-                      <div key={u.id} onClick={()=>setCapCfg(c=>({...c,unikoId:u.id}))}
-                        style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
-                          border:`2px solid ${capCfg.unikoId===u.id?u.theme.accent:T.border}`,
-                          background:capCfg.unikoId===u.id?`${u.theme.accent}18`:'transparent',transition:'all .15s'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:12}}>
-                          <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
-                          <div>
-                            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
-                            {!draft && <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium</div>}
-                          </div>
-                        </div>
-                        {editavel && (
-                          <div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                            <input type="number" min={0} value={draft?draft.comum:rw.comum}
-                              onChange={e=>setRewardEdit(x=>({...x,[u.id]:{comum:e.target.value,premium:draft?draft.premium:rw.premium}}))}
-                              style={{width:62,padding:'5px 6px',borderRadius:7,border:`1px solid ${T.border}`,background:T.surface||'#fff',color:T.text,fontSize:11,fontFamily:'var(--font-body)'}}/>
-                            <span style={{fontSize:10,color:T.textT}}>comuns</span>
-                            <input type="number" min={0} value={draft?draft.premium:rw.premium}
-                              onChange={e=>setRewardEdit(x=>({...x,[u.id]:{comum:draft?draft.comum:rw.comum,premium:e.target.value}}))}
-                              style={{width:62,padding:'5px 6px',borderRadius:7,border:`1px solid ${T.border}`,background:T.surface||'#fff',color:T.text,fontSize:11,fontFamily:'var(--font-body)'}}/>
-                            <span style={{fontSize:10,color:T.textT}}>premium</span>
-                            {draft && (
-                              <button onClick={()=>salvarReward(u.id)} disabled={rewardSaving===u.id}
-                                style={{padding:'5px 10px',borderRadius:7,border:'none',cursor:rewardSaving===u.id?'default':'pointer',background:u.theme.accent,color:'#fff',fontWeight:700,fontSize:10,fontFamily:'var(--font-body)',opacity:rewardSaving===u.id?.6:1}}>
-                                {rewardSaving===u.id?'Salvando…':'Salvar'}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {/* Vídeo de fundo (Central Alexa) — pra QUALQUER Uniko */}
-                        {(() => {
-                          const temVideo = !!getUnikoBgVideo(u.id);
-                          const carregando = bgVidUploading===u.id;
-                          return (
-                          <div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',borderTop:`1px solid ${T.border}`,paddingTop:8}}>
-                            <span style={{fontSize:10,fontWeight:700,color:T.textT}}>Vídeo de fundo:</span>
-                            <label style={{padding:'5px 10px',borderRadius:7,cursor:carregando?'wait':'pointer',background:temVideo?`${u.theme.accent}22`:(isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.05)'),color:temVideo?u.theme.accent:T.textS,fontWeight:700,fontSize:10,border:`1px solid ${T.border}`}}>
-                              {carregando?'Enviando…':temVideo?'Trocar':'Escolher'}
-                              <input type="file" accept="video/*" disabled={carregando} style={{display:'none'}}
-                                onChange={e=>{ subirBgVideo(u.id, e.target.files?.[0]); e.target.value=''; }}/>
-                            </label>
-                            {temVideo && !carregando && (
-                              <button onClick={()=>removerBgVideo(u.id)}
-                                style={{padding:'5px 8px',borderRadius:7,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:10}}>Remover</button>
-                            )}
-                          </div>
-                          );
-                        })()}
-                      </div>
-                      );
-                    })}
-                    {bgVidMsg && <div style={{fontSize:11,fontWeight:600,color:'#C04050',width:'100%'}}>{bgVidMsg}</div>}
-                  </div>
-                </div>
-
-                {/* Anúncio na Alexa */}
-                <div>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Mensagem que a Alexa anuncia ao spawnar</label>
-                  <textarea value={capCfg.alexaMessage} onChange={e=>setCapCfg(c=>({...c,alexaMessage:e.target.value}))} rows={2}
-                    placeholder={DEFAULT_CAPTURE_ALEXA_MSG}
-                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',resize:'vertical'}}/>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:6}}>
-                    <div style={{fontSize:11,color:T.textT}}>Falada no Echo assim que o Uniko surgir de verdade no Portal.</div>
-                    {capCfg.alexaMessage!==DEFAULT_CAPTURE_ALEXA_MSG&&(
-                      <button onClick={()=>setCapCfg(c=>({...c,alexaMessage:DEFAULT_CAPTURE_ALEXA_MSG}))}
-                        style={{fontSize:11,fontWeight:600,color:T.gold,background:'none',border:'none',cursor:'pointer',padding:0}}>
-                        Restaurar padrão
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Preview do tema */}
-                <div style={{borderRadius:14,padding:3,background:`conic-gradient(${uni.theme.border.join(',')})`}}>
-                  <div style={{borderRadius:12,background:uni.theme.scene,padding:'18px 16px',display:'flex',alignItems:'center',gap:14}}>
-                    <img src={uni.img} alt="" style={{width:70,height:70,objectFit:'contain',filter:`drop-shadow(0 0 14px ${uni.theme.accent})`}}/>
-                    <div>
-                      <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:uni.theme.glow}}>★ CAPTURE O UNIKO ★</div>
-                      <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{uni.name}</div>
-                      <div style={{fontSize:11,color:uni.theme.ink,opacity:.85}}>{uni.tagline}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Salvar + Spawnar agora */}
-                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-                  <button onClick={saveCapCfg} disabled={capSaving}
-                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:capSaving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:capSaving?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
-                    {capSaving?'Salvando...':'Salvar configuração'}
-                  </button>
-                  <button onClick={spawnNow} disabled={capSaving}
-                    title={`Libera o ${uni.name} agora para todos que estiverem no Portal (surge em segundos).`}
-                    style={{display:'flex',alignItems:'center',gap:8,padding:'11px 22px',borderRadius:10,border:`2px solid ${uni.theme.accent}`,cursor:capSaving?'default':'pointer',background:`${uni.theme.accent}22`,color:uni.theme.accent,fontWeight:800,fontSize:14,fontFamily:'var(--font-body)',opacity:capSaving?.6:1}}>
-                    <span style={{fontSize:15}}>⚡</span> Spawnar agora
-                  </button>
-                  {capMsg&&<span style={{fontSize:13,color:capMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{capMsg}</span>}
-                </div>
-
-                <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-                  ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. A captura é sempre na 1ª tentativa (arrastou, pegou) e vale para {capCfg.maxWinners===1?'a 1ª pessoa que conseguir':`as ${capCfg.maxWinners} primeiras pessoas que conseguirem`}.
-                </div>
-              </div>
-
               {/* ── Fila de spawns agendados ─────────────────────────────── */}
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📅 Fila de spawns agendados</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:3}}>
-                    Monte vários horários de uma vez: <b>das 10:00 às 11:30 sai o Uniko X</b>, <b>das 15:00 às 15:40 sai o Uniko Y</b>… Cada evento pode se repetir <b>todo dia</b> ou acontecer <b>só uma vez</b>. Quando a hora chega, o evento entra no ar sozinho (substitui a janela configurada acima).
+                    Monte vários horários de uma vez: <b>das 10:00 às 11:30 sai o Uniko X</b>, <b>das 15:00 às 15:40 sai o Uniko Y</b>… Cada evento pode se repetir <b>todo dia</b> ou acontecer <b>só uma vez</b>. Quando a hora chega, o evento entra no ar sozinho — é daqui que sai todo spawn do Capture o Uniko.
                   </div>
                 </div>
 
                 {/* Formulário do novo evento */}
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,alignItems:'end'}}>
                   <div style={{gridColumn:'span 2',minWidth:200}}>
-                    <label style={lblSt}>Uniko que vai aparecer</label>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <img src={getUniko(schedForm.unikoId).img} alt="" style={{width:34,height:34,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 6px ${getUniko(schedForm.unikoId).theme.accent}88)`}}/>
-                      <select value={schedForm.unikoId} onChange={e=>setSchedForm(f=>({...f,unikoId:e.target.value}))} style={{...inpSt,cursor:'pointer'}}>
-                        {rosterUnikos.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-                      </select>
+                    <label style={lblSt}>Uniko que vai aparecer (digite o nome)</label>
+                    <div style={{display:'flex'}}>
+                      <SearchPicker value={schedForm.unikoId} onPick={id=>setSchedForm(f=>({...f,unikoId:id}))}
+                        options={unikoOpts} placeholder="Ex.: Sereia, Vampire-Robot…" isDark={isDark}/>
                     </div>
                   </div>
 
@@ -3166,7 +3053,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         const on = schedForm.mode===m.id;
                         return (
                           <button key={m.id} onClick={()=>setSchedForm(f=>({...f,mode:m.id}))}
-                            style={{flex:1,padding:'10px 4px',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:12,fontWeight:700,
+                            style={{flex:1,padding:'10px 4px',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:11.5,fontWeight:700,whiteSpace:'nowrap',
                               border:`1.5px solid ${on?T.gold:T.border}`,background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS,transition:'all .15s'}}>
                             {m.label}
                           </button>
@@ -3199,9 +3086,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
 
                 <div>
-                  <label style={lblSt}>Mensagem da Alexa (opcional — em branco herda a mensagem do evento acima)</label>
+                  <label style={lblSt}>Mensagem da Alexa (opcional — em branco usa a padrão)</label>
                   <input value={schedForm.alexaMessage} onChange={e=>setSchedForm(f=>({...f,alexaMessage:e.target.value}))}
-                    placeholder={capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG} style={inpSt}/>
+                    placeholder={DEFAULT_CAPTURE_ALEXA_MSG} style={inpSt}/>
                 </div>
 
                 <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
@@ -3242,10 +3129,16 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                               {' · '}
                               {off ? 'pausado' : occ ? `próximo: ${fmtOcc(occ.startMs)}` : 'já aconteceu'}
                             </div>
-                            {e.alexaMessage && e.alexaMessage!==capCfg.alexaMessage && (
+                            {e.alexaMessage && e.alexaMessage!==DEFAULT_CAPTURE_ALEXA_MSG && (
                               <div style={{fontSize:11,color:T.textT,marginTop:3,fontStyle:'italic'}}>🔊 “{e.alexaMessage}”</div>
                             )}
                           </div>
+                          <button onClick={()=>spawnEntryNow(e)} disabled={schedBusy}
+                            title={`Solta o ${u.name} agora (janela de 30 min), sem esperar o horário`}
+                            style={{padding:'7px 13px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'var(--font-body)',
+                              border:`1.5px solid ${u.theme.accent}`,background:`${u.theme.accent}22`,color:u.theme.accent}}>
+                            ⚡ Agora
+                          </button>
                           <button onClick={()=>toggleSchedEntry(e.id)} disabled={schedBusy}
                             style={{padding:'7px 14px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
                               border:`1px solid ${T.border}`,background:'transparent',color:T.textS}}>
@@ -3262,17 +3155,17 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 </div>
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-                  ℹ️ O horário é o do computador (fuso local). Dentro de cada janela agendada o Uniko surge num instante sorteado — igual ao evento manual — e a Alexa anuncia na hora do spawn. Eventos de <b>única vez</b> saem da fila sozinhos depois que acontecem. A fila só dispara com pelo menos alguém logado no Hub (é o navegador que acorda o agendamento); se dois eventos se sobrepuserem, vale o que começou por último.
+                  ℹ️ O horário é o do computador (fuso local). Dentro de cada janela o Uniko surge num instante sorteado e a Alexa anuncia na hora do spawn; a captura é na 1ª tentativa (arrastou, pegou) e vale pelas vagas do evento. O botão <b>⚡ Agora</b> solta aquele Uniko na hora, numa janela de 30 min, sem mexer no agendamento. Eventos de <b>única vez</b> saem da fila sozinhos depois que acontecem. A fila só dispara com pelo menos alguém logado no Hub (é o navegador que acorda o agendamento); se dois eventos se sobrepuserem, vale o que começou por último.
                 </div>
               </div>
               </>)}
 
-              {/* Oficina de Uniko — criar Unikos personalizados */}
+              {/* Oficina de Uniko — CARD 1: criar/editar um Uniko */}
               {captureSubTab==='oficina' && (<>
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                   <div>
-                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Oficina de Uniko</div>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Criar um Uniko</div>
                     <div style={{fontSize:12,color:T.textS,marginTop:3}}>Crie um Uniko novo anexando as imagens dele. Só o frame <b>principal</b> é obrigatório — os que faltarem usam o principal no lugar (fica um ícone parado, sem animação, se você quiser assim).</div>
                   </div>
                   {oficinaEditingId && (
@@ -3424,108 +3317,161 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   {oficinaMsg&&<span style={{fontSize:13,color:oficinaMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{oficinaMsg}</span>}
                 </div>
 
-                {/* Biblioteca de Unikos */}
-                <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16}}>
-                  <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>Biblioteca de Unikos ({oficinaLib.length})</div>
-                  {oficinaLib.length===0
-                    ? <div style={{fontSize:12,color:T.textT}}>Nenhum Uniko criado ainda. Preencha o formulário acima pra adicionar o primeiro.</div>
-                    : (
-                    <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                      {oficinaLib.map(u=>{ const raw = getCustomUnikoRaw(u.id); return (
-                        <div key={u.id} style={{width:148,borderRadius:12,border:oficinaEditingId===u.id?`1.5px solid ${u.theme.accent}`:`1.5px solid ${u.theme.accent}55`,background:`${u.theme.accent}0d`,padding:'12px 10px',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-                          <img src={u.img} alt={u.name} style={{width:54,height:54,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
-                          <div style={{fontSize:12,fontWeight:700,color:T.text,textAlign:'center'}}>{u.name}</div>
-                          <div style={{fontSize:10,color:T.textT,textAlign:'center',lineHeight:1.3}}>{u.tagline}</div>
-                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent}}>{u.reward.comum}·{u.reward.premium} · {raw?.icon_size||84}px</div>
-                          <div style={{display:'flex',gap:10,marginTop:2}}>
-                            <button onClick={()=>editOficina(u.id)}
-                              style={{fontSize:10,color:u.theme.accent,background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:700}}>Editar</button>
-                            <button onClick={()=>removeOficina(u.id,u.name)}
-                              style={{fontSize:10,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>Remover</button>
+              </div>
+
+              {/* Oficina de Uniko — CARD 2: Biblioteca (vitrine estilo Prisma Store) */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
+                <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:14,flexWrap:'wrap'}}>
+                  <div style={{flex:'1 1 320px'}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📚 Biblioteca de Unikos ({rosterUnikos.length})</div>
+                    <div style={{fontSize:12,color:T.textS,marginTop:3}}>Todos os Unikos que podem ser agendados. Aqui você ajusta quantos prismas cada um vale ao ser capturado, troca o vídeo de fundo da Central Alexa e edita/remove os que foram criados na Oficina.</div>
+                  </div>
+                  <input value={libQuery} onChange={e=>setLibQuery(e.target.value)} placeholder="🔎 Buscar na Biblioteca…"
+                    style={{...inpSt,width:250,flex:'0 0 auto'}}/>
+                </div>
+                {bgVidMsg && <div style={{fontSize:12,fontWeight:600,color:'#C04050'}}>{bgVidMsg}</div>}
+                {libFiltrados.length===0 && <div style={{fontSize:12,color:T.textT}}>Nenhum Uniko com esse nome.</div>}
+
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(232px,1fr))',gap:16}}>
+                  {libFiltrados.map(u=>{
+                    const raw   = getCustomUnikoRaw(u.id);   // null = Uniko fixo do roster (não dá pra editar/remover)
+                    const rw    = getCaptureReward(u);
+                    const draft = rewardEdit[u.id];
+                    const temVideo   = !!getUnikoBgVideo(u.id);
+                    const carregando = bgVidUploading===u.id;
+                    const editando   = oficinaEditingId===u.id;
+                    return (
+                      <div key={u.id} style={{display:'flex',flexDirection:'column',borderRadius:16,overflow:'hidden',
+                        border:`1.5px solid ${editando?u.theme.accent:`${u.theme.accent}44`}`,
+                        background:isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.015)',boxShadow:T.sh}}>
+                        {/* faixa de cor do Uniko no topo (mesma linguagem dos cards da Prisma Store) */}
+                        <div style={{height:3,background:`linear-gradient(90deg,transparent,${u.theme.accent},transparent)`}}/>
+
+                        {/* Arte grande */}
+                        <div style={{padding:'18px 14px 8px',display:'flex',alignItems:'center',justifyContent:'center',
+                          background:`radial-gradient(120% 90% at 50% 0%, ${u.theme.accent}22, transparent 70%)`,position:'relative'}}>
+                          <span style={{position:'absolute',top:10,right:10,fontSize:9.5,fontWeight:800,letterSpacing:'.05em',textTransform:'uppercase',
+                            padding:'3px 8px',borderRadius:999,background:raw?`${u.theme.accent}22`:(isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.06)'),
+                            color:raw?u.theme.accent:T.textT}}>{raw?'Oficina':'Fixo'}</span>
+                          <img src={u.img} alt={u.name} style={{width:110,height:110,objectFit:'contain',filter:`drop-shadow(0 6px 18px ${u.theme.accent}88)`}}/>
+                        </div>
+
+                        <div style={{padding:'0 15px 15px',display:'flex',flexDirection:'column',gap:9,flex:1}}>
+                          <div>
+                            <div style={{fontSize:15,fontWeight:800,color:T.text,lineHeight:1.2,fontFamily:'var(--font-brand)'}}>{u.name}</div>
+                            {/* tagline presa em 2 linhas — sem isso, um Uniko com descrição
+                                longa estica o card inteiro e desalinha a fileira da grade */}
+                            <div title={u.tagline} style={{fontSize:11,color:T.textT,lineHeight:1.35,marginTop:3,height:30,
+                              overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{u.tagline}</div>
+                          </div>
+
+                          {/* Valor ao ser capturado — editável */}
+                          <div style={{borderTop:`1px solid ${T.border}`,paddingTop:9}}>
+                            <div style={{fontSize:10,fontWeight:700,color:T.textT,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>Vale ao ser capturado</div>
+                            <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                              <input type="number" min={0} value={draft?draft.comum:rw.comum}
+                                onChange={ev=>setRewardEdit(x=>({...x,[u.id]:{comum:ev.target.value,premium:draft?draft.premium:rw.premium}}))}
+                                style={{width:60,padding:'6px 7px',borderRadius:8,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,.06)'):'#fff',color:T.text,fontSize:12,fontWeight:700,fontFamily:'var(--font-body)'}}/>
+                              <span style={{fontSize:10.5,color:T.textT}}>comuns</span>
+                              <input type="number" min={0} value={draft?draft.premium:rw.premium}
+                                onChange={ev=>setRewardEdit(x=>({...x,[u.id]:{comum:draft?draft.comum:rw.comum,premium:ev.target.value}}))}
+                                style={{width:60,padding:'6px 7px',borderRadius:8,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,.06)'):'#fff',color:T.text,fontSize:12,fontWeight:700,fontFamily:'var(--font-body)'}}/>
+                              <span style={{fontSize:10.5,color:T.textT}}>premium</span>
+                              {draft && (
+                                <button onClick={()=>salvarReward(u.id)} disabled={rewardSaving===u.id}
+                                  style={{padding:'6px 11px',borderRadius:8,border:'none',cursor:rewardSaving===u.id?'default':'pointer',background:u.theme.accent,color:'#fff',fontWeight:800,fontSize:10.5,fontFamily:'var(--font-body)',opacity:rewardSaving===u.id?.6:1}}>
+                                  {rewardSaving===u.id?'Salvando…':'Salvar'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Vídeo de fundo (Central Alexa) */}
+                          <div style={{borderTop:`1px solid ${T.border}`,paddingTop:9,display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+                            <span style={{fontSize:10,fontWeight:700,color:T.textT,textTransform:'uppercase',letterSpacing:'.05em'}}>Vídeo de fundo</span>
+                            <label style={{padding:'5px 10px',borderRadius:8,cursor:carregando?'wait':'pointer',fontWeight:700,fontSize:10.5,
+                              background:temVideo?`${u.theme.accent}22`:(isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.05)'),
+                              color:temVideo?u.theme.accent:T.textS,border:`1px solid ${T.border}`}}>
+                              {carregando?'Enviando…':temVideo?'Trocar':'Escolher'}
+                              <input type="file" accept="video/*" disabled={carregando} style={{display:'none'}}
+                                onChange={ev=>{ subirBgVideo(u.id, ev.target.files?.[0]); ev.target.value=''; }}/>
+                            </label>
+                            {temVideo && !carregando && (
+                              <button onClick={()=>removerBgVideo(u.id)}
+                                style={{padding:'5px 9px',borderRadius:8,border:'1px solid rgba(192,64,80,.3)',background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:10.5}}>Remover</button>
+                            )}
+                          </div>
+
+                          {/* Ações do Uniko (só os da Oficina dá pra editar/remover) */}
+                          <div style={{borderTop:`1px solid ${T.border}`,paddingTop:9,display:'flex',alignItems:'center',gap:8,marginTop:'auto'}}>
+                            {raw ? (<>
+                              <button onClick={()=>{ editOficina(u.id); window.scrollTo({top:0,behavior:'smooth'}); }}
+                                style={{flex:1,padding:'8px 0',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'var(--font-body)',
+                                  border:`1.5px solid ${u.theme.accent}`,background:editando?u.theme.accent:`${u.theme.accent}18`,color:editando?'#fff':u.theme.accent}}>
+                                {editando?'✏️ Editando':'✏️ Editar'}
+                              </button>
+                              <button onClick={()=>removeOficina(u.id,u.name)}
+                                style={{padding:'8px 12px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
+                                  border:'1px solid rgba(192,64,80,.35)',background:'transparent',color:T.danger||'#C04050'}}>
+                                Remover
+                              </button>
+                            </>) : (
+                              <div style={{fontSize:10.5,color:T.textT,lineHeight:1.4}}>Uniko fixo do sistema — a arte vem do código, mas prismas e vídeo acima são editáveis.</div>
+                            )}
                           </div>
                         </div>
-                      );})}
-                    </div>
-                    )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               </>)}
 
-              {/* Enviar Uniko direto pra um colaborador (fora do sorteio) */}
+              {/* Enviar Uniko direto pra um colaborador (fora do sorteio) — tudo numa linha só */}
               {captureSubTab==='enviar' && (()=>{
                 const gu = getUniko(giftUnikoId);
                 return (
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
-
-                {/* Colaborador */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
                 <div>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Colaborador</label>
-                  <select value={giftTarget} onChange={e=>setGiftTarget(e.target.value)}
-                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',cursor:'pointer'}}>
-                    <option value="">Selecione o colaborador...</option>
-                    {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
-                  </select>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🎁 Enviar Uniko</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Escolha o Uniko e o colaborador digitando o nome, ajuste os prismas e envie. Cai na Coleção e na carteira dele na hora.</div>
                 </div>
 
-                {/* Escolha do Uniko */}
-                <div>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:8}}>Uniko a enviar</label>
-                  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                    {[...Object.values(CAPTURE_UNIKOS),...oficinaLib].map(u=>{
-                      const rw = getCaptureReward(u);
-                      return (
-                      <button key={u.id} onClick={()=>pickGiftUniko(u)}
-                        style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderRadius:12,cursor:'pointer',textAlign:'left',
-                          border:`2px solid ${giftUnikoId===u.id?u.theme.accent:T.border}`,
-                          background:giftUnikoId===u.id?`${u.theme.accent}18`:'transparent',transition:'all .15s'}}>
-                        <img src={u.img} alt={u.name} style={{width:46,height:46,objectFit:'contain',filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
-                        <div>
-                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{u.name}</div>
-                          <div style={{fontSize:10,fontWeight:700,color:u.theme.accent,marginTop:2}}>{rw.comum} comuns · {rw.premium} premium (padrão)</div>
-                        </div>
-                      </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Prismas (editável, pré-preenchido com o padrão do Uniko escolhido) */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-                  <div>
-                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Prismas Comuns</label>
-                    <input type="number" min={0} value={giftComum} onChange={e=>setGiftComum(e.target.value)}
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Prismas Premium</label>
-                    <input type="number" min={0} value={giftPremium} onChange={e=>setGiftPremium(e.target.value)}
-                      style={{width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'}}/>
-                  </div>
-                </div>
-
-                {/* Preview do tema */}
-                <div style={{borderRadius:14,padding:3,background:`conic-gradient(${gu.theme.border.join(',')})`}}>
-                  <div style={{borderRadius:12,background:gu.theme.scene,padding:'18px 16px',display:'flex',alignItems:'center',gap:14}}>
-                    <img src={gu.img} alt="" style={{width:70,height:70,objectFit:'contain',filter:`drop-shadow(0 0 14px ${gu.theme.accent})`}}/>
-                    <div>
-                      <div style={{fontSize:11,fontWeight:800,letterSpacing:'.16em',color:gu.theme.glow}}>★ PRESENTE ★</div>
-                      <div style={{fontSize:16,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{gu.name}</div>
-                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.85}}>{gu.tagline}</div>
-                      <div style={{fontSize:11,color:gu.theme.ink,opacity:.7,marginTop:2}}>{giftTarget?`Vai pra ${giftTarget} a coleção + a carteira`:'Escolha o colaborador acima'}</div>
+                {/* Linha única: Uniko · colaborador · prismas · enviar */}
+                <div style={{display:'flex',alignItems:'end',gap:12,flexWrap:'wrap',padding:'14px',borderRadius:12,
+                  border:`1.5px solid ${gu.theme.accent}55`,background:`${gu.theme.accent}0e`}}>
+                  <div style={{flex:'2 1 220px',minWidth:200}}>
+                    <label style={lblSt}>Uniko a enviar</label>
+                    <div style={{display:'flex'}}>
+                      <SearchPicker value={giftUnikoId} onPick={id=>pickGiftUniko(getUniko(id))}
+                        options={unikoOpts} placeholder='Digite o nome do Uniko…' isDark={isDark}/>
                     </div>
                   </div>
+                  <div style={{flex:'2 1 200px',minWidth:190}}>
+                    <label style={lblSt}>Para quem</label>
+                    <div style={{display:'flex'}}>
+                      <SearchPicker value={giftTarget} onPick={setGiftTarget}
+                        options={pessoaOpts} placeholder='Pesquise o colaborador…' isDark={isDark}/>
+                    </div>
+                  </div>
+                  <div style={{width:104}}>
+                    <label style={lblSt}>Comuns</label>
+                    <input type='number' min={0} value={giftComum} onChange={e=>setGiftComum(e.target.value)} style={inpSt}/>
+                  </div>
+                  <div style={{width:104}}>
+                    <label style={lblSt}>Premium</label>
+                    <input type='number' min={0} value={giftPremium} onChange={e=>setGiftPremium(e.target.value)} style={inpSt}/>
+                  </div>
+                  <button onClick={sendUnikoGift} disabled={!giftTarget||giftSending}
+                    style={{padding:'10px 22px',borderRadius:10,border:'none',cursor:(!giftTarget||giftSending)?'default':'pointer',background:`linear-gradient(135deg,${gu.theme.accent},${gu.theme.accent}cc)`,color:'#fff',fontWeight:800,fontSize:13.5,fontFamily:'var(--font-body)',opacity:(!giftTarget||giftSending)?.55:1,boxShadow:`0 3px 12px ${gu.theme.accent}44`,whiteSpace:'nowrap'}}>
+                    {giftSending?'Enviando…':'🎁 Enviar'}
+                  </button>
                 </div>
 
-                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-                  <button onClick={sendUnikoGift} disabled={!giftTarget||giftSending}
-                    style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:(!giftTarget||giftSending)?'default':'pointer',background:`linear-gradient(135deg,${gu.theme.accent},${gu.theme.accent}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:(!giftTarget||giftSending)?.6:1,boxShadow:`0 3px 12px ${gu.theme.accent}44`}}>
-                    {giftSending?'Enviando...':'🎁 Enviar Uniko'}
-                  </button>
-                  {giftMsg&&<span style={{fontSize:13,color:giftMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{giftMsg}</span>}
-                </div>
+                {giftMsg&&<div style={{fontSize:13,color:giftMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{giftMsg}</div>}
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-                  ℹ️ Isso credita o Uniko na Coleção/My Uniko do colaborador e os prismas na carteira dele, exatamente como uma captura de verdade — mas sem precisar esperar o sorteio do evento.
+                  ℹ️ Isso credita o Uniko na Coleção/My Uniko do colaborador e os prismas na carteira dele, exatamente como uma captura de verdade — mas sem precisar esperar o sorteio do evento. Os prismas já vêm preenchidos com o valor padrão do Uniko escolhido.
                 </div>
               </div>
                 );
