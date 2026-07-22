@@ -438,7 +438,6 @@ const TabUnikoFaster = () => {
       selBg: 'rgba(34,211,238,.14)', unselBg: 'rgba(255,255,255,.05)', unselBorder: 'rgba(255,255,255,.14)',
       unselSh: 'inset 0 1px 0 rgba(255,255,255,.05)', glow: '#22d3ee', accent: '#22d3ee',
       titleGrad: 'linear-gradient(100deg, #e2e8f0 0%, #94a3b8 30%, #ffffff 47%, #94a3b8 63%, #e2e8f0 100%)',
-      badgeBg: 'rgba(34,211,238,.14)', badgeTx: '#67e8f9', badgeBd: 'rgba(34,211,238,.4)',
       inputBg: 'rgba(0,0,0,.3)', inputBd: 'rgba(255,255,255,.16)',
       previewBox: 'rgba(0,0,0,.28)', previewLine: 'rgba(255,255,255,.5)',
       blob1: 'rgba(217,70,239,.28)', blob2: 'rgba(34,211,238,.3)', blob3: 'rgba(124,58,237,.26)',
@@ -451,7 +450,6 @@ const TabUnikoFaster = () => {
       selBg: 'rgba(6,182,212,.08)', unselBg: 'rgba(255,255,255,.62)', unselBorder: 'rgba(148,163,184,.3)',
       unselSh: '0 2px 8px rgba(30,41,90,.06)', glow: '#06b6d4', accent: '#7c3aed',
       titleGrad: 'linear-gradient(100deg, #1e293b 0%, #64748b 30%, #f8fafc 47%, #64748b 63%, #1e293b 100%)',
-      badgeBg: 'rgba(6,182,212,.1)', badgeTx: '#0e7490', badgeBd: 'rgba(6,182,212,.35)',
       inputBg: '#fff', inputBd: 'rgba(148,163,184,.45)',
       previewBox: 'rgba(15,23,42,.05)', previewLine: '#94a3b8',
       blob1: 'rgba(217,70,239,.18)', blob2: 'rgba(34,211,238,.2)', blob3: 'rgba(124,58,237,.16)',
@@ -503,10 +501,6 @@ const TabUnikoFaster = () => {
                 </div>
                 {/* CONTEÚDO — dentro da abertura da moldura (atrás dela). */}
                 <div style={{ position: 'absolute', top: '13%', left: '7%', right: '7%', textAlign: 'center', zIndex: 2 }}>
-                  <div style={{ display: 'inline-block', padding: '3px 13px', borderRadius: 999, fontSize: 11, fontWeight: 800,
-                    letterSpacing: '.1em', background: pal.badgeBg, color: pal.badgeTx, marginBottom: 3, border: `1px solid ${pal.badgeBd}` }}>
-                    EM DESENVOLVIMENTO
-                  </div>
                   <img src="/uniko-speed.png" alt="" className="uf-float"
                     style={{ display: 'block', margin: '2px auto 0', width: 'min(96px, 12vw)', height: 'auto', objectFit: 'contain',
                       filter: `drop-shadow(0 8px 22px ${pal.mascotSh})` }} />

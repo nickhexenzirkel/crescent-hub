@@ -28,6 +28,10 @@ import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 
+// Carinha do jogo (substituiu o antigo "S!" escrito à mão). encodeURI porque o
+// nome do arquivo tem acento/cedilha — mesma convenção do assistantSkin.js.
+const ICONE_STOP = encodeURI('/UNIKO_ATENÇÃO.png');
+
 const GLOBAL_ROOM = 'global';
 const SORTEIO_MS = 3_400;     // roleta girando antes de liberar o formulário
 const STOP_MS    = 8_000;     // depois do STOP, quem ficou pra trás tem isto
@@ -419,9 +423,8 @@ const Lobby = ({ name, porSala, onEnter }) => {
           background: 'radial-gradient(circle at 10% 20%, #fff 0%, transparent 45%), radial-gradient(circle at 90% 80%, #fff 0%, transparent 40%)' }} />
         <div className="us-halo" style={{ width: 62, height: 62, borderRadius: 16, flexShrink: 0, position: 'relative',
           background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 800, color: US.roxo,
           boxShadow: '0 6px 18px rgba(0,0,0,.25)' }}>
-          S!
+          <img src={ICONE_STOP} alt="" style={{ width: '82%', height: '82%', objectFit: 'contain' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Stop!</div>
@@ -554,8 +557,10 @@ const Lobby = ({ name, porSala, onEnter }) => {
                   flexDirection: 'column', gap: 10, position: 'relative' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-brand)',
-                      fontSize: 17, fontWeight: 800, color: A, background: `${A}18`, border: `1px solid ${A}33` }}>S!</div>
+                      alignItems: 'center', justifyContent: 'center',
+                      background: `${A}18`, border: `1px solid ${A}33` }}>
+                      <img src={ICONE_STOP} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} />
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap',
                         overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1058,8 +1063,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         <div style={{ position: 'absolute', inset: 0, opacity: .16, pointerEvents: 'none',
           background: 'radial-gradient(circle at 10% 20%, #fff 0%, transparent 45%)' }} />
         <div style={{ width: 46, height: 46, borderRadius: 12, background: '#fff', flexShrink: 0, position: 'relative',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-brand)',
-          fontSize: 19, fontWeight: 800, color: US.roxo }}>S!</div>
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={ICONE_STOP} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+        </div>
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: '#fff',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1172,8 +1178,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                 <>
                   <div className="us-halo" style={{ width: 74, height: 74, borderRadius: 20, margin: '0 auto',
                     background: `linear-gradient(135deg, ${A}, ${A2})`, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontFamily: 'var(--font-brand)', fontSize: 32, fontWeight: 800, color: '#fff' }}>
-                    S!
+                    justifyContent: 'center' }}>
+                    <img src={ICONE_STOP} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
                   </div>
                   <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text, marginTop: 12 }}>
                     {state?.nome || 'Sala'}
@@ -1570,7 +1576,9 @@ const TabUnikoStop = () => {
       borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
       <div style={{ width: 76, height: 76, borderRadius: 20, margin: '0 auto 14px',
         background: `linear-gradient(135deg, ${A}, ${A2})`, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', fontFamily: 'var(--font-brand)', fontSize: 34, fontWeight: 800, color: '#fff' }}>S!</div>
+        justifyContent: 'center' }}>
+        <img src={ICONE_STOP} alt="" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+      </div>
       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>
         Falta rodar a migração
       </div>

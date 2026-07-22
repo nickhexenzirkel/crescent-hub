@@ -100,23 +100,90 @@ const AdminLoginModal = ({onSuccess, onCancel}) => {
   );
 };
 
+/* Deixa ARRASTAR um arquivo do computador em cima do slot, além do clique de sempre.
+   `accept` é o prefixo do MIME ('image/' ou 'video/'): arquivo de outro tipo nem chega
+   no handler — o slot fica vermelho enquanto o arquivo errado passa por cima. Devolve
+   `drag` ('ok' | 'nao' | null) pra quem chama pintar a borda. */
+const useFileDrop = (onFile, accept, disabled) => {
+  const [drag, setDrag] = useState(null);
+  const tipoOk = (t) => !accept || !t || t.startsWith(accept);
+  const sobre = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (disabled) return;
+    const ok = tipoOk(e.dataTransfer?.items?.[0]?.type);
+    setDrag(ok ? 'ok' : 'nao');
+    e.dataTransfer.dropEffect = ok ? 'copy' : 'none';
+  };
+  return {
+    drag,
+    dropProps: {
+      onDragEnter: sobre,
+      onDragOver: sobre,
+      onDragLeave: (e) => { e.preventDefault(); setDrag(null); },
+      onDrop: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        setDrag(null);
+        if (disabled) return;
+        const f = e.dataTransfer?.files?.[0];
+        if (f && tipoOk(f.type)) onFile(f);
+      },
+    },
+  };
+};
+const dropBorder = (drag) => (drag === 'ok' ? T.gold : drag === 'nao' ? '#C04050' : T.border);
+
+// Caixa de upload grande (cenário / vídeo de fundo da Oficina): clique OU arrasta.
+// Componente próprio, e não JSX solto, porque o hook do arraste não pode ser chamado
+// dentro de um bloco condicional do render gigante do Dashboard.
+const DropSlot = ({ onFile, accept, disabled, bg = 'transparent', w = 160, h = 90, children }) => {
+  const { drag, dropProps } = useFileDrop(onFile, accept, disabled);
+  return (
+    <label {...dropProps} style={{
+      position: 'relative', width: w, height: h, borderRadius: 12, flexShrink: 0, overflow: 'hidden',
+      border: `2px dashed ${dropBorder(drag)}`, cursor: disabled ? 'wait' : 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: drag === 'ok' ? `${T.gold}1e` : bg, transition: 'border-color .12s, background .12s',
+    }}>
+      {children}
+      {drag && (
+        <span style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 800, background: 'rgba(0,0,0,.45)',
+          color: drag === 'ok' ? T.gold : '#ff8b98',
+        }}>
+          {drag === 'ok' ? 'solte aqui' : accept === 'video/' ? 'só vídeo' : 'só imagem'}
+        </span>
+      )}
+      <input type="file" accept={`${accept}*`} disabled={disabled} style={{ display: 'none' }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+    </label>
+  );
+};
+
 // Slot de upload de UM frame da Oficina de Uniko — mostra o preview (ou um "+" vazio),
-// deixa anexar/trocar/remover. Só o frame "principal" é obrigatório; os outros ficam
-// em branco à vontade (o Uniko cai no frame principal pra essa ação).
+// deixa anexar/trocar/remover (por clique OU arrastando a imagem em cima). Só o frame
+// "principal" é obrigatório; os outros ficam em branco à vontade (o Uniko cai no frame
+// principal pra essa ação).
 const FrameUploadSlot = ({ label, hint, value, onFile, onClear, required }) => {
   const inputId = useId();
+  const { drag, dropProps } = useFileDrop(onFile, 'image/');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 100 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: T.textD, textAlign: 'center' }}>
         {label}{required && <span style={{ color: '#C04050' }}> *</span>}
       </div>
-      <label htmlFor={inputId} style={{
-        width: 84, height: 84, borderRadius: 14, border: `2px dashed ${T.border}`, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-        background: value ? 'rgba(0,0,0,.15)' : 'transparent',
+      <label htmlFor={inputId} {...dropProps} style={{
+        width: 84, height: 84, borderRadius: 14, border: `2px dashed ${dropBorder(drag)}`, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', textAlign: 'center',
+        background: drag === 'ok' ? `${T.gold}1e` : value ? 'rgba(0,0,0,.15)' : 'transparent',
+        transition: 'border-color .12s, background .12s',
       }}>
-        {value
-          ? <img src={value} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        {drag
+          ? <span style={{ fontSize: 10, fontWeight: 700, color: drag === 'ok' ? T.gold : '#C04050', padding: 6 }}>
+              {drag === 'ok' ? 'solte aqui' : 'só imagem'}
+            </span>
+          : value
+          ? <img src={value} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
           : <span style={{ fontSize: 22, color: T.textT, opacity: .6 }}>+</span>}
       </label>
       <input id={inputId} type="file" accept="image/*" style={{ display: 'none' }}
@@ -383,7 +450,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
   const [empList, setEmpList]         = useState([]);
   const [empLoading, setEmpLoading]   = useState(false);
   const [empModal, setEmpModal]       = useState(null); // null | 'new' | {employee}
-  const [empForm, setEmpForm]         = useState({name:'',cpf:'',cargo:'',role:'employee'});
+  // `pw` = senha escolhida pelo admin. Em branco: no cadastro novo o servidor usa o
+  // CPF como senha inicial (comportamento de sempre); na edição, não mexe na senha.
+  const [empForm, setEmpForm]         = useState({name:'',cpf:'',cargo:'',role:'employee',pw:''});
+  const [empPwShow, setEmpPwShow]     = useState(false);
   const [empFormErr, setEmpFormErr]   = useState('');
   const [empSaving, setEmpSaving]     = useState(false);
   const [pwModal, setPwModal]         = useState(null); // null | employee
@@ -402,20 +472,59 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setEmpLoading(false);
   };
 
+  // Grava a senha de um funcionário (mesma rota do cadeado da lista).
+  const definirSenhaEmp = async (id, senha) => {
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees/${id}/password`, {
+        method:'PUT', headers: authHeader(), body: JSON.stringify({ password: senha }),
+      });
+      return r.ok;
+    } catch { return false; }
+  };
+  // Acha o funcionário recém-criado pra saber o id e poder gravar a senha escolhida.
+  // O POST pode devolver formatos diferentes (ou nada útil), então relê a lista: casa
+  // pelo CPF e, se ele vier mascarado do servidor, cai no nome.
+  const acharEmpSalvo = async (cpfClean, nome) => {
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees`, { headers: authHeader() });
+      const d = await r.json();
+      const lista = d.employees || [];
+      return lista.find(e => onlyDigits(e.cpf || '') === cpfClean)
+          || lista.find(e => (e.name || '').trim().toLowerCase() === nome.trim().toLowerCase())
+          || null;
+    } catch { return null; }
+  };
+
   const saveEmployee = async () => {
     const cpfClean = empForm.cpf.replace(/\D/g,'');
+    const senha    = (empForm.pw || '').trim();
     if(!empForm.name.trim()){ setEmpFormErr('Nome obrigatório'); return; }
     if(cpfClean.length!==11){ setEmpFormErr('CPF deve ter 11 dígitos'); return; }
+    if(senha && senha.length < 4){ setEmpFormErr('A senha precisa de pelo menos 4 caracteres'); return; }
     setEmpSaving(true); setEmpFormErr('');
     try {
       const isEdit = empModal && empModal !== 'new';
       const url  = isEdit ? `${SERVER_URL}/api/employees/${empModal.id}` : `${SERVER_URL}/api/employees`;
       const meth = isEdit ? 'PUT' : 'POST';
-      const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify({ name:empForm.name.trim(), cpf:cpfClean, cargo:empForm.cargo.trim(), role:empForm.role }) });
+      const body = { name:empForm.name.trim(), cpf:cpfClean, cargo:empForm.cargo.trim(), role:empForm.role };
+      if (senha) body.password = senha; // servidor que já aceite senha no cadastro pega daqui
+      const r = await fetch(url, { method:meth, headers: authHeader(), body: JSON.stringify(body) });
       const d = await r.json();
       if(!r.ok){ setEmpFormErr(d.error||'Erro ao salvar'); setEmpSaving(false); return; }
+      // Senha escolhida pelo admin: garante ela na rota dedicada (vale pro cadastro novo
+      // e pra troca na edição). Se falhar, o funcionário JÁ foi salvo — avisa em vez de
+      // fechar o modal fingindo que deu tudo certo.
+      if (senha) {
+        const alvo = isEdit ? empModal : (d.employee || d.user || (d.id ? d : null) || await acharEmpSalvo(cpfClean, empForm.name));
+        const ok = alvo?.id ? await definirSenhaEmp(alvo.id, senha) : false;
+        if (!ok) {
+          await loadEmployees();
+          setEmpFormErr('Funcionário salvo, mas não consegui definir a senha — use o cadeado na lista.');
+          setEmpSaving(false); return;
+        }
+      }
       await loadEmployees();
-      setEmpModal(null); setEmpForm({name:'',cpf:'',cargo:'',role:'employee'});
+      setEmpModal(null); setEmpForm({name:'',cpf:'',cargo:'',role:'employee',pw:''}); setEmpPwShow(false);
     } catch { setEmpFormErr('Erro de conexão'); }
     setEmpSaving(false);
   };
@@ -427,10 +536,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
   const resetPassword = async () => {
     if(!pwVal.trim()){ setPwMsg('Digite a nova senha'); return; }
-    const r = await fetch(`${SERVER_URL}/api/employees/${pwModal.id}/password`, { method:'PUT', headers: authHeader(), body: JSON.stringify({ password: pwVal }) });
-    const d = await r.json();
-    if(r.ok){ setPwMsg('✅ Senha redefinida!'); setTimeout(()=>{ setPwModal(null); setPwVal(''); setPwMsg(''); }, 1500); }
-    else setPwMsg(d.error||'Erro');
+    if(pwVal.trim().length < 4){ setPwMsg('A senha precisa de pelo menos 4 caracteres'); return; }
+    const ok = await definirSenhaEmp(pwModal.id, pwVal.trim());
+    if(ok){ setPwMsg('✅ Senha redefinida!'); setTimeout(()=>{ setPwModal(null); setPwVal(''); setPwMsg(''); }, 1500); }
+    else setPwMsg('Erro ao redefinir a senha');
   };
 
   const maskCpfDisp = (v) => v; // já vem mascarado do servidor
@@ -1678,7 +1787,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Funcionários</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>!e.active).length} inativos</div>
                 </div>
-                <button onClick={()=>{ setEmpForm({name:'',cpf:'',cargo:'',role:'employee'}); setEmpFormErr(''); setEmpModal('new'); }}
+                <button onClick={()=>{ setEmpForm({name:'',cpf:'',cargo:'',role:'employee',pw:''}); setEmpFormErr(''); setEmpPwShow(false); setEmpModal('new'); }}
                   style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
                   + Novo Funcionário
                 </button>
@@ -1742,7 +1851,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           </div>
                           {/* Ações */}
                           <div style={{display:'flex',gap:5}}>
-                            <button onClick={()=>{ setEmpForm({name:emp.name,cpf:emp.cpf,cargo:emp.cargo||'',role:emp.role}); setEmpFormErr(''); setEmpModal(emp); }}
+                            <button onClick={()=>{ setEmpForm({name:emp.name,cpf:emp.cpf,cargo:emp.cargo||'',role:emp.role,pw:''}); setEmpFormErr(''); setEmpPwShow(false); setEmpModal(emp); }}
                               title="Editar"
                               style={{width:28,height:28,borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:T.textS,outline:'none'}}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1787,7 +1896,27 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         placeholder="000.000.000-00"
                         disabled={empModal!=='new'}
                         style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:empModal==='new'?(T.surface||'white'):`${T.border}44`,fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',cursor:empModal==='new'?'text':'not-allowed'}}/>
-                      {empModal==='new'&&<div style={{fontSize:11,color:T.textD,marginTop:4}}>💡 Senha inicial = CPF (somente números)</div>}
+                    </div>
+                    {/* Senha escolhida pelo admin */}
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>
+                        {empModal==='new'?'Senha de acesso':'Nova senha'}
+                      </div>
+                      <div style={{position:'relative'}}>
+                        <input value={empForm.pw} onChange={e=>setEmpForm(f=>({...f,pw:e.target.value}))}
+                          type={empPwShow?'text':'password'} autoComplete="new-password"
+                          placeholder={empModal==='new'?'Deixe em branco para usar o CPF':'Deixe em branco para não mexer'}
+                          style={{width:'100%',padding:'10px 62px 10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                        <button onClick={()=>setEmpPwShow(v=>!v)} type="button"
+                          style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',padding:'4px 8px',borderRadius:7,border:'none',background:'transparent',color:T.textD,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'var(--font-body)'}}>
+                          {empPwShow?'ocultar':'ver'}
+                        </button>
+                      </div>
+                      <div style={{fontSize:11,color:T.textD,marginTop:4}}>
+                        {empModal==='new'
+                          ? '💡 Escolha a senha que o funcionário vai usar pra entrar. Em branco, a senha inicial continua sendo o CPF (só números).'
+                          : '💡 Preencha só se for trocar a senha dele agora.'}
+                      </div>
                     </div>
                     {/* Cargo real */}
                     <div style={{marginBottom:14}}>
@@ -3216,7 +3345,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
                 {/* Frames */}
                 <div>
-                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:10}}>Frames</label>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:10}}>Frames <span style={{fontWeight:500,color:T.textT}}>— clique ou arraste a imagem em cima do quadrinho</span></label>
                   <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
                     <FrameUploadSlot label="Principal" required hint="Rosto parado — base de tudo" value={oficinaFrames.main}
                       onFile={f=>handleFrameFile('main',f)} onClear={()=>setOficinaFrames(fr=>({...fr,main:null}))}/>
@@ -3242,15 +3371,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 {/* Cenário — OPCIONAL. Sem anexar nada, fica só a cor gradiente (como sempre foi). */}
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Cenário personalizado (opcional)</label>
-                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar uma imagem, ela aparece como fundo quando o Uniko spawnar no Capture o Uniko, em vez da cor gradiente.</div>
+                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar uma imagem, ela aparece como fundo quando o Uniko spawnar no Capture o Uniko, em vez da cor gradiente. <b>Clique ou arraste a imagem aqui.</b></div>
                   <div style={{display:'flex',alignItems:'center',gap:14}}>
-                    <label style={{width:160,height:90,borderRadius:12,border:`2px dashed ${T.border}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:oficinaFrames.scene?'rgba(0,0,0,.15)':'transparent',flexShrink:0}}>
+                    <DropSlot onFile={handleSceneFile} accept="image/" bg={oficinaFrames.scene?'rgba(0,0,0,.15)':'transparent'}>
                       {oficinaFrames.scene
-                        ? <img src={oficinaFrames.scene} alt="Cenário" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                        ? <img src={oficinaFrames.scene} alt="Cenário" style={{width:'100%',height:'100%',objectFit:'cover',pointerEvents:'none'}}/>
                         : <span style={{fontSize:22,color:T.textT,opacity:.6}}>+</span>}
-                      <input type="file" accept="image/*" style={{display:'none'}}
-                        onChange={e=>{ const f=e.target.files?.[0]; handleSceneFile(f); e.target.value=''; }}/>
-                    </label>
+                    </DropSlot>
                     {oficinaFrames.scene && (
                       <button onClick={()=>setOficinaFrames(fr=>({...fr,scene:null}))}
                         style={{fontSize:11,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>remover cenário</button>
@@ -3263,15 +3390,13 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                     do cenário animado. Mesma coisa que dá pra fazer nos cards do evento. */}
                 <div>
                   <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>Vídeo de fundo (opcional)</label>
-                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar um vídeo, ele toca <b>mutado, em loop</b> como fundo do card e do cenário na Central Alexa quando esse Uniko é o DJ da música (substitui o cenário animado). Até 80MB — mande em boa qualidade.</div>
+                  <div style={{fontSize:11,color:T.textT,marginBottom:10}}>Se anexar um vídeo, ele toca <b>mutado, em loop</b> como fundo do card e do cenário na Central Alexa quando esse Uniko é o DJ da música (substitui o cenário animado). Até 80MB — mande em boa qualidade. <b>Clique ou arraste o vídeo aqui.</b></div>
                   <div style={{display:'flex',alignItems:'center',gap:14}}>
-                    <label style={{width:160,height:90,borderRadius:12,border:`2px dashed ${T.border}`,cursor:oficinaBgVidUp?'wait':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:oficinaBgVideo?'#000':'transparent',flexShrink:0}}>
+                    <DropSlot onFile={handleOficinaBgVideo} accept="video/" disabled={oficinaBgVidUp} bg={oficinaBgVideo?'#000':'transparent'}>
                       {oficinaBgVideo
-                        ? <video src={oficinaBgVideo} muted autoPlay loop playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                        ? <video src={oficinaBgVideo} muted autoPlay loop playsInline style={{width:'100%',height:'100%',objectFit:'cover',pointerEvents:'none'}}/>
                         : <span style={{fontSize:22,color:T.textT,opacity:.6}}>{oficinaBgVidUp?'…':'+'}</span>}
-                      <input type="file" accept="video/*" disabled={oficinaBgVidUp} style={{display:'none'}}
-                        onChange={e=>{ handleOficinaBgVideo(e.target.files?.[0]); e.target.value=''; }}/>
-                    </label>
+                    </DropSlot>
                     {oficinaBgVideo && !oficinaBgVidUp && (
                       <button onClick={()=>setOficinaBgVideo('')}
                         style={{fontSize:11,color:'#C04050',background:'none',border:'none',cursor:'pointer',padding:0}}>remover vídeo</button>
