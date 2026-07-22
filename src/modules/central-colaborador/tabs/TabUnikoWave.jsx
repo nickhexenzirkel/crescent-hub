@@ -57,6 +57,25 @@ const TabUnikoWave = () => {
         localStorage.setItem('dw_custom_chars', JSON.stringify(mapped));
       } catch { localStorage.setItem('dw_custom_chars', '[]'); }
 
+      // Cenários e texturas (Dashboard RH → Oficina Uniko Wave → Mapas &
+      // Texturas): mesmo caminho das personagens — grava antes do iframe subir,
+      // porque o jogo lê no load. Ver supabase_uniko_wave_cenarios.sql.
+      try {
+        const { data: scenes } = await supabase
+          .from('uniko_wave_scenes').select('*').eq('active', true).order('sort', { ascending: true });
+        const mapped = (scenes || []).map(s => ({
+          id: s.id, name: s.name, mode: s.mode || 'both', active: true,
+          bgKind: s.bg_kind || 'none', bgUrl: s.bg_url || null,
+          bgDim: s.bg_dim == null ? 55 : s.bg_dim,
+          beltUrl: s.belt_url || null,
+          minionUrl: s.minion_url || null, minionSmileUrl: s.minion_smile_url || null,
+          minionAirUrl: s.minion_air_url || null, minionAirDownUrl: s.minion_air_down_url || null,
+          minionBigUrl: s.minion_big_url || null,
+          bossUrl: s.boss_url || null, bossDefeatedUrl: s.boss_defeated_url || null,
+        }));
+        localStorage.setItem('dw_wave_scenes', JSON.stringify(mapped));
+      } catch { localStorage.setItem('dw_wave_scenes', '[]'); }
+
       let row = null;
       try {
         const { data } = await supabase

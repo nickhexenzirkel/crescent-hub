@@ -703,6 +703,137 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     try { await _supabase.from('uniko_wave_chars').delete().eq('id', c.id); await owLoad(); }
     catch (e) { setOwMsg('Erro ao excluir: ' + (e.message||'')); setTimeout(()=>setOwMsg(''),5000); }
   };
+
+  // ── Mapas & Texturas do Uniko Wave (tabela uniko_wave_scenes) ────────────
+  // Um "cenário" é um pacote visual: fundo (imagem OU vídeo) + as texturas do
+  // Guerra Estelar. Campo vazio = o jogo mantém a arte original, então dá pra
+  // trocar só a esteira sem refazer minions e boss.
+  // Ver supabase_uniko_wave_cenarios.sql.
+  const [owSub, setOwSub] = useState('personagens'); // personagens | cenarios
+  const SC_SLOTS = [
+    { k:'belt_url',            label:'Esteira (chão)' },
+    { k:'minion_url',          label:'Minion terrestre' },
+    { k:'minion_smile_url',    label:'Minion terrestre (rindo)' },
+    { k:'minion_air_url',      label:'Minion voador (asa ↑)' },
+    { k:'minion_air_down_url', label:'Minion voador (asa ↓)' },
+    { k:'minion_big_url',      label:'Minion grande' },
+    { k:'boss_url',            label:'Boss' },
+    { k:'boss_defeated_url',   label:'Boss derrotado' },
+  ];
+  const SC_MODES = [
+    { k:'both',    label:'Os dois modos' },
+    { k:'classic', label:'Teclado Estelar' },
+    { k:'wargame', label:'Guerra Estelar' },
+  ];
+  const SC_BLANK = { name:'', mode:'both', bg_kind:'none', bg_dim:55 };
+  const [scLista, setScLista]         = useState([]);
+  const [scForm, setScForm]           = useState(SC_BLANK);
+  const [scImgs, setScImgs]           = useState({});     // coluna -> url (inclui bg_url)
+  const [scUploading, setScUploading] = useState(null);   // coluna em upload
+  const [scSaving, setScSaving]       = useState(false);
+  const [scMsg, setScMsg]             = useState('');
+  const [scEditId, setScEditId]       = useState(null);   // null = criando
+
+  const scLoad = async () => {
+    const { data, error } = await _supabase.from('uniko_wave_scenes').select('*').order('sort', { ascending:true });
+    if (error) { console.error('[oficina-wave] não consegui carregar os cenários:', error); return; }
+    setScLista(data || []);
+  };
+  useEffect(() => { if (tab === 'oficina-wave' && owSub === 'cenarios') scLoad(); }, [tab, owSub]); // eslint-disable-line
+  const scFlash = (m) => { setScMsg(m); setTimeout(() => setScMsg(''), 5000); };
+
+  // Sobe pro bucket uniko-wave-scenes. `video` libera arquivo de vídeo (só o fundo).
+  const scUpload = async (col, file, video = false) => {
+    if (!file) return;
+    const ehVideo = file.type.startsWith('video/');
+    if (!video && !file.type.startsWith('image/')) { scFlash('Só imagens (PNG de preferência).'); return; }
+    if (video && !ehVideo && !file.type.startsWith('image/')) { scFlash('Escolha uma imagem ou um vídeo.'); return; }
+    const limite = ehVideo ? 80 : 12;
+    if (file.size > limite * 1024 * 1024) { scFlash(`Arquivo maior que ${limite}MB.`); return; }
+    setScUploading(col); setScMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'') || 'png';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `${col}-${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('uniko-wave-scenes').upload(path, file, { contentType:file.type, upsert:false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('uniko-wave-scenes').getPublicUrl(path);
+      setScImgs(m => ({ ...m, [col]: data.publicUrl }));
+      if (col === 'bg_url') setScForm(f => ({ ...f, bg_kind: ehVideo ? 'video' : 'image' }));
+    } catch (e) { scFlash('Erro ao enviar: ' + (e.message||'')); }
+    setScUploading(null);
+  };
+
+  const scReset = () => { setScEditId(null); setScForm(SC_BLANK); setScImgs({}); setScMsg(''); };
+  const scEditar = (s) => {
+    setScEditId(s.id);
+    setScForm({ name: s.name || '', mode: s.mode || 'both', bg_kind: s.bg_kind || 'none', bg_dim: s.bg_dim == null ? 55 : s.bg_dim });
+    const imgs = {}; SC_SLOTS.forEach(sl => { if (s[sl.k]) imgs[sl.k] = s[sl.k]; });
+    if (s.bg_url) imgs.bg_url = s.bg_url;
+    setScImgs(imgs); setScMsg('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scSalvar = async () => {
+    if (!scForm.name.trim()) { scFlash('Dá um nome pro cenário.'); return; }
+    const temAlgo = !!scImgs.bg_url || SC_SLOTS.some(s => scImgs[s.k]);
+    if (!temAlgo) { scFlash('Suba pelo menos um fundo ou uma textura.'); return; }
+    setScSaving(true); setScMsg('');
+    try {
+      // Sem fundo enviado, bg_kind volta pra 'none' — senão o jogo tentaria
+      // montar uma camada de fundo com URL vazia.
+      const bgKind = scImgs.bg_url ? (scForm.bg_kind === 'video' ? 'video' : 'image') : 'none';
+      const linha = {
+        name: scForm.name.trim(), mode: scForm.mode,
+        bg_kind: bgKind, bg_url: scImgs.bg_url || null, bg_dim: Number(scForm.bg_dim) || 0,
+        ...Object.fromEntries(SC_SLOTS.map(s => [s.k, scImgs[s.k] || null])),
+        updated_at: new Date().toISOString(),
+      };
+      if (scEditId) {
+        const { error } = await _supabase.from('uniko_wave_scenes').update(linha).eq('id', scEditId);
+        if (error) throw error;
+        scFlash('Cenário atualizado! Quem entrar no jogo agora já pega.');
+      } else {
+        const slug = (scForm.name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'cenario');
+        const { error } = await _supabase.from('uniko_wave_scenes').insert({
+          ...linha, id: `${slug}-${Math.random().toString(36).slice(2,6)}`,
+          // Novo cenário entra DESATIVADO: ativar é um passo consciente, senão
+          // ele já roubaria a vez do que estiver valendo hoje sem querer.
+          active: false, sort: scLista.length, created_by: adminName || null,
+        });
+        if (error) throw error;
+        scFlash('Cenário criado! Ative na lista abaixo pra ele valer no jogo.');
+      }
+      scReset();
+      await scLoad();
+    } catch (e) { scFlash('Erro ao salvar: ' + (e.message||'')); }
+    setScSaving(false);
+  };
+
+  // Ativar é EXCLUSIVO por modo: o jogo usa o primeiro ativo que atende o modo,
+  // então deixar dois ligados pro mesmo modo faria o segundo simplesmente nunca
+  // aparecer — confuso. Ligar um desliga os que disputam o mesmo modo.
+  const scAtivar = async (s, ligar) => {
+    try {
+      if (ligar) {
+        const briga = (a, b) => a === 'both' || b === 'both' || a === b;
+        const desligar = scLista.filter(o => o.id !== s.id && o.active && briga(o.mode, s.mode)).map(o => o.id);
+        if (desligar.length) await _supabase.from('uniko_wave_scenes').update({ active:false }).in('id', desligar);
+      }
+      const { error } = await _supabase.from('uniko_wave_scenes').update({ active: ligar }).eq('id', s.id);
+      if (error) throw error;
+      await scLoad();
+    } catch (e) { scFlash('Erro: ' + (e.message||'')); }
+  };
+
+  const scExcluir = async (s) => {
+    if (!window.confirm(`Excluir o cenário "${s.name}"? O jogo volta às texturas originais.`)) return;
+    try {
+      await _supabase.from('uniko_wave_scenes').delete().eq('id', s.id);
+      if (scEditId === s.id) scReset();
+      await scLoad();
+    } catch (e) { scFlash('Erro ao excluir: ' + (e.message||'')); }
+  };
   const salvarReward = async (id) => {
     const draft = rewardEdit[id];
     if (!draft) return;
@@ -2477,10 +2608,24 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>Oficina Uniko Wave</div>
                 <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
-                  Crie personagens pro <b>Uniko Wave</b>. Elas entram no gacha da <b>Audição</b> (jogadores conquistam com GW) e valem nos dois modos — ritmo e Guerra Estelar. Só imagens PNG (fundo transparente) + nome, descrição e cor.
+                  {owSub==='cenarios'
+                    ? <>Monte <b>mapas e texturas</b> pro jogo: cenário de fundo (imagem ou vídeo) no Teclado Estelar e na Guerra Estelar, mais a esteira, os minions, o minion grande e o boss. Campo que você deixar vazio mantém a arte original.</>
+                    : <>Crie personagens pro <b>Uniko Wave</b>. Elas entram no gacha da <b>Audição</b> (jogadores conquistam com GW) e valem nos dois modos — ritmo e Guerra Estelar. Só imagens PNG (fundo transparente) + nome, descrição e cor.</>}
                 </div>
               </div>
 
+              {/* Sub-abas */}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {[{k:'personagens',label:'🎭 Personagens'},{k:'cenarios',label:'🗺️ Mapas & Texturas'}].map(t=>{
+                  const on = owSub===t.k;
+                  return (
+                    <button key={t.k} onClick={()=>setOwSub(t.k)} style={{padding:'9px 18px',borderRadius:10,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13.5,fontWeight:on?700:600,
+                      border:`1px solid ${on?'transparent':T.border}`,background:on?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:'transparent',color:on?'#fff':T.textS}}>{t.label}</button>
+                  );
+                })}
+              </div>
+
+              {owSub==='personagens' && (<>
               {/* Formulário */}
               <div style={{padding:18,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
                 <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
@@ -2552,6 +2697,155 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               <div style={{fontSize:11.5,color:T.textT}}>
                 Dica: use PNG com fundo transparente. Passo 1 é a pose base/andando; passos 2-5 fazem o ciclo de caminhada na Guerra Estelar. A cor define os efeitos de magia dela.
               </div>
+              </>)}
+
+              {/* ── MAPAS & TEXTURAS ── */}
+              {owSub==='cenarios' && (()=>{
+                const bgUrl = scImgs.bg_url;
+                const bgEhVideo = scForm.bg_kind==='video';
+                const soFundo = scForm.mode==='classic'; // texturas só existem na Guerra Estelar
+                const campo = {width:'100%',padding:'9px 12px',borderRadius:9,border:`1px solid ${T.border}`,background:inputBg,color:T.text,fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'};
+                return (
+                <>
+                {/* Formulário */}
+                <div style={{padding:18,borderRadius:13,background:cardBg,border:`1px solid ${scEditId?T.gold:T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <div style={{fontSize:13.5,fontWeight:800,color:T.text}}>{scEditId?'Editando cenário':'Novo cenário'}</div>
+                    {scEditId && <button onClick={scReset} style={{padding:'4px 10px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontSize:11,fontWeight:600}}>criar um novo</button>}
+                  </div>
+
+                  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                    <div style={{flex:'1 1 220px'}}>
+                      <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Nome do cenário</label>
+                      <input value={scForm.name} onChange={e=>setScForm(f=>({...f,name:e.target.value}))} placeholder="Ex.: Fábrica Neon" style={campo}/>
+                    </div>
+                    <div style={{flex:'1 1 180px'}}>
+                      <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Onde aplica</label>
+                      <select value={scForm.mode} onChange={e=>setScForm(f=>({...f,mode:e.target.value}))} style={{...campo,cursor:'pointer'}}>
+                        {SC_MODES.map(m=><option key={m.k} value={m.k}>{m.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Cenário de fundo — imagem OU vídeo */}
+                  <div>
+                    <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Cenário de fundo <span style={{fontWeight:500,color:T.textT}}>(imagem ou vídeo · vale nos dois modos)</span></label>
+                    <label style={{display:'block',borderRadius:11,cursor:scUploading==='bg_url'?'wait':'pointer',overflow:'hidden',position:'relative',height:170,
+                      border:`1.5px ${bgUrl?'solid':'dashed'} ${bgUrl?'#22C55E':T.border}`,background:isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.03)'}}>
+                      {bgUrl
+                        ? (bgEhVideo
+                            ? <video src={bgUrl} muted loop autoPlay playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                            : <img src={bgUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>)
+                        : <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12.5,color:T.textT}}>{scUploading==='bg_url'?'Enviando…':'+ imagem ou vídeo de fundo'}</div>}
+                      {bgUrl && <span style={{position:'absolute',top:8,left:8,padding:'3px 9px',borderRadius:999,background:'rgba(0,0,0,.6)',color:'#fff',fontSize:10.5,fontWeight:800}}>{bgEhVideo?'🎬 VÍDEO':'🖼️ IMAGEM'}</span>}
+                      <input type="file" accept="image/*,video/*" disabled={!!scUploading} style={{display:'none'}}
+                        onChange={e=>{ scUpload('bg_url', e.target.files?.[0], true); e.target.value=''; }}/>
+                    </label>
+                    {bgUrl && (
+                      <div style={{display:'flex',alignItems:'center',gap:12,marginTop:10,flexWrap:'wrap'}}>
+                        <div style={{flex:'1 1 240px'}}>
+                          <div style={{fontSize:11,fontWeight:700,color:T.textD,marginBottom:4}}>Escurecer o fundo · {scForm.bg_dim}%</div>
+                          <input type="range" min="0" max="90" value={scForm.bg_dim} onChange={e=>setScForm(f=>({...f,bg_dim:Number(e.target.value)}))} style={{width:'100%'}}/>
+                          <div style={{fontSize:11,color:T.textT,marginTop:2}}>Fundo claro demais faz as notas sumirem — escureça até dar pra jogar.</div>
+                        </div>
+                        <button onClick={()=>{ setScImgs(m=>{ const n={...m}; delete n.bg_url; return n; }); setScForm(f=>({...f,bg_kind:'none'})); }}
+                          style={{padding:'7px 14px',borderRadius:8,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:11.5}}>Remover fundo</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Texturas da Guerra Estelar */}
+                  <div>
+                    <label style={{fontSize:11,fontWeight:700,color:T.textD,display:'block',marginBottom:5}}>Texturas da Guerra Estelar <span style={{fontWeight:500,color:T.textT}}>(vazio = mantém a arte original)</span></label>
+                    {soFundo ? (
+                      <div style={{fontSize:12,color:T.textT,padding:'10px 12px',borderRadius:9,border:`1px dashed ${T.border}`}}>
+                        Este cenário está marcado só pro <b>Teclado Estelar</b>, que não tem esteira nem minions. Mude para “Guerra Estelar” ou “Os dois modos” pra usar as texturas.
+                      </div>
+                    ) : (
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:10}}>
+                        {SC_SLOTS.map(s=>{
+                          const url = scImgs[s.k]; const carregando = scUploading===s.k;
+                          return (
+                            <div key={s.k} style={{display:'flex',flexDirection:'column',gap:6}}>
+                              <div style={{fontSize:11,fontWeight:700,color:T.textS}}>{s.label}</div>
+                              <label style={{aspectRatio:'1',borderRadius:10,cursor:carregando?'wait':'pointer',overflow:'hidden',position:'relative',
+                                border:`1.5px ${url?'solid':'dashed'} ${url?'#22C55E':T.border}`,background:isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.03)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                                {url ? <img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+                                     : <span style={{fontSize:11,color:T.textT}}>{carregando?'Enviando…':'+ imagem'}</span>}
+                                <input type="file" accept="image/*" disabled={!!scUploading} style={{display:'none'}}
+                                  onChange={e=>{ scUpload(s.k, e.target.files?.[0]); e.target.value=''; }}/>
+                              </label>
+                              {url && <button onClick={()=>setScImgs(m=>{ const n={...m}; delete n[s.k]; return n; })}
+                                style={{padding:'4px',borderRadius:7,border:`1px solid ${T.border}`,background:'transparent',color:T.textT,cursor:'pointer',fontSize:10.5,fontWeight:600}}>tirar</button>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    <button onClick={scSalvar} disabled={scSaving||!!scUploading}
+                      style={{padding:'11px 26px',borderRadius:10,border:'none',cursor:(scSaving||scUploading)?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:(scSaving||scUploading)?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                      {scSaving?'Salvando…':scEditId?'Salvar alterações':'Criar cenário'}
+                    </button>
+                    <button onClick={scReset} disabled={scSaving} style={{padding:'11px 16px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontWeight:600,fontSize:13}}>Limpar</button>
+                    {scMsg && <div style={{fontSize:12.5,fontWeight:600,color:scMsg.startsWith('Erro')||scMsg.startsWith('Suba')||scMsg.startsWith('Dá')||scMsg.startsWith('Só')||scMsg.startsWith('Arquivo')||scMsg.startsWith('Escolha')?'#C04050':T.gold}}>{scMsg}</div>}
+                  </div>
+                </div>
+
+                {/* Cenários já montados */}
+                <div style={{padding:16,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                  <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>Cenários montados{scLista.length?` · ${scLista.length}`:''}</div>
+                  <div style={{fontSize:11.5,color:T.textT,marginBottom:12}}>O jogo usa o cenário <b>ativo</b> de cada modo. Ativar um desliga o outro que disputa o mesmo modo — quem já estiver com o jogo aberto só pega na próxima vez que entrar.</div>
+                  {scLista.length===0 ? (
+                    <div style={{fontSize:12.5,color:T.textT,padding:'12px 0'}}>Nenhum cenário montado ainda — o jogo está usando as texturas originais.</div>
+                  ) : (
+                    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                      {scLista.map(s=>{
+                        const thumb = s.bg_url || s.belt_url || s.boss_url || s.minion_url;
+                        const modo = SC_MODES.find(m=>m.k===(s.mode||'both'))?.label || s.mode;
+                        const nTex = SC_SLOTS.filter(sl=>s[sl.k]).length;
+                        return (
+                          <div key={s.id} style={{display:'flex',alignItems:'center',gap:12,padding:10,borderRadius:11,flexWrap:'wrap',
+                            border:`1px solid ${s.active?'rgba(34,197,94,.5)':T.border}`,background:s.active?'rgba(34,197,94,.06)':(isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)')}}>
+                            <div style={{width:78,height:52,flexShrink:0,borderRadius:8,overflow:'hidden',background:isDark?'rgba(255,255,255,.05)':'rgba(0,0,0,.05)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                              {thumb
+                                ? (s.bg_kind==='video' && s.bg_url===thumb
+                                    ? <video src={thumb} muted loop autoPlay playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                                    : <img src={thumb} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>)
+                                : <span style={{fontSize:20,opacity:.4}}>🗺️</span>}
+                            </div>
+                            <div style={{flex:'1 1 170px',minWidth:0}}>
+                              <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+                                <span style={{fontSize:13.5,fontWeight:700,color:T.text}}>{s.name}</span>
+                                {s.active && <span style={{fontSize:9.5,fontWeight:800,letterSpacing:'.04em',color:'#16a34a',background:'rgba(34,197,94,.15)',padding:'1px 7px',borderRadius:999}}>NO AR</span>}
+                              </div>
+                              <div style={{fontSize:11.5,color:T.textT,marginTop:2}}>
+                                {modo}
+                                {s.bg_url && ` · fundo ${s.bg_kind==='video'?'em vídeo':'em imagem'}`}
+                                {nTex>0 && ` · ${nTex} textura${nTex===1?'':'s'}`}
+                              </div>
+                            </div>
+                            <button onClick={()=>scAtivar(s,!s.active)}
+                              style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${s.active?T.border:'rgba(34,197,94,.4)'}`,background:s.active?'transparent':'rgba(34,197,94,.1)',color:s.active?T.textS:'#16a34a',cursor:'pointer',fontWeight:700,fontSize:11.5}}>
+                              {s.active?'Desativar':'Ativar'}
+                            </button>
+                            <button onClick={()=>scEditar(s)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontWeight:700,fontSize:11.5}}>Editar</button>
+                            <button onClick={()=>scExcluir(s)} style={{padding:'7px 12px',borderRadius:8,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:11.5}}>Excluir</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{fontSize:11.5,color:T.textT,lineHeight:1.55}}>
+                  Dica: os minions e o boss ficam melhores em PNG com fundo transparente; a esteira é desenhada na largura toda e rola sozinha (uma faixa horizontal funciona bem). O fundo aparece atrás das notas nos dois modos — use o escurecimento pra ele não competir com o jogo.
+                </div>
+                </>
+                );
+              })()}
             </div>
           )}
 
