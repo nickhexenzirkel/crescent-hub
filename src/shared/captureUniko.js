@@ -327,15 +327,38 @@ export const captureEventId = (cfg) => (cfg?.startAt ? `evt_${cfg.startAt}` : 'e
 // reclamação: "definir 4h e spawnar 5 min depois"). Curva: t = random()^p, onde p > 1
 // puxa pro início (janela curta) e p < 1 puxa pro fim (janela longa) — 30min é o ponto
 // "neutro" (~uniforme).
-export function pickSpawnAt(startIso, endIso) {
+export function pickSpawnAt(startIso, endIso, rnd = Math.random) {
   const s = Date.parse(startIso), e = Date.parse(endIso);
   if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return startIso;
   const durationMin = (e - s) / 60000;
   const REF_MIN = 30;
   const p = Math.min(6, Math.max(0.15, REF_MIN / durationMin));
-  const t = Math.pow(Math.random(), p);
+  const t = Math.pow(rnd(), p);
   return new Date(s + t * (e - s)).toISOString();
 }
+
+/* ── RNG SEMEADO (pros spawns AGENDADOS) ────────────────────────────────────
+   Um evento da fila é promovido pelo primeiro navegador que perceber que a hora
+   chegou — e vários podem perceber ao mesmo tempo. Se o instante do spawn fosse
+   sorteado com Math.random(), cada um calcularia um horário diferente e o último
+   a gravar mudaria o evento pra todo mundo. Semeando pelo id da ocorrência,
+   TODOS chegam exatamente no mesmo spawnAt → a gravação vira idempotente. ── */
+function _hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+function _mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export const pickSpawnAtSeeded = (startIso, endIso, seed) =>
+  pickSpawnAt(startIso, endIso, _mulberry32(_hashStr(String(seed))));
 
 export function isWithinWindow(cfg, now = nowMs()) {
   if (!cfg?.enabled) return false;
@@ -357,6 +380,172 @@ export function isSpawned(cfg, now = nowMs()) {
   const sp = spawnMoment(cfg);
   if (sp != null && now < sp) return false;
   return true;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FILA DE SPAWNS AGENDADOS (agenda do Capture o Uniko)
+   ──────────────────────────────────────────────────────────────────────────
+   O admin monta no Dashboard RH uma LISTA de eventos ("das 10:00 às 11:30 sai
+   o Uniko Sereia, todo dia"; "hoje das 15:00 às 15:30 sai o Vampire-Robot,
+   só uma vez"). Cada item guarda só o MOLDE — a janela concreta ("ocorrência")
+   é calculada na hora, no fuso local.
+
+   Quando a hora de uma ocorrência chega, ela é PROMOVIDA: vira o
+   `capture_uniko_config` normal (mesmo formato de sempre). Nada mais no
+   sistema precisa saber que veio da fila — widget, assistente e o anúncio da
+   Alexa no crescent-hub-server continuam lendo só o config.
+
+   Quem promove? Qualquer navegador logado (ver runCaptureScheduler no App.jsx),
+   porque não existe cron no cliente. Pra dois navegadores não brigarem:
+   • o spawnAt é sorteado com RNG SEMEADO pela ocorrência → todos calculam o
+     MESMO config, então gravar duas vezes dá no mesmo;
+   • as ocorrências já promovidas ficam registradas em `capture_uniko_agenda_state`
+     → nenhuma ocorrência é disparada duas vezes (nem depois que o evento acaba).
+
+   Item da fila:
+     { id, unikoId, mode:'daily'|'once', date:'2026-07-22' (só no 'once'),
+       startTime:'10:00', endTime:'11:30', maxWinners, alexaMessage, enabled }
+   ══════════════════════════════════════════════════════════════════════════ */
+export const SCHEDULE_KEY      = 'capture_uniko_schedule';
+export const AGENDA_STATE_KEY  = 'capture_uniko_agenda_state';
+
+// Promove até 1 min ANTES da janela abrir — dá tempo do config chegar via realtime
+// em todos os clientes antes do instante do spawn (a revelação em si continua
+// presa ao spawnAt, então ninguém vê nada adiantado).
+const AGENDA_LEAD_MS = 60 * 1000;
+
+async function _loadSetting(key) {
+  try {
+    const { data } = await _supabase.from('settings').select('value').eq('key', key).maybeSingle();
+    if (data?.value) return typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+  } catch {}
+  return null;
+}
+const _saveSetting = (key, value) =>
+  _supabase.from('settings').upsert({ key, value: JSON.stringify(value) }, { onConflict: 'key' });
+
+export async function loadCaptureSchedule() {
+  const v = await _loadSetting(SCHEDULE_KEY);
+  return Array.isArray(v?.entries) ? v.entries : [];
+}
+export async function saveCaptureSchedule(entries) {
+  const { error } = await _saveSetting(SCHEDULE_KEY, { entries });
+  if (error) throw error;
+}
+
+// 'YYYY-MM-DD' → Date no fuso LOCAL (new Date('2026-07-22') seria UTC e podia cair no dia anterior).
+function _localDate(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+const _hhmm = (t) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t || '');
+  return m ? { h: +m[1], m: +m[2] } : null;
+};
+
+// Janela concreta de um item num dia específico. Se o fim for <= o início,
+// entende-se que a janela cruza a meia-noite (ex.: 23:00 → 00:30).
+function occurrenceOn(entry, dayDate) {
+  const s0 = _hhmm(entry.startTime), e0 = _hhmm(entry.endTime);
+  if (!dayDate || !s0 || !e0) return null;
+  const s = new Date(dayDate); s.setHours(s0.h, s0.m, 0, 0);
+  const e = new Date(dayDate); e.setHours(e0.h, e0.m, 0, 0);
+  if (e <= s) e.setDate(e.getDate() + 1);
+  const startIso = s.toISOString();
+  return { key: `${entry.id}@${startIso}`, startMs: s.getTime(), endMs: e.getTime(), startIso, endIso: e.toISOString() };
+}
+
+// Ocorrências candidatas em volta de `now` (ontem/hoje/amanhã cobrem janelas que cruzam a meia-noite).
+function candidateOccurrences(entry, now) {
+  if (entry.mode === 'once') {
+    const o = occurrenceOn(entry, _localDate(entry.date));
+    return o ? [o] : [];
+  }
+  const out = [];
+  for (const delta of [-1, 0, 1]) {
+    const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + delta);
+    const o = occurrenceOn(entry, d);
+    if (o) out.push(o);
+  }
+  return out;
+}
+
+// A ocorrência ACONTECENDO agora (ou a ponto de abrir), se houver.
+export function activeOccurrence(entry, now = nowMs()) {
+  return candidateOccurrences(entry, now).find(o => now >= o.startMs - AGENDA_LEAD_MS && now <= o.endMs) || null;
+}
+// A PRÓXIMA ocorrência (pra UI mostrar "próximo: hoje às 10:00"); null se já passou de vez.
+export function nextOccurrence(entry, now = nowMs()) {
+  return candidateOccurrences(entry, now).filter(o => o.endMs >= now).sort((a, b) => a.startMs - b.startMs)[0] || null;
+}
+
+// Item da fila → config do evento (formato de sempre do capture_uniko_config).
+export function cfgFromScheduleEntry(entry, occ) {
+  return {
+    enabled: true,
+    startAt: occ.startIso,
+    endAt: occ.endIso,
+    spawnAt: pickSpawnAtSeeded(occ.startIso, occ.endIso, occ.key),
+    unikoId: entry.unikoId,
+    maxWinners: maxWinnersFor(entry),
+    ...(entry.alexaMessage ? { alexaMessage: entry.alexaMessage } : {}),
+    agendaKey: occ.key, // rastro de qual item da fila gerou este evento
+  };
+}
+
+/* Ocorrências já disparadas — guardadas no settings pra NENHUM cliente repetir um
+   evento que já rolou (nem depois que a janela dele fica "livre" de novo). Mantém
+   só as últimas 60: o suficiente pra cobrir semanas de fila diária. */
+async function loadAgendaDone() {
+  const v = await _loadSetting(AGENDA_STATE_KEY);
+  return Array.isArray(v?.done) ? v.done : [];
+}
+async function markAgendaDone(key) {
+  const done = await loadAgendaDone();
+  if (done.includes(key)) return;
+  await _saveSetting(AGENDA_STATE_KEY, { done: [...done, key].slice(-60) });
+}
+
+/* Roda a fila: se alguma ocorrência está na hora e ainda não foi disparada,
+   grava o config dela. Devolve o config promovido (ou null se não havia nada).
+   `currentCfg` é o config que está no ar agora (pode ser null). */
+export async function runCaptureScheduler(currentCfg, now = nowMs()) {
+  try {
+    const entries = await loadCaptureSchedule();
+    if (!entries.length) return null;
+    const done = new Set(await loadAgendaDone());
+
+    let best = null;
+    for (const entry of entries) {
+      if (entry.enabled === false) continue;
+      const occ = activeOccurrence(entry, now);
+      if (!occ || done.has(occ.key)) continue;
+      if (!best || occ.startMs > best.occ.startMs) best = { entry, occ };
+    }
+    if (!best) return null;
+
+    // Não atropela um evento que ainda está VIVO e começou DEPOIS desta ocorrência
+    // (ex.: um "Spawnar agora" manual no meio de uma janela agendada). Quando ele
+    // terminar, a ocorrência agendada ainda pega a vez, se a janela dela não tiver
+    // acabado — por isso não marcamos como disparada aqui.
+    const curStart = currentCfg?.startAt ? Date.parse(currentCfg.startAt) : NaN;
+    const curEnd   = currentCfg?.endAt   ? Date.parse(currentCfg.endAt)   : NaN;
+    if (currentCfg?.enabled && !Number.isNaN(curStart) && curStart > best.occ.startMs
+        && (Number.isNaN(curEnd) || now <= curEnd)) return null;
+
+    const cfg = cfgFromScheduleEntry(best.entry, best.occ);
+    await saveCaptureConfig(cfg);
+    await markAgendaDone(best.occ.key);
+    // 'Única vez' já cumpriu seu papel: sai da fila sozinho pra não poluir a lista.
+    if (best.entry.mode === 'once') {
+      // relê a fila antes de mexer: se o admin acabou de adicionar outro item, ele não some junto
+      try { await saveCaptureSchedule((await loadCaptureSchedule()).filter(e => e.id !== best.entry.id)); } catch {}
+    }
+    return cfg;
+  } catch (e) {
+    console.error('[capture-uniko] runCaptureScheduler falhou:', e);
+    return null;
+  }
 }
 
 const userTag = () => { try { return getAuthUser()?.cpf || getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };

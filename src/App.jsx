@@ -16,7 +16,7 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
-import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock } from './shared/captureUniko';
+import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -27,11 +27,13 @@ export default function CrescentHub() {
   const isMobile = useIsMobile();
   // Config do "Capture o Uniko" — o aviso (som + assistente) é GLOBAL; o card só no Portal.
   // Atualiza em tempo real (realtime + poll) pra o spawn chegar a todos ~ao mesmo tempo.
+  const rawCaptureCfgRef = useRef(null); // config CRU (mesmo desligado) — o agendador compara com ele
   useEffect(() => {
     if (!authUser) return;
     let alive = true;
     const refresh = () => loadCaptureConfig().then(c => {
       if (!alive) return;
+      rawCaptureCfgRef.current = c || null;
       const next = c?.enabled ? c : null;
       setCaptureCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(next) ? prev : next));
     });
@@ -41,6 +43,25 @@ export default function CrescentHub() {
       .subscribe();
     const poll = setInterval(refresh, 5000); // fallback caso realtime não esteja habilitado
     return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
+  }, [authUser]);
+  // ── Fila de spawns agendados do "Capture o Uniko" ────────────────────────────
+  // Não existe cron no cliente, então quem "acorda" a fila é o próprio navegador de
+  // quem estiver logado: a cada 20s ele confere se alguma janela agendada começou e,
+  // se sim, promove ela pro capture_uniko_config. Vários navegadores podem fazer isso
+  // ao mesmo tempo sem problema — o config gerado é idêntico (spawnAt com RNG semeado)
+  // e as ocorrências já disparadas ficam registradas no settings (ver captureUniko.js).
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true;
+    const tick = async () => {
+      const cfg = await runCaptureScheduler(rawCaptureCfgRef.current);
+      if (!alive || !cfg) return;
+      rawCaptureCfgRef.current = cfg;
+      setCaptureCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(cfg) ? prev : cfg));
+    };
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => { alive = false; clearInterval(id); };
   }, [authUser]);
   // Unikos criados na Oficina (Dashboard RH) — carrega o roster + skins de assistente
   // uma vez no login, pra getUniko/getAssistantSkin já encontrarem os customizados.

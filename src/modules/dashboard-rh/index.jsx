@@ -9,6 +9,7 @@ import {
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw, pickSpawnAt,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
   loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
+  loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 
@@ -591,6 +592,62 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setTimeout(() => setCapMsg(''), 6000);
   };
   useEffect(() => { if (tab === 'capture') loadCapCfg(); }, [tab]);
+
+  // ── Fila de spawns agendados ──────────────────────────────────────────────
+  // Lista de eventos ("das 10:00 às 11:30 sai o Uniko X"), cada um diário ou de
+  // uma vez só. Quem dispara na hora certa é o agendador em captureUniko.js
+  // (roda no navegador de quem estiver logado) — aqui é só o CRUD da fila.
+  const todayStr = () => { const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; };
+  const [capSched, setCapSched]     = useState([]);
+  const [schedLoaded, setSchedLoaded] = useState(false);
+  const [schedMsg, setSchedMsg]     = useState('');
+  const [schedBusy, setSchedBusy]   = useState(false);
+  const [schedForm, setSchedForm]   = useState({ unikoId:'vampire-robot', mode:'daily', date:todayStr(), startTime:'10:00', endTime:'11:30', maxWinners:3, alexaMessage:'' });
+  const [, setSchedTick]            = useState(0); // re-render de minuto em minuto (o "próximo: ..." envelhece)
+  useEffect(() => { if (tab !== 'capture') return; const id=setInterval(()=>setSchedTick(t=>t+1), 60000); return ()=>clearInterval(id); }, [tab]);
+  const loadSched = async () => { try { setCapSched(await loadCaptureSchedule()); } catch {} setSchedLoaded(true); };
+  useEffect(() => { if (tab === 'capture') loadSched(); }, [tab]);
+
+  const flashSched = (m) => { setSchedMsg(m); setTimeout(()=>setSchedMsg(''), 4000); };
+  const persistSched = async (entries) => {
+    setSchedBusy(true);
+    const before = capSched;
+    setCapSched(entries); // otimista — volta atrás se o Supabase recusar
+    try { await saveCaptureSchedule(entries); }
+    catch (e) { setCapSched(before); flashSched('❌ ' + (e.message || 'Erro ao salvar a fila')); }
+    setSchedBusy(false);
+  };
+  const addSchedEntry = async () => {
+    const f = schedForm;
+    if (!f.startTime || !f.endTime) { flashSched('⚠️ Preencha o horário de início e de fim'); return; }
+    if (f.mode === 'once' && !f.date) { flashSched('⚠️ Escolha a data do evento'); return; }
+    if (f.startTime === f.endTime) { flashSched('⚠️ O fim tem que ser diferente do início'); return; }
+    const entry = {
+      id: `sch_${Date.now().toString(36)}${Math.random().toString(36).slice(2,6)}`,
+      unikoId: f.unikoId, mode: f.mode, date: f.mode==='once' ? f.date : null,
+      startTime: f.startTime, endTime: f.endTime,
+      maxWinners: Number(f.maxWinners) || 3,
+      // Sempre grava uma mensagem: em branco, herda a do evento manual (ou a padrão) —
+      // assim o anúncio da Alexa nunca depende de um fallback lá no servidor.
+      alexaMessage: (f.alexaMessage||'').trim() || capCfg.alexaMessage || DEFAULT_CAPTURE_ALEXA_MSG,
+      enabled: true,
+    };
+    await persistSched([...capSched, entry]);
+    flashSched('✅ Evento adicionado à fila!');
+  };
+  const toggleSchedEntry = (id) => persistSched(capSched.map(e => e.id===id ? {...e, enabled: e.enabled===false} : e));
+  const removeSchedEntry = (id) => { if (window.confirm('Remover este evento da fila?')) persistSched(capSched.filter(e=>e.id!==id)); };
+  // "hoje às 10:00" / "amanhã às 10:00" / "22/07 às 10:00"
+  const fmtOcc = (ms) => {
+    const d = new Date(ms), hoje = new Date(); hoje.setHours(0,0,0,0);
+    const dia = new Date(d); dia.setHours(0,0,0,0);
+    const diff = Math.round((dia - hoje) / 86400000);
+    const hora = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if (diff === 0) return `hoje às ${hora}`;
+    if (diff === 1) return `amanhã às ${hora}`;
+    if (diff === -1) return `ontem às ${hora}`;
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} às ${hora}`;
+  };
 
   // ── Oficina de Uniko (criar Unikos personalizados, fora do roster fixo) ──
   const [oficinaLib, setOficinaLib]         = useState([]); // biblioteca (Unikos já criados)
@@ -2882,6 +2939,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
           {/* ── TAB: CAPTURE O UNIKO (evento) ── */}
           {tab==='capture'&&(()=>{
             const uni = getUniko(capCfg.unikoId);
+            const rosterUnikos = [...Object.values(CAPTURE_UNIKOS), ...oficinaLib];
+            const inpSt = {width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'};
+            const lblSt = {fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6};
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
@@ -3075,6 +3135,134 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
 
                 <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
                   ℹ️ Dentro da janela, o widget surge num momento aleatório para cada colaborador que estiver no Portal. O assistente UNIKO avisa (com heartbeat) quando o Portal está aberto. A captura é sempre na 1ª tentativa (arrastou, pegou) e vale para {capCfg.maxWinners===1?'a 1ª pessoa que conseguir':`as ${capCfg.maxWinners} primeiras pessoas que conseguirem`}.
+                </div>
+              </div>
+
+              {/* ── Fila de spawns agendados ─────────────────────────────── */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📅 Fila de spawns agendados</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>
+                    Monte vários horários de uma vez: <b>das 10:00 às 11:30 sai o Uniko X</b>, <b>das 15:00 às 15:40 sai o Uniko Y</b>… Cada evento pode se repetir <b>todo dia</b> ou acontecer <b>só uma vez</b>. Quando a hora chega, o evento entra no ar sozinho (substitui a janela configurada acima).
+                  </div>
+                </div>
+
+                {/* Formulário do novo evento */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,alignItems:'end'}}>
+                  <div style={{gridColumn:'span 2',minWidth:200}}>
+                    <label style={lblSt}>Uniko que vai aparecer</label>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <img src={getUniko(schedForm.unikoId).img} alt="" style={{width:34,height:34,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 6px ${getUniko(schedForm.unikoId).theme.accent}88)`}}/>
+                      <select value={schedForm.unikoId} onChange={e=>setSchedForm(f=>({...f,unikoId:e.target.value}))} style={{...inpSt,cursor:'pointer'}}>
+                        {rosterUnikos.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={lblSt}>Repetição</label>
+                    <div style={{display:'flex',gap:6}}>
+                      {[{id:'daily',label:'🔁 Diário'},{id:'once',label:'📌 Única vez'}].map(m=>{
+                        const on = schedForm.mode===m.id;
+                        return (
+                          <button key={m.id} onClick={()=>setSchedForm(f=>({...f,mode:m.id}))}
+                            style={{flex:1,padding:'10px 4px',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:12,fontWeight:700,
+                              border:`1.5px solid ${on?T.gold:T.border}`,background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS,transition:'all .15s'}}>
+                            {m.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {schedForm.mode==='once' && (
+                    <div>
+                      <label style={lblSt}>Data</label>
+                      <input type="date" value={schedForm.date} onChange={e=>setSchedForm(f=>({...f,date:e.target.value}))} style={inpSt}/>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={lblSt}>Começa às</label>
+                    <input type="time" value={schedForm.startTime} onChange={e=>setSchedForm(f=>({...f,startTime:e.target.value}))} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Termina às</label>
+                    <input type="time" value={schedForm.endTime} onChange={e=>setSchedForm(f=>({...f,endTime:e.target.value}))} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Vagas</label>
+                    <select value={schedForm.maxWinners} onChange={e=>setSchedForm(f=>({...f,maxWinners:Number(e.target.value)}))} style={{...inpSt,cursor:'pointer'}}>
+                      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} {n===1?'pessoa':'pessoas'}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={lblSt}>Mensagem da Alexa (opcional — em branco herda a mensagem do evento acima)</label>
+                  <input value={schedForm.alexaMessage} onChange={e=>setSchedForm(f=>({...f,alexaMessage:e.target.value}))}
+                    placeholder={capCfg.alexaMessage||DEFAULT_CAPTURE_ALEXA_MSG} style={inpSt}/>
+                </div>
+
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={addSchedEntry} disabled={schedBusy}
+                    style={{padding:'11px 24px',borderRadius:10,border:'none',cursor:schedBusy?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:schedBusy?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                    + Adicionar à fila
+                  </button>
+                  {schedMsg&&<span style={{fontSize:13,color:schedMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{schedMsg}</span>}
+                </div>
+
+                {/* Lista da fila */}
+                <div style={{display:'flex',flexDirection:'column',gap:10,borderTop:`1px solid ${T.border}`,paddingTop:14}}>
+                  {!schedLoaded && <div style={{fontSize:12,color:T.textT}}>Carregando a fila…</div>}
+                  {schedLoaded && capSched.length===0 && (
+                    <div style={{fontSize:12,color:T.textT}}>Nenhum spawn agendado ainda — adicione o primeiro acima. 🐾</div>
+                  )}
+                  {[...capSched]
+                    .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''))
+                    .map(e=>{
+                      const u   = getUniko(e.unikoId);
+                      const off = e.enabled===false;
+                      const occ = nextOccurrence(e);
+                      const ativo = !off && !!activeOccurrence(e);
+                      return (
+                        <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'12px 14px',borderRadius:12,
+                          border:`1.5px solid ${ativo?u.theme.accent:T.border}`,background:ativo?`${u.theme.accent}14`:(isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)'),opacity:off?.5:1}}>
+                          <img src={u.img} alt="" style={{width:40,height:40,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                          <div style={{flex:1,minWidth:180}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                              <span style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:'var(--font-body)'}}>{e.startTime} → {e.endTime}</span>
+                              <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:999,background:`${T.gold}1e`,color:T.gold}}>
+                                {e.mode==='once' ? `📌 única vez${e.date?` · ${e.date.split('-').reverse().slice(0,2).join('/')}`:''}` : '🔁 diário'}
+                              </span>
+                              {ativo && <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:999,background:`${u.theme.accent}22`,color:u.theme.accent}}>● no ar agora</span>}
+                            </div>
+                            <div style={{fontSize:12,color:T.textS,marginTop:3}}>
+                              {u.name} · {e.maxWinners||3} {(e.maxWinners||3)===1?'vaga':'vagas'}
+                              {' · '}
+                              {off ? 'pausado' : occ ? `próximo: ${fmtOcc(occ.startMs)}` : 'já aconteceu'}
+                            </div>
+                            {e.alexaMessage && e.alexaMessage!==capCfg.alexaMessage && (
+                              <div style={{fontSize:11,color:T.textT,marginTop:3,fontStyle:'italic'}}>🔊 “{e.alexaMessage}”</div>
+                            )}
+                          </div>
+                          <button onClick={()=>toggleSchedEntry(e.id)} disabled={schedBusy}
+                            style={{padding:'7px 14px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
+                              border:`1px solid ${T.border}`,background:'transparent',color:T.textS}}>
+                            {off?'Ativar':'Pausar'}
+                          </button>
+                          <button onClick={()=>removeSchedEntry(e.id)} disabled={schedBusy}
+                            style={{padding:'7px 12px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
+                              border:`1px solid ${(T.danger||'#C04050')}55`,background:'transparent',color:T.danger||'#C04050'}}>
+                            Remover
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+                  ℹ️ O horário é o do computador (fuso local). Dentro de cada janela agendada o Uniko surge num instante sorteado — igual ao evento manual — e a Alexa anuncia na hora do spawn. Eventos de <b>única vez</b> saem da fila sozinhos depois que acontecem. A fila só dispara com pelo menos alguém logado no Hub (é o navegador que acorda o agendamento); se dois eventos se sobrepuserem, vale o que começou por último.
                 </div>
               </div>
               </>)}
