@@ -609,6 +609,14 @@ canvas{display:block}
 .wg-char-name{font-family:var(--font-pixel);font-size:9.5px;font-weight:900;color:rgba(255,255,255,.55);letter-spacing:1px}
 .wg-char-card.sel .wg-char-name{color:#ff00cc}
 .wg-char-desc{font-size:8.5px;color:rgba(255,255,255,.4);line-height:1.3;letter-spacing:.2px}
+/* Cards de MAPA (cenários montados no Dashboard RH). Mesma pegada dos cards de
+   personagem, mas a arte é um cenário — preenche o card em vez de ficar de pé
+   no chão — e o destaque é ciano pra não confundir com a escolha de personagem. */
+.scene-card .wg-char-img{height:60px;object-fit:cover;object-position:center;border-radius:7px;filter:none}
+.scene-card.sel{border-color:#00f0ff;background:rgba(0,240,255,.08)}
+.scene-card.sel .wg-char-name{color:#00f0ff}
+.scene-card-noimg{width:100%;height:60px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:rgba(255,255,255,.3);background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(255,255,255,.01))}
 .diff-btn.easy.sel{border-color:#00ff88;color:#00ff88;background:rgba(0,255,136,.08)}
 .diff-btn.normal.sel{border-color:#00f0ff;color:#00f0ff;background:rgba(0,240,255,.08)}
 .diff-btn.hard.sel{border-color:#ff4444;color:#ff4444;background:rgba(255,68,68,.08)}
@@ -2166,6 +2174,13 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
       <div id="wgSubHint" class="prev-hint"></div>
     </div>
     <div class="pv-card pv-bottom">
+      <!-- Mapa: só aparece se o admin tiver algum cenário ligado pro modo atual
+           (ver renderSceneGrid). Vale nos dois modos, por isso vem antes da
+           escolha de personagem, que é só da Guerra Estelar. -->
+      <div id="sceneSection" style="display:none">
+        <div class="prev-diff-label">Mapa</div>
+        <div class="wg-char-grid" id="sceneGrid"></div>
+      </div>
       <div id="wgCharSection" style="display:none">
         <div class="prev-diff-label">Personagem (Guerra Estelar)</div>
         <div class="wg-char-grid" id="wgCharGrid">
@@ -2799,10 +2814,19 @@ const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/DarkCatBotB
 const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/DarkCatBotBossDerrotado.png';
 
 // Esteira (chão) animada: 3 frames que dão a impressão de movimento
-const WG_BELT_FRAMES = [new Image(), new Image(), new Image()];
-WG_BELT_FRAMES[0].src = 'images/ESTEIRA_FRAME1.png';
-WG_BELT_FRAMES[1].src = 'images/ESTEIRA_FRAME2.png';
-WG_BELT_FRAMES[2].src = 'images/ESTEIRA_FRAME3.png';
+const WG_BELT_ORIG = ['images/ESTEIRA_FRAME1.png','images/ESTEIRA_FRAME2.png','images/ESTEIRA_FRAME3.png'];
+const WG_BELT_FRAMES = WG_BELT_ORIG.map(src => { const i = new Image(); i.src = src; return i; });
+// Texturas ORIGINAIS do Guerra Estelar. Ficam guardadas porque o jogador pode
+// trocar de mapa (ou voltar pro "Original") sem recarregar o jogo — sem elas
+// não haveria pra onde voltar depois de aplicar um mapa da Oficina.
+const WG_TEX_ORIG = {
+  minion:        'images/DarkCatBotMinions.png',
+  minionSmile:   'images/DarkCatBot Sorrindo.png',
+  minionAir:     'images/DarkCatBotMinionsVoador.png',
+  minionAirDown: 'images/DarkCatBot Voador Asa pra Baixo.png',
+  boss:          'images/DarkCatBotBoss.png',
+  bossDefeated:  'images/DarkCatBotBossDerrotado.png',
+};
 // Minion GRANDE (evento de combo 50). null = usa o minion terrestre ampliado,
 // que é como sempre foi; só existe imagem própria se o admin subir uma.
 let WG_MINION_BIG = null;
@@ -2817,33 +2841,101 @@ let WG_MINION_BIG = null;
    pra trocar só a esteira sem ter que refazer minions e boss. */
 let WAVE_SCENES = [];
 try { WAVE_SCENES = JSON.parse(localStorage.getItem('dw_wave_scenes')||'[]') || []; } catch(e){ WAVE_SCENES = []; }
-// O PRIMEIRO ativo que atende o modo vence (a ordem vem do admin) — assim ele
-// pode deixar vários montados e só alternar qual está ligado.
-function sceneFor(mode){
-  return WAVE_SCENES.find(s => s && s.active !== false && (s.mode === 'both' || s.mode === mode)) || null;
+
+// "Sem mapa": o visual que vem com o jogo. É uma opção de verdade no seletor —
+// senão, depois que o admin publicasse um mapa, ninguém mais conseguiria jogar
+// com a arte original.
+const SCENE_ORIGINAL = '__orig__';
+function sceneKey(mode){ return mode === 'wargame' ? 'dw_scene_wargame' : 'dw_scene_classic'; }
+// Mapas DISPONÍVEIS pro modo. O admin liga/desliga cada um no Dashboard RH; o
+// jogador escolhe entre os que estão ligados.
+function scenesFor(mode){
+  return WAVE_SCENES.filter(s => s && s.active !== false && (s.mode === 'both' || s.mode === mode));
 }
-(function applySceneTextures(){
-  const s = sceneFor('wargame');
-  if(!s) return;
-  const set = (img, url) => { if(img && url) img.src = url; };
-  set(WG_MINION,          s.minionUrl);
-  set(WG_MINION_SMILE,    s.minionSmileUrl);
-  set(WG_MINION_AIR,      s.minionAirUrl);
-  set(WG_MINION_AIR_DOWN, s.minionAirDownUrl);
-  set(WG_BOSS_IMG,        s.bossUrl);
-  set(WG_BOSS_DEFEATED,   s.bossDefeatedUrl);
+// O mapa escolhido pelo jogador PRO MODO (a escolha é separada por modo: o
+// cenário que combina com a Guerra Estelar não é o mesmo do Teclado Estelar).
+// Sem escolha salva vale o PRIMEIRO da lista — senão um mapa novo do admin só
+// apareceria pra quem fosse atrás do seletor. null = Original.
+function pickedScene(mode){
+  const list = scenesFor(mode);
+  if(!list.length) return null;
+  const saved = localStorage.getItem(sceneKey(mode));
+  if(saved === SCENE_ORIGINAL) return null;
+  return list.find(s => s.id === saved) || list[0];
+}
+function selectScene(id){
+  localStorage.setItem(sceneKey(gameMode), id);
+  renderSceneGrid();
+}
+
+// Troca a textura SÓ se mudou — setar .src com o mesmo valor dispara um load
+// novo à toa, e isto roda a cada partida.
+function setTex(img, url){
+  if(!img || !url || img._texSrc === url) return;
+  img._texSrc = url; img.src = url;
+}
+// Aplica as texturas do mapa. Campo vazio no mapa (ou mapa "Original") cai no
+// WG_TEX_ORIG — é o que faz dar pra VOLTAR, e o que faz um mapa que só troca a
+// esteira não levar junto os minions do mapa anterior.
+function applySceneTextures(s){
+  setTex(WG_MINION,          (s && s.minionUrl)        || WG_TEX_ORIG.minion);
+  setTex(WG_MINION_SMILE,    (s && s.minionSmileUrl)   || WG_TEX_ORIG.minionSmile);
+  setTex(WG_MINION_AIR,      (s && s.minionAirUrl)     || WG_TEX_ORIG.minionAir);
+  setTex(WG_MINION_AIR_DOWN, (s && s.minionAirDownUrl) || WG_TEX_ORIG.minionAirDown);
+  setTex(WG_BOSS_IMG,        (s && s.bossUrl)          || WG_TEX_ORIG.boss);
+  setTex(WG_BOSS_DEFEATED,   (s && s.bossDefeatedUrl)  || WG_TEX_ORIG.bossDefeated);
   // wgDrawBelt usa só o frame 0 (rola a mesma imagem), mas todos recebem a
   // textura nova pra não sobrar frame antigo se o desenho mudar um dia.
-  if(s.beltUrl) WG_BELT_FRAMES.forEach(f => { f.src = s.beltUrl; });
-  if(s.minionBigUrl){ WG_MINION_BIG = new Image(); WG_MINION_BIG.src = s.minionBigUrl; }
-})();
+  WG_BELT_FRAMES.forEach((f, i) => setTex(f, (s && s.beltUrl) || WG_BELT_ORIG[i]));
+  const big = s && s.minionBigUrl;
+  if(big){
+    if(!WG_MINION_BIG || WG_MINION_BIG._texSrc !== big){
+      WG_MINION_BIG = new Image(); WG_MINION_BIG._texSrc = big; WG_MINION_BIG.src = big;
+    }
+  } else WG_MINION_BIG = null;
+}
+
+// Mapa DESTA partida. Fixado no começo dela (applyScene) pra não trocar no meio
+// se alguém mexer no seletor por outra aba.
+let CURRENT_SCENE = null;
+function applyScene(){
+  CURRENT_SCENE = pickedScene(gameMode);
+  if(gameMode === 'wargame') applySceneTextures(CURRENT_SCENE);
+}
+
+// Seletor de mapa da tela de preview. Só aparece se houver mapa ligado pro modo
+// atual — sem nenhum, seria uma escolha com uma opção só.
+const _escAttr = (s) => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function renderSceneGrid(){
+  const sec = document.getElementById('sceneSection'), grid = document.getElementById('sceneGrid');
+  if(!sec || !grid) return;
+  const list = scenesFor(gameMode);
+  sec.style.display = list.length ? '' : 'none';
+  if(!list.length) return;
+  const atual = pickedScene(gameMode);
+  const salvo = localStorage.getItem(sceneKey(gameMode));
+  const card = (id, nome, img, desc, sel) => `<button class="wg-char-card scene-card${sel?' sel':''}" data-scene="${_escAttr(id)}" onclick="selectScene('${_escAttr(id)}')">`
+    + (img ? `<img class="wg-char-img" src="${_escAttr(img)}" alt="" onerror="this.style.display='none'">` : `<div class="scene-card-noimg">✦</div>`)
+    + `<div class="wg-char-name">${_escAttr(nome)}</div><div class="wg-char-desc">${_escAttr(desc)}</div></button>`;
+  const cards = [card(SCENE_ORIGINAL, 'ORIGINAL', '', 'O visual que vem com o jogo', salvo === SCENE_ORIGINAL)];
+  for(const s of list){
+    // Fundo em VÍDEO não serve de miniatura num <img> — cai pra uma textura.
+    const thumb = (s.bgUrl && s.bgKind === 'image') ? s.bgUrl : (s.beltUrl || s.bossUrl || s.minionUrl || '');
+    const partes = [];
+    if(s.bgUrl) partes.push(s.bgKind === 'video' ? 'fundo em vídeo' : 'fundo próprio');
+    if(s.beltUrl || s.minionUrl || s.minionAirUrl || s.bossUrl || s.minionBigUrl) partes.push('texturas próprias');
+    cards.push(card(s.id, (s.name || 'MAPA').toUpperCase(), thumb, partes.join(' · ') || 'Mapa da Oficina', !!atual && atual.id === s.id));
+  }
+  grid.innerHTML = cards.join('');
+}
 
 /* ─── CAMADA DO CENÁRIO DE FUNDO (imagem/vídeo) ─── */
 let _sceneBgActive = false;
 function showSceneBg(){
   const wrap = document.getElementById('sceneBgWrap');
   if(!wrap) return;
-  const s = sceneFor(gameMode==='wargame' ? 'wargame' : 'classic');
+  const s = CURRENT_SCENE;   // definido por applyScene() no início da partida
   if(!s || !s.bgUrl || s.bgKind === 'none'){ hideSceneBg(); return; }
   wrap.innerHTML = '';
   const dim = Math.max(0, Math.min(90, s.bgDim == null ? 55 : s.bgDim));
@@ -2933,6 +3025,9 @@ function selectMode(m){
   const di=document.getElementById('pvDificuldadeInner');
   if(di) di.classList.toggle('pv-divider', m==='wargame');
   if(m==='wargame'){ selectWgSubmode(wgSubmode); selectWgChar(wgChar); }
+  // A lista de mapas é POR MODO (e a escolha também), então tem que redesenhar
+  // ao trocar de modo — senão sobrariam os cards do modo anterior.
+  try{ renderSceneGrid(); }catch(e){}
 }
 
 function openBgPicker(){
@@ -5774,10 +5869,11 @@ function beginGame(){
   _bufferPaused=false; clearTimeout(_bufferOverlayTimer);          // reseta a auto-pausa de buffering
   _audioReleasePending=false; // só vira true no GO / _releaseVideoIfGoAlreadyPassed desta partida
   { const bo=document.getElementById('bufferOverlay'); if(bo) bo.style.display='none'; }
+  applyScene();    // fixa o mapa desta partida e troca as texturas (Guerra Estelar)
   if(gameMode==='wargame') wgInit(); else WG.active=false;
   _vbSynced=false; // re-ancora o relógio das notas quando o vídeo realmente tocar
   applyVideoBg(lastVideoUrl);
-  showSceneBg();   // cenário de fundo do Dashboard RH (se houver pro modo atual)
+  showSceneBg();   // cenário de fundo do mapa escolhido (se ele tiver um)
   // No CELULAR o navegador bloqueia autoplay com som → exige um toque. Vale tanto
   // pro vídeo de fundo (modo COM CLIPE) quanto pro iframe de áudio oculto (modo SEM
   // CLIPE, o padrão) — antes só cobria bgMode==='video', deixando o modo padrão sem

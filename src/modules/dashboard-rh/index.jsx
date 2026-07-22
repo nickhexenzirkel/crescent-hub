@@ -797,12 +797,12 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
         const slug = (scForm.name.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'cenario');
         const { error } = await _supabase.from('uniko_wave_scenes').insert({
           ...linha, id: `${slug}-${Math.random().toString(36).slice(2,6)}`,
-          // Novo cenário entra DESATIVADO: ativar é um passo consciente, senão
-          // ele já roubaria a vez do que estiver valendo hoje sem querer.
+          // Novo cenário entra DESPUBLICADO: aparecer no seletor dos jogadores é
+          // um passo consciente, não efeito colateral de salvar.
           active: false, sort: scLista.length, created_by: adminName || null,
         });
         if (error) throw error;
-        scFlash('Cenário criado! Ative na lista abaixo pra ele valer no jogo.');
+        scFlash('Cenário criado! Publique na lista abaixo pra ele aparecer no seletor do jogo.');
       }
       scReset();
       await scLoad();
@@ -810,20 +810,29 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
     setScSaving(false);
   };
 
-  // Ativar é EXCLUSIVO por modo: o jogo usa o primeiro ativo que atende o modo,
-  // então deixar dois ligados pro mesmo modo faria o segundo simplesmente nunca
-  // aparecer — confuso. Ligar um desliga os que disputam o mesmo modo.
+  // Publicar/despublicar. NÃO é exclusivo: quantos mapas você deixar publicados,
+  // tantos aparecem no seletor do jogo (tela de preview) pro jogador escolher.
+  // Quem não escolher nada joga com o PRIMEIRO da lista, por isso a ordem importa.
   const scAtivar = async (s, ligar) => {
     try {
-      if (ligar) {
-        const briga = (a, b) => a === 'both' || b === 'both' || a === b;
-        const desligar = scLista.filter(o => o.id !== s.id && o.active && briga(o.mode, s.mode)).map(o => o.id);
-        if (desligar.length) await _supabase.from('uniko_wave_scenes').update({ active:false }).in('id', desligar);
-      }
       const { error } = await _supabase.from('uniko_wave_scenes').update({ active: ligar }).eq('id', s.id);
       if (error) throw error;
       await scLoad();
     } catch (e) { scFlash('Erro: ' + (e.message||'')); }
+  };
+
+  // Ordem no seletor do jogador (o 1º é o padrão de quem nunca escolheu).
+  const scMover = async (s, dir) => {
+    const idx = scLista.findIndex(o => o.id === s.id);
+    const alvo = idx + dir;
+    if (idx < 0 || alvo < 0 || alvo >= scLista.length) return;
+    const arr = [...scLista];
+    [arr[idx], arr[alvo]] = [arr[alvo], arr[idx]];
+    setScLista(arr); // pinta na hora; o banco vai atrás
+    try {
+      await Promise.all(arr.map((o, i) => _supabase.from('uniko_wave_scenes').update({ sort: i }).eq('id', o.id)));
+      await scLoad();
+    } catch (e) { scFlash('Erro ao reordenar: ' + (e.message||'')); await scLoad(); }
   };
 
   const scExcluir = async (s) => {
@@ -2609,7 +2618,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>Oficina Uniko Wave</div>
                 <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
                   {owSub==='cenarios'
-                    ? <>Monte <b>mapas e texturas</b> pro jogo: cenário de fundo (imagem ou vídeo) no Teclado Estelar e na Guerra Estelar, mais a esteira, os minions, o minion grande e o boss. Campo que você deixar vazio mantém a arte original.</>
+                    ? <>Monte <b>mapas e texturas</b> pro jogo: cenário de fundo (imagem ou vídeo) no Teclado Estelar e na Guerra Estelar, mais a esteira, os minions, o minion grande e o boss. Campo que você deixar vazio mantém a arte original. Cada mapa publicado vira uma opção no seletor <b>“Mapa”</b> da tela de preview — quem joga escolhe qual usar.</>
                     : <>Crie personagens pro <b>Uniko Wave</b>. Elas entram no gacha da <b>Audição</b> (jogadores conquistam com GW) e valem nos dois modos — ritmo e Guerra Estelar. Só imagens PNG (fundo transparente) + nome, descrição e cor.</>}
                 </div>
               </div>
@@ -2797,18 +2806,38 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                 {/* Cenários já montados */}
                 <div style={{padding:16,borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                   <div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:4}}>Cenários montados{scLista.length?` · ${scLista.length}`:''}</div>
-                  <div style={{fontSize:11.5,color:T.textT,marginBottom:12}}>O jogo usa o cenário <b>ativo</b> de cada modo. Ativar um desliga o outro que disputa o mesmo modo — quem já estiver com o jogo aberto só pega na próxima vez que entrar.</div>
+                  <div style={{fontSize:11.5,color:T.textT,marginBottom:12,lineHeight:1.55}}>
+                    Todo mapa <b>publicado</b> aparece no seletor “Mapa” da tela de preview do jogo, e o jogador escolhe qual quer.
+                    Quem nunca escolheu joga com o <b>primeiro da lista</b> — use as setas ↑↓ pra decidir qual é o padrão.
+                    Sempre existe a opção “Original” no seletor. Quem já estiver com o jogo aberto só pega as mudanças na próxima vez que entrar.
+                  </div>
                   {scLista.length===0 ? (
                     <div style={{fontSize:12.5,color:T.textT,padding:'12px 0'}}>Nenhum cenário montado ainda — o jogo está usando as texturas originais.</div>
                   ) : (
                     <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                      {scLista.map(s=>{
+                      {scLista.map((s,idx)=>{
                         const thumb = s.bg_url || s.belt_url || s.boss_url || s.minion_url;
                         const modo = SC_MODES.find(m=>m.k===(s.mode||'both'))?.label || s.mode;
                         const nTex = SC_SLOTS.filter(sl=>s[sl.k]).length;
+                        // "Padrão" = quem o jogo entrega a quem nunca mexeu no seletor.
+                        // É o primeiro publicado DE CADA MODO, então um mapa pode ser o
+                        // padrão do Teclado Estelar sem ser o da Guerra Estelar.
+                        const ehPadrao = s.active && ['classic','wargame'].some(m=>{
+                          const fila = scLista.filter(o=>o.active && (o.mode==='both' || o.mode===m));
+                          return fila.length>0 && fila[0].id===s.id;
+                        });
                         return (
                           <div key={s.id} style={{display:'flex',alignItems:'center',gap:12,padding:10,borderRadius:11,flexWrap:'wrap',
                             border:`1px solid ${s.active?'rgba(34,197,94,.5)':T.border}`,background:s.active?'rgba(34,197,94,.06)':(isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)')}}>
+                            <div style={{display:'flex',flexDirection:'column',gap:3,flexShrink:0}}>
+                              {[-1,1].map(d=>{
+                                const trava = d===-1 ? idx===0 : idx===scLista.length-1;
+                                return (
+                                  <button key={d} onClick={()=>scMover(s,d)} disabled={trava} title={d===-1?'Subir':'Descer'}
+                                    style={{width:22,height:18,borderRadius:5,border:`1px solid ${T.border}`,background:'transparent',color:trava?T.textD:T.textS,cursor:trava?'default':'pointer',opacity:trava?.4:1,padding:0,fontSize:10,lineHeight:1}}>{d===-1?'▲':'▼'}</button>
+                                );
+                              })}
+                            </div>
                             <div style={{width:78,height:52,flexShrink:0,borderRadius:8,overflow:'hidden',background:isDark?'rgba(255,255,255,.05)':'rgba(0,0,0,.05)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                               {thumb
                                 ? (s.bg_kind==='video' && s.bg_url===thumb
@@ -2819,7 +2848,8 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                             <div style={{flex:'1 1 170px',minWidth:0}}>
                               <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
                                 <span style={{fontSize:13.5,fontWeight:700,color:T.text}}>{s.name}</span>
-                                {s.active && <span style={{fontSize:9.5,fontWeight:800,letterSpacing:'.04em',color:'#16a34a',background:'rgba(34,197,94,.15)',padding:'1px 7px',borderRadius:999}}>NO AR</span>}
+                                {s.active && <span style={{fontSize:9.5,fontWeight:800,letterSpacing:'.04em',color:'#16a34a',background:'rgba(34,197,94,.15)',padding:'1px 7px',borderRadius:999}}>NO SELETOR</span>}
+                                {ehPadrao && <span style={{fontSize:9.5,fontWeight:800,letterSpacing:'.04em',color:'#00A3C4',background:'rgba(0,163,196,.14)',padding:'1px 7px',borderRadius:999}}>PADRÃO</span>}
                               </div>
                               <div style={{fontSize:11.5,color:T.textT,marginTop:2}}>
                                 {modo}
@@ -2829,7 +2859,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                             </div>
                             <button onClick={()=>scAtivar(s,!s.active)}
                               style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${s.active?T.border:'rgba(34,197,94,.4)'}`,background:s.active?'transparent':'rgba(34,197,94,.1)',color:s.active?T.textS:'#16a34a',cursor:'pointer',fontWeight:700,fontSize:11.5}}>
-                              {s.active?'Desativar':'Ativar'}
+                              {s.active?'Tirar do seletor':'Publicar'}
                             </button>
                             <button onClick={()=>scEditar(s)} style={{padding:'7px 14px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontWeight:700,fontSize:11.5}}>Editar</button>
                             <button onClick={()=>scExcluir(s)} style={{padding:'7px 12px',borderRadius:8,border:`1px solid rgba(192,64,80,.3)`,background:'rgba(192,64,80,.08)',color:'#C04050',cursor:'pointer',fontWeight:700,fontSize:11.5}}>Excluir</button>

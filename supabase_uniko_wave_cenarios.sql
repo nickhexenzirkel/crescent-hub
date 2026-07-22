@@ -12,8 +12,11 @@
 -- (uniko_wave_chars → localStorage 'dw_custom_chars'): o React busca a tabela e
 -- escreve em localStorage ANTES de montar o iframe, que é da mesma origem.
 --
--- QUAL CENÁRIO VALE: o PRIMEIRO ativo (por `sort`) que atende o modo atual.
--- Assim o admin pode deixar vários montados e só alternar qual está ativo.
+-- QUAL CENÁRIO VALE: `active` = PUBLICADO, ou seja, aparece no seletor "Mapa"
+-- da tela de preview do jogo. Podem ser vários ao mesmo tempo — quem joga
+-- escolhe (a escolha fica em localStorage, separada por modo). Quem nunca
+-- escolheu joga com o primeiro publicado do modo, por ordem de `sort`. O
+-- seletor sempre oferece "Original" (o visual que vem com o jogo).
 --
 -- Campo de imagem VAZIO = mantém a textura original do jogo. Dá pra trocar só
 -- a esteira, por exemplo, sem precisar refazer minions e boss.
