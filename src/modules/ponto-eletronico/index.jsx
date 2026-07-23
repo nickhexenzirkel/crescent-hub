@@ -253,7 +253,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [editJust,  setEditJust]  = useState(null);  // {cpf, date} being edited
   const [editText,  setEditText]  = useState('');
   // Feature 3: Banco de Horas filters
-  const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos
+  const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos|custom
+  const [bancoStart,    setBancoStart]    = useState(''); // período customizado — início (YYYY-MM-DD)
+  const [bancoEnd,      setBancoEnd]      = useState(''); // período customizado — fim (YYYY-MM-DD)
   const [bancoEmpMode,  setBancoEmpMode]  = useState('all'); // single|all
   const [bancoSearch,   setBancoSearch]   = useState('');       // Fix 1: separate search text
   const [bancoShowFilter,setBancoShowFilter]=useState('all');   // Fix 4: all|negative|justified
@@ -372,8 +374,8 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
 
   // Reseta páginas quando filtros mudam
   React.useEffect(()=>{ setPageLinha(0); },    [lineSearch, lineDate, lineType, lineStart, lineEnd]);
-  React.useEffect(()=>{ setPageBancoDays(0); },[bancoFilter, bancoShowFilter, selEmp]);
-  React.useEffect(()=>{ setPageBancoAll(0); }, [bancoFilter]);
+  React.useEffect(()=>{ setPageBancoDays(0); },[bancoFilter, bancoShowFilter, selEmp, bancoStart, bancoEnd]);
+  React.useEffect(()=>{ setPageBancoAll(0); }, [bancoFilter, bancoStart, bancoEnd]);
   React.useEffect(()=>{ setPageIssues(0); },   []);
 
   /* ── PDF: Comprovante Banco de Horas (filtrado) ── */
@@ -448,6 +450,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const getBancoDateRange = () => {
     const today = new Date(); today.setHours(0,0,0,0);
     const fmt = d => d.toISOString().slice(0,10);
+    if (bancoFilter==='custom')  return {from:bancoStart||'0000-00-00', to:bancoEnd||'9999-99-99'};
     if (bancoFilter==='hoje')   return {from:fmt(today), to:fmt(today)};
     if (bancoFilter==='ontem')  { const d=new Date(today); d.setDate(d.getDate()-1); return {from:fmt(d),to:fmt(d)}; }
     if (bancoFilter==='3dias')  { const d=new Date(today); d.setDate(d.getDate()-2); return {from:fmt(d),to:fmt(today)}; }
@@ -1033,12 +1036,27 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 {/* Linha 1: Período */}
                 <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                   <div style={{fontSize:12,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.07em',flexShrink:0,width:90}}>Período:</div>
-                  {[['hoje','Hoje'],['ontem','Ontem'],['3dias','3 dias'],['7dias','7 dias'],['30dias','30 dias'],['todos','Todos']].map(([v,l])=>(
+                  {[['hoje','Hoje'],['ontem','Ontem'],['3dias','3 dias'],['7dias','7 dias'],['30dias','30 dias'],['todos','Todos'],['custom','Período']].map(([v,l])=>(
                     <button key={v} onClick={()=>setBancoFilter(v)}
                       style={{padding:'5px 13px',borderRadius:7,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:12,fontWeight:bancoFilter===v?700:400,background:bancoFilter===v?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.03)'),color:bancoFilter===v?T.gold:T.textS,border:`1.5px solid ${bancoFilter===v?T.goldLine+'55':T.border}`,transition:'all .12s'}}>
                       {l}
                     </button>
                   ))}
+                  {bancoFilter==='custom'&&(
+                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                      <input type="date" value={bancoStart} max={bancoEnd||undefined} onChange={e=>setBancoStart(e.target.value)}
+                        style={{padding:'5px 8px',border:`1px solid ${T.border}`,borderRadius:7,fontFamily:'var(--font-body)',fontSize:12,color:T.text,background:T.surface||'white',outline:'none'}}/>
+                      <span style={{fontSize:12,color:T.textD}}>até</span>
+                      <input type="date" value={bancoEnd} min={bancoStart||undefined} onChange={e=>setBancoEnd(e.target.value)}
+                        style={{padding:'5px 8px',border:`1px solid ${T.border}`,borderRadius:7,fontFamily:'var(--font-body)',fontSize:12,color:T.text,background:T.surface||'white',outline:'none'}}/>
+                      {(bancoStart||bancoEnd)&&(
+                        <button onClick={()=>{setBancoStart('');setBancoEnd('');}}
+                          style={{padding:'5px 8px',borderRadius:7,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:11,color:T.textD,background:'transparent',border:`1px solid ${T.border}`}}>
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Linha 2: Funcionário + busca */}
@@ -1138,7 +1156,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
               return(
                 <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
                   <div style={{padding:'14px 20px',background:`linear-gradient(135deg,${T.goldGl},transparent)`,borderBottom:`1px solid ${T.border}`}}>
-                    <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text}}>Todos os Funcionários — {bancoFilter==='todos'?'Período completo':bancoFilter==='hoje'?'Hoje':bancoFilter==='ontem'?'Ontem':bancoFilter==='3dias'?'Últimos 3 dias':bancoFilter==='7dias'?'Últimos 7 dias':'Últimos 30 dias'}</div>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text}}>Todos os Funcionários — {bancoFilter==='todos'?'Período completo':bancoFilter==='hoje'?'Hoje':bancoFilter==='ontem'?'Ontem':bancoFilter==='3dias'?'Últimos 3 dias':bancoFilter==='7dias'?'Últimos 7 dias':bancoFilter==='30dias'?'Últimos 30 dias':(bancoStart||bancoEnd)?`${bancoStart?fmtDate(bancoStart):'…'} — ${bancoEnd?fmtDate(bancoEnd):'…'}`:'Período completo'}</div>
                   </div>
                   <table style={{width:'100%',borderCollapse:'collapse',fontFamily:'var(--font-body)'}}>
                     <thead>
