@@ -8,42 +8,6 @@ import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, sav
 ══════════════════════════════════════════════════════════════════ */
 const isWknd_p = d => { const w = new Date(d+'T12:00:00').getDay(); return w===0||w===6; };
 
-/* ── Feriados nacionais do Brasil (fixos + móveis via cálculo da Páscoa) ──
-   Usado pra não gerar falta/hora negativa em dia que a empresa não abre. */
-const toISO_p = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const easterDate_p = (year) => {
-  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,
-        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
-        i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
-        month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
-  return new Date(year, month-1, day);
-};
-const holidaysBR_cache = {};
-const holidaysBR_p = (year) => {
-  if (holidaysBR_cache[year]) return holidaysBR_cache[year];
-  const easter = easterDate_p(year);
-  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-  const fixed = [
-    `${year}-01-01`, // Confraternização Universal
-    `${year}-04-21`, // Tiradentes
-    `${year}-05-01`, // Dia do Trabalho
-    `${year}-09-07`, // Independência
-    `${year}-10-12`, // Nossa Sra. Aparecida
-    `${year}-11-02`, // Finados
-    `${year}-11-15`, // Proclamação da República
-    `${year}-11-20`, // Consciência Negra (feriado nacional desde 2024)
-    `${year}-12-25`, // Natal
-  ];
-  const moving = [
-    toISO_p(addDays(easter, -47)), // Carnaval (terça)
-    toISO_p(addDays(easter, -2)),  // Sexta-feira Santa
-    toISO_p(addDays(easter, 60)),  // Corpus Christi
-  ];
-  return (holidaysBR_cache[year] = new Set([...fixed, ...moving]));
-};
-const isHoliday_p = (dateStr) => holidaysBR_p(+dateStr.slice(0,4)).has(dateStr);
-const isDayOff_p  = (dateStr) => isWknd_p(dateStr) || isHoliday_p(dateStr);
-
 // Cores fixas (não dependem do tema, sempre legíveis)
 const ECOLS = ['#1E70B5','#5560C8','#0A9BB5','#C06090','#1A9C70','#B87010','#C04050','#2E8DD4'];
 
@@ -180,14 +144,6 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
     empMap[cpf].name = name;
   }
 
-  // Data mais recente entre todas as marcações do lote (limitada a hoje) —
-  // é até aqui que preenchemos os dias úteis sem marcação como falta.
-  const todayISO_bd = toISO_p(new Date());
-  const globalLastDate = marks.length
-    ? marks.reduce((mx, m) => (m.date > mx ? m.date : mx), marks[0].date)
-    : todayISO_bd;
-  const rangeEndDate = globalLastDate < todayISO_bd ? globalLastDate : todayISO_bd;
-
   const employees = Object.values(empMap)
     .filter(e => e.marks.length > 0)
     .sort((a,b) => (a.name||a.cpf).localeCompare(b.name||b.cpf))
@@ -199,7 +155,7 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
         if (!byDay[m.date]) byDay[m.date] = [];
         byDay[m.date].push(m.time);
       }
-      const markedDays = Object.entries(byDay).sort(([a],[b])=>a<b?-1:1).map(([date, rawTimes])=>{
+      const days = Object.entries(byDay).sort(([a],[b])=>a<b?-1:1).map(([date, rawTimes])=>{
         const times = [...rawTimes].sort();
         const pairs=[], issues=[];
         let totalMin=0;
@@ -218,7 +174,7 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
           }
         }
         if (times.length%2!==0 && !issues.some(x=>x.includes('sem par'))) issues.push('Número ímpar de marcações');
-        const wknd      = isDayOff_p(date);
+        const wknd      = isWknd_p(date);
         const expected  = wknd ? 0 : jornada;
         const rawBalance = totalMin - expected;
         // Dia JUSTIFICADO (abonado pelo admin) → zera o saldo (tira horas + ou -).
@@ -229,32 +185,6 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
           : rawBalance;
         return { date, times, pairs, totalMin, expected, balance, issues, wknd, abonado };
       });
-
-      // ── Dias sem NENHUMA marcação (faltas) — de seg a sex, sem feriado,
-      //    entre a 1ª marcação do colaborador e a data mais recente do lote.
-      //    Sem isso esses dias somem do cálculo e a hora negativa nunca aparece.
-      const faltaDays = [];
-      const firstMarkDate = Object.keys(byDay).sort()[0];
-      if (firstMarkDate) {
-        let cursor = new Date(firstMarkDate + 'T12:00:00');
-        const end  = new Date(rangeEndDate + 'T12:00:00');
-        while (cursor <= end) {
-          const date = toISO_p(cursor);
-          if (!byDay[date] && !isDayOff_p(date)) {
-            const jv      = justifs[`${emp.cpf}_${date}`];
-            const abonado = !!(jv && jv.abonado && (jv.text || jv.texto));
-            faltaDays.push({
-              date, times: [], pairs: [], totalMin: 0, expected: jornada,
-              balance: abonado ? 0 : -jornada,
-              issues: abonado ? [] : ['Falta — nenhuma marcação registrada'],
-              wknd: false, abonado, falta: true,
-            });
-          }
-          cursor.setDate(cursor.getDate() + 1);
-        }
-      }
-
-      const days = [...markedDays, ...faltaDays].sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
       let cumBal=0;
       const daysWithCum = days.map(d=>{ cumBal+=d.balance; return {...d,cumBal}; });
       const totMin    = days.reduce((s,d)=>s+d.totalMin,0);
