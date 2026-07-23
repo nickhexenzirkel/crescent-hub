@@ -243,8 +243,6 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [lineSearch,setLineSearch]= useState('');   // busca na Linha a Linha
   const [lineType,  setLineType]  = useState('all');// filtro de tipo na Linha a Linha
   const [lineDate,  setLineDate]  = useState('3dias'); // filtro de data na Linha a Linha
-  const [lineStart, setLineStart] = useState('');   // período customizado — início (YYYY-MM-DD)
-  const [lineEnd,   setLineEnd]   = useState('');   // período customizado — fim (YYYY-MM-DD)
   const [showConf,  setShowConf]  = useState(false);// painel de configurações
   // Feature 1: Calendar day click
   const [calSelDay, setCalSelDay] = useState(null);
@@ -353,25 +351,8 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     if (u.includes('SERV')&&(u.includes('GESTAO')||u.includes('GESTÃO'))&&u.includes('BENEFICIO')) return '7SERV GESTÃO BENEFÍCIOS';
     return u;
   };
-  /* ── Filtro de data da aba "Linha a Linha" (presets + período customizado) ── */
-  const matchLineDate = (rDate) => {
-    if (!rDate) return true; // registros sem data (ex.: tipo 4) sempre passam
-    if (lineDate === 'custom') {
-      if (lineStart && rDate < new Date(lineStart+'T00:00:00')) return false;
-      if (lineEnd   && rDate > new Date(lineEnd+'T23:59:59'))   return false;
-      return true;
-    }
-    if (lineDate === 'todos') return true;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const daysAgo = (d) => { const x = new Date(today); x.setDate(x.getDate()-d); return x; };
-    if (lineDate === 'hoje')   return rDate >= today;
-    if (lineDate === '3dias')  return rDate >= daysAgo(2);
-    if (lineDate === '7dias')  return rDate >= daysAgo(6);
-    return rDate >= daysAgo(29); // 30dias
-  };
-
   // Reseta páginas quando filtros mudam
-  React.useEffect(()=>{ setPageLinha(0); },    [lineSearch, lineDate, lineType, lineStart, lineEnd]);
+  React.useEffect(()=>{ setPageLinha(0); },    [lineSearch, lineDate, lineType]);
   React.useEffect(()=>{ setPageBancoDays(0); },[bancoFilter, bancoShowFilter, selEmp]);
   React.useEffect(()=>{ setPageBancoAll(0); }, [bancoFilter]);
   React.useEffect(()=>{ setPageIssues(0); },   []);
@@ -1646,28 +1627,13 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
             <div style={{padding:'12px 18px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
               <div style={{fontSize:14,fontWeight:600,color:T.text,flex:1,minWidth:120}}>Registros do AFD</div>
               {/* Filtro de data */}
-              <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
-                {[['hoje','Hoje'],['3dias','3 dias'],['7dias','7 dias'],['30dias','30 dias'],['todos','Todos'],['custom','Período']].map(([v,l])=>(
+              <div style={{display:'flex',gap:4}}>
+                {[['hoje','Hoje'],['3dias','3 dias'],['7dias','7 dias'],['30dias','30 dias'],['todos','Todos']].map(([v,l])=>(
                   <button key={v} onClick={()=>setLineDate(v)}
                     style={{padding:'5px 10px',borderRadius:7,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:11,fontWeight:lineDate===v?700:400,background:lineDate===v?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.03)'),color:lineDate===v?T.gold:T.textS,border:`1.5px solid ${lineDate===v?T.goldLine+'55':T.border}`,transition:'all .12s'}}>
                     {l}
                   </button>
                 ))}
-                {lineDate==='custom'&&(
-                  <div style={{display:'flex',gap:6,alignItems:'center',marginLeft:2}}>
-                    <input type="date" value={lineStart} max={lineEnd||undefined} onChange={e=>setLineStart(e.target.value)}
-                      style={{padding:'5px 8px',border:`1px solid ${T.border}`,borderRadius:7,fontFamily:'var(--font-body)',fontSize:11,color:T.text,background:T.surface||'white',outline:'none'}}/>
-                    <span style={{fontSize:11,color:T.textD}}>até</span>
-                    <input type="date" value={lineEnd} min={lineStart||undefined} onChange={e=>setLineEnd(e.target.value)}
-                      style={{padding:'5px 8px',border:`1px solid ${T.border}`,borderRadius:7,fontFamily:'var(--font-body)',fontSize:11,color:T.text,background:T.surface||'white',outline:'none'}}/>
-                    {(lineStart||lineEnd)&&(
-                      <button onClick={()=>{setLineStart('');setLineEnd('');}}
-                        style={{padding:'5px 8px',borderRadius:7,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:11,color:T.textD,background:'transparent',border:`1px solid ${T.border}`}}>
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
               {/* Busca */}
               <div style={{position:'relative'}}>
@@ -1685,8 +1651,10 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 <option value="other">Eventos do Sistema</option>
               </select>
               <Tag color={T.blue} style={{fontSize:11}}>{rawRecs.filter(r=>{
+                const today=new Date(); today.setHours(0,0,0,0);
                 const rDate=r.date?new Date(r.date+'T00:00:00'):null;
-                const matchDate=matchLineDate(rDate);
+                const daysAgo=(d)=>{const x=new Date(today);x.setDate(x.getDate()-d);return x;};
+                const matchDate=lineDate==='todos'||!rDate||(lineDate==='hoje'?rDate>=today:lineDate==='3dias'?rDate>=daysAgo(2):lineDate==='7dias'?rDate>=daysAgo(6):rDate>=daysAgo(29));
                 const empM=r.cpf&&r.cpf!=='—'?employees.find(e=>e.cpf===r.cpf):null;
                 const nm=empM?.name||r.nome||'';
                 const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||r.cpf?.includes(lineSearch));
@@ -1706,8 +1674,10 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 <tbody>
                   {(()=>{
                     const allFiltered = rawRecs.filter(rec=>{
+                      const today2=new Date(); today2.setHours(0,0,0,0);
                       const rDate2=rec.date?new Date(rec.date+'T00:00:00'):null;
-                      const matchDate=matchLineDate(rDate2);
+                      const daysAgo2=(d)=>{const x=new Date(today2);x.setDate(x.getDate()-d);return x;};
+                      const matchDate=lineDate==='todos'||!rDate2||(lineDate==='hoje'?rDate2>=today2:lineDate==='3dias'?rDate2>=daysAgo2(2):lineDate==='7dias'?rDate2>=daysAgo2(6):rDate2>=daysAgo2(29));
                       const emp=rec.cpf&&rec.cpf!=='—'?employees.find(e=>e.cpf===rec.cpf):null;
                       const nm=emp?.name||rec.nome||'';
                       const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||rec.cpf?.includes(lineSearch));
@@ -1757,9 +1727,11 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
               </table>
             </div>
             {(()=>{
+              const today3=new Date(); today3.setHours(0,0,0,0);
+              const daysAgo3=(d)=>{const x=new Date(today3);x.setDate(x.getDate()-d);return x;};
               const total=rawRecs.filter(rec=>{
                 const rDate=rec.date?new Date(rec.date+'T00:00:00'):null;
-                const matchDate=matchLineDate(rDate);
+                const matchDate=lineDate==='todos'||!rDate||(lineDate==='hoje'?rDate>=today3:lineDate==='3dias'?rDate>=daysAgo3(2):lineDate==='7dias'?rDate>=daysAgo3(6):rDate>=daysAgo3(29));
                 const emp=rec.cpf&&rec.cpf!=='—'?employees.find(e=>e.cpf===rec.cpf):null;
                 const nm=emp?.name||rec.nome||'';
                 const matchSearch=!lineSearch||(nm.toLowerCase().includes(lineSearch.toLowerCase())||rec.cpf?.includes(lineSearch));
