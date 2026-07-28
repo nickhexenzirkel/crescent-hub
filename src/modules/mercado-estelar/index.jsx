@@ -89,9 +89,70 @@ const cycleReward = (streak) => CHECKIN_CYCLE[((streak - 1) % CHECKIN_CYCLE.leng
 const WEEKDAY_LABELS = ['Dia 1', 'Dia 2', 'Dia 3', 'Dia 4', 'Dia 5'];
 
 const isWeekend = (d) => { const wd = d.getDay(); return wd === 0 || wd === 6; };
-// Dia útil anterior a `d` (pula sábado/domingo) — usado tanto pra saber se hoje é dia
-// de check-in quanto pra contar a sequência sem que o fim de semana aparente "falta".
-const prevWeekday = (d) => { const p = new Date(d); do { p.setDate(p.getDate() - 1); } while (isWeekend(p)); return p; };
+// Dia útil anterior a `d` (pula sábado/domingo e feriado nacional) — usado tanto
+// pra saber se hoje é dia de check-in quanto pra contar a sequência sem que um
+// dia não-útil apareça como "falta".
+const prevWeekday = (d) => { const p = new Date(d); do { p.setDate(p.getDate() - 1); } while (isNonCheckinDay(p)); return p; };
+
+const MONTH_NAMES =['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// BUG CORRIGIDO (jul/2026, 3ª rodada): `toISOString()` converte pra UTC. Pra quem
+// está num fuso atrás de UTC (ex.: America/Fortaleza, UTC-3), fazer o check-in à
+// noite (a partir de ~21h no horário local) já cai no dia SEGUINTE em UTC — o
+// check-in de quinta à noite era gravado com a data de sexta. Isso bloqueava o
+// check-in real de sexta (a data "sexta" já constava como feita) e, na segunda,
+// `computeStreak` encontrava essa sexta "fantasma" no histórico e pulava direto
+// pro dia 2 do ciclo, mesmo a pessoa nunca tendo resgatado o dia 1 de fato.
+// A correção é usar a data LOCAL (ano/mês/dia do próprio `Date`), nunca UTC, em
+// qualquer lugar que grave ou compare a "data de hoje" do check-in.
+const localDateStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// ── Feriados NACIONAIS do Brasil — sábado, domingo e feriado nacional são os
+// únicos dias que não contam pra check-in (não liberam resgate nem quebram a
+// sequência). Datas fixas + Sexta-feira Santa (móvel, calculada a partir da
+// Páscoa pelo algoritmo de Gauss/Meeus — o mesmo usado no calendário gregoriano
+// em geral). Carnaval e Corpus Christi ficam de fora de propósito: não são
+// feriado nacional por lei federal, são ponto facultativo (várias empresas
+// funcionam nesses dias) — se a empresa quiser tratá-los como não-úteis também,
+// é só adicionar aqui.
+const easterSunday = (year) => {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+};
+const _brHolidayCache = {};
+const brazilHolidaysOfYear = (year) => {
+  if (_brHolidayCache[year]) return _brHolidayCache[year];
+  const easter = easterSunday(year);
+  const goodFriday = new Date(easter); goodFriday.setDate(easter.getDate() - 2);
+  const map = {
+    [`${year}-01-01`]: 'Confraternização Universal',
+    [`${year}-04-21`]: 'Tiradentes',
+    [`${year}-05-01`]: 'Dia do Trabalho',
+    [`${year}-09-07`]: 'Independência do Brasil',
+    [`${year}-10-12`]: 'Nossa Senhora Aparecida',
+    [`${year}-11-02`]: 'Finados',
+    [`${year}-11-15`]: 'Proclamação da República',
+    [`${year}-11-20`]: 'Dia da Consciência Negra', // feriado nacional desde 2024 (Lei 14.759/2023)
+    [`${year}-12-25`]: 'Natal',
+    [localDateStr(goodFriday)]: 'Sexta-feira Santa',
+  };
+  _brHolidayCache[year] = map;
+  return map;
+};
+// Nome do feriado nacional em `d`, ou null se não for feriado.
+const brazilHolidayName = (d) => brazilHolidaysOfYear(d.getFullYear())[localDateStr(d)] || null;
+const isBrazilHoliday = (d) => !!brazilHolidayName(d);
+// Dia que NÃO conta pra check-in: fim de semana OU feriado nacional.
+const isNonCheckinDay = (d) => isWeekend(d) || isBrazilHoliday(d);
 
 // Quantos dias ÚTEIS seguidos (contando hoje) terá o próximo check-in.
 // Anda pra trás só por dias de SEMANA (fins de semana nunca contam como "falta");
@@ -99,12 +160,41 @@ const prevWeekday = (d) => { const p = new Date(d); do { p.setDate(p.getDate() -
 const computeStreak = (checkins) => {
   const set = new Set(checkins || []);
   let streak = 1; let d = prevWeekday(new Date());
-  while (set.has(d.toISOString().slice(0, 10))) { streak++; d = prevWeekday(d); }
+  while (set.has(localDateStr(d))) { streak++; d = prevWeekday(d); }
   return streak;
 };
 
-const MONTH_NAMES =['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const pad2 = (n) => String(n).padStart(2, '0');
+// ── Diagnóstico de check-in (aba "Verificar Check-in" do admin) ──
+// Reconstrói, a partir das datas gravadas, qual DEVERIA ser a posição no ciclo
+// (1-5) de cada check-in — a MESMA regra que computeStreak usa (dia útil anterior
+// precisa bater com o último check-in válido, senão a sequência recomeça em 1) —
+// e sinaliza dois tipos de data que nunca deveriam existir no array:
+//  • fim de semana: só existe por causa do bug de fuso (ver `localDateStr` acima)
+//    — tem correção automática segura (mover a data 1 dia pra trás).
+//  • feriado nacional: a data em si é real (a pessoa clicou naquele dia mesmo),
+//    só que antes dessa correção o app deixava check-in em feriado por engano —
+//    não é uma data corrompida, então NÃO tem correção automática de data (não
+//    há "data certa" pra reconstruir) e não entra na soma de prismas perdidos.
+// Quem cruza isso com o histórico de transações (mercado_history) pra saber se a
+// MOEDA recebida bate com a esperada é o componente AdminCheckin — essa função
+// só devolve o esperado por data.
+const diagnoseCheckins = (rawCheckins) => {
+  const dates = [...new Set(rawCheckins || [])].sort();
+  let prevValid = null, pos = 0;
+  return dates.map(ds => {
+    const d = new Date(ds + 'T12:00:00'); // meio-dia: fora de qualquer risco de fuso ao ler getDay()
+    const weekend = isWeekend(d);
+    const holidayName = brazilHolidayName(d);
+    let expected = null;
+    if (!weekend && !holidayName) {
+      const continues = prevValid && localDateStr(prevWeekday(d)) === localDateStr(prevValid);
+      pos = continues ? pos + 1 : 1;
+      expected = cycleReward(pos);
+      prevValid = d;
+    }
+    return { date: ds, weekend, holidayName, expected };
+  });
+};
 
 // BUG CORRIGIDO: essa chave era FIXA (global), sem o nome do usuário — em
 // qualquer máquina/navegador usado por mais de uma pessoa (ou ao trocar de
@@ -117,7 +207,7 @@ const pad2 = (n) => String(n).padStart(2, '0');
 const storageUserTag = () => { try { return getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
 const STORAGE_KEY = () => `me_state_v2_${storageUserTag()}`;
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => localDateStr(new Date());
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 const COLABORADORES = [
@@ -136,6 +226,23 @@ const fetchTeamNames = async () => {
     console.error('[prisma-store] /api/team voltou sem colaboradores:', d);
   } catch (e) { console.error('[prisma-store] falha ao buscar /api/team:', e); }
   return null;
+};
+
+// Trava contra duplo-clique / duas abas em ações que gastam prisma (compra,
+// check-in, enviar, trocar): a checagem de saldo dessas ações lê o `state` do
+// render atual e só DEPOIS chama setState/applyCredit — então dois cliques bem
+// próximos podem ler o mesmo saldo "antigo" e passar os dois pela checagem.
+// Isso ignora qualquer chamada repetida dentro de `ms` depois da primeira, o
+// suficiente pra cobrir um clique duplo real, sem precisar desabilitar nenhum
+// botão na tela (cada ação usa a SUA PRÓPRIA trava — comprar não bloqueia
+// check-in, por exemplo).
+const useSpendGuard = (ms = 600) => {
+  const busy = useRef(false);
+  return (fn) => (...args) => {
+    if (busy.current) return;
+    busy.current = true;
+    try { return fn(...args); } finally { setTimeout(() => { busy.current = false; }, ms); }
+  };
 };
 
 // Hook: TODOS os colaboradores (backend + carteiras já existentes + fallback fixo)
@@ -277,6 +384,7 @@ const IcoSearch  = (p) => <Svg {...p}><circle cx="11" cy="11" r="7" /><line x1="
 const IcoLock    = (p) => <Svg {...p}><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></Svg>;
 const IcoPlus    = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>;
 const IcoTrash   = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></Svg>;
+const IcoAlert   = (p) => <Svg {...p}><path d="M12 2L1 21h22L12 2z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></Svg>;
 
 const PrismChip = ({ type, amount }) => {
   const prem = type === 'premium';
@@ -419,6 +527,11 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       .then(({ error }) => { if (error) console.error('[prisma-store] falha ao creditar prisma:', error); });
   };
 
+  // Travas contra clique duplo/duas abas — uma pra cada ação, pra não bloquear
+  // uma coisa por causa da outra (comprar não trava check-in, e vice-versa).
+  const buyGuard = useSpendGuard();
+  const checkinGuard = useSpendGuard();
+
   // Persiste o catálogo (upsert dos itens + remove os apagados)
   const prevItemIds = useRef(null);
   useEffect(() => {
@@ -489,7 +602,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
   // Portal. O estoque agora é configurável pelo admin (edição limitada) — baixa
   // igual a um prêmio físico, além da checagem de "já possui" (não pode comprar
   // o mesmo Uniko duas vezes mesmo se ainda tiver estoque). ──
-  const buyItem = async (item) => {
+  const buyItem = buyGuard(async (item) => {
     const isUniko = !!item.unikoId;
     if (isUniko) {
       if (ownedUnikoIds.has(item.unikoId)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
@@ -523,20 +636,22 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       addToMyUnikoCollection(uniko);
       syncCollectionFromServer();
     }
-  };
+  });
 
   // ── Check-in (streak + ciclo de 5 dias úteis + teto mensal por moeda) ──
   const today = todayStr();
   const monthKey = today.slice(0, 7);
   const todayIsWeekend = isWeekend(new Date());
-  const canCheckin = !todayIsWeekend && !(state.checkins || []).includes(today);
+  const todayHoliday = brazilHolidayName(new Date());
+  const todayOff = todayIsWeekend || !!todayHoliday; // fim de semana OU feriado nacional
+  const canCheckin = !todayOff && !(state.checkins || []).includes(today);
   const streak = computeStreak(state.checkins);                 // dia do ciclo que o check-in de hoje terá
   const nextReward = cycleReward(streak);
   // Ganhos do check-in já obtidos neste mês (reinicia quando o mês muda)
   const earned = state.capMonth === monthKey ? (state.earned || { premium: 0, comum: 0 }) : { premium: 0, comum: 0 };
   const capRemaining = { premium: Math.max(0, MONTHLY_CAP.premium - earned.premium), comum: Math.max(0, MONTHLY_CAP.comum - earned.comum) };
 
-  const doCheckin = () => {
+  const doCheckin = checkinGuard(() => {
     if (!canCheckin) return;
     const cur = nextReward.cur;
     const give = Math.min(nextReward.amount, capRemaining[cur]); // respeita o teto mensal
@@ -558,7 +673,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
     if (give > 0) { applyCredit(cur === 'comum' ? give : 0, cur === 'premium' ? give : 0); addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give }); }
     const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
     flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${streak})` : `Check-in feito! Teto mensal de ${label} já atingido.`);
-  };
+  });
 
   // ── Missões ──
   const claimMission = (m) => {
@@ -660,7 +775,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
-        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayIsWeekend={todayIsWeekend} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayOff={todayOff} todayHoliday={todayHoliday} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} missionDefs={missionDefs} setMissionDefs={setMissionDefs} />}
       </div>
@@ -1313,7 +1428,12 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
 
   const matches = people.filter(c => c.toLowerCase().includes(sendQuery.trim().toLowerCase()));
 
-  const send = () => {
+  // Travas contra clique duplo/duas abas — uma pra cada ação, independentes
+  // entre si (e independentes das travas de compra/check-in da Loja).
+  const sendGuard = useSpendGuard();
+  const exchangeGuard = useSpendGuard();
+
+  const send = sendGuard(() => {
     if (!sendTo || !people.includes(sendTo)) { flash('Selecione um destinatário da lista'); return; }
     const amt = parseInt(sendAmt, 10);
     if (!amt || amt <= 0) { flash('Informe uma quantidade válida'); return; }
@@ -1324,10 +1444,10 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
     creditPlayer(sendTo, sendCur, amt, `Recebido de ${me || 'um colega'}`); // credita o destinatário no Supabase
     flash(`Enviou ${fmt(amt)} ${sendCur === 'premium' ? 'Premium' : 'Comuns'} para ${sendTo}`);
     setSendAmt(''); setSendTo(''); setSendQuery('');
-  };
+  });
 
   const exPremium = Math.floor((parseInt(exAmt, 10) || 0) / EXCHANGE_RATE);
-  const exchange = () => {
+  const exchange = exchangeGuard(() => {
     const spend = (parseInt(exAmt, 10) || 0);
     const got = Math.floor(spend / EXCHANGE_RATE);
     if (got <= 0) { flash(`Mínimo ${EXCHANGE_RATE} Comuns para 1 Premium`); return; }
@@ -1338,7 +1458,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
     addHistory({ kind: 'troca', desc: `Trocou ${fmt(cost)} Comuns por ${got} Premium`, comum: -cost, premium: got });
     flash(`Você obteve ${got} Prisma Premium`);
     setExAmt('');
-  };
+  });
 
   const fieldStyle = { width: '100%', padding: '11px 13px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
@@ -1437,7 +1557,7 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
 };
 
 // ═══════════════════════════════════════════ CHECK-IN ═══════════════════════
-const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
+const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
   // Posição do dia de hoje dentro do ciclo de 5 (0-based)
   const todayIdx = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length;
   const cap = MONTHLY_CAP;
@@ -1445,27 +1565,28 @@ const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, next
     const e = Math.min(earned[cur], cap[cur]); const pct = Math.round((e / cap[cur]) * 100);
     return { e, pct };
   };
-  const alreadyDoneToday = !canCheckin && !todayIsWeekend;
+  const alreadyDoneToday = !canCheckin && !todayOff;
+  const offLabel = todayHoliday ? `Feriado (${todayHoliday}) — sem check-in hoje` : 'Fim de semana — sem check-in hoje';
 
   return (
     <div>
-      <SectionHead title="Check-in Diário" sub="Em dias úteis: os ganhos crescem a cada dia da sequência e a moeda intercala. Faltou um dia útil (sem contar fim de semana)? A sequência volta pro dia 1. Sábado e domingo não contam (nem quebram a sequência) — sua sequência pode começar em qualquer dia útil, não só segunda." />
+      <SectionHead title="Check-in Diário" sub="Em dias úteis: os ganhos crescem a cada dia da sequência e a moeda intercala. Faltou um dia útil (sem contar fim de semana e feriado nacional)? A sequência volta pro dia 1. Sábado, domingo e feriado nacional não contam (nem quebram a sequência) — sua sequência pode começar em qualquer dia útil, não só segunda." />
 
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 0% 0%, ${T.goldGl}, transparent 55%)`, pointerEvents: 'none' }} />
-        <div style={{ position: 'relative', color: canCheckin ? T.gold : todayIsWeekend ? T.textT : '#16a34a' }}>
-          {canCheckin ? <IcoGift size={30} /> : todayIsWeekend ? <IcoCalendar size={30} /> : <IcoCheck size={30} />}
+        <div style={{ position: 'relative', color: canCheckin ? T.gold : todayOff ? T.textT : '#16a34a' }}>
+          {canCheckin ? <IcoGift size={30} /> : todayOff ? <IcoCalendar size={30} /> : <IcoCheck size={30} />}
         </div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
             {canCheckin ? `Dia ${streak} de sequência — recompensa pronta!`
-              : todayIsWeekend ? 'Fim de semana — sem check-in hoje'
+              : todayOff ? offLabel
               : `Você já resgatou hoje (dia ${streak - 1})`}
           </div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {canCheckin ? 'Recompensa de hoje:'
-              : todayIsWeekend ? 'Sua sequência continua intacta — volte na segunda. Próxima:'
+              : todayOff ? 'Sua sequência continua intacta — volte no próximo dia útil. Próxima:'
               : 'Volte amanhã para manter a sequência. Próxima:'}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <PrismIcon type={nextReward.cur} size={nextReward.cur === 'premium' ? 18 : 14} />
@@ -1480,7 +1601,7 @@ const Checkin = ({ canCheckin, todayIsWeekend, onCheckin, checkins, streak, next
           boxShadow: canCheckin ? `0 6px 22px ${T.goldLine}55` : 'none',
           display: 'inline-flex', alignItems: 'center', gap: 7,
         }}>
-          {canCheckin ? <><IcoStar size={16} />Resgatar</> : alreadyDoneToday ? <><IcoCheck size={16} />Resgatado</> : <><IcoCalendar size={16} />Fim de semana</>}
+          {canCheckin ? <><IcoStar size={16} />Resgatar</> : alreadyDoneToday ? <><IcoCheck size={16} />Resgatado</> : <><IcoCalendar size={16} />{todayHoliday ? 'Feriado' : 'Fim de semana'}</>}
         </button>
       </div>
 
@@ -1822,7 +1943,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player, mi
 
       {/* Sub-abas */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'missoes', label: 'Missões', Icon: IcoTarget }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }].map(t => {
+        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'missoes', label: 'Missões', Icon: IcoTarget }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }, { id: 'checkin', label: 'Verificar Check-in', Icon: IcoAlert }].map(t => {
           const on = sub === t.id;
           return (
             <button key={t.id} onClick={() => setSub(t.id)} style={{
@@ -1837,6 +1958,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player, mi
 
       {sub === 'transacoes' ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} missionDefs={missionDefs} />
         : sub === 'missoes' ? <AdminMissoes missions={missionDefs} setMissions={setMissionDefs} flash={flash} isMobile={isMobile} cardBg={cardBg} />
+        : sub === 'checkin' ? <AdminCheckin flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
         : (
       <>
       {/* Duração / expiração dos prêmios deste mês (global) */}
@@ -2636,6 +2758,254 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
     </div>
   );
 };
+// ═══════════════════════════════ ADMIN · VERIFICAR CHECK-IN ═══════════════════
+// Nomes de dia da semana pra exibição (não confundir com WEEKDAY_LABELS, que são
+// posições 1-5 do CICLO, não dias reais).
+const WD_PT = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const weekdayLabel = (ds) => WD_PT[new Date(ds + 'T12:00:00').getDay()];
+const brDate = (ds) => new Date(ds + 'T12:00:00').toLocaleDateString('pt-BR');
+
+const CHECKIN_STATUS_META = {
+  ok:            { label: 'OK',                                    color: '#16a34a' },
+  fds:           { label: 'Data em fim de semana (bug)',            color: '#C04050' },
+  feriado:       { label: 'Check-in em feriado nacional',           color: '#7C6A9C' },
+  moeda_trocada: { label: 'Moeda não bate com o ciclo',             color: '#C08A20' },
+  sem_registro:  { label: 'Sem registro no histórico',              color: T.textT },
+};
+
+const AdminCheckin = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
+  const [query, setQuery] = useState('');
+  const [overview, setOverview] = useState([]); // [{player, count, offCount}]
+  const [busy, setBusy] = useState(true);
+  const [selected, setSelected] = useState('');
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [rows, setRows] = useState([]); // check-ins diagnosticados do colaborador aberto
+  const [creditComum, setCreditComum] = useState('');
+  const [creditPremium, setCreditPremium] = useState('');
+  const [creditNote, setCreditNote] = useState('');
+
+  const loadOverview = async () => {
+    setBusy(true);
+    try {
+      const { data } = await supabase.from('mercado_state').select('player,data');
+      const list = (data || []).filter(r => r.player !== CONFIG_PLAYER).map(r => {
+        const checkins = Array.isArray(r.data?.checkins) ? r.data.checkins : [];
+        // "offCount" junta fim de semana + feriado nacional — ambos são datas que
+        // não deveriam existir no array de check-ins.
+        const offCount = checkins.filter(ds => { try { return isNonCheckinDay(new Date(ds + 'T12:00:00')); } catch { return false; } }).length;
+        return { player: r.player, count: checkins.length, offCount };
+      }).sort((a, b) => (b.offCount - a.offCount) || a.player.localeCompare(b.player));
+      setOverview(list);
+    } catch {}
+    setBusy(false);
+  };
+  useEffect(() => { loadOverview(); }, []); // eslint-disable-line
+
+  // Abre o colaborador: pega as datas de check-in dele, diagnostica (dia esperado
+  // do ciclo) e cruza com o histórico de transações pra ver o que ele recebeu de
+  // fato em cada data — a comparação de moeda é uma ESTIMATIVA (o `date` do
+  // histórico vem do timestamp de criação da linha, pode não bater 100%), por
+  // isso sempre aparece pra revisão antes de creditar qualquer coisa.
+  const openPlayer = async (player) => {
+    setSelected(player); setDetailBusy(true); setRows([]); setCreditComum(''); setCreditPremium(''); setCreditNote('');
+    try {
+      const { data: row } = await supabase.from('mercado_state').select('data').eq('player', player).maybeSingle();
+      const checkins = Array.isArray(row?.data?.checkins) ? row.data.checkins : [];
+      const diag = diagnoseCheckins(checkins);
+      const { data: hist } = await supabase.from('mercado_history').select('*').eq('player', player).eq('kind', 'checkin').order('created_at', { ascending: true });
+      const histRows = (hist || []).map(histFromRow);
+      const withActual = diag.map(r => {
+        const match = histRows.find(h => h.date === r.date);
+        const actual = match ? { cur: match.comum ? 'comum' : 'premium', amount: match.comum || match.premium || 0 } : null;
+        let status = 'ok';
+        if (r.weekend) status = 'fds';
+        else if (r.holidayName) status = 'feriado';
+        else if (!match) status = 'sem_registro';
+        else if (r.expected && actual.cur !== r.expected.cur) status = 'moeda_trocada';
+        return { ...r, actual, status };
+      });
+      setRows(withActual);
+      // Sugestão automática de correção: soma só os casos CERTOS (fim de semana
+      // ou moeda trocada) — "valor menor com a mesma moeda" fica de fora de
+      // propósito, porque pode ser só o teto mensal batendo, não bug.
+      let lostComum = 0, lostPremium = 0;
+      withActual.forEach(r => {
+        if ((r.status === 'fds' || r.status === 'moeda_trocada') && r.expected) {
+          const got = (r.actual && r.actual.cur === r.expected.cur) ? r.actual.amount : 0;
+          const diff = Math.max(0, r.expected.amount - got);
+          if (r.expected.cur === 'comum') lostComum += diff; else lostPremium += diff;
+        }
+      });
+      setCreditComum(lostComum ? String(lostComum) : '');
+      setCreditPremium(lostPremium ? String(lostPremium) : '');
+    } catch { flash('Falha ao carregar o histórico desse colaborador'); }
+    setDetailBusy(false);
+  };
+
+  // Corrige uma data em fim de semana movendo 1 dia pra trás. Só faz isso sozinho
+  // quando é SÁBADO (único caso que o bug de fuso realmente produz — sexta à
+  // noite virando sábado em UTC); domingo não tem explicação automática segura.
+  //
+  // Usa mercado_patch_state (MERGE atômico no banco, `data || patch`) em vez de
+  // ler-e-regravar o objeto inteiro: se o colaborador estiver com o app aberto e
+  // salvar algo (outro check-in, uma compra) bem no meio dessa correção, essa
+  // escrita concorrente não se perde — só as chaves do patch (`checkins`,
+  // `updatedAt`) são substituídas, o resto do `data` fica intocado. Mesmo
+  // princípio do `persistNow` que o app usa pra si mesmo (ver comentário lá).
+  const fixWeekendDate = async (oldDate) => {
+    const d = new Date(oldDate + 'T12:00:00');
+    if (d.getDay() !== 6) { flash('Essa data não tem correção automática segura — ajuste manualmente'); return; }
+    const nd = new Date(d); nd.setDate(nd.getDate() - 1);
+    const newDate = localDateStr(nd);
+    try {
+      const { data: row } = await supabase.from('mercado_state').select('data').eq('player', selected).maybeSingle();
+      const checkins = Array.isArray(row?.data?.checkins) ? row.data.checkins : [];
+      const fixed = [...new Set(checkins.map(ds => ds === oldDate ? newDate : ds))];
+      const { error } = await supabase.rpc('mercado_patch_state', { p_player: selected, p_patch: { checkins: fixed, updatedAt: Date.now() } });
+      if (error) throw error;
+      if (selected === adminName && ownSetState) ownSetState(s => ({ ...s, checkins: fixed }));
+      flash(`Data corrigida: ${brDate(oldDate)} → ${brDate(newDate)}`);
+      openPlayer(selected);
+      loadOverview();
+    } catch { flash('Falha ao corrigir a data'); }
+  };
+
+  // Reseta o check-in de UM colaborador só (diferente do reset em massa das
+  // Transações, que mexe em todo mundo) — útil quando a sequência dele ficou
+  // contaminada demais pra corrigir data por data. Também via mercado_patch_state,
+  // pelo mesmo motivo acima (não pisar numa escrita concorrente do colaborador).
+  const resetPlayer = async () => {
+    if (!selected) return;
+    if (!window.confirm(`Resetar o check-in de ${selected}? Zera a sequência e o teto mensal — só dele, ninguém mais é afetado.`)) return;
+    try {
+      const { error } = await supabase.rpc('mercado_patch_state', { p_player: selected, p_patch: { checkins: [], capMonth: '', earned: { premium: 0, comum: 0 }, updatedAt: Date.now() } });
+      if (error) throw error;
+      if (selected === adminName && ownSetState) ownSetState(s => ({ ...s, checkins: [], capMonth: '', earned: { premium: 0, comum: 0 } }));
+      flash(`Check-in de ${selected} resetado`);
+      openPlayer(selected);
+      loadOverview();
+    } catch { flash('Falha ao resetar'); }
+  };
+
+  // Credita a diferença (usa a mesma RPC atômica das outras telas do admin) e
+  // registra no histórico dele, com nota — igual a uma transferência manual.
+  const creditLost = async () => {
+    const c = parseInt(creditComum, 10) || 0;
+    const p = parseInt(creditPremium, 10) || 0;
+    if (c <= 0 && p <= 0) { flash('Informe algum valor pra creditar'); return; }
+    try {
+      const { error } = await supabase.rpc('mercado_credit', { p_player: selected, p_comum: c, p_premium: p });
+      if (error) throw error;
+      const entry = {}; if (c > 0) entry.comum = c; if (p > 0) entry.premium = p;
+      await supabase.from('mercado_history').insert({ player: selected, kind: 'admin', descr: creditNote.trim() || 'Correção — bug de fuso no check-in', ...entry });
+      if (selected === adminName && ownSetState) ownSetState(s => ({ ...s, comum: (s.comum || 0) + c, premium: (s.premium || 0) + p }));
+      flash(`Creditado${c ? ` +${c} Comum` : ''}${p ? ` +${p} Premium` : ''} → ${selected}`);
+      setCreditComum(''); setCreditPremium(''); setCreditNote('');
+    } catch { flash('Falha ao creditar'); }
+  };
+
+  const filteredOverview = overview.filter(o => o.player.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* Lista de colaboradores, com aviso de quantas datas suspeitas cada um tem */}
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 18px', boxShadow: T.sh }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 10 }}>
+          <span style={{ color: T.gold }}><IcoAlert size={16} /></span>Colaboradores
+        </div>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar colaborador..." style={{ ...adminField, marginBottom: 10 }} />
+        {busy ? <div style={{ fontSize: 13, color: T.textT }}>Carregando…</div> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 480, overflowY: 'auto' }}>
+            {filteredOverview.length === 0 && <div style={{ fontSize: 13, color: T.textT }}>Nenhum colaborador encontrado</div>}
+            {filteredOverview.map(o => (
+              <button key={o.player} onClick={() => openPlayer(o.player)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                border: `1.5px solid ${selected === o.player ? T.gold : 'transparent'}`,
+                background: selected === o.player ? T.goldGl : (T.surfaceSub || 'rgba(0,0,0,0.03)'),
+              }}>
+                <AvatarCircle name={o.player} size={22} fontSize={9} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.player}</span>
+                {o.offCount > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#C04050' }}><IcoAlert size={12} />{o.offCount}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Detalhe do colaborador selecionado */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh, fontSize: 12.5, color: T.textT, lineHeight: 1.6 }}>
+          <b style={{ color: T.text }}>Como ler isto:</b> uma data em <b style={{ color: '#C04050' }}>fim de semana</b> é bug confirmado — o app nunca libera check-in nesses dias — e tem correção automática de data. Um check-in em <b style={{ color: '#7C6A9C' }}>feriado nacional</b> é uma data real (a pessoa clicou naquele dia mesmo, quando o app ainda deixava por engano); não tem "data certa" pra corrigir, então fica só como informativo e não entra na soma de prismas perdidos. Já <b style={{ color: '#C08A20' }}>moeda não bate com o ciclo</b> é uma estimativa (compara a posição esperada da sequência com o que o histórico registrou naquela data) — confira antes de creditar. Corrija as datas de fim de semana primeiro; a sugestão de prismas perdidos recalcula sozinha ao reabrir o colaborador.
+        </div>
+
+        {!selected ? (
+          <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center', color: T.textT, fontSize: 13.5 }}>Selecione um colaborador na lista ao lado.</div>
+        ) : detailBusy ? (
+          <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '40px 20px', textAlign: 'center', color: T.textT, fontSize: 13.5 }}>Carregando histórico de {selected}…</div>
+        ) : (
+          <>
+            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AvatarCircle name={selected} size={28} fontSize={11} />
+                  <span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{selected}</span>
+                </div>
+                <button onClick={resetPlayer} style={{ padding: '7px 12px', borderRadius: 9, border: '1.5px solid #C04050', background: 'transparent', color: '#C04050', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 700 }}>↺ Resetar check-in dele</button>
+              </div>
+              {rows.length === 0 ? <div style={{ fontSize: 13, color: T.textT }}>Nenhum check-in registrado.</div> : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ color: T.textT, textAlign: 'left' }}>
+                        <th style={{ padding: '6px 8px' }}>Data</th>
+                        <th style={{ padding: '6px 8px' }}>Dia</th>
+                        <th style={{ padding: '6px 8px' }}>Esperado</th>
+                        <th style={{ padding: '6px 8px' }}>Recebido</th>
+                        <th style={{ padding: '6px 8px' }}>Situação</th>
+                        <th style={{ padding: '6px 8px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(r => (
+                        <tr key={r.date} style={{ borderTop: `1px solid ${T.border}` }}>
+                          <td style={{ padding: '7px 8px', color: T.text, fontWeight: 600 }}>{brDate(r.date)}</td>
+                          <td style={{ padding: '7px 8px', color: T.textT, textTransform: 'capitalize' }}>{weekdayLabel(r.date)}{r.holidayName ? ` · ${r.holidayName}` : ''}</td>
+                          <td style={{ padding: '7px 8px' }}>{r.expected ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PrismIcon type={r.expected.cur} size={13} />{r.expected.amount}</span> : '—'}</td>
+                          <td style={{ padding: '7px 8px' }}>{r.actual ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PrismIcon type={r.actual.cur} size={13} />{r.actual.amount}</span> : '—'}</td>
+                          <td style={{ padding: '7px 8px', fontWeight: 700, color: CHECKIN_STATUS_META[r.status].color }}>{CHECKIN_STATUS_META[r.status].label}</td>
+                          <td style={{ padding: '7px 8px' }}>{r.status === 'fds' && <button onClick={() => fixWeekendDate(r.date)} style={{ padding: '5px 9px', borderRadius: 7, border: `1.5px solid ${T.gold}`, background: 'transparent', color: T.gold, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}>Corrigir data</button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 4 }}><span style={{ color: T.gold }}><IcoGem size={16} /></span>Devolver prismas perdidos</div>
+              <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>Os campos já vêm preenchidos com a estimativa automática (soma dos casos marcados como bug acima). Revise e ajuste antes de creditar.</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                <div>
+                  <label style={lbl}>Comum</label>
+                  <input type="number" min="0" value={creditComum} onChange={e => setCreditComum(e.target.value)} style={{ ...adminField, width: 120 }} />
+                </div>
+                <div>
+                  <label style={lbl}>Premium</label>
+                  <input type="number" min="0" value={creditPremium} onChange={e => setCreditPremium(e.target.value)} style={{ ...adminField, width: 120 }} />
+                </div>
+              </div>
+              <label style={lbl}>Nota (aparece no histórico dele)</label>
+              <input value={creditNote} onChange={e => setCreditNote(e.target.value)} placeholder="Correção — bug de fuso no check-in" style={{ ...adminField, marginBottom: 12 }} />
+              <button onClick={creditLost} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 700 }}>Creditar diferença</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const adminField = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.02)', color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
 // ─── helpers de UI ──────────────────────────────────────────────────────────
