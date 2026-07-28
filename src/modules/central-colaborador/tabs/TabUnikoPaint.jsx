@@ -42,6 +42,9 @@ import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
 const MIN_PLAYERS = 2;
+/* Denúncia de desenho: fração dos jogadores (excluindo o desenhista) que precisa
+   denunciar pra encerrar a rodada na hora. 0.5 = maioria (metade ou mais). */
+const REPORT_THRESHOLD = 0.5;
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
@@ -530,6 +533,7 @@ const IcoPlus   = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19"/><line
 const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></Svg>;
 const IcoSom    = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></Svg>;
 const IcoMudo   = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></Svg>;
+const IcoFlag   = (p) => <Svg {...p}><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></Svg>;
 const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle };
 
 /* ── Balde de tinta ─────────────────────────────────────────────────────────
@@ -1163,7 +1167,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => {
     const f = state?.phase;
     if (f !== ultFase.current) {
-      if (f === 'reveal') sfx('fimRodada');
+      if (f === 'reveal') {
+        sfx('fimRodada');
+        if (state?.denunciada) {
+          addChat({ name: 'UNIKO', text: `🚩 desenho denunciado pela galera — ${state.drawer?.split(' ')[0] || 'o desenhista'} não pontuou nesta rodada`, kind: 'sys' });
+        }
+      }
       if (f === 'over') sfx('vitoria');
       if (f === 'lobby') { ultRodada.current = null; ultAcertos.current = 0; }
       ultFase.current = f;
@@ -1200,13 +1209,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const scores = { ...(s.scores || {}) };
     scores[who] = (scores[who] || 0) + pts;
     scores[s.drawer] = (scores[s.drawer] || 0) + 30;
+    // Guarda quanto o desenhista ganhou NESTA rodada — se o desenho acabar
+    // denunciado depois, é essa marca que diz quanto estornar (ver registerReport).
+    const drawerRoundPts = (s.drawerRoundPts || 0) + 30;
     // playersRef, NUNCA `players`: esta função roda a partir do handler do canal
     // (closure do 1º render, lista vazia) → `faltam` dava -1 e a rodada encerrava
     // no PRIMEIRO acerto, sem os outros terem chance de pontuar.
     const faltam = playersRef.current.filter(p => p.name !== s.drawer).length - hits.length;
     pushState(faltam <= 0
-      ? { ...s, hits, scores, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) }
-      : { ...s, hits, scores });
+      ? { ...s, hits, scores, drawerRoundPts, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) }
+      : { ...s, hits, scores, drawerRoundPts });
   };
   const sendGuess = () => {
     const text = guess.trim();
@@ -1217,6 +1229,49 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     onGuessMsg({ name, text });
   };
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
+
+  /* ── Denunciar desenho ────────────────────────────────────────────────
+     Qualquer um que NÃO seja o desenhista pode denunciar (desenho impróprio,
+     fora do tema, rabisco de propósito etc). Quando os votos batem
+     REPORT_THRESHOLD dos jogadores possíveis (todos menos o desenhista), a
+     rodada encerra na hora — igual "Pular vez" — e o desenhista NÃO fica com
+     os pontos que já tinha ganho NESTA rodada (estornados via drawerRoundPts).
+     Só o HOST escreve o estado, mesmo caminho de registerHit: quem denuncia
+     manda um broadcast, e cada cliente decide localmente se já bateu o
+     percentual — sem isso duas denúncias quase simultâneas poderiam ler o
+     mesmo estado velho e a segunda "sumir". */
+  const registerReport = (who) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'drawing' || who === s.drawer || s.reports?.includes(who)) return;
+    const reports = [...(s.reports || []), who];
+    // playersRef, não `players` — mesmo motivo do faltam em registerHit.
+    const total = playersRef.current.filter(p => p.name !== s.drawer).length;
+    const bateuOsVotos = total > 0 && (reports.length / total) >= REPORT_THRESHOLD;
+    if (bateuOsVotos) {
+      const scores = { ...(s.scores || {}) };
+      scores[s.drawer] = (scores[s.drawer] || 0) - (s.drawerRoundPts || 0);   // estorna
+      pushState({
+        ...s, reports, scores, drawerRoundPts: 0,
+        phase: 'reveal', endsAt: Date.now() + REVEAL_MS,
+        lastWord: dec(s.wordEnc), denunciada: true,
+      });
+    } else {
+      pushState({ ...s, reports });
+    }
+  };
+  const onReportMsg = (p) => {
+    addChat({ name: p.name, text: 'denunciou o desenho 🚩', kind: 'sys' });
+    if (hostRef.current) registerReport(p.name);
+  };
+  const jaDenunciei    = !!state?.reports?.includes(name);
+  const totalVotantes  = Math.max(0, players.filter(p => p.name !== state?.drawer).length);
+  const podeDenunciar  = !isDrawer && state?.phase === 'drawing' && !jaDenunciei;
+  const denunciarDesenho = () => {
+    if (!podeDenunciar) return;
+    chanRef.current?.send({ type: 'broadcast', event: 'report', payload: { name } });
+    sfx('pulou');
+    onReportMsg({ name });
+  };
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
   const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco) => {
@@ -1243,7 +1298,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
       usadas: [...usadas, w],
       hints: 0,
-      pulada: false,        // o spread acima traria a marca da rodada anterior
+      reports: [], drawerRoundPts: 0,   // zera denúncias e pontos ganhos NESTA rodada
+      pulada: false, denunciada: false, // o spread acima traria a marca da rodada anterior
       // quem já estava quando a partida começou (+ quem entrou depois e já foi
       // encaixado na fila) — sem isso não dá pra saber quem é "novo"
       elenco: elenco || [...new Set(queue)],
@@ -1415,6 +1471,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       acts.current = payload?.acts || []; replay();
     });
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
+    ch.on('broadcast', { event: 'report' }, ({ payload }) => onReportMsg(payload));
     ch.on('broadcast', { event: 'pulou' }, ({ payload }) => {
       if (payload?.name === name) return;         // quem pulou já viu o aviso
       addChat({ name: payload.name, text: 'passou a vez ⏭', kind: 'sys' });
@@ -1580,11 +1637,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                   {isDrawer ? <span style={{ letterSpacing: '.02em' }}>{word}</span> : (
                     <>
-                      {/* uma palavra por bloco, com gap de verdade — espaço solto
-                          o HTML colapsaria e as palavras virariam um bloco só */}
-                      {maskParts(word, revelar).map((g, i) => (
-                        <span key={i} style={{ letterSpacing: '.22em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
-                      ))}
+                      {/* Cada palavra é um bloco à parte, com um gap BEM maior entre
+                          blocos do que o letterSpacing usado DENTRO de cada palavra —
+                          é essa diferença de espaçamento que deixa claro onde tem um
+                          espaço de verdade (ex.: "café da manhã" vira 3 blocos bem
+                          separados, não uma sequência única de traços). Um <span> só
+                          com espaço normal não bastaria: o HTML colapsa espaços
+                          repetidos e as palavras virariam um bloco só. */}
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap' }}>
+                        {maskParts(word, revelar).map((g, i) => (
+                          <span key={i} style={{ letterSpacing: '.18em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
+                        ))}
+                      </span>
                       <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0 }}>
                         ({contaLetras(word)} letras
                         {maskParts(word).length > 1 ? `, ${maskParts(word).length} palavras` : ''})
@@ -1619,6 +1683,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <IcoSkip size={13} />{confirmPular ? 'Confirmar?' : 'Pular vez'}
                   </button>
                 )}
+                {!isDrawer && (
+                  <button className="up-btn" onClick={denunciarDesenho} disabled={!podeDenunciar}
+                    title={jaDenunciei ? 'Você já denunciou este desenho'
+                      : 'Denunciar desenho impróprio ou fora do tema — com votos suficientes, a rodada encerra e quem desenhou não pontua'}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
+                      border: `1px solid ${jaDenunciei ? T.border : UP.red}`,
+                      cursor: podeDenunciar ? 'pointer' : 'not-allowed',
+                      background: jaDenunciei ? 'transparent' : `${UP.red}14`,
+                      color: jaDenunciei ? T.textD : UP.red, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <IcoFlag size={13} />{jaDenunciei ? 'Denunciado' : 'Denunciar'}
+                    {totalVotantes > 0 && ` (${state?.reports?.length || 0}/${totalVotantes})`}
+                  </button>
+                )}
                 <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
                     background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub, transition: 'background .3s, color .3s',
@@ -1628,7 +1705,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: T.textT, fontWeight: 600 }}>
-                {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b></>
+                {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b>
+                  {state.denunciada && <span style={{ color: UP.red, fontWeight: 700 }}> · 🚩 denunciado</span>}</>
                   : state?.phase === 'over' ? 'Fim de jogo!'
                   : `Aguardando jogadores (mínimo ${MIN_PLAYERS})`}
               </div>
@@ -1661,6 +1739,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     {state.pulada && (
                       <div style={{ fontSize: 13, fontWeight: 700, color: UP.orange, marginBottom: 5 }}>
                         ⏭ {state.drawer?.split(' ')[0]} passou a vez
+                      </div>
+                    )}
+                    {state.denunciada && (
+                      <div style={{ fontSize: 13, fontWeight: 700, color: UP.red, marginBottom: 5 }}>
+                        🚩 desenho denunciado — {state.drawer?.split(' ')[0]} não pontuou nesta rodada
                       </div>
                     )}
                     <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
