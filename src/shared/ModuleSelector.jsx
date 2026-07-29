@@ -64,6 +64,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [pressed, setPressed] = useState(null);
   const isMobile = useIsMobile();
   const isAdmin  = authUser?.role === 'admin';
+  const isModerador = authUser?.role === 'moderador';
+  // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
+  // tem acesso aos dois (o Dashboard RH internamente já restringe as abas dele).
+  const podeAdminOnly = isAdmin || isModerador;
 
   const IcoColab = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -121,7 +125,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
   ];
-  const mods = allMods.filter(m => !m.adminOnly || isAdmin);
+  const mods = allMods.filter(m => !m.adminOnly || podeAdminOnly);
 
   // ─── MOBILE ────────────────────────────────────────────────────────────────
   if (isMobile) {
@@ -284,6 +288,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             <AvatarCircle name={authUser.name} photo={userPhoto} size={26} fontSize={9} rounded="7px"/>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>{authUser.name}</span>
             {isAdmin&&<span style={{fontSize:10,color:T.gold,fontWeight:700,padding:'1px 6px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
+            {isModerador&&<span style={{fontSize:10,color:'#4A78C4',fontWeight:700,padding:'1px 6px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
           </div>
           <button onClick={onLogout}
             style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textD,fontFamily:'var(--font-body)',outline:'none'}}>
