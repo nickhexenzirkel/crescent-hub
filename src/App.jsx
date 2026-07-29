@@ -132,8 +132,11 @@ export default function CrescentHub() {
 
   const handleModuleSelect = (id) => {
     // Conexão Setorial é liberada pra todo mundo — não entra na lista abaixo.
+    // Moderador tem o mesmo acesso de admin ao ponto e ao dashboard (esse último
+    // com abas restritas — ver filtragem de TABS dentro do DashboardRH).
     const adminOnly = ['dashboard','ponto'];
-    if (adminOnly.includes(id) && authUser?.role !== 'admin') return;
+    const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
+    if (adminOnly.includes(id) && !podeAdminOnly) return;
     navPush(id);
   };
 
@@ -351,8 +354,8 @@ export default function CrescentHub() {
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
-          {screen==='ponto'       && authUser?.role==='admin' && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
-          {screen==='dashboard'   && authUser?.role==='admin' && <DashboardRH onBack={handleGoBack} adminName={authUser.name}/>}
+          {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador') && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
+          {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador') && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}

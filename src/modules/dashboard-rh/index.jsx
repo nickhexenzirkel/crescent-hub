@@ -242,14 +242,19 @@ const SearchPicker = ({ value, onPick, options, placeholder, isDark, minWidth = 
    DASHBOARD RH — PAINEL ADMINISTRATIVO
 ══════════════════════════════════════════════════ */
 const ADMIN_PW = 'ColumbinaCleyNick50';
-const DashboardRH = ({onBack, adminName='Administrador'}) => {
+const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // Dark mode detection (same pattern as PontoEletronico)
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
   const inputBg  = isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : (T.surface||'white');
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||'rgba(255,255,255,0.82)');
   const tabsBg   = isDark ? `${T.surface}cc` : (T.surfaceW||'rgba(255,255,255,0.75)');
-  const [tab, setTab]         = useState('funcionarios');
+  const isModerador = role === 'moderador';
+  // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
+  // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
+  // exclusivas do Administrador.
+  const MODERADOR_TABS = ['gerenciar','contracheques','banco','justificativas','vinculo','calendario','comunicados'];
+  const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser]         = useState({name:'',email:'',role:'colaborador',dept:'',pw:'',pw2:''});
@@ -1740,7 +1745,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               </div>
               <div style={{minWidth:0}}>
                 <div style={{fontSize:11,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{adminName}</div>
-                <div style={{fontSize:10,color:T.gold,fontWeight:500}}>Administrador</div>
+                <div style={{fontSize:10,color:T.gold,fontWeight:500}}>{isModerador ? 'Moderador' : 'Administrador'}</div>
               </div>
             </div>
           </div>
@@ -1748,7 +1753,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
           {/* Menu items */}
           <div style={{padding:'10px 10px',display:'flex',flexDirection:'column',gap:2}}>
             <div style={{fontSize:9,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.12em',padding:'0 6px 6px',borderBottom:`1px solid ${T.border}`,marginBottom:4}}>Menu</div>
-            {TABS.map(({id,label,icon})=>(
+            {TABS.filter(({id}) => !isModerador || MODERADOR_TABS.includes(id)).map(({id,label,icon})=>(
               <button key={id} onClick={()=>setTab(id)} style={{
                 display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,
                 cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,
@@ -1785,7 +1790,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
               <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Funcionários</div>
-                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>!e.active).length} inativos</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>e.role==='moderador').length} moderadores · {empList.filter(e=>!e.active).length} inativos</div>
                 </div>
                 <button onClick={()=>{ setEmpForm({name:'',cpf:'',cargo:'',role:'employee',pw:''}); setEmpFormErr(''); setEmpPwShow(false); setEmpModal('new'); }}
                   style={{display:'flex',alignItems:'center',gap:7,padding:'9px 18px',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',boxShadow:`0 3px 12px ${T.goldLine}44`}}>
@@ -1836,9 +1841,9 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3}}>
                             {emp.cargo&&<span style={{fontSize:11,color:T.textS,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.cargo}</span>}
                             <span style={{fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
-                              background:emp.role==='admin'?`${T.gold}18`:'rgba(0,0,0,0.04)',
-                              color:emp.role==='admin'?T.gold:T.textD}}>
-                              {emp.role==='admin'?'Admin':'Colaborador'}
+                              background:emp.role==='admin'?`${T.gold}18`:emp.role==='moderador'?'rgba(74,120,196,0.14)':'rgba(0,0,0,0.04)',
+                              color:emp.role==='admin'?T.gold:emp.role==='moderador'?'#4A78C4':T.textD}}>
+                              {emp.role==='admin'?'Admin':emp.role==='moderador'?'Moderador':'Colaborador'}
                             </span>
                           </div>
                           {/* Status */}
@@ -1940,9 +1945,10 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                       <select value={empForm.role} onChange={e=>setEmpForm(f=>({...f,role:e.target.value}))}
                         style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
                         <option value="employee">Colaborador (acesso ao portal)</option>
+                        <option value="moderador">Moderador (dashboard RH parcial + ponto)</option>
                         <option value="admin">Administrador (dashboard RH + ponto)</option>
                       </select>
-                      <div style={{fontSize:11,color:T.textD,marginTop:4}}>⚠️ Somente Administrador acessa o dashboard RH e o ponto eletrônico.</div>
+                      <div style={{fontSize:11,color:T.textD,marginTop:4}}>⚠️ Administrador e Moderador acessam o ponto eletrônico; Moderador vê só parte do dashboard RH.</div>
                     </div>
                     {empFormErr&&<div style={{fontSize:12,color:'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)'}}>⚠️ {empFormErr}</div>}
                     <div style={{display:'flex',gap:10}}>
@@ -2068,7 +2074,7 @@ const DashboardRH = ({onBack, adminName='Administrador'}) => {
                         {label:'Categoria',key:'category',type:'text',placeholder:'CLT, PJ...'},
                         {label:'Data de Admissão',key:'admission',type:'text',placeholder:'DD/MM/AAAA'},
                         {label:'Nº de Dependentes',key:'dependents',type:'number'},
-                        {label:'Cargo / Perfil',key:'role',type:'select',options:[{v:'employee',l:'Funcionário'},{v:'admin',l:'Administrador'}]},
+                        {label:'Cargo / Perfil',key:'role',type:'select',options:[{v:'employee',l:'Funcionário'},{v:'moderador',l:'Moderador'},{v:'admin',l:'Administrador'}]},
                       ]},
                       { title:'Remuneração', fields:[
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
