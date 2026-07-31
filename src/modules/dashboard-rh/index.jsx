@@ -253,7 +253,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
   // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
   // exclusivas do Administrador.
-  const MODERADOR_TABS = ['gerenciar','contracheques','banco','justificativas','vinculo','calendario','comunicados'];
+  const MODERADOR_TABS = ['gerenciar','contracheques','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
