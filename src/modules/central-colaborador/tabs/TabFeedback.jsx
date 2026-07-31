@@ -44,7 +44,11 @@ const TabFeedback = () => {
     setSending(true); setErr('');
     try {
       const { error } = await _supabase.from('feedbacks').insert({
-        employee_name: anon ? null : USER.name,
+        // Sempre grava quem enviou de verdade — mesmo quando é "anônimo".
+        // O anonimato é só visual: a aba Feedback do dashboard RH esconde o
+        // nome (mostra "Colaborador Anônimo") quando `anonymous` é true, mas
+        // quem for direto no Supabase consegue ver o employee_name aqui.
+        employee_name: USER.name,
         category:      cat,
         message:       msg.trim(),
         anonymous:     anon,
