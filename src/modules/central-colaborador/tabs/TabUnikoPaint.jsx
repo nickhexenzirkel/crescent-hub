@@ -885,12 +885,6 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
         </div>
-        <button onClick={onAbrirPicker} title="Editar perfil / escolher meu Uniko"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 18px 6px 6px', borderRadius: 999,
-            border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer' }}>
-          <img src={photo} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
-        </button>
         <button onClick={() => setCriando(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
             background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
