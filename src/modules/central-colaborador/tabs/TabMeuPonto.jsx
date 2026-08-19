@@ -220,7 +220,12 @@ const TabMeuPonto = () => {
                         {d.times.map((h, hi) => (
                           <span key={hi} style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: hi % 2 === 0 ? 'rgba(26,156,112,0.12)' : 'rgba(30,112,181,0.10)', color: hi % 2 === 0 ? '#1A9C70' : '#1E70B5' }}>{h}</span>
                         ))}
-                        {d.times.length === 0 && <span style={{ fontSize: 12, color: T.textD }}>—</span>}
+                        {d.falta && !justified && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#C04050', background: 'rgba(192,64,80,0.10)', border: '1px solid rgba(192,64,80,0.3)', borderRadius: 6, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Ico d={<><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} size={11} stroke="#C04050" />Falta — sem marcação
+                          </span>
+                        )}
+                        {d.times.length === 0 && !d.falta && <span style={{ fontSize: 12, color: T.textD }}>—</span>}
                         {justified && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: '#1A9C70', background: 'rgba(26,156,112,0.12)', border: '1px solid rgba(26,156,112,0.3)', borderRadius: 6, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <Ico d={<polyline points="20 6 9 17 4 12" />} size={11} stroke="#1A9C70" />Justificada e aceita
