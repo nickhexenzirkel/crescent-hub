@@ -402,6 +402,7 @@ const TOOLS = [
   { id: 'tri',    nome: 'Triângulo', shape: true },
   { id: 'hex',    nome: 'Hexágono',  shape: true },
   { id: 'star',   nome: 'Estrela',   shape: true },
+  { id: 'heart',  nome: 'Coração',   shape: true },
   { id: 'fill',   nome: 'Balde' },
   { id: 'eraser', nome: 'Borracha' },
 ];
@@ -655,6 +656,7 @@ const IcoCircle = (p) => <Svg {...p}><circle cx="12" cy="12" r="8.5"/></Svg>;
 const IcoTri    = (p) => <Svg {...p}><path d="M12 4L21 19H3z"/></Svg>;
 const IcoHex    = (p) => <Svg {...p}><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z"/></Svg>;
 const IcoStar   = (p) => <Svg {...p}><polygon points="12 3 14.6 9.1 21 9.6 16 13.8 17.6 20 12 16.5 6.4 20 8 13.8 3 9.6 9.4 9.1 12 3"/></Svg>;
+const IcoHeart  = (p) => <Svg {...p}><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></Svg>;
 const IcoTrash  = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></Svg>;
 const IcoUndo   = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></Svg>;
 const IcoSend   = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
@@ -669,7 +671,7 @@ const IcoSom    = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 
 const IcoMudo   = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></Svg>;
 const IcoFlag   = (p) => <Svg {...p}><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></Svg>;
 const IcoEdit   = (p) => <Svg {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></Svg>;
-const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle, tri: IcoTri, hex: IcoHex, star: IcoStar };
+const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle, tri: IcoTri, hex: IcoHex, star: IcoStar, heart: IcoHeart };
 
 /* Pontos (em px do canvas) das formas poligonais dentro da bbox do arraste.
    Independem da direção do arraste (usa min/max) — mesma lógica pra preview e commit. */
@@ -688,6 +690,24 @@ const shapePoints = (kind, x1, y1, x2, y2) => {
     const pts = [];
     for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5; const r = i % 2 === 0 ? 1 : 0.42; pts.push([mx + rx * r * Math.cos(a), my + ry * r * Math.sin(a)]); }
     return pts;
+  }
+  if (kind === 'heart') {
+    // Curva paramétrica clássica do coração, aproximada por muitos pontos (o
+    // desenho usa lineTo+closePath, então basta densidade). y invertido pra a
+    // ponta ficar embaixo no canvas; depois normaliza pra caber na bbox.
+    const raw = [];
+    const N = 48;
+    for (let i = 0; i <= N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      const hx = 16 * Math.pow(Math.sin(t), 3);
+      const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+      raw.push([hx, -hy]);
+    }
+    const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const sx = (right - left) / (maxX - minX || 1), sy = (bot - top) / (maxY - minY || 1);
+    return raw.map(([x, y]) => [left + (x - minX) * sx, top + (y - minY) * sy]);
   }
   return [];
 };
@@ -1195,7 +1215,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       cx.beginPath();
       cx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
       a.f ? cx.fill() : cx.stroke();
-    } else if (a.t === 'tri' || a.t === 'hex' || a.t === 'star') {
+    } else if (a.t === 'tri' || a.t === 'hex' || a.t === 'star' || a.t === 'heart') {
       const [x1, y1] = px(a.a), [x2, y2] = px(a.b);
       const pts = shapePoints(a.t, x1, y1, x2, y2);
       cx.beginPath();
@@ -2146,7 +2166,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </button>
                 ))}
               </div>
-              {(tool === 'rect' || tool === 'circle' || tool === 'tri' || tool === 'hex' || tool === 'star') && (
+              {(tool === 'rect' || tool === 'circle' || tool === 'tri' || tool === 'hex' || tool === 'star' || tool === 'heart') && (
                 <>
                   <div style={{ width: 1, height: 40, background: T.border }} />
                   <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
