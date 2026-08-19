@@ -16,8 +16,11 @@ const BOX_STYLE = {
 };
 
 export function AtualizacaoFrame({ maxWidth = 860, children, style }) {
+  // colorScheme 'only light' exclui esta moldura do "forçar tema escuro" do
+  // Opera/Chromium (auto-dark) — sem isso o texto preto e os emojis eram
+  // invertidos pra branco e sumiam no painel branco. Herdado pelos filhos.
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth, margin: '0 auto', ...style }}>
+    <div style={{ position: 'relative', width: '100%', maxWidth, margin: '0 auto', colorScheme: 'only light', ...style }}>
       <img src={ATUAL_IMG} alt="Atualizações" draggable={false}
         style={{ width: '100%', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
       <div style={BOX_STYLE}>{children}</div>
