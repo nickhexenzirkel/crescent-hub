@@ -12,6 +12,7 @@ import {
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
+import { AtualizacaoFrame } from '../../shared/atualizacao';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -253,7 +254,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
   // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
   // exclusivas do Administrador.
-  const MODERADOR_TABS = ['gerenciar','infopessoal','contracheques','banco','justificativas','vinculo','calendario','comunicados','feedback'];
+  const MODERADOR_TABS = ['gerenciar','infopessoal','atualizacoes','contracheques','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
@@ -671,6 +672,42 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   };
 
   useEffect(()=>{ if(tab==='infopessoal'){ loadGerList(); loadIpExtras(); } }, [tab]); // eslint-disable-line
+
+  // ── Atualizações — emitir novidade em tela cheia pra todos (Admin + Moderador) ──
+  const [atualForm, setAtualForm] = useState({ titulo:'', descricao:'' });
+  const [atualSending, setAtualSending] = useState(false);
+  const [atualMsg, setAtualMsg]   = useState('');
+  const [atualHist, setAtualHist] = useState([]);
+
+  const loadAtualHist = async () => {
+    try {
+      const { data } = await _supabase.from('atualizacoes').select('*').order('created_at', { ascending:false }).limit(20);
+      setAtualHist(data || []);
+    } catch {}
+  };
+  useEffect(()=>{ if(tab==='atualizacoes') loadAtualHist(); }, [tab]); // eslint-disable-line
+
+  const emitirAtualizacao = async () => {
+    const titulo = atualForm.titulo.trim();
+    if (!titulo) { setAtualMsg('⚠️ Escreva ao menos o título da atualização.'); return; }
+    setAtualSending(true); setAtualMsg('');
+    try {
+      const { error } = await _supabase.from('atualizacoes').insert({
+        titulo, descricao: atualForm.descricao.trim() || null, autor: adminName, active: true,
+      });
+      if (error) throw error;
+      setAtualForm({ titulo:'', descricao:'' });
+      setAtualMsg('✅ Atualização emitida! Ela apareceu na tela de todos os colaboradores online.');
+      await loadAtualHist();
+      setTimeout(()=>setAtualMsg(''), 4000);
+    } catch (e) { setAtualMsg('⚠️ ' + (e.message || 'Erro ao emitir')); }
+    setAtualSending(false);
+  };
+
+  const removerAtualizacao = async (id) => {
+    if (!window.confirm('Remover esta atualização do histórico?')) return;
+    try { await _supabase.from('atualizacoes').delete().eq('id', id); await loadAtualHist(); } catch {}
+  };
 
   // ── Calendário ────────────────────────────────────────────
   const [calEvents, setCalEvents]     = useState([]);
@@ -1730,6 +1767,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
     {id:'infopessoal',    label:'Informações Pessoais', icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="8"/></>},
+    {id:'atualizacoes',   label:'Atualizações',        icon:<><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
     {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
@@ -2353,6 +2391,67 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             </div>
             );
           })()}
+
+          {/* ── TAB: ATUALIZAÇÕES ── */}
+          {tab==='atualizacoes'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Atualizações</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Escreva no painel branco e clique em <b>Emitir</b> — aparece na tela de todos, com som e notificação.</div>
+                </div>
+                <Moon size={24} color={T.goldL} opacity={0.35} float/>
+              </div>
+
+              {/* Editor sobre a moldura */}
+              <Card style={{padding:'22px 20px',background:cardBg,display:'flex',flexDirection:'column',alignItems:'center',gap:16}} elevated>
+                <AtualizacaoFrame maxWidth={760}>
+                  <input value={atualForm.titulo} onChange={e=>setAtualForm(f=>({...f,titulo:e.target.value}))}
+                    placeholder="Título da atualização"
+                    style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',
+                      color:'#111',fontFamily:'var(--font-brand)',fontWeight:800,textTransform:'uppercase',
+                      fontSize:'clamp(16px, 3vw, 34px)',lineHeight:1.1,letterSpacing:'.01em',padding:0}}/>
+                  <textarea value={atualForm.descricao} onChange={e=>setAtualForm(f=>({...f,descricao:e.target.value}))}
+                    placeholder="Descrição das atualizações (opcional)" rows={4}
+                    style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',resize:'none',
+                      color:'#222',fontFamily:'var(--font-body)',fontWeight:600,
+                      fontSize:'clamp(11px, 1.7vw, 19px)',lineHeight:1.3,padding:0,maxHeight:'55%',overflowY:'auto'}}/>
+                </AtualizacaoFrame>
+
+                {atualMsg&&<div style={{fontSize:13,color:atualMsg.startsWith('✅')?'#16a34a':'#C04050',padding:'8px 14px',borderRadius:9,background:atualMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${atualMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,textAlign:'center'}}>{atualMsg}</div>}
+
+                <button onClick={emitirAtualizacao} disabled={atualSending||!atualForm.titulo.trim()}
+                  style={{display:'flex',alignItems:'center',gap:9,padding:'13px 30px',borderRadius:13,border:'none',
+                    cursor:(atualSending||!atualForm.titulo.trim())?'not-allowed':'pointer',
+                    background:(atualSending||!atualForm.titulo.trim())?T.textD:`linear-gradient(135deg,#7C3AED,#C026D3)`,
+                    color:'#fff',fontWeight:700,fontSize:15,fontFamily:'var(--font-body)',boxShadow:(atualSending||!atualForm.titulo.trim())?'none':'0 8px 24px rgba(124,58,237,.4)'}}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                  {atualSending?'Emitindo...':'Emitir atualização'}
+                </button>
+              </Card>
+
+              {/* Histórico */}
+              <Card style={{padding:'18px 22px',background:cardBg}} elevated>
+                <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:10}}>Últimas atualizações emitidas</div>
+                {atualHist.length===0
+                  ? <div style={{fontSize:13,color:T.textT,padding:'10px 0'}}>Nenhuma atualização emitida ainda.</div>
+                  : <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      {atualHist.map(a=>(
+                        <div key={a.id} style={{display:'flex',gap:12,alignItems:'flex-start',padding:'11px 14px',background:'rgba(0,0,0,0.02)',border:`1px solid ${T.border}`,borderRadius:11}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>{a.titulo}</div>
+                            {a.descricao&&<div style={{fontSize:12.5,color:T.textS,lineHeight:1.5,marginTop:2,whiteSpace:'pre-wrap'}}>{a.descricao}</div>}
+                            <div style={{fontSize:11,color:T.textD,marginTop:4}}>{a.autor?`por ${a.autor} · `:''}{a.created_at?new Date(a.created_at).toLocaleString('pt-BR'):''}</div>
+                          </div>
+                          <button onClick={()=>removerAtualizacao(a.id)} title="Remover do histórico"
+                            style={{flexShrink:0,padding:'5px 10px',borderRadius:8,background:'rgba(192,64,80,0.06)',color:'#C04050',border:'1px solid rgba(192,64,80,0.25)',cursor:'pointer',fontSize:12,fontFamily:'var(--font-body)'}}>Remover</button>
+                        </div>
+                      ))}
+                    </div>}
+              </Card>
+            </div>
+          )}
 
           {/* ── TAB: CALENDÁRIO ── */}
           {tab==='calendario'&&(

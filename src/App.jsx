@@ -16,6 +16,7 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
+import { AtualizacaoOverlay } from './shared/atualizacao';
 import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
 
 export default function CrescentHub() {
@@ -145,6 +146,8 @@ export default function CrescentHub() {
   const [okInput, setOkInput]       = useState('');
   const seenNotifIds  = useRef(new Set());
   const firedTodayRef = useRef(new Set());
+  const [atualAtiva, setAtualAtiva] = useState(null);   // atualização em tela cheia
+  const seenAtualIds  = useRef(new Set());
 
   const withCtx = (fn) => {
     try {
@@ -251,6 +254,39 @@ export default function CrescentHub() {
     pollNotifs();
     const pollId = setInterval(pollNotifs, 25000);
 
+    return () => { _supabase.removeChannel(channel); clearInterval(pollId); };
+  }, [authUser]);
+
+  // ── Atualizações (mural do RH) — tela cheia + som + desktop pra TODOS ──
+  useEffect(() => {
+    if (!authUser) return;
+    const mostrar = (a) => {
+      if (!a?.id || a.active === false || seenAtualIds.current.has(a.id)) return;
+      seenAtualIds.current.add(a.id);
+      setAtualAtiva(a);
+      playReminder();
+      notifyDesktop({ id: 'atual-' + a.id, type: 'lembrete', title: '📢 ' + (a.titulo || 'Atualização'),
+        message: a.descricao || 'Nova atualização disponível!', active: true });
+    };
+    const channel = _supabase
+      .channel('uniko-atualizacoes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'atualizacoes' }, ({ new: a }) => mostrar(a))
+      .subscribe();
+    // Poll de fallback (mesma lógica das notificações): 1ª passada só marca as antigas.
+    let baseline = true;
+    const poll = async () => {
+      const since = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+      const { data } = await _supabase.from('atualizacoes').select('*')
+        .eq('active', true).gte('created_at', since).order('created_at', { ascending: true });
+      for (const a of (data || [])) {
+        if (seenAtualIds.current.has(a.id)) continue;
+        if (baseline) { seenAtualIds.current.add(a.id); continue; }
+        mostrar(a);
+      }
+      baseline = false;
+    };
+    poll();
+    const pollId = setInterval(poll, 25000);
     return () => { _supabase.removeChannel(channel); clearInterval(pollId); };
   }, [authUser]);
 
@@ -377,6 +413,9 @@ export default function CrescentHub() {
             </div>
           </div>
         )}
+
+        {/* ── Atualizações — moldura em tela cheia mostrada a todos ── */}
+        {authUser && <AtualizacaoOverlay atual={atualAtiva} onClose={() => setAtualAtiva(null)} />}
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
