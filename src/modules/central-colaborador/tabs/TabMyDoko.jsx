@@ -29,6 +29,7 @@ const IcoEye   = (p) => <Svg {...p}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-1
 const IcoSpark = (p) => <Svg {...p}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></Svg>;
 const IcoCheck = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
 const IcoUndo  = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></Svg>;
+const IcoCal   = (p) => <Svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Svg>;
 
 /* UNIKO padrão (assistente do sistema) — sempre na coleção, não precisa capturar. */
 const DEFAULT_UNIKO = {
@@ -51,6 +52,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
   const [search, setSearch] = useState(''); // busca por nome na coleção
   const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
+  const [ordenar, setOrdenar] = useState('nome'); // nome | recentes | antigos (por data de obtenção)
   const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
   // Atualização funcional — clique duplo/rápido não deve usar um `assistantScale` da
   // closure já desatualizado (senão dois cliques em sequência "empatam" no mesmo valor).
@@ -133,11 +135,22 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const ownedCount = roster.filter(owns).length;
   const activeSkin = getAssistantSkin(activeAssistant);
   const q = normSearch(search);
+  // Data de aquisição (ISO) do Uniko na coleção — só existe pra capturas de verdade.
+  const atOf = (id) => captured.find(c => c.id === id)?.at || null;
   const visibleRoster = roster.filter(u => {
     if (q && !(normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q))) return false;
     if (filtro === 'obtidos' && !owns(u)) return false;   // só os já obtidos
     if (filtro === 'faltam' && owns(u)) return false;      // só os que faltam
     return true;
+  });
+  // Ordenação por data de obtenção (ISO compara cronologicamente). Unikos sem data
+  // (padrão / ainda não obtidos) vão pro fim. 'nome' mantém a ordem original do roster.
+  const orderedRoster = ordenar === 'nome' ? visibleRoster : [...visibleRoster].sort((a, b) => {
+    const ta = atOf(a.id), tb = atOf(b.id);
+    if (!ta && !tb) return 0;
+    if (!ta) return 1;
+    if (!tb) return -1;
+    return ordenar === 'recentes' ? tb.localeCompare(ta) : ta.localeCompare(tb);
   });
 
   return (
@@ -224,6 +237,25 @@ const TabMyDoko = ({ onPhotoChange }) => {
         })}
       </div>
 
+      {/* Ordenar por data de obtenção */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IcoCal size={13}/>Ordenar:
+        </span>
+        {[['nome', 'Nome (A–Z)'], ['recentes', '↓ Mais recentes'], ['antigos', '↑ Mais antigos']].map(([id, label]) => {
+          const sel = ordenar === id;
+          return (
+            <button key={id} onClick={() => setOrdenar(id)}
+              style={{ padding: '7px 13px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${sel ? T.text : T.border}`,
+                background: sel ? T.text : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                color: sel ? T.surface : T.textS }}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Grade da coleção */}
       {visibleRoster.length === 0 && (
         <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: T.textT }}>
@@ -234,7 +266,7 @@ const TabMyDoko = ({ onPhotoChange }) => {
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
-        {visibleRoster.map(u => {
+        {orderedRoster.map(u => {
           const owned = owns(u);
           const th = u.theme;
           const canAssist = u.canBeAssistant && hasAssistantSkin(u.id);
@@ -288,7 +320,15 @@ const TabMyDoko = ({ onPhotoChange }) => {
               </div>
               <div style={{ padding: '14px 16px 16px' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.shortName || u.name}</div>
-                <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>{u.tagline}</div>
+                <div style={{ fontSize: 12, color: T.textT, marginBottom: atOf(u.id) && !isAdminUser ? 6 : 10 }}>{u.tagline}</div>
+
+                {/* data de obtenção (só pra capturas de verdade — admin tem tudo liberado) */}
+                {atOf(u.id) && !isAdminUser && (
+                  <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12, display: 'inline-flex', alignItems: 'center', gap: 5,
+                    background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
+                    <IcoCal size={12}/>Obtido em {new Date(atOf(u.id)).toLocaleDateString('pt-BR')}
+                  </div>
+                )}
 
                 {/* vantagens visuais */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 14 }}>
