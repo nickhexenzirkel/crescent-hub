@@ -1508,29 +1508,37 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const nomes = new Set(playersRef.current.map(pl => pl.name));
     const votos = { ...kickVotesRef.current };
     // Só conta votos de quem AINDA está na sala (descarta voto de quem já saiu).
-    const lista = (votos[p.alvo] || []).filter(n => nomes.has(n));
-    if (nomes.has(p.votante) && !lista.includes(p.votante)) lista.push(p.votante);
+    let lista = (votos[p.alvo] || []).filter(n => nomes.has(n));
+    if (p.remover) {
+      lista = lista.filter(n => n !== p.votante);                 // retira o voto
+    } else if (nomes.has(p.votante) && !lista.includes(p.votante)) {
+      lista.push(p.votante);                                      // adiciona o voto
+    }
     votos[p.alvo] = lista;
     kickVotesRef.current = votos;
     setKickVotes(votos);
     // Elegíveis = todos os presentes menos o alvo (o alvo não vota em si).
     const elegiveis = playersRef.current.filter(pl => pl.name !== p.alvo).length;
-    const bateu = elegiveis > 0 && (lista.length / elegiveis) >= KICK_THRESHOLD;
+    const bateu = !p.remover && elegiveis > 0 && (lista.length / elegiveis) >= KICK_THRESHOLD;
     if (bateu) {
       addChat({ name: p.alvo, text: 'foi expulso da sala por votação 🚪', kind: 'sys' });
       // limpa os votos desse alvo (a partida continua pros demais)
       const limpo = { ...kickVotesRef.current }; delete limpo[p.alvo];
       kickVotesRef.current = limpo; setKickVotes(limpo);
       if (p.alvo === name) { sfx('pulou'); onLeave?.(); }
+    } else if (p.remover) {
+      addChat({ name: p.votante, text: `retirou o voto de expulsar ${p.alvo.split(' ')[0]}`, kind: 'sys' });
     } else {
       addChat({ name: p.votante, text: `votou para expulsar ${p.alvo.split(' ')[0]} (${lista.length}/${Math.ceil(elegiveis * KICK_THRESHOLD)}) 🚪`, kind: 'sys' });
     }
   };
+  // Vota OU retira o voto (toggle): se eu já votei nesse alvo, o clique retira.
   const votarExpulsar = (alvo) => {
     if (!alvo || alvo === name) return;
-    if (kickVotesRef.current[alvo]?.includes(name)) return;   // já votei nesse alvo
-    chanRef.current?.send({ type: 'broadcast', event: 'kickvote', payload: { alvo, votante: name } });
-    onKickMsg({ alvo, votante: name });
+    const jaVotei = !!kickVotesRef.current[alvo]?.includes(name);
+    const payload = { alvo, votante: name, remover: jaVotei };
+    chanRef.current?.send({ type: 'broadcast', event: 'kickvote', payload });
+    onKickMsg(payload);
   };
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
@@ -1898,14 +1906,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   const alvo  = Math.ceil(eleg * KICK_THRESHOLD);
                   const votei = votos.includes(name);
                   return (
-                    <button onClick={() => votarExpulsar(p.name)} disabled={votei}
-                      title={votei ? 'Você já votou para expulsar' : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
+                    <button onClick={() => votarExpulsar(p.name)}
+                      title={votei ? `Clique para RETIRAR seu voto de expulsar ${p.name.split(' ')[0]}` : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
                       style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', borderRadius: 8,
-                        border: `1px solid ${votos.length ? '#E6394655' : T.border}`,
-                        background: votos.length ? '#E6394610' : 'transparent',
-                        color: votei ? '#E63946' : T.textT, cursor: votei ? 'default' : 'pointer',
+                        border: `1px solid ${votei ? '#E63946' : votos.length ? '#E6394655' : T.border}`,
+                        background: votei ? '#E6394622' : votos.length ? '#E6394610' : 'transparent',
+                        color: votei ? '#E63946' : T.textT, cursor: 'pointer',
                         fontSize: 11, fontWeight: 700, lineHeight: 1 }}>
-                      🚪{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
+                      {votei ? '↩' : '🚪'}{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
                     </button>
                   );
                 })()}
