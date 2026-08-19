@@ -1453,6 +1453,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     }
   };
 
+  // Volume atual (persistido em settings.alexa_volume) — sem isso a UI voltava
+  // sempre pro default 50% ao trocar de aba/atualizar, mesmo com a Alexa em 34%.
+  const loadVolume = async () => {
+    const { data } = await _supabase.from('settings').select('value').eq('key', 'alexa_volume').maybeSingle();
+    const v = parseInt(data?.value, 10);
+    if (Number.isFinite(v)) setVolume(Math.max(0, Math.min(100, v)));
+  };
+
   const loadSkipVotes = async () => {
     // Busca todos os votos de skip ativos — sem depender do estado `queue`
     // para evitar closure stale no listener de realtime
@@ -1598,6 +1606,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // ── Alexa rate limit ─────────────────────────────────────
   const auth = getAuthUser();
   const isAdmin = auth?.role === 'admin';
+  // Moderador também controla o player (volume + pular) — mas não o resto (autoplay,
+  // dispositivo, reordenar/excluir fila, zerar contador etc., que seguem só admin).
+  const canControl = isAdmin || auth?.role === 'moderador';
   const ALEXA_LIMIT  = 2;
   const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {
@@ -2048,6 +2059,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     checkSpotify();
     loadQueue();
     loadPlayerState();
+    loadVolume();
     if (isAdmin) loadAutoplayState();
 
     const qSub = _supabase.channel('ch_queue_rt')
@@ -2056,6 +2068,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
     const pSub = _supabase.channel('ch_player_rt')
       .on('postgres_changes', {event:'*',schema:'public',table:'player_state'}, () => loadPlayerState())
+      .subscribe();
+
+    // Volume sincronizado entre todos (settings.alexa_volume via realtime)
+    const volSub = _supabase.channel('ch_vol_rt')
+      .on('postgres_changes', {event:'*',schema:'public',table:'settings',filter:'key=eq.alexa_volume'}, () => loadVolume())
       .subscribe();
 
     const vSub = _supabase.channel('ch_votes_rt')
@@ -2073,6 +2090,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       _supabase.removeChannel(qSub);
       _supabase.removeChannel(pSub);
       _supabase.removeChannel(vSub);
+      _supabase.removeChannel(volSub);
       clearInterval(idleTimer);
     };
   }, []);
@@ -2445,6 +2463,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     volumeTimer.current = setTimeout(async () => {
       setVolumeSaving(true);
       await api('put', `/api/player/volume?volume_percent=${newVol}`).catch(()=>{});
+      // Persiste pra sobreviver a refresh/troca de aba e sincronizar entre todos.
+      await _supabase.from('settings').upsert({ key: 'alexa_volume', value: String(newVol) }, { onConflict: 'key' }).catch(()=>{});
       setVolumeSaving(false);
     }, 300);
   };
@@ -3545,9 +3565,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       transition:"all .15s"}}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                   </button>
-                  {isAdmin && (
+                  {canControl && (
                   <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
-                    title="Pular música (Admin)"
+                    title="Pular música"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                   </button>
@@ -3574,8 +3594,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   </button>
                   )}
                 </div>
-                {/* Volume — somente admin */}
-                {isAdmin && (
+                {/* Volume — admin e moderador */}
+                {canControl && (
                   <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:`1px solid ${T.border}22`}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={volume===0?"#C04050":T.textD} strokeWidth="2" strokeLinecap="round"
                       onClick={()=>handleVolume(volume===0?50:0)} style={{cursor:"pointer",flexShrink:0}}>
