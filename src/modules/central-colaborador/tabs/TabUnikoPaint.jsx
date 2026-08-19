@@ -373,15 +373,24 @@ const COR_TEMA = {
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
 /* Paleta de desenho: as cores do mascote + o básico que todo desenho precisa
-   (preto pra contorno, marrom, branco pra corrigir). */
-const COLORS = [UP.ink, '#7A7A8C', UP.red, UP.orange, UP.yellow, UP.lime,
-  UP.cyan, UP.purple, UP.pink, '#8B5E34', '#0FA36B', '#FFFFFF'];
+   (preto pra contorno, marrom, branco pra corrigir) + tons extras pra dar mais
+   variedade (claros/escuros, pele, extras vivos). */
+const COLORS = [
+  UP.ink, '#4A4A5A', '#7A7A8C', '#C4C4CE', '#FFFFFF',
+  UP.red, '#8B1E2D', UP.orange, '#FF8FB1', UP.pink,
+  UP.yellow, '#FFD9A0', '#F1C27D', '#8B5E34', '#5A3A1A',
+  UP.lime, '#0FA36B', '#1E7A5A', UP.cyan, '#1E5FA8',
+  UP.purple, '#3B1E6E',
+];
 const SIZES = [3, 8, 16, 30];
 const TOOLS = [
   { id: 'brush',  nome: 'Pincel' },
   { id: 'line',   nome: 'Linha',    shape: true },
   { id: 'rect',   nome: 'Quadrado', shape: true },
   { id: 'circle', nome: 'Círculo',  shape: true },
+  { id: 'tri',    nome: 'Triângulo', shape: true },
+  { id: 'hex',    nome: 'Hexágono',  shape: true },
+  { id: 'star',   nome: 'Estrela',   shape: true },
   { id: 'fill',   nome: 'Balde' },
   { id: 'eraser', nome: 'Borracha' },
 ];
@@ -625,6 +634,9 @@ const IcoFill   = (p) => <Svg {...p}><path d="M19 11l-8-8-8.5 8.5a2 2 0 000 2.8L
 const IcoLine   = (p) => <Svg {...p}><line x1="4" y1="20" x2="20" y2="4"/></Svg>;
 const IcoRect   = (p) => <Svg {...p}><rect x="4" y="5" width="16" height="14" rx="1.5"/></Svg>;
 const IcoCircle = (p) => <Svg {...p}><circle cx="12" cy="12" r="8.5"/></Svg>;
+const IcoTri    = (p) => <Svg {...p}><path d="M12 4L21 19H3z"/></Svg>;
+const IcoHex    = (p) => <Svg {...p}><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z"/></Svg>;
+const IcoStar   = (p) => <Svg {...p}><polygon points="12 3 14.6 9.1 21 9.6 16 13.8 17.6 20 12 16.5 6.4 20 8 13.8 3 9.6 9.4 9.1 12 3"/></Svg>;
 const IcoTrash  = (p) => <Svg {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></Svg>;
 const IcoUndo   = (p) => <Svg {...p}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 00-4-4H4"/></Svg>;
 const IcoSend   = (p) => <Svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
@@ -638,7 +650,28 @@ const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-
 const IcoSom    = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></Svg>;
 const IcoMudo   = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></Svg>;
 const IcoFlag   = (p) => <Svg {...p}><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></Svg>;
-const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle };
+const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle, tri: IcoTri, hex: IcoHex, star: IcoStar };
+
+/* Pontos (em px do canvas) das formas poligonais dentro da bbox do arraste.
+   Independem da direção do arraste (usa min/max) — mesma lógica pra preview e commit. */
+const shapePoints = (kind, x1, y1, x2, y2) => {
+  const left = Math.min(x1, x2), right = Math.max(x1, x2);
+  const top = Math.min(y1, y2), bot = Math.max(y1, y2);
+  const mx = (left + right) / 2, my = (top + bot) / 2;
+  const rx = (right - left) / 2, ry = (bot - top) / 2;
+  if (kind === 'tri') return [[mx, top], [left, bot], [right, bot]];
+  if (kind === 'hex') {
+    const pts = [];
+    for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + i * Math.PI / 3; pts.push([mx + rx * Math.cos(a), my + ry * Math.sin(a)]); }
+    return pts;
+  }
+  if (kind === 'star') {
+    const pts = [];
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5; const r = i % 2 === 0 ? 1 : 0.42; pts.push([mx + rx * r * Math.cos(a), my + ry * r * Math.sin(a)]); }
+    return pts;
+  }
+  return [];
+};
 
 /* ── Balde de tinta ─────────────────────────────────────────────────────────
    Flood fill scanline com tolerância. A tolerância existe por causa do
@@ -1109,6 +1142,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       cx.beginPath();
       cx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
       a.f ? cx.fill() : cx.stroke();
+    } else if (a.t === 'tri' || a.t === 'hex' || a.t === 'star') {
+      const [x1, y1] = px(a.a), [x2, y2] = px(a.b);
+      const pts = shapePoints(a.t, x1, y1, x2, y2);
+      cx.beginPath();
+      pts.forEach(([X, Y], i) => (i ? cx.lineTo(X, Y) : cx.moveTo(X, Y)));
+      cx.closePath();
+      a.f ? cx.fill() : cx.stroke();
     } else if (a.t === 'f') {
       floodFill(cx, a.p.x * CW, a.p.y * CH, a.c);
     }
@@ -1541,7 +1581,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { const t = setInterval(flush, 60); return () => clearInterval(t); }, [flush]);
 
   const shapeAct = (a, b) => ({
-    t: tool === 'line' ? 'l' : tool === 'rect' ? 'r' : 'c',
+    // line/rect/circle mantêm os tipos curtos; as novas formas usam o próprio id.
+    t: tool === 'line' ? 'l' : tool === 'rect' ? 'r' : tool === 'circle' ? 'c' : tool,
     a, b, c: color, w: size, f: filled && tool !== 'line',
   });
   const sendAct = (a) => {
@@ -2030,7 +2071,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           {isDrawer && (
             <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '9px 12px',
               display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', boxShadow: T.sh, flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: 5 }}>{TOOLS.map(btnTool)}</div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{TOOLS.map(btnTool)}</div>
               <div style={{ width: 1, height: 40, background: T.border }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
                 {COLORS.map(c => (
@@ -2052,7 +2093,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </button>
                 ))}
               </div>
-              {(tool === 'rect' || tool === 'circle') && (
+              {(tool === 'rect' || tool === 'circle' || tool === 'tri' || tool === 'hex' || tool === 'star') && (
                 <>
                   <div style={{ width: 1, height: 40, background: T.border }} />
                   <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
