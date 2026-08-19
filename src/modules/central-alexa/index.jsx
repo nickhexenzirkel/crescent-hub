@@ -1704,15 +1704,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const curMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Tudo agregado no servidor (escala sem baixar linhas brutas da fila)
-    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes, periodStartRes, monthPeriodStartRes] = await Promise.all([
-      _supabase.rpc('maquina_song_stats',   { p_since: resetAt, p_limit: 10 }),
-      _supabase.rpc('maquina_artist_stats', { p_since: resetAt, p_limit: 10 }),
-      _supabase.rpc('maquina_dj_stats',     { p_since: resetAt }),
+    // A VISÃO GERAL é GERAL (todos os meses) — p_since null. O mês atual e os
+    // passados ficam por conta da aba "Por Mês". (Antes usava resetAt e por isso
+    // a Visão Geral ficava presa ao "período atual" = só o mês corrente.)
+    const [songsRes, artistsRes, djRes, monthlyRes, monthlyDjRes, countRes, monthPeriodStartRes] = await Promise.all([
+      _supabase.rpc('maquina_song_stats',   { p_since: null, p_limit: 10 }),
+      _supabase.rpc('maquina_artist_stats', { p_since: null, p_limit: 10 }),
+      _supabase.rpc('maquina_dj_stats',     { p_since: null }),
       _supabase.from('maquina_monthly_songs').select('month,spotify_id,title,artist,album_art,plays'),
       _supabase.from('maquina_monthly_djs').select('month,requested_by,plays'),
-      _supabase.rpc('maquina_play_count',   { p_since: resetAt }),
-      _supabase.rpc('maquina_period_start', { p_since: resetAt }),
+      _supabase.rpc('maquina_play_count',   { p_since: null }),
       _supabase.rpc('maquina_period_start', { p_since: monthStartIso }),
     ]);
 
@@ -1723,9 +1724,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       return;
     }
 
-    // Desde quando o período atual (Visão Geral) vem acumulando plays — usado
-    // pra segurar o ranking até ter pelo menos MAQUINA_MIN_DAYS de dados.
-    const periodStart = periodStartRes.data || null;
+    // Visão Geral agora é all-time (sempre tem dados de sobra) → sem a trava dos
+    // MAQUINA_MIN_DAYS. A checagem de acumulação segue valendo só pro MÊS ATUAL
+    // da aba "Por Mês" (via monthPeriodStart, mais abaixo).
+    const periodStart = null;
 
     // Visão Geral (período atual)
     const topSongs = (songsRes.data||[]).map(s => ({
@@ -3666,33 +3668,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 <div style={{fontFamily:"var(--font-brand)",fontSize:20,fontWeight:700,color:T.text,letterSpacing:".04em"}}>Máquina do Tempo</div>
                 <div style={{fontSize:13,color:T.textT,marginTop:3}}>
                   As estatísticas musicais da galera no UnikoWave
-                  {maquinaData?.resetAt && (
-                    <span style={{marginLeft:8,fontSize:11,color:T.textD}}>
-                      · zerado em {new Date(maquinaData.resetAt).toLocaleDateString('pt-BR',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
-                    </span>
-                  )}
                 </div>
               </div>
               {isAdmin && (
                 <div style={{display:'flex',gap:8,flexShrink:0}}>
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm('Zerar o histórico da Máquina do Tempo? Músicas tocadas a partir de agora serão contadas do zero.')) return;
-                      await _supabase.from('settings').upsert({key:'maquina_reset_at', value: new Date().toISOString()}, {onConflict:'key'});
-                      loadMaquinaData();
-                    }}
-                    title="Só move o marco d'água da Visão Geral — não apaga nada, os meses continuam no histórico"
-                    style={{padding:'7px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,
-                      background:'transparent',cursor:'pointer',fontFamily:'var(--font-body)',
-                      fontSize:12,fontWeight:600,color:T.textS,display:'flex',alignItems:'center',gap:6,
-                      transition:'all .15s'}}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold;}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textS;}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
-                    </svg>
-                    Zerar contador
-                  </button>
                   <button
                     onClick={deleteMaquinaAll}
                     title="Apaga PERMANENTEMENTE o histórico de todos os meses"
