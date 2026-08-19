@@ -814,6 +814,7 @@ const RankingGeral = ({ name, cardBg }) => {
 
 const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [rooms, setRooms] = useState([]);
+  const [carregou, setCarregou] = useState(false);   // 1ª busca de salas concluída
   const [criando, setCriando] = useState(false);
   const [nomeSala, setNomeSala] = useState('');
   const [temaSala, setTemaSala] = useState('geral');
@@ -826,10 +827,17 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
     const { data, error } = await supabase.from('uniko_paint_state')
       .select('id, state, updated_at').order('updated_at', { ascending: false });
     if (error) { console.error('[uniko-paint] lobby:', error); return; }
-    setRooms(data || []);
+    // A antiga "Sala Geral" fixa (id='global') foi removida: some da lista e, se
+    // estiver vazia, é apagada do banco (não recriamos mais — o app pede pra criar sala).
+    const semGlobal = (data || []).filter(r => r.id !== GLOBAL_ROOM);
+    setRooms(semGlobal);
+    setCarregou(true);
+    if ((data || []).some(r => r.id === GLOBAL_ROOM) && !(porSala[GLOBAL_ROOM]?.length)) {
+      supabase.from('uniko_paint_state').delete().eq('id', GLOBAL_ROOM).then(() => {}, () => {});
+    }
     // Faxina: sala criada por alguém, vazia e parada há muito tempo vira lixo.
-    const velhas = (data || []).filter(r =>
-      r.id !== GLOBAL_ROOM && !(porSala[r.id]?.length) &&
+    const velhas = semGlobal.filter(r =>
+      !(porSala[r.id]?.length) &&
       Date.now() - new Date(r.updated_at).getTime() > ROOM_TTL_MS);
     if (velhas.length) {
       await supabase.from('uniko_paint_state').delete().in('id', velhas.map(r => r.id));
@@ -1084,9 +1092,20 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           })}
         </div>
         {!rooms.length && (
-          <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
-            Carregando salas...
-          </div>
+          !carregou ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
+              Carregando salas...
+            </div>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 14, textAlign: 'center', padding: 24, pointerEvents: 'none' }}>
+              <Mascote size={92} />
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text, maxWidth: 460, lineHeight: 1.3 }}>
+                Para jogar, crie uma sala e um tema e chame seus amigos para jogar!
+              </div>
+              <div style={{ fontSize: 13, color: T.textT }}>Use o botão <b style={{ color: A }}>Criar sala</b> ali em cima 👆</div>
+            </div>
+          )
         )}
       </div>
 
@@ -2238,6 +2257,15 @@ const TabUnikoPaint = () => {
     supabase.from('uniko_paint_state').select('id').limit(1).then(({ error }) => {
       if (semTabela(error)) setSqlMissing(true);
     });
+  }, []);
+
+  // O editor de perfil só abre sozinho UMA vez: assim que ele abre na 1ª visita,
+  // já marca como visto — sem isso reaparecia a cada refresh. A pessoa continua
+  // podendo reabrir pelo botão "Editar perfil".
+  useEffect(() => {
+    if (picker) { try { localStorage.setItem(PROFILE_SEEN_KEY, '1'); } catch { /* sem localStorage */ } }
+    // só na montagem
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Presence ÚNICA pra todo o jogo ──────────────────────────────────────
