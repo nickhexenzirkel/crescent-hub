@@ -10,9 +10,9 @@ export const ATUAL_IMG = '/atualizacoes.png';
 // Caixa de texto sobre o painel branco. Insets calibrados na arte (deixa margem
 // pras bordas arredondadas e pros cantos dos robôs).
 const BOX_STYLE = {
-  position: 'absolute', left: '20%', right: '20%', top: '27.5%', bottom: '12%',
-  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-  gap: '3%', textAlign: 'center', overflow: 'hidden',
+  position: 'absolute', left: '20%', right: '20%', top: '26%', bottom: '12%',
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+  gap: '2%', textAlign: 'center', overflow: 'hidden',
 };
 
 export function AtualizacaoFrame({ maxWidth = 860, children, style }) {
@@ -39,8 +39,8 @@ export function AtualizacaoOverlay({ atual, onClose }) {
             fontSize: 'clamp(20px, 4vw, 46px)', lineHeight: 1.05, letterSpacing: '.01em',
             textTransform: 'uppercase', wordBreak: 'break-word' }}>{atual.titulo}</div>
           {atual.descricao && (
-            <div style={{ color: '#222', fontWeight: 600, fontSize: 'clamp(12px, 2vw, 22px)', lineHeight: 1.3,
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '58%', overflowY: 'auto' }}>{atual.descricao}</div>
+            <div style={{ color: '#222', fontWeight: 600, fontSize: 'clamp(11px, 1.55vw, 17px)', lineHeight: 1.28,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '64%', overflowY: 'auto' }}>{atual.descricao}</div>
           )}
         </AtualizacaoFrame>
         <button onClick={onClose} title="Fechar" style={{ position: 'absolute', top: -14, right: -8, width: 42, height: 42,

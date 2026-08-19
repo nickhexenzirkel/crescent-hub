@@ -2413,10 +2413,10 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                       color:'#111',fontFamily:'var(--font-brand)',fontWeight:800,textTransform:'uppercase',
                       fontSize:'clamp(16px, 3vw, 34px)',lineHeight:1.1,letterSpacing:'.01em',padding:0}}/>
                   <textarea value={atualForm.descricao} onChange={e=>setAtualForm(f=>({...f,descricao:e.target.value}))}
-                    placeholder="Descrição das atualizações (opcional)" rows={4}
+                    placeholder="Descrição das atualizações (opcional)" rows={5}
                     style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',resize:'none',
                       color:'#222',fontFamily:'var(--font-body)',fontWeight:600,
-                      fontSize:'clamp(11px, 1.7vw, 19px)',lineHeight:1.3,padding:0,maxHeight:'55%',overflowY:'auto'}}/>
+                      fontSize:'clamp(10px, 1.4vw, 16px)',lineHeight:1.28,padding:0,maxHeight:'64%',overflowY:'auto'}}/>
                 </AtualizacaoFrame>
 
                 {atualMsg&&<div style={{fontSize:13,color:atualMsg.startsWith('✅')?'#16a34a':'#C04050',padding:'8px 14px',borderRadius:9,background:atualMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${atualMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,textAlign:'center'}}>{atualMsg}</div>}
