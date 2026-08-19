@@ -45,6 +45,9 @@ const MIN_PLAYERS = 2;
 /* Denúncia de desenho: fração dos jogadores (excluindo o desenhista) que precisa
    denunciar pra encerrar a rodada na hora. 0.5 = maioria (metade ou mais). */
 const REPORT_THRESHOLD = 0.5;
+/* Expulsar jogador: fração dos OUTROS jogadores (todos menos o alvo) que precisa
+   votar pra expulsar alguém da sala. 0.6 = maioria folgada, pra não expulsar à toa. */
+const KICK_THRESHOLD = 0.6;
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
@@ -252,6 +255,104 @@ const THEMES = [
     'churrasqueira', 'varal', 'ferro de passar', 'aspirador', 'rodo', 'esponja',
     'garfo', 'faca', 'colher', 'prato', 'copo', 'xícara', 'chaleira', 'liquidificador',
     'guarda-roupa', 'cabide', 'gaveta', 'campainha', 'caixa de correio'] },
+  { id: 'profissoes', nome: 'Profissões', emoji: '👷', words: [
+    'médico', 'professor', 'bombeiro', 'policial', 'cozinheiro', 'pintor',
+    'mecânico', 'dentista', 'enfermeiro', 'advogado', 'juiz', 'padeiro',
+    'açougueiro', 'cabeleireiro', 'barbeiro', 'costureira', 'pedreiro',
+    'eletricista', 'encanador', 'jardineiro', 'agricultor', 'pescador',
+    'piloto', 'aeromoça', 'motorista', 'carteiro', 'garçom', 'faxineiro',
+    'porteiro', 'segurança', 'astronauta', 'cientista', 'engenheiro',
+    'arquiteto', 'veterinário', 'farmacêutico', 'contador', 'jornalista',
+    'fotógrafo', 'ator', 'cantor', 'dançarino', 'palhaço', 'mágico',
+    'escritor', 'músico', 'chef de cozinha', 'sorveteiro', 'salva-vidas',
+    'caminhoneiro', 'costureiro', 'vendedor', 'caixa de supermercado', 'juiz de futebol'] },
+  { id: 'transporte', nome: 'Transporte', emoji: '🚗', words: [
+    'carro', 'ônibus', 'avião', 'trem', 'metrô', 'bicicleta', 'moto',
+    'caminhão', 'barco', 'navio', 'helicóptero', 'foguete', 'submarino',
+    'balão de ar quente', 'patinete', 'skate', 'carroça', 'charrete',
+    'táxi', 'ambulância', 'carro de bombeiro', 'viatura', 'trator',
+    'escavadeira', 'guindaste', 'empilhadeira', 'van', 'micro-ônibus',
+    'bonde', 'teleférico', 'jet ski', 'lancha', 'canoa', 'caiaque',
+    'jangada', 'balsa', 'monociclo', 'triciclo', 'carrinho de mão',
+    'carrinho de bebê', 'patins', 'trenó', 'carro de corrida', 'kart',
+    'caravana', 'motorhome', 'dirigível', 'planador', 'asa-delta', 'paraquedas'] },
+  { id: 'roupas', nome: 'Roupas e Acessórios', emoji: '👕', words: [
+    'camiseta', 'calça', 'vestido', 'saia', 'shorts', 'blusa', 'casaco',
+    'jaqueta', 'moletom', 'terno', 'gravata', 'cachecol', 'luva', 'gorro',
+    'boné', 'chapéu', 'óculos de sol', 'cinto', 'meia', 'sapato', 'tênis',
+    'sandália', 'chinelo', 'bota', 'salto alto', 'sutiã', 'cueca',
+    'calcinha', 'pijama', 'roupão', 'biquíni', 'sunga', 'maiô', 'avental',
+    'lenço', 'bolsa', 'mochila', 'carteira', 'relógio de pulso', 'anel',
+    'colar', 'brinco', 'pulseira', 'coroa', 'tiara', 'guarda-chuva',
+    'colete', 'jaleco', 'fantasia', 'máscara', 'capa de chuva', 'mala de viagem'] },
+  { id: 'corpo', nome: 'Corpo Humano', emoji: '🧍', words: [
+    'cabeça', 'olho', 'nariz', 'boca', 'orelha', 'sobrancelha', 'cabelo',
+    'dente', 'língua', 'lábio', 'queixo', 'bochecha', 'pescoço', 'ombro',
+    'braço', 'cotovelo', 'mão', 'dedo', 'unha', 'punho', 'peito', 'barriga',
+    'umbigo', 'costas', 'perna', 'joelho', 'pé', 'calcanhar', 'tornozelo',
+    'coração', 'cérebro', 'pulmão', 'estômago', 'osso', 'esqueleto',
+    'músculo', 'veia', 'sangue', 'coluna', 'costela', 'crânio', 'bigode',
+    'barba', 'cílios', 'sardas', 'covinha', 'rosto', 'sorriso', 'lágrima', 'pele'] },
+  { id: 'escola', nome: 'Escola', emoji: '🏫', words: [
+    'lousa', 'giz', 'apagador', 'caderno', 'lápis', 'caneta', 'borracha',
+    'apontador', 'régua', 'mochila', 'estojo', 'cola', 'tesoura', 'globo',
+    'mapa', 'livro', 'dicionário', 'prova', 'boletim', 'nota', 'recreio',
+    'merenda', 'professora', 'aluno', 'diretor', 'carteira escolar',
+    'sala de aula', 'biblioteca', 'quadra', 'refeitório', 'bandeira',
+    'esquadro', 'compasso', 'transferidor', 'calculadora', 'mochila de rodinha',
+    'cadeira', 'lancheira', 'formatura', 'diploma', 'crachá', 'sirene',
+    'quadro de avisos', 'giz de cera', 'tinta guache', 'pincel', 'origami',
+    'ábaco', 'microscópio', 'experiência'] },
+  { id: 'viagem', nome: 'Viagem e Lugares', emoji: '✈️', words: [
+    'torre eiffel', 'estátua da liberdade', 'pirâmide', 'coliseu',
+    'torre de pisa', 'muralha da china', 'cristo redentor', 'praia',
+    'hotel', 'aeroporto', 'passaporte', 'mala', 'mapa-múndi', 'bússola',
+    'câmera fotográfica', 'barraca', 'acampamento', 'farol', 'ponte',
+    'castelo', 'igreja', 'mesquita', 'templo', 'museu', 'zoológico',
+    'parque de diversões', 'roda-gigante', 'montanha-russa', 'carrossel',
+    'praça', 'estádio', 'shopping', 'restaurante', 'cinema', 'teatro',
+    'biblioteca', 'estação de trem', 'porto', 'deserto', 'oásis', 'iglu',
+    'cabana', 'arranha-céu', 'fazenda', 'moinho', 'catedral', 'ruínas',
+    'ilha tropical', 'vulcão', 'geleira'] },
+  { id: 'fantasia', nome: 'Fantasia e Mitologia', emoji: '🐉', words: [
+    'dragão', 'unicórnio', 'fada', 'bruxa', 'mago', 'fantasma', 'vampiro',
+    'lobisomem', 'zumbi', 'múmia', 'esqueleto', 'gênio da lâmpada', 'sereia',
+    'ogro', 'troll', 'duende', 'anão', 'elfo', 'gnomo', 'centauro',
+    'minotauro', 'medusa', 'ciclope', 'fênix', 'grifo', 'pégaso', 'kraken',
+    'cavaleiro', 'princesa', 'rei', 'rainha', 'castelo', 'espada', 'escudo',
+    'varinha mágica', 'poção', 'caldeirão', 'bola de cristal', 'tapete voador',
+    'super-herói', 'capa', 'robô gigante', 'monstro', 'alienígena', 'disco voador',
+    'saci', 'curupira', 'iara', 'boitatá', 'papai noel'] },
+  { id: 'games', nome: 'Games e Internet', emoji: '🎮', words: [
+    'controle de videogame', 'joystick', 'fliperama', 'mouse', 'teclado',
+    'headset', 'live', 'streamer', 'avatar', 'skin', 'fone gamer', 'cadeira gamer',
+    'emoji', 'curtida', 'seguidor', 'hashtag', 'selfie', 'meme', 'gif',
+    'vídeo viral', 'stories', 'notificação', 'wi-fi', 'download', 'senha',
+    'e-mail', 'arroba', 'bloqueado', 'carrinho de compras', 'código qr',
+    'joguinho da cobrinha', 'campo minado', 'paciência', 'xadrez online',
+    'battle royale', 'chefe final', 'vida extra', 'moeda do jogo', 'checkpoint',
+    'game over', 'nível', 'ranking', 'troféu', 'conquista', 'pixel', 'console',
+    'cartucho', 'controle sem fio', 'realidade virtual', 'nuvem'] },
+  { id: 'emocoes', nome: 'Emoções e Expressões', emoji: '😄', words: [
+    'feliz', 'triste', 'bravo', 'com medo', 'surpreso', 'apaixonado',
+    'entediado', 'cansado', 'com sono', 'com fome', 'com frio', 'com calor',
+    'com raiva', 'chorando', 'rindo', 'gargalhando', 'chateado', 'nervoso',
+    'animado', 'assustado', 'envergonhado', 'confuso', 'orgulhoso', 'ciumento',
+    'com ciúme', 'tímido', 'corajoso', 'preguiçoso', 'curioso', 'saudade',
+    'coração partido', 'apaixonar-se', 'beijo', 'abraço', 'aperto de mão',
+    'joia', 'polegar pra cima', 'aplausos', 'careta', 'piscadinha', 'bocejo',
+    'espirro', 'soluço', 'arrepio', 'suspiro', 'sorriso', 'lágrima', 'gargalhada',
+    'susto', 'alívio'] },
+  { id: 'clima', nome: 'Clima e Estações', emoji: '⛅', words: [
+    'sol', 'chuva', 'nuvem', 'trovão', 'relâmpago', 'arco-íris', 'neve',
+    'granizo', 'nevoeiro', 'vento', 'furacão', 'tornado', 'tempestade',
+    'guarda-chuva', 'guarda-sol', 'boneco de neve', 'floco de neve',
+    'poça d\'água', 'ventania', 'geada', 'orvalho', 'seca', 'enchente',
+    'primavera', 'verão', 'outono', 'inverno', 'termômetro', 'cata-vento',
+    'biruta', 'raio de sol', 'céu estrelado', 'lua cheia', 'eclipse',
+    'aurora boreal', 'maré', 'onda de calor', 'friagem', 'chuva de granizo',
+    'garoa', 'temporal', 'pé de vento', 'sombra', 'mormaço', 'brisa',
+    'nublado', 'ensolarado', 'chuvisco', 'clima', 'estação'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
@@ -265,6 +366,9 @@ const COR_TEMA = {
   filmes: UP.purple,  esportes: UP.red,     musica:  UP.pink,   natureza: UP.lime,
   tecnologia: UP.cyan, brasil: UP.yellow,   casa:    UP.orange,
   objetos: UP.purple, verbos: UP.red,
+  profissoes: UP.cyan, transporte: UP.red,  roupas: UP.purple,  corpo: UP.pink,
+  escola: UP.yellow,   viagem: UP.lime,     fantasia: UP.purple, games: UP.cyan,
+  emocoes: UP.orange,  clima: UP.yellow,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
@@ -947,6 +1051,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [laps, setLaps]   = useState(DEFAULT_LAPS);
   const [vez, setVez]     = useState(null);   // overlay "é a vez de fulano"
   const [confirmPular, setConfirmPular] = useState(false);
+  const [kickVotes, setKickVotes] = useState({});   // { alvo: [nomes que votaram] } — expulsar
+  const kickVotesRef = useRef({});
   const [somOn, setSomOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
   const somRef = useRef(somOn);
   useEffect(() => { somRef.current = somOn; try { localStorage.setItem(SOUND_KEY, somOn ? '1' : '0'); } catch { /* sem localStorage */ } }, [somOn]);
@@ -1184,19 +1290,25 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const onGuessMsg = (p) => {
     const s = stateRef.current;
     const w = dec(s?.wordEnc);
-    const acertou = s?.phase === 'drawing' && w && norm(p.text) === norm(w)
-      && p.name !== s.drawer && !s.hits?.includes(p.name);
+    const rolando = s?.phase === 'drawing' && w && p.name !== s.drawer && !s.hits?.includes(p.name);
+    const acertou = rolando && norm(p.text) === norm(w);
     if (acertou) {
       addChat({ name: p.name, text: 'acertou a palavra!', kind: 'hit' });
       if (hostRef.current) registerHit(p.name);
       return;
     }
+    const perto = rolando && quaseLa(p.text, w);
+    const meu = p.name === name;
+    // "Quase lá" alheio: ESCONDE o texto do palpite dos OUTROS. Um erro de
+    // digitação de quem está quase certo (ex.: "coraçao" em vez de "coração")
+    // entregaria a palavra pra quem lê o chat. Mostra só um aviso sem o texto.
+    if (perto && !meu) {
+      addChat({ name: p.name, text: 'está quase lá! 🔥', kind: 'quase-oculto' });
+      return;
+    }
     addChat({ name: p.name, text: p.text, kind: s?.hits?.includes(p.name) ? 'muted' : 'chat' });
-    // "Quase lá!" — só pra QUEM chutou, e só se a rodada ainda está rolando.
-    // Se fosse pra todos, entregaria a resposta: ver o palpite de outro marcado
-    // como "quase" já diz que a palavra é praticamente aquela.
-    if (p.name === name && s?.phase === 'drawing' && w && !acertou
-        && p.name !== s.drawer && !s.hits?.includes(p.name) && quaseLa(p.text, w)) {
+    // "Quase lá!" pro PRÓPRIO palpiteiro: dica privada pra ele revisar a escrita.
+    if (perto && meu) {
       addChat({ name: 'UNIKO', text: 'quase lá! 🔥 confira a escrita', kind: 'quase' });
       sfx('quase');
     }
@@ -1273,6 +1385,41 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     onReportMsg({ name });
   };
 
+  /* ── Expulsar jogador (votação democrática) ───────────────────────────────
+     Sem servidor: cada voto é um broadcast {alvo, votante}. Todo cliente conta
+     os votos que recebe e, quando batem KICK_THRESHOLD dos OUTROS jogadores, o
+     próprio cliente do ALVO sai da sala (onLeave) — os demais só veem o aviso.
+     Não precisa de host: todo mundo chega ao mesmo total e só o alvo se remove. */
+  const onKickMsg = (p) => {
+    if (!p?.alvo || !p?.votante) return;
+    const nomes = new Set(playersRef.current.map(pl => pl.name));
+    const votos = { ...kickVotesRef.current };
+    // Só conta votos de quem AINDA está na sala (descarta voto de quem já saiu).
+    const lista = (votos[p.alvo] || []).filter(n => nomes.has(n));
+    if (nomes.has(p.votante) && !lista.includes(p.votante)) lista.push(p.votante);
+    votos[p.alvo] = lista;
+    kickVotesRef.current = votos;
+    setKickVotes(votos);
+    // Elegíveis = todos os presentes menos o alvo (o alvo não vota em si).
+    const elegiveis = playersRef.current.filter(pl => pl.name !== p.alvo).length;
+    const bateu = elegiveis > 0 && (lista.length / elegiveis) >= KICK_THRESHOLD;
+    if (bateu) {
+      addChat({ name: p.alvo, text: 'foi expulso da sala por votação 🚪', kind: 'sys' });
+      // limpa os votos desse alvo (a partida continua pros demais)
+      const limpo = { ...kickVotesRef.current }; delete limpo[p.alvo];
+      kickVotesRef.current = limpo; setKickVotes(limpo);
+      if (p.alvo === name) { sfx('pulou'); onLeave?.(); }
+    } else {
+      addChat({ name: p.votante, text: `votou para expulsar ${p.alvo.split(' ')[0]} (${lista.length}/${Math.ceil(elegiveis * KICK_THRESHOLD)}) 🚪`, kind: 'sys' });
+    }
+  };
+  const votarExpulsar = (alvo) => {
+    if (!alvo || alvo === name) return;
+    if (kickVotesRef.current[alvo]?.includes(name)) return;   // já votei nesse alvo
+    chanRef.current?.send({ type: 'broadcast', event: 'kickvote', payload: { alvo, votante: name } });
+    onKickMsg({ alvo, votante: name });
+  };
+
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
   const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco) => {
     const base = stateRef.current || {};
@@ -1288,6 +1435,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const livres = pool0.filter(w => !usadas.includes(w));
     const pool = livres.length ? livres : pool0;   // acabou o baralho → recomeça
     const w = pool[Math.floor(Math.random() * pool.length)];
+    // Histórico de palavras recentes da SALA — persiste ENTRE partidas (fica no
+    // estado). Semeia o baralho da próxima partida (ver startGame) pra não cair
+    // sempre nas mesmas palavras; palavras novas, que nunca entraram aqui, saem
+    // primeiro. Cap = ~60% do baralho: sobra espaço pra rotacionar sem travar.
+    const capRec = Math.min(90, Math.max(20, Math.round(pool0.length * 0.6)));
+    const recentes = [...(base.recentes || []).filter(x => x !== w), w].slice(-capRec);
     chanRef.current?.send({ type: 'broadcast', event: 'clear', payload: {} });
     clearAll();
     pushState({
@@ -1297,6 +1450,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       phase: 'drawing', round, drawer, wordEnc: enc(w),
       endsAt: Date.now() + ROUND_MS, hits: [], scores, queue, totalRounds,
       usadas: [...usadas, w],
+      recentes,
       hints: 0,
       reports: [], drawerRoundPts: 0,   // zera denúncias e pontos ganhos NESTA rodada
       pulada: false, denunciada: false, // o spread acima traria a marca da rodada anterior
@@ -1327,8 +1481,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (!state) return;                 // sem o state da sala não há tema — ver startRound
     const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
     const queue = Array.from({ length: laps }, () => ordem).flat();
-    // Tema é o que a sala definiu na criação — não se vota, não muda.
-    startRound(queue, {}, 1, queue.length, [], state.themeId, state.nome, ordem);
+    // Semeia o baralho da partida com as palavras RECENTES da sala (as das últimas
+    // partidas) já marcadas como usadas → elas ficam pro fim e as palavras novas/menos
+    // vistas saem primeiro. Assim "tema Geral de novo" não repete as mesmas de sempre.
+    const pool0 = themeById(state.themeId).words;
+    const recSeed = (state.recentes || []).filter(w => pool0.includes(w));
+    startRound(queue, {}, 1, queue.length, recSeed, state.themeId, state.nome, ordem);
   };
 
   useEffect(() => {
@@ -1472,6 +1630,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     });
     ch.on('broadcast', { event: 'guess' }, ({ payload }) => onGuessMsg(payload));
     ch.on('broadcast', { event: 'report' }, ({ payload }) => onReportMsg(payload));
+    ch.on('broadcast', { event: 'kickvote' }, ({ payload }) => onKickMsg(payload));
     ch.on('broadcast', { event: 'pulou' }, ({ payload }) => {
       if (payload?.name === name) return;         // quem pulou já viu o aviso
       addChat({ name: payload.name, text: 'passou a vez ⏭', kind: 'sys' });
@@ -1618,6 +1777,24 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
                   </div>
                 </div>
+                {/* Expulsar (voto democrático) — só pra outros jogadores */}
+                {p.name !== name && players.length >= 3 && (() => {
+                  const votos = kickVotes[p.name] || [];
+                  const eleg  = Math.max(1, players.filter(pl => pl.name !== p.name).length);
+                  const alvo  = Math.ceil(eleg * KICK_THRESHOLD);
+                  const votei = votos.includes(name);
+                  return (
+                    <button onClick={() => votarExpulsar(p.name)} disabled={votei}
+                      title={votei ? 'Você já votou para expulsar' : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
+                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', borderRadius: 8,
+                        border: `1px solid ${votos.length ? '#E6394655' : T.border}`,
+                        background: votos.length ? '#E6394610' : 'transparent',
+                        color: votei ? '#E63946' : T.textT, cursor: votei ? 'default' : 'pointer',
+                        fontSize: 11, fontWeight: 700, lineHeight: 1 }}>
+                      🚪{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
+                    </button>
+                  );
+                })()}
               </div>
             );
           })}
@@ -1922,14 +2099,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             )}
             {chat.map(m => (
               <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
-                color: m.kind === 'hit' ? '#28a060' : m.kind === 'quase' ? UP.orange
+                color: m.kind === 'hit' ? '#28a060' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? UP.orange
                   : m.kind === 'sys' ? T.textT : T.text,
                 fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
-                fontWeight: m.kind === 'quase' ? 700 : 400,
-                background: m.kind === 'hit' ? '#28a06012' : m.kind === 'quase' ? `${UP.orange}14` : 'transparent',
-                border: m.kind === 'quase' ? `1px solid ${UP.orange}44` : 'none',
-                borderRadius: (m.kind === 'hit' || m.kind === 'quase') ? 7 : 0,
-                padding: (m.kind === 'hit' || m.kind === 'quase') ? '4px 7px' : 0,
+                fontWeight: (m.kind === 'quase' || m.kind === 'quase-oculto') ? 700 : 400,
+                background: m.kind === 'hit' ? '#28a06012' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? `${UP.orange}14` : 'transparent',
+                border: (m.kind === 'quase' || m.kind === 'quase-oculto') ? `1px solid ${UP.orange}44` : 'none',
+                borderRadius: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? 7 : 0,
+                padding: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? '4px 7px' : 0,
                 opacity: m.kind === 'muted' ? .5 : 1 }}>
                 {m.kind === 'hit' && <IcoCheck size={12} />}{' '}
                 {m.kind !== 'quase' && <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>}{' '}
