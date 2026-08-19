@@ -657,6 +657,7 @@ const IcoUsers  = (p) => <Svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-
 const IcoSom    = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></Svg>;
 const IcoMudo   = (p) => <Svg {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></Svg>;
 const IcoFlag   = (p) => <Svg {...p}><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></Svg>;
+const IcoEdit   = (p) => <Svg {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></Svg>;
 const ICON_OF = { brush: IcoBrush, eraser: IcoEraser, fill: IcoFill, line: IcoLine, rect: IcoRect, circle: IcoCircle, tri: IcoTri, hex: IcoHex, star: IcoStar };
 
 /* Pontos (em px do canvas) das formas poligonais dentro da bbox do arraste.
@@ -908,7 +909,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 22px', borderRadius: 12, border: 'none',
             background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer',
             boxShadow: `0 6px 18px ${AG}` }}>
-          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <IcoEdit size={18} />
           Editar perfil
         </button>
       </div>
