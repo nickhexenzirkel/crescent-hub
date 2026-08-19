@@ -253,7 +253,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
   // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
   // exclusivas do Administrador.
-  const MODERADOR_TABS = ['gerenciar','contracheques','banco','justificativas','vinculo','calendario','comunicados','feedback'];
+  const MODERADOR_TABS = ['gerenciar','infopessoal','contracheques','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
@@ -603,6 +603,74 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   };
 
   useEffect(()=>{ if(tab==='gerenciar') loadGerList(); }, [tab]);
+
+  // ── Informações Pessoais (Admin + Moderador): vê todo mundo bem visualizado + edita ──
+  const IP_EXTRA_KEYS = ['familiar1_nome','familiar1_cel','familiar1_parentesco','familiar2_nome','familiar2_cel','familiar2_parentesco','doencas','alergias'];
+  const [ipSel, setIpSel]         = useState(null);   // employee selecionado (da lista /api/employees)
+  const [ipProfile, setIpProfile] = useState(null);   // perfil completo (core) do selecionado
+  const [ipExtra, setIpExtra]     = useState({});     // familiares/saúde (Supabase) do selecionado
+  const [ipExtraMap, setIpExtraMap] = useState({});   // cpf(11) → extra, p/ badges na lista
+  const [ipEditing, setIpEditing] = useState(false);
+  const [ipSaving, setIpSaving]   = useState(false);
+  const [ipMsg, setIpMsg]         = useState('');
+  const [ipSearch, setIpSearch]   = useState('');
+
+  const loadIpExtras = async () => {
+    try {
+      const { data } = await _supabase.from('colaborador_info').select('*');
+      const map = {};
+      for (const r of (data||[])) if (r.cpf) map[onlyDigits(r.cpf)] = r;
+      setIpExtraMap(map);
+    } catch {}
+  };
+
+  const openIp = async (emp) => {
+    setIpSel(emp); setIpEditing(false); setIpMsg(''); setIpProfile(emp);
+    // perfil core completo
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees/${emp.id}`, { headers: authHeader() });
+      const d = await r.json();
+      if (d.employee) setIpProfile(d.employee);
+    } catch {}
+    // extras (familiares/saúde) do Supabase, por CPF
+    const cpf = onlyDigits(emp.cpf || '');
+    let ex = {};
+    if (cpf) {
+      try {
+        const { data } = await _supabase.from('colaborador_info').select('*').eq('cpf', cpf).maybeSingle();
+        if (data) ex = data;
+      } catch {}
+    }
+    setIpExtra(IP_EXTRA_KEYS.reduce((o,k)=>(o[k]=ex[k]||'',o), {}));
+  };
+
+  const saveIp = async () => {
+    if (!ipSel) return;
+    setIpSaving(true); setIpMsg('');
+    let coreOk = true;
+    // 1) perfil core → backend (mesmo endpoint da aba Gerenciar)
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees/${ipSel.id}/profile`, {
+        method: 'PUT', headers: authHeader(), body: JSON.stringify(ipProfile),
+      });
+      if (!r.ok) { coreOk = false; const d = await r.json().catch(()=>({})); setIpMsg('⚠️ ' + (d.error||'Erro ao salvar perfil')); }
+    } catch { coreOk = false; setIpMsg('⚠️ Erro de conexão ao salvar o perfil'); }
+    // 2) familiares/saúde → Supabase
+    const cpf = onlyDigits(ipProfile?.cpf || ipSel.cpf || '');
+    if (cpf) {
+      try {
+        await _supabase.from('colaborador_info').upsert(
+          { cpf, nome: ipProfile?.name || ipSel.name, ...ipExtra, updated_at: new Date().toISOString(), updated_by: adminName },
+          { onConflict: 'cpf' }
+        );
+        setIpExtraMap(prev => ({ ...prev, [cpf]: { cpf, ...ipExtra } }));
+      } catch { setIpMsg('⚠️ Perfil salvo, mas falhou ao salvar familiares/saúde'); coreOk = false; }
+    }
+    if (coreOk) { setIpMsg('✅ Informações salvas!'); setIpEditing(false); await loadGerList(); setTimeout(()=>setIpMsg(''), 2500); }
+    setIpSaving(false);
+  };
+
+  useEffect(()=>{ if(tab==='infopessoal'){ loadGerList(); loadIpExtras(); } }, [tab]); // eslint-disable-line
 
   // ── Calendário ────────────────────────────────────────────
   const [calEvents, setCalEvents]     = useState([]);
@@ -1661,6 +1729,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const TABS=[
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'infopessoal',    label:'Informações Pessoais', icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="8"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
     {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
@@ -2117,6 +2186,173 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               )}
             </div>
           )}
+
+          {/* ── TAB: INFORMAÇÕES PESSOAIS ── */}
+          {tab==='infopessoal'&&(()=>{
+            const CORE_SECS = [
+              { title:'Dados Pessoais', icon:'👤', fields:[
+                {label:'Nome completo',key:'name'},
+                {label:'CPF',key:'cpf',disabled:true},
+                {label:'RG',key:'rg'},
+                {label:'Data de Nascimento',key:'birth_date',placeholder:'DD/MM/AAAA'},
+                {label:'E-mail',key:'email'},
+                {label:'Telefone',key:'phone',placeholder:'(85) 99999-9999'},
+              ]},
+              { title:'Endereço', icon:'📍', fields:[
+                {label:'Logradouro',key:'street'},
+                {label:'Bairro',key:'district'},
+                {label:'Cidade',key:'city'},
+                {label:'Estado',key:'state'},
+                {label:'CEP',key:'cep'},
+              ]},
+              { title:'Dados Profissionais', icon:'💼', fields:[
+                {label:'Cargo',key:'cargo'},
+                {label:'Categoria',key:'category',placeholder:'CLT, PJ...'},
+                {label:'Data de Admissão',key:'admission',placeholder:'DD/MM/AAAA'},
+                {label:'Nº de Dependentes',key:'dependents'},
+              ]},
+            ];
+            const FAM_SECS = [
+              { title:'Contato de Familiares', icon:'👪', extra:true, groups:[
+                { sub:'Familiar 1', fields:[
+                  {label:'Nome',key:'familiar1_nome'},
+                  {label:'Celular',key:'familiar1_cel',placeholder:'(85) 99999-9999'},
+                  {label:'Grau de parentesco',key:'familiar1_parentesco',placeholder:'Ex: Mãe, Cônjuge...'},
+                ]},
+                { sub:'Familiar 2', fields:[
+                  {label:'Nome',key:'familiar2_nome'},
+                  {label:'Celular',key:'familiar2_cel',placeholder:'(85) 99999-9999'},
+                  {label:'Grau de parentesco',key:'familiar2_parentesco',placeholder:'Ex: Pai, Irmão(ã)...'},
+                ]},
+              ]},
+              { title:'Saúde', icon:'🩺', extra:true, fields:[
+                {label:'Doenças',key:'doencas',area:true,placeholder:'Doenças / condições relevantes'},
+                {label:'Alergias',key:'alergias',area:true,placeholder:'Alergias a medicamentos, alimentos...'},
+              ]},
+            ];
+            const val = (f) => (f.__extra ? ipExtra[f.key] : ipProfile?.[f.key]) || '';
+            const setVal = (f, v) => f.__extra
+              ? setIpExtra(p=>({...p,[f.key]:v}))
+              : setIpProfile(p=>({...(p||{}),[f.key]:v}));
+            const Field = (f) => (
+              <div key={f.key} style={{marginBottom:2}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.textD,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:5}}>{f.label}</div>
+                {ipEditing && !f.disabled
+                  ? (f.area
+                      ? <textarea value={val(f)} onChange={e=>setVal(f,e.target.value)} placeholder={f.placeholder||''} rows={2}
+                          style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:inputBg,fontSize:13,color:T.text,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                      : <input value={val(f)} onChange={e=>setVal(f,e.target.value)} placeholder={f.placeholder||''}
+                          style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:inputBg,fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>)
+                  : (f.disabled && ipEditing
+                      ? <div style={{fontSize:14,color:T.textS,padding:'8px 10px',borderRadius:8,background:T.border+'44',border:`1.5px solid ${T.border}`}}>{val(f)||'—'}</div>
+                      : <div style={{fontSize:14.5,color:val(f)?T.text:T.textD,fontStyle:val(f)?'normal':'italic',paddingBottom:8,borderBottom:`1px solid ${T.divider||T.border}`,whiteSpace:f.area?'pre-wrap':'normal'}}>{val(f)||'Não informado'}</div>)
+                }
+              </div>
+            );
+            const list = (gerList||[]).filter(e=>{
+              const q = ipSearch.trim().toLowerCase();
+              if (!q) return true;
+              return (e.name||'').toLowerCase().includes(q) || (e.cargo||'').toLowerCase().includes(q) || onlyDigits(e.cpf||'').includes(onlyDigits(q));
+            }).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+            const roleBadge = (r) => r==='admin' ? {l:'Admin',c:T.gold,bg:`${T.gold}18`} : r==='moderador' ? {l:'Moderador',c:'#4A78C4',bg:'rgba(74,120,196,0.14)'} : {l:'Colaborador',c:T.textD,bg:'rgba(0,0,0,0.05)'};
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Informações Pessoais</div>
+                  <div style={{fontSize:13,color:T.textS,marginTop:2}}>Visualize e edite os dados de qualquer colaborador — inclui contato de familiares e saúde</div>
+                </div>
+                <Moon size={24} color={T.goldL} opacity={0.35} float/>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'minmax(220px,290px) 1fr',gap:14,alignItems:'start'}}>
+                {/* Lista de colaboradores */}
+                <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,overflow:'hidden',position:'sticky',top:70}}>
+                  <div style={{padding:'12px 14px',borderBottom:`1px solid ${T.border}`}}>
+                    <input value={ipSearch} onChange={e=>setIpSearch(e.target.value)} placeholder="Buscar por nome, cargo ou CPF..."
+                      style={{width:'100%',padding:'8px 11px',borderRadius:9,border:`1.5px solid ${T.border}`,background:inputBg,fontSize:12.5,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                  </div>
+                  <div style={{maxHeight:'62vh',overflowY:'auto'}}>
+                    {gerLoading
+                      ? <div style={{padding:26,textAlign:'center',color:T.textT,fontSize:12}}><div style={{width:18,height:18,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...</div>
+                      : list.length===0
+                        ? <div style={{padding:26,textAlign:'center',color:T.textT,fontSize:12.5}}>Nenhum colaborador encontrado.</div>
+                        : list.map((e,i)=>{
+                            const sel = ipSel?.id===e.id;
+                            const hasExtra = !!ipExtraMap[onlyDigits(e.cpf||'')];
+                            const rb = roleBadge(e.role);
+                            return (
+                              <button key={e.id} onClick={()=>openIp(e)}
+                                style={{width:'100%',textAlign:'left',display:'flex',alignItems:'center',gap:10,padding:'10px 14px',border:'none',borderTop:i===0?'none':`1px solid ${T.border}`,background:sel?T.goldGl:'transparent',cursor:'pointer',outline:'none'}}>
+                                <div style={{width:34,height:34,borderRadius:9,flexShrink:0,background:sel?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:'linear-gradient(135deg,#1E70B5,#0f4a80)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff'}}>{(e.name||'?').split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:13,fontWeight:600,color:T.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.name}</div>
+                                  <div style={{fontSize:11,color:T.textT,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.cargo||'—'}</div>
+                                </div>
+                                {hasExtra&&<span title="Tem contato de familiares/saúde preenchido" style={{fontSize:11}}>👪</span>}
+                                <span style={{fontSize:9.5,fontWeight:700,color:rb.c,background:rb.bg,borderRadius:5,padding:'1px 6px',flexShrink:0}}>{rb.l}</span>
+                              </button>
+                            );
+                          })}
+                  </div>
+                </div>
+
+                {/* Detalhe */}
+                <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,overflow:'hidden',minHeight:200}}>
+                  {!ipSel
+                    ? <div style={{padding:'60px 24px',textAlign:'center',color:T.textT,fontSize:13.5}}>← Selecione um colaborador para ver as informações pessoais.</div>
+                    : (<>
+                      {/* Cabeçalho do detalhe */}
+                      <div style={{padding:'18px 22px',borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+                        <div style={{width:48,height:48,borderRadius:12,flexShrink:0,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'#fff'}}>{(ipProfile?.name||ipSel.name||'?').split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:17,fontWeight:700,color:T.text,fontFamily:'var(--font-brand)'}}>{ipProfile?.name||ipSel.name}</div>
+                          <div style={{fontSize:12.5,color:T.textS}}>{ipProfile?.cargo||ipSel.cargo||'—'}{ipProfile?.cpf?` · CPF ${ipProfile.cpf}`:''}</div>
+                        </div>
+                        {!ipEditing
+                          ? <button onClick={()=>{setIpEditing(true);setIpMsg('');}} style={{padding:'9px 16px',borderRadius:9,border:`1px solid ${T.goldLine}66`,background:T.goldGl,color:T.gold,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'var(--font-body)',outline:'none'}}>✏ Editar</button>
+                          : <div style={{display:'flex',gap:8}}>
+                              <button onClick={()=>openIp(ipSel)} disabled={ipSaving} style={{padding:'9px 14px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                              <button onClick={saveIp} disabled={ipSaving} style={{padding:'9px 18px',borderRadius:9,border:'none',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',cursor:ipSaving?'wait':'pointer',fontSize:13,fontWeight:600,fontFamily:'var(--font-body)',outline:'none'}}>{ipSaving?'Salvando...':'Salvar'}</button>
+                            </div>}
+                      </div>
+
+                      {ipMsg&&<div style={{margin:'14px 22px 0',fontSize:12.5,color:ipMsg.startsWith('✅')?'#16a34a':'#C04050',padding:'8px 13px',borderRadius:8,background:ipMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${ipMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`}}>{ipMsg}</div>}
+
+                      <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:22}}>
+                        {CORE_SECS.map(sec=>(
+                          <div key={sec.title}>
+                            <div style={{fontSize:12,fontWeight:800,color:T.gold,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12,display:'flex',alignItems:'center',gap:7}}><span>{sec.icon}</span>{sec.title}</div>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'12px 24px'}}>
+                              {sec.fields.map(f=>Field(f))}
+                            </div>
+                          </div>
+                        ))}
+                        {FAM_SECS.map(sec=>(
+                          <div key={sec.title}>
+                            <div style={{fontSize:12,fontWeight:800,color:'#4A78C4',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12,display:'flex',alignItems:'center',gap:7}}><span>{sec.icon}</span>{sec.title}</div>
+                            {sec.groups
+                              ? sec.groups.map(g=>(
+                                  <div key={g.sub} style={{marginBottom:12}}>
+                                    <div style={{fontSize:11,fontWeight:700,color:T.textD,letterSpacing:'.05em',marginBottom:8}}>{g.sub}</div>
+                                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px 24px'}}>
+                                      {g.fields.map(f=>Field({...f,__extra:true}))}
+                                    </div>
+                                  </div>
+                                ))
+                              : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'12px 24px'}}>
+                                  {sec.fields.map(f=>Field({...f,__extra:true}))}
+                                </div>}
+                          </div>
+                        ))}
+                      </div>
+                    </>)}
+                </div>
+              </div>
+            </div>
+            );
+          })()}
 
           {/* ── TAB: CALENDÁRIO ── */}
           {tab==='calendario'&&(

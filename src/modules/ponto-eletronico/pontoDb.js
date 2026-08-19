@@ -142,6 +142,14 @@ export async function savePontoNegativos(employees) {
   }
 }
 
+/* Carrega as SOLICITAÇÕES de justificativa que os colaboradores enviaram (motivo + anexo,
+   ex.: atestado em PDF/foto), pra o RH ver ao justificar o dia. Tabela: ponto_solicitacoes. */
+export async function loadSolicitacoes() {
+  try {
+    return await fetchAll('ponto_solicitacoes', 'id,cpf,ponto_cpf,nome,titulo,descricao,data_ref,file_url,file_name,status,created_at');
+  } catch { return []; }
+}
+
 /* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga. */
 export async function saveJustificativa({ cpf, date, text }) {
   const clean = (text || '').trim();

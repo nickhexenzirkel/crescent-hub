@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -46,6 +46,16 @@ const isDayOff_p  = (dateStr) => isWknd_p(dateStr) || isHoliday_p(dateStr);
 
 // Cores fixas (não dependem do tema, sempre legíveis)
 const ECOLS = ['#1E70B5','#5560C8','#0A9BB5','#C06090','#1A9C70','#B87010','#C04050','#2E8DD4'];
+
+// Normaliza nome (sem acento/caixa) — fallback pra casar solicitação↔funcionário quando falta ponto_cpf.
+const _normNome = s => (s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' ').trim();
+// Tipo do anexo pela extensão: imagem (preview inline) / pdf (iframe) / outro (link).
+const anexoTipo = (url, name) => {
+  const s = ((name||'') + ' ' + (url||'')).toLowerCase().split('?')[0];
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|heic)(\s|$)/.test(s)) return 'img';
+  if (/\.pdf(\s|$)/.test(s)) return 'pdf';
+  return 'file';
+};
 
 /* ════════════════════════════════════════
    EXTRAÇÃO — lê o texto bruto do AFD (Portaria 671 e 1510)
@@ -320,8 +330,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [calSelDay, setCalSelDay] = useState(null);
   // Feature 2: Justifications
   const [justifs,   setJustifs]   = useState({});   // key: `${cpf}_${date}` → {text, abonado}
-  const [editJust,  setEditJust]  = useState(null);  // {cpf, date} being edited
+  const [editJust,  setEditJust]  = useState(null);  // {cpf, date} sendo justificado (abre o modal)
   const [editText,  setEditText]  = useState('');
+  const [solics,    setSolics]    = useState([]);    // solicitações dos colaboradores (motivo + anexo)
   // Feature 3: Banco de Horas filters
   const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos|custom
   const [bancoStart,    setBancoStart]    = useState(''); // período customizado — início (YYYY-MM-DD)
@@ -360,9 +371,10 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     let alive = true;
     (async () => {
       try {
-        const d = await loadPonto();
+        const [d, sol] = await Promise.all([loadPonto(), loadSolicitacoes()]);
         if (!alive) return;
         setJustifs(d.justifs);
+        setSolics(sol || []);
         if (d.hasData) setRawData({ marks:d.marks, nameMap:d.nameMap, excluded:d.excluded, header:d.header });
       } catch (ex) {
         console.error('Ponto load error:', ex);
@@ -554,6 +566,27 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
       console.error('Justificativa save error:', ex);
       setErr('Erro ao salvar justificativa: ' + ex.message);
     }
+  };
+
+  /* ── Remover justificativa (limpa o abono do dia) ── */
+  const removeJustif = async () => {
+    if (!editJust) return;
+    const { cpf, date } = editJust;
+    const key = `${cpf}_${date}`;
+    setEditJust(null); setEditText('');
+    setJustifs(prev => { const n = { ...prev }; delete n[key]; return n; });
+    try { await saveJustificativa({ cpf, date, text: '' }); }
+    catch (ex) { setErr('Erro ao remover justificativa: ' + ex.message); }
+  };
+
+  /* ── Solicitação do colaborador (motivo + anexo) pra um dia — casa por ponto_cpf, senão por nome ── */
+  const findSolic = (cpf, date, name) => {
+    const cands = solics.filter(s => s.data_ref === date && (
+      (s.ponto_cpf && s.ponto_cpf === cpf) || (name && _normNome(s.nome) === _normNome(name))
+    ));
+    if (!cands.length) return null;
+    // mais recente primeiro (created_at desc)
+    return cands.sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''))[0];
   };
 
   /* ── Estilo de cabeçalho de aba (opaco, legível) ── */
@@ -1368,21 +1401,20 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                                   <span style={{fontSize:14,fontWeight:700,color:cumColor}}>{day.cumBal>=0?'+':''}{fmtMin(day.cumBal)}</span>
                                 </td>
                                 <td style={{padding:'8px 14px',minWidth:190}}>
-                                  {editJust?.cpf===curEmp.cpf&&editJust?.date===day.date ? (
-                                    <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                                      <textarea value={editText} onChange={e=>setEditText(e.target.value)} placeholder="Descreva a justificativa..."
-                                        style={{width:'100%',minHeight:50,padding:'5px 8px',fontSize:11,fontFamily:'var(--font-body)',borderRadius:7,border:`1.5px solid ${T.goldLine}77`,outline:'none',resize:'vertical',background:T.surface||'white',color:T.text}}/>
-                                      <div style={{display:'flex',gap:4}}>
-                                        <button onClick={saveJustif} style={{flex:1,padding:'4px 0',borderRadius:6,background:'#1A9C70',color:'white',border:'none',cursor:'pointer',fontSize:11,fontWeight:600}}>Salvar</button>
-                                        <button onClick={()=>{setEditJust(null);setEditText('');}} style={{padding:'4px 8px',borderRadius:6,background:T.surfaceSub||'rgba(0,0,0,0.05)',color:T.textS,border:`1px solid ${T.border}`,cursor:'pointer',fontSize:11}}>✕</button>
-                                      </div>
-                                    </div>
-                                  ):(()=>{
+                                  {(()=>{
                                     const jk=`${curEmp.cpf}_${day.date}`;
                                     const jv=justifs[jk];
+                                    const sol=findSolic(curEmp.cpf,day.date,curEmp.name);
                                     return(<div style={{display:'flex',alignItems:'flex-start',gap:5}}>
-                                      {jv?.text?<div style={{flex:1,fontSize:11,color:T.textS,padding:'3px 7px',background:`${T.gold}10`,borderRadius:5,border:`1px solid ${T.gold}33`,lineHeight:1.4}}>✓ {jv.text}{jv.autor?<div style={{fontSize:9,color:T.textD,marginTop:2}}>— {jv.autor}</div>:null}</div>:<span style={{fontSize:11,color:T.textD}}>—</span>}
-                                      {isAdmin&&<button onClick={()=>{setEditJust({cpf:curEmp.cpf,date:day.date});setEditText(jv?.text||'');}}
+                                      <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:3}}>
+                                        {jv?.text
+                                          ? <div style={{fontSize:11,color:T.textS,padding:'3px 7px',background:`${T.gold}10`,borderRadius:5,border:`1px solid ${T.gold}33`,lineHeight:1.4}}>✓ {jv.text}{jv.autor?<div style={{fontSize:9,color:T.textD,marginTop:2}}>— {jv.autor}</div>:null}</div>
+                                          : (sol
+                                              ? <div style={{fontSize:11,color:'#1E70B5',padding:'3px 7px',background:'rgba(30,112,181,0.08)',borderRadius:5,border:'1px solid rgba(30,112,181,0.25)',lineHeight:1.4}}>📩 {sol.titulo||'Solicitação enviada'}</div>
+                                              : <span style={{fontSize:11,color:T.textD}}>—</span>)}
+                                        {sol?.file_url&&<span style={{fontSize:9.5,color:T.textD,display:'inline-flex',alignItems:'center',gap:3}}>📎 anexo enviado</span>}
+                                      </div>
+                                      {isAdmin&&<button onClick={()=>{setEditJust({cpf:curEmp.cpf,date:day.date,name:curEmp.name});setEditText(jv?.text||'');}}
                                         style={{flexShrink:0,padding:'3px 8px',borderRadius:5,background:T.goldGl,color:T.gold,border:`1px solid ${T.goldLine}44`,cursor:'pointer',fontSize:10,fontWeight:600,outline:'none'}}>
                                         {jv?.text?'Editar':'Justificar'}
                                       </button>}
@@ -1942,6 +1974,97 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
             )}
           </div>
         )}
+
+      {/* ══ MODAL: justificar dia (card grande com o motivo + anexo do colaborador) ══ */}
+      {editJust && (()=>{
+        const emp = afd?.employees?.find(e=>e.cpf===editJust.cpf);
+        const day = emp?.days?.find(d=>d.date===editJust.date);
+        const jv  = justifs[`${editJust.cpf}_${editJust.date}`];
+        const sol = findSolic(editJust.cpf, editJust.date, editJust.name || emp?.name);
+        const saldo = day ? day.balance : null;
+        const tipo = sol?.file_url ? anexoTipo(sol.file_url, sol.file_name) : null;
+        const close = ()=>{ setEditJust(null); setEditText(''); };
+        return (
+          <div onClick={close} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10000,padding:16}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:T.surface||'white',borderRadius:20,width:600,maxWidth:'96vw',maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 70px rgba(0,0,0,0.35)',border:`1px solid ${T.border}`}}>
+              {/* Cabeçalho */}
+              <div style={{padding:'18px 24px',borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Justificar dia</div>
+                  <div style={{fontSize:12.5,color:T.textS,marginTop:3,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                    <span style={{fontWeight:600,color:T.text}}>{emp?.name||editJust.cpf}</span>
+                    <span>· {fmtDate(editJust.date)} ({diaSem(editJust.date)})</span>
+                    {saldo!=null&&<span style={{fontWeight:700,color:saldo>=0?'#1A9C70':'#C04050',background:`${saldo>=0?'#1A9C70':'#C04050'}14`,borderRadius:6,padding:'1px 8px'}}>{saldo>0?'+':''}{fmtMin(saldo)}</span>}
+                  </div>
+                </div>
+                <button onClick={close} style={{flexShrink:0,width:30,height:30,borderRadius:8,border:`1px solid ${T.border}`,background:T.surfaceSub||'rgba(0,0,0,0.04)',cursor:'pointer',color:T.textS,fontSize:16,lineHeight:1,outline:'none'}}>×</button>
+              </div>
+
+              <div style={{padding:'20px 24px'}}>
+                {/* Solicitação do colaborador (motivo + anexo) */}
+                {sol ? (
+                  <div style={{marginBottom:20,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',background:T.surfaceSub||'rgba(0,0,0,0.015)'}}>
+                    <div style={{padding:'12px 16px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#1E70B5',letterSpacing:'.05em',textTransform:'uppercase',display:'inline-flex',alignItems:'center',gap:6}}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1E70B5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>
+                        Solicitação do colaborador
+                      </div>
+                      {sol.created_at&&<span style={{fontSize:10.5,color:T.textD}}>Enviada em {new Date(sol.created_at).toLocaleDateString('pt-BR')}</span>}
+                    </div>
+                    <div style={{padding:'14px 16px'}}>
+                      {sol.titulo&&<div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:sol.descricao?4:0}}>{sol.titulo}</div>}
+                      {sol.descricao&&<div style={{fontSize:12.5,color:T.textS,lineHeight:1.55,whiteSpace:'pre-wrap'}}>{sol.descricao}</div>}
+
+                      {/* Anexo — prévia inline */}
+                      {sol.file_url&&(
+                        <div style={{marginTop:14}}>
+                          <div style={{fontSize:11,fontWeight:600,color:T.textD,marginBottom:6,display:'flex',alignItems:'center',gap:5}}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                            Anexo{sol.file_name?` · ${sol.file_name}`:''}
+                          </div>
+                          {tipo==='img'&&(
+                            <a href={sol.file_url} target="_blank" rel="noreferrer" style={{display:'block'}}>
+                              <img src={sol.file_url} alt="Anexo da justificativa" style={{maxWidth:'100%',maxHeight:360,borderRadius:10,border:`1px solid ${T.border}`,display:'block',objectFit:'contain',background:'#fff'}}/>
+                            </a>
+                          )}
+                          {tipo==='pdf'&&(
+                            <div>
+                              <iframe title="Anexo PDF" src={sol.file_url} style={{width:'100%',height:400,border:`1px solid ${T.border}`,borderRadius:10,background:'#fff'}}/>
+                              <a href={sol.file_url} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,color:T.blue||'#1E70B5',marginTop:8,textDecoration:'none'}}>Abrir PDF em nova aba →</a>
+                            </div>
+                          )}
+                          {tipo==='file'&&(
+                            <a href={sol.file_url} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:8,padding:'10px 14px',borderRadius:10,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,textDecoration:'none'}}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              Baixar anexo{sol.file_name?` (${sol.file_name})`:''}
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{marginBottom:20,padding:'12px 16px',borderRadius:12,border:`1px dashed ${T.border}`,fontSize:12.5,color:T.textD,display:'flex',alignItems:'center',gap:8}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    O colaborador não enviou solicitação (motivo/anexo) para este dia. Você pode justificar manualmente abaixo.
+                  </div>
+                )}
+
+                {/* Justificativa do RH */}
+                <div style={{fontSize:12,fontWeight:700,color:T.textS,marginBottom:6}}>Justificativa do RH <span style={{fontWeight:500,color:T.textD}}>(ao salvar, o dia é abonado — saldo zerado)</span></div>
+                <textarea value={editText} onChange={e=>setEditText(e.target.value)} placeholder={sol?.titulo?`Ex.: ${sol.titulo} — validado`:'Descreva a justificativa do abono...'} autoFocus
+                  style={{width:'100%',minHeight:100,padding:'11px 13px',fontSize:13,fontFamily:'var(--font-body)',borderRadius:10,border:`1.5px solid ${T.goldLine}77`,outline:'none',resize:'vertical',background:T.surface||'white',color:T.text,boxSizing:'border-box'}}/>
+
+                <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
+                  <button onClick={saveJustif} style={{flex:1,minWidth:150,padding:'11px',borderRadius:10,background:'#1A9C70',color:'white',border:'none',cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'var(--font-body)'}}>Salvar e abonar</button>
+                  {jv?.text&&<button onClick={removeJustif} style={{padding:'11px 16px',borderRadius:10,background:'rgba(192,64,80,0.08)',color:'#C04050',border:'1px solid rgba(192,64,80,0.3)',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'var(--font-body)'}}>Remover</button>}
+                  <button onClick={close} style={{padding:'11px 16px',borderRadius:10,background:'transparent',color:T.textS,border:`1px solid ${T.border}`,cursor:'pointer',fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       </div>
       </div>
