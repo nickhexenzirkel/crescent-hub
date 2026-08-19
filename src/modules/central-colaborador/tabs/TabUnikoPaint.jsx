@@ -266,6 +266,17 @@ const THEMES = [
     'fotógrafo', 'ator', 'cantor', 'dançarino', 'palhaço', 'mágico',
     'escritor', 'músico', 'chef de cozinha', 'sorveteiro', 'salva-vidas',
     'caminhoneiro', 'costureiro', 'vendedor', 'caixa de supermercado', 'juiz de futebol'] },
+  { id: 'hospital', nome: 'Hospital', emoji: '🏥', words: [
+    'médico', 'enfermeiro', 'estetoscópio', 'seringa', 'termômetro', 'ambulância',
+    'maca', 'cadeira de rodas', 'muleta', 'gesso', 'band-aid', 'esparadrapo',
+    'algodão', 'curativo', 'soro', 'agulha', 'vacina', 'comprimido', 'remédio',
+    'xarope', 'raio-x', 'coração', 'pulmão', 'esqueleto', 'cérebro', 'dentista',
+    'aparelho de pressão', 'máscara cirúrgica', 'luva', 'jaleco', 'touca cirúrgica',
+    'bisturi', 'pinça', 'tesoura cirúrgica', 'microscópio', 'ambulatório',
+    'pronto-socorro', 'sala de cirurgia', 'leito', 'soro na veia', 'oxigênio',
+    'cilindro de oxigênio', 'monitor cardíaco', 'desfibrilador', 'prontuário',
+    'receita médica', 'farmácia', 'plano de saúde', 'recepção', 'sala de espera',
+    'pediatra', 'cirurgião', 'paramédico', 'psicólogo', 'fisioterapeuta', 'dente'] },
   { id: 'transporte', nome: 'Transporte', emoji: '🚗', words: [
     'carro', 'ônibus', 'avião', 'trem', 'metrô', 'bicicleta', 'moto',
     'caminhão', 'barco', 'navio', 'helicóptero', 'foguete', 'submarino',
@@ -368,7 +379,7 @@ const COR_TEMA = {
   objetos: UP.purple, verbos: UP.red,
   profissoes: UP.cyan, transporte: UP.red,  roupas: UP.purple,  corpo: UP.pink,
   escola: UP.yellow,   viagem: UP.lime,     fantasia: UP.purple, games: UP.cyan,
-  emocoes: UP.orange,  clima: UP.yellow,
+  emocoes: UP.orange,  clima: UP.yellow,    hospital: UP.red,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
