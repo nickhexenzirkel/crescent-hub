@@ -451,9 +451,16 @@ const quaseLa = (palpite, alvo) => {
   return false;
 };
 
-const myName = () => {
+// Nome exibido DENTRO do jogo. Por padrão é o nome do login, mas a pessoa pode
+// personalizar no editor de perfil (guardado em up_name). Vazio = volta ao login.
+const NAME_KEY = 'up_name';
+const authName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
   catch { return 'Colaborador'; }
+};
+const myName = () => {
+  try { const saved = (localStorage.getItem(NAME_KEY) || '').trim(); if (saved) return saved; } catch { /* sem localStorage */ }
+  return authName();
 };
 /* ── Foto que trafega na PRESENCE ───────────────────────────────────────────
    NUNCA mandar a foto de perfil aqui: ela é um data URL de PNG 300x300 (~100-200KB
@@ -878,16 +885,37 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
         </div>
-        <button onClick={onAbrirPicker} title="Escolher meu Uniko"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
-            border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', cursor: 'pointer' }}>
-          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Meu Uniko</span>
+        <button onClick={onAbrirPicker} title="Editar perfil / escolher meu Uniko"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 18px 6px 6px', borderRadius: 999,
+            border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer' }}>
+          <img src={photo} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
         </button>
         <button onClick={() => setCriando(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
             background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
           <IcoPlus size={15} />Criar sala
+        </button>
+      </div>
+
+      {/* Seu perfil — card destacado: Uniko atual + nome + editar */}
+      <div style={{ background: cardBg, border: `1.5px solid ${A}44`, borderRadius: 16, padding: '16px 20px',
+        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <img src={photo} alt="" style={{ width: 66, height: 66, borderRadius: '50%', objectFit: 'cover',
+            background: '#fff', border: `3px solid ${A}`, boxShadow: `0 4px 14px ${AG}` }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, textTransform: 'uppercase', letterSpacing: '.06em' }}>Seu perfil no jogo</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
+          <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>É assim que a galera te vê nas partidas.</div>
+        </div>
+        <button onClick={onAbrirPicker}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 22px', borderRadius: 12, border: 'none',
+            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer',
+            boxShadow: `0 6px 18px ${AG}` }}>
+          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          Editar perfil
         </button>
       </div>
 
@@ -2181,13 +2209,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
    RAIZ — mantém a presence global (quem está em qual sala) e alterna
    lobby ⇄ sala.
    ═══════════════════════════════════════════════════════════════════════════ */
+const PROFILE_SEEN_KEY = 'up_profile_seen';
 const TabUnikoPaint = () => {
-  const name = useMemo(() => myName(), []);
+  const [name, setName]   = useState(() => myName());
   const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
   const [todos, setTodos] = useState([]);         // [{name, photo, room}]
   const [sqlMissing, setSqlMissing] = useState(false);
-  const [picker, setPicker] = useState(false);
+  // Abre o editor de perfil automaticamente na 1ª vez (pede pra escolher o Uniko).
+  const [picker, setPicker] = useState(() => { try { return !localStorage.getItem(PROFILE_SEEN_KEY); } catch { return false; } });
+  const [busca, setBusca]     = useState('');     // filtro do editor de perfil
+  const [nomeEdit, setNomeEdit] = useState(name); // nome sendo editado no editor
   const lobbyChan = useRef(null);
   /* Quando entrei NESTA sala — desempata quem é o host. Renova ao trocar de sala
      (é uma entrada nova), mas NÃO ao trocar de Uniko: como a troca de foto
@@ -2294,7 +2326,7 @@ const TabUnikoPaint = () => {
   const choosePhoto = (img) => {
     try { localStorage.setItem(PHOTO_SRC_KEY, img); } catch { /* sem localStorage */ }
     setPhoto(img);          // presence reanuncia sozinho no effect de [photo]
-    setPicker(false);
+    // NÃO fecha o editor: a pessoa ainda pode ajustar o nome e salvar.
     const im = new Image(); im.crossOrigin = 'anonymous';
     const salvaPerfil = (val) => {
       saveUserPhoto(val);
@@ -2310,6 +2342,23 @@ const TabUnikoPaint = () => {
     };
     im.onerror = () => salvaPerfil(img);
     im.src = img;
+  };
+
+  const abrirPicker = () => { setNomeEdit(name); setBusca(''); setPicker(true); };
+  // Fecha o editor: grava o nome do jogo (se preenchido) e marca que já viu (não
+  // reabre sozinho nas próximas vezes). Só altera o nome fora de uma sala, pra não
+  // trocar a identidade no meio de uma partida (placar/host são por nome).
+  const fecharPerfil = () => {
+    if (!room) {
+      const novo = (nomeEdit || '').trim();
+      try {
+        if (novo && novo !== authName()) localStorage.setItem(NAME_KEY, novo);
+        else localStorage.removeItem(NAME_KEY);
+      } catch { /* sem localStorage */ }
+      setName(novo || authName());
+    }
+    try { localStorage.setItem(PROFILE_SEEN_KEY, '1'); } catch { /* sem localStorage */ }
+    setPicker(false);
   };
 
   const cardBg = T.surface || '#fff';
@@ -2334,63 +2383,100 @@ const TabUnikoPaint = () => {
     <>
       {room
         ? <Sala roomId={room} name={name} photo={photo} players={naSala}
-            onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
+            onLeave={() => setRoom(null)} onAbrirPicker={abrirPicker} />
         : <Lobby name={name} photo={photo} porSala={porSala}
-            onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
+            onEnter={setRoom} onAbrirPicker={abrirPicker} />}
 
-      {picker && (
-        <div onClick={() => setPicker(false)}
+      {picker && (() => {
+        const termo = busca.trim().toLowerCase();
+        const filtrados = !termo ? myUnikos : myUnikos.filter(u => {
+          if (u.name.toLowerCase().includes(termo)) return true;
+          const vs = hasAssistantSkin(u.id) ? getSkinVariations(u.id) : [];
+          return vs.some(v => (v.label || '').toLowerCase().includes(termo));
+        });
+        return (
+        <div onClick={fecharPerfil}
           style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background: cardBg, borderRadius: 18, border: `1px solid ${T.border}`, padding: 22,
-              maxWidth: 680, width: '100%', maxHeight: '84vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4 }}>
-              Escolha seu Uniko
+              maxWidth: 720, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 4 }}>
+              Editar perfil
             </div>
-            <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 18, lineHeight: 1.5 }}>
-              Vale pro Uniko Paint <b>e</b> como sua foto de perfil no Portal. Só aparecem os Unikos que você já capturou —
-              cada um tem suas variações.
+            <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>
+              Escolha o Uniko e o nome que vão aparecer <b>dentro do jogo</b>. O Uniko também vira sua foto de perfil no Portal.
             </div>
-            {myUnikos.map(u => {
-              const vars = hasAssistantSkin(u.id) ? getSkinVariations(u.id) : [];
-              const opts = vars.length ? vars : [{ label: 'Normal', img: u.img }];
-              return (
-                <div key={u.id} style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8,
-                    display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <img src={u.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />{u.name}
-                  </div>
-                  <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-                    {opts.map(v => (
-                      <button key={v.img} onClick={() => choosePhoto(v.img)} title={v.label}
-                        style={{ width: 78, padding: 7, borderRadius: 12, cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.03)',
-                          border: photo === v.img ? `2px solid ${A}` : `1px solid ${T.border}`,
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <img src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
-                        <span style={{ fontSize: 9.5, color: T.textT, fontWeight: 600, textAlign: 'center',
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{v.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {myUnikos.length <= 1 && (
-              <div style={{ fontSize: 12.5, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.03)',
-                padding: 12, borderRadius: 10, lineHeight: 1.5 }}>
-                Você ainda não capturou nenhum Uniko. Fique de olho no Portal durante os eventos do RH —
-                os Unikos que você pegar aparecem aqui.
+
+            {/* Prévia do perfil + nome editável */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 14,
+              background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, marginBottom: 14, flexShrink: 0 }}>
+              <img src={photo} alt="" style={{ width: 58, height: 58, borderRadius: '50%', objectFit: 'cover', background: '#fff', border: `3px solid ${A}`, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Nome no jogo</div>
+                <input value={nomeEdit} onChange={e => setNomeEdit(e.target.value)} disabled={!!room} maxLength={24}
+                  placeholder={authName()}
+                  style={{ width: '100%', padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`,
+                    background: room ? (T.border + '33') : (T.surface || '#fff'), color: T.text, fontSize: 14, fontWeight: 700,
+                    outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)', cursor: room ? 'not-allowed' : 'text' }} />
+                {room && <div style={{ fontSize: 10.5, color: T.textD, marginTop: 3 }}>Saia da sala para mudar o nome.</div>}
               </div>
-            )}
-            <button onClick={() => setPicker(false)}
-              style={{ marginTop: 6, width: '100%', padding: '10px', borderRadius: 10, border: `1px solid ${T.border}`,
-                background: 'transparent', color: T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              Fechar
+            </div>
+
+            {/* Busca */}
+            <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔎 Buscar Uniko pelo nome..."
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`,
+                background: T.surface || '#fff', color: T.text, fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'var(--font-body)', marginBottom: 12, flexShrink: 0 }} />
+
+            {/* Coleção (lista rolável) */}
+            <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
+              {filtrados.map(u => {
+                const vars = hasAssistantSkin(u.id) ? getSkinVariations(u.id) : [];
+                const opts = vars.length ? vars : [{ label: 'Normal', img: u.img }];
+                return (
+                  <div key={u.id} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8,
+                      display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <img src={u.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />{u.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                      {opts.map(v => (
+                        <button key={v.img} onClick={() => choosePhoto(v.img)} title={v.label}
+                          style={{ width: 78, padding: 7, borderRadius: 12, cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.03)',
+                            border: photo === v.img ? `2px solid ${A}` : `1px solid ${T.border}`,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <img src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+                          <span style={{ fontSize: 9.5, color: T.textT, fontWeight: 600, textAlign: 'center',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{v.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {myUnikos.length <= 1 && (
+                <div style={{ fontSize: 12.5, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.03)',
+                  padding: 12, borderRadius: 10, lineHeight: 1.5 }}>
+                  Você ainda não capturou nenhum Uniko. Fique de olho no Portal durante os eventos do RH —
+                  os Unikos que você pegar aparecem aqui.
+                </div>
+              )}
+              {myUnikos.length > 1 && filtrados.length === 0 && (
+                <div style={{ fontSize: 12.5, color: T.textT, textAlign: 'center', padding: '18px 0' }}>Nenhum Uniko encontrado para “{busca}”.</div>
+              )}
+            </div>
+
+            <button onClick={fecharPerfil}
+              style={{ marginTop: 14, width: '100%', padding: '12px', borderRadius: 11, border: 'none', flexShrink: 0,
+                background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                boxShadow: `0 6px 18px ${AG}` }}>
+              Salvar perfil
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </>
   );
 };
