@@ -25,12 +25,24 @@ async function fetchAll(table, columns) {
   return out;
 }
 
+// Carrega as justificativas tolerando o banco AINDA sem as colunas de anexo
+// (supabase_ponto_justificativa_anexo.sql não rodada) — sem isso o 42703 quebrava
+// o módulo inteiro. Se as colunas não existem, recarrega sem elas.
+async function fetchJustificativas() {
+  try {
+    return await fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,file_url,file_name,updated_at');
+  } catch (e) {
+    if (e?.code === '42703') return await fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,updated_at');
+    throw e;
+  }
+}
+
 /* Carrega tudo do banco e devolve no formato que o dashboard consome */
 export async function loadPonto() {
   const [marcacoes, funcionarios, justificativas, empresaRes] = await Promise.all([
     fetchAll('ponto_marcacoes', 'cpf,data,hora,nsr'),
     fetchAll('ponto_funcionarios', 'cpf,nome,excluido'),
-    fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,file_url,file_name,updated_at'),
+    fetchJustificativas(),
     supabase.from('ponto_empresa').select('cnpj,razao,modelo,fmt').eq('id', 1).maybeSingle(),
   ]);
 
@@ -173,9 +185,13 @@ export async function saveJustificativa({ cpf, date, text, file_url = null, file
   }
   const autor = getAuthUser()?.name || 'Admin';
   const updatedAt = nowISO();
-  const { error } = await supabase.from('ponto_justificativas').upsert({
-    cpf, data: date, texto: clean, abonado: true, autor, file_url, file_name, updated_at: updatedAt,
-  }, { onConflict: 'cpf,data' });
+  const row = { cpf, data: date, texto: clean, abonado: true, autor, file_url, file_name, updated_at: updatedAt };
+  let { error } = await supabase.from('ponto_justificativas').upsert(row, { onConflict: 'cpf,data' });
+  // Banco ainda sem as colunas de anexo (migration não rodada) → grava sem elas.
+  if (error?.code === '42703') {
+    const { file_url: _u, file_name: _n, ...semAnexo } = row;
+    ({ error } = await supabase.from('ponto_justificativas').upsert(semAnexo, { onConflict: 'cpf,data' }));
+  }
   if (error) throw error;
   return { text: clean, abonado: true, autor, file_url, file_name, updatedAt };
 }

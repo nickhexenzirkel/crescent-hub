@@ -74,9 +74,16 @@ export async function resolvePontoCpfs({ cpf, name }) {
 export async function loadColaboradorPonto({ cpf, name }) {
   const cpfs = await resolvePontoCpfs({ cpf, name });
   if (!cpfs.length) return { marcacoes: [], justifs: [], cpfs: [], pontoCpf: '' };
+  // Justificativas tolerando o banco AINDA sem as colunas de anexo (migration
+  // supabase_ponto_justificativa_anexo.sql não rodada) → recarrega sem elas.
+  const fetchJust = async () => {
+    const full = await supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor,file_url,file_name').in('cpf', cpfs);
+    if (full.error?.code === '42703') return supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor').in('cpf', cpfs);
+    return full;
+  };
   const [mar, just] = await Promise.all([
     supabase.from('ponto_marcacoes').select('cpf,data,hora').in('cpf', cpfs).limit(3000),
-    supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor,file_url,file_name').in('cpf', cpfs),
+    fetchJust(),
   ]);
   const marcacoes = mar.data || [];
   // id do ponto = cpf mais frequente nas marcações
