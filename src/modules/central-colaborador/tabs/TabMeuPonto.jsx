@@ -276,6 +276,12 @@ const TabMeuPonto = () => {
                     </div>
                     <div style={{ flex: 1, fontSize: 13, color: T.textS, lineHeight: 1.5, borderLeft: `2px solid rgba(26,156,112,0.4)`, paddingLeft: 12 }}>
                       {j.texto}{j.autor && <div style={{ fontSize: 11, color: T.textD, marginTop: 3 }}>— {j.autor}</div>}
+                      {j.file_url && (
+                        <a href={j.file_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: T.blue, marginTop: 5, textDecoration: 'none' }}>
+                          <Ico d={<><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" /></>} size={13} stroke={T.blue} />
+                          {j.file_name || 'Ver anexo'}
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes, uploadJustifAnexo } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -332,6 +332,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [justifs,   setJustifs]   = useState({});   // key: `${cpf}_${date}` → {text, abonado}
   const [editJust,  setEditJust]  = useState(null);  // {cpf, date} sendo justificado (abre o modal)
   const [editText,  setEditText]  = useState('');
+  const [justFile,  setJustFile]  = useState(null);  // anexo do RH: File (novo) | 'remove' | null (mantém)
+  const [justSaving,setJustSaving]= useState(false);
+  const justFileRef = useRef(null);
   const [solics,    setSolics]    = useState([]);    // solicitações dos colaboradores (motivo + anexo)
   // Feature 3: Banco de Horas filters
   const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos|custom
@@ -541,31 +544,34 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     return {from:'0000-00-00',to:'9999-99-99'};
   };
 
-  /* ── Salvar justificativa (persiste no banco) ── */
+  /* ── Salvar justificativa (persiste no banco, com anexo opcional do RH) ── */
   const saveJustif = async () => {
-    if (!editJust) return;
+    if (!editJust || justSaving) return;
     const { cpf, date } = editJust;
     const key  = `${cpf}_${date}`;
     const text = editText.trim();
-    setEditJust(null); setEditText('');
-    // Otimista: atualiza a tela já
-    setJustifs(prev => {
-      const next = { ...prev };
-      if (text) next[key] = { ...(next[key]||{}), text, abonado:true };
-      else delete next[key];
-      return next;
-    });
+    const existing = justifs[key] || {};
+    setJustSaving(true);
     try {
-      const saved = await saveJustificativa({ cpf, date, text });
+      // Anexo do RH: mantém o atual, sobe um novo, ou remove.
+      let file_url = existing.file_url || null, file_name = existing.file_name || null;
+      if (justFile === 'remove') { file_url = null; file_name = null; }
+      else if (justFile instanceof File) {
+        const up = await uploadJustifAnexo(justFile, cpf, date);
+        file_url = up.file_url; file_name = up.file_name;
+      }
+      const saved = await saveJustificativa({ cpf, date, text, file_url, file_name });
       setJustifs(prev => {
         const next = { ...prev };
         if (saved) next[key] = saved; else delete next[key];
         return next;
       });
+      setEditJust(null); setEditText(''); setJustFile(null);
     } catch (ex) {
       console.error('Justificativa save error:', ex);
       setErr('Erro ao salvar justificativa: ' + ex.message);
     }
+    setJustSaving(false);
   };
 
   /* ── Remover justificativa (limpa o abono do dia) ── */
@@ -573,7 +579,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     if (!editJust) return;
     const { cpf, date } = editJust;
     const key = `${cpf}_${date}`;
-    setEditJust(null); setEditText('');
+    setEditJust(null); setEditText(''); setJustFile(null);
     setJustifs(prev => { const n = { ...prev }; delete n[key]; return n; });
     try { await saveJustificativa({ cpf, date, text: '' }); }
     catch (ex) { setErr('Erro ao remover justificativa: ' + ex.message); }
@@ -1412,9 +1418,9 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                                           : (sol
                                               ? <div style={{fontSize:11,color:'#1E70B5',padding:'3px 7px',background:'rgba(30,112,181,0.08)',borderRadius:5,border:'1px solid rgba(30,112,181,0.25)',lineHeight:1.4}}>📩 {sol.titulo||'Solicitação enviada'}</div>
                                               : <span style={{fontSize:11,color:T.textD}}>—</span>)}
-                                        {sol?.file_url&&<span style={{fontSize:9.5,color:T.textD,display:'inline-flex',alignItems:'center',gap:3}}>📎 anexo enviado</span>}
+                                        {(sol?.file_url||jv?.file_url)&&<span style={{fontSize:9.5,color:T.textD,display:'inline-flex',alignItems:'center',gap:3}}>📎 {jv?.file_url?'anexo do RH':'anexo enviado'}</span>}
                                       </div>
-                                      {isAdmin&&<button onClick={()=>{setEditJust({cpf:curEmp.cpf,date:day.date,name:curEmp.name});setEditText(jv?.text||'');}}
+                                      {isAdmin&&<button onClick={()=>{setEditJust({cpf:curEmp.cpf,date:day.date,name:curEmp.name});setEditText(jv?.text||'');setJustFile(null);}}
                                         style={{flexShrink:0,padding:'3px 8px',borderRadius:5,background:T.goldGl,color:T.gold,border:`1px solid ${T.goldLine}44`,cursor:'pointer',fontSize:10,fontWeight:600,outline:'none'}}>
                                         {jv?.text?'Editar':'Justificar'}
                                       </button>}
@@ -1983,7 +1989,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
         const sol = findSolic(editJust.cpf, editJust.date, editJust.name || emp?.name);
         const saldo = day ? day.balance : null;
         const tipo = sol?.file_url ? anexoTipo(sol.file_url, sol.file_name) : null;
-        const close = ()=>{ setEditJust(null); setEditText(''); };
+        const close = ()=>{ setEditJust(null); setEditText(''); setJustFile(null); };
         return (
           <div onClick={close} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10000,padding:16}}>
             <div onClick={e=>e.stopPropagation()} style={{background:T.surface||'white',borderRadius:20,width:600,maxWidth:'96vw',maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 70px rgba(0,0,0,0.35)',border:`1px solid ${T.border}`}}>
@@ -2055,10 +2061,47 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 <textarea value={editText} onChange={e=>setEditText(e.target.value)} placeholder={sol?.titulo?`Ex.: ${sol.titulo} — validado`:'Descreva a justificativa do abono...'} autoFocus
                   style={{width:'100%',minHeight:100,padding:'11px 13px',fontSize:13,fontFamily:'var(--font-body)',borderRadius:10,border:`1.5px solid ${T.goldLine}77`,outline:'none',resize:'vertical',background:T.surface||'white',color:T.text,boxSizing:'border-box'}}/>
 
-                <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
-                  <button onClick={saveJustif} style={{flex:1,minWidth:150,padding:'11px',borderRadius:10,background:'#1A9C70',color:'white',border:'none',cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'var(--font-body)'}}>Salvar e abonar</button>
-                  {jv?.text&&<button onClick={removeJustif} style={{padding:'11px 16px',borderRadius:10,background:'rgba(192,64,80,0.08)',color:'#C04050',border:'1px solid rgba(192,64,80,0.3)',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'var(--font-body)'}}>Remover</button>}
-                  <button onClick={close} style={{padding:'11px 16px',borderRadius:10,background:'transparent',color:T.textS,border:`1px solid ${T.border}`,cursor:'pointer',fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
+                {/* ── Anexo do RH — pra quando o colaborador não enviou solicitação/atestado ── */}
+                {(()=>{
+                  const newFile = justFile instanceof File ? justFile : null;
+                  const hasExisting = !!jv?.file_url && justFile !== 'remove' && !newFile;
+                  const exTipo = jv?.file_url ? anexoTipo(jv.file_url, jv.file_name) : null;
+                  return (
+                    <div style={{marginTop:16}}>
+                      <div style={{fontSize:12,fontWeight:700,color:T.textS,marginBottom:6}}>Anexo do RH <span style={{fontWeight:500,color:T.textD}}>(atestado/documento — opcional{sol?' · o colaborador já enviou um acima':''})</span></div>
+
+                      {hasExisting && (
+                        <div style={{marginBottom:8}}>
+                          {exTipo==='img'
+                            ? <a href={jv.file_url} target="_blank" rel="noreferrer" style={{display:'block'}}><img src={jv.file_url} alt="Anexo do RH" style={{maxWidth:'100%',maxHeight:260,borderRadius:10,border:`1px solid ${T.border}`,display:'block',objectFit:'contain',background:'#fff'}}/></a>
+                            : <a href={jv.file_url} target="_blank" rel="noreferrer" style={{display:'inline-flex',alignItems:'center',gap:8,padding:'9px 13px',borderRadius:10,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,textDecoration:'none'}}>📎 {jv.file_name||'Ver anexo do RH'}</a>}
+                        </div>
+                      )}
+
+                      {justFile==='remove' && (
+                        <div style={{fontSize:12,color:'#C04050',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>Anexo será removido ao salvar.
+                          <button onClick={()=>setJustFile(null)} style={{background:'none',border:'none',color:T.blue||'#1E70B5',cursor:'pointer',fontSize:12,textDecoration:'underline',padding:0,fontFamily:'var(--font-body)'}}>desfazer</button>
+                        </div>
+                      )}
+
+                      <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                        <input ref={justFileRef} type="file" style={{display:'none'}} onChange={e=>setJustFile(e.target.files?.[0]||null)}/>
+                        <button onClick={()=>justFileRef.current?.click()} style={{display:'inline-flex',alignItems:'center',gap:8,padding:'9px 13px',borderRadius:10,border:`1.5px dashed ${T.goldLine}77`,background:'transparent',cursor:'pointer',fontSize:12.5,color:newFile?T.text:T.textS,fontFamily:'var(--font-body)'}}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          {newFile ? newFile.name : hasExisting ? 'Substituir documento' : 'Anexar documento'}
+                        </button>
+                        {(newFile || hasExisting) && (
+                          <button onClick={()=>setJustFile(hasExisting ? 'remove' : null)} style={{padding:'9px 12px',borderRadius:10,background:'rgba(192,64,80,0.06)',color:'#C04050',border:'1px solid rgba(192,64,80,0.25)',cursor:'pointer',fontSize:12.5,fontFamily:'var(--font-body)'}}>Remover</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
+                  <button onClick={saveJustif} disabled={justSaving} style={{flex:1,minWidth:150,padding:'11px',borderRadius:10,background:'#1A9C70',color:'white',border:'none',cursor:justSaving?'wait':'pointer',fontSize:13,fontWeight:700,fontFamily:'var(--font-body)',opacity:justSaving?0.7:1}}>{justSaving?'Salvando...':'Salvar e abonar'}</button>
+                  {jv?.text&&<button onClick={removeJustif} disabled={justSaving} style={{padding:'11px 16px',borderRadius:10,background:'rgba(192,64,80,0.08)',color:'#C04050',border:'1px solid rgba(192,64,80,0.3)',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'var(--font-body)'}}>Remover</button>}
+                  <button onClick={close} disabled={justSaving} style={{padding:'11px 16px',borderRadius:10,background:'transparent',color:T.textS,border:`1px solid ${T.border}`,cursor:'pointer',fontSize:13,fontFamily:'var(--font-body)'}}>Cancelar</button>
                 </div>
               </div>
             </div>

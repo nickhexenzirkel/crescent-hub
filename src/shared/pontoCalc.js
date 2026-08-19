@@ -76,7 +76,7 @@ export async function loadColaboradorPonto({ cpf, name }) {
   if (!cpfs.length) return { marcacoes: [], justifs: [], cpfs: [], pontoCpf: '' };
   const [mar, just] = await Promise.all([
     supabase.from('ponto_marcacoes').select('cpf,data,hora').in('cpf', cpfs).limit(3000),
-    supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor').in('cpf', cpfs),
+    supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor,file_url,file_name').in('cpf', cpfs),
   ]);
   const marcacoes = mar.data || [];
   // id do ponto = cpf mais frequente nas marcações

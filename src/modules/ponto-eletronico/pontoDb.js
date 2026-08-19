@@ -30,7 +30,7 @@ export async function loadPonto() {
   const [marcacoes, funcionarios, justificativas, empresaRes] = await Promise.all([
     fetchAll('ponto_marcacoes', 'cpf,data,hora,nsr'),
     fetchAll('ponto_funcionarios', 'cpf,nome,excluido'),
-    fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,updated_at'),
+    fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,file_url,file_name,updated_at'),
     supabase.from('ponto_empresa').select('cnpj,razao,modelo,fmt').eq('id', 1).maybeSingle(),
   ]);
 
@@ -46,7 +46,8 @@ export async function loadPonto() {
   const justifs = {};
   for (const j of justificativas) {
     justifs[justKey(j.cpf, j.data)] = {
-      text: j.texto || '', abonado: !!j.abonado, autor: j.autor || '', updatedAt: j.updated_at,
+      text: j.texto || '', abonado: !!j.abonado, autor: j.autor || '',
+      file_url: j.file_url || null, file_name: j.file_name || null, updatedAt: j.updated_at,
     };
   }
 
@@ -150,8 +151,20 @@ export async function loadSolicitacoes() {
   } catch { return []; }
 }
 
-/* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga. */
-export async function saveJustificativa({ cpf, date, text }) {
+/* Sobe um anexo (atestado etc.) da justificativa do RH pro bucket público `ponto-anexos`
+   e devolve { file_url, file_name }. Usado quando o colaborador não mandou solicitação. */
+export async function uploadJustifAnexo(file, cpf, date) {
+  const ext = (file.name.split('.').pop() || 'dat').replace(/[^a-zA-Z0-9]/g, '');
+  const path = `justif/${cpf || 'anon'}/${date}_${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('ponto-anexos').upload(path, file, { contentType: file.type || undefined, upsert: false });
+  if (error) throw new Error('Falha ao enviar o anexo: ' + error.message);
+  const { data } = supabase.storage.from('ponto-anexos').getPublicUrl(path);
+  return { file_url: data.publicUrl, file_name: file.name };
+}
+
+/* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga.
+   file_url/file_name: anexo opcional do RH (null preserva? não — grava o que vier). */
+export async function saveJustificativa({ cpf, date, text, file_url = null, file_name = null }) {
   const clean = (text || '').trim();
   if (!clean) {
     const { error } = await supabase.from('ponto_justificativas').delete().eq('cpf', cpf).eq('data', date);
@@ -161,8 +174,8 @@ export async function saveJustificativa({ cpf, date, text }) {
   const autor = getAuthUser()?.name || 'Admin';
   const updatedAt = nowISO();
   const { error } = await supabase.from('ponto_justificativas').upsert({
-    cpf, data: date, texto: clean, abonado: true, autor, updated_at: updatedAt,
+    cpf, data: date, texto: clean, abonado: true, autor, file_url, file_name, updated_at: updatedAt,
   }, { onConflict: 'cpf,data' });
   if (error) throw error;
-  return { text: clean, abonado: true, autor, updatedAt };
+  return { text: clean, abonado: true, autor, file_url, file_name, updatedAt };
 }
