@@ -60,6 +60,15 @@ const tempoMs = (id) => (TEMPOS.find(t => t.id === id) || TEMPOS[1]).ms;
 const LETRAS = 'ABCDEFGHIJLMNOPQRSTUV'.split('');
 const ALFABETO = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+/* Letras recentes (localStorage, por navegador) — evita repetir as mesmas letras
+   entre PARTIDAS e entre SALAS. O host é quem sorteia, então guardar aqui basta pra
+   ele não cair sempre nas mesmas. Combina com o `recentes` do estado da sala (que
+   cobre troca de host dentro da mesma sala). */
+const RECENT_LETRAS_KEY = 'us_recent_letras';
+const RECENT_LETRAS_MAX = 14;
+const loadRecentLetras = () => { try { return JSON.parse(localStorage.getItem(RECENT_LETRAS_KEY) || '[]'); } catch { return []; } };
+const pushRecentLetra = (l) => { try { const cur = loadRecentLetras().filter(x => x !== l); cur.push(l); localStorage.setItem(RECENT_LETRAS_KEY, JSON.stringify(cur.slice(-RECENT_LETRAS_MAX))); } catch { /* sem localStorage */ } };
+
 /* Categorias — o criador escolhe quais entram na sala (+ pode criar as suas). */
 const CATEGORIAS = [
   { id: 'nome',      nome: 'Nome',            emoji: '🙋' },
@@ -756,6 +765,24 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     ultFase.current = f;
   }, [state?.phase, sfx, enviarRespostas]);
 
+  /* Rede de segurança contra broadcast perdido do Supabase (é best-effort): enquanto
+     minhas respostas ainda NÃO aparecem no estado sincronizado (o host não recebeu),
+     reenvio a cada 1s. Sem isso, "às vezes" as palavras de alguém sumiam da votação. */
+  useEffect(() => {
+    if (isHost) return;                       // host aplica as próprias direto
+    const f = state?.phase;
+    if (f !== 'parando' && f !== 'validando') return;
+    if (state?.respostas && Object.prototype.hasOwnProperty.call(state.respostas, name)) return;
+    const t = setInterval(() => {
+      const s = stateRef.current;
+      if (!s || (s.phase !== 'parando' && s.phase !== 'validando')) return;
+      if (s.respostas && Object.prototype.hasOwnProperty.call(s.respostas, name)) return;
+      chanRef.current?.send({ type: 'broadcast', event: 'respostas', payload: { name, respostas: minhasRef.current || {} } });
+    }, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, state?.phase, state?.respostas, name]);
+
   /* ── Roleta: as letras giram e vão desacelerando até parar na sorteada ──
      A letra final já veio no estado (todos sorteiam junto, no host); isto aqui é
      só o suspense — e ele termina na letra certa em qualquer máquina, porque a
@@ -805,24 +832,36 @@ const Sala = ({ roomId, name, players, onLeave }) => {
 
   /* ── Motor (só o host escreve) ── */
   const novaRodada = (round, scores, usadas) => {
-    const habilitadas = (stateRef.current?.letras?.length ? stateRef.current.letras : LETRAS);
+    const base = stateRef.current || {};
+    const habilitadas = (base.letras?.length ? base.letras : LETRAS);
     const livres = habilitadas.filter(l => !usadas.includes(l));
     const pool = livres.length ? livres : habilitadas;   // acabou as letras → recomeça
     const letra = pool[Math.floor(Math.random() * pool.length)];
-    const base = stateRef.current || {};
+    pushRecentLetra(letra);   // memória cross-sala (localStorage do host)
+    // Histórico de letras recentes da SALA (persiste entre partidas no estado).
+    const capRec = Math.min(RECENT_LETRAS_MAX, Math.max(0, Math.floor(habilitadas.length * 0.6)));
+    const recentes = [...(base.recentes || []).filter(x => x !== letra), letra].slice(-capRec);
     // Fase 'sorteando': a roleta gira pra todo mundo ao mesmo tempo e o relógio
     // da rodada só começa depois — senão o tempo correria enquanto a letra ainda
     // está girando, e quem tem a máquina mais lenta sairia perdendo.
     pushState({
       ...base, phase: 'sorteando', round, letra, endsAt: Date.now() + SORTEIO_MS,
-      scores, usadas: [...usadas, letra], respostas: {}, contest: {}, stopPor: null,
+      scores, usadas: [...usadas, letra], recentes, respostas: {}, contest: {}, stopPor: null,
       ganhos: null, detalhe: null,
     });
   };
   const comecar = () => {
     if (!state) return;
-    pushState({ ...state, totalRounds: laps, scores: {}, usadas: [], round: 0 });
-    setTimeout(() => novaRodada(1, {}, []), 60);
+    // Semeia o "usadas" da nova partida com as letras RECENTES (da sala + do
+    // navegador do host) já marcadas como usadas → elas ficam pro fim e as letras
+    // menos vistas saem primeiro. Assim partida nova / sala nova não repete as
+    // mesmas letras. Cap em ~60% do baralho pra sempre sobrar letra livre.
+    const habilitadas = (state.letras?.length ? state.letras : LETRAS);
+    const recentUnion = [...new Set([...(state.recentes || []), ...loadRecentLetras()])].filter(l => habilitadas.includes(l));
+    const cap = Math.max(0, Math.floor(habilitadas.length * 0.6));
+    const seed = recentUnion.slice(-cap);
+    pushState({ ...state, totalRounds: laps, scores: {}, usadas: seed, round: 0 });
+    setTimeout(() => novaRodada(1, {}, seed), 60);
   };
 
   const salvarRanking = (s) => {
@@ -923,6 +962,16 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         if (todosProntos || (s.endsAt && Date.now() >= s.endsAt)) { avancarValidacao(s); return; }
         return;   // ainda avaliando esta categoria
       }
+      if (s.phase === 'parando') {
+        // Fecha a rodada assim que TODOS os presentes já mandaram as respostas
+        // (não precisa esperar o STOP inteiro), OU quando o tempo do STOP acabar
+        // (rede de segurança se algum broadcast se perder). Sem isso, quem enviou
+        // em cima da hora / com broadcast atrasado ficava de fora da votação.
+        const presentes = playersRef.current.map(p => p.name);
+        const temTodas = presentes.length > 0 && presentes.every(n => (s.respostas || {})[n] !== undefined);
+        if (temTodas || (s.endsAt && Date.now() >= s.endsAt)) iniciarValidacao(s);
+        return;
+      }
       if (!s.endsAt || Date.now() < s.endsAt) return;
       if (s.phase === 'sorteando') {
         // Roleta acabou → agora sim vale o cronômetro da rodada (tempo escolhido).
@@ -931,8 +980,6 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         // Tempo acabou sem STOP → 'parando'. O envio das respostas (inclusive as
         // do host) acontece no effect de fase quando todos veem 'parando'.
         irParaParando(null);
-      } else if (s.phase === 'parando') {
-        iniciarValidacao(s);
       } else if (s.phase === 'resultado') {
         if ((s.round || 1) >= (s.totalRounds || 1)) {
           salvarRanking(s);
