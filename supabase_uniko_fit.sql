@@ -24,6 +24,23 @@ alter table public.uniko_fit_checkins add column if not exists kind text not nul
 create index if not exists uniko_fit_checkins_created_idx on public.uniko_fit_checkins (created_at desc);
 create index if not exists uniko_fit_checkins_player_idx  on public.uniko_fit_checkins (player);
 
+-- Check-in é 1 por dia (dia em UTC — mesmo critério do ranking no client).
+-- Índice único PARCIAL: só vale pra kind='checkin', "Postar no Feed" não tem limite.
+-- Reforça no banco o que o client já confere antes de enviar (cobre a corrida
+-- de duas abas/dispositivos mandando o check-in quase ao mesmo tempo).
+-- Em DO block com exceção: se já existirem check-ins duplicados no mesmo dia
+-- (dado de antes dessa regra existir), a criação do índice é pulada com um
+-- aviso em vez de abortar o resto do script — rode supabase_uniko_fit_reset.sql
+-- (ou limpe os duplicados à mão) e rode este arquivo de novo pra criar o índice.
+do $$
+begin
+  create unique index if not exists uniko_fit_checkins_one_por_dia
+    on public.uniko_fit_checkins (player, ((created_at at time zone 'utc')::date))
+    where (kind = 'checkin');
+exception when unique_violation then
+  raise notice 'Existem check-ins duplicados no mesmo dia — o índice de 1-check-in-por-dia NÃO foi criado. Rode supabase_uniko_fit_reset.sql (zera tudo) e rode este script de novo.';
+end $$;
+
 -- Reações (1 por jogador por check-in — upsert troca, clicar de novo no mesmo remove)
 create table if not exists public.uniko_fit_reactions (
   id          bigint generated always as identity primary key,
@@ -93,8 +110,10 @@ create policy uniko_fit_comments_delete on public.uniko_fit_comments for delete 
 
 drop policy if exists uniko_fit_chat_read   on public.uniko_fit_chat;
 drop policy if exists uniko_fit_chat_insert on public.uniko_fit_chat;
+drop policy if exists uniko_fit_chat_delete on public.uniko_fit_chat;
 create policy uniko_fit_chat_read   on public.uniko_fit_chat for select using (true);
 create policy uniko_fit_chat_insert on public.uniko_fit_chat for insert with check (true);
+create policy uniko_fit_chat_delete on public.uniko_fit_chat for delete using (true);
 
 -- Bucket de fotos dos check-ins (público)
 insert into storage.buckets (id, name, public)

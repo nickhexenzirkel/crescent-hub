@@ -76,6 +76,30 @@ const Sheet = ({ title, onBack, onClose, children }) => {
   );
 };
 
+/* ── Vídeo do feed com autoplay que funciona no celular também ── */
+// No mobile, `autoPlay` sozinho costuma falhar: alguns navegadores ignoram o
+// atributo `muted` do JSX na primeira renderização (precisa setar via DOM), e
+// o autoplay só é permitido de verdade quando o vídeo está VISÍVEL na tela —
+// por isso o play/pause aqui é disparado por IntersectionObserver, não pelo
+// atributo `autoPlay` (que só dispara uma vez, no mount, e não repete quando
+// o card volta a ficar visível depois de rolar pra longe e voltar).
+const FeedVideo = ({ src, style }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.muted = true;
+    el.playsInline = true;
+    const io = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
+      else el.pause();
+    }, { threshold: 0.6 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return <video ref={ref} src={src} muted loop playsInline preload="auto" style={style} />;
+};
+
 /* ── Miniatura de grid (foto ou vídeo) — usada no Amigos e no Meu Perfil ── */
 const ThumbCell = ({ it, engaj, onClick, onDelete }) => (
   <div onClick={onClick} style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#111', cursor: onClick ? 'pointer' : 'default' }}>
@@ -342,6 +366,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [postMsg, setPostMsg] = useState('');
   const postFileRef = useRef(null);
 
+  // Check-in é 1 por dia (dia em UTC, mesmo critério usado pelo ranking/"dias
+  // distintos"). `null` = ainda não checou, `true`/`false` = já sabe a resposta.
+  const [checkinHojeFeito, setCheckinHojeFeito] = useState(null);
+  const limitesDeHoje = () => {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+    return { start, end };
+  };
+  const verificarCheckinHoje = useCallback(async () => {
+    setCheckinHojeFeito(null);
+    const { start, end } = limitesDeHoje();
+    const { data } = await supabase.from('uniko_fit_checkins').select('id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
+    setCheckinHojeFeito(!!data?.length);
+  }, [name]);
+
   const postIsVideo = !!postFile?.type?.startsWith('video/');
   const escolherFoto = (f) => {
     setPostFile(f || null); setPostMsg('');
@@ -356,11 +396,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); if (postFileRef.current) postFileRef.current.value = '';
   };
 
-  // kind: 'checkin' (conta pro ranking diário + avisa no Bate-Papo) | 'post' (só feed)
+  // kind: 'checkin' (1 por dia, conta pro ranking + avisa no Bate-Papo) | 'post' (só feed, sem limite)
   const postarFoto = async (kind) => {
     if (!postFile) { setPostMsg(kind === 'post' ? '⚠️ Escolha uma foto ou vídeo pra continuar!' : '⚠️ Escolha uma foto pra continuar!'); return; }
     setPostSaving(true); setPostMsg('');
     try {
+      if (kind === 'checkin') {
+        // Confere de novo na hora de enviar (evita brecha se o sheet ficou aberto
+        // de um dia pro outro, ou de outra aba); o índice único no banco cobre
+        // a corrida de "duas abas ao mesmo tempo" (ver catch do 23505 abaixo).
+        const { start, end } = limitesDeHoje();
+        const { data: jaFez } = await supabase.from('uniko_fit_checkins').select('id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
+        if (jaFez?.length) { setCheckinHojeFeito(true); setPostMsg('⚠️ Você já fez o check-in de hoje! Volte amanhã 💪'); setPostSaving(false); return; }
+      }
       const ext = (postFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const cpf = (getAuthUser()?.cpf || '').replace(/\D/g, '') || 'anon';
       const path = `${cpf}/${Date.now()}.${ext}`;
@@ -368,8 +416,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       if (upErr) throw new Error('Falha ao enviar a foto: ' + upErr.message);
       const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
       const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind });
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã 💪'); }
+        throw new Error(error.message);
+      }
       if (kind === 'checkin') {
+        setCheckinHojeFeito(true);
         try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
       }
       setPostMsg(kind === 'checkin' ? '✅ Check-in registrado! Bora treinar mais 💪' : '✅ Postado no feed!');
@@ -446,6 +498,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setEnviandoMidia(false);
   };
 
+  // Apagar mensagem própria (texto, imagem ou áudio) do Bate-Papo.
+  const apagarChatMsg = async (m) => {
+    if (m.player !== name) return;
+    try {
+      await supabase.from('uniko_fit_chat').delete().eq('id', m.id);
+      setChat(prev => prev ? prev.filter(x => x.id !== m.id) : prev);
+    } catch (e) { console.error('[uniko-fit] apagar mensagem:', e); }
+  };
+
   const iniciarGravacao = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -495,6 +556,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const openSheet = (id) => {
     setSheet(id);
     if ((id === 'ranking' || id === 'amigos') && !fullFeed) loadFullFeed();
+    if (id === 'checkin') verificarCheckinHoje();
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
@@ -695,10 +757,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 const souDono = post.player === name;
                 return (
                   <div key={post.id} ref={el => { if (el) feedItemRefs.current[post.id] = el; }} onClick={() => handlePostTap(post)}
-                    className="fit-card" style={{ position: 'relative', width: '100%', aspectRatio: '9/14', background: '#111',
+                    className="fit-card" style={{ position: 'relative', width: '100%', height: '100%', background: '#111',
                       boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
                     {isVideoUrl(post.photo_url)
-                      ? <video src={post.photo_url} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <FeedVideo src={post.photo_url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
@@ -773,8 +835,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Nenhuma mensagem ainda. Chama a galera pra treinar! 💪</div>
               ) : chat.map(m => {
                 if (m.tipo === 'checkin') {
+                  const souEu = m.player === name;
                   return (
-                    <div key={m.id} style={{ alignSelf: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, margin: '6px 0', maxWidth: 200 }}>
+                    <div key={m.id} style={{ alignSelf: 'center', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, margin: '6px 0', maxWidth: 200 }}>
+                      {souEu && (
+                        <button onClick={() => apagarChatMsg(m)} className="fit-btn" title="Apagar"
+                          style={{ position: 'absolute', top: -8, right: -8, width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                            background: T.surfaceSub || 'rgba(0,0,0,.08)', color: T.textD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
+                      )}
                       <div style={{ fontSize: 11, fontWeight: 700, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,.04)', padding: '5px 13px', borderRadius: 999, textAlign: 'center', border: `1px solid ${T.border}` }}>
                         ✅ <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}
                       </div>
@@ -795,6 +863,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                         {m.tipo === 'audio' && <audio controls preload="none" src={m.media_url} style={{ width: 210, height: 32 }} />}
                       </div>
                     </div>
+                    {eu && (
+                      <button onClick={() => apagarChatMsg(m)} className="fit-btn" title="Apagar mensagem"
+                        style={{ alignSelf: 'center', border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoTrash}</button>
+                    )}
                   </div>
                 );
               })}
@@ -904,10 +976,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {/* ── Check-In / Postar no Feed ── */}
       {(sheet === 'checkin' || sheet === 'post') && (
         <Sheet title={sheet === 'checkin' ? 'Registrar treino 📸' : 'Postar no feed 🖼️'} onClose={() => { setSheet(null); limparPost(); }}>
+          {sheet === 'checkin' && checkinHojeFeito === null ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Verificando...</div>
+          ) : sheet === 'checkin' && checkinHojeFeito ? (
+            <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Você já fez check-in hoje!</div>
+              <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5 }}>O check-in é 1 por dia — volta amanhã pra registrar o próximo treino. Se quiser postar mais fotos hoje, use "Postar no Feed" (não conta ranking, mas fica lá do mesmo jeito 💪).</div>
+            </div>
+          ) : (
           <div style={{ padding: 18 }}>
             <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14, lineHeight: 1.5 }}>
               {sheet === 'checkin'
-                ? 'Manda uma foto comprovando que você treinou — conta ponto no ranking do dia e avisa todo mundo no Bate-Papo!'
+                ? 'Manda uma foto comprovando que você treinou — conta ponto no ranking do dia e avisa todo mundo no Bate-Papo! (1 check-in por dia)'
                 : 'Compartilhe uma foto ou vídeo no feed "Para Você" — não conta pro ranking de check-in, é só pra galera ver.'}
             </div>
 
@@ -945,6 +1026,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               {postSaving ? 'Enviando...' : (sheet === 'checkin' ? '🔥 Registrar check-in' : '🖼️ Postar no feed')}
             </button>
           </div>
+          )}
         </Sheet>
       )}
 
