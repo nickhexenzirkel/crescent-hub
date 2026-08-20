@@ -1,10 +1,14 @@
 // src/modules/uniko-fit/index.jsx
 // UNIKO FIT — estilo GymRats, layout mobile-first (pensado pra tela de iPhone,
 // mas funciona em qualquer tamanho dentro de uma coluna estilo "app de celular").
-// 2 abas no topo — Para Você (feed unificado de check-ins + posts) e Bate-Papo
-// (chat global com texto/emoji/imagem/áudio + aviso automático de check-in) —
-// e uma barra fixa embaixo com 4 ações: Check-In, Ranking, Postar no Feed,
-// Detalhes. Por enquanto só ADMIN acessa (módulo em construção).
+// 3 abas no topo, centralizadas — Para Você (feed unificado de check-ins +
+// posts), Bate-Papo (chat global com texto/emoji/imagem/áudio + aviso
+// automático de check-in) e Meu Perfil (meus posts + engajamento) — e uma
+// barra fixa embaixo com 5 ações: Check-In, Ranking, Postar no Feed (foto OU
+// vídeo), Notificações (curtidas/comentários nas minhas fotos) e Amigos.
+// Cabeçalho e barra inferior são `position:fixed` de propósito — ficam
+// grudados na tela mesmo se o conteúdo rolar ou a pessoa der zoom no celular.
+// Por enquanto só ADMIN acessa (módulo em construção).
 // Sem servidor próprio: tudo via Supabase (tabela uniko_fit_checkins — coluna
 // `kind` distingue 'checkin' de 'post' — e uniko_fit_chat com `tipo`/`media_url`
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
@@ -49,6 +53,10 @@ const IcoImg    = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" st
 const IcoMic    = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
 const IcoStop   = <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>;
 const IcoClose  = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>;
+const IcoBell   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
+const IcoHeartSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
+const IcoCommentSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+const isVideoUrl = (url) => /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url || '');
 
 /* ── Sheet (folha deslizante de baixo pra cima) — usado pelas 4 ações da barra ── */
 const Sheet = ({ title, onBack, onClose, children }) => {
@@ -67,12 +75,33 @@ const Sheet = ({ title, onBack, onClose, children }) => {
   );
 };
 
+/* ── Miniatura de grid (foto ou vídeo) — usada no Amigos e no Meu Perfil ── */
+const ThumbCell = ({ it, engaj }) => (
+  <div style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#111' }}>
+    {isVideoUrl(it.photo_url)
+      ? <video src={it.photo_url} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      : <img src={it.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+    {isVideoUrl(it.photo_url) && (
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,.9)" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.5))' }}><polygon points="6 4 20 12 6 20" /></svg>
+      </div>
+    )}
+    {it.kind === 'checkin' && <div style={{ position: 'absolute', top: 3, right: 3, fontSize: 12, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }}>✅</div>}
+    {engaj && (
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '3px 5px', background: 'linear-gradient(0deg, rgba(0,0,0,.78), transparent)', display: 'flex', gap: 7, alignItems: 'center', color: '#fff' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9.5, fontWeight: 700 }}>{IcoHeartSm} {engaj.likes || 0}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9.5, fontWeight: 700 }}>{IcoCommentSm} {engaj.comments || 0}</span>
+      </div>
+    )}
+  </div>
+);
+
 const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const name = myName();
   const userName = authUser?.name || name;
   const cardBg = T.surface || '#fff';
   const [topTab, setTopTab] = useState('paravoce'); // paravoce | batepapo
-  const [sheet, setSheet] = useState(null);          // null | checkin | post | ranking | detalhes
+  const [sheet, setSheet] = useState(null);          // null | checkin | post | ranking | notif | amigos
 
   // ── Cor fixa do módulo: laranja, SEMPRE — a única exceção é quando o tema
   // ativo já É laranja, aí ela vira azul (senão o módulo some dentro do próprio
@@ -212,18 +241,23 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [postMsg, setPostMsg] = useState('');
   const postFileRef = useRef(null);
 
+  const postIsVideo = !!postFile?.type?.startsWith('video/');
   const escolherFoto = (f) => {
     setPostFile(f || null); setPostMsg('');
     if (!f) { setPostPreview(null); return; }
+    if (f.type.startsWith('video/')) { setPostPreview(URL.createObjectURL(f)); return; } // vídeo: prévia via blob URL, sem carregar tudo em base64
     const reader = new FileReader();
     reader.onload = (e) => setPostPreview(e.target.result);
     reader.readAsDataURL(f);
   };
-  const limparPost = () => { setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); if (postFileRef.current) postFileRef.current.value = ''; };
+  const limparPost = () => {
+    if (postPreview?.startsWith('blob:')) { try { URL.revokeObjectURL(postPreview); } catch { /* já liberado */ } }
+    setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); if (postFileRef.current) postFileRef.current.value = '';
+  };
 
   // kind: 'checkin' (conta pro ranking diário + avisa no Bate-Papo) | 'post' (só feed)
   const postarFoto = async (kind) => {
-    if (!postFile) { setPostMsg('⚠️ Escolha uma foto pra continuar!'); return; }
+    if (!postFile) { setPostMsg(kind === 'post' ? '⚠️ Escolha uma foto ou vídeo pra continuar!' : '⚠️ Escolha uma foto pra continuar!'); return; }
     setPostSaving(true); setPostMsg('');
     try {
       const ext = (postFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
@@ -359,7 +393,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   const openSheet = (id) => {
     setSheet(id);
-    if ((id === 'ranking' || id === 'detalhes') && !fullFeed) loadFullFeed();
+    if ((id === 'ranking' || id === 'amigos') && !fullFeed) loadFullFeed();
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
@@ -400,46 +434,132 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       .sort((a, b) => b.checkinCount - a.checkinCount || b.items.length - a.items.length);
   }, [fullFeed]);
 
+  /* ═══════════════════ MEU PERFIL (meus posts + engajamento) ═══════════════════ */
+  // Reaproveita o mesmo `fullFeed` paginado do ranking/amigos (carrega uma vez só).
+  useEffect(() => {
+    if (topTab === 'meuperfil' && !fullFeed) loadFullFeed();
+  }, [topTab, fullFeed, loadFullFeed]);
+
+  const meusItens = useMemo(() => fullFeed ? fullFeed.filter(r => r.player === name) : null, [fullFeed, name]);
+
+  const [meuEngaj, setMeuEngaj] = useState({}); // itemId -> {likes, comments}
+  useEffect(() => {
+    if (!meusItens || !meusItens.length) return;
+    const ids = meusItens.map(r => r.id);
+    (async () => {
+      const [reacRes, comRes] = await Promise.all([
+        supabase.from('uniko_fit_reactions').select('checkin_id').in('checkin_id', ids),
+        supabase.from('uniko_fit_comments').select('checkin_id').in('checkin_id', ids),
+      ]);
+      const map = {};
+      ids.forEach(id => { map[id] = { likes: 0, comments: 0 }; });
+      (reacRes.data || []).forEach(r => { if (map[r.checkin_id]) map[r.checkin_id].likes++; });
+      (comRes.data || []).forEach(c => { if (map[c.checkin_id]) map[c.checkin_id].comments++; });
+      setMeuEngaj(map);
+    })();
+  }, [meusItens]);
+
+  const meuResumo = useMemo(() => {
+    if (!meusItens) return null;
+    const dias = new Set();
+    let posts = 0, totalLikes = 0, totalComments = 0;
+    meusItens.forEach(it => {
+      if (it.kind === 'checkin') dias.add((it.created_at || '').slice(0, 10)); else posts++;
+      const e = meuEngaj[it.id];
+      if (e) { totalLikes += e.likes; totalComments += e.comments; }
+    });
+    return { checkinDias: dias.size, posts, totalLikes, totalComments };
+  }, [meusItens, meuEngaj]);
+
+  /* ═══════════════════ NOTIFICAÇÕES (curtidas/comentários nas minhas fotos) ═══════════════════ */
+  const notifReadKeyRef = useRef(`uniko_fit_notif_seen_${(getAuthUser()?.cpf || 'anon').replace(/\D/g, '')}`);
+  const [notifs, setNotifs] = useState(null); // null = ainda não carregado
+  const [notifLastSeen, setNotifLastSeen] = useState(() => { try { return localStorage.getItem(notifReadKeyRef.current) || ''; } catch { return ''; } });
+
+  const loadNotifs = useCallback(async () => {
+    const { data: meus } = await supabase.from('uniko_fit_checkins').select('id,photo_url').eq('player', name);
+    const meusRows = meus || [];
+    const fotoDoItem = {}; meusRows.forEach(m => { fotoDoItem[m.id] = m.photo_url; });
+    const ids = meusRows.map(m => m.id);
+    if (!ids.length) { setNotifs([]); return; }
+    const [reacRes, comRes] = await Promise.all([
+      supabase.from('uniko_fit_reactions').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80),
+      supabase.from('uniko_fit_comments').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80),
+    ]);
+    const likes = (reacRes.data || []).map(r => ({ id: `like-${r.id}`, kind: 'like', player: r.player, photo_url: fotoDoItem[r.checkin_id], emoji: r.emoji, created_at: r.created_at }));
+    const coms  = (comRes.data || []).map(c => ({ id: `com-${c.id}`, kind: 'comment', player: c.player, photo_url: fotoDoItem[c.checkin_id], texto: c.texto, created_at: c.created_at }));
+    const merged = [...likes, ...coms].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
+    setNotifs(merged);
+    ensurePhotos(merged.map(n => n.player));
+  }, [name, ensurePhotos]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadNotifs();
+    const poll = setInterval(loadNotifs, 25000); // leve, mesma lógica do poll de reações do feed
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const notifUnreadCount = useMemo(() => (notifs || []).filter(n => n.created_at > notifLastSeen).length, [notifs, notifLastSeen]);
+  const abrirNotificacoes = () => {
+    setSheet('notif');
+    const now = new Date().toISOString();
+    setNotifLastSeen(now);
+    try { localStorage.setItem(notifReadKeyRef.current, now); } catch { /* localStorage indisponível */ }
+  };
+
   /* ═══════════════════ UI ═══════════════════ */
   const BOTTOM_BTNS = [
     { id: 'checkin',  label: 'Check-In',       icon: IcoCamera },
     { id: 'ranking',  label: 'Ranking',        icon: IcoTrophy },
     { id: 'post',     label: 'Postar no Feed', icon: IcoPost },
-    { id: 'detalhes', label: 'Detalhes',       icon: IcoInfo },
+    { id: 'notif',    label: 'Notificações',   icon: IcoBell },
+    { id: 'amigos',   label: 'Amigos',         icon: IcoInfo },
   ];
 
+  // Cabeçalho (topbar + abas) e barra inferior são `position:fixed` ANCORADOS NA
+  // TELA DE VERDADE — não dependem do fluxo/scroll do container. Isso é proposital:
+  // no celular, se o conteúdo rolar ou a pessoa der pinch-zoom, um `flexShrink:0`
+  // dentro do fluxo normal pode ser arrastado junto; `fixed` garante que as barras
+  // fiquem sempre grudadas na tela, entre uma área e outra do Uniko Fit.
+  const HEADER_H = 94; // topbar 50 + abas 44
+  const FOOTER_H = 'calc(60px + env(safe-area-inset-bottom, 0px))';
+
   return (
-    <div style={{ height: '100vh', width: '100%', maxWidth: 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,.08)' }}>
+    <div style={{ height: '100vh', width: '100%', maxWidth: 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,.08)' }}>
       <style>{FIT_CSS}</style>
 
-      {/* ── Topbar ── */}
-      <div style={{ height: 50, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 10px 0 6px', gap: 6, flexShrink: 0, boxShadow: `0 1px 16px ${ENERGIA}18` }}>
-        <button onClick={onBack} className="fit-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
-          {IcoBack} Módulos
-        </button>
-        <div style={{ flex: 1 }} />
-        <span style={{ color: ENERGIA, display: 'flex' }}>{IcoFit}</span>
-        <span style={{ fontSize: 14, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko Fit</span>
-        <div style={{ flex: 1 }} />
-        <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
+      {/* ── Cabeçalho fixo: topbar + abas (Para Você / Bate-Papo / Meu Perfil) ── */}
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60 }}>
+        <div style={{ height: 50, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 10px 0 6px', gap: 6, boxShadow: `0 1px 16px ${ENERGIA}18`, boxSizing: 'border-box' }}>
+          <button onClick={onBack} className="fit-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
+            {IcoBack} Módulos
+          </button>
+          <div style={{ flex: 1 }} />
+          <span style={{ color: ENERGIA, display: 'flex' }}>{IcoFit}</span>
+          <span style={{ fontSize: 14, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
+          <div style={{ flex: 1 }} />
+          <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
+        </div>
+
+        {/* Abas centralizadas */}
+        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
+          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+            const on = topTab === id;
+            return (
+              <button key={id} onClick={() => setTopTab(id)} className="fit-btn"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 9px', fontSize: 13.5, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap',
+                  color: on ? ENERGIA : T.textT, borderBottom: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ── Abas superiores: Para Você / Bate-Papo ── */}
-      <div style={{ display: 'flex', gap: 22, padding: '9px 16px 0', background: cardBg, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-        {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo']].map(([id, label]) => {
-          const on = topTab === id;
-          return (
-            <button key={id} onClick={() => setTopTab(id)} className="fit-btn"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 10px', fontSize: 14.5, fontWeight: 800, fontFamily: 'var(--font-brand)',
-                color: on ? ENERGIA : T.textT, borderBottom: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Conteúdo ── */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {/* ── Conteúdo (rola independente, entre o cabeçalho e a barra fixos) ── */}
+      <div style={{ position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* ── PARA VOCÊ (feed unificado: check-ins + posts) ── */}
         {topTab === 'paravoce' && (
@@ -464,7 +584,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 const totalReacoes = Object.values(r.counts).reduce((a, b) => a + b, 0);
                 return (
                   <div key={post.id} className="fit-card" style={{ position: 'relative', width: '100%', aspectRatio: '9/14', background: '#111' }}>
-                    <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {isVideoUrl(post.photo_url)
+                      ? <video src={post.photo_url} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
                     {post.kind === 'checkin' && (
@@ -588,14 +710,63 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </div>
           </>
         )}
+
+        {/* ── MEU PERFIL (meus posts + engajamento) ── */}
+        {topTab === 'meuperfil' && (
+          !meuResumo ? (
+            <div style={{ textAlign: 'center', padding: 60, color: T.textT, fontSize: 13 }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${ENERGIA}`, borderTopColor: 'transparent', animation: 'spin .7s linear infinite', margin: '0 auto 10px' }} />
+              Carregando seu perfil...
+            </div>
+          ) : (
+            <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <img src={photos[name] || userPhoto || '/UNIKO_NEW.png'} alt="" style={{ width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', border: `2.5px solid ${ENERGIA}` }} />
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{userName}</div>
+                  <div style={{ fontSize: 11.5, color: T.textT }}>{meuResumo.checkinDias} check-in{meuResumo.checkinDias !== 1 ? 's' : ''} · {meuResumo.posts} post{meuResumo.posts !== 1 ? 's' : ''} no feed</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+                <div style={{ background: `${ENERGIA}12`, border: `1px solid ${ENERGIA}33`, borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: ENERGIA, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoHeartSm} {meuResumo.totalLikes}</div>
+                  <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>curtidas no total</div>
+                </div>
+                <div style={{ background: `${ENERGIA}12`, border: `1px solid ${ENERGIA}33`, borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: ENERGIA, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoCommentSm} {meuResumo.totalComments}</div>
+                  <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>comentários no total</div>
+                </div>
+              </div>
+
+              {!meusItens.length ? (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: T.textT, fontSize: 13 }}>Você ainda não postou nada. Bora fazer seu primeiro check-in! 💪</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 8 }}>Meus posts</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+                    {meusItens.map(it => <ThumbCell key={it.id} it={it} engaj={meuEngaj[it.id]} />)}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        )}
       </div>
 
-      {/* ── Barra inferior fixa: 4 ações ── */}
-      <div style={{ display: 'flex', borderTop: `1px solid ${T.border}`, background: cardBg, flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {/* ── Barra inferior fixa: 5 ações (ancorada na tela de verdade, ver comentário do HEADER_H) ── */}
+      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60, display: 'flex', borderTop: `1px solid ${T.border}`, background: cardBg, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {BOTTOM_BTNS.map(b => (
-          <button key={b.id} onClick={() => openSheet(b.id)} className="fit-btn"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 2px 8px', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
-            <span style={{ color: ENERGIA, display: 'flex' }}>{b.icon}</span>
+          <button key={b.id} onClick={() => b.id === 'notif' ? abrirNotificacoes() : openSheet(b.id)} className="fit-btn"
+            style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 2px 8px', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
+            <span style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
+              {b.icon}
+              {b.id === 'notif' && notifUnreadCount > 0 && (
+                <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, padding: '0 3px', borderRadius: '50%', background: '#DC3232', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${cardBg}` }}>
+                  {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                </span>
+              )}
+            </span>
             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-body)' }}>{b.label}</span>
           </button>
         ))}
@@ -610,21 +781,23 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14, lineHeight: 1.5 }}>
               {sheet === 'checkin'
                 ? 'Manda uma foto comprovando que você treinou — conta ponto no ranking do dia e avisa todo mundo no Bate-Papo!'
-                : 'Compartilhe uma foto no feed "Para Você" — não conta pro ranking de check-in, é só pra galera ver.'}
+                : 'Compartilhe uma foto ou vídeo no feed "Para Você" — não conta pro ranking de check-in, é só pra galera ver.'}
             </div>
 
-            <input ref={postFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
+            <input ref={postFileRef} type="file" accept={sheet === 'post' ? 'image/*,video/*' : 'image/*'} style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
             {postPreview ? (
               <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, aspectRatio: '4/5', background: '#111' }}>
-                <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700 }}>Trocar foto</div>
+                {postIsVideo
+                  ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
               </div>
             ) : (
               <button className="fit-btn" onClick={() => postFileRef.current?.click()}
                 style={{ width: '100%', aspectRatio: '4/5', borderRadius: 14, border: `2px dashed ${ENERGIA}66`, background: `${ENERGIA}0a`,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', marginBottom: 14 }}>
-                <div style={{ fontSize: 38 }}>📷</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: ENERGIA }}>{sheet === 'checkin' ? 'Escolher foto do treino' : 'Escolher foto'}</div>
+                <div style={{ fontSize: 38 }}>{sheet === 'post' ? '📷🎬' : '📷'}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: ENERGIA }}>{sheet === 'checkin' ? 'Escolher foto do treino' : 'Escolher foto ou vídeo'}</div>
               </button>
             )}
 
@@ -704,16 +877,53 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         </Sheet>
       )}
 
-      {/* ── Detalhes: lista de pessoas + perfil individual ── */}
-      {sheet === 'detalhes' && (
-        <Sheet title={detalhesPlayer ? detalhesPlayer.split(' ').slice(0, 2).join(' ') : 'Detalhes 📋'}
+      {/* ── Notificações: curtidas e comentários nas minhas fotos ── */}
+      {sheet === 'notif' && (
+        <Sheet title="Notificações 🔔" onClose={() => setSheet(null)}>
+          {!notifs ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>
+          ) : notifs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🔔</div>
+              <div style={{ fontSize: 13, color: T.textT }}>Ninguém curtiu ou comentou suas fotos ainda.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {notifs.map(n => {
+                const naoLida = n.created_at > notifLastSeen;
+                return (
+                  <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${T.border}`, background: naoLida ? `${ENERGIA}0e` : 'transparent' }}>
+                    <img src={photos[n.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: T.text, lineHeight: 1.4 }}>
+                        <b>{n.player.split(' ').slice(0, 2).join(' ')}</b>{' '}
+                        {n.kind === 'like' ? <>curtiu sua foto {n.emoji || '💪'}</> : <>comentou: <span style={{ color: T.textS }}>&ldquo;{(n.texto || '').slice(0, 60)}{(n.texto || '').length > 60 ? '…' : ''}&rdquo;</span></>}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{tempoRelativo(n.created_at)}</div>
+                    </div>
+                    {n.photo_url && (
+                      isVideoUrl(n.photo_url)
+                        ? <video src={n.photo_url} muted style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                        : <img src={n.photo_url} alt="" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Sheet>
+      )}
+
+      {/* ── Amigos: lista de pessoas + perfil individual ── */}
+      {sheet === 'amigos' && (
+        <Sheet title={detalhesPlayer ? detalhesPlayer.split(' ').slice(0, 2).join(' ') : 'Amigos 👥'}
           onBack={detalhesPlayer ? () => setDetalhesPlayer(null) : undefined}
           onClose={() => { setSheet(null); setDetalhesPlayer(null); }}>
           {!detalhesLista ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>
           ) : !detalhesPlayer ? (
             <div style={{ padding: '10px 14px 20px' }}>
-              <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>{detalhesLista.length} pessoa{detalhesLista.length !== 1 ? 's' : ''} já postaram no Uniko Fit</div>
+              <div style={{ fontSize: 12, color: T.textT, marginBottom: 12 }}>{detalhesLista.length} pessoa{detalhesLista.length !== 1 ? 's' : ''} já postaram no Uniko FIT</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {detalhesLista.map(p => (
                   <div key={p.player} onClick={() => setDetalhesPlayer(p.player)} className="fit-btn"
@@ -725,7 +935,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     </div>
                     <div style={{ display: 'flex', gap: -6 }}>
                       {p.items.slice(0, 3).map((it, i) => (
-                        <img key={it.id} src={it.photo_url} alt="" style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover', border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
+                        isVideoUrl(it.photo_url)
+                          ? <video key={it.id} src={it.photo_url} muted style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover', border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
+                          : <img key={it.id} src={it.photo_url} alt="" style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover', border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
                       ))}
                     </div>
                   </div>
@@ -745,12 +957,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-                  {p.items.map(it => (
-                    <div key={it.id} style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#111' }}>
-                      <img src={it.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      {it.kind === 'checkin' && <div style={{ position: 'absolute', top: 3, right: 3, fontSize: 12, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }}>✅</div>}
-                    </div>
-                  ))}
+                  {p.items.map(it => <ThumbCell key={it.id} it={it} />)}
                 </div>
               </div>
             );

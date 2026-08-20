@@ -131,7 +131,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
     // Em construção — só admin acessa por enquanto (tirar strictAdmin quando lançar pra todos).
-    {id:'uniko-fit',        label:'Uniko Fit',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:fitColor, bg:fitColor+'18', tag:'Fitness',    adminOnly:true, strictAdmin:true},
+    {id:'uniko-fit',        label:'Uniko FIT',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:fitColor, bg:fitColor+'18', tag:'Fitness',    adminOnly:true, strictAdmin:true},
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
