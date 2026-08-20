@@ -788,10 +788,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setPushMsg('');
     try { await ensurePushSubscription(name); dispensarPushBanner(); setPushMsg('✅ Notificações ativadas!'); }
     catch (e) { setPushMsg('❌ ' + (e.message || 'Erro ao ativar')); }
-    setTimeout(() => setPushMsg(''), 4000);
+    setTimeout(() => setPushMsg(''), 6000);
   };
-  const podeAtivarPush = !pushBannerOff && pushSupported() && !needsIosInstall() && pushPermission() === 'default';
-  const precisaInstalarIos = !pushBannerOff && pushSupported() && needsIosInstall();
+  // O botão fica sempre visível (até ativar ou dispensar) — os motivos de não
+  // dar certo (iPhone sem instalar, navegador sem suporte, permissão negada)
+  // só se sabe tentando: `ensurePushSubscription` lança um erro claro pra
+  // cada caso, mostrado em `pushMsg`. Decidir ANTES via `needsIosInstall()`/
+  // `pushSupported()` deixava o botão simplesmente sumir em vez de explicar
+  // o motivo — bug real: sumiu pra alguém que já tinha instalado certinho.
+  const jaAtivouPush = pushSupported() && pushPermission() === 'granted';
+  const mostrarBannerPush = !pushBannerOff && !jaAtivouPush;
 
   const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
   const [chatImgZoom, setChatImgZoom] = useState(null); // url da foto de check-in aberta em tela grande (Bate-Papo), null = fechado
@@ -1236,18 +1242,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       <div style={{ position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* ── Aviso pra ativar notificação push no celular — sticky, aparece em qualquer aba até ativar/dispensar ── */}
-        {(podeAtivarPush || precisaInstalarIos) && (
+        {mostrarBannerPush && (
           <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: `${ENERGIA}14`, borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
             {IcoBell}
-            <div style={{ flex: 1, color: T.text, lineHeight: 1.35 }}>
-              {precisaInstalarIos
-                ? <>📲 Pra receber notificação no iPhone, adicione o Portal à Tela de Início (Compartilhar → Adicionar à Tela de Início) e abra por esse ícone.</>
-                : <>Ative pra receber comentário, reação e mensagem do Bate-Papo direto no celular.</>}
-            </div>
-            {!precisaInstalarIos && (
-              <button onClick={ativarPush} className="fit-btn"
-                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', background: ENERGIA, color: '#fff', fontWeight: 700, fontSize: 11.5, fontFamily: 'var(--font-body)' }}>Ativar</button>
-            )}
+            <div style={{ flex: 1, color: T.text, lineHeight: 1.35 }}>Ative pra receber comentário, reação e mensagem do Bate-Papo direto no celular.</div>
+            <button onClick={ativarPush} className="fit-btn"
+              style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', background: ENERGIA, color: '#fff', fontWeight: 700, fontSize: 11.5, fontFamily: 'var(--font-body)' }}>Ativar</button>
             <button onClick={dispensarPushBanner} title="Dispensar" style={{ flexShrink: 0, border: 'none', background: 'none', cursor: 'pointer', color: T.textT, padding: 4, display: 'flex' }}>{IcoClose}</button>
           </div>
         )}
