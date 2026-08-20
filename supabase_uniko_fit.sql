@@ -86,8 +86,10 @@ create policy uniko_fit_reactions_delete on public.uniko_fit_reactions for delet
 
 drop policy if exists uniko_fit_comments_read   on public.uniko_fit_comments;
 drop policy if exists uniko_fit_comments_insert on public.uniko_fit_comments;
+drop policy if exists uniko_fit_comments_delete on public.uniko_fit_comments;
 create policy uniko_fit_comments_read   on public.uniko_fit_comments for select using (true);
 create policy uniko_fit_comments_insert on public.uniko_fit_comments for insert with check (true);
+create policy uniko_fit_comments_delete on public.uniko_fit_comments for delete using (true);
 
 drop policy if exists uniko_fit_chat_read   on public.uniko_fit_chat;
 drop policy if exists uniko_fit_chat_insert on public.uniko_fit_chat;

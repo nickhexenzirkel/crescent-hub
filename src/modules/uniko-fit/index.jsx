@@ -56,6 +56,7 @@ const IcoClose  = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" st
 const IcoBell   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
 const IcoHeartSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
 const IcoCommentSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+const IcoTrash  = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>;
 const isVideoUrl = (url) => /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url || '');
 
 /* ── Sheet (folha deslizante de baixo pra cima) — usado pelas 4 ações da barra ── */
@@ -76,8 +77,8 @@ const Sheet = ({ title, onBack, onClose, children }) => {
 };
 
 /* ── Miniatura de grid (foto ou vídeo) — usada no Amigos e no Meu Perfil ── */
-const ThumbCell = ({ it, engaj }) => (
-  <div style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#111' }}>
+const ThumbCell = ({ it, engaj, onClick, onDelete }) => (
+  <div onClick={onClick} style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 8, overflow: 'hidden', background: '#111', cursor: onClick ? 'pointer' : 'default' }}>
     {isVideoUrl(it.photo_url)
       ? <video src={it.photo_url} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       : <img src={it.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
@@ -87,6 +88,11 @@ const ThumbCell = ({ it, engaj }) => (
       </div>
     )}
     {it.kind === 'checkin' && <div style={{ position: 'absolute', top: 3, right: 3, fontSize: 12, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }}>✅</div>}
+    {onDelete && (
+      <button onClick={e => { e.stopPropagation(); onDelete(it); }} className="fit-btn"
+        style={{ position: 'absolute', top: 3, left: 3, width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'rgba(0,0,0,.55)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
+    )}
     {engaj && (
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '3px 5px', background: 'linear-gradient(0deg, rgba(0,0,0,.78), transparent)', display: 'flex', gap: 7, alignItems: 'center', color: '#fff' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9.5, fontWeight: 700 }}>{IcoHeartSm} {engaj.likes || 0}</span>
@@ -116,6 +122,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 .fit-sheet-in { animation: fitSheetIn .22s cubic-bezier(.2,1,.4,1) both; }
 @keyframes fitPop  { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes fitPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes fitHeartBurst { 0% { transform: scale(.3); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 50% { transform: scale(.95); } 100% { transform: scale(1); opacity: 0; } }
+.fit-heart-burst { animation: fitHeartBurst .7s cubic-bezier(.17,.89,.32,1.49) both; }
 .fit-pop  { animation: fitPop .35s cubic-bezier(.2,1.6,.4,1) both; }
 .fit-btn { transition: transform .12s, filter .12s; -webkit-tap-highlight-color: transparent; }
 .fit-btn:hover:not(:disabled) { filter: brightness(1.06); }
@@ -209,6 +217,91 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     } catch (e) { console.error('[uniko-fit] reação:', e); }
   };
 
+  // Apagar post (só o dono) — RLS já permite delete em uniko_fit_checkins;
+  // reações/comentários somem sozinhos (FK ON DELETE CASCADE).
+  const apagarPost = async (post) => {
+    if (post.player !== name) return;
+    if (!window.confirm('Apagar esse post? Essa ação não pode ser desfeita.')) return;
+    try {
+      await supabase.from('uniko_fit_checkins').delete().eq('id', post.id);
+      setFeed(prev => prev ? prev.filter(p => p.id !== post.id) : prev);
+      setFullFeed(prev => prev ? prev.filter(p => p.id !== post.id) : prev);
+    } catch (e) { console.error('[uniko-fit] apagar post:', e); }
+  };
+
+  // Duplo toque numa foto do feed = curtir automaticamente (estilo Instagram/TikTok).
+  // Detecção manual (não `onDoubleClick` nativo) pra funcionar igual em toque e mouse.
+  const lastTapRef = useRef({ id: null, t: 0 });
+  const [heartBurst, setHeartBurst] = useState(null); // id do post com o coração animando
+  const handlePostTap = (post) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (last.id === post.id && now - last.t < 320) {
+      lastTapRef.current = { id: null, t: 0 };
+      const cur = reacoes[post.id];
+      if (!cur?.mine) toggleReacao(post.id, REACOES[0].emoji);
+      setHeartBurst(post.id);
+      setTimeout(() => setHeartBurst(h => (h === post.id ? null : h)), 700);
+    } else {
+      lastTapRef.current = { id: post.id, t: now };
+    }
+  };
+
+  // ── Ir pro Para Você e mostrar um post específico lá (usado pelo Meu Perfil/Amigos) ──
+  const feedItemRefs = useRef({});
+  const [highlightPostId, setHighlightPostId] = useState(null);
+  const [flashPostId, setFlashPostId] = useState(null);
+  const irParaFeed = async (post) => {
+    setSheet(null); setDetalhesPlayer(null);
+    setTopTab('paravoce');
+    const jaTem = feedRef.current?.some(p => p.id === post.id);
+    if (!jaTem) {
+      const { data } = await supabase.from('uniko_fit_checkins').select('*').eq('id', post.id).single();
+      if (data) setFeed(prev => (prev && !prev.some(p => p.id === data.id)) ? [data, ...prev] : prev);
+    }
+    setHighlightPostId(post.id);
+  };
+  useEffect(() => {
+    if (topTab !== 'paravoce' || !highlightPostId) return;
+    const id = highlightPostId;
+    const el = feedItemRefs.current[id];
+    if (el) {
+      el.scrollIntoView({ block: 'start' });
+      setFlashPostId(id);
+      setHighlightPostId(null);
+      setTimeout(() => setFlashPostId(f => (f === id ? null : f)), 1200);
+    }
+  }, [topTab, highlightPostId, feed]);
+
+  // ── Puxar pra baixo recarrega o feed, estilo TikTok/Instagram ──
+  const feedScrollRef = useRef(null);
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullStartYRef = useRef(null);
+  const onFeedTouchStart = (e) => {
+    pullStartYRef.current = (feedScrollRef.current?.scrollTop || 0) <= 0 ? e.touches[0].clientY : null;
+  };
+  const onFeedTouchMove = (e) => {
+    if (pullStartYRef.current == null || refreshing) return;
+    const dy = e.touches[0].clientY - pullStartYRef.current;
+    if (dy > 0 && (feedScrollRef.current?.scrollTop || 0) <= 0) setPullY(Math.min(dy * 0.5, 90));
+  };
+  const onFeedTouchEnd = async () => {
+    if (pullY > 58 && !refreshing) {
+      setRefreshing(true);
+      await loadFeed();
+      setRefreshing(false);
+    }
+    setPullY(0);
+    pullStartYRef.current = null;
+  };
+  const recarregarFeed = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await loadFeed();
+    setRefreshing(false);
+  };
+
   // ── Comentários (drawer por post) ──
   const [comentAberto, setComentAberto] = useState(null);
   const [comentLista, setComentLista] = useState([]);
@@ -231,6 +324,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       setComentLista(prev => [...prev, data]);
       setComentCount(prev => ({ ...prev, [comentAberto.id]: (prev[comentAberto.id] || 0) + 1 }));
     }
+  };
+  // Apaga um comentário — quem comentou OU o dono do post pode apagar.
+  const apagarComentario = async (c) => {
+    try {
+      await supabase.from('uniko_fit_comments').delete().eq('id', c.id);
+      setComentLista(prev => prev.filter(x => x.id !== c.id));
+      setComentCount(prev => ({ ...prev, [c.checkin_id]: Math.max(0, (prev[c.checkin_id] || 1) - 1) }));
+    } catch (e) { console.error('[uniko-fit] apagar comentário:', e); }
   };
 
   /* ═══════════════════ POSTAR FOTO (Check-In ou Postar no Feed) ═══════════════════ */
@@ -547,8 +648,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
           {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
+            // Clicar de novo na aba Para Você já ativa recarrega o feed, estilo TikTok.
             return (
-              <button key={id} onClick={() => setTopTab(id)} className="fit-btn"
+              <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 9px', fontSize: 13.5, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap',
                   color: on ? ENERGIA : T.textT, borderBottom: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
                 {label}
@@ -578,20 +680,45 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 6px 18px ${EG}` }}>📸 Fazer check-in</button>
             </div>
           ) : (
-            <div className="fit-feed" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div ref={feedScrollRef} className="fit-feed" onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd}
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
+              {(pullY > 0 || refreshing) && (
+                <div style={{ position: 'absolute', top: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 5, opacity: Math.min((pullY || 40) / 58, 1), transition: refreshing ? 'none' : 'opacity .15s' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: cardBg, boxShadow: '0 2px 10px rgba(0,0,0,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 15, height: 15, borderRadius: '50%', border: `2px solid ${ENERGIA}`, borderTopColor: 'transparent', animation: refreshing ? 'spin .7s linear infinite' : 'none', transform: refreshing ? 'none' : `rotate(${pullY * 3}deg)` }} />
+                  </div>
+                </div>
+              )}
               {feed.map(post => {
                 const r = reacoes[post.id] || { counts: {}, mine: null };
                 const totalReacoes = Object.values(r.counts).reduce((a, b) => a + b, 0);
+                const souDono = post.player === name;
                 return (
-                  <div key={post.id} className="fit-card" style={{ position: 'relative', width: '100%', aspectRatio: '9/14', background: '#111' }}>
+                  <div key={post.id} ref={el => { if (el) feedItemRefs.current[post.id] = el; }} onClick={() => handlePostTap(post)}
+                    className="fit-card" style={{ position: 'relative', width: '100%', aspectRatio: '9/14', background: '#111',
+                      boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
                     {isVideoUrl(post.photo_url)
                       ? <video src={post.photo_url} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
+                    {heartBurst === post.id && (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                        <svg className="fit-heart-burst" width="92" height="92" viewBox="0 0 24 24" fill="#fff" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,.45))' }}>
+                          <path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z" />
+                        </svg>
+                      </div>
+                    )}
+
                     {post.kind === 'checkin' && (
                       <div style={{ position: 'absolute', top: 12, left: 14, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 999,
                         background: `${ENERGIA}E6`, color: '#fff', fontSize: 11, fontWeight: 800 }}>✅ Check-in</div>
+                    )}
+
+                    {souDono && (
+                      <button onClick={e => { e.stopPropagation(); apagarPost(post); }} className="fit-btn" title="Apagar post"
+                        style={{ position: 'absolute', top: 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                          background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
                     )}
 
                     <div style={{ position: 'absolute', left: 14, right: 68, bottom: 16, color: '#fff' }}>
@@ -611,7 +738,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                         const emojiKey = rc.emoji || rc.id;
                         const n = r.counts[emojiKey] || 0;
                         return (
-                          <button key={rc.id} className="fit-btn" onClick={() => toggleReacao(post.id, emojiKey)} title={rc.label}
+                          <button key={rc.id} className="fit-btn" onClick={e => { e.stopPropagation(); toggleReacao(post.id, emojiKey); }} title={rc.label}
                             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
                             <div className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`}
                               style={{ width: 37, height: 37, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
@@ -622,7 +749,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           </button>
                         );
                       })}
-                      <button className="fit-btn" onClick={() => abrirComentarios(post)} title="Comentários"
+                      <button className="fit-btn" onClick={e => { e.stopPropagation(); abrirComentarios(post); }} title="Comentários"
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
                         <div style={{ width: 37, height: 37, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(0,0,0,.35)' }}>💬</div>
                         <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
@@ -745,7 +872,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 <>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 8 }}>Meus posts</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-                    {meusItens.map(it => <ThumbCell key={it.id} it={it} engaj={meuEngaj[it.id]} />)}
+                    {meusItens.map(it => <ThumbCell key={it.id} it={it} engaj={meuEngaj[it.id]} onClick={() => irParaFeed(it)} onDelete={apagarPost} />)}
                   </div>
                 </>
               )}
@@ -980,15 +1107,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 10 }}>Carregando...</div>
               ) : comentLista.length === 0 ? (
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 10 }}>Seja o primeiro a comentar!</div>
-              ) : comentLista.map(c => (
-                <div key={c.id} style={{ display: 'flex', gap: 9 }}>
-                  <img src={photos[c.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>{c.player.split(' ')[0]} <span style={{ fontWeight: 500, color: T.textD, fontSize: 10.5 }}>· {tempoRelativo(c.created_at)}</span></div>
-                    <div style={{ fontSize: 13, color: T.textS, lineHeight: 1.4 }}>{c.texto}</div>
+              ) : comentLista.map(c => {
+                const podeApagar = c.player === name || comentAberto?.player === name;
+                return (
+                  <div key={c.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                    <img src={photos[c.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>{c.player.split(' ')[0]} <span style={{ fontWeight: 500, color: T.textD, fontSize: 10.5 }}>· {tempoRelativo(c.created_at)}</span></div>
+                      <div style={{ fontSize: 13, color: T.textS, lineHeight: 1.4 }}>{c.texto}</div>
+                    </div>
+                    {podeApagar && (
+                      <button onClick={() => apagarComentario(c)} className="fit-btn" title="Apagar comentário"
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoTrash}</button>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: `1px solid ${T.border}` }}>
               <input value={comentTexto} onChange={e => setComentTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviarComentario()}
