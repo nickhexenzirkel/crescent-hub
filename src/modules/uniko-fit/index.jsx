@@ -29,6 +29,66 @@ const REACOES = [
 
 const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','👍','👎','❤️','🙌','😅','🤔','😴','🥳','🏋️','🏃','🍎','💧','⏰','✅','⭐','🤝','😎','🥵','🎯'];
 
+/* ═══════════════════ DESAFIOS — pose diária individual, sem servidor ═══════════════════
+   Sem cron/servidor próprio, então a atribuição é 100% DETERMINÍSTICA (mesma
+   ideia da "RNG semeada" do Uniko Wave): dado o nome da pessoa + a semana do
+   ano, gera um EMBARALHAMENTO seedado da lista de poses e usa o dia da semana
+   (segunda=0 ... domingo=6) como índice. Como é um embaralhamento (permutação),
+   os 7 dias de uma mesma semana NUNCA repetem pose pra uma mesma pessoa — e
+   como a lista tem bem mais que 7 poses, o "não repetir na semana" cai de graça.
+   Só falta cuidar da virada domingo→segunda (2 semanas diferentes, poderiam
+   coincidir por acaso) — ver o ajuste em `poseDoDia`. Não precisa de tabela no
+   banco: qualquer cliente calcula a pose de qualquer pessoa em qualquer dia
+   só com o nome e a data — não tem corrida nem precisa sincronizar nada. */
+const POSES = [
+  { id: 'lingua-paz',   emoji: '😝✌️', texto: 'Língua de fora + sinal de paz com a mão' },
+  { id: 'biceps',       emoji: '💪💪', texto: 'Mostrando os dois bíceps' },
+  { id: 'pulando',      emoji: '🙌',   texto: 'Pulando com os braços pra cima' },
+  { id: 'coracao-maos', emoji: '🫶',   texto: 'Fazendo um coração com as mãos' },
+  { id: 'prancha',      emoji: '🧎',   texto: 'Segurando a prancha (plank)' },
+  { id: 'joinha-duplo', emoji: '👍👍', texto: 'Dois joinhas pra câmera' },
+  { id: 'super-heroi',  emoji: '🦸',   texto: 'Pose de super-herói, mãos na cintura' },
+  { id: 'piscadinha',   emoji: '😉',   texto: 'Piscando pra câmera no meio do treino' },
+  { id: 'agachamento',  emoji: '🏋️',  texto: 'No meio de um agachamento' },
+  { id: 'apontando',    emoji: '👆',   texto: 'Apontando pro alto, tipo "vamo que vamo"' },
+  { id: 'flexao',       emoji: '💥',   texto: 'No meio de uma flexão' },
+  { id: 'corrida',      emoji: '🏃',   texto: 'Fingindo estar correndo' },
+  { id: 'alongamento',  emoji: '🤸',   texto: 'Se alongando' },
+  { id: 'pensativo',    emoji: '🤔',   texto: 'Mão no queixo, pensativo (mas suado)' },
+  { id: 'topzera',      emoji: '🤙',   texto: 'Sinal de "topzeira" (hang loose)' },
+  { id: 'boxe',         emoji: '🥊',   texto: 'Pose de boxe, punhos fechados' },
+  { id: 'olhando-relogio', emoji: '⏱️', texto: 'Olhando pro relógio como quem cronometra' },
+  { id: 'aviaozinho',   emoji: '🛩️',  texto: 'Braços abertos, tipo aviãozinho' },
+];
+
+const _strHash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const _mulberry32 = (seed) => { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+const _seededShuffle = (arr, seed) => {
+  const rng = _mulberry32(seed); const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+};
+// Segunda-feira de referência (1/jan/2024 caiu numa segunda) — só serve pra
+// contar "quantas semanas se passaram", não precisa ser exato pro calendário.
+const _MONDAY_EPOCH = Date.UTC(2024, 0, 1);
+const _weekIndexFor = (dateUTC) => Math.floor((Date.UTC(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth(), dateUTC.getUTCDate()) - _MONDAY_EPOCH) / (7 * 86400000));
+const _dowMondayFirst = (dateUTC) => (dateUTC.getUTCDay() + 6) % 7; // 0=segunda … 6=domingo
+
+const poseDoDia = (player, dateUTC = new Date()) => {
+  const week = _weekIndexFor(dateUTC);
+  const dow = _dowMondayFirst(dateUTC);
+  let shuffled = _seededShuffle(POSES, _strHash(`${player}|w${week}`));
+  if (dow === 0) {
+    // 1º dia da semana: evita coincidir com a última pose da semana anterior
+    // (a única costura entre embaralhamentos independentes — o resto da
+    // semana já não repete sozinho, por construção do shuffle).
+    const prevShuffled = _seededShuffle(POSES, _strHash(`${player}|w${week - 1}`));
+    const prevLast = prevShuffled[Math.min(6, POSES.length - 1)];
+    if (shuffled[0].id === prevLast.id) { const j = 1 % shuffled.length; [shuffled[0], shuffled[j]] = [shuffled[j], shuffled[0]]; }
+  }
+  return shuffled[dow % shuffled.length];
+};
+
 const tempoRelativo = (iso) => {
   if (!iso) return '';
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -47,6 +107,7 @@ const IcoCamera = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" st
 const IcoTrophy = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4z"/><path d="M17 6h2a2 2 0 01-2 4M7 6H5a2 2 0 002 4"/></svg>;
 const IcoPost   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
 const IcoInfo   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+const IcoTarget = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>;
 const IcoSend   = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>;
 const IcoSmile  = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>;
 const IcoImg    = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
@@ -386,6 +447,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // Check-in é 1 por dia (dia em UTC, mesmo critério usado pelo ranking/"dias
   // distintos"). `null` = ainda não checou, `true`/`false` = já sabe a resposta.
   const [checkinHojeFeito, setCheckinHojeFeito] = useState(null);
+  const [checkinHojeDesafioId, setCheckinHojeDesafioId] = useState(null); // id da pose já cumprida hoje (se teve)
+  const [desafioAtivo, setDesafioAtivo] = useState(null); // pose escolhida na aba Desafios pra "levar" pro check-in
   const limitesDeHoje = () => {
     const now = new Date();
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
@@ -395,9 +458,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const verificarCheckinHoje = useCallback(async () => {
     setCheckinHojeFeito(null);
     const { start, end } = limitesDeHoje();
-    const { data } = await supabase.from('uniko_fit_checkins').select('id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
+    const { data } = await supabase.from('uniko_fit_checkins').select('id,desafio_pose_id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
     setCheckinHojeFeito(!!data?.length);
+    setCheckinHojeDesafioId(data?.[0]?.desafio_pose_id || null);
   }, [name]);
+  const abrirCheckinComDesafio = (pose) => {
+    setDesafioAtivo(pose);
+    setPostCaption(c => c.trim() ? c : `${pose.emoji} Desafio do dia: ${pose.texto}`);
+    openSheet('checkin');
+  };
 
   const postIsVideo = !!postFile?.type?.startsWith('video/');
   const escolherFoto = (f) => {
@@ -410,7 +479,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
   const limparPost = () => {
     if (postPreview?.startsWith('blob:')) { try { URL.revokeObjectURL(postPreview); } catch { /* já liberado */ } }
-    setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); if (postFileRef.current) postFileRef.current.value = '';
+    setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); setDesafioAtivo(null); if (postFileRef.current) postFileRef.current.value = '';
   };
 
   // kind: 'checkin' (1 por dia, conta pro ranking + avisa no Bate-Papo) | 'post' (só feed, sem limite)
@@ -432,13 +501,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, postFile, { contentType: postFile.type || undefined, upsert: false });
       if (upErr) throw new Error('Falha ao enviar a foto: ' + upErr.message);
       const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
-      const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind });
+      const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind, desafio_pose_id: kind === 'checkin' ? (desafioAtivo?.id || null) : null });
       if (error) {
         if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã 💪'); }
         throw new Error(error.message);
       }
       if (kind === 'checkin') {
         setCheckinHojeFeito(true);
+        setCheckinHojeDesafioId(desafioAtivo?.id || null);
         try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
       }
       setPostMsg(kind === 'checkin' ? '✅ Check-in registrado! Bora treinar mais 💪' : '✅ Postado no feed!');
@@ -572,8 +642,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   const openSheet = (id) => {
     setSheet(id);
-    if ((id === 'ranking' || id === 'amigos') && !fullFeed) loadFullFeed();
-    if (id === 'checkin') verificarCheckinHoje();
+    if ((id === 'ranking' || id === 'amigos' || id === 'desafios') && !fullFeed) loadFullFeed();
+    if (id === 'checkin' || id === 'desafios') verificarCheckinHoje();
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
@@ -614,6 +684,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       .sort((a, b) => b.checkinCount - a.checkinCount || b.items.length - a.items.length);
   }, [fullFeed]);
 
+  /* ═══════════════════ DESAFIOS — pose de hoje, minha + da galera ═══════════════════ */
+  const meuDesafioHoje = useMemo(() => poseDoDia(name), [name]);
+  // "Galera" = todo mundo que já postou/checou-in alguma vez (mesma fonte do
+  // Amigos) — cada um com a pose de HOJE calculada na hora, sem precisar de
+  // tabela/consulta nova (é só o `poseDoDia` de novo, com outro nome).
+  const desafiosGalera = useMemo(() => {
+    if (!detalhesLista) return null;
+    return detalhesLista.map(p => ({ player: p.player, pose: poseDoDia(p.player) })).filter(x => x.player !== name);
+  }, [detalhesLista, name]);
+
   /* ═══════════════════ MEU PERFIL (meus posts + engajamento) ═══════════════════ */
   // Reaproveita o mesmo `fullFeed` paginado do ranking/amigos (carrega uma vez só).
   useEffect(() => {
@@ -652,9 +732,17 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [meusItens, meuEngaj]);
 
   /* ═══════════════════ NOTIFICAÇÕES (curtidas/comentários nas minhas fotos) ═══════════════════ */
-  const notifReadKeyRef = useRef(`uniko_fit_notif_seen_${(getAuthUser()?.cpf || 'anon').replace(/\D/g, '')}`);
+  // Guarda o CONJUNTO DE IDs já lidos (não um "timestamp de última vez que
+  // abriu"): comparar string ISO do client (`toISOString()`, milissegundo,
+  // sufixo "Z") com o `created_at` que volta do Postgres (microssegundo,
+  // sufixo "+00:00") é frágil — em notificações muito próximas no tempo a
+  // comparação de string pode dar errado e a marcação "não persiste" depois
+  // de recarregar. IDs são exatos, sem esse risco.
+  const notifReadKeyRef = useRef(`uniko_fit_notif_read_${(getAuthUser()?.cpf || 'anon').replace(/\D/g, '')}`);
   const [notifs, setNotifs] = useState(null); // null = ainda não carregado
-  const [notifLastSeen, setNotifLastSeen] = useState(() => { try { return localStorage.getItem(notifReadKeyRef.current) || ''; } catch { return ''; } });
+  const [notifReadIds, setNotifReadIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(notifReadKeyRef.current)) || []); } catch { return new Set(); }
+  });
 
   const loadNotifs = useCallback(async () => {
     const { data: meus } = await supabase.from('uniko_fit_checkins').select('id,photo_url').eq('player', name);
@@ -681,17 +769,25 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const notifUnreadCount = useMemo(() => (notifs || []).filter(n => n.created_at > notifLastSeen).length, [notifs, notifLastSeen]);
-  const abrirNotificacoes = () => {
-    setSheet('notif');
-    const now = new Date().toISOString();
-    setNotifLastSeen(now);
-    try { localStorage.setItem(notifReadKeyRef.current, now); } catch { /* localStorage indisponível */ }
+  const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
+  const abrirNotificacoes = () => setSheet('notif');
+  // Marca como lido ao FECHAR (não ao abrir) — assim dá pra ver o destaque de
+  // "novo" enquanto olha a lista, e só depois de ler mesmo é que some.
+  const fecharNotificacoes = () => {
+    setSheet(null);
+    if (!notifs?.length) return;
+    setNotifReadIds(prev => {
+      const next = new Set(prev);
+      notifs.forEach(n => next.add(n.id));
+      try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
+      return next;
+    });
   };
 
   /* ═══════════════════ UI ═══════════════════ */
   const BOTTOM_BTNS = [
     { id: 'checkin',  label: 'Check-In',       icon: IcoCamera },
+    { id: 'desafios', label: 'Desafios',       icon: IcoTarget },
     { id: 'ranking',  label: 'Ranking',        icon: IcoTrophy },
     { id: 'post',     label: 'Postar no Feed', icon: IcoPost },
     { id: 'notif',    label: 'Notificações',   icon: IcoBell },
@@ -1015,6 +1111,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 : 'Compartilhe uma foto ou vídeo no feed "Para Você" — não conta pro ranking de check-in, é só pra galera ver.'}
             </div>
 
+            {sheet === 'checkin' && desafioAtivo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, marginBottom: 14, background: `${ENERGIA}12`, border: `1px solid ${ENERGIA}44` }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{desafioAtivo.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: T.text, lineHeight: 1.4 }}><b style={{ color: ENERGIA }}>Desafio de hoje:</b> {desafioAtivo.texto}</div>
+                <button onClick={() => setDesafioAtivo(null)} className="fit-btn" title="Remover desafio" style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoClose}</button>
+              </div>
+            )}
+
             <input ref={postFileRef} type="file" accept={sheet === 'post' ? 'image/*,video/*' : 'image/*'} style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
             {postPreview ? (
               <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, aspectRatio: '4/5', background: '#111' }}>
@@ -1050,6 +1154,48 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </button>
           </div>
           )}
+        </Sheet>
+      )}
+
+      {/* ── Desafios: pose diária individual (não repete na semana) ── */}
+      {sheet === 'desafios' && (
+        <Sheet title="Desafios 🎯" onClose={() => setSheet(null)}>
+          <div style={{ padding: '16px 16px 24px' }}>
+            <div style={{ background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, borderRadius: 16, padding: '18px 20px', marginBottom: 18, color: '#fff', boxShadow: `0 8px 24px ${EG}` }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', opacity: .9, marginBottom: 6 }}>SEU DESAFIO DE HOJE</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 34 }}>{meuDesafioHoje.emoji}</span>
+                <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
+              </div>
+              {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
+                <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>✅ Desafio concluído hoje!</div>
+              ) : checkinHojeFeito ? (
+                <div style={{ marginTop: 12, fontSize: 11.5, opacity: .9 }}>Você já fez o check-in de hoje sem marcar esse desafio — vale igual, relaxa 💪</div>
+              ) : (
+                <button className="fit-btn" onClick={() => abrirCheckinComDesafio(meuDesafioHoje)}
+                  style={{ marginTop: 12, width: '100%', padding: 11, borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: 'rgba(255,255,255,.22)', color: '#fff', fontWeight: 800, fontSize: 13 }}>📸 Fazer check-in com esse desafio</button>
+              )}
+            </div>
+
+            <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>Cada pessoa tem uma pose diferente por dia, e ela nunca se repete na mesma semana. Olha o que a galera tem que fazer hoje:</div>
+
+            {!desafiosGalera ? (
+              <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Carregando...</div>
+            ) : desafiosGalera.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Ainda não tem mais ninguém pra mostrar aqui.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {desafiosGalera.map(d => (
+                  <div key={d.player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
+                    <img src={photos[d.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.player.split(' ').slice(0, 2).join(' ')}</div>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{d.pose.emoji}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Sheet>
       )}
 
@@ -1111,7 +1257,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Notificações: curtidas e comentários nas minhas fotos ── */}
       {sheet === 'notif' && (
-        <Sheet title="Notificações 🔔" onClose={() => setSheet(null)}>
+        <Sheet title="Notificações 🔔" onClose={fecharNotificacoes}>
           {!notifs ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>
           ) : notifs.length === 0 ? (
@@ -1122,7 +1268,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {notifs.map(n => {
-                const naoLida = n.created_at > notifLastSeen;
+                const naoLida = !notifReadIds.has(n.id);
                 return (
                   <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${T.border}`, background: naoLida ? `${ENERGIA}0e` : 'transparent' }}>
                     <img src={photos[n.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />

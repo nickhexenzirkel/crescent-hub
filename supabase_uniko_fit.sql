@@ -12,15 +12,17 @@
 --   'checkin' → conta pro ranking diário e avisa no Bate-Papo
 --   'post'    → só aparece no feed "Para Você", não conta ranking
 create table if not exists public.uniko_fit_checkins (
-  id          bigint generated always as identity primary key,
-  player      text not null,
-  photo_url   text not null,
-  caption     text,
-  kind        text not null default 'checkin',
-  created_at  timestamptz not null default now()
+  id              bigint generated always as identity primary key,
+  player          text not null,
+  photo_url       text not null,
+  caption         text,
+  kind            text not null default 'checkin',
+  desafio_pose_id text, -- pose da aba Desafios que esse check-in cumpriu (nulo = não marcou nenhuma)
+  created_at      timestamptz not null default now()
 );
--- upgrade idempotente (instalação anterior a essa coluna existir)
+-- upgrade idempotente (instalação anterior a essas colunas existirem)
 alter table public.uniko_fit_checkins add column if not exists kind text not null default 'checkin';
+alter table public.uniko_fit_checkins add column if not exists desafio_pose_id text;
 create index if not exists uniko_fit_checkins_created_idx on public.uniko_fit_checkins (created_at desc);
 create index if not exists uniko_fit_checkins_player_idx  on public.uniko_fit_checkins (player);
 
