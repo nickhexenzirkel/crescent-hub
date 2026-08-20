@@ -42,6 +42,7 @@ const ICONE_STOP = encodeURI('/UNIKO_ATENÇÃO.png');
 const GLOBAL_ROOM = 'global';
 const SORTEIO_MS = 3_400;     // roleta girando antes de liberar o formulário
 const STOP_MS    = 8_000;     // depois do STOP, quem ficou pra trás tem isto
+const ALARME_MIN_MS = 3_000;  // tempo MÍNIMO que a tela "Fulano parou!" fica na tela
 const VALIDA_CAT_MS = 15_000; // janela pra avaliar UMA categoria (avança sozinho)
 const RESULT_MS  = 9_000;     // tela de pontos
 /* Escrever com a letra errada agora CUSTA pontos, não só deixa de ganhar: sem
@@ -1029,7 +1030,12 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         // em cima da hora / com broadcast atrasado ficava de fora da votação.
         const presentes = playersRef.current.map(p => p.name);
         const temTodas = presentes.length > 0 && presentes.every(n => (s.respostas || {})[n] !== undefined);
-        if (temTodas || (s.endsAt && Date.now() >= s.endsAt)) iniciarValidacao(s);
+        // Se alguém deu STOP, segura a tela de alarme ("Fulano parou!") por no
+        // mínimo ALARME_MIN_MS, mesmo que todos já tenham enviado — senão ela
+        // piscava e sumia. O tempo do STOP (endsAt) continua sendo o teto.
+        const inicioParando = (s.endsAt || 0) - STOP_MS;
+        const dwellOk = !s.stopPor || (Date.now() - inicioParando) >= ALARME_MIN_MS;
+        if ((temTodas && dwellOk) || (s.endsAt && Date.now() >= s.endsAt)) iniciarValidacao(s);
         return;
       }
       if (!s.endsAt || Date.now() < s.endsAt) return;
