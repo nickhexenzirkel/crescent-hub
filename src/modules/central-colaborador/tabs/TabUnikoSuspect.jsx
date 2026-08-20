@@ -2,11 +2,13 @@
 // UNIKO SUSPECT — jogo estilo Among Us (Tripulantes x Impostor). Admin-only
 // enquanto constrói (gate em Sidebar.jsx + central-colaborador/index.jsx).
 //
-// FASE ATUAL: Lobby & salas + sorteio de papéis. O mapa/movimento (Fase 3)
-// ainda não existe — a fase 'jogando' mostra um placeholder. Arquitetura igual
-// aos outros jogos sem servidor (Uniko Paint / Uniko Stop): uma linha por sala
-// em `uniko_suspect_state` (rodar supabase_uniko_suspect.sql), host eleito no
-// cliente escreve o estado, presence pra saber quem está em qual sala.
+// FASE ATUAL: Lobby & salas + sorteio de papéis + mapa jogável (casa de praia,
+// movimento livre, paredes/colisão aproximadas, câmera com zoom + iluminação,
+// tela cheia). Ainda faltam: tarefas, matar, sabotagem, reuniões/votação,
+// condições de vitória. Arquitetura igual aos outros jogos sem servidor
+// (Uniko Paint / Uniko Stop): uma linha por sala em `uniko_suspect_state`
+// (rodar supabase_uniko_suspect.sql), host eleito no cliente escreve o
+// estado, presence pra saber quem está em qual sala.
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
@@ -38,21 +40,53 @@ const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola
 
 /* ── Mapa: a arte da casa de praia (gerada pelo usuário) vira o fundo. As
    UNIDADES DO MAPA são os próprios pixels da imagem (1536×1024) — cada ponto
-   (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma.
-   SIMPLIFICAÇÃO CONHECIDA: colisão ainda é só "ficar dentro do retângulo do
-   mapa" (com uma margem pra não andar em cima da areia/mar decorativos das
-   bordas) — não é pixel-perfect com as paredes desenhadas. Ajustar a margem
-   é rápido se, jogando, alguém conseguir "andar na água" ou ficar bloqueado
-   onde devia ser andável. */
+   (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma. */
 const MAPA_IMG = '/uniko-suspect-mapa.png';
 const MAP_W = 1536, MAP_H = 1024;
-const MAP_MARGIN_X = 90, MAP_MARGIN_Y = 70;   // margem extra além do raio do boneco
+
+/* ── Paredes (colisão) ─────────────────────────────────────────────────────
+   Cada item é um retângulo ANDÁVEL, em FRAÇÃO da imagem (0..1 × 0..1) — dá
+   pra ler direto olhando a arte. O jogador só pode ficar num ponto que caia
+   dentro de PELO MENOS UM desses retângulos; fora deles é "parede". Os
+   corredores (`corredorV`/`corredorH`) são retângulos finos que ligam um
+   cômodo ao outro, imitando as portas/aberturas desenhadas.
+   SIMPLIFICAÇÃO CONHECIDA: os retângulos foram estimados OLHANDO a imagem,
+   não são pixel-perfect com as paredes desenhadas (a arte é isométrica, não
+   um mapa 2D reto). Se alguém ficar preso num lugar que devia ser andável, ou
+   atravessar uma parede que devia bloquear, é só ajustar o retângulo daquele
+   cômodo aqui (nomes descrevem o que cada um representa). */
+const WALK_ZONES = [
+  { id: 'quarto',     x0: 0.07,  y0: 0.055, x1: 0.34,  y1: 0.285 },
+  { id: 'banheiro',   x0: 0.07,  y0: 0.285, x1: 0.31,  y1: 0.445 },
+  { id: 'lavanderia', x0: 0.02,  y0: 0.445, x1: 0.28,  y1: 0.615 },
+  { id: 'deposito',   x0: 0.015, y0: 0.615, x1: 0.275, y1: 0.80  },
+  { id: 'corredorV',  x0: 0.28,  y0: 0.06,  x1: 0.35,  y1: 0.80  }, // corredor vertical (liga a coluna esquerda à sala)
+  { id: 'terraco',    x0: 0.33,  y0: 0.02,  x1: 0.63,  y1: 0.27  }, // deck superior (espreguiçadeiras + boia)
+  { id: 'cozinha',    x0: 0.63,  y0: 0.02,  x1: 0.94,  y1: 0.30  },
+  { id: 'sala',       x0: 0.30,  y0: 0.27,  x1: 0.68,  y1: 0.63  },
+  { id: 'varanda',    x0: 0.66,  y0: 0.30,  x1: 0.96,  y1: 0.63  }, // varanda/piscina externa
+  { id: 'corredorH',  x0: 0.36,  y0: 0.60,  x1: 0.66,  y1: 0.66  }, // liga a sala à entrada/anexos
+  { id: 'anexos',     x0: 0.58,  y0: 0.63,  x1: 0.90,  y1: 0.87  },
+  { id: 'entrada',    x0: 0.37,  y0: 0.78,  x1: 0.60,  y1: 0.97  }, // caminho do "WELCOME"
+  { id: 'ancoradouro',x0: 0.85,  y0: 0.58,  x1: 1.00,  y1: 0.98  },
+];
+const isWalkable = (x, y) => {
+  const fx = x / MAP_W, fy = y / MAP_H;
+  return WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
+};
 
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
    a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
 const ZOOM_FACTOR = 3;
 const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
+
+/* ── Iluminação: só enxerga perto do próprio boneco — o resto escurece.
+   Raio em % (percentuais de radial-gradient `circle` são sempre resolvidos
+   como fração do "farthest-corner", então ficam circulares mesmo num mapa
+   retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
+   papel no Among Us. */
+const LUZ_RAIO = { tripulante: 15, impostor: 23 };
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 34;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
@@ -66,7 +100,7 @@ const KEY_DIR = {                 // WASD + setas → direção
 // sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 // Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
-const SPAWN_RECT = { x: 620, y: 430, w: 300, h: 220 };
+const SPAWN_RECT = { x: 620, y: 430, w: 300, h: 190 };   // cabe folgado dentro da zona 'sala'
 const spawnFor = (playerName) => {
   const h = hashStr(playerName || '?');
   const x = SPAWN_RECT.x + (h % SPAWN_RECT.w);
@@ -330,6 +364,29 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const lastSentRef = useRef(0);
   const lastTsRef = useRef(0);
 
+  /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
+     (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
+     (cabeçalho + mapa), não na página inteira. */
+  const gameWrapRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    } else {
+      const el = gameWrapRef.current; if (!el) return;
+      (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+    }
+  };
+
   const host = useMemo(() => {
     if (!players.length) return undefined;
     const criador = state?.criador;
@@ -432,8 +489,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (dx || dy) {
         const len = Math.hypot(dx, dy) || 1;
         const cur = myPosRef.current;
-        const nx = Math.min(MAP_W - PLAYER_R - MAP_MARGIN_X, Math.max(PLAYER_R + MAP_MARGIN_X, cur.x + (dx / len) * MOVE_SPEED * dt));
-        const ny = Math.min(MAP_H - PLAYER_R - MAP_MARGIN_Y, Math.max(PLAYER_R + MAP_MARGIN_Y, cur.y + (dy / len) * MOVE_SPEED * dt));
+        // Colisão por PAREDE: testa X e Y em separado (não junto) — assim, ao
+        // esbarrar numa parede na diagonal, o boneco continua deslizando pelo
+        // eixo livre em vez de travar de vez. Fallback: [0,MAP_W]/[0,MAP_H]
+        // como limite absoluto (nunca sai da imagem, mesmo se cair fora de
+        // toda zona andável por algum buraco no mapeamento).
+        const tryX = Math.min(MAP_W - PLAYER_R, Math.max(PLAYER_R, cur.x + (dx / len) * MOVE_SPEED * dt));
+        const tryY = Math.min(MAP_H - PLAYER_R, Math.max(PLAYER_R, cur.y + (dy / len) * MOVE_SPEED * dt));
+        const nx = isWalkable(tryX, cur.y) ? tryX : cur.x;
+        const ny = isWalkable(nx, tryY) ? tryY : cur.y;
         if (nx !== cur.x || ny !== cur.y) {
           setMyPos({ x: nx, y: ny });
           const now = performance.now();
@@ -572,8 +636,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
         {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ── */}
         {state?.phase === 'jogando' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div ref={gameWrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0,
+            background: isFullscreen ? (T.page || '#0B1620') : 'transparent', padding: isFullscreen ? 14 : 0,
+            alignItems: isFullscreen ? 'center' : 'stretch', justifyContent: isFullscreen ? 'center' : 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: isFullscreen ? 1400 : 'none' }}>
               <div style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
                 background: meuPapel === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`,
                 border: `1px solid ${meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44`,
@@ -581,21 +647,38 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {meuPapel === 'impostor' ? 'Você é o Impostor 🔪' : 'Você é Tripulante 🏖️'}
               </div>
               <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar</div>
-              {isHost && (
-                <button className="sus-btn" onClick={encerrar}
-                  style={{ padding: '6px 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
-                  Encerrar partida
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="sus-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
+                    background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {isFullscreen
+                      ? <><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></>
+                      : <><path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/><path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/></>}
+                  </svg>
+                  {isFullscreen ? 'Sair' : 'Tela cheia'}
                 </button>
-              )}
+                {isHost && (
+                  <button className="sus-btn" onClick={encerrar}
+                    style={{ padding: '6px 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                    Encerrar partida
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Viewport (o que a tela mostra): janela pequena, com zoom — não o mapa inteiro.
                 Por baixo, o "mundo" (a arte da casa, ZOOM_FACTOR× maior que a janela) desliza
                 via transform pra manter o MEU boneco sempre centralizado (câmera clampada nas
-                bordas do mapa). Filhos do mundo (imagem + bonecos) continuam em % de MAP_W/MAP_H,
-                então a matemática de posição não muda — só ganhou essa "janela" por cima. */}
-            <div style={{ position: 'relative', width: '100%', maxWidth: 1040, margin: '0 auto', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
-              borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
+                bordas do mapa). Filhos do mundo (imagem + bonecos + luz) continuam em % de
+                MAP_W/MAP_H, então a matemática de posição não muda — só ganhou essa "janela"
+                por cima. Em tela cheia, o tamanho passa a ser ditado pela ALTURA disponível
+                (86vh) em vez da largura — ocupa bem mais espaço numa tela grande. */}
+            <div style={isFullscreen
+              ? { position: 'relative', height: '86vh', maxWidth: '97vw', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
+                  borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }
+              : { position: 'relative', width: '100%', maxWidth: 1180, margin: '0 auto', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
+                  borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
               <div style={{ position: 'absolute', left: 0, top: 0, width: `${ZOOM_FACTOR * 100}%`, height: `${ZOOM_FACTOR * 100}%`,
                 transform: `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)` }}>
                 <img src={MAPA_IMG} alt="" draggable={false}
@@ -619,6 +702,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     </div>
                   );
                 })}
+
+                {/* Iluminação: só enxerga perto do próprio boneco, o resto escurece.
+                    Centrada na MINHA posição — o raio (%) é sempre um círculo de
+                    verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
+                  background: `radial-gradient(circle at ${myPos.x / MAP_W * 100}% ${myPos.y / MAP_H * 100}%,
+                    transparent 0%, transparent ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']}%,
+                    rgba(4,10,18,.55) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 8}%,
+                    rgba(4,10,18,.97) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 22}%)` }} />
               </div>
             </div>
 
