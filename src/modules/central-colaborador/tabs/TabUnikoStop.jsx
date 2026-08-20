@@ -29,6 +29,11 @@ import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { ConvidarButton } from '../../../shared/FriendsInvite';
 import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
+import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
+
+// Arte do Uniko assistente ATIVO do usuário (a carinha de olhos abertos) — pra
+// mostrar no STOP. Sem borda: só a imagem.
+const unikoAtivoArt = () => { try { return getAssistantSkin(getActiveAssistantSkinId())?.blink?.open || null; } catch { return null; } };
 
 // Carinha do jogo (substituiu o antigo "S!" escrito à mão). encodeURI porque o
 // nome do arquivo tem acento/cedilha — mesma convenção do assistantSkin.js.
@@ -152,8 +157,36 @@ const STOP_CSS = `
 .us-revela  { animation: usRevela .6s cubic-bezier(.2,1.5,.4,1) both; }
 .us-anel    { animation: usAnel 1.1s linear infinite; }
 .us-raio    { animation: usRaio .7s ease-out both; }
+
+/* ── Animações extras (ago/2026) — mais vida na tela ── */
+/* Entrada "expand": cresce de baixo pra cima, suave e com leve overshoot */
+@keyframes usExpand { 0% { opacity: 0; transform: translateY(14px) scale(.94); } 60% { transform: translateY(0) scale(1.015); } 100% { opacity: 1; transform: none; } }
+.us-expand { animation: usExpand .5s cubic-bezier(.2,1.2,.35,1) both; }
+/* Sobe grande (painéis centrais) */
+@keyframes usRise { 0% { opacity: 0; transform: translateY(26px) scale(.96); } 100% { opacity: 1; transform: none; } }
+.us-rise { animation: usRise .55s cubic-bezier(.18,1.1,.3,1) both; }
+/* Flash de tela colorido na troca de fase (overlay que some) */
+@keyframes usFlash { 0% { opacity: 0; } 12% { opacity: .55; } 100% { opacity: 0; } }
+.us-flash { position: fixed; inset: 0; z-index: 60; pointer-events: none; animation: usFlash .7s ease-out both; }
+/* Sweep: um brilho diagonal que cruza a tela */
+@keyframes usSweep { 0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; } 20% { opacity: .5; } 100% { transform: translateX(120%) skewX(-18deg); opacity: 0; } }
+.us-sweep { position: fixed; inset: 0; z-index: 61; pointer-events: none; overflow: hidden; }
+.us-sweep::before { content: ''; position: absolute; top: 0; bottom: 0; width: 45%; left: 0;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent); animation: usSweep .8s ease-out both; }
+/* Brilho pulsante (botão STOP) */
+@keyframes usGlow { 0%,100% { box-shadow: 0 8px 26px rgba(230,57,70,.5), 0 0 0 0 rgba(230,57,70,.45); } 50% { box-shadow: 0 10px 34px rgba(230,57,70,.7), 0 0 0 12px rgba(230,57,70,0); } }
+.us-glow { animation: usGlow 1.4s ease-in-out infinite; }
+/* Celebração do vencedor: bounce + giro leve + brilho */
+@keyframes usWinner { 0% { transform: scale(.4) rotate(-12deg); opacity: 0; } 55% { transform: scale(1.18) rotate(6deg); } 75% { transform: scale(.96) rotate(-2deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.us-winner { animation: usWinner .8s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes usFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.us-float { animation: usFloat 2.6s ease-in-out infinite; }
+/* Barra de tempo com brilho correndo */
+@keyframes usShine { 0% { background-position: -180% 0; } 100% { background-position: 180% 0; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .us-pulse, .us-urgent, .us-halo::before, .us-letra, .us-anel, .us-rolando, .us-raio { animation: none !important; }
+  .us-pulse, .us-urgent, .us-halo::before, .us-letra, .us-anel, .us-rolando, .us-raio,
+  .us-flash, .us-sweep, .us-sweep::before, .us-glow, .us-winner, .us-float, .us-expand, .us-rise { animation: none !important; }
 }
 `;
 
@@ -572,7 +605,7 @@ const Lobby = ({ name, porSala, onEnter }) => {
               const jogando = st.phase && st.phase !== 'lobby' && st.phase !== 'over';
               const cs = st.cats || CATS_PADRAO;
               return (
-                <div key={r.id} className="us-card us-fade" style={{ background: cardBg, borderRadius: 14, padding: 14,
+                <div key={r.id} className="us-card us-expand" style={{ background: cardBg, borderRadius: 14, padding: 14,
                   border: `1.5px solid ${fixa ? `${A}55` : T.border}`, boxShadow: T.sh, display: 'flex',
                   flexDirection: 'column', gap: 10, position: 'relative' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
@@ -678,10 +711,21 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   const [laps, setLaps] = useState(DEFAULT_LAPS);
   const [minhas, setMinhas] = useState({});      // o que EU escrevi nesta rodada
   const [roleta, setRoleta] = useState('?');     // letra que a roleta mostra agora
+  const [flash, setFlash] = useState(null);      // flash de tela na troca de fase
   const [somOn, setSomOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
   const somRef = useRef(somOn);
   useEffect(() => { somRef.current = somOn; try { localStorage.setItem(SOUND_KEY, somOn ? '1' : '0'); } catch { /* sem localStorage */ } }, [somOn]);
   const sfx = useCallback((k) => { if (somRef.current) SFX[k]?.(); }, []);
+
+  // Flash de tela colorido a cada troca de fase (dá um "punch" visual à partida).
+  useEffect(() => {
+    const f = state?.phase; if (!f) return;
+    const cores = { sorteando:'#7C3AED', jogando:'#10B981', parando:'#E63946', validando:'#F59E0B', resultado:'#8B5CF6', over:'#F59E0B' };
+    const cor = cores[f]; if (!cor) return;
+    setFlash({ color: cor, key: `${f}_${state?.round || 0}_${Date.now()}` });
+    const t = setTimeout(() => setFlash(null), 900);
+    return () => clearTimeout(t);
+  }, [state?.phase, state?.round]);
 
   const chanRef = useRef(null);
   const stateRef = useRef(null);
@@ -829,10 +873,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
      fase, os pushStates concorrentes apagariam as respostas uns dos outros. Quem
      não é host apenas avisa; o host fecha a rodada. O envio das respostas é feito
      por TODOS no effect de fase (quando veem 'parando'), não aqui. */
-  const irParaParando = (quemParou) => {
+  const irParaParando = (quemParou, unikoFoto) => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando') return;
-    pushState({ ...s, phase: 'parando', stopPor: quemParou || null, endsAt: Date.now() + STOP_MS });
+    pushState({ ...s, phase: 'parando', stopPor: quemParou || null, stopUniko: unikoFoto || null, endsAt: Date.now() + STOP_MS });
   };
   const darStop = () => {
     const s = stateRef.current;
@@ -841,8 +885,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     const cs = s.cats || CATS_PADRAO;
     const meu = minhasRef.current || {};
     if (cs.some(c => !(meu[c] || '').trim())) return;
-    chanRef.current?.send({ type: 'broadcast', event: 'stop', payload: { name } });
-    if (hostRef.current) irParaParando(name);   // host fecha na hora; senão o host fecha ao receber o 'stop'
+    const meuUniko = unikoAtivoArt();   // meu Uniko ativo aparece pra todos no STOP
+    chanRef.current?.send({ type: 'broadcast', event: 'stop', payload: { name, uniko: meuUniko } });
+    if (hostRef.current) irParaParando(name, meuUniko);   // host fecha na hora; senão o host fecha ao receber o 'stop'
   };
 
   /* ── Motor (só o host escreve) ── */
@@ -1016,7 +1061,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       if (payload?.name === name) return;
       // Só o host fecha a rodada (um escritor só). O envio das respostas fica pro
       // effect de fase, quando todos virem 'parando' — evita corrida de escrita.
-      if (hostRef.current) irParaParando(payload?.name);
+      if (hostRef.current) irParaParando(payload?.name, payload?.uniko);
     });
     ch.on('broadcast', { event: 'respostas' }, ({ payload }) => {
       if (!hostRef.current) return;         // só o host junta
@@ -1091,6 +1136,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>{STOP_CSS}</style>
 
+      {/* ── Flash de tela + sweep na troca de fase (efeito chamativo) ── */}
+      {flash && <div key={flash.key} className="us-flash" style={{ background: `radial-gradient(circle at 50% 42%, ${flash.color}66, transparent 62%)` }} />}
+      {flash && <div key={flash.key + '_s'} className="us-sweep" />}
+
       {/* ── ALARME DE STOP — tela grande vermelha piscando quando alguém parou ── */}
       {state?.phase === 'parando' && state?.stopPor && (
         <div className="us-alarme" style={{ position: 'fixed', inset: 0, zIndex: 9000,
@@ -1102,7 +1151,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
           <div className="us-alarme-luz" style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '55%', height: '55%',
             background: 'radial-gradient(circle, #ffef99 0%, transparent 60%)', animationDelay: '.3s' }} />
           <div className="us-alarme-msg" style={{ position: 'relative' }}>
-            <div style={{ fontSize: 'clamp(60px, 14vw, 180px)', lineHeight: 1 }}>🚨</div>
+            {/* Uniko ativo de quem deu STOP — sem borda/fundo, só a imagem */}
+            {state.stopUniko
+              ? <img src={state.stopUniko} alt="" className="us-float" style={{ width: 'clamp(110px, 22vw, 260px)', height: 'clamp(110px, 22vw, 260px)', objectFit: 'contain', display: 'block', margin: '0 auto', filter: 'drop-shadow(0 10px 30px rgba(0,0,0,.45))' }} />
+              : <div style={{ fontSize: 'clamp(60px, 14vw, 180px)', lineHeight: 1 }}>🚨</div>}
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(40px, 9vw, 110px)', fontWeight: 800,
               color: '#fff', letterSpacing: '.05em', textShadow: '0 4px 24px rgba(0,0,0,.5)', lineHeight: 1 }}>
               STOP!
@@ -1229,15 +1281,16 @@ const Sala = ({ roomId, name, players, onLeave }) => {
           {noLobby && (
             <div style={{ textAlign: 'center', padding: '20px 10px' }}>
               {state?.phase === 'over' ? (
-                <>
-                  <div style={{ fontSize: 44 }}>🏆</div>
-                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 24, fontWeight: 800, color: T.text, marginTop: 6 }}>
+                <div className="us-winner">
+                  <div className="us-float" style={{ fontSize: 64, filter: 'drop-shadow(0 6px 20px rgba(245,158,11,.55))' }}>🏆</div>
+                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 800, color: T.text, marginTop: 6,
+                    background: `linear-gradient(90deg, ${US.roxo}, ${US.azul}, ${US.verde})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     {ranked[0]?.name?.split(' ')[0] || '—'} venceu!
                   </div>
                   <div style={{ fontSize: 13, color: T.textT, marginTop: 8 }}>
                     {ranked.slice(0, 3).map((p, i) => `${i + 1}º ${p.name.split(' ')[0]} — ${p.pts} pts`).join('   ·   ')}
                   </div>
-                </>
+                </div>
               ) : (
                 <>
                   <div className="us-halo" style={{ width: 74, height: 74, borderRadius: 20, margin: '0 auto',
@@ -1345,7 +1398,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
                   const podeStop = faltam === 0;
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                      <button className={podeStop ? 'us-btn us-pulse' : 'us-btn'} disabled={!podeStop}
+                      <button className={podeStop ? 'us-btn us-glow' : 'us-btn'} disabled={!podeStop}
                         onClick={() => podeStop && darStop()}
                         title={podeStop ? 'Parar a rodada!' : 'Preencha todos os campos primeiro'}
                         style={{ padding: '12px 34px', borderRadius: 999, border: 'none', color: '#fff',
