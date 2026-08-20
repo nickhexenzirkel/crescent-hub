@@ -37,9 +37,12 @@ const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','
    os 7 dias de uma mesma semana NUNCA repetem pose pra uma mesma pessoa — e
    como a lista tem bem mais que 7 poses, o "não repetir na semana" cai de graça.
    Só falta cuidar da virada domingo→segunda (2 semanas diferentes, poderiam
-   coincidir por acaso) — ver o ajuste em `poseDoDia`. Não precisa de tabela no
-   banco: qualquer cliente calcula a pose de qualquer pessoa em qualquer dia
-   só com o nome e a data — não tem corrida nem precisa sincronizar nada. */
+   coincidir por acaso) — ver o ajuste em `poseDoDia`. Não precisa de tabela
+   no banco pras poses FIXAS: qualquer cliente calcula a pose de qualquer
+   pessoa em qualquer dia só com o nome e a data — não tem corrida nem
+   precisa sincronizar nada. A lista em si, porém, pode crescer com poses
+   EXTRAS cadastradas pelo admin (Dashboard RH → aba "Uniko FIT", tabela
+   uniko_fit_poses_custom) — ver `posesTodas` no componente. */
 // Cada pose tem uma arte de demonstração do próprio Uniko (o mascote faz a
 // pose, a pessoa copia). As artes vêm de UMA imagem só (`/uniko-fit/poses-
 // uniko.png`, colagem 6 colunas × 3 linhas, 1672×941px — a 3ª linha só tem
@@ -81,16 +84,20 @@ const _MONDAY_EPOCH = Date.UTC(2024, 0, 1);
 const _weekIndexFor = (dateUTC) => Math.floor((Date.UTC(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth(), dateUTC.getUTCDate()) - _MONDAY_EPOCH) / (7 * 86400000));
 const _dowMondayFirst = (dateUTC) => (dateUTC.getUTCDay() + 6) % 7; // 0=segunda … 6=domingo
 
-const poseDoDia = (player, dateUTC = new Date()) => {
+// `poses` é a lista COMPLETA (fixas do array POSES + extras cadastradas pelo
+// admin na aba "Uniko FIT" do RH — ver `posesTodas` no componente). Passar a
+// lista de fora deixa a função pura e determinística: mesma pessoa + mesma
+// data + mesma lista = sempre a mesma pose, em qualquer cliente.
+const poseDoDia = (player, dateUTC = new Date(), poses = POSES) => {
   const week = _weekIndexFor(dateUTC);
   const dow = _dowMondayFirst(dateUTC);
-  let shuffled = _seededShuffle(POSES, _strHash(`${player}|w${week}`));
+  let shuffled = _seededShuffle(poses, _strHash(`${player}|w${week}`));
   if (dow === 0) {
     // 1º dia da semana: evita coincidir com a última pose da semana anterior
     // (a única costura entre embaralhamentos independentes — o resto da
     // semana já não repete sozinho, por construção do shuffle).
-    const prevShuffled = _seededShuffle(POSES, _strHash(`${player}|w${week - 1}`));
-    const prevLast = prevShuffled[Math.min(6, POSES.length - 1)];
+    const prevShuffled = _seededShuffle(poses, _strHash(`${player}|w${week - 1}`));
+    const prevLast = prevShuffled[Math.min(6, poses.length - 1)];
     if (shuffled[0].id === prevLast.id) { const j = 1 % shuffled.length; [shuffled[0], shuffled[j]] = [shuffled[j], shuffled[0]]; }
   }
   return shuffled[dow % shuffled.length];
@@ -290,10 +297,12 @@ const FeedVideo = ({ src, style, muted }) => {
   return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
-/* ── Recorte de uma pose na colagem `/uniko-fit/poses-uniko.png` (sprite sheet
-   6×3) via background-position percentual — sem precisar de 17 arquivos soltos.
-   Se a pose não tiver `sprite` (poses futuras sem arte ainda), cai pro emoji. ── */
+/* ── Arte de uma pose: as fixas vêm de um recorte da colagem `/uniko-fit/
+   poses-uniko.png` (sprite sheet 6×3) via background-position percentual;
+   as extras cadastradas pelo admin (aba "Uniko FIT" do RH) já têm a própria
+   imagem (`image_url`, um upload avulso). Sem nenhuma das duas, cai pro emoji. ── */
 const PoseThumb = ({ pose, size = 56, round = 12 }) => {
+  if (pose?.image_url) return <div style={{ width: size, height: size, borderRadius: round, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)' }}><img src={pose.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>;
   if (!pose?.sprite) return <div style={{ width: size, height: size, borderRadius: round, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.5, background: 'rgba(128,128,128,.12)', flexShrink: 0 }}>{pose?.emoji}</div>;
   const { row, col } = pose.sprite;
   return (
@@ -599,6 +608,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setCheckinHojeFeito(!!data?.length);
     setCheckinHojeDesafioId(data?.[0]?.desafio_pose_id || null);
   }, [name]);
+  const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
   const abrirCheckinComDesafio = (pose) => {
     setDesafioAtivo(pose);
     setPostCaption(c => c.trim() ? c : `${pose.emoji} Desafio do dia: ${pose.texto}`);
@@ -822,14 +832,27 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [fullFeed]);
 
   /* ═══════════════════ DESAFIOS — pose de hoje, minha + da galera ═══════════════════ */
-  const meuDesafioHoje = useMemo(() => poseDoDia(name), [name]);
+  // Poses extras cadastradas pelo admin (Dashboard RH → aba "Uniko FIT",
+  // tabela uniko_fit_poses_custom) somam com as fixas do array POSES. Busca
+  // uma vez ao abrir o app — a lista raramente muda e todo mundo precisa
+  // enxergar a MESMA lista pra `poseDoDia` bater entre clientes.
+  const [posesExtras, setPosesExtras] = useState([]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('uniko_fit_poses_custom').select('*').eq('ativo', true).order('created_at', { ascending: true });
+      setPosesExtras(data || []);
+    })();
+  }, []);
+  const posesTodas = useMemo(() => [...POSES, ...posesExtras], [posesExtras]);
+
+  const meuDesafioHoje = useMemo(() => poseDoDia(name, undefined, posesTodas), [name, posesTodas]);
   // "Galera" = todo mundo que já postou/checou-in alguma vez (mesma fonte do
   // Amigos) — cada um com a pose de HOJE calculada na hora, sem precisar de
   // tabela/consulta nova (é só o `poseDoDia` de novo, com outro nome).
   const desafiosGalera = useMemo(() => {
     if (!detalhesLista) return null;
-    return detalhesLista.map(p => ({ player: p.player, pose: poseDoDia(p.player) })).filter(x => x.player !== name);
-  }, [detalhesLista, name]);
+    return detalhesLista.map(p => ({ player: p.player, pose: poseDoDia(p.player, undefined, posesTodas) })).filter(x => x.player !== name);
+  }, [detalhesLista, name, posesTodas]);
 
   /* ═══════════════════ MEU PERFIL (meus posts + engajamento) ═══════════════════ */
   // Reaproveita o mesmo `fullFeed` paginado do ranking/amigos (carrega uma vez só).
@@ -1322,7 +1345,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             <div style={{ background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, borderRadius: 16, padding: '18px 20px', marginBottom: 18, color: '#fff', boxShadow: `0 8px 24px ${EG}` }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', opacity: .9, marginBottom: 6 }}>SEU DESAFIO DE HOJE</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ background: 'rgba(255,255,255,.2)', borderRadius: 14, padding: 4 }}><PoseThumb pose={meuDesafioHoje} size={64} round={11} /></div>
+                <div onClick={() => setPoseZoom(meuDesafioHoje)} role="button" aria-label="Ver foto do desafio em tela grande"
+                  style={{ background: 'rgba(255,255,255,.2)', borderRadius: 14, padding: 4, cursor: 'pointer' }}>
+                  <PoseThumb pose={meuDesafioHoje} size={64} round={11} />
+                </div>
                 <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
               </div>
               {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
@@ -1543,6 +1569,26 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   opacity: comentTexto.trim() ? 1 : .5 }}>Enviar</button>
             </div>
           </div>
+        </div>
+      )}
+      {/* ── Foto do desafio em tela grande (clique no thumb de "SEU DESAFIO DE HOJE") ── */}
+      {poseZoom && (
+        <div onClick={() => setPoseZoom(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.82)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'pointer' }}>
+          <button onClick={() => setPoseZoom(null)} aria-label="Fechar"
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          {poseZoom.image_url ? (
+            <img src={poseZoom.image_url} alt={poseZoom.texto} onClick={e => e.stopPropagation()}
+              style={{ maxWidth: '92%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
+          ) : poseZoom.sprite ? (
+            <div onClick={e => e.stopPropagation()}
+              style={{ width: 'min(88vw, 420px)', height: 'min(88vw, 420px)', borderRadius: 20, boxShadow: '0 12px 40px rgba(0,0,0,.5)',
+                backgroundImage: 'url(/uniko-fit/poses-uniko.png)', backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
+                backgroundPosition: `${poseZoom.sprite.col / (POSES_SPRITE_COLS - 1) * 100}% ${poseZoom.sprite.row / (POSES_SPRITE_ROWS - 1) * 100}%` }} />
+          ) : (
+            <div style={{ fontSize: 96 }}>{poseZoom.emoji}</div>
+          )}
+          <div style={{ marginTop: 16, color: '#fff', fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 700, textAlign: 'center', maxWidth: 340 }}>{poseZoom.emoji ? `${poseZoom.emoji} ` : ''}{poseZoom.texto}</div>
         </div>
       )}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
