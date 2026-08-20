@@ -39,10 +39,10 @@ const ROOMS = [
 const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola da mãezinha'];
 
 /* ── Mapa: a arte da casa de praia (gerada pelo usuário) vira o fundo. As
-   UNIDADES DO MAPA são os próprios pixels da imagem (1536×1024) — cada ponto
-   (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma. */
+   UNIDADES DO MAPA são os próprios pixels da imagem (1672×941, 16:9) — cada
+   ponto (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma. */
 const MAPA_IMG = '/uniko-suspect-mapa.png';
-const MAP_W = 1536, MAP_H = 1024;
+const MAP_W = 1672, MAP_H = 941;
 
 /* ── Paredes (colisão) ─────────────────────────────────────────────────────
    Cada item é um retângulo ANDÁVEL, em FRAÇÃO da imagem (0..1 × 0..1) — dá
@@ -50,25 +50,25 @@ const MAP_W = 1536, MAP_H = 1024;
    dentro de PELO MENOS UM desses retângulos; fora deles é "parede". Os
    corredores (`corredorV`/`corredorH`) são retângulos finos que ligam um
    cômodo ao outro, imitando as portas/aberturas desenhadas.
-   SIMPLIFICAÇÃO CONHECIDA: os retângulos foram estimados OLHANDO a imagem,
-   não são pixel-perfect com as paredes desenhadas (a arte é isométrica, não
-   um mapa 2D reto). Se alguém ficar preso num lugar que devia ser andável, ou
+   Recalibrado (ago/2026) usando a imagem de referência com o contorno andável
+   marcado em neon vermelho pelo usuário — mais fiel que a estimativa anterior,
+   mas AINDA é uma aproximação por retângulos (a arte é isométrica, não um mapa
+   2D reto). Se alguém ficar preso num lugar que devia ser andável, ou
    atravessar uma parede que devia bloquear, é só ajustar o retângulo daquele
    cômodo aqui (nomes descrevem o que cada um representa). */
 const WALK_ZONES = [
-  { id: 'quarto',     x0: 0.07,  y0: 0.055, x1: 0.34,  y1: 0.285 },
-  { id: 'banheiro',   x0: 0.07,  y0: 0.285, x1: 0.31,  y1: 0.445 },
-  { id: 'lavanderia', x0: 0.02,  y0: 0.445, x1: 0.28,  y1: 0.615 },
-  { id: 'deposito',   x0: 0.015, y0: 0.615, x1: 0.275, y1: 0.80  },
-  { id: 'corredorV',  x0: 0.28,  y0: 0.06,  x1: 0.35,  y1: 0.80  }, // corredor vertical (liga a coluna esquerda à sala)
-  { id: 'terraco',    x0: 0.33,  y0: 0.02,  x1: 0.63,  y1: 0.27  }, // deck superior (espreguiçadeiras + boia)
-  { id: 'cozinha',    x0: 0.63,  y0: 0.02,  x1: 0.94,  y1: 0.30  },
-  { id: 'sala',       x0: 0.30,  y0: 0.27,  x1: 0.68,  y1: 0.63  },
-  { id: 'varanda',    x0: 0.66,  y0: 0.30,  x1: 0.96,  y1: 0.63  }, // varanda/piscina externa
-  { id: 'corredorH',  x0: 0.36,  y0: 0.60,  x1: 0.66,  y1: 0.66  }, // liga a sala à entrada/anexos
-  { id: 'anexos',     x0: 0.58,  y0: 0.63,  x1: 0.90,  y1: 0.87  },
-  { id: 'entrada',    x0: 0.37,  y0: 0.78,  x1: 0.60,  y1: 0.97  }, // caminho do "WELCOME"
-  { id: 'ancoradouro',x0: 0.85,  y0: 0.58,  x1: 1.00,  y1: 0.98  },
+  { id: 'quarto',     x0: 0.095, y0: 0.06,  x1: 0.33,  y1: 0.305 },
+  { id: 'lavanderia', x0: 0.025, y0: 0.33,  x1: 0.25,  y1: 0.475 },
+  { id: 'deposito',   x0: 0.015, y0: 0.49,  x1: 0.245, y1: 0.72  },
+  { id: 'corredorV',  x0: 0.245, y0: 0.06,  x1: 0.335, y1: 0.72  }, // liga a coluna esquerda à sala
+  { id: 'terraco',    x0: 0.325, y0: 0.02,  x1: 0.665, y1: 0.305 }, // deck superior (espreguiçadeiras + boia + geladeira)
+  { id: 'cozinha',    x0: 0.655, y0: 0.06,  x1: 0.90,  y1: 0.305 },
+  { id: 'sala',       x0: 0.315, y0: 0.28,  x1: 0.665, y1: 0.625 },
+  { id: 'varanda',    x0: 0.685, y0: 0.335, x1: 0.94,  y1: 0.635 }, // varanda/piscina externa
+  { id: 'corredorH',  x0: 0.37,  y0: 0.60,  x1: 0.665, y1: 0.665 }, // liga a sala à entrada/anexo
+  { id: 'anexo',      x0: 0.685, y0: 0.635, x1: 0.905, y1: 0.855 },
+  { id: 'entrada',    x0: 0.42,  y0: 0.775, x1: 0.605, y1: 0.975 }, // caminho do "WELCOME"
+  { id: 'ancoradouro',x0: 0.895, y0: 0.60,  x1: 0.985, y1: 0.955 },
 ];
 const isWalkable = (x, y) => {
   const fx = x / MAP_W, fy = y / MAP_H;
@@ -89,8 +89,8 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
 const LUZ_RAIO = { tripulante: 15, impostor: 23 };
 
 /* ── Movimento livre em tempo real ── */
-const PLAYER_R = 34;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 520;           // pixels do mapa por segundo
+const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
+const MOVE_SPEED = 420;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 520)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
@@ -100,7 +100,7 @@ const KEY_DIR = {                 // WASD + setas → direção
 // sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 // Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
-const SPAWN_RECT = { x: 620, y: 430, w: 300, h: 190 };   // cabe folgado dentro da zona 'sala'
+const SPAWN_RECT = { x: 640, y: 330, w: 260, h: 150 };   // cabe folgado dentro da zona 'sala'
 const spawnFor = (playerName) => {
   const h = hashStr(playerName || '?');
   const x = SPAWN_RECT.x + (h % SPAWN_RECT.w);
@@ -705,12 +705,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
                 {/* Iluminação: só enxerga perto do próprio boneco, o resto escurece.
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
-                    verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
+                    verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). Sombra
+                    bem mais densa (quase preto fora do raio de luz) — pedido do usuário. */}
                 <div style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: `radial-gradient(circle at ${myPos.x / MAP_W * 100}% ${myPos.y / MAP_H * 100}%,
                     transparent 0%, transparent ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']}%,
-                    rgba(4,10,18,.55) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 8}%,
-                    rgba(4,10,18,.97) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 22}%)` }} />
+                    rgba(2,4,9,.88) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 6}%,
+                    rgba(1,2,6,.995) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 18}%)` }} />
               </div>
             </div>
 
