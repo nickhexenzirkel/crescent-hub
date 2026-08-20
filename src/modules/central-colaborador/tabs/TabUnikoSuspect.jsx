@@ -21,17 +21,43 @@ const AG = 'rgba(14,165,183,.35)';
 const MIN_PLAYERS = 2;                 // temporário (testando) — subir de novo antes do lançamento
 const ROOM_TTL_MS = 20 * 60 * 1000;    // sala vazia parada há 20min = lixo
 
-/* Cômodos confirmados pro mapa (Fase 3) — por enquanto só metadata/preview. */
+/* Cômodos do mapa (Fase 3). `rect` é em UNIDADES DO MAPA (0..MAP_W, 0..MAP_H) —
+   os 7 cômodos se encaixam sem brechas (cada um encosta no vizinho), então a
+   casa inteira vira uma área única andável: colisão = ficar dentro do
+   retângulo total do mapa. SIMPLIFICAÇÃO CONHECIDA: sem paredes internas por
+   enquanto (dá pra andar direto de um cômodo a outro) — paredes/portas ficam
+   pra uma iteração futura, se fizer falta pro jogo. */
+const MAP_W = 1000, MAP_H = 640;
 const ROOMS = [
-  { id: 'sala',     nome: 'Sala de Estar',          emoji: '🛋️' },
-  { id: 'cozinha',  nome: 'Cozinha',                emoji: '🍳' },
-  { id: 'quarto',   nome: 'Quarto',                 emoji: '🛏️' },
-  { id: 'banheiro', nome: 'Banheiro',                emoji: '🚽' },
-  { id: 'piscina',  nome: 'Varanda / Piscina',       emoji: '🏊' },
-  { id: 'quintal',  nome: 'Churrasqueira / Quintal', emoji: '🍖' },
-  { id: 'deck',     nome: 'Deck / Beira-mar',        emoji: '🌅' },
+  { id: 'quarto',   nome: 'Quarto',                  emoji: '🛏️', cor: '#C9A6E8', rect: { x: 0,   y: 0,   w: 260, h: 220 } },
+  { id: 'banheiro', nome: 'Banheiro',                 emoji: '🚽', cor: '#9FD8D0', rect: { x: 0,   y: 220, w: 260, h: 160 } },
+  { id: 'sala',     nome: 'Sala de Estar',           emoji: '🛋️', cor: '#F2C879', rect: { x: 260, y: 0,   w: 360, h: 380 } },
+  { id: 'cozinha',  nome: 'Cozinha',                 emoji: '🍳', cor: '#F5A97F', rect: { x: 620, y: 0,   w: 380, h: 380 } },
+  { id: 'piscina',  nome: 'Varanda / Piscina',        emoji: '🏊', cor: '#7FD4E8', rect: { x: 0,   y: 380, w: 400, h: 260 } },
+  { id: 'quintal',  nome: 'Churrasqueira / Quintal',  emoji: '🍖', cor: '#B8D98A', rect: { x: 400, y: 380, w: 350, h: 260 } },
+  { id: 'deck',     nome: 'Deck / Beira-mar',         emoji: '🌅', cor: '#F5D08A', rect: { x: 750, y: 380, w: 250, h: 260 } },
 ];
 const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola da mãezinha'];
+
+/* ── Movimento livre em tempo real ── */
+const PLAYER_R = 22;             // "raio" do boneco em unidades do mapa (clamp nas bordas)
+const MOVE_SPEED = 340;          // unidades do mapa por segundo
+const POS_SEND_MS = 90;          // intervalo mínimo entre broadcasts de posição
+const KEY_DIR = {                // WASD + setas → direção
+  w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
+  a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
+};
+// Hash determinístico (mesma técnica do hintOrder do Stop) — spawn consistente
+// sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
+const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+// Todo mundo nasce na Sala de Estar (cômodo central), espalhado por um hash do nome.
+const spawnFor = (playerName) => {
+  const r = ROOMS.find(x => x.id === 'sala').rect;
+  const h = hashStr(playerName || '?');
+  const x = r.x + PLAYER_R + 10 + (h % Math.max(1, r.w - PLAYER_R * 2 - 20));
+  const y = r.y + PLAYER_R + 10 + ((h >> 8) % Math.max(1, r.h - PLAYER_R * 2 - 20));
+  return { x, y };
+};
 
 const myName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
@@ -275,6 +301,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const playersRef = useRef([]);
   const cardBg = T.surface || '#fff';
 
+  /* ── Movimento livre no mapa (Fase 3) ──────────────────────────────────
+     Posição NÃO entra no `state` (jsonb persistido) — muda rápido demais e é
+     efêmera, então vai só por BROADCAST (mesmo princípio dos traços do Uniko
+     Paint). `myPos` é a MINHA posição (autoridade local); `positions` guarda
+     a posição recebida de cada outro jogador. */
+  const [myPos, setMyPos] = useState(() => spawnFor(name));
+  const [positions, setPositions] = useState({});
+  const myPosRef = useRef(myPos);
+  useEffect(() => { myPosRef.current = myPos; }, [myPos]);
+  const pressedRef = useRef(new Set());
+  const rafRef = useRef(null);
+  const lastSentRef = useRef(0);
+  const lastTsRef = useRef(0);
+
   const host = useMemo(() => {
     if (!players.length) return undefined;
     const criador = state?.criador;
@@ -310,7 +350,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     return () => { vivo = false; supabase.removeChannel(ch); clearInterval(poll); };
   }, [roomId, aplicaEstado]);
 
-  /* Canal de broadcast da sala — "pronto" (revisou o papel) é o único evento por enquanto. */
+  /* Canal de broadcast da sala: "pronto" (revisou o papel) + posição no mapa. */
   useEffect(() => {
     const ch = supabase.channel(`uniko-suspect-room-${roomId}`);
     chanRef.current = ch;
@@ -319,6 +359,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       const s = stateRef.current; if (!s) return;
       const p = { ...(s.prontos || {}) }; p[payload.name] = true;
       pushState({ ...s, prontos: p });
+    });
+    ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
+      if (!payload?.name || payload.name === name) return;
+      setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y } }));
+    });
+    // Quem acabou de entrar no mapa pede a posição de todo mundo; cada cliente
+    // responde com a PRÓPRIA posição (não tem "host" pra isso — todos sabem a
+    // própria posição, ninguém mais sabe a de todos).
+    ch.on('broadcast', { event: 'pos-req' }, ({ payload }) => {
+      if (payload?.name === name) return;
+      if (stateRef.current?.phase !== 'jogando') return;
+      ch.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y } });
     });
     ch.subscribe();
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
@@ -333,6 +385,61 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (presentes.length && prontos.length >= presentes.length) pushState({ ...state, phase: 'jogando' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, state, players]);
+
+  /* ── Loop de movimento: teclado (WASD/setas) + requestAnimationFrame ──────
+     Só roda durante a fase 'jogando'. Move localmente (autoridade própria,
+     resposta instantânea) e transmite a posição em lote a cada POS_SEND_MS
+     (não a cada frame — senão entope o canal, mesmo motivo do Uniko Paint
+     mandar traços em lote a cada 60ms em vez de um send por ponto). */
+  useEffect(() => {
+    if (state?.phase !== 'jogando') return;
+    // Quem acabou de chegar no mapa pede a posição de todo mundo.
+    chanRef.current?.send({ type: 'broadcast', event: 'pos-req', payload: { name } });
+
+    const onKeyDown = (e) => {
+      const k = e.key.toLowerCase();
+      if (!KEY_DIR[k]) return;
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;   // nunca captura teclado de um campo de texto
+      pressedRef.current.add(k);
+      e.preventDefault();
+    };
+    const onKeyUp = (e) => { pressedRef.current.delete(e.key.toLowerCase()); };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    lastTsRef.current = performance.now();
+    const step = (ts) => {
+      const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
+      lastTsRef.current = ts;
+      let dx = 0, dy = 0;
+      pressedRef.current.forEach(k => { const d = KEY_DIR[k]; if (d) { dx += d[0]; dy += d[1]; } });
+      if (dx || dy) {
+        const len = Math.hypot(dx, dy) || 1;
+        const cur = myPosRef.current;
+        const nx = Math.min(MAP_W - PLAYER_R, Math.max(PLAYER_R, cur.x + (dx / len) * MOVE_SPEED * dt));
+        const ny = Math.min(MAP_H - PLAYER_R, Math.max(PLAYER_R, cur.y + (dy / len) * MOVE_SPEED * dt));
+        if (nx !== cur.x || ny !== cur.y) {
+          setMyPos({ x: nx, y: ny });
+          const now = performance.now();
+          if (now - lastSentRef.current >= POS_SEND_MS) {
+            lastSentRef.current = now;
+            chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: nx, y: ny } });
+          }
+        }
+      }
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+
+    const teclas = pressedRef.current;   // copiado agora — o cleanup não deve ler `.current` de novo
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      teclas.clear();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [state?.phase, name]);
 
   const sortearEComecar = () => {
     if (!state || players.length < MIN_PLAYERS) return;
@@ -410,7 +517,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             </div>
 
             <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '14px 18px' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>🚧 Prévia do mapa (Fase 3, ainda não jogável)</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>🗺️ Cômodos da casa</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                 {ROOMS.map(r => (
                   <span key={r.id} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, background: `${AGUA}12`, border: `1px solid ${AGUA}33`, color: T.text }}>{r.emoji} {r.nome}</span>
@@ -443,25 +550,67 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           </div>
         )}
 
-        {/* ── PLACEHOLDER DO JOGO (mapa/tarefas ainda não existem) ── */}
+        {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ── */}
         {state?.phase === 'jogando' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '30px 10px', textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 46 }}>🏗️</div>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>Mapa chegando na próxima fase!</div>
-            <div style={{ fontSize: 12.5, color: T.textT, maxWidth: 380, lineHeight: 1.5 }}>
-              O lobby e o sorteio de papéis já funcionam. A casa de praia (movimento livre, tarefas, matar, reuniões e votação) é a próxima etapa.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
+                background: meuPapel === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`,
+                border: `1px solid ${meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44`,
+                color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                {meuPapel === 'impostor' ? 'Você é o Impostor 🔪' : 'Você é Tripulante 🏖️'}
+              </div>
+              <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar</div>
+              {isHost && (
+                <button className="sus-btn" onClick={encerrar}
+                  style={{ padding: '6px 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                  Encerrar partida
+                </button>
+              )}
             </div>
-            <div style={{ padding: '8px 16px', borderRadius: 10, background: meuPapel === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`,
-              border: `1px solid ${meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44`, fontSize: 12.5, fontWeight: 700,
-              color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
-              Lembrete: você é {meuPapel === 'impostor' ? 'o Impostor 🔪' : 'Tripulante 🏖️'}
+
+            {/* Casa de praia — cada cômodo é um retângulo em % do mapa (MAP_W×MAP_H) */}
+            <div style={{ position: 'relative', width: '100%', maxWidth: 820, margin: '0 auto', aspectRatio: `${MAP_W} / ${MAP_H}`,
+              borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh,
+              background: 'linear-gradient(180deg, #BEE7F5 0%, #E8F6E0 100%)' }}>
+              {ROOMS.map(r => (
+                <div key={r.id} style={{ position: 'absolute', left: `${r.rect.x / MAP_W * 100}%`, top: `${r.rect.y / MAP_H * 100}%`,
+                  width: `${r.rect.w / MAP_W * 100}%`, height: `${r.rect.h / MAP_H * 100}%`, background: r.cor,
+                  border: '2px solid rgba(255,255,255,.65)', boxSizing: 'border-box' }}>
+                  <div style={{ padding: '5px 9px', fontSize: 'clamp(9px, 1.3vw, 12px)', fontWeight: 800, color: 'rgba(0,0,0,.55)',
+                    display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                    <span>{r.emoji}</span>{r.nome}
+                  </div>
+                  {/* piadas internas por cômodo */}
+                  {r.id === 'piscina' && <span className="sus-float" style={{ position: 'absolute', right: '12%', bottom: '16%', fontSize: 'clamp(20px, 4vw, 38px)' }}>🦩</span>}
+                  {r.id === 'banheiro' && <span style={{ position: 'absolute', right: 8, bottom: 6, fontSize: 15, opacity: .85 }}>💩</span>}
+                  {r.id === 'cozinha' && <span title="coca-cola da mãezinha — NÃO MEXE!" className="sus-float" style={{ position: 'absolute', right: '12%', top: '52%', fontSize: 'clamp(18px, 3.2vw, 28px)' }}>🥤</span>}
+                  {r.id === 'quintal' && <span style={{ position: 'absolute', left: '50%', bottom: '14%', transform: 'translateX(-50%)', fontSize: 'clamp(18px, 3.2vw, 26px)' }}>🍖🔥</span>}
+                  {r.id === 'deck' && <span style={{ position: 'absolute', left: '50%', bottom: '12%', transform: 'translateX(-50%)', fontSize: 'clamp(18px, 3.2vw, 26px)' }}>🌊</span>}
+                </div>
+              ))}
+
+              {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
+              {players.map(p => {
+                const eu = p.name === name;
+                const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
+                return (
+                  <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
+                    transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
+                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 'clamp(26px, 4.4vw, 40px)', height: 'clamp(26px, 4.4vw, 40px)', objectFit: 'contain',
+                      filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.35)) drop-shadow(0 0 9px ${AGUA}bb)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.35))' }} />
+                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.85)', borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>
+                      {p.name.split(' ')[0]}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            {isHost && (
-              <button className="sus-btn" onClick={encerrar}
-                style={{ marginTop: 6, padding: '10px 22px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                Encerrar partida
-              </button>
-            )}
+
+            <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
+              🚧 Tarefas, matar, reuniões e votação chegam nas próximas fases — por enquanto é só andar pela casa.
+            </div>
           </div>
         )}
       </div>
