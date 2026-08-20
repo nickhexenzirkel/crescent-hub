@@ -336,6 +336,13 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [justSaving,setJustSaving]= useState(false);
   const justFileRef = useRef(null);
   const [solics,    setSolics]    = useState([]);    // solicitações dos colaboradores (motivo + anexo)
+  // Afastamento: justifica automaticamente todos os dias úteis de um período.
+  const [afastModal, setAfastModal] = useState(null); // { cpf, name } sendo afastado
+  const [afastForm,  setAfastForm]  = useState({ motivo:'', inicio:'', fim:'' });
+  const [afastFile,  setAfastFile]  = useState(null);
+  const [afastSaving,setAfastSaving]= useState(false);
+  const [afastMsg,   setAfastMsg]   = useState('');
+  const afastFileRef = useRef(null);
   // Feature 3: Banco de Horas filters
   const [bancoFilter,   setBancoFilter]   = useState('todos'); // hoje|ontem|3dias|7dias|30dias|todos|custom
   const [bancoStart,    setBancoStart]    = useState(''); // período customizado — início (YYYY-MM-DD)
@@ -583,6 +590,58 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     setJustifs(prev => { const n = { ...prev }; delete n[key]; return n; });
     try { await saveJustificativa({ cpf, date, text: '' }); }
     catch (ex) { setErr('Erro ao remover justificativa: ' + ex.message); }
+  };
+
+  /* ── Afastamento: justifica (abona) automaticamente TODOS os dias úteis do período,
+     com o mesmo motivo + anexo. Fim de semana/feriado não entra (já é 0). ── */
+  const abrirAfastamento = (emp) => {
+    setAfastModal({ cpf: emp.cpf, name: emp.name || emp.cpf });
+    setAfastForm({ motivo: '', inicio: '', fim: '' });
+    setAfastFile(null); setAfastMsg('');
+  };
+  const atribuirAfastamento = async () => {
+    if (!afastModal || afastSaving) return;
+    const { cpf } = afastModal;
+    const motivo = afastForm.motivo.trim();
+    const { inicio, fim } = afastForm;
+    if (!inicio || !fim) { setAfastMsg('⚠️ Informe o período (início e fim).'); return; }
+    if (fim < inicio)    { setAfastMsg('⚠️ A data fim não pode ser antes do início.'); return; }
+    if (!motivo)         { setAfastMsg('⚠️ Informe o motivo do afastamento.'); return; }
+    // Dias úteis do período (seg–sex, sem feriado).
+    const dias = [];
+    let cursor = new Date(inicio + 'T12:00:00');
+    const end = new Date(fim + 'T12:00:00');
+    while (cursor <= end) {
+      const date = toISO_p(cursor);
+      if (!isDayOff_p(date)) dias.push(date);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    if (!dias.length)     { setAfastMsg('⚠️ Não há dia útil nesse período.'); return; }
+    if (dias.length > 200){ setAfastMsg('⚠️ Período muito longo (máx. ~200 dias úteis).'); return; }
+    setAfastSaving(true); setAfastMsg('');
+    try {
+      // Sobe o anexo UMA vez e reusa a mesma URL em todos os dias.
+      let file_url = null, file_name = null;
+      if (afastFile) {
+        const up = await uploadJustifAnexo(afastFile, cpf, `afast_${inicio}_${fim}`);
+        file_url = up.file_url; file_name = up.file_name;
+      }
+      const texto = `Afastamento (${fmtDate(inicio)} a ${fmtDate(fim)}): ${motivo}`;
+      const results = await Promise.all(dias.map(date =>
+        saveJustificativa({ cpf, date, text: texto, file_url, file_name })
+          .then(s => [date, s]).catch(() => [date, null])
+      ));
+      const saved = {};
+      let ok = 0;
+      for (const [date, s] of results) { if (s) { saved[`${cpf}_${date}`] = s; ok++; } }
+      setJustifs(prev => ({ ...prev, ...saved }));
+      setAfastMsg(`✅ Afastamento atribuído — ${ok} dia(s) justificado(s).`);
+      setTimeout(() => { setAfastModal(null); setAfastFile(null); setAfastMsg(''); }, 1600);
+    } catch (e) {
+      console.error('Afastamento erro:', e);
+      setAfastMsg('❌ ' + (e.message || 'Erro ao atribuir afastamento'));
+    }
+    setAfastSaving(false);
   };
 
   /* ── Solicitação do colaborador (motivo + anexo) pra um dia — casa por ponto_cpf, senão por nome ── */
@@ -1233,6 +1292,11 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                           </div>
                         ))}
                       </div>
+                      {isAdmin&&<button onClick={()=>abrirAfastamento(curEmp)} title="Atribuir afastamento (justifica o período todo)"
+                        style={{display:'inline-flex',alignItems:'center',gap:6,background:T.goldGl,border:`1px solid ${T.goldLine}44`,borderRadius:8,cursor:'pointer',color:T.gold,fontSize:12,lineHeight:1,padding:'7px 12px',fontWeight:700,outline:'none',fontFamily:'var(--font-body)'}}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg>
+                        Atribuir afastamento
+                      </button>}
                       <button onClick={()=>{setBancoEmpMode('all');setBancoSearch('');}}
                         style={{background:'none',border:`1px solid ${curEmp.color}44`,borderRadius:7,cursor:'pointer',color:curEmp.color,fontSize:13,lineHeight:1,padding:'5px 10px',fontWeight:600,outline:'none'}}>×</button>
                     </div>
@@ -2108,6 +2172,54 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
           </div>
         );
       })()}
+
+      {/* ══ MODAL: atribuir afastamento (justifica o período todo) ══ */}
+      {afastModal && (
+        <div onClick={()=>!afastSaving&&setAfastModal(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10000,padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:T.surface||'white',borderRadius:20,width:520,maxWidth:'96vw',maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 70px rgba(0,0,0,0.35)',border:`1px solid ${T.border}`}}>
+            <div style={{padding:'18px 24px',borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`}}>
+              <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Atribuir afastamento</div>
+              <div style={{fontSize:12.5,color:T.textS,marginTop:3}}><b style={{color:T.text}}>{afastModal.name}</b> · justifica automaticamente todos os dias úteis do período.</div>
+            </div>
+            <div style={{padding:'20px 24px'}}>
+              <div style={{display:'flex',gap:12,marginBottom:14,flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:140}}>
+                  <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Início *</div>
+                  <input type="date" value={afastForm.inicio} onChange={e=>setAfastForm(p=>({...p,inicio:e.target.value}))}
+                    style={{width:'100%',padding:'10px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                </div>
+                <div style={{flex:1,minWidth:140}}>
+                  <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Fim *</div>
+                  <input type="date" value={afastForm.fim} onChange={e=>setAfastForm(p=>({...p,fim:e.target.value}))}
+                    style={{width:'100%',padding:'10px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                </div>
+              </div>
+
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Motivo do afastamento *</div>
+                <textarea value={afastForm.motivo} onChange={e=>setAfastForm(p=>({...p,motivo:e.target.value}))} placeholder="Ex.: Atestado médico, licença, INSS..."
+                  style={{width:'100%',minHeight:74,padding:'10px 12px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+              </div>
+
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:5}}>Anexo (atestado, laudo... — opcional)</div>
+                <input ref={afastFileRef} type="file" style={{display:'none'}} onChange={e=>setAfastFile(e.target.files?.[0]||null)}/>
+                <button onClick={()=>afastFileRef.current?.click()} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',borderRadius:9,border:`1.5px dashed ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12.5,color:afastFile?T.text:T.textT,fontFamily:'var(--font-body)'}}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  {afastFile ? afastFile.name : 'Escolher arquivo'}
+                </button>
+              </div>
+
+              {afastMsg && <div style={{fontSize:12.5,marginBottom:12,padding:'8px 13px',borderRadius:8,color:afastMsg.startsWith('✅')?'#16a34a':'#C04050',background:afastMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${afastMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`}}>{afastMsg}</div>}
+
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setAfastModal(null)} disabled={afastSaving} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)'}}>Cancelar</button>
+                <button onClick={atribuirAfastamento} disabled={afastSaving} style={{flex:2,padding:'11px',borderRadius:10,border:'none',cursor:afastSaving?'wait':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:afastSaving?0.7:1}}>{afastSaving?'Atribuindo...':'Atribuir afastamento'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       </div>
       </div>
