@@ -1194,9 +1194,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [sheet]);
 
   /* ═══════════════════ UI ═══════════════════ */
+  // "Desafios" tirado TEMPORARIAMENTE da barra (a pedido) — só escondido, o
+  // resto (código da sheet, tabela de histórico, tag no feed, aviso no chat)
+  // continua intacto pra religar rapidinho depois, é só voltar essa linha.
   const BOTTOM_BTNS = [
     { id: 'checkin',  label: 'Check-In',       icon: IcoCamera },
-    { id: 'desafios', label: 'Desafios',       icon: IcoTarget },
+    // { id: 'desafios', label: 'Desafios',       icon: IcoTarget },
     { id: 'ranking',  label: 'Ranking',        icon: IcoTrophy },
     { id: 'post',     label: 'Postar no Feed', icon: IcoPost },
     { id: 'notif',    label: 'Notificações',   icon: IcoBell },
