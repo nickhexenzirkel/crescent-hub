@@ -57,6 +57,8 @@ const IcoBell   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" st
 const IcoHeartSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
 const IcoCommentSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
 const IcoTrash  = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>;
+const IcoVolOn  = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>;
+const IcoVolOff = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>;
 const isVideoUrl = (url) => /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url || '');
 
 /* ── Sheet (folha deslizante de baixo pra cima) — usado pelas 4 ações da barra ── */
@@ -83,12 +85,14 @@ const Sheet = ({ title, onBack, onClose, children }) => {
 // por isso o play/pause aqui é disparado por IntersectionObserver, não pelo
 // atributo `autoPlay` (que só dispara uma vez, no mount, e não repete quando
 // o card volta a ficar visível depois de rolar pra longe e voltar).
-const FeedVideo = ({ src, style }) => {
+// Começa MUDO de propósito (navegador só autoplay com som depois de um toque
+// do usuário — sem isso o vídeo nem tocava) — o botão de alto-falante no card
+// dá play com áudio a partir dali (é um toque real, o navegador libera).
+const FeedVideo = ({ src, style, muted }) => {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.muted = true;
     el.playsInline = true;
     const io = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
@@ -97,7 +101,8 @@ const FeedVideo = ({ src, style }) => {
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  return <video ref={ref} src={src} muted loop playsInline preload="auto" style={style} />;
+  useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
 /* ── Miniatura de grid (foto ou vídeo) — usada no Amigos e no Meu Perfil ── */
@@ -132,6 +137,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const cardBg = T.surface || '#fff';
   const [topTab, setTopTab] = useState('paravoce'); // paravoce | batepapo
   const [sheet, setSheet] = useState(null);          // null | checkin | post | ranking | notif | amigos
+  // Vídeos do feed começam mudos (autoplay com som é bloqueado sem toque do
+  // usuário) — o botão de alto-falante no card muda isso pra TODOS os vídeos
+  // de uma vez (não é por vídeo individual, senão a pessoa teria que destocar
+  // toda hora ao rolar pro próximo).
+  const [feedMuted, setFeedMuted] = useState(true);
 
   // ── Cor fixa do módulo: laranja, SEMPRE — a única exceção é quando o tema
   // ativo já É laranja, aí ela vira azul (senão o módulo some dentro do próprio
@@ -142,6 +152,13 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const EG = isOrangeTheme ? 'rgba(42,130,210,.35)' : 'rgba(255,107,53,.35)';
 
   const FIT_CSS = `
+/* No celular, 100vh conta com a barra de endereço ESCONDIDA — quando ela está
+   visível (o normal), a tela útil de verdade é menor, e um card com height
+   baseado nesse 100vh "inflado" empurra legenda/botão de comentar pra baixo
+   da área visível (por trás da barra fixa de baixo). 100dvh acompanha a barra
+   dinamicamente; a declaração de 100vh antes fica como fallback pra navegador
+   que não suporta dvh (regra de cascata simples, não precisa de @supports). */
+.fit-root { height: 100vh; height: 100dvh; }
 @keyframes fitSheetIn { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
 .fit-sheet-in { animation: fitSheetIn .22s cubic-bezier(.2,1,.4,1) both; }
 @keyframes fitPop  { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
@@ -690,7 +707,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const FOOTER_H = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
   return (
-    <div style={{ height: '100vh', width: '100%', maxWidth: 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,.08)' }}>
+    <div className="fit-root" style={{ width: '100%', maxWidth: 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,.08)' }}>
       <style>{FIT_CSS}</style>
 
       {/* ── Cabeçalho fixo: topbar + abas (Para Você / Bate-Papo / Meu Perfil) ── */}
@@ -760,7 +777,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     className="fit-card" style={{ position: 'relative', width: '100%', height: '100%', background: '#111',
                       boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
                     {isVideoUrl(post.photo_url)
-                      ? <FeedVideo src={post.photo_url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <FeedVideo src={post.photo_url} muted={feedMuted} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
@@ -781,6 +798,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       <button onClick={e => { e.stopPropagation(); apagarPost(post); }} className="fit-btn" title="Apagar post"
                         style={{ position: 'absolute', top: 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
                           background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
+                    )}
+
+                    {isVideoUrl(post.photo_url) && (
+                      <button onClick={e => { e.stopPropagation(); setFeedMuted(m => !m); }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
+                        style={{ position: 'absolute', top: souDono ? 52 : 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                          background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{feedMuted ? IcoVolOff : IcoVolOn}</button>
                     )}
 
                     <div style={{ position: 'absolute', left: 14, right: 68, bottom: 16, color: '#fff' }}>
