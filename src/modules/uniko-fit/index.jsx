@@ -209,9 +209,9 @@ const CameraCapture = ({ energia, onCapture }) => {
   const dragRef = useRef(null);
 
   const dispRectPct = useMemo(() => {
-    if (!imgNatural || !boxRef.current) return { left: 0, top: 0, width: 100, height: 100 };
+    if (!imgNatural || !boxRef.current) return { left: 0, top: 0, width: 100, height: 100, widthPx: 0 };
     const boxRect = boxRef.current.getBoundingClientRect();
-    if (!boxRect.width || !boxRect.height) return { left: 0, top: 0, width: 100, height: 100 };
+    if (!boxRect.width || !boxRect.height) return { left: 0, top: 0, width: 100, height: 100, widthPx: 0 };
     const scale = Math.min(boxRect.width / imgNatural.w, boxRect.height / imgNatural.h);
     const dispW = imgNatural.w * scale, dispH = imgNatural.h * scale;
     return {
@@ -219,8 +219,42 @@ const CameraCapture = ({ energia, onCapture }) => {
       top: ((boxRect.height - dispH) / 2 / boxRect.height) * 100,
       width: (dispW / boxRect.width) * 100,
       height: (dispH / boxRect.height) * 100,
+      widthPx: dispW, // usado só pro tamanho em px dos emojis (`stickers`)
     };
   }, [imgNatural, rawShot]);
+
+  // ── Emoji em cima da foto: cada sticker fica em fração (0..1) da mesma área
+  // real da imagem (`dispRectPct`) que o corte usa, então corte e emoji
+  // continuam batendo entre si. `size` é fração da LARGURA da imagem (não px
+  // fixo) pra ficar proporcional em fotos de resoluções diferentes.
+  const [stickers, setStickers] = useState([]); // [{id, emoji, x, y, size}]
+  const dispRef = useRef(null);
+  const stickerRef = useRef(null);
+  const addSticker = (emoji) => setStickers(s => [...s, { id: `${Date.now()}-${Math.random()}`, emoji, x: 0.5, y: 0.5, size: 0.16 }]);
+  const removerSticker = (id) => setStickers(s => s.filter(st => st.id !== id));
+  const iniciarSticker = (id, kind) => (e) => {
+    e.stopPropagation();
+    const rect = dispRef.current?.getBoundingClientRect();
+    const st = stickers.find(s => s.id === id);
+    if (!rect?.width || !st) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    stickerRef.current = { id, kind, rect, startX: e.clientX, startY: e.clientY, startPos: { x: st.x, y: st.y }, startSize: st.size };
+  };
+  const moverSticker = (e) => {
+    const d = stickerRef.current;
+    if (!d) return;
+    if (d.kind === 'move') {
+      const dx = (e.clientX - d.startX) / d.rect.width;
+      const dy = (e.clientY - d.startY) / d.rect.height;
+      const x = clamp01(d.startPos.x + dx), y = clamp01(d.startPos.y + dy);
+      setStickers(s => s.map(st => st.id === d.id ? { ...st, x, y } : st));
+    } else {
+      const dx = (e.clientX - d.startX) / d.rect.width;
+      const size = Math.min(0.6, Math.max(0.05, d.startSize + dx));
+      setStickers(s => s.map(st => st.id === d.id ? { ...st, size } : st));
+    }
+  };
+  const soltarSticker = (e) => { stickerRef.current = null; try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* já solto */ } };
 
   const clamp01 = (n) => Math.min(1, Math.max(0, n));
   const iniciarDrag = (mode) => (e) => {
@@ -279,7 +313,7 @@ const CameraCapture = ({ energia, onCapture }) => {
     if (facing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); } // desfaz o espelho do preview
     ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
     setRawShot(canvas.toDataURL('image/jpeg', 0.92));
-    setCrop(CROP_DEFAULT); setImgNatural(null);
+    setCrop(CROP_DEFAULT); setImgNatural(null); setStickers([]);
     pararCamera();
   };
 
@@ -293,6 +327,13 @@ const CameraCapture = ({ energia, onCapture }) => {
       const ctx = canvas.getContext('2d');
       ctx.filter = filtro.css;
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      ctx.filter = 'none'; // os emojis não devem levar o filtro de cor da foto
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      stickers.forEach(st => {
+        const fontPx = st.size * img.width;
+        ctx.font = `${fontPx}px sans-serif`;
+        ctx.fillText(st.emoji, st.x * img.width - sx, st.y * img.height - sy);
+      });
       canvas.toBlob(blob => {
         if (!blob) return;
         const file = new File([blob], `checkin-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -318,9 +359,9 @@ const CameraCapture = ({ energia, onCapture }) => {
         )}
         {/* Quadro de corte — só aparece na revisão, sobre a área REAL da imagem (dispRectPct) */}
         {rawShot && imgNatural && (
-          <div style={{ position: 'absolute', left: `${dispRectPct.left}%`, top: `${dispRectPct.top}%`, width: `${dispRectPct.width}%`, height: `${dispRectPct.height}%` }}>
+          <div ref={dispRef} style={{ position: 'absolute', left: `${dispRectPct.left}%`, top: `${dispRectPct.top}%`, width: `${dispRectPct.width}%`, height: `${dispRectPct.height}%` }}>
             <div ref={cropBoxRef} onPointerDown={iniciarDrag('move')} onPointerMove={moverDrag} onPointerUp={soltarDrag}
-              style={{ position: 'absolute', left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%`,
+              style={{ position: 'absolute', left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%`, zIndex: 1,
                 boxShadow: '0 0 0 9999px rgba(0,0,0,.55)', border: '2px solid #fff', borderRadius: 4, cursor: 'move', touchAction: 'none' }}>
               {['nw', 'ne', 'sw', 'se'].map(corner => (
                 <div key={corner} onPointerDown={iniciarDrag(corner)} onPointerMove={moverDrag} onPointerUp={soltarDrag}
@@ -330,10 +371,23 @@ const CameraCapture = ({ energia, onCapture }) => {
                     left: corner.includes('w') ? -9 : 'auto', right: corner.includes('e') ? -9 : 'auto' }} />
               ))}
             </div>
+            {/* Emojis colados na foto — em cima do quadro de corte, sempre clicáveis */}
+            {stickers.map(st => (
+              <div key={st.id} onPointerDown={iniciarSticker(st.id, 'move')} onPointerMove={moverSticker} onPointerUp={soltarSticker}
+                style={{ position: 'absolute', left: `${st.x * 100}%`, top: `${st.y * 100}%`, transform: 'translate(-50%,-50%)',
+                  fontSize: dispRectPct.widthPx ? st.size * dispRectPct.widthPx : 28, lineHeight: 1, cursor: 'move', touchAction: 'none', zIndex: 2, userSelect: 'none' }}>
+                {st.emoji}
+                <button onPointerDown={e => e.stopPropagation()} onClick={() => removerSticker(st.id)} title="Remover emoji"
+                  style={{ position: 'absolute', top: -8, right: -8, width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                    background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>
+                <div onPointerDown={iniciarSticker(st.id, 'resize')} onPointerMove={moverSticker} onPointerUp={soltarSticker} title="Arraste pra redimensionar"
+                  style={{ position: 'absolute', bottom: -6, right: -6, width: 14, height: 14, borderRadius: '50%', border: `2px solid ${energia}`, background: '#fff', cursor: 'nwse-resize', touchAction: 'none' }} />
+              </div>
+            ))}
           </div>
         )}
       </div>
-      {rawShot && <div style={{ padding: '6px 2px 0', fontSize: 11, color: 'inherit', opacity: .65, textAlign: 'center' }}>Arraste as bordas do quadro pra cortar/redimensionar a foto</div>}
+      {rawShot && <div style={{ padding: '6px 2px 0', fontSize: 11, color: 'inherit', opacity: .65, textAlign: 'center' }}>Arraste as bordas do quadro pra cortar, e os emojis pra reposicionar</div>}
 
       <div style={{ display: 'flex', gap: 7, padding: '11px 2px', overflowX: 'auto' }}>
         {PHOTO_FILTERS.map(f => (
@@ -343,10 +397,19 @@ const CameraCapture = ({ energia, onCapture }) => {
         ))}
       </div>
 
+      {rawShot && (
+        <div style={{ display: 'flex', gap: 7, padding: '0 2px 11px', overflowX: 'auto' }}>
+          {EMOJIS.map(e => (
+            <button key={e} onClick={() => addSticker(e)} className="fit-btn" title="Adicionar emoji na foto"
+              style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 17, background: 'rgba(128,128,128,.12)' }}>{e}</button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10 }}>
         {rawShot ? (
           <>
-            <button onClick={() => { setRawShot(null); setCrop(CROP_DEFAULT); setImgNatural(null); }} className="fit-btn"
+            <button onClick={() => { setRawShot(null); setCrop(CROP_DEFAULT); setImgNatural(null); setStickers([]); }} className="fit-btn"
               style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${energia}55`, background: 'none', color: energia, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>↺ Tirar de novo</button>
             <button onClick={confirmar} className="fit-btn"
               style={{ flex: 2, padding: 12, borderRadius: 12, border: 'none', background: energia, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>✓ Usar essa foto</button>
