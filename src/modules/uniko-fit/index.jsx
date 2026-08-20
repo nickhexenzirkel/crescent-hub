@@ -40,26 +40,31 @@ const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','
    coincidir por acaso) — ver o ajuste em `poseDoDia`. Não precisa de tabela no
    banco: qualquer cliente calcula a pose de qualquer pessoa em qualquer dia
    só com o nome e a data — não tem corrida nem precisa sincronizar nada. */
+// Cada pose tem uma arte de demonstração do próprio Uniko (o mascote faz a
+// pose, a pessoa copia). As artes vêm de UMA imagem só (`/uniko-fit/poses-
+// uniko.png`, colagem 6 colunas × 3 linhas = 1536×1024px, célula 256×341px)
+// — `sprite:{row,col}` (0-indexado) recorta o quadradinho certo via CSS
+// background-position (ver `PoseThumb`), sem precisar de 17 arquivos soltos.
 const POSES = [
-  { id: 'lingua-paz',   emoji: '😝✌️', texto: 'Língua de fora + sinal de paz com a mão' },
-  { id: 'biceps',       emoji: '💪💪', texto: 'Mostrando os dois bíceps' },
-  { id: 'pulando',      emoji: '🙌',   texto: 'Pulando com os braços pra cima' },
-  { id: 'coracao-maos', emoji: '🫶',   texto: 'Fazendo um coração com as mãos' },
-  { id: 'prancha',      emoji: '🧎',   texto: 'Segurando a prancha (plank)' },
-  { id: 'joinha-duplo', emoji: '👍👍', texto: 'Dois joinhas pra câmera' },
-  { id: 'super-heroi',  emoji: '🦸',   texto: 'Pose de super-herói, mãos na cintura' },
-  { id: 'piscadinha',   emoji: '😉',   texto: 'Piscando pra câmera no meio do treino' },
-  { id: 'agachamento',  emoji: '🏋️',  texto: 'No meio de um agachamento' },
-  { id: 'apontando',    emoji: '👆',   texto: 'Apontando pro alto, tipo "vamo que vamo"' },
-  { id: 'flexao',       emoji: '💥',   texto: 'No meio de uma flexão' },
-  { id: 'corrida',      emoji: '🏃',   texto: 'Fingindo estar correndo' },
-  { id: 'alongamento',  emoji: '🤸',   texto: 'Se alongando' },
-  { id: 'pensativo',    emoji: '🤔',   texto: 'Mão no queixo, pensativo (mas suado)' },
-  { id: 'topzera',      emoji: '🤙',   texto: 'Sinal de "topzeira" (hang loose)' },
-  { id: 'boxe',         emoji: '🥊',   texto: 'Pose de boxe, punhos fechados' },
-  { id: 'olhando-relogio', emoji: '⏱️', texto: 'Olhando pro relógio como quem cronometra' },
-  { id: 'aviaozinho',   emoji: '🛩️',  texto: 'Braços abertos, tipo aviãozinho' },
+  { id: 'lingua-paz',    emoji: '😝✌️', texto: 'Língua de fora + sinal de paz com a mão',        sprite: { row: 0, col: 0 } },
+  { id: 'toalha-suor',   emoji: '😊🧣', texto: 'Sorriso suado com a toalha no pescoço',            sprite: { row: 0, col: 1 } },
+  { id: 'bebendo-agua',  emoji: '💧',   texto: 'Bebendo água de perfil',                           sprite: { row: 0, col: 2 } },
+  { id: 'careta-esforco',emoji: '😤',   texto: 'Careta de esforço',                                sprite: { row: 0, col: 3 } },
+  { id: 'piscadinha',    emoji: '😉',   texto: 'Piscando pra câmera',                              sprite: { row: 0, col: 4 } },
+  { id: 'joinha-duplo',  emoji: '👍👍', texto: 'Dois joinhas pra câmera',                          sprite: { row: 0, col: 5 } },
+  { id: 'mao-cabeca',    emoji: '🤦',   texto: 'Mão na cabeça — "não aguento mais"',               sprite: { row: 1, col: 0 } },
+  { id: 'apontando-relogio', emoji: '⏱️', texto: 'Apontando pro relógio — "só mais uma série"',    sprite: { row: 1, col: 1 } },
+  { id: 'cheguei-mochila', emoji: '🎒', texto: 'Selfie de "cheguei" com a bolsa/mochila',           sprite: { row: 1, col: 2 } },
+  { id: 'biceps-um-braco', emoji: '💪', texto: 'Bíceps de um braço só (o outro segura o celular)', sprite: { row: 1, col: 3 } },
+  { id: 'ofegante-teto', emoji: '😮‍💨', texto: 'Olhando pro teto, ofegante',                       sprite: { row: 1, col: 4 } },
+  { id: 'coracao-maos',  emoji: '🫶',   texto: 'Fazendo um coração com as mãos',                    sprite: { row: 1, col: 5 } },
+  { id: 'topzeira',      emoji: '🤙',   texto: 'Topzeira / Hang Loose',                             sprite: { row: 2, col: 0 } },
+  { id: 'oculos-cool',   emoji: '😎',   texto: 'Óculos escuros de suor — pose "cool"',              sprite: { row: 2, col: 1 } },
+  { id: 'bico-engracado',emoji: '😗',   texto: 'Bico / careta engraçada',                           sprite: { row: 2, col: 2 } },
+  { id: 'garrafa-trofeu',emoji: '🏆',   texto: 'Garrafa de água erguida como troféu',               sprite: { row: 2, col: 3 } },
 ];
+// Grade da colagem — usada tanto pro corte do sprite quanto pra proporção do quadro.
+const POSES_SPRITE_COLS = 6, POSES_SPRITE_ROWS = 3;
 
 const _strHash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 const _mulberry32 = (seed) => { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
@@ -281,6 +286,19 @@ const FeedVideo = ({ src, style, muted }) => {
   }, []);
   useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
   return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
+};
+
+/* ── Recorte de uma pose na colagem `/uniko-fit/poses-uniko.png` (sprite sheet
+   6×3) via background-position percentual — sem precisar de 17 arquivos soltos.
+   Se a pose não tiver `sprite` (poses futuras sem arte ainda), cai pro emoji. ── */
+const PoseThumb = ({ pose, size = 56, round = 12 }) => {
+  if (!pose?.sprite) return <div style={{ width: size, height: size, borderRadius: round, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.5, background: 'rgba(128,128,128,.12)', flexShrink: 0 }}>{pose?.emoji}</div>;
+  const { row, col } = pose.sprite;
+  return (
+    <div style={{ width: size, height: size, borderRadius: round, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)',
+      backgroundImage: 'url(/uniko-fit/poses-uniko.png)', backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
+      backgroundPosition: `${col / (POSES_SPRITE_COLS - 1) * 100}% ${row / (POSES_SPRITE_ROWS - 1) * 100}%` }} />
+  );
 };
 
 /* ── Miniatura de grid (foto ou vídeo) — usada no Amigos e no Meu Perfil ── */
@@ -1230,7 +1248,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
             {sheet === 'checkin' && desafioAtivo && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, marginBottom: 14, background: `${ENERGIA}12`, border: `1px solid ${ENERGIA}44` }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{desafioAtivo.emoji}</span>
+                <PoseThumb pose={desafioAtivo} size={40} round={9} />
                 <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: T.text, lineHeight: 1.4 }}><b style={{ color: ENERGIA }}>Desafio de hoje:</b> {desafioAtivo.texto}</div>
                 <button onClick={() => setDesafioAtivo(null)} className="fit-btn" title="Remover desafio" style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoClose}</button>
               </div>
@@ -1302,7 +1320,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             <div style={{ background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, borderRadius: 16, padding: '18px 20px', marginBottom: 18, color: '#fff', boxShadow: `0 8px 24px ${EG}` }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', opacity: .9, marginBottom: 6 }}>SEU DESAFIO DE HOJE</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 34 }}>{meuDesafioHoje.emoji}</span>
+                <div style={{ background: 'rgba(255,255,255,.2)', borderRadius: 14, padding: 4 }}><PoseThumb pose={meuDesafioHoje} size={64} round={11} /></div>
                 <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
               </div>
               {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
@@ -1328,7 +1346,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <div key={d.player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
                     <img src={photos[d.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.player.split(' ').slice(0, 2).join(' ')}</div>
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>{d.pose.emoji}</span>
+                    <PoseThumb pose={d.pose} size={38} round={9} />
                   </div>
                 ))}
               </div>
