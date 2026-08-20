@@ -9,14 +9,16 @@
 // cliente escreve o estado, presence pra saber quem está em qual sala.
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
-import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
+import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
+import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
 
 /* ── Paleta casa de praia ── */
 const AGUA = '#0EA5B7', CEU = '#5FC9E8', AREIA = '#F2C879';
 const IMPOSTOR_COR = '#DC2626', TRIPULANTE_COR = '#0EA5B7';
 const AG = 'rgba(14,165,183,.35)';
 
-const MIN_PLAYERS = 4;                 // 1 impostor + ao menos 3 tripulantes
+const MIN_PLAYERS = 2;                 // temporário (testando) — subir de novo antes do lançamento
 const ROOM_TTL_MS = 20 * 60 * 1000;    // sala vazia parada há 20min = lixo
 
 /* Cômodos confirmados pro mapa (Fase 3) — por enquanto só metadata/preview. */
@@ -61,7 +63,7 @@ const SUS_CSS = `
 /* ═══════════════════════════════════════════════════════════════════════════
    LOBBY — lista de salas + criar sala
    ═══════════════════════════════════════════════════════════════════════════ */
-const Lobby = ({ name, porSala, onEnter }) => {
+const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [rooms, setRooms] = useState(null);
   const [erroSala, setErroSala] = useState('');
   const [criando, setCriando] = useState(false);
@@ -134,6 +136,12 @@ const Lobby = ({ name, porSala, onEnter }) => {
         </div>
         <div style={{ padding: '5px 12px', borderRadius: 999, background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.3)',
           fontSize: 10.5, fontWeight: 800, color: '#fff', flexShrink: 0 }}>🔒 EM DEV</div>
+        <button className="sus-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
+            border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer', flexShrink: 0 }}>
+          <img src={photo} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
+        </button>
         <button className="sus-btn" onClick={() => setCriando(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 999, border: 'none',
             background: '#fff', color: AGUA, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
@@ -259,7 +267,7 @@ const Lobby = ({ name, porSala, onEnter }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    SALA — lobby da partida, sorteio de papéis e placeholder do jogo
    ═══════════════════════════════════════════════════════════════════════════ */
-const Sala = ({ roomId, name, players, onLeave }) => {
+const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [state, setState] = useState(null);
   const chanRef = useRef(null);
   const stateRef = useRef(null);
@@ -357,6 +365,12 @@ const Sala = ({ roomId, name, players, onLeave }) => {
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{state?.nome || 'Sala'}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.85)' }}>{players.length} jogador{players.length !== 1 ? 'es' : ''} · {host ? `host: ${host.split(' ')[0]}` : '...'}</div>
         </div>
+        <button className="sus-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 11px 5px 5px', borderRadius: 999,
+            border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer', flexShrink: 0 }}>
+          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
+        </button>
         <button className="sus-btn" onClick={onLeave} style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Sair</button>
       </div>
 
@@ -460,8 +474,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const TabUnikoSuspect = () => {
   const name = useMemo(() => myName(), []);
-  const [photo] = useState(() => myPhotoSrc());
+  const [photo, setPhoto] = useState(() => myPhotoSrc());
   const [room, setRoom] = useState(null);
+  const [picker, setPicker] = useState(false);
+  const [busca, setBusca] = useState('');
   const [todos, setTodos] = useState([]);
   const [sqlMissing, setSqlMissing] = useState(false);
   const lobbyChan = useRef(null);
@@ -498,6 +514,39 @@ const TabUnikoSuspect = () => {
   const porSala = useMemo(() => { const m = {}; todos.forEach(p => { if (p.room) (m[p.room] = m[p.room] || []).push(p); }); return m; }, [todos]);
   const naSala = useMemo(() => { const l = porSala[room] || []; return l.some(p => p.name === name) ? l : [{ name, photo, room, entrouEm }, ...l]; }, [porSala, room, name, photo, entrouEm]);
 
+  /* ── Seletor de Uniko (o "boneco" da pessoa no jogo) — mesma coleção/mecânica
+     do Uniko Paint, mesma chave de storage (up_photo_src), então o Uniko escolhido
+     aqui também vale nos outros jogos e como foto de perfil do Portal. ── */
+  const [owned, setOwned] = useState(() => getCapturedCollection());
+  useEffect(() => { syncCollectionFromServer().then(l => Array.isArray(l) && setOwned(l)); }, []);
+  const myUnikos = useMemo(() => {
+    const ids = new Set(owned.map(o => o.id));
+    const base = [{ id: 'default', name: 'UNIKO', img: '/UNIKO_NEW.png' }];
+    const fixos = Object.values(CAPTURE_UNIKOS).filter(u => ids.has(u.id)).map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
+    const custom = (getCustomUnikos() || []).filter(u => ids.has(u.id)).map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
+    return [...base, ...fixos, ...custom];
+  }, [owned]);
+  const choosePhoto = (img) => {
+    try { localStorage.setItem(PHOTO_SRC_KEY, img); } catch { /* sem localStorage */ }
+    setPhoto(img);            // presence reanuncia sozinho no effect de [photo]
+    setPicker(false);
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    const salvaPerfil = (val) => {
+      saveUserPhoto(val);
+      try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
+      catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
+    };
+    im.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 300;
+        c.getContext('2d').drawImage(im, 0, 0, 300, 300);
+        salvaPerfil(c.toDataURL('image/png'));
+      } catch { salvaPerfil(img); }
+    };
+    im.onerror = () => salvaPerfil(img);
+    im.src = img;
+  };
+
   const cardBg = T.surface || '#fff';
   if (sqlMissing) return (
     <div style={{ maxWidth: 620, margin: '40px auto', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: T.sh }}>
@@ -509,9 +558,72 @@ const TabUnikoSuspect = () => {
     </div>
   );
 
-  return room
-    ? <Sala roomId={room} name={name} players={naSala} onLeave={() => setRoom(null)} />
-    : <Lobby name={name} porSala={porSala} onEnter={setRoom} />;
+  return (
+    <>
+      {room
+        ? <Sala roomId={room} name={name} photo={photo} players={naSala} onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
+        : <Lobby name={name} photo={photo} porSala={porSala} onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
+
+      {picker && (() => {
+        const termo = busca.trim().toLowerCase();
+        const filtrados = !termo ? myUnikos : myUnikos.filter(u => {
+          if (u.name.toLowerCase().includes(termo)) return true;
+          const vs = hasAssistantSkin(u.id) ? getSkinVariations(u.id) : [];
+          return vs.some(v => (v.label || '').toLowerCase().includes(termo));
+        });
+        return (
+          <div onClick={() => setPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 18, border: `1px solid ${T.border}`, padding: 22,
+              maxWidth: 680, width: '100%', maxHeight: '84vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4 }}>Escolha seu Uniko</div>
+              <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14, lineHeight: 1.5 }}>
+                Esse vai ser o seu boneco no Uniko Suspect (e também sua foto de perfil no Portal). Só aparecem os Unikos que você já capturou.
+              </div>
+              <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔎 Buscar Uniko pelo nome..."
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surface || '#fff',
+                  color: T.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)', marginBottom: 14, flexShrink: 0 }} />
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {filtrados.map(u => {
+                  const vars = hasAssistantSkin(u.id) ? getSkinVariations(u.id) : [];
+                  const opts = vars.length ? vars : [{ label: 'Normal', img: u.img }];
+                  return (
+                    <div key={u.id} style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <img src={u.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />{u.name}
+                      </div>
+                      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+                        {opts.map(v => (
+                          <button key={v.img} onClick={() => choosePhoto(v.img)} title={v.label}
+                            style={{ width: 78, padding: 7, borderRadius: 12, cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.03)',
+                              border: photo === v.img ? `2px solid ${AGUA}` : `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <img src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+                            <span style={{ fontSize: 9.5, color: T.textT, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{v.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {myUnikos.length <= 1 && (
+                  <div style={{ fontSize: 12.5, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.03)', padding: 12, borderRadius: 10, lineHeight: 1.5 }}>
+                    Você ainda não capturou nenhum Uniko. Fique de olho no Portal durante os eventos do RH — os Unikos que você pegar aparecem aqui.
+                  </div>
+                )}
+                {myUnikos.length > 1 && filtrados.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: T.textT, textAlign: 'center', padding: '18px 0' }}>Nenhum Uniko encontrado para "{busca}".</div>
+                )}
+              </div>
+              <button onClick={() => setPicker(false)}
+                style={{ marginTop: 14, width: '100%', padding: '10px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+    </>
+  );
 };
 
 export { TabUnikoSuspect };
