@@ -5,6 +5,13 @@
     <link rel="icon" type="image/png" href="/UNIKO_FRENTE_FRONTAL.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>U∩IKO</title>
+    <!-- "Adicionar à Tela de Início" no iPhone + notificação push no celular
+         (Uniko FIT) precisam disso — ver src/utils/pushNotify.js. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/UNIKO_FRENTE_FRONTAL.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="U∩IKO" />
   </head>
   <body>
     <div id="root"></div>

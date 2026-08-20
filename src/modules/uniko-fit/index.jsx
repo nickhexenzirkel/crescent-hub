@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { USER, getAuthUser, supabase, fetchPhotoByName } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
+import { pushSupported, needsIosInstall, pushPermission, ensurePushSubscription } from '../../utils/pushNotify';
 
 const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colaborador'; } catch { return 'Colaborador'; } };
 
@@ -779,6 +780,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setCheckinHojeFeito(!!data?.length);
     setCheckinHojeDesafioId(data?.[0]?.desafio_pose_id || null);
   }, [name]);
+  /* ═══════════════════ NOTIFICAÇÃO PUSH NO CELULAR (comentário/reação/chat, com o app fechado) ═══════════════════ */
+  const [pushBannerOff, setPushBannerOff] = useState(() => { try { return localStorage.getItem('uniko_fit_push_banner_off') === '1'; } catch { return false; } });
+  const [pushMsg, setPushMsg] = useState('');
+  const dispensarPushBanner = () => { setPushBannerOff(true); try { localStorage.setItem('uniko_fit_push_banner_off', '1'); } catch { /* localStorage indisponível */ } };
+  const ativarPush = async () => {
+    setPushMsg('');
+    try { await ensurePushSubscription(name); dispensarPushBanner(); setPushMsg('✅ Notificações ativadas!'); }
+    catch (e) { setPushMsg('❌ ' + (e.message || 'Erro ao ativar')); }
+    setTimeout(() => setPushMsg(''), 4000);
+  };
+  const podeAtivarPush = !pushBannerOff && pushSupported() && !needsIosInstall() && pushPermission() === 'default';
+  const precisaInstalarIos = !pushBannerOff && pushSupported() && needsIosInstall();
+
   const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
   const [chatImgZoom, setChatImgZoom] = useState(null); // url da foto de check-in aberta em tela grande (Bate-Papo), null = fechado
   const abrirCheckinComDesafio = (pose) => {
@@ -1220,6 +1234,26 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Conteúdo (rola independente, entre o cabeçalho e a barra fixos) ── */}
       <div style={{ position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── Aviso pra ativar notificação push no celular — sticky, aparece em qualquer aba até ativar/dispensar ── */}
+        {(podeAtivarPush || precisaInstalarIos) && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', background: `${ENERGIA}14`, borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
+            {IcoBell}
+            <div style={{ flex: 1, color: T.text, lineHeight: 1.35 }}>
+              {precisaInstalarIos
+                ? <>📲 Pra receber notificação no iPhone, adicione o Portal à Tela de Início (Compartilhar → Adicionar à Tela de Início) e abra por esse ícone.</>
+                : <>Ative pra receber comentário, reação e mensagem do Bate-Papo direto no celular.</>}
+            </div>
+            {!precisaInstalarIos && (
+              <button onClick={ativarPush} className="fit-btn"
+                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', background: ENERGIA, color: '#fff', fontWeight: 700, fontSize: 11.5, fontFamily: 'var(--font-body)' }}>Ativar</button>
+            )}
+            <button onClick={dispensarPushBanner} title="Dispensar" style={{ flexShrink: 0, border: 'none', background: 'none', cursor: 'pointer', color: T.textT, padding: 4, display: 'flex' }}>{IcoClose}</button>
+          </div>
+        )}
+        {pushMsg && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, padding: '8px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, background: pushMsg.startsWith('✅') ? 'rgba(34,197,94,.12)' : 'rgba(192,64,80,.1)', color: pushMsg.startsWith('✅') ? '#16a34a' : '#C04050' }}>{pushMsg}</div>
+        )}
 
         {/* ── PARA VOCÊ (feed unificado: check-ins + posts) ── */}
         {topTab === 'paravoce' && (

@@ -1,0 +1,12 @@
+{
+  "name": "U∩IKO — Portal do Colaborador",
+  "short_name": "U∩IKO",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0b12",
+  "theme_color": "#0b0b12",
+  "icons": [
+    { "src": "/UNIKO_FRENTE_FRONTAL.png", "sizes": "1154x1124", "type": "image/png", "purpose": "any" }
+  ]
+}
