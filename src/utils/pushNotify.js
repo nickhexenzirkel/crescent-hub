@@ -37,6 +37,22 @@ export const needsIosInstall = () => isIos() && !isStandalone();
 
 export const pushPermission = () => (pushSupported() ? Notification.permission : 'unsupported');
 
+// IMPORTANTE: não usar `Notification.permission === 'granted'` pra saber se
+// a pessoa já está inscrita — o Portal já pede permissão de notificação em
+// geral no primeiro toque em QUALQUER lugar do app (ver App.jsx,
+// `desktopNotify.js`), sem relação nenhuma com o Web Push do Uniko FIT.
+// Nesse caso a permissão fica 'granted' mesmo sem NUNCA ter chamado
+// `pushManager.subscribe()` — checar só a permissão escondia o botão de
+// ativar achando (errado) que já tinha inscrição. Isso confere de verdade.
+export const hasActivePushSubscription = async () => {
+  if (!pushSupported()) return false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    return !!sub;
+  } catch { return false; }
+};
+
 // Chame só dentro de um gesto do usuário (clique/toque) — navegador exige.
 export const ensurePushSubscription = async (playerName) => {
   if (!pushSupported()) throw new Error('Este navegador não suporta notificação push.');

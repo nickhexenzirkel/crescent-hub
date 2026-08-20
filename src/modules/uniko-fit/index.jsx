@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { USER, getAuthUser, supabase, fetchPhotoByName } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
-import { pushSupported, needsIosInstall, pushPermission, ensurePushSubscription } from '../../utils/pushNotify';
+import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
 
 const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colaborador'; } catch { return 'Colaborador'; } };
 
@@ -783,21 +783,27 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   /* ═══════════════════ NOTIFICAÇÃO PUSH NO CELULAR (comentário/reação/chat, com o app fechado) ═══════════════════ */
   const [pushBannerOff, setPushBannerOff] = useState(() => { try { return localStorage.getItem('uniko_fit_push_banner_off') === '1'; } catch { return false; } });
   const [pushMsg, setPushMsg] = useState('');
+  // null = ainda checando (não decide nada enquanto isso, evita o banner
+  // "piscar" antes de saber). NÃO usa `Notification.permission==='granted'`
+  // pra isso — o Portal já pede permissão de notificação em geral no 1º
+  // toque em QUALQUER lugar do app (ver desktopNotify.js), sem relação com
+  // o Web Push do Uniko FIT. Checar só a permissão escondia o botão achando
+  // (errado) que já tinha inscrição — bug real, ninguém nunca se inscrevia
+  // de verdade. `hasActivePushSubscription` confere a inscrição de verdade.
+  const [pushJaInscrito, setPushJaInscrito] = useState(null);
+  useEffect(() => { hasActivePushSubscription().then(setPushJaInscrito); }, []);
   const dispensarPushBanner = () => { setPushBannerOff(true); try { localStorage.setItem('uniko_fit_push_banner_off', '1'); } catch { /* localStorage indisponível */ } };
   const ativarPush = async () => {
     setPushMsg('');
-    try { await ensurePushSubscription(name); dispensarPushBanner(); setPushMsg('✅ Notificações ativadas!'); }
+    try { await ensurePushSubscription(name); setPushJaInscrito(true); dispensarPushBanner(); setPushMsg('✅ Notificações ativadas!'); }
     catch (e) { setPushMsg('❌ ' + (e.message || 'Erro ao ativar')); }
     setTimeout(() => setPushMsg(''), 6000);
   };
   // O botão fica sempre visível (até ativar ou dispensar) — os motivos de não
   // dar certo (iPhone sem instalar, navegador sem suporte, permissão negada)
   // só se sabe tentando: `ensurePushSubscription` lança um erro claro pra
-  // cada caso, mostrado em `pushMsg`. Decidir ANTES via `needsIosInstall()`/
-  // `pushSupported()` deixava o botão simplesmente sumir em vez de explicar
-  // o motivo — bug real: sumiu pra alguém que já tinha instalado certinho.
-  const jaAtivouPush = pushSupported() && pushPermission() === 'granted';
-  const mostrarBannerPush = !pushBannerOff && !jaAtivouPush;
+  // cada caso, mostrado em `pushMsg`.
+  const mostrarBannerPush = !pushBannerOff && pushJaInscrito === false;
 
   const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
   const [chatImgZoom, setChatImgZoom] = useState(null); // url da foto de check-in aberta em tela grande (Bate-Papo), null = fechado
