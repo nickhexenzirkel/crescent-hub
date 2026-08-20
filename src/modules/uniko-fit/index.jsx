@@ -44,32 +44,59 @@ const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','
    EXTRAS cadastradas pelo admin (Dashboard RH → aba "Uniko FIT", tabela
    uniko_fit_poses_custom) — ver `posesTodas` no componente. */
 // Cada pose tem uma arte de demonstração do próprio Uniko (o mascote faz a
-// pose, a pessoa copia). As artes vêm de UMA imagem só (`/uniko-fit/poses-
-// uniko.png`, colagem 6 colunas × 3 linhas, 1672×941px — a 3ª linha só tem
-// 5 poses, a última célula fica vazia) — `sprite:{row,col}` (0-indexado)
-// recorta o quadradinho certo via CSS background-position (ver `PoseThumb`),
-// sem precisar de 17 arquivos soltos.
+// pose, a pessoa copia). Duas colagens 6 colunas × 3 linhas (`sheet` diz
+// qual): 'classicas' (as 16 poses originais) e 'novas' (as 17 de
+// musculação) — `sprite:{row,col}` (0-indexado) recorta o quadradinho certo
+// via CSS background-position (ver `PoseThumb`), sem precisar de 33
+// arquivos soltos. Um admin pode ainda sobrescrever a foto de UMA pose fixa
+// específica (Dashboard RH → aba "Uniko FIT") — nesse caso ela ganha um
+// `image_url` próprio que tem prioridade sobre o `sprite` (ver `posesTodas`).
+const POSE_SHEETS = {
+  classicas: '/uniko-fit/poses-uniko-classicas.png', // 1536×1024px
+  novas:     '/uniko-fit/poses-uniko.png',           // 1672×941px — 3ª linha só tem 5 poses
+};
 const POSES = [
-  { id: 'biceps-duplo',      emoji: '💪💪', texto: 'Bíceps duplo',                                       sprite: { row: 0, col: 0 } },
-  { id: 'costas-v-ombro',    emoji: '👀',   texto: 'Costas em V, olhando por cima do ombro',              sprite: { row: 0, col: 1 } },
-  { id: 'peito-cintura',     emoji: '🫡',   texto: 'Peito estufado, mãos na cintura',                     sprite: { row: 0, col: 2 } },
-  { id: 'perfil-definicao',  emoji: '💯',   texto: 'Perfil de lado mostrando a definição',                sprite: { row: 0, col: 3 } },
-  { id: 'halteres-dois-braços', emoji: '🏋️', texto: 'Segurando halteres nos dois braços',               sprite: { row: 0, col: 4 } },
-  { id: 'barra-frente',      emoji: '🏋️‍♂️', texto: 'Segurando a barra/peso na frente do corpo',        sprite: { row: 0, col: 5 } },
-  { id: 'abdomen-camiseta',  emoji: '🍫',   texto: 'Abdômen contraído, camiseta/moletom levantado',       sprite: { row: 1, col: 0 } },
-  { id: 'panturrilha-ponta', emoji: '🦵',   texto: 'Panturrilha na ponta dos pés',                        sprite: { row: 1, col: 1 } },
-  { id: 'super-heroi',       emoji: '🦸',   texto: 'Pose de super-herói',                                 sprite: { row: 1, col: 2 } },
-  { id: 'modo-foco',         emoji: '🧘',   texto: 'Encarando o espelho, "modo foco"',                    sprite: { row: 1, col: 3 } },
-  { id: 'alongando-braco',   emoji: '🙆',   texto: 'Alongando o braço atrás da cabeça',                   sprite: { row: 1, col: 4 } },
-  { id: 'torcao-tronco',     emoji: '🌀',   texto: 'Torção de tronco',                                    sprite: { row: 1, col: 5 } },
-  { id: 'luva-treino',       emoji: '🧤',   texto: 'Colocando a luva de treino',                          sprite: { row: 2, col: 0 } },
-  { id: 'ajustando-bone',    emoji: '🧢',   texto: 'Ajustando boné/touca',                                sprite: { row: 2, col: 1 } },
-  { id: 'faixa-pulso',       emoji: '🎗️',   texto: 'Enrolando a faixa de pulso',                          sprite: { row: 2, col: 2 } },
-  { id: 'quadriceps-perna',  emoji: '🦿',   texto: 'Flexionando a perna, mostrando o quadríceps',         sprite: { row: 2, col: 3 } },
-  { id: 'selfie-paz',        emoji: '✌️',   texto: 'Selfie final com sinal de paz',                       sprite: { row: 2, col: 4 } },
+  // ── Clássicas (16) ──
+  { id: 'lingua-paz',       emoji: '😝✌️', texto: 'Língua de fora + sinal de paz com a mão',        sheet: 'classicas', sprite: { row: 0, col: 0 } },
+  { id: 'toalha-suor',      emoji: '😊🧣', texto: 'Sorriso suado com a toalha no pescoço',            sheet: 'classicas', sprite: { row: 0, col: 1 } },
+  { id: 'bebendo-agua',     emoji: '💧',   texto: 'Bebendo água de perfil',                           sheet: 'classicas', sprite: { row: 0, col: 2 } },
+  { id: 'careta-esforco',   emoji: '😤',   texto: 'Careta de esforço',                                sheet: 'classicas', sprite: { row: 0, col: 3 } },
+  { id: 'piscadinha',       emoji: '😉',   texto: 'Piscando pra câmera',                              sheet: 'classicas', sprite: { row: 0, col: 4 } },
+  { id: 'joinha-duplo',     emoji: '👍👍', texto: 'Dois joinhas pra câmera',                          sheet: 'classicas', sprite: { row: 0, col: 5 } },
+  { id: 'mao-cabeca',       emoji: '🤦',   texto: 'Mão na cabeça — "não aguento mais"',               sheet: 'classicas', sprite: { row: 1, col: 0 } },
+  { id: 'apontando-relogio',emoji: '⏱️',   texto: 'Apontando pro relógio — "só mais uma série"',      sheet: 'classicas', sprite: { row: 1, col: 1 } },
+  { id: 'cheguei-mochila',  emoji: '🎒',   texto: 'Selfie de "cheguei" com a bolsa/mochila',          sheet: 'classicas', sprite: { row: 1, col: 2 } },
+  { id: 'biceps-um-braco',  emoji: '💪',   texto: 'Bíceps de um braço só (o outro segura o celular)', sheet: 'classicas', sprite: { row: 1, col: 3 } },
+  { id: 'ofegante-teto',    emoji: '😮‍💨', texto: 'Olhando pro teto, ofegante',                       sheet: 'classicas', sprite: { row: 1, col: 4 } },
+  { id: 'coracao-maos',     emoji: '🫶',   texto: 'Fazendo um coração com as mãos',                    sheet: 'classicas', sprite: { row: 1, col: 5 } },
+  { id: 'topzeira',         emoji: '🤙',   texto: 'Topzeira / Hang Loose',                             sheet: 'classicas', sprite: { row: 2, col: 0 } },
+  { id: 'oculos-cool',      emoji: '😎',   texto: 'Óculos escuros de suor — pose "cool"',              sheet: 'classicas', sprite: { row: 2, col: 1 } },
+  { id: 'bico-engracado',   emoji: '😗',   texto: 'Bico / careta engraçada',                           sheet: 'classicas', sprite: { row: 2, col: 2 } },
+  { id: 'garrafa-trofeu',   emoji: '🏆',   texto: 'Garrafa de água erguida como troféu',               sheet: 'classicas', sprite: { row: 2, col: 3 } },
+  // ── Musculação (17) ──
+  { id: 'biceps-duplo',        emoji: '💪💪', texto: 'Bíceps duplo',                                     sheet: 'novas', sprite: { row: 0, col: 0 } },
+  { id: 'costas-v-ombro',      emoji: '👀',   texto: 'Costas em V, olhando por cima do ombro',            sheet: 'novas', sprite: { row: 0, col: 1 } },
+  { id: 'peito-cintura',       emoji: '🫡',   texto: 'Peito estufado, mãos na cintura',                   sheet: 'novas', sprite: { row: 0, col: 2 } },
+  { id: 'perfil-definicao',    emoji: '💯',   texto: 'Perfil de lado mostrando a definição',              sheet: 'novas', sprite: { row: 0, col: 3 } },
+  { id: 'halteres-dois-braços',emoji: '🏋️',  texto: 'Segurando halteres nos dois braços',                sheet: 'novas', sprite: { row: 0, col: 4 } },
+  { id: 'barra-frente',        emoji: '🏋️‍♂️', texto: 'Segurando a barra/peso na frente do corpo',       sheet: 'novas', sprite: { row: 0, col: 5 } },
+  { id: 'abdomen-camiseta',    emoji: '🍫',   texto: 'Abdômen contraído, camiseta/moletom levantado',     sheet: 'novas', sprite: { row: 1, col: 0 } },
+  { id: 'panturrilha-ponta',   emoji: '🦵',   texto: 'Panturrilha na ponta dos pés',                      sheet: 'novas', sprite: { row: 1, col: 1 } },
+  { id: 'super-heroi',         emoji: '🦸',   texto: 'Pose de super-herói',                               sheet: 'novas', sprite: { row: 1, col: 2 } },
+  { id: 'modo-foco',           emoji: '🧘',   texto: 'Encarando o espelho, "modo foco"',                  sheet: 'novas', sprite: { row: 1, col: 3 } },
+  { id: 'alongando-braco',     emoji: '🙆',   texto: 'Alongando o braço atrás da cabeça',                 sheet: 'novas', sprite: { row: 1, col: 4 } },
+  { id: 'torcao-tronco',       emoji: '🌀',   texto: 'Torção de tronco',                                  sheet: 'novas', sprite: { row: 1, col: 5 } },
+  { id: 'luva-treino',         emoji: '🧤',   texto: 'Colocando a luva de treino',                        sheet: 'novas', sprite: { row: 2, col: 0 } },
+  { id: 'ajustando-bone',      emoji: '🧢',   texto: 'Ajustando boné/touca',                              sheet: 'novas', sprite: { row: 2, col: 1 } },
+  { id: 'faixa-pulso',         emoji: '🎗️',   texto: 'Enrolando a faixa de pulso',                        sheet: 'novas', sprite: { row: 2, col: 2 } },
+  { id: 'quadriceps-perna',    emoji: '🦿',   texto: 'Flexionando a perna, mostrando o quadríceps',       sheet: 'novas', sprite: { row: 2, col: 3 } },
+  { id: 'selfie-paz',          emoji: '✌️',   texto: 'Selfie final com sinal de paz',                     sheet: 'novas', sprite: { row: 2, col: 4 } },
 ];
-// Grade da colagem — usada tanto pro corte do sprite quanto pra proporção do quadro.
+// Grade das colagens (as duas são 6×3) — usada tanto pro corte do sprite quanto pra proporção do quadro.
 const POSES_SPRITE_COLS = 6, POSES_SPRITE_ROWS = 3;
+// Exportadas pra Dashboard RH → aba "Uniko FIT" (UnikoFitPosesTab.jsx) reusar
+// a MESMA lista/grade em vez de manter uma cópia solta que desalinha.
+export { POSES, POSE_SHEETS, POSES_SPRITE_COLS, POSES_SPRITE_ROWS };
 
 const _strHash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 const _mulberry32 = (seed) => { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
@@ -307,7 +334,7 @@ const PoseThumb = ({ pose, size = 56, round = 12 }) => {
   const { row, col } = pose.sprite;
   return (
     <div style={{ width: size, height: size, borderRadius: round, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)',
-      backgroundImage: 'url(/uniko-fit/poses-uniko.png)', backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
+      backgroundImage: `url(${POSE_SHEETS[pose.sheet] || POSE_SHEETS.novas})`, backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
       backgroundPosition: `${col / (POSES_SPRITE_COLS - 1) * 100}% ${row / (POSES_SPRITE_ROWS - 1) * 100}%` }} />
   );
 };
@@ -788,6 +815,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [ensurePhotos]);
 
   const openSheet = (id) => {
+    // Se as Notificações estavam abertas e a pessoa pulou direto pra outra
+    // aba da barra (sem fechar pelo X/fundo), marca como lida do mesmo jeito
+    // — senão `fecharNotificacoes` nunca roda e a leitura não persiste.
+    if (sheet === 'notif') marcarNotifsLidas();
     setSheet(id);
     if ((id === 'ranking' || id === 'amigos' || id === 'desafios') && !fullFeed) loadFullFeed();
     if (id === 'checkin' || id === 'desafios') verificarCheckinHoje();
@@ -837,13 +868,25 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // uma vez ao abrir o app — a lista raramente muda e todo mundo precisa
   // enxergar a MESMA lista pra `poseDoDia` bater entre clientes.
   const [posesExtras, setPosesExtras] = useState([]);
+  // Fotos que sobrescrevem uma pose FIXA específica (mesmo admin, tabela
+  // uniko_fit_poses_overrides — chave = id da pose em POSES). Ganha do
+  // `sprite` original quando presente (ver `PoseThumb`: `image_url` primeiro).
+  const [posesOverrides, setPosesOverrides] = useState({});
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('uniko_fit_poses_custom').select('*').eq('ativo', true).order('created_at', { ascending: true });
-      setPosesExtras(data || []);
+      const [{ data: extras }, { data: overrides }] = await Promise.all([
+        supabase.from('uniko_fit_poses_custom').select('*').eq('ativo', true).order('created_at', { ascending: true }),
+        supabase.from('uniko_fit_poses_overrides').select('*'),
+      ]);
+      setPosesExtras(extras || []);
+      const map = {}; (overrides || []).forEach(o => { map[o.pose_id] = o.image_url; });
+      setPosesOverrides(map);
     })();
   }, []);
-  const posesTodas = useMemo(() => [...POSES, ...posesExtras], [posesExtras]);
+  const posesTodas = useMemo(() => [
+    ...POSES.map(p => posesOverrides[p.id] ? { ...p, image_url: posesOverrides[p.id] } : p),
+    ...posesExtras,
+  ], [posesExtras, posesOverrides]);
 
   const meuDesafioHoje = useMemo(() => poseDoDia(name, undefined, posesTodas), [name, posesTodas]);
   // "Galera" = todo mundo que já postou/checou-in alguma vez (mesma fonte do
@@ -932,9 +975,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
   const abrirNotificacoes = () => setSheet('notif');
   // Marca como lido ao FECHAR (não ao abrir) — assim dá pra ver o destaque de
-  // "novo" enquanto olha a lista, e só depois de ler mesmo é que some.
-  const fecharNotificacoes = () => {
-    setSheet(null);
+  // "novo" enquanto olha a lista, e só depois de ler mesmo é que some. Extraído
+  // do onClose pra também rodar quando a pessoa pula pra OUTRA aba da barra
+  // sem fechar pelo X/fundo primeiro (ver `openSheet`) — senão a marcação
+  // nunca acontecia nesse caminho e a leitura "não persistia" ao recarregar.
+  const marcarNotifsLidas = () => {
     if (!notifs?.length) return;
     setNotifReadIds(prev => {
       const next = new Set(prev);
@@ -943,6 +988,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       return next;
     });
   };
+  const fecharNotificacoes = () => { setSheet(null); marcarNotifsLidas(); };
 
   /* ═══════════════════ UI ═══════════════════ */
   const BOTTOM_BTNS = [
@@ -1583,7 +1629,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           ) : poseZoom.sprite ? (
             <div onClick={e => e.stopPropagation()}
               style={{ width: 'min(88vw, 420px)', height: 'min(88vw, 420px)', borderRadius: 20, boxShadow: '0 12px 40px rgba(0,0,0,.5)',
-                backgroundImage: 'url(/uniko-fit/poses-uniko.png)', backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
+                backgroundImage: `url(${POSE_SHEETS[poseZoom.sheet] || POSE_SHEETS.novas})`, backgroundSize: `${POSES_SPRITE_COLS * 100}% ${POSES_SPRITE_ROWS * 100}%`,
                 backgroundPosition: `${poseZoom.sprite.col / (POSES_SPRITE_COLS - 1) * 100}% ${poseZoom.sprite.row / (POSES_SPRITE_ROWS - 1) * 100}%` }} />
           ) : (
             <div style={{ fontSize: 96 }}>{poseZoom.emoji}</div>

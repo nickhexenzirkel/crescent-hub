@@ -1,52 +1,40 @@
 // Dashboard RH → aba "Uniko FIT".
-// Mostra TODAS as poses da aba Desafios do Uniko FIT: as fixas (arte no sprite
-// sheet /uniko-fit/poses-uniko.png, só leitura aqui) + as extras cadastradas
-// por aqui (tabela uniko_fit_poses_custom, cada uma com a própria imagem).
-// Cadastrar uma pose extra = ela entra na rotação de TODO MUNDO na hora,
-// bucket 'uniko-fit-poses' — rodar supabase_uniko_fit_poses_custom.sql antes.
+// Mostra TODAS as poses da aba Desafios do Uniko FIT: as fixas (arte das
+// colagens do app, com upload pra sobrescrever a foto de uma específica —
+// tabela uniko_fit_poses_overrides) + as extras cadastradas por aqui
+// (tabela uniko_fit_poses_custom, cada uma com a própria imagem). As duas
+// tabelas usam o mesmo bucket 'uniko-fit-poses' — rodar
+// supabase_uniko_fit_poses_custom.sql e supabase_uniko_fit_poses_overrides.sql
+// antes (idempotentes, pode rodar de novo sem medo).
 import React, { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, Moon } from '../../shared/components';
-
-// Mesma colagem/grade usada no app (ver src/modules/uniko-fit/index.jsx).
-const POSES_FIXAS = [
-  { id: 'biceps-duplo',      emoji: '💪💪', texto: 'Bíceps duplo',                                sprite: { row: 0, col: 0 } },
-  { id: 'costas-v-ombro',    emoji: '👀',   texto: 'Costas em V, olhando por cima do ombro',       sprite: { row: 0, col: 1 } },
-  { id: 'peito-cintura',     emoji: '🫡',   texto: 'Peito estufado, mãos na cintura',              sprite: { row: 0, col: 2 } },
-  { id: 'perfil-definicao',  emoji: '💯',   texto: 'Perfil de lado mostrando a definição',         sprite: { row: 0, col: 3 } },
-  { id: 'halteres-dois-braços', emoji: '🏋️', texto: 'Segurando halteres nos dois braços',         sprite: { row: 0, col: 4 } },
-  { id: 'barra-frente',      emoji: '🏋️‍♂️', texto: 'Segurando a barra/peso na frente do corpo', sprite: { row: 0, col: 5 } },
-  { id: 'abdomen-camiseta',  emoji: '🍫',   texto: 'Abdômen contraído, camiseta/moletom levantado', sprite: { row: 1, col: 0 } },
-  { id: 'panturrilha-ponta', emoji: '🦵',   texto: 'Panturrilha na ponta dos pés',                 sprite: { row: 1, col: 1 } },
-  { id: 'super-heroi',       emoji: '🦸',   texto: 'Pose de super-herói',                          sprite: { row: 1, col: 2 } },
-  { id: 'modo-foco',         emoji: '🧘',   texto: 'Encarando o espelho, "modo foco"',             sprite: { row: 1, col: 3 } },
-  { id: 'alongando-braco',   emoji: '🙆',   texto: 'Alongando o braço atrás da cabeça',            sprite: { row: 1, col: 4 } },
-  { id: 'torcao-tronco',     emoji: '🌀',   texto: 'Torção de tronco',                             sprite: { row: 1, col: 5 } },
-  { id: 'luva-treino',       emoji: '🧤',   texto: 'Colocando a luva de treino',                   sprite: { row: 2, col: 0 } },
-  { id: 'ajustando-bone',    emoji: '🧢',   texto: 'Ajustando boné/touca',                         sprite: { row: 2, col: 1 } },
-  { id: 'faixa-pulso',       emoji: '🎗️',   texto: 'Enrolando a faixa de pulso',                   sprite: { row: 2, col: 2 } },
-  { id: 'quadriceps-perna',  emoji: '🦿',   texto: 'Flexionando a perna, mostrando o quadríceps',  sprite: { row: 2, col: 3 } },
-  { id: 'selfie-paz',        emoji: '✌️',   texto: 'Selfie final com sinal de paz',                sprite: { row: 2, col: 4 } },
-];
-const SPRITE_COLS = 6, SPRITE_ROWS = 3;
+import { POSES as POSES_FIXAS, POSE_SHEETS, POSES_SPRITE_COLS as SPRITE_COLS, POSES_SPRITE_ROWS as SPRITE_ROWS } from '../uniko-fit/index';
 
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${T.border}`,
   background: T.surface, fontSize: 13, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)',
 };
 
-const PoseThumbFixa = ({ pose, size = 56 }) => (
-  <div style={{ width: size, height: size, borderRadius: 11, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)',
-    backgroundImage: 'url(/uniko-fit/poses-uniko.png)', backgroundSize: `${SPRITE_COLS * 100}% ${SPRITE_ROWS * 100}%`,
-    backgroundPosition: `${pose.sprite.col / (SPRITE_COLS - 1) * 100}% ${pose.sprite.row / (SPRITE_ROWS - 1) * 100}%` }} />
-);
+// `override` (url) tem prioridade sobre o recorte do sprite sheet — mesma
+// regra do `PoseThumb` do app (ver src/modules/uniko-fit/index.jsx).
+const PoseThumbFixa = ({ pose, override, size = 56 }) => {
+  if (override) return <div style={{ width: size, height: size, borderRadius: 11, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)' }}><img src={override} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>;
+  return (
+    <div style={{ width: size, height: size, borderRadius: 11, overflow: 'hidden', flexShrink: 0, background: 'rgba(128,128,128,.12)',
+      backgroundImage: `url(${POSE_SHEETS[pose.sheet] || POSE_SHEETS.novas})`, backgroundSize: `${SPRITE_COLS * 100}% ${SPRITE_ROWS * 100}%`,
+      backgroundPosition: `${pose.sprite.col / (SPRITE_COLS - 1) * 100}% ${pose.sprite.row / (SPRITE_ROWS - 1) * 100}%` }} />
+  );
+};
 
 const UnikoFitPosesTab = ({ cardBg, adminName }) => {
   const bg = cardBg || T.surface;
   const [extras, setExtras] = useState([]);
+  const [overrides, setOverrides] = useState({}); // pose_id -> image_url
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
+  const [trocandoId, setTrocandoId] = useState(null); // id da pose fixa com upload em andamento
 
   const [texto, setTexto] = useState('');
   const [emoji, setEmoji] = useState('');
@@ -60,12 +48,43 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await _supabase.from('uniko_fit_poses_custom').select('*').order('created_at', { ascending: false });
-      setExtras(data || []);
+      const [{ data: extrasData }, { data: overridesData }] = await Promise.all([
+        _supabase.from('uniko_fit_poses_custom').select('*').order('created_at', { ascending: false }),
+        _supabase.from('uniko_fit_poses_overrides').select('*'),
+      ]);
+      setExtras(extrasData || []);
+      const map = {}; (overridesData || []).forEach(o => { map[o.pose_id] = o.image_url; });
+      setOverrides(map);
     } catch {}
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const trocarFotoFixa = async (pose, f) => {
+    if (!f) return;
+    setTrocandoId(pose.id); setMsg('');
+    try {
+      const ext = (f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `override-${pose.id}-${Date.now()}-${rand}.${ext}`;
+      const { error: upErr } = await _supabase.storage.from('uniko-fit-poses').upload(path, f, { contentType: f.type || undefined, upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = _supabase.storage.from('uniko-fit-poses').getPublicUrl(path);
+      const { error } = await _supabase.from('uniko_fit_poses_overrides').upsert(
+        { pose_id: pose.id, image_url: pub.publicUrl, updated_by: adminName || null, updated_at: new Date().toISOString() },
+        { onConflict: 'pose_id' });
+      if (error) throw error;
+      flash(`✅ Foto de "${pose.texto}" atualizada!`);
+      await load();
+    } catch (e) { flash('Erro ao trocar a foto: ' + (e.message || '')); }
+    setTrocandoId(null);
+  };
+
+  const restaurarFotoFixa = async (pose) => {
+    if (!window.confirm(`Voltar "${pose.texto}" pra arte original?`)) return;
+    try { await _supabase.from('uniko_fit_poses_overrides').delete().eq('pose_id', pose.id); await load(); }
+    catch (e) { flash('Erro ao restaurar: ' + (e.message || '')); }
+  };
 
   const escolherImagem = (f) => {
     setFile(f || null);
@@ -180,17 +199,33 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
         }
       </Card>
 
-      {/* Poses fixas (só leitura — arte do sprite sheet do app) */}
+      {/* Poses fixas (vêm com o app — dá pra trocar a foto de qualquer uma) */}
       <Card style={{ padding: '18px 20px', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }} elevated>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>Poses fixas ({POSES_FIXAS.length})</div>
-        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Vêm prontas com o app (arte do próprio Uniko). Só leitura por aqui.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-          {POSES_FIXAS.map(p => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <PoseThumbFixa pose={p} size={44} />
-              <div style={{ fontSize: 12, color: T.textS, lineHeight: 1.3 }}>{p.emoji} {p.texto}</div>
-            </div>
-          ))}
+        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Vêm prontas com o app (arte do próprio Uniko). Passe o mouse numa foto pra trocar por uma sua.</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+          {POSES_FIXAS.map(p => {
+            const override = overrides[p.id];
+            const trocando = trocandoId === p.id;
+            return (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label title="Clique pra trocar a foto dessa pose" style={{ position: 'relative', cursor: trocando ? 'wait' : 'pointer', flexShrink: 0, display: 'block' }}>
+                  <PoseThumbFixa pose={p} override={override} size={44} />
+                  <div style={{ position: 'absolute', inset: 0, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,.45)', color: '#fff', fontSize: 16, opacity: trocando ? 1 : 0, transition: 'opacity .12s' }}
+                    onMouseEnter={e => { if (!trocando) e.currentTarget.style.opacity = 1; }}
+                    onMouseLeave={e => { if (!trocando) e.currentTarget.style.opacity = 0; }}>
+                    {trocando ? '⏳' : '✏️'}
+                  </div>
+                  <input type="file" accept="image/*" disabled={trocando} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; trocarFotoFixa(p, f); }} style={{ display: 'none' }} />
+                </label>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: T.textS, lineHeight: 1.3 }}>{p.emoji} {p.texto}</div>
+                  {override && <button onClick={() => restaurarFotoFixa(p)} style={{ marginTop: 3, padding: 0, border: 'none', background: 'none', cursor: 'pointer', color: T.gold, fontSize: 10.5, fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>restaurar original</button>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
     </div>
