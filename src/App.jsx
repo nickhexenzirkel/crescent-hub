@@ -138,11 +138,8 @@ export default function CrescentHub() {
     // Moderador tem o mesmo acesso de admin ao ponto e ao dashboard (esse último
     // com abas restritas — ver filtragem de TABS dentro do DashboardRH).
     const adminOnly = ['dashboard','ponto'];
-    // Uniko Fit ainda tá em construção — só admin (nem moderador) acessa por enquanto.
-    const strictAdminOnly = ['uniko-fit'];
     const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
     if (adminOnly.includes(id) && !podeAdminOnly) return;
-    if (strictAdminOnly.includes(id) && authUser?.role !== 'admin') return;
     navPush(id);
   };
 
@@ -424,7 +421,7 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
-          {screen==='uniko-fit' && authUser?.role==='admin' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
