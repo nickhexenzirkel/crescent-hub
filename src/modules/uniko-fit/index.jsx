@@ -560,6 +560,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [photos, setPhotos] = useState({});
   const photosRef = useRef({});
   useEffect(() => { photosRef.current = photos; }, [photos]);
+  // A SUA foto (nos seus check-ins/comentários/mensagens dentro do Uniko FIT)
+  // sempre reflete `userPhoto` — a mesma foto do Portal do Colaborador (prop
+  // vinda do App.jsx, já sincronizada de lá com "Seus Dados"). Sem isso, uma
+  // troca de foto durante a sessão não aparecia aqui: `ensurePhotos` só busca
+  // um nome uma vez e guarda em cache, então ficava presa na foto de quando
+  // essa pessoa apareceu pela primeira vez num post/comentário/mensagem.
+  useEffect(() => {
+    if (userPhoto) setPhotos(prev => (prev[name] === userPhoto ? prev : { ...prev, [name]: userPhoto }));
+  }, [userPhoto, name]);
   const ensurePhotos = useCallback(async (nomes) => {
     const faltam = [...new Set(nomes)].filter(n => n && !(n in photosRef.current));
     if (!faltam.length) return;
@@ -1368,7 +1377,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.caption && <div style={{ fontSize: 12.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                     </div>
 
-                    <div style={{ position: 'absolute', right: 8, bottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 11 }}>
+                    <div style={{ position: 'absolute', right: 8, bottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
                       {REACOES.map(rc => {
                         const ativo = r.mine === (rc.emoji || rc.id);
                         const emojiKey = rc.emoji || rc.id;
@@ -1377,20 +1386,20 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           <button key={rc.id} className="fit-btn" onClick={e => { e.stopPropagation(); toggleReacao(post.id, emojiKey); }} title={rc.label}
                             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
                             <div className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`}
-                              style={{ width: 37, height: 37, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
+                              style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21,
                                 background: ativo ? `${ENERGIA}E6` : 'rgba(0,0,0,.35)', boxShadow: ativo ? `0 0 0 2px #fff` : 'none' }}>
-                              {rc.img ? <img src={rc.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} /> : rc.emoji}
+                              {rc.img ? <img src={rc.img} alt="" style={{ width: 25, height: 25, objectFit: 'contain' }} /> : rc.emoji}
                             </div>
-                            {n > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{n}</span>}
+                            {n > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{n}</span>}
                           </button>
                         );
                       })}
                       <button className="fit-btn" onClick={e => { e.stopPropagation(); abrirComentarios(post); }} title="Comentários"
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <div style={{ width: 37, height: 37, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(0,0,0,.35)' }}>💬</div>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
+                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: 'rgba(0,0,0,.35)' }}>💬</div>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
                       </button>
-                      {totalReacoes > 0 && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.7)' }}>{totalReacoes}</span>}
+                      {totalReacoes > 0 && <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.7)' }}>{totalReacoes}</span>}
                     </div>
                   </div>
                 );
