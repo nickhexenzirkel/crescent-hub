@@ -99,6 +99,10 @@ const POSES_SPRITE_COLS = 6, POSES_SPRITE_ROWS = 3;
 export { POSES, POSE_SHEETS, POSES_SPRITE_COLS, POSES_SPRITE_ROWS };
 
 const _strHash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+// Cor da tag de desafio no feed — "aleatória" mas ESTÁVEL pra mesma pose (hash
+// do id, não Math.random(): senão a cor mudaria a cada re-render/scroll).
+const TAG_CORES = ['#F43F5E', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#22C55E', '#EAB308', '#06B6D4'];
+const corDaTagPose = (poseId) => TAG_CORES[_strHash(poseId || '') % TAG_CORES.length];
 const _mulberry32 = (seed) => { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
 const _seededShuffle = (arr, seed) => {
   const rng = _mulberry32(seed); const a = [...arr];
@@ -181,6 +185,7 @@ const PHOTO_FILTERS = [
    frontal/traseira; a frontal é espelhada no preview (senão parece "ao
    contrário" pra quem está se vendo) mas gravada SEM espelho no arquivo
    final — senão o texto/relógio ao fundo saem invertidos na foto salva. ── */
+const CROP_DEFAULT = { x: 0, y: 0, w: 1, h: 1 }; // fração (0..1) da imagem — sem corte por padrão
 const CameraCapture = ({ energia, onCapture }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -189,6 +194,61 @@ const CameraCapture = ({ energia, onCapture }) => {
   const [rawShot, setRawShot] = useState(null); // dataURL cru (sem filtro) — null = câmera ao vivo
   const [erro, setErro] = useState('');
   const filtro = PHOTO_FILTERS.find(f => f.id === filterId) || PHOTO_FILTERS[0];
+
+  // ── Cortar/redimensionar na revisão: arrasta as bordas do quadro pra
+  // escolher só uma parte da foto. `crop` é sempre fração (0..1) da imagem
+  // NATURAL (não do preview) — funciona mesmo se o preview mostrar a foto
+  // com letterbox (câmera não é 4:5 igual o quadro). O quadro de arrastar
+  // fica só sobre a ÁREA REAL da imagem (`dispRectPct`), calculada a partir
+  // do tamanho natural + `object-fit: contain` — sem isso, arrastar até a
+  // borda do preview cortaria fora da imagem de verdade.
+  const [crop, setCrop] = useState(CROP_DEFAULT);
+  const [imgNatural, setImgNatural] = useState(null); // {w,h} da rawShot
+  const boxRef = useRef(null);
+  const cropBoxRef = useRef(null);
+  const dragRef = useRef(null);
+
+  const dispRectPct = useMemo(() => {
+    if (!imgNatural || !boxRef.current) return { left: 0, top: 0, width: 100, height: 100 };
+    const boxRect = boxRef.current.getBoundingClientRect();
+    if (!boxRect.width || !boxRect.height) return { left: 0, top: 0, width: 100, height: 100 };
+    const scale = Math.min(boxRect.width / imgNatural.w, boxRect.height / imgNatural.h);
+    const dispW = imgNatural.w * scale, dispH = imgNatural.h * scale;
+    return {
+      left: ((boxRect.width - dispW) / 2 / boxRect.width) * 100,
+      top: ((boxRect.height - dispH) / 2 / boxRect.height) * 100,
+      width: (dispW / boxRect.width) * 100,
+      height: (dispH / boxRect.height) * 100,
+    };
+  }, [imgNatural, rawShot]);
+
+  const clamp01 = (n) => Math.min(1, Math.max(0, n));
+  const iniciarDrag = (mode) => (e) => {
+    e.stopPropagation();
+    const rect = cropBoxRef.current?.getBoundingClientRect();
+    if (!rect?.width) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { mode, rect, startX: e.clientX, startY: e.clientY, startCrop: { ...crop } };
+  };
+  const moverDrag = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = (e.clientX - d.startX) / d.rect.width;
+    const dy = (e.clientY - d.startY) / d.rect.height;
+    const MIN = 0.15;
+    let { x, y, w, h } = d.startCrop;
+    if (d.mode === 'move') {
+      x = clamp01(x + dx); y = clamp01(y + dy);
+      x = Math.min(x, 1 - w); y = Math.min(y, 1 - h);
+    } else {
+      if (d.mode.includes('w')) { const nx = Math.min(clamp01(x + dx), x + w - MIN); w = x + w - nx; x = nx; }
+      if (d.mode.includes('e')) { w = Math.max(MIN, clamp01(x + w + dx) - x); }
+      if (d.mode.includes('n')) { const ny = Math.min(clamp01(y + dy), y + h - MIN); h = y + h - ny; y = ny; }
+      if (d.mode.includes('s')) { h = Math.max(MIN, clamp01(y + h + dy) - y); }
+    }
+    setCrop({ x, y, w, h });
+  };
+  const soltarDrag = (e) => { dragRef.current = null; try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* já solto */ } };
 
   const pararCamera = () => { streamRef.current?.getTracks()?.forEach(t => t.stop()); streamRef.current = null; };
 
@@ -219,17 +279,20 @@ const CameraCapture = ({ energia, onCapture }) => {
     if (facing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); } // desfaz o espelho do preview
     ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
     setRawShot(canvas.toDataURL('image/jpeg', 0.92));
+    setCrop(CROP_DEFAULT); setImgNatural(null);
     pararCamera();
   };
 
   const confirmar = () => {
     const img = new Image();
     img.onload = () => {
+      const sx = Math.round(crop.x * img.width), sy = Math.round(crop.y * img.height);
+      const sw = Math.max(1, Math.round(crop.w * img.width)), sh = Math.max(1, Math.round(crop.h * img.height));
       const canvas = document.createElement('canvas');
-      canvas.width = img.width; canvas.height = img.height;
+      canvas.width = sw; canvas.height = sh;
       const ctx = canvas.getContext('2d');
       ctx.filter = filtro.css;
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
       canvas.toBlob(blob => {
         if (!blob) return;
         const file = new File([blob], `checkin-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -241,9 +304,10 @@ const CameraCapture = ({ energia, onCapture }) => {
 
   return (
     <div>
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5', background: '#000', overflow: 'hidden', borderRadius: 14 }}>
+      <div ref={boxRef} style={{ position: 'relative', width: '100%', aspectRatio: '4/5', background: '#000', overflow: 'hidden', borderRadius: 14 }}>
         {rawShot
-          ? <img src={rawShot} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: filtro.css }} />
+          ? <img src={rawShot} alt="" onLoad={e => setImgNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', filter: filtro.css }} />
           : <video ref={videoRef} muted playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover', filter: filtro.css, transform: facing === 'user' ? 'scaleX(-1)' : 'none' }} />}
         {erro && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', color: '#fff', fontSize: 12.5, background: 'rgba(0,0,0,.65)' }}>{erro}</div>
@@ -252,7 +316,24 @@ const CameraCapture = ({ energia, onCapture }) => {
           <button onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')} className="fit-btn" title="Trocar câmera"
             style={{ position: 'absolute', top: 10, right: 10, width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,.5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoFlip}</button>
         )}
+        {/* Quadro de corte — só aparece na revisão, sobre a área REAL da imagem (dispRectPct) */}
+        {rawShot && imgNatural && (
+          <div style={{ position: 'absolute', left: `${dispRectPct.left}%`, top: `${dispRectPct.top}%`, width: `${dispRectPct.width}%`, height: `${dispRectPct.height}%` }}>
+            <div ref={cropBoxRef} onPointerDown={iniciarDrag('move')} onPointerMove={moverDrag} onPointerUp={soltarDrag}
+              style={{ position: 'absolute', left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%`,
+                boxShadow: '0 0 0 9999px rgba(0,0,0,.55)', border: '2px solid #fff', borderRadius: 4, cursor: 'move', touchAction: 'none' }}>
+              {['nw', 'ne', 'sw', 'se'].map(corner => (
+                <div key={corner} onPointerDown={iniciarDrag(corner)} onPointerMove={moverDrag} onPointerUp={soltarDrag}
+                  style={{ position: 'absolute', width: 18, height: 18, background: '#fff', borderRadius: '50%', border: `2px solid ${energia}`, touchAction: 'none',
+                    cursor: (corner === 'nw' || corner === 'se') ? 'nwse-resize' : 'nesw-resize',
+                    top: corner.includes('n') ? -9 : 'auto', bottom: corner.includes('s') ? -9 : 'auto',
+                    left: corner.includes('w') ? -9 : 'auto', right: corner.includes('e') ? -9 : 'auto' }} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+      {rawShot && <div style={{ padding: '6px 2px 0', fontSize: 11, color: 'inherit', opacity: .65, textAlign: 'center' }}>Arraste as bordas do quadro pra cortar/redimensionar a foto</div>}
 
       <div style={{ display: 'flex', gap: 7, padding: '11px 2px', overflowX: 'auto' }}>
         {PHOTO_FILTERS.map(f => (
@@ -265,7 +346,7 @@ const CameraCapture = ({ energia, onCapture }) => {
       <div style={{ display: 'flex', gap: 10 }}>
         {rawShot ? (
           <>
-            <button onClick={() => setRawShot(null)} className="fit-btn"
+            <button onClick={() => { setRawShot(null); setCrop(CROP_DEFAULT); setImgNatural(null); }} className="fit-btn"
               style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${energia}55`, background: 'none', color: energia, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>↺ Tirar de novo</button>
             <button onClick={confirmar} className="fit-btn"
               style={{ flex: 2, padding: 12, borderRadius: 12, border: 'none', background: energia, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>✓ Usar essa foto</button>
@@ -638,7 +719,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
   const abrirCheckinComDesafio = (pose) => {
     setDesafioAtivo(pose);
-    setPostCaption(c => c.trim() ? c : `${pose.emoji} Desafio do dia: ${pose.texto}`);
+    // A pose vira uma TAG colorida no card do feed (ver render do "Para Você"),
+    // não mais o texto da legenda — a legenda continua livre pra pessoa escrever
+    // o que quiser (ou deixar em branco).
     openSheet('checkin');
   };
 
@@ -683,7 +766,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       if (kind === 'checkin') {
         setCheckinHojeFeito(true);
         setCheckinHojeDesafioId(desafioAtivo?.id || null);
-        try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
+        if (desafioAtivo) setDesafiosHistorico(null); // invalida o cache do histórico (aba Desafios)
+        // Quando o check-in cumpre o desafio do dia, o aviso no chat mostra
+        // qual foi (ver render de `tipo==='checkin'` no Bate-Papo: usa
+        // `m.texto` quando presente pra trocar "fez check-in" por "fez o
+        // desafio: <texto>").
+        try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl, texto: desafioAtivo?.texto || null }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
       }
       setPostMsg(kind === 'checkin' ? '✅ Check-in registrado! Bora treinar mais 💪' : '✅ Postado no feed!');
       setFullFeed(null); // invalida cache do ranking/detalhes pra refletir o novo item
@@ -815,10 +903,6 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [ensurePhotos]);
 
   const openSheet = (id) => {
-    // Se as Notificações estavam abertas e a pessoa pulou direto pra outra
-    // aba da barra (sem fechar pelo X/fundo), marca como lida do mesmo jeito
-    // — senão `fecharNotificacoes` nunca roda e a leitura não persiste.
-    if (sheet === 'notif') marcarNotifsLidas();
     setSheet(id);
     if ((id === 'ranking' || id === 'amigos' || id === 'desafios') && !fullFeed) loadFullFeed();
     if (id === 'checkin' || id === 'desafios') verificarCheckinHoje();
@@ -887,6 +971,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     ...POSES.map(p => posesOverrides[p.id] ? { ...p, image_url: posesOverrides[p.id] } : p),
     ...posesExtras,
   ], [posesExtras, posesOverrides]);
+  // Pose por id — usado pra achar o TEXTO da pose de um check-in no feed
+  // (tag colorida) e no histórico dos Desafios, sem precisar refazer a busca.
+  const posesPorId = useMemo(() => Object.fromEntries(posesTodas.map(p => [p.id, p])), [posesTodas]);
 
   const meuDesafioHoje = useMemo(() => poseDoDia(name, undefined, posesTodas), [name, posesTodas]);
   // "Galera" = todo mundo que já postou/checou-in alguma vez (mesma fonte do
@@ -896,6 +983,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     if (!detalhesLista) return null;
     return detalhesLista.map(p => ({ player: p.player, pose: poseDoDia(p.player, undefined, posesTodas) })).filter(x => x.player !== name);
   }, [detalhesLista, name, posesTodas]);
+
+  // Sub-aba "Histórico" dentro de Desafios: check-ins passados que marcaram
+  // algum desafio (desafio_pose_id preenchido). Carrega só quando a pessoa
+  // abre essa sub-aba (não pesa o carregamento normal da aba Desafios).
+  const [desafioSubTab, setDesafioSubTab] = useState('hoje'); // hoje | historico
+  const [desafiosHistorico, setDesafiosHistorico] = useState(null); // null = ainda não carregado
+  const carregarHistoricoDesafios = useCallback(async () => {
+    const { data } = await supabase.from('uniko_fit_checkins')
+      .select('id,photo_url,created_at,desafio_pose_id')
+      .eq('player', name).eq('kind', 'checkin').not('desafio_pose_id', 'is', null)
+      .order('created_at', { ascending: false }).limit(100);
+    setDesafiosHistorico(data || []);
+  }, [name]);
+  useEffect(() => {
+    if (sheet === 'desafios' && desafioSubTab === 'historico' && !desafiosHistorico) carregarHistoricoDesafios();
+  }, [sheet, desafioSubTab, desafiosHistorico, carregarHistoricoDesafios]);
 
   /* ═══════════════════ MEU PERFIL (meus posts + engajamento) ═══════════════════ */
   // Reaproveita o mesmo `fullFeed` paginado do ranking/amigos (carrega uma vez só).
@@ -974,21 +1077,31 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
   const abrirNotificacoes = () => setSheet('notif');
-  // Marca como lido ao FECHAR (não ao abrir) — assim dá pra ver o destaque de
-  // "novo" enquanto olha a lista, e só depois de ler mesmo é que some. Extraído
-  // do onClose pra também rodar quando a pessoa pula pra OUTRA aba da barra
-  // sem fechar pelo X/fundo primeiro (ver `openSheet`) — senão a marcação
-  // nunca acontecia nesse caminho e a leitura "não persistia" ao recarregar.
-  const marcarNotifsLidas = () => {
-    if (!notifs?.length) return;
-    setNotifReadIds(prev => {
-      const next = new Set(prev);
-      notifs.forEach(n => next.add(n.id));
-      try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
-      return next;
-    });
-  };
-  const fecharNotificacoes = () => { setSheet(null); marcarNotifsLidas(); };
+  const fecharNotificacoes = () => setSheet(null);
+  // Marca como lido ao SAIR da tela de notificações — não ao abrir, pra dar
+  // tempo de ver o destaque de "novo" enquanto olha a lista. Antes isso só
+  // rodava se a pessoa fechasse pelo X/fundo (`onClose` do Sheet); qualquer
+  // OUTRO jeito de sair (pular direto pra outra aba da barra, voltar pro
+  // Portal, fechar a aba do navegador com o celular suspendendo o app etc.)
+  // pulava a marcação, e a leitura "não persistia" ao recarregar depois. Um
+  // efeito com cleanup cobre TODOS esses casos de uma vez: o cleanup roda
+  // sempre que `sheet` deixa de ser 'notif' — seja trocando de sheet, seja
+  // desmontando o componente inteiro — sem precisar caçar cada call site.
+  const notifsRef = useRef(notifs);
+  useEffect(() => { notifsRef.current = notifs; }, [notifs]);
+  useEffect(() => {
+    if (sheet !== 'notif') return;
+    return () => {
+      const lista = notifsRef.current;
+      if (!lista?.length) return;
+      setNotifReadIds(prev => {
+        const next = new Set(prev);
+        lista.forEach(n => next.add(n.id));
+        try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
+        return next;
+      });
+    };
+  }, [sheet]);
 
   /* ═══════════════════ UI ═══════════════════ */
   const BOTTOM_BTNS = [
@@ -1116,6 +1229,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           <div style={{ fontSize: 10.5, opacity: .85 }}>{tempoRelativo(post.created_at)}</div>
                         </div>
                       </div>
+                      {post.desafio_pose_id && posesPorId[post.desafio_pose_id] && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, marginBottom: 6,
+                          background: corDaTagPose(post.desafio_pose_id), color: '#fff', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>
+                          🎯 {posesPorId[post.desafio_pose_id].texto}
+                        </div>
+                      )}
                       {post.caption && <div style={{ fontSize: 12.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                     </div>
 
@@ -1169,7 +1288,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                             background: T.surfaceSub || 'rgba(0,0,0,.08)', color: T.textD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
                       )}
                       <div style={{ fontSize: 11, fontWeight: 700, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,.04)', padding: '5px 13px', borderRadius: 999, textAlign: 'center', border: `1px solid ${T.border}` }}>
-                        ✅ <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}
+                        {m.texto
+                          ? <>🎯 <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez o desafio: <b>{m.texto}</b> às {horaCurta(m.created_at)}</>
+                          : <>✅ <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}</>}
                       </div>
                       {m.media_url && <img src={m.media_url} alt="" style={{ width: 110, height: 110, borderRadius: 14, objectFit: 'cover', border: `2px solid ${ENERGIA}` }} />}
                     </div>
@@ -1387,45 +1508,89 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {/* ── Desafios: pose diária individual (não repete na semana) ── */}
       {sheet === 'desafios' && (
         <Sheet title="Desafios 🎯" onClose={() => setSheet(null)}>
-          <div style={{ padding: '16px 16px 24px' }}>
-            <div style={{ background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, borderRadius: 16, padding: '18px 20px', marginBottom: 18, color: '#fff', boxShadow: `0 8px 24px ${EG}` }}>
-              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', opacity: .9, marginBottom: 6 }}>SEU DESAFIO DE HOJE</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div onClick={() => setPoseZoom(meuDesafioHoje)} role="button" aria-label="Ver foto do desafio em tela grande"
-                  style={{ background: 'rgba(255,255,255,.2)', borderRadius: 14, padding: 4, cursor: 'pointer' }}>
-                  <PoseThumb pose={meuDesafioHoje} size={64} round={11} />
+          <div style={{ padding: '14px 16px 0' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4, justifyContent: 'center' }}>
+              {[['hoje', 'Desafio de hoje'], ['historico', 'Histórico']].map(([id, label]) => {
+                const sel = desafioSubTab === id;
+                return (
+                  <button key={id} className="fit-btn" onClick={() => setDesafioSubTab(id)}
+                    style={{ padding: '7px 16px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      border: `1.5px solid ${sel ? ENERGIA : T.border}`, background: sel ? `${ENERGIA}16` : 'transparent', color: sel ? ENERGIA : T.textS }}>{label}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {desafioSubTab === 'hoje' ? (
+            <div style={{ padding: '16px 16px 24px' }}>
+              <div style={{ background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, borderRadius: 16, padding: '18px 20px', marginBottom: 18, color: '#fff', boxShadow: `0 8px 24px ${EG}` }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.05em', opacity: .9, marginBottom: 6 }}>SEU DESAFIO DE HOJE</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div onClick={() => setPoseZoom(meuDesafioHoje)} role="button" aria-label="Ver foto do desafio em tela grande"
+                    style={{ background: 'rgba(255,255,255,.2)', borderRadius: 14, padding: 4, cursor: 'pointer' }}>
+                    <PoseThumb pose={meuDesafioHoje} size={64} round={11} />
+                  </div>
+                  <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
                 </div>
-                <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
+                {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
+                  <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>✅ Desafio concluído hoje!</div>
+                ) : checkinHojeFeito ? (
+                  <div style={{ marginTop: 12, fontSize: 11.5, opacity: .9 }}>Você já fez o check-in de hoje sem marcar esse desafio — vale igual, relaxa 💪</div>
+                ) : (
+                  <button className="fit-btn" onClick={() => abrirCheckinComDesafio(meuDesafioHoje)}
+                    style={{ marginTop: 12, width: '100%', padding: 11, borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: 'rgba(255,255,255,.22)', color: '#fff', fontWeight: 800, fontSize: 13 }}>📸 Fazer check-in com esse desafio</button>
+                )}
               </div>
-              {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
-                <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>✅ Desafio concluído hoje!</div>
-              ) : checkinHojeFeito ? (
-                <div style={{ marginTop: 12, fontSize: 11.5, opacity: .9 }}>Você já fez o check-in de hoje sem marcar esse desafio — vale igual, relaxa 💪</div>
+
+              <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>Cada pessoa tem uma pose diferente por dia, e ela nunca se repete na mesma semana. Olha o que a galera tem que fazer hoje:</div>
+
+              {!desafiosGalera ? (
+                <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Carregando...</div>
+              ) : desafiosGalera.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Ainda não tem mais ninguém pra mostrar aqui.</div>
               ) : (
-                <button className="fit-btn" onClick={() => abrirCheckinComDesafio(meuDesafioHoje)}
-                  style={{ marginTop: 12, width: '100%', padding: 11, borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: 'rgba(255,255,255,.22)', color: '#fff', fontWeight: 800, fontSize: 13 }}>📸 Fazer check-in com esse desafio</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {desafiosGalera.map(d => (
+                    <div key={d.player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
+                      <img src={photos[d.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.player.split(' ').slice(0, 2).join(' ')}</div>
+                      <PoseThumb pose={d.pose} size={38} round={9} />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-
-            <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>Cada pessoa tem uma pose diferente por dia, e ela nunca se repete na mesma semana. Olha o que a galera tem que fazer hoje:</div>
-
-            {!desafiosGalera ? (
-              <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Carregando...</div>
-            ) : desafiosGalera.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Ainda não tem mais ninguém pra mostrar aqui.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {desafiosGalera.map(d => (
-                  <div key={d.player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
-                    <img src={photos[d.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.player.split(' ').slice(0, 2).join(' ')}</div>
-                    <PoseThumb pose={d.pose} size={38} round={9} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          ) : (
+            <div style={{ padding: '16px 16px 24px' }}>
+              {!desafiosHistorico ? (
+                <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Carregando...</div>
+              ) : desafiosHistorico.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>🎯</div>
+                  <div style={{ fontSize: 13, color: T.textT }}>Você ainda não marcou nenhum desafio num check-in.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {desafiosHistorico.map(h => {
+                    const pose = posesPorId[h.desafio_pose_id];
+                    return (
+                      <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
+                        {pose ? <PoseThumb pose={pose} size={40} round={9} /> : <div style={{ width: 40, height: 40, borderRadius: 9, flexShrink: 0, background: 'rgba(128,128,128,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>❓</div>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>{pose ? pose.texto : 'Pose removida'}</div>
+                          <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{new Date(h.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} às {horaCurta(h.created_at)}</div>
+                        </div>
+                        {h.photo_url && (isVideoUrl(h.photo_url)
+                          ? <video src={h.photo_url} muted style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                          : <img src={h.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </Sheet>
       )}
 
