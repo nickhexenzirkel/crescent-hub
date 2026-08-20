@@ -21,41 +21,56 @@ const AG = 'rgba(14,165,183,.35)';
 const MIN_PLAYERS = 2;                 // temporário (testando) — subir de novo antes do lançamento
 const ROOM_TTL_MS = 20 * 60 * 1000;    // sala vazia parada há 20min = lixo
 
-/* Cômodos do mapa (Fase 3). `rect` é em UNIDADES DO MAPA (0..MAP_W, 0..MAP_H) —
-   os 7 cômodos se encaixam sem brechas (cada um encosta no vizinho), então a
-   casa inteira vira uma área única andável: colisão = ficar dentro do
-   retângulo total do mapa. SIMPLIFICAÇÃO CONHECIDA: sem paredes internas por
-   enquanto (dá pra andar direto de um cômodo a outro) — paredes/portas ficam
-   pra uma iteração futura, se fizer falta pro jogo. */
-const MAP_W = 1000, MAP_H = 640;
+/* Cômodos da casa (só pra prévia/flavor no lobby da sala — o mapa em si agora é
+   a ARTE `MAPA_IMG`, ver abaixo). */
 const ROOMS = [
-  { id: 'quarto',   nome: 'Quarto',                  emoji: '🛏️', cor: '#C9A6E8', rect: { x: 0,   y: 0,   w: 260, h: 220 } },
-  { id: 'banheiro', nome: 'Banheiro',                 emoji: '🚽', cor: '#9FD8D0', rect: { x: 0,   y: 220, w: 260, h: 160 } },
-  { id: 'sala',     nome: 'Sala de Estar',           emoji: '🛋️', cor: '#F2C879', rect: { x: 260, y: 0,   w: 360, h: 380 } },
-  { id: 'cozinha',  nome: 'Cozinha',                 emoji: '🍳', cor: '#F5A97F', rect: { x: 620, y: 0,   w: 380, h: 380 } },
-  { id: 'piscina',  nome: 'Varanda / Piscina',        emoji: '🏊', cor: '#7FD4E8', rect: { x: 0,   y: 380, w: 400, h: 260 } },
-  { id: 'quintal',  nome: 'Churrasqueira / Quintal',  emoji: '🍖', cor: '#B8D98A', rect: { x: 400, y: 380, w: 350, h: 260 } },
-  { id: 'deck',     nome: 'Deck / Beira-mar',         emoji: '🌅', cor: '#F5D08A', rect: { x: 750, y: 380, w: 250, h: 260 } },
+  { id: 'quarto',   nome: 'Quarto',                  emoji: '🛏️' },
+  { id: 'banheiro', nome: 'Banheiro',                 emoji: '🚽' },
+  { id: 'sala',     nome: 'Sala de Estar',           emoji: '🛋️' },
+  { id: 'cozinha',  nome: 'Cozinha',                 emoji: '🍳' },
+  { id: 'lavanderia', nome: 'Lavanderia',             emoji: '🧺' },
+  { id: 'deposito', nome: 'Depósito',                 emoji: '📦' },
+  { id: 'anexo',    nome: 'Anexos (escritório/game)', emoji: '🖥️' },
+  { id: 'piscina',  nome: 'Varanda / Piscina',        emoji: '🏊' },
+  { id: 'deck',     nome: 'Deck / Ancoradouro',       emoji: '🌅' },
 ];
 const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola da mãezinha'];
 
+/* ── Mapa: a arte da casa de praia (gerada pelo usuário) vira o fundo. As
+   UNIDADES DO MAPA são os próprios pixels da imagem (1536×1024) — cada ponto
+   (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma.
+   SIMPLIFICAÇÃO CONHECIDA: colisão ainda é só "ficar dentro do retângulo do
+   mapa" (com uma margem pra não andar em cima da areia/mar decorativos das
+   bordas) — não é pixel-perfect com as paredes desenhadas. Ajustar a margem
+   é rápido se, jogando, alguém conseguir "andar na água" ou ficar bloqueado
+   onde devia ser andável. */
+const MAPA_IMG = '/uniko-suspect-mapa.png';
+const MAP_W = 1536, MAP_H = 1024;
+const MAP_MARGIN_X = 90, MAP_MARGIN_Y = 70;   // margem extra além do raio do boneco
+
+/* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
+   dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
+   a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
+const ZOOM_FACTOR = 3;
+const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
+
 /* ── Movimento livre em tempo real ── */
-const PLAYER_R = 22;             // "raio" do boneco em unidades do mapa (clamp nas bordas)
-const MOVE_SPEED = 340;          // unidades do mapa por segundo
-const POS_SEND_MS = 90;          // intervalo mínimo entre broadcasts de posição
-const KEY_DIR = {                // WASD + setas → direção
+const PLAYER_R = 34;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
+const MOVE_SPEED = 520;           // pixels do mapa por segundo
+const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
+const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
   a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
 };
 // Hash determinístico (mesma técnica do hintOrder do Stop) — spawn consistente
 // sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
-// Todo mundo nasce na Sala de Estar (cômodo central), espalhado por um hash do nome.
+// Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
+const SPAWN_RECT = { x: 620, y: 430, w: 300, h: 220 };
 const spawnFor = (playerName) => {
-  const r = ROOMS.find(x => x.id === 'sala').rect;
   const h = hashStr(playerName || '?');
-  const x = r.x + PLAYER_R + 10 + (h % Math.max(1, r.w - PLAYER_R * 2 - 20));
-  const y = r.y + PLAYER_R + 10 + ((h >> 8) % Math.max(1, r.h - PLAYER_R * 2 - 20));
+  const x = SPAWN_RECT.x + (h % SPAWN_RECT.w);
+  const y = SPAWN_RECT.y + ((h >> 8) % SPAWN_RECT.h);
   return { x, y };
 };
 
@@ -196,7 +211,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
             ))}
           </div>
 
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>MAPA (prévia — chega na Fase 3)</div>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>MAPA — Casa de Praia 🏖️</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
             {ROOMS.map(r => (
               <span key={r.id} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
@@ -417,8 +432,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (dx || dy) {
         const len = Math.hypot(dx, dy) || 1;
         const cur = myPosRef.current;
-        const nx = Math.min(MAP_W - PLAYER_R, Math.max(PLAYER_R, cur.x + (dx / len) * MOVE_SPEED * dt));
-        const ny = Math.min(MAP_H - PLAYER_R, Math.max(PLAYER_R, cur.y + (dy / len) * MOVE_SPEED * dt));
+        const nx = Math.min(MAP_W - PLAYER_R - MAP_MARGIN_X, Math.max(PLAYER_R + MAP_MARGIN_X, cur.x + (dx / len) * MOVE_SPEED * dt));
+        const ny = Math.min(MAP_H - PLAYER_R - MAP_MARGIN_Y, Math.max(PLAYER_R + MAP_MARGIN_Y, cur.y + (dy / len) * MOVE_SPEED * dt));
         if (nx !== cur.x || ny !== cur.y) {
           setMyPos({ x: nx, y: ny });
           const now = performance.now();
@@ -460,6 +475,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const meuPapel = state?.papeis?.[name];
   const jaPronto = !!state?.prontos?.[name];
   const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
+
+  // Câmera: janela de ZOOM_W×ZOOM_H (campo de visão menor) centrada no MEU boneco,
+  // clampada pra nunca mostrar além da borda do mapa.
+  const camX = Math.min(MAP_W - ZOOM_W, Math.max(0, myPos.x - ZOOM_W / 2));
+  const camY = Math.min(MAP_H - ZOOM_H, Math.max(0, myPos.y - ZOOM_H / 2));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
@@ -537,8 +557,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             </div>
             <div style={{ fontSize: 13, color: T.textT, maxWidth: 340, lineHeight: 1.5 }}>
               {meuPapel === 'impostor'
-                ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego. (Mecânica chega na Fase 4-5)'
-                : 'Complete suas tarefas pela casa e desconfie de quem agir estranho. (Mecânica chega na Fase 3-4)'}
+                ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego. (Tarefas/matar chegam nas próximas fases)'
+                : 'Complete suas tarefas pela casa e desconfie de quem agir estranho. (Tarefas chegam na próxima fase)'}
             </div>
             {jaPronto ? (
               <div style={{ fontSize: 12.5, color: T.textT }}>Esperando os outros... ({nProntos}/{players.length})</div>
@@ -569,43 +589,37 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               )}
             </div>
 
-            {/* Casa de praia — cada cômodo é um retângulo em % do mapa (MAP_W×MAP_H) */}
-            <div style={{ position: 'relative', width: '100%', maxWidth: 820, margin: '0 auto', aspectRatio: `${MAP_W} / ${MAP_H}`,
-              borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh,
-              background: 'linear-gradient(180deg, #BEE7F5 0%, #E8F6E0 100%)' }}>
-              {ROOMS.map(r => (
-                <div key={r.id} style={{ position: 'absolute', left: `${r.rect.x / MAP_W * 100}%`, top: `${r.rect.y / MAP_H * 100}%`,
-                  width: `${r.rect.w / MAP_W * 100}%`, height: `${r.rect.h / MAP_H * 100}%`, background: r.cor,
-                  border: '2px solid rgba(255,255,255,.65)', boxSizing: 'border-box' }}>
-                  <div style={{ padding: '5px 9px', fontSize: 'clamp(9px, 1.3vw, 12px)', fontWeight: 800, color: 'rgba(0,0,0,.55)',
-                    display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                    <span>{r.emoji}</span>{r.nome}
-                  </div>
-                  {/* piadas internas por cômodo */}
-                  {r.id === 'piscina' && <span className="sus-float" style={{ position: 'absolute', right: '12%', bottom: '16%', fontSize: 'clamp(20px, 4vw, 38px)' }}>🦩</span>}
-                  {r.id === 'banheiro' && <span style={{ position: 'absolute', right: 8, bottom: 6, fontSize: 15, opacity: .85 }}>💩</span>}
-                  {r.id === 'cozinha' && <span title="coca-cola da mãezinha — NÃO MEXE!" className="sus-float" style={{ position: 'absolute', right: '12%', top: '52%', fontSize: 'clamp(18px, 3.2vw, 28px)' }}>🥤</span>}
-                  {r.id === 'quintal' && <span style={{ position: 'absolute', left: '50%', bottom: '14%', transform: 'translateX(-50%)', fontSize: 'clamp(18px, 3.2vw, 26px)' }}>🍖🔥</span>}
-                  {r.id === 'deck' && <span style={{ position: 'absolute', left: '50%', bottom: '12%', transform: 'translateX(-50%)', fontSize: 'clamp(18px, 3.2vw, 26px)' }}>🌊</span>}
-                </div>
-              ))}
+            {/* Viewport (o que a tela mostra): janela pequena, com zoom — não o mapa inteiro.
+                Por baixo, o "mundo" (a arte da casa, ZOOM_FACTOR× maior que a janela) desliza
+                via transform pra manter o MEU boneco sempre centralizado (câmera clampada nas
+                bordas do mapa). Filhos do mundo (imagem + bonecos) continuam em % de MAP_W/MAP_H,
+                então a matemática de posição não muda — só ganhou essa "janela" por cima. */}
+            <div style={{ position: 'relative', width: '100%', maxWidth: 1040, margin: '0 auto', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
+              borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
+              <div style={{ position: 'absolute', left: 0, top: 0, width: `${ZOOM_FACTOR * 100}%`, height: `${ZOOM_FACTOR * 100}%`,
+                transform: `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)` }}>
+                <img src={MAPA_IMG} alt="" draggable={false}
+                  style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill', userSelect: 'none', pointerEvents: 'none' }} />
 
-              {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
-              {players.map(p => {
-                const eu = p.name === name;
-                const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
-                return (
-                  <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
-                    transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
-                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 'clamp(26px, 4.4vw, 40px)', height: 'clamp(26px, 4.4vw, 40px)', objectFit: 'contain',
-                      filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.35)) drop-shadow(0 0 9px ${AGUA}bb)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.35))' }} />
-                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.85)', borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>
-                      {p.name.split(' ')[0]}
-                    </span>
-                  </div>
-                );
-              })}
+                {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
+                {players.map(p => {
+                  const eu = p.name === name;
+                  const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
+                  return (
+                    <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
+                      width: `${(PLAYER_R * 2.6 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
+                      pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
+                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
+                        filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.4))' }} />
+                      <span style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.88)',
+                        borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                        {p.name.split(' ')[0]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
