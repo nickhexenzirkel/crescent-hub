@@ -884,13 +884,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const chunksRef = useRef([]);
   const gravTimerRef = useRef(null);
 
+  const loadChat = useCallback(async () => {
+    const { data } = await supabase.from('uniko_fit_chat').select('*').order('created_at', { ascending: false }).limit(100);
+    const msgs = (data || []).slice().reverse();
+    setChat(msgs);
+    ensurePhotos(msgs.map(m => m.player));
+  }, [ensurePhotos]);
+
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from('uniko_fit_chat').select('*').order('created_at', { ascending: false }).limit(100);
-      const msgs = (data || []).slice().reverse();
-      setChat(msgs);
-      ensurePhotos(msgs.map(m => m.player));
-    })();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadChat();
     const ch = supabase.channel('uniko-fit-chat')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_chat' }, ({ new: row }) => {
         setChat(prev => (prev && prev.some(m => m.id === row.id)) ? prev : [...(prev || []).slice(-200), row]);
@@ -1164,6 +1167,20 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── "Acordar" quando volta pro app (celular instalado): no iPhone, o iOS
+  // suspende JS/rede do app em segundo plano — a conexão de tempo real do
+  // chat e os `setInterval` de polling (feed/notificações) ficam pausados e
+  // não retomam sozinhos de forma confiável ao voltar. Sem isso, só
+  // atualizava fechando e abrindo o app de novo. `visibilitychange` dispara
+  // certinho ao voltar pro app mesmo quando timers não disparam; refaz a
+  // busca de tudo que é "ao vivo" na hora.
+  useEffect(() => {
+    const acordar = () => { if (document.visibilityState === 'visible') { loadFeed(); loadChat(); loadNotifs(); } };
+    document.addEventListener('visibilitychange', acordar);
+    window.addEventListener('focus', acordar);
+    return () => { document.removeEventListener('visibilitychange', acordar); window.removeEventListener('focus', acordar); };
+  }, [loadFeed, loadChat, loadNotifs]);
 
   const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
   const abrirNotificacoes = () => setSheet('notif');
