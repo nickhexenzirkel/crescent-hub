@@ -27,6 +27,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
+import { ConvidarButton } from '../../../shared/FriendsInvite';
+import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
 
 // Carinha do jogo (substituiu o antigo "S!" escrito à mão). encodeURI porque o
 // nome do arquivo tem acento/cedilha — mesma convenção do assistantSkin.js.
@@ -356,9 +358,15 @@ const Lobby = ({ name, porSala, onEnter }) => {
       return;                       // o poll de 5s tenta de novo sozinho
     }
     setErroSala('');
-    setRooms(data || []);
-    const velhas = (data || []).filter(r =>
-      r.id !== GLOBAL_ROOM && !(porSala[r.id]?.length) &&
+    // A antiga "Sala Geral" fixa (id='global') foi removida: some da lista e, se
+    // estiver vazia, é apagada do banco (não recriamos mais — pede-se criar sala).
+    const semGlobal = (data || []).filter(r => r.id !== GLOBAL_ROOM);
+    setRooms(semGlobal);
+    if ((data || []).some(r => r.id === GLOBAL_ROOM) && !(porSala[GLOBAL_ROOM]?.length)) {
+      supabase.from('uniko_stop_state').delete().eq('id', GLOBAL_ROOM).then(() => {}, () => {});
+    }
+    const velhas = semGlobal.filter(r =>
+      !(porSala[r.id]?.length) &&
       Date.now() - new Date(r.updated_at).getTime() > ROOM_TTL_MS);
     if (velhas.length) {
       await supabase.from('uniko_stop_state').delete().in('id', velhas.map(r => r.id));
@@ -441,12 +449,15 @@ const Lobby = ({ name, porSala, onEnter }) => {
             Sorteia a letra, todo mundo escreve, quem terminar grita STOP!
           </div>
         </div>
-        <button className="us-btn" onClick={() => setCriando(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 999, border: 'none',
-            background: '#fff', color: US.roxo, fontSize: 13, fontWeight: 800, cursor: 'pointer',
-            boxShadow: '0 3px 12px rgba(0,0,0,.18)', position: 'relative' }}>
-          <IcoPlus size={15} />Criar sala
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', flexWrap: 'wrap' }}>
+          <ConvidarButton game="stop" roomId={null} accent={US.roxo} />
+          <button className="us-btn" onClick={() => setCriando(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 999, border: 'none',
+              background: '#fff', color: US.roxo, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+              boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+            <IcoPlus size={15} />Criar sala
+          </button>
+        </div>
       </div>
 
       {/* Criar sala */}
@@ -643,8 +654,12 @@ const Lobby = ({ name, porSala, onEnter }) => {
           ) : rooms === null ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>Carregando salas...</div>
           ) : !rooms.length ? (
-            <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
-              Nenhuma sala. Crie a primeira! 👆
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: '48px 24px' }}>
+              <img src={ICONE_STOP} alt="" style={{ width: 76, height: 76, objectFit: 'contain', opacity: .9 }} />
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, maxWidth: 420, lineHeight: 1.3 }}>
+                Para jogar, crie uma sala e chame seus amigos para jogar!
+              </div>
+              <div style={{ fontSize: 13, color: T.textT }}>Use o botão <b style={{ color: A }}>Criar sala</b> ali em cima 👆</div>
             </div>
           ) : null}
         </div>
@@ -1139,6 +1154,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
             {secsLeft}s
           </div>
         )}
+        <ConvidarButton game="stop" roomId={roomId} roomName={state?.nome} accent={US.roxo}
+          style={{ padding: '8px 14px', fontSize: 12, background: 'rgba(255,255,255,.16)', color: '#fff', border: '1px solid rgba(255,255,255,.35)', boxShadow: 'none' }} />
         <button className="us-btn" onClick={() => setSomOn(v => !v)} title={somOn ? 'Desligar sons' : 'Ligar sons'}
           style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(255,255,255,.35)',
             background: 'rgba(255,255,255,.16)', color: '#fff', cursor: 'pointer', fontSize: 14, position: 'relative' }}>
@@ -1577,6 +1594,16 @@ const TabUnikoStop = () => {
     supabase.from('uniko_stop_state').select('id').limit(1).then(({ error }) => {
       if (semTabela(error)) setSqlMissing(true);
     });
+  }, []);
+
+  // Convite aceito → entra direto na sala do convite (se veio com sala). Checa ao
+  // montar e quando chega o evento (caso a aba já esteja aberta). Ver gameInvites.js.
+  useEffect(() => {
+    const entrar = () => { const j = readPendingJoin('stop'); if (j?.room) { clearPendingJoin(); setRoom(j.room); } };
+    entrar();
+    const h = (e) => { if (!e?.detail || e.detail.game === 'stop') entrar(); };
+    window.addEventListener(GAME_JOIN_EVENT, h);
+    return () => window.removeEventListener(GAME_JOIN_EVENT, h);
   }, []);
 
   const refreshPresence = useCallback(() => {

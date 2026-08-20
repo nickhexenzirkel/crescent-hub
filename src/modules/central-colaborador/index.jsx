@@ -22,6 +22,7 @@ import { TabUnikoStop } from './tabs/TabUnikoStop';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
+import { GAME_JOIN_EVENT, readPendingJoin, GAME_TAB } from '../../shared/gameInvites';
 
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const isMobile = useIsMobile();
@@ -38,6 +39,16 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     document.body.classList.toggle('uw-active', tab === 'unikowave');
     return () => document.body.classList.remove('uw-active');
   }, [tab]);
+
+  // Convite de jogo aceito → abre a aba do jogo (Uniko Paint / Stop). Checa ao montar
+  // (caso o convite tenha sido aceito de fora do Portal) e escuta o evento. Ver gameInvites.js.
+  useEffect(() => {
+    const j = readPendingJoin('paint') || readPendingJoin('stop');
+    if (j?.game && GAME_TAB[j.game]) st(GAME_TAB[j.game]);
+    const h = (e) => { const g = e?.detail?.game; if (g && GAME_TAB[g]) st(GAME_TAB[g]); };
+    window.addEventListener(GAME_JOIN_EVENT, h);
+    return () => window.removeEventListener(GAME_JOIN_EVENT, h);
+  }, []);
 
   // Tela cheia (celular) — aplica no app inteiro; iOS Safari pode não suportar.
   const toggleFullscreenApp = () => {

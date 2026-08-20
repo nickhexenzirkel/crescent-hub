@@ -17,6 +17,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
 import { AtualizacaoOverlay } from './shared/atualizacao';
+import { subscribeGameInvites, setPendingJoin, GAME_JOIN_EVENT, GAME_LABEL } from './shared/gameInvites';
 import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
 
 export default function CrescentHub() {
@@ -148,6 +149,7 @@ export default function CrescentHub() {
   const firedTodayRef = useRef(new Set());
   const [atualAtiva, setAtualAtiva] = useState(null);   // atualização em tela cheia
   const seenAtualIds  = useRef(new Set());
+  const [gameInvite, setGameInvite] = useState(null);   // convite de jogo (popup)
 
   const withCtx = (fn) => {
     try {
@@ -290,6 +292,19 @@ export default function CrescentHub() {
     return () => { _supabase.removeChannel(channel); clearInterval(pollId); };
   }, [authUser]);
 
+  // ── Convites de jogo (Uniko Paint / Stop) — popup + som + desktop ──
+  useEffect(() => {
+    if (!authUser?.name) return;
+    const off = subscribeGameInvites(authUser.name, (inv) => {
+      setGameInvite(inv);
+      playReminder();
+      notifyDesktop({ id: 'invite-' + inv.id, type: 'lembrete',
+        title: `🎮 ${inv.from_name.split(' ')[0]} te convidou!`,
+        message: `Vem jogar ${GAME_LABEL[inv.game] || 'Uniko'}${inv.room_name ? ` — sala "${inv.room_name}"` : ''}!`, active: true });
+    });
+    return off;
+  }, [authUser]);
+
   // ── Verificador de horário: dispara lembretes agendados ──
   useEffect(() => {
     if (!authUser) return;
@@ -371,6 +386,15 @@ export default function CrescentHub() {
   const urgentNotif   = notifQueue.find(n => n.type === 'aviso_urgente');
   const lembreteNotif = !urgentNotif && notifQueue.find(n => n.type === 'lembrete' || n.type === 'alexa');
   const dismissNotif  = (id) => { setNotifQueue(q => q.filter(n => n.id !== id)); setOkInput(''); };
+  // Aceitar convite de jogo: marca a sala pendente, vai pro Portal e avisa a aba do jogo.
+  const aceitarConvite = (inv) => {
+    if (!inv) return;
+    setPendingJoin(inv.game, inv.room_id);
+    setGameInvite(null);
+    navPush('colaborador');
+    // A aba do jogo pode montar depois; ela também lê o pendingJoin no mount.
+    setTimeout(() => { try { window.dispatchEvent(new CustomEvent(GAME_JOIN_EVENT, { detail: { game: inv.game } })); } catch {} }, 60);
+  };
 
   if (!authChecked) return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:T.page||'#F0F6FC'}}>
@@ -416,6 +440,28 @@ export default function CrescentHub() {
 
         {/* ── Atualizações — moldura em tela cheia mostrada a todos ── */}
         {authUser && <AtualizacaoOverlay atual={atualAtiva} onClose={() => setAtualAtiva(null)} />}
+
+        {/* ── Convite de jogo — card no canto inferior direito ── */}
+        {authUser && gameInvite && (
+          <div style={{position:'fixed',right:20,bottom:20,zIndex:9998,width:320,maxWidth:'92vw',background:'#fff',borderRadius:16,
+            boxShadow:'0 16px 50px rgba(0,0,0,0.35)',border:'1px solid rgba(124,58,237,0.25)',overflow:'hidden',animation:'inviteIn .3s ease',fontFamily:'var(--font-body)'}}>
+            <style>{`@keyframes inviteIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
+            <div style={{height:5,background:'linear-gradient(90deg,#7C3AED,#C026D3)'}}/>
+            <div style={{padding:'14px 16px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:11,marginBottom:10}}>
+                <img src={gameInvite.from_photo||'/UNIKO_NEW.png'} alt="" style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',background:'#eee',border:'2px solid #7C3AED'}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:800,color:'#1a1320'}}>{gameInvite.from_name.split(' ').slice(0,2).join(' ')} te convidou! 🎮</div>
+                  <div style={{fontSize:12,color:'#555'}}>Vem jogar <b style={{color:'#7C3AED'}}>{GAME_LABEL[gameInvite.game]||'Uniko'}</b>{gameInvite.room_name?` · sala "${gameInvite.room_name}"`:''}</div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setGameInvite(null)} style={{flex:1,padding:'9px',borderRadius:10,border:'1px solid #ddd',background:'transparent',color:'#666',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)'}}>Agora não</button>
+                <button onClick={()=>aceitarConvite(gameInvite)} style={{flex:2,padding:'9px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#7C3AED,#C026D3)',color:'#fff',fontSize:12.5,fontWeight:800,cursor:'pointer',fontFamily:'var(--font-body)'}}>Entrar 🚀</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />

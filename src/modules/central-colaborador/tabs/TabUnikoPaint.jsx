@@ -38,6 +38,8 @@ import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/us
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
+import { ConvidarButton } from '../../../shared/FriendsInvite';
+import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
 
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
@@ -925,11 +927,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
         </div>
-        <button onClick={() => setCriando(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
-            background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
-          <IcoPlus size={15} />Criar sala
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <ConvidarButton game="paint" roomId={null} accent={A} />
+          <button onClick={() => setCriando(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
+              background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+            <IcoPlus size={15} />Criar sala
+          </button>
+        </div>
       </div>
 
       {/* Seu perfil — card destacado: Uniko atual + nome + editar */}
@@ -1852,6 +1857,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Meu Uniko</span>
         </button>
+        <ConvidarButton game="paint" roomId={roomId} roomName={state?.nome} accent={A}
+          style={{ padding: '8px 14px', fontSize: 12, background: 'rgba(255,255,255,.16)', color: '#fff', border: '1px solid rgba(255,255,255,.35)', boxShadow: 'none' }} />
         <button className="up-btn" onClick={onLeave} title="Sair da partida"
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)', color: '#fff',
@@ -2296,6 +2303,15 @@ const TabUnikoPaint = () => {
     supabase.from('uniko_paint_state').select('id').limit(1).then(({ error }) => {
       if (semTabela(error)) setSqlMissing(true);
     });
+  }, []);
+
+  // Convite aceito → entra direto na sala do convite (se veio com sala). Ver gameInvites.js.
+  useEffect(() => {
+    const entrar = () => { const j = readPendingJoin('paint'); if (j?.room) { clearPendingJoin(); setRoom(j.room); } };
+    entrar();
+    const h = (e) => { if (!e?.detail || e.detail.game === 'paint') entrar(); };
+    window.addEventListener(GAME_JOIN_EVENT, h);
+    return () => window.removeEventListener(GAME_JOIN_EVENT, h);
   }, []);
 
   // O editor de perfil só abre sozinho UMA vez: assim que ele abre na 1ª visita,
