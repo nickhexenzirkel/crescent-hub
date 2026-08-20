@@ -349,6 +349,7 @@ let T = {
   shM:'0 2px 8px rgba(0,0,0,0.06), 0 8px 28px rgba(0,0,0,0.08)',
   shL:'0 4px 16px rgba(0,0,0,0.07), 0 16px 44px rgba(0,0,0,0.10)',
   unikoSrc: UNIKO_NEW,
+  key: _initThemeKey,
   ..._initTheme,
 };
 
@@ -357,7 +358,7 @@ const applyTheme = (key) => {
     border:'rgba(0,0,0,0.07)', divider:'rgba(0,0,0,0.05)',
     surface:'#FFFFFF', surfaceW:'rgba(255,255,255,0.97)',
   };
-  Object.assign(T, base, THEMES[key], { unikoSrc: UNIKO_NEW });
+  Object.assign(T, base, THEMES[key], { unikoSrc: UNIKO_NEW, key });
   document.documentElement.style.setProperty(
     '--scroll-color', THEMES[key].goldLine + '55'
   );

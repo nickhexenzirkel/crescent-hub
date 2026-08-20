@@ -12,6 +12,7 @@ import CentralAlexa from './modules/central-alexa';
 import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
+import UnikoFit from './modules/uniko-fit';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -420,6 +421,7 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
@@ -464,7 +466,8 @@ export default function CrescentHub() {
         )}
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
-        <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />
+        {/* Some dentro do Uniko Fit (pedido explícito — o módulo tem sua própria identidade visual). */}
+        {screen!=='uniko-fit' && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}

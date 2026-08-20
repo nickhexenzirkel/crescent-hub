@@ -116,10 +116,21 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <rect x="14" y="10.5" width="4.5" height="4" rx="1"/>
     </svg>
   );
+  const IcoFit = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="8" width="4" height="8" rx="1.3"/><rect x="18" y="8" width="4" height="8" rx="1.3"/><line x1="6" y1="12" x2="18" y2="12"/>
+    </svg>
+  );
+  // Uniko Fit é o ÚNICO módulo com cor FIXA (laranja), independente do tema — exceto
+  // quando o tema ativo já É o laranja, aí ela vira azul (senão o card some no fundo
+  // do próprio tema). `T.key` é o id do tema aplicado agora (contexts/theme.js).
+  const isOrangeTheme = T.key === 'orange' || T.key === 'orangeDark';
+  const fitColor = isOrangeTheme ? '#2A82D2' : '#FF6B35';
   const allMods = [
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
     {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
+    {id:'uniko-fit',        label:'Uniko Fit',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:fitColor, bg:fitColor+'18', tag:'Fitness',    adminOnly:false},
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},

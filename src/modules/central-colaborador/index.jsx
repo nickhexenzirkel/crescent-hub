@@ -15,7 +15,6 @@ import { TabEventos } from './tabs/TabEventos';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
 import { TabColegas } from './tabs/TabColegas';
-import { TabUnikoGym } from './tabs/TabUnikoGym';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
 import { TabQuizMM } from './tabs/TabQuizMM';
@@ -138,7 +137,6 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
     if(tab==='colegas')    return <TabColegas/>;
-    if(tab==='unikogym')   return <TabUnikoGym/>;
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
