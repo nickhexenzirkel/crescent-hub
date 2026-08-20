@@ -1050,7 +1050,7 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                 <tbody>
                   {employees.filter(emp=>!userSearch||(emp.name||'').toLowerCase().includes(userSearch.toLowerCase())||emp.cpf.includes(userSearch)).map((emp,i)=>(
                     <tr key={emp.cpf} style={{borderTop:`1px solid ${T.border}`,transition:'background .12s',cursor:'pointer'}}
-                      onClick={()=>{setSelEmp(emp.cpf);setTab('banco');}}
+                      onClick={()=>{setSelEmp(emp.cpf);setBancoEmpMode('single');setBancoSearch('');setTab('banco');}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.02)'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                       <td style={{padding:'12px 16px',fontSize:13,color:T.textT,fontWeight:500}}>{i+1}.</td>
