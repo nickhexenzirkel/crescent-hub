@@ -1268,6 +1268,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   useEffect(() => onAssistantSkinChange(id => setMascotSkinId(id)), []);
   // songSkin = skin do DJ da música atual; salva/lê do Supabase para TODOS verem igual
   const [songSkin, setSongSkin] = useState('default');
+  // BUG (corrigido ago/2026): `getUniko(id)` cai pro vampire-robot quando `id` não é uma
+  // chave conhecida (fallback pensado pra Uniko capturado desconhecido/ainda não
+  // carregado) — mas 'default' (o UNIKO padrão, sem nenhuma skin especial) TAMBÉM cai
+  // nesse fallback, porque não é uma entrada de CAPTURE_UNIKOS. Resultado: quem usa o
+  // UNIKO padrão via `songSkin` (DJ sem skin nenhuma) via o vídeo/cenário do
+  // vampire-robot na Central Alexa. Esta função devolve null pra 'default' ANTES de
+  // chamar getUniko, cortando o fallback errado — use no lugar de getUniko(songSkin).
+  const unikoDaSkin = (id) => (!id || id === 'default') ? null : getUniko(id);
 
   // Sincroniza a skin do usuário atual para o Supabase (fire-and-forget)
   useEffect(() => {
@@ -2532,7 +2540,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // vidro (re-borram o vídeo QUADRO A QUADRO — é o que travava; o sintoma "fica
   // liso quando abro o F12" é clássico disso: a área a re-borrar encolhe) e
   // (2) as 8 blobs animadas `filter: blur(95px)` que ficavam por cima do vídeo.
-  const festBgVideo = tab==="festival" ? (getUniko(songSkin)?.bgVideoUrl || '') : '';
+  const festBgVideo = tab==="festival" ? (unikoDaSkin(songSkin)?.bgVideoUrl || '') : '';
 
   return (
     <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
@@ -2710,23 +2718,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
            sempre). ── */}
       {/* ── Vídeo de fundo por Uniko (configurado no Dashboard RH): quando o Uniko
            do DJ atual tem vídeo, ele SUBSTITUI qualquer cenário animado codado. ── */}
-      {tab==="festival" && getUniko(songSkin)?.bgVideoUrl && <CentralBgVideo url={getUniko(songSkin).bgVideoUrl} />}
+      {tab==="festival" && unikoDaSkin(songSkin)?.bgVideoUrl && <CentralBgVideo url={unikoDaSkin(songSkin).bgVideoUrl} />}
 
-      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
+      {tab==="festival" && !unikoDaSkin(songSkin)?.bgVideoUrl && songSkin === 'destruidora-de-mundos-dh0x' && <CentralCosmos />}
 
       {/* ── Floresta de sakura de fundo da página (Uniko Kitsune) — pétalas caindo,
            cachoeira, rio, névoas e torii. Gate pelo sceneType do Uniko (id da Oficina
            tem sufixo aleatório), sem gate de tema: suave e bonito em claro ou escuro. ── */}
-      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
+      {tab==="festival" && !unikoDaSkin(songSkin)?.bgVideoUrl && unikoDaSkin(songSkin)?.theme?.sceneType === 'sakura' && <CentralSakura />}
 
       {/* ── Jardim encantado de fundo da página (Uniko Rainha das Fadas) — flores,
            fadinhas, rio, árvores e sol. Gate pelo sceneType, sem gate de tema. ── */}
-      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
+      {tab==="festival" && !unikoDaSkin(songSkin)?.bgVideoUrl && unikoDaSkin(songSkin)?.theme?.sceneType === 'fairy' && <CentralFairy />}
 
       {/* ── Colagem SOUR de fundo (Uniko Olivia Rodrigo) — fundo roxo, borboletas,
            flores que sorriem, arco-íris, corações, estrelas e joias. Gate pelo
            sceneType, sem gate de tema (bonito em claro ou escuro). ── */}
-      {tab==="festival" && !getUniko(songSkin)?.bgVideoUrl && getUniko(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
+      {tab==="festival" && !unikoDaSkin(songSkin)?.bgVideoUrl && unikoDaSkin(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
 
       <style>{`
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
@@ -2831,13 +2839,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 const isCustomCard = songSkin !== 'default' && !isVampCard && !isSeaCard;
                 const isThemedCard = isVampCard || isSeaCard || isCustomCard;
                 const skin = isThemedCard ? getAssistantSkin(songSkin) : null;
-                const uni  = isCustomCard ? getUniko(songSkin) : null;
+                const uni  = isCustomCard ? unikoDaSkin(songSkin) : null;
                 const customAccent = uni?.theme?.accent || T.gold;
                 // Vídeo de fundo do card (por Uniko, config do RH) — vale pra
                 // qualquer skin não-padrão (vamp/sereia/Oficina). Quando existe,
                 // SUBSTITUI o cenário animado codado do card (só o `!cardBgVideo`
                 // dos blocos de cena abaixo cuida disso).
-                const cardBgVideo = songSkin !== 'default' ? (getUniko(songSkin)?.bgVideoUrl || '') : '';
+                const cardBgVideo = unikoDaSkin(songSkin)?.bgVideoUrl || '';
                 return (
                 <div style={{ position:'relative' }}>
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
