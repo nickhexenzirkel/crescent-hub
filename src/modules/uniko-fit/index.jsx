@@ -1202,7 +1202,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // no celular, se o conteúdo rolar ou a pessoa der pinch-zoom, um `flexShrink:0`
   // dentro do fluxo normal pode ser arrastado junto; `fixed` garante que as barras
   // fiquem sempre grudadas na tela, entre uma área e outra do Uniko Fit.
-  const HEADER_H = 94; // topbar 50 + abas 44
+  // `env(safe-area-inset-top)` só existe DE VERDADE quando o app roda "instalado"
+  // (adicionado à Tela de Início no iPhone) — no Safari normal a barra de
+  // endereço já empurra o conteúdo, então isso vira 0px e não muda nada. Sem
+  // isso, o topbar nasce embaixo do relógio/notch (some atrás dele) quando
+  // instalado — foi exatamente esse o bug reportado.
+  const HEADER_H = 'calc(94px + env(safe-area-inset-top, 0px))'; // topbar 50 + abas 44 + notch
   const FOOTER_H = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
   return (
@@ -1210,7 +1215,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       <style>{FIT_CSS}</style>
 
       {/* ── Cabeçalho fixo: topbar + abas (Para Você / Bate-Papo / Meu Perfil) ── */}
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60 }}>
+      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60,
+        paddingTop: 'env(safe-area-inset-top, 0px)', background: T.topbarBg || cardBg }}>
         <div style={{ height: 50, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 10px 0 6px', gap: 6, boxShadow: `0 1px 16px ${ENERGIA}18`, boxSizing: 'border-box' }}>
           <button onClick={onBack} className="fit-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
             {IcoBack} Módulos
