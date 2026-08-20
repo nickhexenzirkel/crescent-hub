@@ -780,6 +780,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setCheckinHojeDesafioId(data?.[0]?.desafio_pose_id || null);
   }, [name]);
   const [poseZoom, setPoseZoom] = useState(null); // pose com a foto aberta em tela grande (Desafios), null = fechado
+  const [chatImgZoom, setChatImgZoom] = useState(null); // url da foto de check-in aberta em tela grande (Bate-Papo), null = fechado
   const abrirCheckinComDesafio = (pose) => {
     setDesafioAtivo(pose);
     // A pose vira uma TAG colorida no card do feed (ver render do "Para Você"),
@@ -1355,7 +1356,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           ? <>🎯 <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez o desafio: <b>{m.texto}</b> às {horaCurta(m.created_at)}</>
                           : <>✅ <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}</>}
                       </div>
-                      {m.media_url && <img src={m.media_url} alt="" style={{ width: 110, height: 110, borderRadius: 14, objectFit: 'cover', border: `2px solid ${ENERGIA}` }} />}
+                      {m.media_url && (
+                        <img src={m.media_url} alt="" onClick={() => setChatImgZoom(m.media_url)} role="button" aria-label="Ver foto em tela grande"
+                          style={{ width: 110, height: 110, borderRadius: 14, objectFit: 'cover', border: `2px solid ${ENERGIA}`, cursor: 'pointer' }} />
+                      )}
                     </div>
                   );
                 }
@@ -1863,6 +1867,17 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             <div style={{ fontSize: 96 }}>{poseZoom.emoji}</div>
           )}
           <div style={{ marginTop: 16, color: '#fff', fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 700, textAlign: 'center', maxWidth: 340 }}>{poseZoom.emoji ? `${poseZoom.emoji} ` : ''}{poseZoom.texto}</div>
+        </div>
+      )}
+      {/* ── Foto de check-in em tela grande (clique numa foto de aviso no Bate-Papo) ── */}
+      {chatImgZoom && (
+        <div onClick={() => setChatImgZoom(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'pointer' }}>
+          <button onClick={() => setChatImgZoom(null)} aria-label="Fechar"
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          {isVideoUrl(chatImgZoom)
+            ? <video src={chatImgZoom} controls autoPlay onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
+            : <img src={chatImgZoom} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />}
         </div>
       )}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
