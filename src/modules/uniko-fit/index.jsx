@@ -120,6 +120,123 @@ const IcoCommentSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
 const IcoTrash  = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>;
 const IcoVolOn  = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>;
 const IcoVolOff = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>;
+const IcoFlip   = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
+
+/* ── Filtros de cor pra foto do check-in — aplicados via CSS `filter` no
+   preview e "assados" no canvas na hora de gerar o arquivo final. ── */
+const PHOTO_FILTERS = [
+  { id: 'normal',  label: 'Normal',  css: 'none' },
+  { id: 'pb',      label: 'P&B',     css: 'grayscale(1)' },
+  { id: 'sepia',   label: 'Sépia',   css: 'sepia(.8)' },
+  { id: 'vintage', label: 'Vintage', css: 'sepia(.35) contrast(1.1) brightness(1.05) saturate(1.3)' },
+  { id: 'vivido',  label: 'Vívido',  css: 'saturate(1.6) contrast(1.15)' },
+  { id: 'frio',    label: 'Frio',    css: 'hue-rotate(-12deg) saturate(1.15) brightness(1.03)' },
+  { id: 'quente',  label: 'Quente',  css: 'sepia(.2) saturate(1.35) hue-rotate(-8deg)' },
+  { id: 'drama',   label: 'Drama',   css: 'contrast(1.35) brightness(.88) saturate(.85)' },
+];
+
+/* ── Câmera do check-in: só dá pra tirar foto na hora (sem galeria), com
+   filtro de cor opcional aplicado antes de confirmar. `facing` alterna
+   frontal/traseira; a frontal é espelhada no preview (senão parece "ao
+   contrário" pra quem está se vendo) mas gravada SEM espelho no arquivo
+   final — senão o texto/relógio ao fundo saem invertidos na foto salva. ── */
+const CameraCapture = ({ energia, onCapture }) => {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [facing, setFacing] = useState('user');
+  const [filterId, setFilterId] = useState('normal');
+  const [rawShot, setRawShot] = useState(null); // dataURL cru (sem filtro) — null = câmera ao vivo
+  const [erro, setErro] = useState('');
+  const filtro = PHOTO_FILTERS.find(f => f.id === filterId) || PHOTO_FILTERS[0];
+
+  const pararCamera = () => { streamRef.current?.getTracks()?.forEach(t => t.stop()); streamRef.current = null; };
+
+  const iniciarCamera = useCallback(async (face) => {
+    setErro(''); pararCamera();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: face }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play().catch(() => {}); }
+    } catch (e) { console.error('[uniko-fit] câmera:', e); setErro('Não foi possível acessar a câmera. Verifique a permissão do navegador.'); }
+  }, []);
+
+  useEffect(() => {
+    // `iniciarCamera` é async: o setState só roda depois do await, nunca
+    // síncrono no effect — mesmo caso do `loadFeed()` em outros pontos do arquivo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!rawShot) iniciarCamera(facing);
+    return () => pararCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facing, rawShot]);
+
+  const tirarFoto = () => {
+    const v = videoRef.current;
+    if (!v?.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (facing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); } // desfaz o espelho do preview
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    setRawShot(canvas.toDataURL('image/jpeg', 0.92));
+    pararCamera();
+  };
+
+  const confirmar = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.filter = filtro.css;
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const file = new File([blob], `checkin-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        onCapture(file, URL.createObjectURL(blob));
+      }, 'image/jpeg', 0.92);
+    };
+    img.src = rawShot;
+  };
+
+  return (
+    <div>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5', background: '#000', overflow: 'hidden', borderRadius: 14 }}>
+        {rawShot
+          ? <img src={rawShot} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: filtro.css }} />
+          : <video ref={videoRef} muted playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover', filter: filtro.css, transform: facing === 'user' ? 'scaleX(-1)' : 'none' }} />}
+        {erro && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', color: '#fff', fontSize: 12.5, background: 'rgba(0,0,0,.65)' }}>{erro}</div>
+        )}
+        {!rawShot && !erro && (
+          <button onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')} className="fit-btn" title="Trocar câmera"
+            style={{ position: 'absolute', top: 10, right: 10, width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,.5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoFlip}</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 7, padding: '11px 2px', overflowX: 'auto' }}>
+        {PHOTO_FILTERS.map(f => (
+          <button key={f.id} onClick={() => setFilterId(f.id)} className="fit-btn"
+            style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
+              border: `1.5px solid ${filterId === f.id ? energia : 'transparent'}`, background: filterId === f.id ? `${energia}18` : 'rgba(128,128,128,.12)', color: filterId === f.id ? energia : 'inherit' }}>{f.label}</button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        {rawShot ? (
+          <>
+            <button onClick={() => setRawShot(null)} className="fit-btn"
+              style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${energia}55`, background: 'none', color: energia, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>↺ Tirar de novo</button>
+            <button onClick={confirmar} className="fit-btn"
+              style={{ flex: 2, padding: 12, borderRadius: 12, border: 'none', background: energia, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>✓ Usar essa foto</button>
+          </>
+        ) : (
+          <button onClick={tirarFoto} disabled={!!erro} className="fit-btn"
+            style={{ flex: 1, padding: 13, borderRadius: 999, border: 'none', background: erro ? '#999' : energia, color: '#fff', fontWeight: 800, fontSize: 14, cursor: erro ? 'not-allowed' : 'pointer' }}>📸 Tirar foto</button>
+        )}
+      </div>
+    </div>
+  );
+};
 const isVideoUrl = (url) => /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url || '');
 
 /* ── Sheet (folha deslizante de baixo pra cima) — usado pelas 4 ações da barra ── */
@@ -1119,21 +1236,42 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               </div>
             )}
 
-            <input ref={postFileRef} type="file" accept={sheet === 'post' ? 'image/*,video/*' : 'image/*'} style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
-            {postPreview ? (
-              <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, aspectRatio: '4/5', background: '#111' }}>
-                {postIsVideo
-                  ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
-              </div>
+            {sheet === 'checkin' ? (
+              // Check-in só aceita foto tirada na hora pelo próprio Uniko FIT (sem
+              // galeria) — pedido explícito, evita gente postando foto velha/de outra
+              // pessoa. Tem escolha de filtro de cor antes de confirmar.
+              postPreview ? (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '4/5', background: '#111' }}>
+                    <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <button className="fit-btn" onClick={() => { setPostFile(null); setPostPreview(null); }}
+                    style={{ width: '100%', marginTop: 8, padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'none', color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>↺ Tirar outra foto</button>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <CameraCapture energia={ENERGIA} onCapture={(file, url) => { setPostFile(file); setPostPreview(url); }} />
+                </div>
+              )
             ) : (
-              <button className="fit-btn" onClick={() => postFileRef.current?.click()}
-                style={{ width: '100%', aspectRatio: '4/5', borderRadius: 14, border: `2px dashed ${ENERGIA}66`, background: `${ENERGIA}0a`,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', marginBottom: 14 }}>
-                <div style={{ fontSize: 38 }}>{sheet === 'post' ? '📷🎬' : '📷'}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: ENERGIA }}>{sheet === 'checkin' ? 'Escolher foto do treino' : 'Escolher foto ou vídeo'}</div>
-              </button>
+              <>
+                <input ref={postFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
+                {postPreview ? (
+                  <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, aspectRatio: '4/5', background: '#111' }}>
+                    {postIsVideo
+                      ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
+                  </div>
+                ) : (
+                  <button className="fit-btn" onClick={() => postFileRef.current?.click()}
+                    style={{ width: '100%', aspectRatio: '4/5', borderRadius: 14, border: `2px dashed ${ENERGIA}66`, background: `${ENERGIA}0a`,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', marginBottom: 14 }}>
+                    <div style={{ fontSize: 38 }}>📷🎬</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: ENERGIA }}>Escolher foto ou vídeo</div>
+                  </button>
+                )}
+              </>
             )}
 
             <div style={{ marginBottom: 14 }}>
