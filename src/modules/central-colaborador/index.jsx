@@ -20,6 +20,7 @@ import { TabUnikoPaint } from './tabs/TabUnikoPaint';
 import { TabQuizMM } from './tabs/TabQuizMM';
 import { TabUnikoStop } from './tabs/TabUnikoStop';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
+import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 import { GAME_JOIN_EVENT, readPendingJoin, GAME_TAB } from '../../shared/gameInvites';
@@ -144,6 +145,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
+    if(tab==='unikosuspect' && getAuthUser()?.role==='admin') return <TabUnikoSuspect/>;
     return null;
   };
 
