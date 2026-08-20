@@ -42,26 +42,28 @@ const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','
    só com o nome e a data — não tem corrida nem precisa sincronizar nada. */
 // Cada pose tem uma arte de demonstração do próprio Uniko (o mascote faz a
 // pose, a pessoa copia). As artes vêm de UMA imagem só (`/uniko-fit/poses-
-// uniko.png`, colagem 6 colunas × 3 linhas = 1536×1024px, célula 256×341px)
-// — `sprite:{row,col}` (0-indexado) recorta o quadradinho certo via CSS
-// background-position (ver `PoseThumb`), sem precisar de 17 arquivos soltos.
+// uniko.png`, colagem 6 colunas × 3 linhas, 1672×941px — a 3ª linha só tem
+// 5 poses, a última célula fica vazia) — `sprite:{row,col}` (0-indexado)
+// recorta o quadradinho certo via CSS background-position (ver `PoseThumb`),
+// sem precisar de 17 arquivos soltos.
 const POSES = [
-  { id: 'lingua-paz',    emoji: '😝✌️', texto: 'Língua de fora + sinal de paz com a mão',        sprite: { row: 0, col: 0 } },
-  { id: 'toalha-suor',   emoji: '😊🧣', texto: 'Sorriso suado com a toalha no pescoço',            sprite: { row: 0, col: 1 } },
-  { id: 'bebendo-agua',  emoji: '💧',   texto: 'Bebendo água de perfil',                           sprite: { row: 0, col: 2 } },
-  { id: 'careta-esforco',emoji: '😤',   texto: 'Careta de esforço',                                sprite: { row: 0, col: 3 } },
-  { id: 'piscadinha',    emoji: '😉',   texto: 'Piscando pra câmera',                              sprite: { row: 0, col: 4 } },
-  { id: 'joinha-duplo',  emoji: '👍👍', texto: 'Dois joinhas pra câmera',                          sprite: { row: 0, col: 5 } },
-  { id: 'mao-cabeca',    emoji: '🤦',   texto: 'Mão na cabeça — "não aguento mais"',               sprite: { row: 1, col: 0 } },
-  { id: 'apontando-relogio', emoji: '⏱️', texto: 'Apontando pro relógio — "só mais uma série"',    sprite: { row: 1, col: 1 } },
-  { id: 'cheguei-mochila', emoji: '🎒', texto: 'Selfie de "cheguei" com a bolsa/mochila',           sprite: { row: 1, col: 2 } },
-  { id: 'biceps-um-braco', emoji: '💪', texto: 'Bíceps de um braço só (o outro segura o celular)', sprite: { row: 1, col: 3 } },
-  { id: 'ofegante-teto', emoji: '😮‍💨', texto: 'Olhando pro teto, ofegante',                       sprite: { row: 1, col: 4 } },
-  { id: 'coracao-maos',  emoji: '🫶',   texto: 'Fazendo um coração com as mãos',                    sprite: { row: 1, col: 5 } },
-  { id: 'topzeira',      emoji: '🤙',   texto: 'Topzeira / Hang Loose',                             sprite: { row: 2, col: 0 } },
-  { id: 'oculos-cool',   emoji: '😎',   texto: 'Óculos escuros de suor — pose "cool"',              sprite: { row: 2, col: 1 } },
-  { id: 'bico-engracado',emoji: '😗',   texto: 'Bico / careta engraçada',                           sprite: { row: 2, col: 2 } },
-  { id: 'garrafa-trofeu',emoji: '🏆',   texto: 'Garrafa de água erguida como troféu',               sprite: { row: 2, col: 3 } },
+  { id: 'biceps-duplo',      emoji: '💪💪', texto: 'Bíceps duplo',                                       sprite: { row: 0, col: 0 } },
+  { id: 'costas-v-ombro',    emoji: '👀',   texto: 'Costas em V, olhando por cima do ombro',              sprite: { row: 0, col: 1 } },
+  { id: 'peito-cintura',     emoji: '🫡',   texto: 'Peito estufado, mãos na cintura',                     sprite: { row: 0, col: 2 } },
+  { id: 'perfil-definicao',  emoji: '💯',   texto: 'Perfil de lado mostrando a definição',                sprite: { row: 0, col: 3 } },
+  { id: 'halteres-dois-braços', emoji: '🏋️', texto: 'Segurando halteres nos dois braços',               sprite: { row: 0, col: 4 } },
+  { id: 'barra-frente',      emoji: '🏋️‍♂️', texto: 'Segurando a barra/peso na frente do corpo',        sprite: { row: 0, col: 5 } },
+  { id: 'abdomen-camiseta',  emoji: '🍫',   texto: 'Abdômen contraído, camiseta/moletom levantado',       sprite: { row: 1, col: 0 } },
+  { id: 'panturrilha-ponta', emoji: '🦵',   texto: 'Panturrilha na ponta dos pés',                        sprite: { row: 1, col: 1 } },
+  { id: 'super-heroi',       emoji: '🦸',   texto: 'Pose de super-herói',                                 sprite: { row: 1, col: 2 } },
+  { id: 'modo-foco',         emoji: '🧘',   texto: 'Encarando o espelho, "modo foco"',                    sprite: { row: 1, col: 3 } },
+  { id: 'alongando-braco',   emoji: '🙆',   texto: 'Alongando o braço atrás da cabeça',                   sprite: { row: 1, col: 4 } },
+  { id: 'torcao-tronco',     emoji: '🌀',   texto: 'Torção de tronco',                                    sprite: { row: 1, col: 5 } },
+  { id: 'luva-treino',       emoji: '🧤',   texto: 'Colocando a luva de treino',                          sprite: { row: 2, col: 0 } },
+  { id: 'ajustando-bone',    emoji: '🧢',   texto: 'Ajustando boné/touca',                                sprite: { row: 2, col: 1 } },
+  { id: 'faixa-pulso',       emoji: '🎗️',   texto: 'Enrolando a faixa de pulso',                          sprite: { row: 2, col: 2 } },
+  { id: 'quadriceps-perna',  emoji: '🦿',   texto: 'Flexionando a perna, mostrando o quadríceps',         sprite: { row: 2, col: 3 } },
+  { id: 'selfie-paz',        emoji: '✌️',   texto: 'Selfie final com sinal de paz',                       sprite: { row: 2, col: 4 } },
 ];
 // Grade da colagem — usada tanto pro corte do sprite quanto pra proporção do quadro.
 const POSES_SPRITE_COLS = 6, POSES_SPRITE_ROWS = 3;
