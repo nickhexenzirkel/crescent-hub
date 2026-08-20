@@ -1704,6 +1704,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const curMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+    // Busca TODAS as linhas de uma view (o Supabase corta em 1000 por request).
+    // Sem isso, a view mensal (2000+ linhas) devolvia só as ~1000 primeiras — que,
+    // sem ordenação, eram todas do mês mais cheio (julho), e o mês ATUAL (agosto)
+    // ficava de fora do "Por Mês". Pagina de 1000 em 1000 até acabar.
+    const fetchAllRows = async (table, cols) => {
+      const PAGE = 1000; let from = 0; const out = [];
+      for (;;) {
+        const { data, error } = await _supabase.from(table).select(cols).range(from, from + PAGE - 1);
+        if (error) return { data: out, error };
+        if (!data?.length) break;
+        out.push(...data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return { data: out, error: null };
+    };
+
     // A VISÃO GERAL é GERAL (todos os meses) — p_since null. O mês atual e os
     // passados ficam por conta da aba "Por Mês". (Antes usava resetAt e por isso
     // a Visão Geral ficava presa ao "período atual" = só o mês corrente.)
@@ -1711,8 +1728,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       _supabase.rpc('maquina_song_stats',   { p_since: null, p_limit: 10 }),
       _supabase.rpc('maquina_artist_stats', { p_since: null, p_limit: 10 }),
       _supabase.rpc('maquina_dj_stats',     { p_since: null }),
-      _supabase.from('maquina_monthly_songs').select('month,spotify_id,title,artist,album_art,plays'),
-      _supabase.from('maquina_monthly_djs').select('month,requested_by,plays'),
+      fetchAllRows('maquina_monthly_songs', 'month,spotify_id,title,artist,album_art,plays'),
+      fetchAllRows('maquina_monthly_djs', 'month,requested_by,plays'),
       _supabase.rpc('maquina_play_count',   { p_since: null }),
       _supabase.rpc('maquina_period_start', { p_since: monthStartIso }),
     ]);
