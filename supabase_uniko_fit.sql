@@ -8,14 +8,19 @@
 --  Rode este script no SQL Editor do Supabase. É idempotente.
 -- ════════════════════════════════════════════════════════════════════════
 
--- Check-ins (posts com foto do treino)
+-- Check-ins E posts do feed (mesma tabela — `kind` distingue os dois):
+--   'checkin' → conta pro ranking diário e avisa no Bate-Papo
+--   'post'    → só aparece no feed "Para Você", não conta ranking
 create table if not exists public.uniko_fit_checkins (
   id          bigint generated always as identity primary key,
   player      text not null,
   photo_url   text not null,
   caption     text,
+  kind        text not null default 'checkin',
   created_at  timestamptz not null default now()
 );
+-- upgrade idempotente (instalação anterior a essa coluna existir)
+alter table public.uniko_fit_checkins add column if not exists kind text not null default 'checkin';
 create index if not exists uniko_fit_checkins_created_idx on public.uniko_fit_checkins (created_at desc);
 create index if not exists uniko_fit_checkins_player_idx  on public.uniko_fit_checkins (player);
 
@@ -40,13 +45,21 @@ create table if not exists public.uniko_fit_comments (
 );
 create index if not exists uniko_fit_comments_checkin_idx on public.uniko_fit_comments (checkin_id, created_at);
 
--- Chat do grupo (bate-papo geral, pra combinar treinos)
+-- Chat do grupo (bate-papo geral). `tipo` distingue texto/imagem/áudio/aviso de
+-- check-in automático; `media_url` guarda o arquivo de imagem/áudio (ou a foto
+-- do check-in, no aviso automático). `texto` fica nulo pra imagem/áudio/checkin.
 create table if not exists public.uniko_fit_chat (
   id          bigint generated always as identity primary key,
   player      text not null,
-  texto       text not null,
+  texto       text,
+  tipo        text not null default 'texto', -- texto | imagem | audio | checkin
+  media_url   text,
   created_at  timestamptz not null default now()
 );
+-- upgrade idempotente (instalação anterior a essas colunas existirem)
+alter table public.uniko_fit_chat alter column texto drop not null;
+alter table public.uniko_fit_chat add column if not exists tipo text not null default 'texto';
+alter table public.uniko_fit_chat add column if not exists media_url text;
 create index if not exists uniko_fit_chat_created_idx on public.uniko_fit_chat (created_at);
 
 -- RLS — chave anônima, políticas permissivas (mesmo padrão dos outros módulos sociais)
