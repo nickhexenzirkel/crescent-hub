@@ -16,6 +16,15 @@ dist-ssr
 .env
 .env.*
 *.env
+novo_token.json
+
+# Arquivos/pastas soltos de trabalho, fora do módulo do app
+/*.png
+/Criar cenário animado/
+/src/ap antigo/
+/src/modules/dashboard-rh/antgindex/
+/src/modules/mercado-estelar/psantigo/
+/public/unikowave/images/67e40134-0284-4aed-8a98-4bc46d22f7d5*.png
 
 # Editor directories and files
 .vscode/*
