@@ -602,6 +602,37 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // toda hora ao rolar pro próximo).
   const [feedMuted, setFeedMuted] = useState(true);
 
+  // ── Regras de convivência — tela de boas-vindas na PRIMEIRA vez que a
+  // pessoa abre o módulo. Guarda por CONTA (tabela uniko_fit_terms_acceptance,
+  // não só localStorage) pra não pedir de novo se trocar de aparelho; o
+  // localStorage é só um atalho pra não bater no Supabase toda vez que abrir.
+  const termsKeyRef = useRef(`uniko_fit_terms_ok_${(getAuthUser()?.cpf || name).replace(/\W/g, '_')}`);
+  const [mostrarTermos, setMostrarTermos] = useState(false);
+  const [podeAceitarTermos, setPodeAceitarTermos] = useState(false);
+  useEffect(() => {
+    let jaAceitou = false;
+    try { jaAceitou = localStorage.getItem(termsKeyRef.current) === '1'; } catch { /* localStorage indisponível */ }
+    if (jaAceitou) return;
+    (async () => {
+      try {
+        const { data } = await supabase.from('uniko_fit_terms_acceptance').select('player').eq('player', name).maybeSingle();
+        if (data) { try { localStorage.setItem(termsKeyRef.current, '1'); } catch { /* ok, só perde o atalho */ } return; }
+      } catch { /* sem rede — melhor mostrar de novo do que arriscar não mostrar nunca */ }
+      setMostrarTermos(true);
+    })();
+  }, [name]);
+  useEffect(() => {
+    if (!mostrarTermos) return;
+    setPodeAceitarTermos(false);
+    const t = setTimeout(() => setPodeAceitarTermos(true), 10000);
+    return () => clearTimeout(t);
+  }, [mostrarTermos]);
+  const aceitarTermos = async () => {
+    setMostrarTermos(false);
+    try { localStorage.setItem(termsKeyRef.current, '1'); } catch { /* localStorage indisponível */ }
+    try { await supabase.from('uniko_fit_terms_acceptance').upsert({ player: name, accepted_at: new Date().toISOString() }, { onConflict: 'player' }); } catch { /* best-effort — o localStorage já resolveu pra esse aparelho */ }
+  };
+
   // ── Cor fixa do módulo: laranja, SEMPRE — a única exceção é quando o tema
   // ativo já É laranja, aí ela vira azul (senão o módulo some dentro do próprio
   // tema). `T.key` é o id do tema aplicado agora (ver contexts/theme.js). ──
@@ -621,6 +652,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 @keyframes fitSheetIn { from { transform: translateY(24px); opacity: .4; } to { transform: none; opacity: 1; } }
 .fit-sheet-in { animation: fitSheetIn .22s cubic-bezier(.2,1,.4,1) both; }
 @keyframes fitPop  { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes fitTermFade { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fitPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes fitHeartBurst { 0% { transform: scale(.3); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 50% { transform: scale(.95); } 100% { transform: scale(1); opacity: 0; } }
 .fit-heart-burst { animation: fitHeartBurst .7s cubic-bezier(.17,.89,.32,1.49) both; }
@@ -2164,6 +2196,37 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           {isVideoUrl(chatImgZoom)
             ? <video src={chatImgZoom} controls autoPlay onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
             : <img src={chatImgZoom} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />}
+        </div>
+      )}
+
+      {/* ── Boas-vindas + regras de convivência (só na 1ª vez) ── */}
+      {mostrarTermos && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(10,8,14,.72)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="fit-pop" style={{ background: cardBg, borderRadius: 20, maxWidth: 380, width: '100%', maxHeight: '86vh', overflowY: 'auto',
+            padding: '28px 24px', boxShadow: '0 20px 60px rgba(0,0,0,.4)', border: `1px solid ${T.border}` }}>
+            {[
+              <div key="emoji" style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>💪</div>,
+              <div key="titulo" style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, textAlign: 'center', marginBottom: 10 }}>Bem-vindo(a) ao Uniko FIT!</div>,
+              <div key="intro" style={{ fontSize: 13, color: T.textS, lineHeight: 1.5, textAlign: 'center', marginBottom: 16 }}>Antes de continuar, um combinado rápido pra esse espaço ser bom pra todo mundo:</div>,
+              <div key="r1" style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10, fontSize: 13, color: T.text, lineHeight: 1.4 }}><span style={{ color: ENERGIA, flexShrink: 0 }}>{IcoCheckCircle}</span>Não compartilhe indevidamente as fotos/vídeos daqui fora do Uniko FIT — nem "de zoeira".</div>,
+              <div key="r2" style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10, fontSize: 13, color: T.text, lineHeight: 1.4 }}><span style={{ color: ENERGIA, flexShrink: 0 }}>{IcoCheckCircle}</span>Proibido qualquer tipo de discriminação ou preconceito.</div>,
+              <div key="r3" style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10, fontSize: 13, color: T.text, lineHeight: 1.4 }}><span style={{ color: ENERGIA, flexShrink: 0 }}>{IcoCheckCircle}</span>Proibida intolerância religiosa.</div>,
+              <div key="r4" style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10, fontSize: 13, color: T.text, lineHeight: 1.4 }}><span style={{ color: ENERGIA, flexShrink: 0 }}>{IcoCheckCircle}</span>Proibido racismo.</div>,
+              <div key="fim" style={{ fontSize: 11.5, color: T.textT, textAlign: 'center', marginTop: 14 }}>Descumprir isso pode levar a advertência e remoção do app. Bora treinar com respeito! 🎯</div>,
+            ].map((bloco, i) => <div key={bloco.key} style={{ animation: 'fitTermFade .5s ease both', animationDelay: `${i * 0.7}s` }}>{bloco}</div>)}
+
+            <div style={{ marginTop: 20, textAlign: 'center', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {podeAceitarTermos ? (
+                <button onClick={aceitarTermos} className="fit-btn fit-pop"
+                  style={{ padding: '12px 30px', borderRadius: 999, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)' }}>
+                  Estou de acordo
+                </button>
+              ) : (
+                <div style={{ fontSize: 11, color: T.textT }}>Lendo...</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
