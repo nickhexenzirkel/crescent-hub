@@ -50,6 +50,18 @@ const REPORT_THRESHOLD = 0.5;
 /* Expulsar jogador: fração dos OUTROS jogadores (todos menos o alvo) que precisa
    votar pra expulsar alguém da sala. 0.6 = maioria folgada, pra não expulsar à toa. */
 const KICK_THRESHOLD = 0.6;
+// `array.sort(() => Math.random() - .5)` NÃO embaralha de verdade (o
+// comparador não é transitivo, então o resultado sai enviesado pelo sort do
+// motor — mais forte ainda em arrays pequenos). Fisher-Yates é o shuffle
+// sem viés de verdade (mesmo bug corrigido no Uniko Suspect, ver memória).
+const embaralhar = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 const LAP_OPTIONS = [1, 2, 3, 5, 8];
 const DEFAULT_LAPS = 3;
 const CW = 1000, CH = 625;  // resolução interna do canvas (a tela só escala por CSS)
@@ -1636,7 +1648,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const startGame = () => {
     if (!state) return;                 // sem o state da sala não há tema — ver startRound
-    const ordem = [...players.map(p => p.name)].sort(() => Math.random() - 0.5);
+    const ordem = embaralhar(players.map(p => p.name));
     const queue = Array.from({ length: laps }, () => ordem).flat();
     // Semeia o baralho da partida com as palavras RECENTES da sala (as das últimas
     // partidas) já marcadas como usadas → elas ficam pro fim e as palavras novas/menos
