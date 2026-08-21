@@ -280,7 +280,11 @@ const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde 
    referência que o usuário mandou) + os dois Unikos com o feixe entre eles. */
 const MORTE_IMG = '/uniko-suspect-voce-foi-morto.png';
 const MorteOverlay = ({ matadorFoto, vitimaFoto }) => (
-  <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: '#000',
+  // `position:absolute` (não `fixed`) preenchendo o `gameWrapRef` (que agora
+  // tem `position:relative`) — cobre a TELA DO JOGO inteira (cabeçalho + mapa),
+  // tanto no modo normal quanto em tela cheia, sem depender do viewport do
+  // navegador (que ficava só cobrindo uma parte quando havia layout por cima).
+  <div style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16,
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh', overflow: 'hidden' }}>
     <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
       style={{ width: 'min(80vw, 560px)', filter: 'drop-shadow(0 0 24px rgba(220,38,38,.55))' }} />
@@ -1556,7 +1560,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
         {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ── */}
         {state?.phase === 'jogando' && (
-          <div ref={gameWrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0,
+          <div ref={gameWrapRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0,
             background: isFullscreen ? (T.page || '#0B1620') : 'transparent', padding: isFullscreen ? 14 : 0,
             alignItems: isFullscreen ? 'center' : 'stretch', justifyContent: isFullscreen ? 'center' : 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: isFullscreen ? 1400 : 'none' }}>
@@ -1628,7 +1632,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
                       <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label} className={feita ? undefined : 'sus-twinkle'}
-                        style={{ width: '9vw', maxWidth: 92, minWidth: 54, display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                        style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                     </button>
                   );
                 })}
@@ -1639,7 +1643,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }}>
                     <img src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
-                      style={{ width: '13vw', maxWidth: 140, minWidth: 82, display: 'block' }} />
+                      style={{ width: '19vw', maxWidth: 200, minWidth: 118, display: 'block' }} />
                   </button>
                 )}
 
@@ -1692,26 +1696,31 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100, souFantasma ? LUZ_RAIO.fantasma : LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']) }} />
               </div>
+
+              {/* Matar/Reportar — botões GRANDES fixos no canto inferior direito da
+                  tela do jogo (pedido do usuário), acima da luz/mapa (zIndex 6). */}
+              {(vitimaProxima || corpoProximo) && (
+                <div style={{ position: 'absolute', right: '3%', bottom: '3%', zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                  {vitimaProxima && (
+                    <button className="sus-btn sus-pop" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
+                      <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`}
+                        style={{ width: 'clamp(88px, 14vw, 160px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                    </button>
+                  )}
+                  {corpoProximo && (
+                    <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
+                      <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
+                        style={{ width: 'clamp(88px, 14vw, 160px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {tarefaProxima && !tarefaAberta && (
               <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
                 background: 'rgba(37,99,235,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
                 Pressione <b>E</b> — {tarefaProxima.label}
-              </div>
-            )}
-            {(vitimaProxima || corpoProximo) && (
-              <div className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '0 auto' }}>
-                {vitimaProxima && (
-                  <button className="sus-btn" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
-                    <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`} style={{ width: 74, display: 'block' }} />
-                  </button>
-                )}
-                {corpoProximo && (
-                  <button className="sus-btn" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
-                    <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo" style={{ width: 74, display: 'block' }} />
-                  </button>
-                )}
               </div>
             )}
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
