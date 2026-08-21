@@ -520,6 +520,76 @@ const ThumbCell = ({ it, engaj, onClick, onDelete }) => (
   </div>
 );
 
+/* ── Calendário pessoal de check-ins ("Frequência de Treinos") — usado no Meu
+   Perfil (os seus) e no perfil de um amigo (Amigos → ver perfil). `items` é
+   a lista de posts da pessoa (mesma fonte do ThumbCell: `created_at` +
+   `kind`); só dia com `kind==='checkin'` conta como treino. Navega mês a
+   mês, sem ir além do mês atual. Dia em UTC — mesmo critério usado no resto
+   do módulo (1 check-in por dia, ranking etc.), pra bater com a contagem
+   de lá. ── */
+const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const DIAS_SEMANA_PT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const CheckinCalendar = ({ items, energia, label = 'Treinou' }) => {
+  const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getUTCFullYear(), m: d.getUTCMonth() }; });
+
+  const diasTreinados = useMemo(() => {
+    const set = new Set();
+    (items || []).forEach(it => {
+      if (it.kind !== 'checkin' || !it.created_at) return;
+      const d = new Date(it.created_at);
+      if (d.getUTCFullYear() === cal.y && d.getUTCMonth() === cal.m) set.add(d.getUTCDate());
+    });
+    return set;
+  }, [items, cal]);
+
+  const primeiroDiaSemana = (new Date(Date.UTC(cal.y, cal.m, 1)).getUTCDay() + 6) % 7; // 0=segunda
+  const totalDias = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
+  const agora = new Date();
+  const ehMesAtual = cal.y === agora.getUTCFullYear() && cal.m === agora.getUTCMonth();
+  const diaHoje = agora.getUTCDate();
+
+  const irMes = (delta) => setCal(c => { const nm = c.m + delta; const ny = c.y + Math.floor(nm / 12); const mm = ((nm % 12) + 12) % 12; return { y: ny, m: mm }; });
+
+  const celulas = [];
+  for (let i = 0; i < primeiroDiaSemana; i++) celulas.push(null);
+  for (let d = 1; d <= totalDias; d++) celulas.push(d);
+
+  return (
+    <div style={{ background: T.surfaceSub || 'rgba(0,0,0,.03)', borderRadius: 14, padding: '14px 12px', border: `1px solid ${T.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button onClick={() => irMes(-1)} className="fit-btn" style={{ border: 'none', background: 'none', color: energia, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: 3, padding: 4 }}>{IcoBack} Anterior</button>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{MESES_PT[cal.m]}</div>
+          <div style={{ fontSize: 11, color: T.textT }}>{cal.y}</div>
+        </div>
+        <button onClick={() => irMes(1)} disabled={ehMesAtual} className="fit-btn"
+          style={{ border: 'none', background: 'none', color: ehMesAtual ? T.textD : energia, cursor: ehMesAtual ? 'default' : 'pointer', opacity: ehMesAtual ? .4 : 1,
+            fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: 3, padding: 4 }}>
+          Seguinte <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 6 15 12 9 18" /></svg>
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 5, marginBottom: 6 }}>
+        {DIAS_SEMANA_PT.map(d => <div key={d} style={{ textAlign: 'center', fontSize: 9.5, fontWeight: 700, color: T.textT }}>{d}</div>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 5 }}>
+        {celulas.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const treinou = diasTreinados.has(d);
+          const futuro = ehMesAtual && d > diaHoje;
+          return (
+            <div key={i} style={{ aspectRatio: '1/1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700,
+              background: treinou ? energia : 'rgba(128,128,128,.16)', color: treinou ? '#fff' : (futuro ? T.textD : T.textT), opacity: futuro && !treinou ? .5 : 1 }}>{d}</div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${energia}1c`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: energia, flexShrink: 0 }}>{IcoCheckCircle}</div>
+        <div style={{ fontSize: 13, color: T.text }}><b style={{ fontSize: 16 }}>{diasTreinados.size}</b> dia{diasTreinados.size !== 1 ? 's' : ''} — {label} {ehMesAtual ? 'esse mês' : `em ${MESES_PT[cal.m].toLowerCase()}`}</div>
+      </div>
+    </div>
+  );
+};
+
 const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const name = myName();
   const userName = authUser?.name || name;
@@ -1576,6 +1646,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 8 }}>Frequência de treinos</div>
+                <CheckinCalendar items={meusItens} energia={ENERGIA} label="Você treinou" />
+              </div>
+
               {!meusItens.length ? (
                 <div style={{ textAlign: 'center', padding: '30px 10px', color: T.textT, fontSize: 13 }}>Você ainda não postou nada. Bora fazer seu primeiro check-in! 💪</div>
               ) : (
@@ -1920,6 +1995,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{p.player}</div>
                     <div style={{ fontSize: 11.5, color: T.textT }}>{p.checkinCount} check-in{p.checkinCount !== 1 ? 's' : ''} · {p.items.length} post{p.items.length !== 1 ? 's' : ''} no total</div>
                   </div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 8 }}>Frequência de treinos</div>
+                  <CheckinCalendar items={p.items} energia={ENERGIA} label={`${p.player.split(' ')[0]} treinou`} />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
                   {p.items.map(it => <ThumbCell key={it.id} it={it} />)}
