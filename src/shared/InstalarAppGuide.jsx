@@ -21,7 +21,10 @@ const PASSOS_NOTIF = [
   { texto: 'Se não quiser o aviso aparecendo NA TELA (só receber sem popup), desmarque a opção "Banners".', img: '/tutorial-app/notif-4-banners.jpg' },
 ];
 
-const PassoCard = ({ n, passo }) => (
+// Só `maxWidth` na miniatura, de propósito — sem `maxHeight` junto, a altura
+// nunca fica presa e a imagem SEMPRE aparece inteira (só menor, se precisar).
+// Clique abre em tela grande (zoom), pra quem quiser ver os detalhes.
+const PassoCard = ({ n, passo, onZoom }) => (
   <div style={{ background: T.page, border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
       <div style={{ width: 24, height: 24, borderRadius: '50%', background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800, flexShrink: 0 }}>{n}</div>
@@ -29,7 +32,8 @@ const PassoCard = ({ n, passo }) => (
     </div>
     {passo.img && (
       <div style={{ borderTop: `1px solid ${T.border}`, background: T.surface, display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
-        <img src={passo.img} alt={`Passo ${n}`} style={{ maxWidth: '84%', maxHeight: 380, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)' }} />
+        <img src={passo.img} alt={`Passo ${n}`} onClick={() => onZoom(passo.img)} role="button" aria-label="Ver imagem em tela grande"
+          style={{ maxWidth: '84%', width: 220, height: 'auto', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', cursor: 'zoom-in' }} />
       </div>
     )}
   </div>
@@ -38,6 +42,7 @@ const PassoCard = ({ n, passo }) => (
 export const InstalarAppGuide = () => {
   const [open, setOpen] = useState(false);
   const [aba, setAba] = useState('instalar'); // instalar | notificacao
+  const [zoom, setZoom] = useState(null); // url da imagem aberta em tela grande, null = fechado
   const isDark = !!T.dark;
   const passos = aba === 'instalar' ? PASSOS_INSTALAR : PASSOS_NOTIF;
 
@@ -88,7 +93,7 @@ export const InstalarAppGuide = () => {
             </div>
 
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {passos.map((passo, i) => <PassoCard key={i} n={i + 1} passo={passo} />)}
+              {passos.map((passo, i) => <PassoCard key={i} n={i + 1} passo={passo} onZoom={setZoom} />)}
               {aba === 'notificacao' && (
                 <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center', lineHeight: 1.5 }}>
                   Desmarcar "Banners" não desativa a notificação — ela continua chegando na Central de Notificações e no ícone, só não aparece um aviso na tela na hora.
@@ -96,6 +101,16 @@ export const InstalarAppGuide = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Imagem em tela grande (clique numa foto do passo a passo) ── */}
+      {zoom && (
+        <div onClick={() => setZoom(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <button onClick={() => setZoom(null)} aria-label="Fechar"
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <img src={zoom} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '90vh', objectFit: 'contain', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
         </div>
       )}
     </>
