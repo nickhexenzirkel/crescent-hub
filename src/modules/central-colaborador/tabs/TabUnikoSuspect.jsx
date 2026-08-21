@@ -171,6 +171,12 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
    retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
    papel no Among Us. */
 const LUZ_RAIO = { tripulante: 10, impostor: 16 };
+const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}% ${yPct}%,
+  transparent 0%, transparent ${raio}%,
+  rgba(4,8,16,.32) ${raio + 10}%,
+  rgba(3,6,12,.62) ${raio + 22}%,
+  rgba(2,4,9,.85) ${raio + 38}%,
+  rgba(1,2,6,.97) ${raio + 58}%)`;
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
@@ -183,6 +189,7 @@ const KEY_DIR = {                 // WASD + setas → direção
 // Hash determinístico (mesma técnica do hintOrder do Stop) — spawn consistente
 // sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 // Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
 const SPAWN_RECT = { x: 640, y: 330, w: 260, h: 150 };   // cabe folgado dentro da zona 'sala'
 const spawnFor = (playerName) => {
@@ -433,6 +440,113 @@ const TaskGenerica = ({ onComplete }) => {
 
 const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco, generica: TaskGenerica };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   REUNIÃO DE EMERGÊNCIA (ago/2026) — chat de 60s seguido de votação de 60s
+   pra expulsar/acusar alguém de impostor. Fica do lado de fora do módulo de
+   tarefas de propósito: fase ('chat'|'votacao'|'resultado') e votos moram no
+   `state` compartilhado da sala (mudam pouco — 2 transições + 1 voto por
+   pessoa, então o padrão de "sobrescrever o jsonb inteiro" do resto do jogo
+   é suficiente); o CHAT em si vai por BROADCAST (mesmo princípio da posição
+   no mapa — muda rápido demais e é efêmero, não precisa persistir).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const REUNIAO_FASE_MS = 60000;
+const REUNIAO_RESULTADO_MS = 8000;
+
+const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatTexto, setChatTexto, onEnviarChat, onVotar }) => {
+  // `Date.now()` só pode ser chamado dentro do efeito (impuro) — o render lê
+  // só o estado `agora`, que o efeito atualiza 2x/s (regra do React Compiler).
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => { const iv = setInterval(() => setAgora(Date.now()), 500); return () => clearInterval(iv); }, []);
+  const chatBoxRef = useRef(null);
+  useEffect(() => { if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight; }, [mensagens]);
+
+  const duracao = reuniao.fase === 'resultado' ? REUNIAO_RESULTADO_MS : REUNIAO_FASE_MS;
+  const restante = Math.max(0, Math.ceil((duracao - (agora - reuniao.faseIniciadaEm)) / 1000));
+  const meuVoto = reuniao.votos?.[name];
+  const jaVotei = meuVoto !== undefined;
+  const votantes = new Set(Object.keys(reuniao.votos || {}));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 640, margin: '0 auto', padding: '4px 4px 10px' }}>
+      <div className="sus-pop" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 30 }}>🚨</div>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#DC2626' }}>
+          Reunião de emergência — chamada por {reuniao.chamadaPor.split(' ')[0]}
+        </div>
+        <div style={{ fontSize: 13, color: T.textT, marginTop: 2 }}>
+          {reuniao.fase === 'chat' && `Conversem! ${restante}s pra votação começar.`}
+          {reuniao.fase === 'votacao' && `Votem em quem acham que é o Impostor. ${restante}s restantes.`}
+          {reuniao.fase === 'resultado' && `Retomando o jogo em ${restante}s...`}
+        </div>
+      </div>
+
+      {reuniao.fase !== 'resultado' && (
+        <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface || '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div ref={chatBoxRef} style={{ height: 220, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {mensagens.length === 0 && <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 20 }}>Ninguém falou nada ainda...</div>}
+            {mensagens.map(m => (
+              <div key={m.id} style={{ fontSize: 12.5, color: T.text }}>
+                <b style={{ color: m.autor === name ? AGUA : T.textT }}>{m.autor.split(' ')[0]}:</b> {m.texto}
+              </div>
+            ))}
+          </div>
+          {reuniao.fase === 'chat' && (
+            <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: `1px solid ${T.border}` }}>
+              <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') onEnviarChat(); }}
+                maxLength={240} placeholder="Escreva algo suspeito..."
+                style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13 }} />
+              <button className="sus-btn" onClick={onEnviarChat} disabled={!chatTexto.trim()}
+                style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
+                  background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {reuniao.fase === 'votacao' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {players.map(p => (
+            <button key={p.name} className="sus-btn" disabled={jaVotei} onClick={() => onVotar(p.name)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11, textAlign: 'left',
+                border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff'),
+                cursor: jaVotei ? 'default' : 'pointer', opacity: jaVotei && meuVoto !== p.name ? .55 : 1 }}>
+              <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{p.name}</span>
+              {votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 13 }}>✅</span>}
+            </button>
+          ))}
+          <button className="sus-btn" disabled={jaVotei} onClick={() => onVotar(null)}
+            style={{ padding: '9px 12px', borderRadius: 11, border: `1.5px dashed ${T.border}`, background: 'transparent',
+              color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: jaVotei ? 'default' : 'pointer', opacity: jaVotei && meuVoto !== null ? .55 : 1 }}>
+            {meuVoto === null ? '✅ ' : ''}Pular votação
+          </button>
+        </div>
+      )}
+
+      {reuniao.fase === 'resultado' && (
+        <div className="sus-pop" style={{ textAlign: 'center', padding: '18px 10px', borderRadius: 14, border: `1px solid ${T.border}`, background: T.surface || '#fff' }}>
+          {!reuniao.resultado?.expulso ? (
+            <>
+              <div style={{ fontSize: 40 }}>🤷</div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text }}>Ninguém foi expulso</div>
+              <div style={{ fontSize: 12.5, color: T.textT, marginTop: 4 }}>{reuniao.resultado?.empate ? 'Deu empate na votação.' : 'Não teve maioria pra expulsar ninguém.'}</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 40 }}>{papeis?.[reuniao.resultado.expulso] === 'impostor' ? '🔪' : '🏖️'}</div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text }}>{reuniao.resultado.expulso} foi expulso</div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginTop: 4, color: papeis?.[reuniao.resultado.expulso] === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                Era {papeis?.[reuniao.resultado.expulso] === 'impostor' ? 'IMPOSTOR! 🎉' : 'Tripulante... 😬'}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TaskModal = ({ task, onClose, onComplete }) => {
   const tipo = taskTypeFor(task.label);
   const Mini = TASK_MINIGAMES[tipo] || TaskGenerica;
@@ -669,6 +783,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const playersRef = useRef([]);
   const cardBg = T.surface || '#fff';
 
+  // `pushState` sobe cedo (várias funções abaixo dependem dele — tarefas,
+  // reunião de emergência etc.) pra evitar "usado antes de declarado".
+  const aplicaEstado = useCallback((st) => {
+    if (!st) return;
+    const atual = stateRef.current;
+    if (atual?.ts && st.ts && st.ts < atual.ts) return;
+    stateRef.current = st; setState(st);
+  }, []);
+  const pushState = useCallback(async (next) => {
+    const carimbado = { ...next, ts: Date.now() };
+    aplicaEstado(carimbado);
+    try { await supabase.from('uniko_suspect_state').update({ state: carimbado, updated_at: new Date().toISOString() }).eq('id', roomId); }
+    catch (e) { console.error('[uniko-suspect] pushState:', e); }
+  }, [roomId, aplicaEstado]);
+
   /* ── Movimento livre no mapa (Fase 3) ──────────────────────────────────
      Posição NÃO entra no `state` (jsonb persistido) — muda rápido demais e é
      efêmera, então vai só por BROADCAST (mesmo princípio dos traços do Uniko
@@ -677,13 +806,27 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [myPos, setMyPos] = useState(() => spawnFor(name));
   const [positions, setPositions] = useState({});
   const myPosRef = useRef(myPos);
-  useEffect(() => { myPosRef.current = myPos; }, [myPos]);
   const pressedRef = useRef(new Set());
   const [isMoving, setIsMoving] = useState(false);   // eu — liga a animação de "andar" (sus-walk) no meu boneco
   const isMovingRef = useRef(false);
   const rafRef = useRef(null);
   const lastSentRef = useRef(0);
   const lastTsRef = useRef(0);
+  /* ── Fix de travamento/delay (ago/2026): antes, CADA frame de movimento
+     chamava `setMyPos`, forçando o React a re-renderizar a ÁRVORE INTEIRA
+     (jogadores + estrelas de tarefa + emergência + luz) a 60fps — pesado
+     demais e sentia como "travando". Agora câmera/meu-boneco/luz são
+     atualizados DIRETO no DOM (via ref, sem passar pelo React) a cada
+     frame — suave de verdade — e `setMyPos`/broadcast de rede só disparam
+     no ritmo mais lento de sempre (`POS_SEND_MS`), só pra manter coisas que
+     PRECISAM de re-render (prompt de tarefa próxima) atualizadas. Como o
+     JSX abaixo lê `myPosRef.current` (nunca desatualizado) em vez do
+     estado `myPos`, esses re-renders mais raros nunca "voltam" a posição
+     antiga por um instante — sempre pintam a posição real atual. */
+  const worldRef = useRef(null);
+  const myMarkerRef = useRef(null);
+  const lightRef = useRef(null);
+  const meuPapelRef = useRef(null);
 
   /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
      (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
@@ -740,7 +883,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { tarefaAbertaRef.current = tarefaAberta; }, [tarefaAberta]);
   const minhasFeitas = useMemo(() => new Set(state?.tasksDone?.[name] || []), [state?.tasksDone, name]);
   const tarefaProxima = useMemo(() => {
-    if (state?.phase !== 'jogando') return null;
+    if (state?.phase !== 'jogando' || state?.reuniao) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
       if (minhasFeitas.has(t.id)) continue;
@@ -748,7 +891,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase]);
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
   const marcarTarefaFeita = (taskId) => {
@@ -756,6 +899,42 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const done = { ...(s.tasksDone || {}) };
     done[name] = [...new Set([...(done[name] || []), taskId])];
     pushState({ ...s, tasksDone: done });
+  };
+
+  /* ── Reunião de emergência (ago/2026): ver comentário no componente
+     ReuniaoEmergencia. `reuniaoAtivaRef` congela o movimento (mesmo mecanismo
+     do `tarefaAbertaRef`) enquanto ela estiver rolando. */
+  const reuniaoAtivaRef = useRef(false);
+  useEffect(() => { reuniaoAtivaRef.current = !!state?.reuniao; }, [state?.reuniao]);
+  const [reuniaoMensagens, setReuniaoMensagens] = useState([]);
+  const [chatTexto, setChatTexto] = useState('');
+  // Zera o chat quando uma reunião NOVA começa — ajustado durante o render
+  // (padrão oficial do React pra "resetar estado quando algo muda"), não
+  // num efeito à parte (regra do React Compiler: nada de setState síncrono
+  // dentro de efeito sem necessidade).
+  const [reuniaoIdVisto, setReuniaoIdVisto] = useState(state?.reuniao?.id ?? null);
+  if (reuniaoIdVisto !== (state?.reuniao?.id ?? null)) {
+    setReuniaoIdVisto(state?.reuniao?.id ?? null);
+    setReuniaoMensagens([]);
+    setChatTexto('');
+  }
+
+  const chamarReuniao = () => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando') return;
+    if (s.reuniao) { setEmergMsg('🚨 Já tem uma reunião de emergência rolando!'); setTimeout(() => setEmergMsg(''), 2500); return; }
+    pushState({ ...s, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
+  };
+  const enviarChat = () => {
+    const texto = chatTexto.trim();
+    if (!texto || stateRef.current?.reuniao?.fase !== 'chat') return;
+    chanRef.current?.send({ type: 'broadcast', event: 'reuniao-chat', payload: { id: uid(), autor: name, texto: texto.slice(0, 240) } });
+    setChatTexto('');
+  };
+  const votar = (alvo) => {
+    const s = stateRef.current; const rr = s?.reuniao;
+    if (!rr || rr.fase !== 'votacao' || rr.votos?.[name] !== undefined) return;
+    pushState({ ...s, reuniao: { ...rr, votos: { ...(rr.votos || {}), [name]: alvo } } });
   };
 
   const host = useMemo(() => {
@@ -766,21 +945,39 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   }, [players, state?.criador]);
   const isHost = host === name;
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
+
+  /* HOST avança as fases da reunião no tempo certo (chat→votação→resultado→
+     fecha) — todo mundo lê o `faseIniciadaEm` compartilhado pra mostrar a
+     contagem regressiva, mas só o host EMPURRA a transição (mesmo padrão de
+     autoridade único usado pra sortear papéis/avançar do lobby). */
+  useEffect(() => {
+    if (!isHost || !state?.reuniao?.id) return;
+    const tick = () => {
+      const s = stateRef.current; const rr = s?.reuniao;
+      if (!rr) return;
+      const decorrido = Date.now() - rr.faseIniciadaEm;
+      if (rr.fase === 'chat' && decorrido >= REUNIAO_FASE_MS) {
+        pushState({ ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } });
+      } else if (rr.fase === 'votacao' && decorrido >= REUNIAO_FASE_MS) {
+        const contagem = {};
+        Object.values(rr.votos || {}).forEach(alvo => { if (alvo) contagem[alvo] = (contagem[alvo] || 0) + 1; });
+        let expulso = null, max = 0, empatados = 0;
+        Object.entries(contagem).forEach(([nome, qtd]) => {
+          if (qtd > max) { max = qtd; expulso = nome; empatados = 1; }
+          else if (qtd === max) { empatados++; }
+        });
+        const empate = max > 0 && empatados > 1;
+        pushState({ ...s, reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: empate ? null : expulso, empate } } });
+      } else if (rr.fase === 'resultado' && decorrido >= REUNIAO_RESULTADO_MS) {
+        pushState({ ...s, reuniao: null });
+      }
+    };
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState]);
+
   useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { if (state) stateRef.current = state; }, [state]);
-
-  const aplicaEstado = useCallback((st) => {
-    if (!st) return;
-    const atual = stateRef.current;
-    if (atual?.ts && st.ts && st.ts < atual.ts) return;
-    stateRef.current = st; setState(st);
-  }, []);
-  const pushState = useCallback(async (next) => {
-    const carimbado = { ...next, ts: Date.now() };
-    aplicaEstado(carimbado);
-    try { await supabase.from('uniko_suspect_state').update({ state: carimbado, updated_at: new Date().toISOString() }).eq('id', roomId); }
-    catch (e) { console.error('[uniko-suspect] pushState:', e); }
-  }, [roomId, aplicaEstado]);
 
   useEffect(() => {
     let vivo = true;
@@ -806,6 +1003,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (!payload?.name || payload.name === name) return;
       setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y, moving: !!payload.moving } }));
+    });
+    // Chat da reunião de emergência — efêmero, não persiste (mesmo princípio da posição).
+    ch.on('broadcast', { event: 'reuniao-chat' }, ({ payload }) => {
+      if (!payload?.id || !payload?.autor || !payload?.texto) return;
+      setReuniaoMensagens(m => [...m, payload].slice(-100));
     });
     // Quem acabou de entrar no mapa pede a posição de todo mundo; cada cliente
     // responde com a PRÓPRIA posição (não tem "host" pra isso — todos sabem a
@@ -845,13 +1047,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (tag === 'input' || tag === 'textarea') return;   // nunca captura teclado de um campo de texto
       if (k === 'e') {
         // Interagir com a tarefa mais próxima (estrela azul dentro do alcance).
-        if (!tarefaAbertaRef.current && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        if (!tarefaAbertaRef.current && !reuniaoAtivaRef.current && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
         e.preventDefault();
         return;
       }
       if (k === 'escape' && tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
       if (!KEY_DIR[k]) return;
-      if (tarefaAbertaRef.current) return;   // com o mini-jogo aberto, WASD não deve mover o boneco por baixo
+      if (tarefaAbertaRef.current || reuniaoAtivaRef.current) return;   // mini-jogo/reunião aberta — WASD não move o boneco por baixo
       pressedRef.current.add(k);
       e.preventDefault();
     };
@@ -859,12 +1061,28 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
+    // Pinta câmera + meu boneco + luz DIRETO no DOM (sem passar pelo React) —
+    // roda a 60fps de verdade, sem o custo de re-renderizar jogadores/tarefas/
+    // emergência a cada frame (ver comentário nos refs, acima).
+    const pintarVisual = (nx, ny) => {
+      const camX = Math.min(MAP_W - ZOOM_W, Math.max(0, nx - ZOOM_W / 2));
+      const camY = Math.min(MAP_H - ZOOM_H, Math.max(0, ny - ZOOM_H / 2));
+      if (worldRef.current) worldRef.current.style.transform = `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)`;
+      if (myMarkerRef.current) { myMarkerRef.current.style.left = `${nx / MAP_W * 100}%`; myMarkerRef.current.style.top = `${ny / MAP_H * 100}%`; }
+      if (lightRef.current) {
+        const raio = LUZ_RAIO[meuPapelRef.current === 'impostor' ? 'impostor' : 'tripulante'];
+        lightRef.current.style.background = lightGradientBg(nx / MAP_W * 100, ny / MAP_H * 100, raio);
+      }
+    };
+    pintarVisual(myPosRef.current.x, myPosRef.current.y);
+
     lastTsRef.current = performance.now();
     const step = (ts) => {
       const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
       lastTsRef.current = ts;
-      if (tarefaAbertaRef.current) {
-        // Mini-jogo de tarefa aberto — congela o boneco (some com o bob de andar também).
+      if (tarefaAbertaRef.current || reuniaoAtivaRef.current) {
+        // Mini-jogo de tarefa ou reunião de emergência aberta — congela o
+        // boneco (some com o bob de andar também).
         if (isMovingRef.current) { isMovingRef.current = false; setIsMoving(false); }
         rafRef.current = requestAnimationFrame(step);
         return;
@@ -881,7 +1099,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         if (!movendoAgora) {
           // Ao soltar a tecla não há mais `setMyPos` (posição parada), então
           // sem isso os outros clientes nunca saberiam que eu parei de andar.
+          // Também sincroniza o estado React (pode estar até POS_SEND_MS
+          // desatualizado) — importante pro prompt "Pressione E" ficar exato.
           lastSentRef.current = performance.now();
+          setMyPos(myPosRef.current);
           chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y, moving: false } });
         }
       }
@@ -898,10 +1119,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         const nx = isWalkable(tryX, cur.y) ? tryX : cur.x;
         const ny = isWalkable(nx, tryY) ? tryY : cur.y;
         if (nx !== cur.x || ny !== cur.y) {
-          setMyPos({ x: nx, y: ny });
+          myPosRef.current = { x: nx, y: ny };   // sempre fresco — nunca "um frame atrasado"
+          pintarVisual(nx, ny);                   // suave a 60fps, sem re-render do React
           const now = performance.now();
           if (now - lastSentRef.current >= POS_SEND_MS) {
             lastSentRef.current = now;
+            setMyPos({ x: nx, y: ny });   // React só precisa saber no ritmo lento (prompt de tarefa etc.)
             chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: nx, y: ny, moving: true } });
           }
         }
@@ -936,13 +1159,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const encerrar = () => { if (isHost && state) pushState({ ...state, phase: 'over' }); };
 
   const meuPapel = state?.papeis?.[name];
+  useEffect(() => { meuPapelRef.current = meuPapel; }, [meuPapel]);
   const jaPronto = !!state?.prontos?.[name];
   const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
 
   // Câmera: janela de ZOOM_W×ZOOM_H (campo de visão menor) centrada no MEU boneco,
-  // clampada pra nunca mostrar além da borda do mapa.
-  const camX = Math.min(MAP_W - ZOOM_W, Math.max(0, myPos.x - ZOOM_W / 2));
-  const camY = Math.min(MAP_H - ZOOM_H, Math.max(0, myPos.y - ZOOM_H / 2));
+  // clampada pra nunca mostrar além da borda do mapa. Usa o estado `myPos`
+  // (React proíbe ler `ref.current` durante o render — regra do React
+  // Compiler) — por isso `setMyPos` no step() é throttled em vez de por
+  // frame: entre esses re-renders, quem mantém isso suave a 60fps de
+  // verdade é a atualização DIRETO no DOM em `pintarVisual` (ver refs).
+  const myPosAtual = myPos;
+  const camX = Math.min(MAP_W - ZOOM_W, Math.max(0, myPosAtual.x - ZOOM_W / 2));
+  const camY = Math.min(MAP_H - ZOOM_H, Math.max(0, myPosAtual.y - ZOOM_H / 2));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
@@ -1072,6 +1301,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </div>
             </div>
 
+            {state?.reuniao ? (
+              <ReuniaoEmergencia reuniao={state.reuniao} players={players} name={name} papeis={state.papeis}
+                mensagens={reuniaoMensagens} chatTexto={chatTexto} setChatTexto={setChatTexto}
+                onEnviarChat={enviarChat} onVotar={votar} />
+            ) : (
+            <>
             {/* Viewport (o que a tela mostra): janela pequena, com zoom — não o mapa inteiro.
                 Por baixo, o "mundo" (a arte da casa, ZOOM_FACTOR× maior que a janela) desliza
                 via transform pra manter o MEU boneco sempre centralizado (câmera clampada nas
@@ -1084,7 +1319,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }
               : { position: 'relative', width: '100%', maxWidth: 1180, margin: '0 auto', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
                   borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
-              <div style={{ position: 'absolute', left: 0, top: 0, width: `${ZOOM_FACTOR * 100}%`, height: `${ZOOM_FACTOR * 100}%`,
+              <div ref={worldRef} style={{ position: 'absolute', left: 0, top: 0, width: `${ZOOM_FACTOR * 100}%`, height: `${ZOOM_FACTOR * 100}%`,
                 transform: `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)` }}>
                 <img src={MAPA_IMG} alt="" draggable={false}
                   style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill', userSelect: 'none', pointerEvents: 'none' }} />
@@ -1098,17 +1333,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button key={t.id} onClick={() => setTarefaAberta(t)}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
-                      <StarIcon size={22} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
+                      <StarIcon size={29} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
                     </button>
                   );
                 })}
 
                 {/* Botão de emergência — brilho vermelho pulsante, sempre visível. */}
                 {mapaEmergencia && (
-                  <button onClick={() => { setEmergMsg('🚧 Reunião de emergência ainda não foi implementada.'); setTimeout(() => setEmergMsg(''), 3000); }}
+                  <button onClick={chamarReuniao}
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <StarIcon size={30} color="#DC2626" className="sus-emerg" />
+                    <StarIcon size={39} color="#DC2626" className="sus-emerg" />
                     <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: 'rgba(220,38,38,.85)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
                       Estrela de Emergência
                     </span>
@@ -1118,10 +1353,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
                 {players.map(p => {
                   const eu = p.name === name;
-                  const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
+                  const pos = eu ? myPosAtual : (positions[p.name] || spawnFor(p.name));
                   const andando = eu ? isMoving : !!positions[p.name]?.moving;
                   return (
-                    <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
+                    <div key={p.name} ref={eu ? myMarkerRef : undefined}
+                      style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
                       width: `${(PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
@@ -1143,13 +1379,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     de sumir de vez, em vez de ir de "visível" pra "preto" de repente.
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
                     verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
-                  background: `radial-gradient(circle at ${myPos.x / MAP_W * 100}% ${myPos.y / MAP_H * 100}%,
-                    transparent 0%, transparent ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']}%,
-                    rgba(4,8,16,.32) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 10}%,
-                    rgba(3,6,12,.62) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 22}%,
-                    rgba(2,4,9,.85) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 38}%,
-                    rgba(1,2,6,.97) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 58}%)` }} />
+                <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
+                  background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100, LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']) }} />
               </div>
             </div>
 
@@ -1159,15 +1390,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 Pressione <b>E</b> — {tarefaProxima.label}
               </div>
             )}
+            <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
+              🚧 Matar e sabotagem chegam nas próximas fases — por enquanto é andar pela casa, fazer as tarefas e chamar reunião de emergência quando desconfiar de alguém.
+            </div>
+            </>
+            )}
+
             {emergMsg && (
               <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
                 background: 'rgba(220,38,38,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
                 {emergMsg}
               </div>
             )}
-            <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              🚧 Matar, sabotagem, reuniões e votação chegam nas próximas fases — por enquanto é andar pela casa e fazer as tarefas.
-            </div>
 
             {tarefaAberta && (
               <TaskModal task={tarefaAberta} onClose={() => setTarefaAberta(null)}
