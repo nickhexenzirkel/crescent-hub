@@ -200,13 +200,16 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
    como fração do "farthest-corner", então ficam circulares mesmo num mapa
    retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
    papel no Among Us. */
-const LUZ_RAIO = { tripulante: 10, impostor: 16, fantasma: 60, sabotagem: 4 };   // fantasma enxerga praticamente tudo; sabotagem quase apaga a luz do tripulante
+const LUZ_RAIO = { tripulante: 6, impostor: 16, fantasma: 60, sabotagem: 3 };   // fantasma enxerga praticamente tudo; sabotagem quase apaga a luz do tripulante
+// Rampa de escuridão mais fechada e mais escura (pedido do usuário: visão do
+// Tripulante mais escura e com raio menor) — os degraus chegam mais perto do
+// círculo de luz e a opacidade sobe mais rápido pro preto quase total.
 const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}% ${yPct}%,
   transparent 0%, transparent ${raio}%,
-  rgba(4,8,16,.32) ${raio + 10}%,
-  rgba(3,6,12,.62) ${raio + 22}%,
-  rgba(2,4,9,.85) ${raio + 38}%,
-  rgba(1,2,6,.97) ${raio + 58}%)`;
+  rgba(3,6,12,.45) ${raio + 6}%,
+  rgba(2,4,9,.74) ${raio + 14}%,
+  rgba(1,3,7,.92) ${raio + 24}%,
+  rgba(0,1,4,.99) ${raio + 40}%)`;
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
