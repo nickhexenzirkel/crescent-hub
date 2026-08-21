@@ -53,7 +53,7 @@ const MAP_W = 1672, MAP_H = 941;
 const BARCO_IMG = '/uniko-suspect-barco.png';
 const BARCO_ELIPSE = { cx: 830, cy: 468, rx: 610, ry: 250 };   // convés andável, ajustar se alguém ficar preso/atravessando a amurada
 const BARCO_MOVE_SPEED = 150;
-const BARCO_PLAYER_R = 34;
+const BARCO_PLAYER_R = 85;   // bem maior que o boneco do mapa principal (pedido do usuário — só aqui no barco)
 const estaNoBarco = (x, y) => {
   const nx = (x - BARCO_ELIPSE.cx) / BARCO_ELIPSE.rx;
   const ny = (y - BARCO_ELIPSE.cy) / BARCO_ELIPSE.ry;
@@ -312,21 +312,33 @@ const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde 
    nela. Full-screen preto, texto "Você foi morto!" com glow (inspirado na
    referência que o usuário mandou) + os dois Unikos com o feixe entre eles. */
 const MORTE_IMG = '/uniko-suspect-voce-foi-morto.png';
-const MorteOverlay = ({ matador, vitimaFoto }) => (
+const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
   // `position:absolute` (não `fixed`) preenchendo o `gameWrapRef` (que tem
   // `position:relative`) — cobre a TELA DO JOGO inteira. A imagem do feixe
-  // agora é o FUNDO em `object-fit:cover` (ocupa 100% da tela de verdade,
-  // não um recorte pequeno no meio) e o Uniko da vítima fica posicionado
-  // bem em cima do núcleo claro do feixe (~60% da altura da arte).
+  // é o FUNDO em `object-fit:cover` (ocupa 100% da tela de verdade), e por
+  // CIMA dela roda a cena de verdade: o Impostor recua ao atirar, um raio
+  // laser atravessa até a vítima, e ela reage (flash → treme → apaga).
   <div style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16, overflow: 'hidden' }}>
     <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+
+    <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-recoil"
+      style={{ position: 'absolute', left: '17%', top: '58%', transform: 'translate(-50%,-50%)',
+        width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
+        border: '4px solid #DC2626', boxShadow: '0 0 22px 6px rgba(220,38,38,.65)', zIndex: 2 }} />
+
+    <div className="sus-death-beam" style={{ position: 'absolute', left: '22%', width: '56%', top: '58%', height: 10,
+      transformOrigin: 'left center', borderRadius: 999, zIndex: 1,
+      background: 'linear-gradient(90deg, #DC2626, #fff 45%, #9fe0ff 65%, #DC2626)',
+      boxShadow: '0 0 20px 6px #DC2626, 0 0 46px 16px rgba(120,200,255,.7)' }} />
+
     <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
-      style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translate(-50%,-50%)',
-        width: 'min(24vw, 46vh, 230px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
-        border: '4px solid rgba(255,255,255,.9)', boxShadow: '0 0 34px 8px rgba(120,200,255,.85), 0 0 70px 20px rgba(70,150,255,.55)' }} />
+      style={{ position: 'absolute', left: '83%', top: '58%', transform: 'translate(-50%,-50%)',
+        width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
+        border: '4px solid rgba(255,255,255,.9)', boxShadow: '0 0 34px 8px rgba(120,200,255,.85), 0 0 70px 20px rgba(70,150,255,.55)', zIndex: 2 }} />
+
     {matador && (
-      <div className="sus-pop" style={{ position: 'absolute', left: '50%', bottom: '6%', transform: 'translateX(-50%)',
+      <div className="sus-pop" style={{ position: 'absolute', left: '50%', bottom: '6%', transform: 'translateX(-50%)', zIndex: 3,
         fontSize: 13, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,.55)', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap' }}>
         💀 {matador} te matou
       </div>
@@ -808,7 +820,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
 
           <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 7 }}>IMPOSTORES</div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {[1, 2].map(n => (
+            {[1, 2, 3].map(n => (
               <button key={n} className="sus-btn" onClick={() => setImpostores(n)}
                 style={{ padding: '7px 16px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 700,
                   border: `1.5px solid ${impostores === n ? IMPOSTOR_COR : T.border}`, background: impostores === n ? `${IMPOSTOR_COR}18` : 'transparent',
@@ -1019,7 +1031,7 @@ const BarcoLobby = ({ name, players, isHost, impostoresQtd, podeIniciar, onEscol
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(6px)', borderRadius: 999, padding: '5px 10px' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Impostores:</span>
-              {[1, 2].map(n => (
+              {[1, 2, 3].map(n => (
                 <button key={n} className="sus-btn" onClick={() => onEscolherImpostores(n)}
                   style={{ padding: '4px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 800,
                     border: `1.5px solid ${impostoresQtd === n ? IMPOSTOR_COR : 'rgba(255,255,255,.4)'}`,
@@ -1970,7 +1982,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             )}
 
             {morteAnim && (
-              <MorteOverlay matador={morteAnim.matador} vitimaFoto={photo} />
+              <MorteOverlay matador={morteAnim.matador} matadorFoto={players.find(p => p.name === morteAnim.matador)?.photo} vitimaFoto={photo} />
             )}
           </div>
         )}
