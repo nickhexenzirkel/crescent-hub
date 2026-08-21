@@ -84,15 +84,19 @@ const WALK_ZONES = [
 // `public/*` não ganha hash de build (não é processado pelo Vite) — o navegador
 // cacheia a imagem pelo nome do arquivo e continuava servindo a máscara VELHA
 // depois de eu corrigir e publicar uma nova (parecia "apaguei a parede e
-// continua bloqueando", mas era só cache). WALLMASK_VERSION funciona como
-// cache-buster manual: precisa subir esse número toda vez que o PNG mudar.
-const WALLMASK_VERSION = 2;
-const WALLMASK_IMG = `/uniko-suspect-wallmask.png?v=${WALLMASK_VERSION}`;
+// continua bloqueando", mas era só cache). Por isso a fonte de verdade agora
+// é o Supabase (tabela `uniko_suspect_map`, editada em Dashboard RH → aba
+// "Uniko Suspect"): cada "Salvar" no editor sobe um ARQUIVO NOVO no Storage
+// (nome com timestamp), então nunca reusa uma URL cacheada — o arquivo
+// estático abaixo só entra como fallback pra quem nunca salvou nada por lá.
+const WALLMASK_FALLBACK = '/uniko-suspect-wallmask.png';
 let _wallMaskData = null, _wallMaskW = 0, _wallMaskH = 0, _wallMaskLoading = false;
-function loadWallMask() {
-  if (_wallMaskData || _wallMaskLoading) return;
+function loadWallMask(url) {
+  const src = url || WALLMASK_FALLBACK;
+  if (_wallMaskLoading) return;
   _wallMaskLoading = true;
   const img = new Image();
+  img.crossOrigin = 'anonymous';   // vem do Supabase Storage (outro domínio) — sem isso, getImageData quebra por canvas "manchado"
   img.onload = () => {
     try {
       const canvas = document.createElement('canvas');
@@ -102,8 +106,18 @@ function loadWallMask() {
       const { data } = ctx.getImageData(0, 0, img.width, img.height);
       _wallMaskData = data; _wallMaskW = img.width; _wallMaskH = img.height;
     } catch (e) { console.error('[uniko-suspect] wallmask:', e); }
+    _wallMaskLoading = false;
   };
-  img.src = WALLMASK_IMG;
+  img.onerror = () => { _wallMaskLoading = false; };
+  img.src = src;
+}
+async function loadWallMaskFromDB() {
+  let url = null;
+  try {
+    const { data } = await supabase.from('uniko_suspect_map').select('wall_mask_url').eq('id', 1).maybeSingle();
+    url = data?.wall_mask_url || null;
+  } catch (e) { console.error('[uniko-suspect] uniko_suspect_map:', e); }
+  loadWallMask(url);
 }
 const isWallPixel = (x, y) => {
   if (!_wallMaskData) return false;   // ainda carregando — só a zona retangular vale por enquanto
@@ -430,7 +444,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     }
   };
 
-  useEffect(() => { loadWallMask(); }, []);
+  useEffect(() => { loadWallMaskFromDB(); }, []);
 
   const host = useMemo(() => {
     if (!players.length) return undefined;
@@ -932,5 +946,7 @@ const TabUnikoSuspect = () => {
   );
 };
 
-export { TabUnikoSuspect };
+// Exportados pra Dashboard RH → aba "Uniko Suspect" (UnikoSuspectMapTab.jsx)
+// reusar o MESMO mapa/dimensões no editor, sem duplicar constantes.
+export { TabUnikoSuspect, MAPA_IMG, MAP_W, MAP_H };
 export default TabUnikoSuspect;
