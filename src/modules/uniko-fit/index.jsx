@@ -12,7 +12,7 @@
 // Sem servidor próprio: tudo via Supabase (tabela uniko_fit_checkins — coluna
 // `kind` distingue 'checkin' de 'post' — e uniko_fit_chat com `tipo`/`media_url`
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { T } from '../../contexts/theme';
 import { USER, getAuthUser, supabase, fetchPhotoByName } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
@@ -1427,7 +1427,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           </button>
           <div style={{ flex: 1 }} />
           <span style={{ color: ENERGIA, display: 'flex' }}>{IcoFit}</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
+          <span style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
           <div style={{ flex: 1 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>
@@ -1748,19 +1748,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Barra inferior fixa: 5 ações (ancorada na tela de verdade, ver comentário do HEADER_H) ── */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60, display: 'flex', borderTop: `1px solid ${T.border}`, background: cardBg, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {BOTTOM_BTNS.map(b => (
-          <button key={b.id} onClick={() => b.id === 'notif' ? abrirNotificacoes() : openSheet(b.id)} className="fit-btn"
-            style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 2px 8px', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
-            <span style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
-              {b.icon}
-              {b.id === 'notif' && notifUnreadCount > 0 && (
-                <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, padding: '0 3px', borderRadius: '50%', background: '#DC3232', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${cardBg}` }}>
-                  {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
-                </span>
-              )}
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-body)' }}>{b.label}</span>
-          </button>
+        {BOTTOM_BTNS.map((b, i) => (
+          <Fragment key={b.id}>
+            {i > 0 && <div style={{ width: 1, alignSelf: 'center', height: 24, background: T.border, flexShrink: 0 }} />}
+            <button onClick={() => b.id === 'notif' ? abrirNotificacoes() : openSheet(b.id)} className="fit-btn"
+              style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 2px 8px', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
+              <span style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
+                {b.icon}
+                {b.id === 'notif' && notifUnreadCount > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, padding: '0 3px', borderRadius: '50%', background: '#DC3232', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${cardBg}` }}>
+                    {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-body)' }}>{b.label}</span>
+            </button>
+          </Fragment>
         ))}
       </div>
 
