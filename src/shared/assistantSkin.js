@@ -2,7 +2,7 @@
 // Skins do ASSISTENTE flutuante. O padrão é o UNIKO; ao capturar e "usar como assistente"
 // um Uniko da coleção, o robô do canto vira aquele Uniko (mesmos comportamentos: piscar,
 // dicas, avisos...). Cada skin mapeia seus sprites (piscar/boca/humor). Persiste por usuário.
-import { getAuthUser } from '../contexts/user';
+import { getAuthUser, supabase } from '../contexts/user';
 
 const enc = encodeURI; // alguns nomes têm acento (ATENÇÃO)
 
@@ -131,15 +131,56 @@ export function getActiveAssistantSkinId() {
   try { return localStorage.getItem(KEY()) || 'default'; } catch { return 'default'; }
 }
 
+// Só aplica local (localStorage + evento) — usado ao RECEBER a skin do banco, pra não
+// disparar um novo upsert em cima do que acabou de chegar (loop bobo entre dispositivos).
+function applyLocalSkin(id) {
+  const val = id || 'default';
+  try { if (localStorage.getItem(KEY()) === val) return; } catch {}
+  try { localStorage.setItem(KEY(), val); } catch {}
+  try { window.dispatchEvent(new CustomEvent(EV, { detail: val })); } catch {}
+}
+
 export function setActiveAssistantSkin(id) {
-  try { localStorage.setItem(KEY(), id || 'default'); } catch {}
-  try { window.dispatchEvent(new CustomEvent(EV, { detail: id || 'default' })); } catch {}
+  const val = id || 'default';
+  try { localStorage.setItem(KEY(), val); } catch {}
+  try { window.dispatchEvent(new CustomEvent(EV, { detail: val })); } catch {}
+  // Sincroniza com o banco pra qualquer outro dispositivo logado com o mesmo usuário
+  // (celular/computador) receber a troca em tempo real — ver initAssistantSkinSync().
+  try {
+    const name = getAuthUser()?.name;
+    if (name) supabase.from('settings').upsert({ key: skinRemoteKey(name), value: val }, { onConflict: 'key' }).then(() => {}, () => {});
+  } catch {}
 }
 
 export function onAssistantSkinChange(cb) {
   const h = (e) => cb(e.detail);
   window.addEventListener(EV, h);
   return () => window.removeEventListener(EV, h);
+}
+
+// Puxa a skin ativa do usuário do banco (se houver) e assina mudanças em tempo real — pra
+// o Uniko escolhido em UM dispositivo (ex: celular) aparecer sozinho no outro (ex: computador),
+// sem precisar reabrir o app. Chamado uma vez por sessão logada (ver App.jsx).
+export function initAssistantSkinSync() {
+  const name = getAuthUser()?.name;
+  if (!name) return () => {};
+  const key = skinRemoteKey(name);
+
+  (async () => {
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', key).maybeSingle();
+      if (data?.value) applyLocalSkin(data.value);
+    } catch {}
+  })();
+
+  const channel = supabase.channel(`assistant-skin-${key}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${key}` }, (payload) => {
+      const val = payload.new?.value;
+      if (val) applyLocalSkin(val);
+    })
+    .subscribe();
+
+  return () => { try { supabase.removeChannel(channel); } catch {} };
 }
 
 /* ── Tamanho do assistente ativo — QUALQUER usuário pode aumentar/diminuir o robô
