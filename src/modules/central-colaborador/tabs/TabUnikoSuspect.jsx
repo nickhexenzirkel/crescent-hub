@@ -1479,15 +1479,38 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <div style={{ fontSize: 12.5, color: T.textT, marginTop: 4 }}>
                       {state.vencedor === 'impostor' ? 'Os tripulantes foram todos expulsos.' : 'O impostor foi expulso da casa.'}
                     </div>
+                    {/* Fotos dos vencedores lado a lado — só o time que venceu
+                        (se foi o Impostor, aparece só ele; se foram os
+                        Tripulantes, aparecem todos eles). */}
                     {state?.papeis && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 12 }}>
-                        {Object.entries(state.papeis).map(([n, papel]) => (
-                          <span key={n} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
-                            background: papel === 'impostor' ? `${IMPOSTOR_COR}18` : `${TRIPULANTE_COR}18`,
-                            color: papel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
-                            {papel === 'impostor' ? '🔪' : '🏖️'} {n.split(' ')[0]}
-                          </span>
-                        ))}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, justifyContent: 'center', marginTop: 16 }}>
+                        {Object.keys(state.papeis).filter(n => state.papeis[n] === state.vencedor).map(n => {
+                          const p = players.find(pl => pl.name === n);
+                          const cor = state.vencedor === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR;
+                          return (
+                            <div key={n} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+                              <img src={p?.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover',
+                                background: '#fff', border: `3px solid ${cor}`, boxShadow: `0 0 20px ${cor}77` }} />
+                              <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{n.split(' ')[0]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Revelação completa dos papéis (todo mundo, os dois times). */}
+                    {state?.papeis && (
+                      <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.06em', color: T.textD, marginBottom: 8 }}>TODOS OS PAPÉIS</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                          {Object.entries(state.papeis).map(([n, papel]) => (
+                            <span key={n} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+                              background: papel === 'impostor' ? `${IMPOSTOR_COR}18` : `${TRIPULANTE_COR}18`,
+                              color: papel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                              {papel === 'impostor' ? '🔪' : '🏖️'} {n.split(' ')[0]}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>
