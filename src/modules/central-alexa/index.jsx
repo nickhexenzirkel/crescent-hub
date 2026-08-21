@@ -1312,6 +1312,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     });
   }, [queue, alexaConvo]); // eslint-disable-line
   const [currentSong, setCurrentSong]   = useState(null);
+  // Mini-player fixo (estilo Spotify) — só no celular, some/aparece sozinho
+  // conforme tem música tocando; toque nele abre a tela cheia "Tocando Agora".
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   // Lê a skin do DJ da música atual do Supabase para todos os clientes
   useEffect(() => {
@@ -2777,7 +2780,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         <span style={{fontSize:14,fontWeight:700,color:T.text,fontFamily:"var(--font-brand)",letterSpacing:".04em"}}>Central Alexa</span>
         <Tag color={T.gold}>Novo</Tag>
         <div style={{flex:1}}/>
-        {isPlaying&&cur&&(
+        {isPlaying&&cur&&!isMobile&&(
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:9,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
             <div style={{display:"flex",alignItems:"flex-end",gap:2,height:20}}>
               {[1,2,3,4,5].map(i=><div key={i} style={{width:3,borderRadius:2,background:T.gold,animation:`alexaEq${(i%5)+1} ${0.5+i*0.07}s ease-in-out infinite alternate`,minHeight:4,maxHeight:22}}/>)}
@@ -2788,7 +2791,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",position:"relative",zIndex:2}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",paddingBottom:isMobile&&cur?86:(isMobile?12:24),position:"relative",zIndex:2}}>
         <div style={{display:"flex",gap:isMobile?4:6,marginBottom:isMobile?14:20,padding:4,
           width:isMobile?"100%":"fit-content",overflowX:isMobile?"auto":"visible",
           background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),
@@ -4127,6 +4130,125 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {bubbleBurst && <BubbleBurstOverlay />}
       {/* ── Explosão de estrelas/meteoros (3s) ao trocar para a Destruidora de Mundos ── */}
       {meteorBurst && <MeteorBurstOverlay />}
+
+      {/* ── Mini-player fixo (estilo Spotify/app de música) — só no celular ── */}
+      {isMobile && cur && !nowPlayingOpen && (
+        <div onClick={() => setNowPlayingOpen(true)} role="button" aria-label="Abrir tela do que está tocando"
+          style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:500, display:"flex", alignItems:"center", gap:10,
+            padding:"8px 12px", paddingBottom:"calc(8px + env(safe-area-inset-bottom, 0px))",
+            background: isDark ? "rgba(18,14,10,.94)" : "rgba(255,255,255,.96)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
+            borderTop:`1px solid ${T.border}`, boxShadow:"0 -6px 24px rgba(0,0,0,.12)", cursor:"pointer" }}>
+          {cur.album_art
+            ? <img src={cur.album_art} alt="" style={{ width:44, height:44, borderRadius:8, objectFit:"cover", flexShrink:0 }} />
+            : <div style={{ width:44, height:44, borderRadius:8, background:T.goldGl, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🎵</div>}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.title}</div>
+            <div style={{ fontSize:11.5, color:T.textS, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.artist}</div>
+          </div>
+          {isAdmin ? (
+            <button onClick={e => { e.stopPropagation(); handlePlayPause(); }} disabled={!spotifyOk}
+              style={{ width:38, height:38, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:"#fff",
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.5 }}>
+              {isPlaying
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+            </button>
+          ) : (
+            <div style={{ width:38, height:38, borderRadius:"50%", background: isPlaying ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)` : T.border, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, opacity:.6 }}>
+              {isPlaying
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                : <svg width="14" height="14" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tela cheia "Tocando Agora" (estilo Spotify) — abre ao tocar no mini-player ── */}
+      {isMobile && nowPlayingOpen && cur && (
+        <div style={{ position:"fixed", inset:0, zIndex:2000, background: isDark ? "#0b0b12" : "#181022", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          {cur.album_art && (
+            <div style={{ position:"absolute", inset:0, backgroundImage:`url(${cur.album_art})`, backgroundSize:"cover", backgroundPosition:"center", filter:"blur(44px) brightness(.45)", transform:"scale(1.2)" }} />
+          )}
+          <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", height:"100%", padding:"0 22px", paddingTop:"max(20px, env(safe-area-inset-top, 20px))", paddingBottom:"calc(20px + env(safe-area-inset-bottom, 0px))" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0 12px" }}>
+              <button onClick={() => setNowPlayingOpen(false)} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>Tocando Agora</span>
+              <div style={{ width:38 }} />
+            </div>
+
+            <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", minHeight:0 }}>
+              {cur.album_art
+                ? <img src={cur.album_art} alt="" style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, objectFit:"cover", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }} />
+                : <div style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, background:"rgba(255,255,255,.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:60 }}>🎵</div>}
+
+              <div style={{ marginTop:26, textAlign:"center", width:"100%", maxWidth:340 }}>
+                <div style={{ fontSize:19, fontWeight:800, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.title}</div>
+                <div style={{ fontSize:13.5, color:"rgba(255,255,255,.7)", marginTop:4 }}>{cur.artist}</div>
+              </div>
+
+              {cur.duration_ms > 0 && (() => {
+                const pct = Math.min(100, (progressMs / cur.duration_ms) * 100);
+                const fmtMs = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+                return (
+                  <div style={{ width:"100%", maxWidth:340, marginTop:22 }}>
+                    <div style={{ height:4, borderRadius:99, background:"rgba(255,255,255,.2)", overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${pct}%`, borderRadius:99, background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`, transition:"width .9s linear" }}/>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(255,255,255,.6)", marginTop:6 }}>
+                      <span>{fmtMs(progressMs)}</span><span>{fmtMs(cur.duration_ms)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20, marginTop:30 }}>
+                {canControl && (
+                  <button onClick={handleNext} disabled={!spotifyOk||queue.length<2} title="Pular música"
+                    style={{ width:44, height:44, borderRadius:"50%", border:"none", background:"rgba(255,255,255,.12)", color:"#fff",
+                      display:"flex", alignItems:"center", justifyContent:"center", cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed", opacity:(spotifyOk&&queue.length>=2)?1:.4 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                  </button>
+                )}
+                {isAdmin ? (
+                  <button onClick={handlePlayPause} disabled={!spotifyOk}
+                    style={{ width:68, height:68, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:"#fff",
+                      display:"flex", alignItems:"center", justifyContent:"center", cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.5, boxShadow:"0 8px 24px rgba(0,0,0,.4)" }}>
+                    {isPlaying
+                      ? <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                      : <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                  </button>
+                ) : (
+                  <div style={{ width:68, height:68, borderRadius:"50%", background: isPlaying ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)` : "rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center", opacity:.65 }}>
+                    {isPlaying
+                      ? <svg width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                      : <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,.6)" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                  </div>
+                )}
+                <button onClick={toggleVideo} title="Videoclipe"
+                  style={{ width:44, height:44, borderRadius:"50%", border:"none", background: videoEnabled ? T.goldGl : "rgba(255,255,255,.12)", color: videoEnabled ? T.gold : "#fff",
+                    display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                </button>
+              </div>
+
+              {canControl && (
+                <div style={{ display:"flex", alignItems:"center", gap:10, width:"100%", maxWidth:340, marginTop:24 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round"
+                    onClick={() => handleVolume(volume===0?50:0)} style={{ cursor:"pointer", flexShrink:0 }}>
+                    {volume===0
+                      ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
+                      : <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></>}
+                  </svg>
+                  <input type="range" min="0" max="100" value={volume} onChange={e=>handleVolume(Number(e.target.value))} disabled={!spotifyOk}
+                    style={{ flex:1, accentColor:T.gold, height:3, cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.4 }}/>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
