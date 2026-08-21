@@ -294,6 +294,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
       <WhatsNew/>
       <UnikoOrigin/>
+      <InstalarAppGuide/>
 
       {authUser&&(
         <div style={{position:'fixed',top:16,right:20,display:'flex',alignItems:'center',gap:8,zIndex:10}}>

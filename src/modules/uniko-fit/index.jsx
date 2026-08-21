@@ -1353,8 +1353,6 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
   const abrirNotificacoes = () => setSheet('notif');
   const fecharNotificacoes = () => setSheet(null);
-  // Marca como lido ao SAIR da tela de notificações — não ao abrir, pra dar
-  // tempo de ver o destaque de "novo" enquanto olha a lista.
   const notifsRef = useRef(notifs);
   useEffect(() => { notifsRef.current = notifs; }, [notifs]);
   const marcarNotifsComoLidas = useCallback(() => {
@@ -1367,32 +1365,24 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       return next;
     });
   }, []);
-  // Só o cleanup do effect (roda ao trocar de sheet/desmontar) NÃO é
-  // suficiente: um RELOAD da página não passa pelo ciclo de desmontagem do
-  // React a tempo — o navegador mata o JS antes da limpeza rodar — então a
-  // marcação nunca era salva se a pessoa recarregasse com a tela ainda
-  // aberta. `visibilitychange`/`pagehide` deviam cobrir isso, mas na
-  // prática continuou voltando (provavelmente algum caminho de reload no
-  // iOS/PWA não dispara nenhum dos dois a tempo — não dá pra confiar 100%
-  // num evento de "página saindo"). Fix definitivo: marca como lida sozinho
-  // depois de ~1,2s com a tela aberta, SEM depender de like a pessoa sai —
-  // aí não importa reload, fechar o app, cair a conexão, nada: se ela viu
-  // por mais de 1,2s, já foi salvo enquanto o app ainda estava rodando.
-  // Os outros gatilhos (visibilitychange/pagehide/cleanup/botão manual)
-  // continuam de reforço pra quem fecha rapidinho antes desse tempo.
+  // Marcar "ao sair" (fechar/trocar de aba/reload) sempre teve uma janela de
+  // risco real: depende de pegar um evento de saída a tempo (cleanup do
+  // effect, visibilitychange, pagehide...), e algum caminho de reload no
+  // iOS/PWA não disparava nenhum deles rápido o bastante — a marcação se
+  // perdia. Fix definitivo: marca como lida NA HORA que abre, sem esperar
+  // NADA — não tem mais janela de risco nenhuma, porque a gravação já
+  // aconteceu antes de qualquer chance de reload/fechar acontecer.
+  // `notifsVistosAoAbrir` guarda um retrato de quem JÁ estava lido antes de
+  // abrir, só pra manter o destaque visual de "novo" durante essa visita
+  // (senão o destaque desaparecia na hora também, já que `notifReadIds`
+  // muda imediatamente).
+  const [notifsVistosAoAbrir, setNotifsVistosAoAbrir] = useState(null);
   useEffect(() => {
-    if (sheet !== 'notif') return;
-    const t = setTimeout(marcarNotifsComoLidas, 1200);
-    const onHide = () => { if (document.visibilityState === 'hidden') marcarNotifsComoLidas(); };
-    document.addEventListener('visibilitychange', onHide);
-    window.addEventListener('pagehide', marcarNotifsComoLidas);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener('visibilitychange', onHide);
-      window.removeEventListener('pagehide', marcarNotifsComoLidas);
-      marcarNotifsComoLidas();
-    };
-  }, [sheet, marcarNotifsComoLidas]);
+    if (sheet !== 'notif') { setNotifsVistosAoAbrir(null); return; }
+    setNotifsVistosAoAbrir(prev => prev || new Set(notifReadIds));
+    marcarNotifsComoLidas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet, notifs]);
 
   /* ═══════════════════ UI ═══════════════════ */
   // "Desafios" tirado TEMPORARIAMENTE da barra (a pedido) — só escondido, o
@@ -2015,16 +2005,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {notifUnreadCount > 0 && (
+              {/* A persistência já acontece sozinha na hora que abre — esse botão só
+                  limpa o destaque visual de "novo" na hora, sem precisar esperar sair
+                  da tela (pedido explícito: um jeito manual, sempre à mão). */}
+              {notifsVistosAoAbrir && notifsVistosAoAbrir.size < notifs.length && (
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={marcarNotifsComoLidas} className="fit-btn"
+                  <button onClick={() => setNotifsVistosAoAbrir(new Set(notifs.map(n => n.id)))} className="fit-btn"
                     style={{ border: 'none', background: 'none', cursor: 'pointer', color: ENERGIA, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 4 }}>
                     ✓ Marcar como lida
                   </button>
                 </div>
               )}
               {notifs.map(n => {
-                const naoLida = !notifReadIds.has(n.id);
+                // Usa o retrato de quando abriu (não `notifReadIds` direto) — esse já
+                // muda na hora que abre, então usar ele aqui apagaria o destaque de
+                // "novo" instantaneamente, antes da pessoa nem ver.
+                const naoLida = notifsVistosAoAbrir ? !notifsVistosAoAbrir.has(n.id) : false;
                 return (
                   <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${T.border}`, background: naoLida ? `${ENERGIA}0e` : 'transparent' }}>
                     <img src={photos[n.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
