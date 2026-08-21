@@ -41,6 +41,10 @@ export function AtualizacaoOverlay({ atual, onClose }) {
           <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, color: '#111',
             fontSize: 'clamp(20px, 4vw, 46px)', lineHeight: 1.05, letterSpacing: '.01em',
             textTransform: 'uppercase', wordBreak: 'break-word' }}>{atual.titulo}</div>
+          {atual.imagem_url && (
+            <img src={atual.imagem_url} alt="" style={{ maxWidth: '100%', maxHeight: '42%',
+              objectFit: 'contain', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,.18)' }} />
+          )}
           {atual.descricao && (
             <div style={{ color: '#222', fontWeight: 600, fontSize: 'clamp(11px, 1.55vw, 17px)', lineHeight: 1.28,
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '64%', overflowY: 'auto' }}>{atual.descricao}</div>

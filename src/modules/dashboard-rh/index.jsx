@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../../shared/components';
@@ -679,6 +679,26 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const [atualSending, setAtualSending] = useState(false);
   const [atualMsg, setAtualMsg]   = useState('');
   const [atualHist, setAtualHist] = useState([]);
+  const [atualImagemUrl, setAtualImagemUrl] = useState('');
+  const [atualImgUploading, setAtualImgUploading] = useState(false);
+  const atualImgInputRef = useRef(null);
+
+  const uploadAtualImagem = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setAtualMsg('⚠️ Escolha um arquivo de imagem.'); return; }
+    if (file.size > 8 * 1024 * 1024) { setAtualMsg('⚠️ Imagem maior que 8MB.'); return; }
+    setAtualImgUploading(true); setAtualMsg('');
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g,'') || 'png';
+      const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
+      const path = `${Date.now()}-${rand}.${ext}`;
+      const { error } = await _supabase.storage.from('atualizacoes-imagens').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = _supabase.storage.from('atualizacoes-imagens').getPublicUrl(path);
+      setAtualImagemUrl(data.publicUrl);
+    } catch (e) { setAtualMsg('⚠️ ' + (e.message || 'Erro ao enviar imagem')); }
+    setAtualImgUploading(false);
+  };
 
   const loadAtualHist = async () => {
     try {
@@ -694,10 +714,11 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     setAtualSending(true); setAtualMsg('');
     try {
       const { error } = await _supabase.from('atualizacoes').insert({
-        titulo, descricao: atualForm.descricao.trim() || null, autor: adminName, active: true,
+        titulo, descricao: atualForm.descricao.trim() || null, imagem_url: atualImagemUrl || null, autor: adminName, active: true,
       });
       if (error) throw error;
       setAtualForm({ titulo:'', descricao:'' });
+      setAtualImagemUrl('');
       setAtualMsg('✅ Atualização emitida! Ela apareceu na tela de todos os colaboradores online.');
       await loadAtualHist();
       setTimeout(()=>setAtualMsg(''), 4000);
@@ -2414,6 +2435,24 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                     style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',
                       color:'#111',fontFamily:'var(--font-brand)',fontWeight:800,textTransform:'uppercase',
                       fontSize:'clamp(16px, 3vw, 34px)',lineHeight:1.1,letterSpacing:'.01em',padding:0}}/>
+
+                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                    {atualImagemUrl ? (
+                      <div style={{position:'relative'}}>
+                        <img src={atualImagemUrl} alt="" style={{maxHeight:'clamp(50px,12vw,110px)',maxWidth:'min(70vw,320px)',objectFit:'contain',borderRadius:8,border:'1px solid rgba(0,0,0,0.15)',display:'block'}}/>
+                        <button type="button" onClick={()=>setAtualImagemUrl('')} title="Remover imagem"
+                          style={{position:'absolute',top:-8,right:-8,width:22,height:22,borderRadius:'50%',border:'none',cursor:'pointer',background:'#C04050',color:'#fff',fontSize:13,lineHeight:1,boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}>×</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={()=>atualImgInputRef.current?.click()} disabled={atualImgUploading}
+                        style={{padding:'6px 14px',borderRadius:8,border:'1px dashed rgba(0,0,0,0.35)',background:'rgba(0,0,0,0.03)',color:'#333',cursor:atualImgUploading?'not-allowed':'pointer',fontSize:12,fontFamily:'var(--font-body)'}}>
+                        {atualImgUploading?'Enviando...':'🖼️ Adicionar imagem (opcional)'}
+                      </button>
+                    )}
+                    <input ref={atualImgInputRef} type="file" accept="image/*" style={{display:'none'}}
+                      onChange={e=>{ uploadAtualImagem(e.target.files?.[0]); e.target.value=''; }}/>
+                  </div>
+
                   <textarea value={atualForm.descricao} onChange={e=>setAtualForm(f=>({...f,descricao:e.target.value}))}
                     placeholder="Descrição das atualizações (opcional)" rows={5}
                     style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',resize:'none',
@@ -2441,6 +2480,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   : <div style={{display:'flex',flexDirection:'column',gap:8}}>
                       {atualHist.map(a=>(
                         <div key={a.id} style={{display:'flex',gap:12,alignItems:'flex-start',padding:'11px 14px',background:'rgba(0,0,0,0.02)',border:`1px solid ${T.border}`,borderRadius:11}}>
+                          {a.imagem_url&&<img src={a.imagem_url} alt="" style={{width:48,height:48,objectFit:'cover',borderRadius:8,border:`1px solid ${T.border}`,flexShrink:0}}/>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>{a.titulo}</div>
                             {a.descricao&&<div style={{fontSize:12.5,color:T.textS,lineHeight:1.5,marginTop:2,whiteSpace:'pre-wrap'}}>{a.descricao}</div>}
