@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Editor de paredes — Uniko Suspect</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #14141c; color: #eee; display: flex; height: 100vh; overflow: hidden; }
+  #sidebar { width: 280px; flex-shrink: 0; background: #1c1c28; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid #333; }
+  #sidebar h1 { font-size: 15px; margin: 0 0 2px; }
+  #sidebar p.hint { font-size: 12px; color: #999; line-height: 1.5; margin: 0; }
+  .group { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #23232f; border-radius: 10px; border: 1px solid #333; }
+  .group h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #888; margin: 0 0 2px; }
+  .modebtns { display: flex; gap: 6px; }
+  .modebtns button { flex: 1; padding: 10px 6px; border-radius: 8px; border: 1.5px solid #444; background: #2a2a38; color: #ccc; cursor: pointer; font-size: 12.5px; font-weight: 700; }
+  .modebtns button.on.paint { background: #dc2626; border-color: #dc2626; color: #fff; }
+  .modebtns button.on.erase { background: #16a34a; border-color: #16a34a; color: #fff; }
+  label { font-size: 12px; color: #bbb; display: flex; justify-content: space-between; }
+  input[type=range] { width: 100%; }
+  .rowbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+  button.action { padding: 9px 12px; border-radius: 8px; border: 1px solid #444; background: #2a2a38; color: #eee; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+  button.action:hover { background: #33334a; }
+  button.primary { background: linear-gradient(135deg,#7C3AED,#C026D3); border: none; color: #fff; font-weight: 800; }
+  button.danger { background: rgba(220,38,38,.15); border-color: rgba(220,38,38,.4); color: #f87171; }
+  #coords { font-size: 11.5px; color: #888; font-family: monospace; }
+  #zoomVal, #brushVal, #opVal { color: #eee; font-weight: 700; }
+  #canvasWrap { flex: 1; overflow: auto; background: #0a0a10; position: relative; }
+  #canvasInner { position: relative; display: inline-block; }
+  canvas { display: block; image-rendering: pixelated; }
+  #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+  #status { position: fixed; bottom: 14px; left: 296px; background: rgba(0,0,0,.75); padding: 7px 14px; border-radius: 999px; font-size: 12px; color: #fff; pointer-events: none; opacity: 0; transition: opacity .3s; }
+</style>
+</head>
+<body>
+  <div id="sidebar">
+    <div>
+      <h1>🧱 Editor de paredes</h1>
+      <p class="hint">Pinte em cima do mapa onde é <b style="color:#f87171">parede</b> (não anda) — o resto vira chão andável. Já carreguei a máscara atual pra você só corrigir.</p>
+    </div>
+
+    <div class="group">
+      <h2>Modo</h2>
+      <div class="modebtns">
+        <button id="btnPaint" class="on paint">🔴 Pintar parede</button>
+        <button id="btnErase" class="erase">🟢 Apagar (chão)</button>
+      </div>
+      <label>Tamanho do pincel <span id="brushVal">18</span>px</label>
+      <input type="range" id="brush" min="2" max="80" value="18" />
+    </div>
+
+    <div class="group">
+      <h2>Visualização</h2>
+      <label>Zoom <span id="zoomVal">100</span>%</label>
+      <input type="range" id="zoom" min="40" max="300" value="100" />
+      <label>Opacidade da parede <span id="opVal">55</span>%</label>
+      <input type="range" id="opacity" min="10" max="100" value="55" />
+      <div class="rowbtns">
+        <button class="action" id="btnToggleMask">Esconder máscara</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Histórico</h2>
+      <div class="rowbtns">
+        <button class="action" id="btnUndo">↶ Desfazer</button>
+        <button class="action danger" id="btnReloadCurrent">Recarregar máscara atual</button>
+        <button class="action danger" id="btnClear">Limpar tudo (vira chão)</button>
+        <button class="action danger" id="btnFill">Preencher tudo (vira parede)</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Exportar</h2>
+      <button class="action primary" id="btnDownload" style="width:100%;padding:13px;font-size:13.5px;">⬇ Baixar máscara (PNG)</button>
+      <p class="hint">Baixa como <code>uniko-suspect-wallmask.png</code>. Manda esse arquivo de volta (ou só avisa que baixou) que eu aplico no jogo.</p>
+    </div>
+
+    <div id="coords">x: — · y: —</div>
+  </div>
+
+  <div id="canvasWrap">
+    <div id="canvasInner">
+      <canvas id="bgCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+    </div>
+  </div>
+  <div id="status"></div>
+
+<script>
+const MAP_IMG = '/uniko-suspect-mapa.png';
+const MASK_IMG = '/uniko-suspect-wallmask.png';
+
+const bgCanvas = document.getElementById('bgCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const ovCtx = overlayCanvas.getContext('2d', { willReadFrequently: true });
+
+// maskCanvas (offscreen): opaque red = parede, transparent = chão. Fonte da verdade.
+const maskCanvas = document.createElement('canvas');
+const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+
+let W = 1672, H = 941;
+let showMask = true;
+let opacity = 0.55;
+let mode = 'paint'; // 'paint' | 'erase'
+let brush = 18;
+let drawing = false;
+let history = [];
+const HISTORY_MAX = 25;
+
+function setStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(setStatus._t);
+  setStatus._t = setTimeout(() => { el.style.opacity = '0'; }, 1600);
+}
+
+function redrawOverlay() {
+  ovCtx.clearRect(0, 0, W, H);
+  ovCtx.drawImage(bgCanvas, 0, 0); // start blank actually not needed; overlay is separate layer
+}
+
+function composite() {
+  // overlayCanvas shows: nothing (bg shows through from bgCanvas underneath) + mask tint
+  ovCtx.clearRect(0, 0, W, H);
+  if (showMask) {
+    ovCtx.globalAlpha = opacity;
+    ovCtx.drawImage(maskCanvas, 0, 0);
+    ovCtx.globalAlpha = 1;
+  }
+}
+
+function pushHistory() {
+  try {
+    history.push(maskCtx.getImageData(0, 0, W, H));
+    if (history.length > HISTORY_MAX) history.shift();
+  } catch (e) {}
+}
+
+function undo() {
+  if (!history.length) { setStatus('Nada pra desfazer'); return; }
+  const snap = history.pop();
+  maskCtx.putImageData(snap, 0, 0);
+  composite();
+  setStatus('Desfeito');
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src + '?t=' + Date.now();
+  });
+}
+
+async function init() {
+  const [bgImg, maskImg] = await Promise.all([
+    loadImage(MAP_IMG),
+    loadImage(MASK_IMG).catch(() => null),
+  ]);
+  W = bgImg.width; H = bgImg.height;
+  [bgCanvas, overlayCanvas, maskCanvas].forEach(c => { c.width = W; c.height = H; });
+  bgCtx.drawImage(bgImg, 0, 0);
+
+  // Converte a máscara atual (branco=parede,preto=chão) pra vermelho translúcido no maskCanvas.
+  maskCtx.clearRect(0, 0, W, H);
+  if (maskImg) {
+    const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(maskImg, 0, 0);
+    const data = tctx.getImageData(0, 0, W, H);
+    const out = maskCtx.createImageData(W, H);
+    for (let i = 0; i < data.data.length; i += 4) {
+      const isWall = data.data[i] > 128;
+      out.data[i] = 220; out.data[i+1] = 38; out.data[i+2] = 38;
+      out.data[i+3] = isWall ? 255 : 0;
+    }
+    maskCtx.putImageData(out, 0, 0);
+  }
+  composite();
+  applyZoom();
+}
+
+function mapPointFromEvent(e) {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const scaleX = W / rect.width, scaleY = H / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  return { x, y };
+}
+
+function paintAt(x, y) {
+  maskCtx.beginPath();
+  maskCtx.arc(x, y, brush, 0, Math.PI * 2);
+  if (mode === 'paint') {
+    maskCtx.globalCompositeOperation = 'source-over';
+    maskCtx.fillStyle = 'rgba(220,38,38,1)';
+  } else {
+    maskCtx.globalCompositeOperation = 'destination-out';
+    maskCtx.fillStyle = 'rgba(0,0,0,1)';
+  }
+  maskCtx.fill();
+  maskCtx.globalCompositeOperation = 'source-over';
+}
+
+overlayCanvas.style.pointerEvents = 'auto';
+overlayCanvas.addEventListener('pointerdown', (e) => {
+  drawing = true;
+  pushHistory();
+  const { x, y } = mapPointFromEvent(e);
+  paintAt(x, y);
+  composite();
+  overlayCanvas.setPointerCapture(e.pointerId);
+});
+overlayCanvas.addEventListener('pointermove', (e) => {
+  const { x, y } = mapPointFromEvent(e);
+  document.getElementById('coords').textContent = `x: ${Math.round(x)} · y: ${Math.round(y)} (frac ${(x/W).toFixed(3)}, ${(y/H).toFixed(3)})`;
+  if (!drawing) return;
+  paintAt(x, y);
+  composite();
+});
+window.addEventListener('pointerup', () => { drawing = false; });
+
+document.getElementById('btnPaint').onclick = () => {
+  mode = 'paint';
+  document.getElementById('btnPaint').classList.add('on');
+  document.getElementById('btnErase').classList.remove('on');
+};
+document.getElementById('btnErase').onclick = () => {
+  mode = 'erase';
+  document.getElementById('btnErase').classList.add('on');
+  document.getElementById('btnPaint').classList.remove('on');
+};
+
+const brushInput = document.getElementById('brush');
+brushInput.oninput = () => { brush = +brushInput.value; document.getElementById('brushVal').textContent = brush; };
+
+const opacityInput = document.getElementById('opacity');
+opacityInput.oninput = () => { opacity = (+opacityInput.value) / 100; document.getElementById('opVal').textContent = opacityInput.value; composite(); };
+
+function applyZoom() {
+  const zoom = +document.getElementById('zoom').value / 100;
+  const cssW = Math.round(W * zoom) + 'px', cssH = Math.round(H * zoom) + 'px';
+  [bgCanvas, overlayCanvas].forEach(c => { c.style.width = cssW; c.style.height = cssH; });
+}
+document.getElementById('zoom').oninput = (e) => { document.getElementById('zoomVal').textContent = e.target.value; applyZoom(); };
+
+document.getElementById('btnToggleMask').onclick = () => {
+  showMask = !showMask;
+  document.getElementById('btnToggleMask').textContent = showMask ? 'Esconder máscara' : 'Mostrar máscara';
+  composite();
+};
+
+document.getElementById('btnUndo').onclick = undo;
+document.getElementById('btnReloadCurrent').onclick = () => { if (confirm('Recarregar a máscara atual do servidor? Perde as edições não baixadas.')) init(); };
+document.getElementById('btnClear').onclick = () => { if (confirm('Limpar tudo — o mapa inteiro vira chão andável?')) { pushHistory(); maskCtx.clearRect(0,0,W,H); composite(); } };
+document.getElementById('btnFill').onclick = () => { if (confirm('Preencher tudo — o mapa inteiro vira parede?')) { pushHistory(); maskCtx.fillStyle='rgba(220,38,38,1)'; maskCtx.fillRect(0,0,W,H); composite(); } };
+
+document.getElementById('btnDownload').onclick = () => {
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const octx = out.getContext('2d');
+  const data = maskCtx.getImageData(0, 0, W, H);
+  const res = octx.createImageData(W, H);
+  for (let i = 0; i < data.data.length; i += 4) {
+    const isWall = data.data[i+3] > 30;
+    const v = isWall ? 255 : 0;
+    res.data[i] = v; res.data[i+1] = v; res.data[i+2] = v; res.data[i+3] = 255;
+  }
+  octx.putImageData(res, 0, 0);
+  out.toBlob((blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'uniko-suspect-wallmask.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setStatus('Baixado! Já pode mandar o arquivo.');
+  }, 'image/png');
+};
+
+// Ctrl/Cmd+Z pra desfazer
+window.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); } });
+
+init();
+</script>
+</body>
+</html>
