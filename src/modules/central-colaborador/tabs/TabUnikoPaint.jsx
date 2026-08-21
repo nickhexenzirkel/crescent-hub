@@ -1504,10 +1504,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   };
 
   /* ── Expulsar jogador (votação democrática) ───────────────────────────────
-     Sem servidor: cada voto é um broadcast {alvo, votante}. Todo cliente conta
-     os votos que recebe e, quando batem KICK_THRESHOLD dos OUTROS jogadores, o
-     próprio cliente do ALVO sai da sala (onLeave) — os demais só veem o aviso.
-     Não precisa de host: todo mundo chega ao mesmo total e só o alvo se remove. */
+     Cada voto é um broadcast {alvo, votante} — todo cliente conta local pra
+     UI/chat responder na hora. MAS o broadcast é efêmero (sem garantia de
+     entrega): se o PRÓPRIO alvo perder um voto por instabilidade de rede,
+     a contagem dele local nunca bate o threshold e ele nunca sai — os
+     outros veem "foi expulso" no chat, mas a pessoa continua na sala e
+     parece "voltar sozinha" (bug relatado pelo usuário). Fix: só o HOST
+     decide de verdade e grava em `state.expulsoAtual` (persistido, com
+     poll de segurança de 4s — bem mais confiável que broadcast solto); o
+     alvo sai reagindo a ESSE estado, não à própria contagem local. O
+     broadcast continua valendo como caminho rápido quando tudo funciona. */
   const onKickMsg = (p) => {
     if (!p?.alvo || !p?.votante) return;
     const nomes = new Set(playersRef.current.map(pl => pl.name));
@@ -1530,13 +1536,38 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       // limpa os votos desse alvo (a partida continua pros demais)
       const limpo = { ...kickVotesRef.current }; delete limpo[p.alvo];
       kickVotesRef.current = limpo; setKickVotes(limpo);
-      if (p.alvo === name) { sfx('pulou'); onLeave?.(); }
+      if (p.alvo === name) { sfx('pulou'); onLeave?.(); }          // caminho rápido (melhor esforço)
+      if (hostRef.current) {                                       // caminho CONFIÁVEL (persistido)
+        const s = stateRef.current || {};
+        pushState({ ...s, expulsoAtual: { alvo: p.alvo, ts: Date.now() } });
+      }
     } else if (p.remover) {
       addChat({ name: p.votante, text: `retirou o voto de expulsar ${p.alvo.split(' ')[0]}`, kind: 'sys' });
     } else {
       addChat({ name: p.votante, text: `votou para expulsar ${p.alvo.split(' ')[0]} (${lista.length}/${Math.ceil(elegiveis * KICK_THRESHOLD)}) 🚪`, kind: 'sys' });
     }
   };
+  // O alvo sai assim que vê `expulsoAtual` apontar pro próprio nome — reage
+  // ao estado PERSISTIDO (confiável), não ao broadcast (pode ter se perdido).
+  const expulsoVistoRef = useRef(null);
+  useEffect(() => {
+    const alvo = state?.expulsoAtual;
+    if (!alvo || alvo.alvo !== name || expulsoVistoRef.current === alvo.ts) return;
+    expulsoVistoRef.current = alvo.ts;
+    sfx('pulou');
+    onLeave?.();
+  }, [state?.expulsoAtual, name, onLeave, sfx]);
+  // HOST limpa o aviso alguns segundos depois — tempo suficiente pro poll de
+  // 4s ter entregado pra todo mundo, mas sem deixar `expulsoAtual` "preso"
+  // pra sempre (senão a pessoa seria barrada de novo ao tentar voltar depois).
+  useEffect(() => {
+    if (!isHost || !state?.expulsoAtual?.ts) return;
+    const t = setTimeout(() => {
+      const s = stateRef.current;
+      if (s?.expulsoAtual) pushState({ ...s, expulsoAtual: null });
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [isHost, state?.expulsoAtual?.ts, pushState]);
   // Vota OU retira o voto (toggle): se eu já votei nesse alvo, o clique retira.
   const votarExpulsar = (alvo) => {
     if (!alvo || alvo === name) return;
