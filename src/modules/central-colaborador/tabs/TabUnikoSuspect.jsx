@@ -70,9 +70,46 @@ const WALK_ZONES = [
   { id: 'entrada',    x0: 0.42,  y0: 0.775, x1: 0.605, y1: 0.975 }, // caminho do "WELCOME"
   { id: 'ancoradouro',x0: 0.895, y0: 0.60,  x1: 0.985, y1: 0.955 },
 ];
+/* ── Máscara de parede (ago/2026) ────────────────────────────────────────
+   As zonas retangulares acima resolvem "em que cômodo eu tô", mas dentro de
+   cada retângulo (principalmente a `sala`, que é um cômodo grande e aberto)
+   tem paredinhas/divisórias desenhadas na própria arte (as molduras penduradas
+   entre sala/cozinha, sala/anexo etc.) que os retângulos não modelam — dava
+   pra atravessar essas divisórias andando por cima. `uniko-suspect-wallmask.png`
+   é um mapa preto-e-branco (branco = parede) do tamanho exato do mapa,
+   GERADO a partir do contorno neon que o usuário desenhou em cima da arte
+   (photoshop/IA) marcando toda parede/divisória — muito mais fiel que
+   qualquer retângulo. `isWalkable` agora exige as DUAS coisas: estar dentro
+   de alguma zona andável E não estar em cima de um pixel de parede. */
+const WALLMASK_IMG = '/uniko-suspect-wallmask.png';
+let _wallMaskData = null, _wallMaskW = 0, _wallMaskH = 0, _wallMaskLoading = false;
+function loadWallMask() {
+  if (_wallMaskData || _wallMaskLoading) return;
+  _wallMaskLoading = true;
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const { data } = ctx.getImageData(0, 0, img.width, img.height);
+      _wallMaskData = data; _wallMaskW = img.width; _wallMaskH = img.height;
+    } catch (e) { console.error('[uniko-suspect] wallmask:', e); }
+  };
+  img.src = WALLMASK_IMG;
+}
+const isWallPixel = (x, y) => {
+  if (!_wallMaskData) return false;   // ainda carregando — só a zona retangular vale por enquanto
+  const px = Math.max(0, Math.min(_wallMaskW - 1, Math.round(x * _wallMaskW / MAP_W)));
+  const py = Math.max(0, Math.min(_wallMaskH - 1, Math.round(y * _wallMaskH / MAP_H)));
+  return _wallMaskData[(py * _wallMaskW + px) * 4] > 128;   // canal R: 255 = parede
+};
 const isWalkable = (x, y) => {
   const fx = x / MAP_W, fy = y / MAP_H;
-  return WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
+  const emZona = WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
+  if (!emZona) return false;
+  return !isWallPixel(x, y);
 };
 
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
@@ -386,6 +423,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
     }
   };
+
+  useEffect(() => { loadWallMask(); }, []);
 
   const host = useMemo(() => {
     if (!players.length) return undefined;
@@ -703,15 +742,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   );
                 })}
 
-                {/* Iluminação: só enxerga perto do próprio boneco, o resto escurece.
+                {/* Iluminação: só enxerga BEM perto do próprio boneco, o resto escurece —
+                    mas com uma transição mais larga e gradual (a "sombra") entre o
+                    círculo de luz e o preto total, em vez de um corte seco: dá pra
+                    enxergar o CONTORNO/sombra dos cômodos vizinhos em penumbra antes
+                    de sumir de vez, em vez de ir de "visível" pra "preto" de repente.
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
-                    verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). Sombra
-                    bem mais densa (quase preto fora do raio de luz) — pedido do usuário. */}
+                    verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
                 <div style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: `radial-gradient(circle at ${myPos.x / MAP_W * 100}% ${myPos.y / MAP_H * 100}%,
                     transparent 0%, transparent ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']}%,
-                    rgba(2,4,9,.88) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 6}%,
-                    rgba(1,2,6,.995) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 18}%)` }} />
+                    rgba(4,8,16,.32) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 10}%,
+                    rgba(3,6,12,.62) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 22}%,
+                    rgba(2,4,9,.85) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 38}%,
+                    rgba(1,2,6,.97) ${LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante'] + 58}%)` }} />
               </div>
             </div>
 
