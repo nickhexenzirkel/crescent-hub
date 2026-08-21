@@ -297,18 +297,24 @@ const MorteOverlay = ({ matadorFoto, vitimaFoto }) => (
    ═══════════════════════════════════════════════════════════════════════════ */
 const taskBtnCss = { border: 'none', background: 'none', cursor: 'pointer', padding: 0 };
 
+// Cada 💩/🍫/rasgo agora exige MAIS DE UM clique (`ALVO_CLIQUES`) antes de
+// sumir — só um clique ficava instantâneo demais (pedido do usuário: as
+// tarefas estavam rápidas demais). O número de itens também aumentou.
 const TaskGeladeira = ({ onComplete }) => {
-  const [restam, setRestam] = useState([0, 1, 2, 3, 4]);
-  const POS = [[18, 22], [55, 18], [82, 30], [30, 62], [68, 68]];
-  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam, onComplete]);
+  const POS = [[14, 20], [37, 16], [60, 20], [83, 24], [22, 60], [45, 66], [68, 60], [88, 68]];
+  const ALVO_CLIQUES = 3;
+  const [cliques, setCliques] = useState(() => POS.map(() => 0));
+  const restam = cliques.map((c, i) => i).filter(i => cliques[i] < ALVO_CLIQUES);
+  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam.length, onComplete]);
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos 💩 pra tirar da geladeira!</div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada 💩 pra tirar da geladeira!</div>
       <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#EAF6FF,#D6ECFB)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
         {[1, 2].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${i * 33}%`, height: 2, background: 'rgba(0,0,0,.12)' }} />)}
         {restam.map(i => (
-          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 30 }}
-            onClick={() => setRestam(r => r.filter(x => x !== i))} aria-label="Remover">💩</button>
+          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)',
+            fontSize: 30, opacity: 1 - (cliques[i] / ALVO_CLIQUES) * .5 }}
+            onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))} aria-label="Remover">💩</button>
         ))}
       </div>
     </div>
@@ -316,35 +322,43 @@ const TaskGeladeira = ({ onComplete }) => {
 };
 
 const TaskFlamingo = ({ onComplete }) => {
-  const [remendados, setRemendados] = useState([false, false, false, false]);
-  const POS = [[30, 30], [68, 25], [40, 65], [72, 62]];
-  useEffect(() => { if (remendados.every(Boolean)) onComplete(); }, [remendados, onComplete]);
+  const POS = [[26, 26], [62, 22], [82, 42], [36, 64], [66, 68], [50, 40]];
+  const ALVO_CLIQUES = 3;
+  const [cliques, setCliques] = useState(() => POS.map(() => 0));
+  const done = cliques.every(c => c >= ALVO_CLIQUES);
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos rasgos (❌) pra remendar a boia!</div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada rasgo (❌) pra remendar a boia!</div>
       <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#E6FBFF,#C9F1FB)', border: `2px solid ${T.border}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: 92 }}>🦩</div>
-        {remendados.map((ok, i) => (
-          <button key={i} disabled={ok} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 26, cursor: ok ? 'default' : 'pointer' }}
-            onClick={() => setRemendados(r => r.map((v, j) => j === i ? true : v))}>{ok ? '🩹' : '❌'}</button>
-        ))}
+        {POS.map((pos, i) => {
+          const ok = cliques[i] >= ALVO_CLIQUES;
+          return (
+            <button key={i} disabled={ok} style={{ ...taskBtnCss, position: 'absolute', left: `${pos[0]}%`, top: `${pos[1]}%`, transform: 'translate(-50%,-50%)', fontSize: 26, cursor: ok ? 'default' : 'pointer' }}
+              onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))}>{ok ? '🩹' : '❌'}</button>
+          );
+        })}
       </div>
     </div>
   );
 };
 
 const TaskChocolates = ({ onComplete }) => {
-  const [restam, setRestam] = useState([0, 1, 2, 3, 4, 5]);
-  const [bolso, setBolso] = useState(0);
-  const POS = [[15, 25], [38, 20], [61, 25], [84, 20], [27, 55], [73, 55]];
-  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam, onComplete]);
+  const POS = [[12, 22], [32, 18], [52, 22], [72, 18], [90, 24], [20, 58], [42, 62], [64, 58], [84, 62]];
+  const ALVO_CLIQUES = 3;
+  const [cliques, setCliques] = useState(() => POS.map(() => 0));
+  const restam = cliques.map((c, i) => i).filter(i => cliques[i] < ALVO_CLIQUES);
+  const pegos = POS.length - restam.length;
+  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam.length, onComplete]);
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos 🍫 pra guardar no bolso! ({bolso}/6)</div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada 🍫 pra guardar no bolso! ({pegos}/{POS.length})</div>
       <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#F8F0E3,#EFDFC4)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
         {restam.map(i => (
-          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 28 }}
-            onClick={() => { setRestam(r => r.filter(x => x !== i)); setBolso(b => b + 1); }} aria-label="Pegar">🍫</button>
+          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)',
+            fontSize: 28, opacity: 1 - (cliques[i] / ALVO_CLIQUES) * .5 }}
+            onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))} aria-label="Pegar">🍫</button>
         ))}
         <div style={{ position: 'absolute', right: 10, bottom: 8, fontSize: 26 }}>👖</div>
       </div>
@@ -353,8 +367,8 @@ const TaskChocolates = ({ onComplete }) => {
 };
 
 const TaskLouca = ({ onComplete }) => {
-  const N = 3, ALVO = 4;
-  const [cliques, setCliques] = useState([0, 0, 0]);
+  const N = 4, ALVO = 9;
+  const [cliques, setCliques] = useState(() => Array(N).fill(0));
   const done = cliques.every(c => c >= ALVO);
   useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
   return (
@@ -366,7 +380,7 @@ const TaskLouca = ({ onComplete }) => {
           return (
             <button key={i} disabled={p >= 1} style={{ ...taskBtnCss, cursor: p >= 1 ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
               onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))}>
-              <div style={{ fontSize: 44, filter: `grayscale(${1 - p}) sepia(${(1 - p) * .6})`, transition: 'filter .15s' }}>{i === 2 ? '🥤' : '🍽️'}</div>
+              <div style={{ fontSize: 44, filter: `grayscale(${1 - p}) sepia(${(1 - p) * .6})`, transition: 'filter .15s' }}>{i % 2 === 0 ? '🍽️' : '🥤'}</div>
               <div style={{ width: 52, height: 6, borderRadius: 999, background: 'rgba(0,0,0,.12)', overflow: 'hidden' }}>
                 <div style={{ width: `${p * 100}%`, height: '100%', background: p >= 1 ? '#16A34A' : AGUA, transition: 'width .15s' }} />
               </div>
@@ -378,7 +392,8 @@ const TaskLouca = ({ onComplete }) => {
   );
 };
 
-const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azul' }, { cor: '#EAB308', nome: 'amarelo' }];
+const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azul' }, { cor: '#EAB308', nome: 'amarelo' },
+  { cor: '#16A34A', nome: 'verde' }, { cor: '#A855F7', nome: 'roxo' }];
 const TaskEnergia = ({ onComplete }) => {
   const [direita] = useState(() => [...FIOS].sort(() => Math.random() - 0.5));
   const [ligados, setLigados] = useState([]);
@@ -416,16 +431,16 @@ const TaskEnergia = ({ onComplete }) => {
 };
 
 const TaskChurrasco = ({ onComplete }) => {
-  const ALVO_HITS = 3;
+  const ALVO_HITS = 6;
   const [pos, setPos] = useState(0);
   const [dir, setDir] = useState(1);
   const [hits, setHits] = useState(0);
   const [feedback, setFeedback] = useState(null);
   const posRef = useRef(0);
-  const zona = [42, 62];
+  const zona = [46, 58];   // faixa bem mais estreita que antes — precisa de mira
   useEffect(() => {
     let raf;
-    const vel = 1.1 + hits * 0.35;
+    const vel = 1.2 + hits * 0.22;
     const tick = () => {
       posRef.current += vel * dir;
       if (posRef.current >= 100) { posRef.current = 100; setDir(-1); }
@@ -464,7 +479,7 @@ const TaskGenerica = ({ onComplete }) => {
   const start = () => {
     stop();
     holdRef.current = setInterval(() => setP(v => {
-      const nv = Math.min(1, v + 0.045);
+      const nv = Math.min(1, v + 0.012);   // ~3s segurando sem soltar (era ~0,7s)
       if (nv >= 1) { stop(); setTimeout(onComplete, 150); }
       return nv;
     }), 30);
