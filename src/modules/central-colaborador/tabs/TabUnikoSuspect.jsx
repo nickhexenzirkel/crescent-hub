@@ -44,6 +44,22 @@ const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola
 const MAPA_IMG = '/uniko-suspect-mapa.png';
 const MAP_W = 1672, MAP_H = 941;
 
+/* ── Barco do lobby (ago/2026): enquanto a sala tá na fase 'lobby', todo
+   mundo entra automaticamente nesse mini-mapa (mesma resolução da arte
+   da casa, 1672×941 — dá pra reusar MAP_W/MAP_H direto) com movimento
+   livre igual ao jogo de verdade, só que a área andável é o convés do
+   barco (aproximado por uma elipse, o barco é meio "olho" sem cantos
+   retos). Vira uma "sala de espera" de verdade em vez de só uma lista. */
+const BARCO_IMG = '/uniko-suspect-barco.png';
+const BARCO_ELIPSE = { cx: 830, cy: 468, rx: 610, ry: 250 };   // convés andável, ajustar se alguém ficar preso/atravessando a amurada
+const BARCO_MOVE_SPEED = 150;
+const BARCO_PLAYER_R = 34;
+const estaNoBarco = (x, y) => {
+  const nx = (x - BARCO_ELIPSE.cx) / BARCO_ELIPSE.rx;
+  const ny = (y - BARCO_ELIPSE.cy) / BARCO_ELIPSE.ry;
+  return nx * nx + ny * ny <= 1;
+};
+
 /* ── Paredes (colisão) ─────────────────────────────────────────────────────
    Cada item é um retângulo ANDÁVEL, em FRAÇÃO da imagem (0..1 × 0..1) — dá
    pra ler direto olhando a arte. O jogador só pode ficar num ponto que caia
@@ -249,11 +265,28 @@ const SUS_CSS = `
 .sus-death-recoil { animation: susDeathRecoil 1.6s ease both; }
 .sus-death-victim { animation: susDeathVictim 1.6s ease both; }
 .sus-death-text   { animation: susDeathText 1.6s ease both; }
+/* ── Lobby do barco (ago/2026): oceano animado ao redor do barco enquanto
+   todo mundo espera o host começar. Duas camadas — um brilho que desliza
+   bem devagar (a "água" em si) e linhas finas de onda por cima — mais o
+   barco balançando suavemente. */
+@keyframes susOceanShine { 0% { background-position: 0% 50%, 100% 50%; } 100% { background-position: 200% 50%, -100% 50%; } }
+@keyframes susWaveLines { from { background-position: 0 0; } to { background-position: 160px 0; } }
+@keyframes susBoatSway { 0%,100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(5px) rotate(.5deg); } }
+.sus-ocean { background:
+    radial-gradient(ellipse 45% 55% at 25% 35%, rgba(255,255,255,.20) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 75% 65%, rgba(255,255,255,.14) 0%, transparent 60%),
+    linear-gradient(135deg, #073B52 0%, #0B5E7D 40%, #1290B8 70%, #073B52 100%);
+  background-size: 200% 200%, 200% 200%, 100% 100%;
+  animation: susOceanShine 16s ease-in-out infinite alternate; }
+.sus-wave-lines { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay;
+  background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.10) 0 2px, transparent 2px 44px);
+  animation: susWaveLines 5s linear infinite; }
+.sus-boat-sway { animation: susBoatSway 4.5s ease-in-out infinite; }
 .sus-btn { transition: transform .12s, filter .12s; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
 @media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg,
-  .sus-death-beam,.sus-death-recoil,.sus-death-victim,.sus-death-text { animation: none !important; } }
+  .sus-death-beam,.sus-death-recoil,.sus-death-victim,.sus-death-text,.sus-ocean,.sus-wave-lines,.sus-boat-sway { animation: none !important; } }
 `;
 
 /* ── Estrela (SVG) — marcador de tarefa (azul/verde) e do botão de emergência (vermelho) ── */
@@ -279,26 +312,25 @@ const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde 
    nela. Full-screen preto, texto "Você foi morto!" com glow (inspirado na
    referência que o usuário mandou) + os dois Unikos com o feixe entre eles. */
 const MORTE_IMG = '/uniko-suspect-voce-foi-morto.png';
-const MorteOverlay = ({ matadorFoto, vitimaFoto }) => (
-  // `position:absolute` (não `fixed`) preenchendo o `gameWrapRef` (que agora
-  // tem `position:relative`) — cobre a TELA DO JOGO inteira (cabeçalho + mapa),
-  // tanto no modo normal quanto em tela cheia, sem depender do viewport do
-  // navegador (que ficava só cobrindo uma parte quando havia layout por cima).
-  <div style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16,
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh', overflow: 'hidden' }}>
+const MorteOverlay = ({ matador, vitimaFoto }) => (
+  // `position:absolute` (não `fixed`) preenchendo o `gameWrapRef` (que tem
+  // `position:relative`) — cobre a TELA DO JOGO inteira. A imagem do feixe
+  // agora é o FUNDO em `object-fit:cover` (ocupa 100% da tela de verdade,
+  // não um recorte pequeno no meio) e o Uniko da vítima fica posicionado
+  // bem em cima do núcleo claro do feixe (~60% da altura da arte).
+  <div style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16, overflow: 'hidden' }}>
     <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
-      style={{ width: 'min(80vw, 560px)', filter: 'drop-shadow(0 0 24px rgba(220,38,38,.55))' }} />
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10vw', width: '100%', maxWidth: 760 }}>
-      <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-recoil"
-        style={{ width: '18vw', maxWidth: 120, minWidth: 70, aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover',
-          border: '3px solid #DC2626', boxShadow: '0 0 26px rgba(220,38,38,.65)', zIndex: 2, background: '#111' }} />
-      <div className="sus-death-beam" style={{ position: 'absolute', left: '24%', right: '24%', top: '50%', height: 8,
-        transformOrigin: 'left center', background: 'linear-gradient(90deg, #DC2626, #fff 50%, #DC2626)',
-        boxShadow: '0 0 18px 4px #DC2626, 0 0 40px 12px rgba(220,38,38,.6)', borderRadius: 999, zIndex: 1 }} />
-      <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
-        style={{ width: '18vw', maxWidth: 120, minWidth: 70, aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover',
-          border: '3px solid #666', zIndex: 2, background: '#111' }} />
-    </div>
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+    <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
+      style={{ position: 'absolute', left: '50%', top: '60%', transform: 'translate(-50%,-50%)',
+        width: 'min(24vw, 46vh, 230px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
+        border: '4px solid rgba(255,255,255,.9)', boxShadow: '0 0 34px 8px rgba(120,200,255,.85), 0 0 70px 20px rgba(70,150,255,.55)' }} />
+    {matador && (
+      <div className="sus-pop" style={{ position: 'absolute', left: '50%', bottom: '6%', transform: 'translateX(-50%)',
+        fontSize: 13, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,.55)', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap' }}>
+        💀 {matador} te matou
+      </div>
+    )}
   </div>
 );
 
@@ -881,6 +913,144 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   BARCO — a "sala de espera" de verdade: todo mundo anda livre pelo convés
+   (WASD, mesmo esquema do jogo) enquanto o host não aperta Iniciar Partida.
+   Posição vai só por BROADCAST no canal da sala (evento barco-pos/-req,
+   mesmo princípio da posição no mapa principal — efêmera, não persiste).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const BarcoLobby = ({ name, players, isHost, impostoresQtd, podeIniciar, onEscolherImpostores, onIniciar, myPos, setMyPos, positions, chanRef }) => {
+  const pressedRef = useRef(new Set());
+  const rafRef = useRef(null);
+  const lastTsRef = useRef(0);
+  const lastSentRef = useRef(0);
+  const myPosRef = useRef(myPos);
+  useEffect(() => { myPosRef.current = myPos; }, [myPos]);
+  const [isMoving, setIsMoving] = useState(false);
+  const isMovingRef = useRef(false);
+
+  useEffect(() => {
+    // Reforça o pedido 1s depois — o canal pode ainda não estar com a
+    // conexão realtime totalmente estabelecida no primeiro envio (a sala
+    // acabou de montar), então o primeiro `send` às vezes se perde.
+    chanRef.current?.send({ type: 'broadcast', event: 'barco-pos-req', payload: { name } });
+    const reforco = setTimeout(() => chanRef.current?.send({ type: 'broadcast', event: 'barco-pos-req', payload: { name } }), 1000);
+    const onKeyDown = (e) => {
+      const k = e.key.toLowerCase();
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (!KEY_DIR[k]) return;
+      pressedRef.current.add(k);
+      e.preventDefault();
+    };
+    const onKeyUp = (e) => { pressedRef.current.delete(e.key.toLowerCase()); };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    lastTsRef.current = performance.now();
+    const step = (ts) => {
+      const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);
+      lastTsRef.current = ts;
+      let dx = 0, dy = 0;
+      pressedRef.current.forEach(k => { const d = KEY_DIR[k]; if (d) { dx += d[0]; dy += d[1]; } });
+      const movendo = !!(dx || dy);
+      if (movendo !== isMovingRef.current) { isMovingRef.current = movendo; setIsMoving(movendo); }
+      if (dx || dy) {
+        const len = Math.hypot(dx, dy) || 1;
+        const cur = myPosRef.current;
+        let nx = cur.x + (dx / len) * BARCO_MOVE_SPEED * dt;
+        let ny = cur.y + (dy / len) * BARCO_MOVE_SPEED * dt;
+        // Testa X e Y em separado — desliza na amurada em vez de travar na diagonal.
+        if (!estaNoBarco(nx, cur.y)) nx = cur.x;
+        if (!estaNoBarco(nx, ny)) ny = cur.y;
+        if (nx !== cur.x || ny !== cur.y) {
+          myPosRef.current = { x: nx, y: ny };
+          setMyPos({ x: nx, y: ny });
+          const now = performance.now();
+          if (now - lastSentRef.current >= POS_SEND_MS) {
+            lastSentRef.current = now;
+            chanRef.current?.send({ type: 'broadcast', event: 'barco-pos', payload: { name, x: nx, y: ny } });
+          }
+        }
+      }
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+
+    const teclas = pressedRef.current;
+    return () => {
+      clearTimeout(reforco);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      teclas.clear();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [chanRef, name, setMyPos]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 1180, margin: '0 auto', aspectRatio: `${MAP_W} / ${MAP_H}`,
+        borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh }} className="sus-ocean">
+        <div className="sus-wave-lines" />
+        <div className="sus-boat-sway" style={{ position: 'absolute', inset: 0 }}>
+          <img src={BARCO_IMG} alt="" draggable={false}
+            style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain', userSelect: 'none', pointerEvents: 'none' }} />
+          {players.map(p => {
+            const eu = p.name === name;
+            const pos = eu ? myPos : (positions[p.name] || { x: BARCO_ELIPSE.cx, y: BARCO_ELIPSE.cy });
+            return (
+              <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
+                width: `${(BARCO_PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
+                pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
+                <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={eu && isMoving ? 'sus-walk' : undefined}
+                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
+                    filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.5)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.5))' }} />
+                <span style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.88)',
+                  borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                  {p.name.split(' ')[0]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botão do host, DENTRO do barco — fixo no canto inferior. */}
+        {isHost && (
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(6px)', borderRadius: 999, padding: '5px 10px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Impostores:</span>
+              {[1, 2].map(n => (
+                <button key={n} className="sus-btn" onClick={() => onEscolherImpostores(n)}
+                  style={{ padding: '4px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                    border: `1.5px solid ${impostoresQtd === n ? IMPOSTOR_COR : 'rgba(255,255,255,.4)'}`,
+                    background: impostoresQtd === n ? IMPOSTOR_COR : 'transparent', color: '#fff' }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <button className="sus-btn" onClick={onIniciar} disabled={!podeIniciar}
+              style={{ padding: '13px 30px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 15, cursor: podeIniciar ? 'pointer' : 'not-allowed',
+                background: podeIniciar ? `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)` : 'rgba(255,255,255,.25)',
+                boxShadow: podeIniciar ? `0 8px 22px ${IMPOSTOR_COR}66` : 'none', opacity: podeIniciar ? 1 : .7 }}>
+              🚢 Iniciar Partida
+            </button>
+            {!podeIniciar && <div style={{ fontSize: 11, color: '#fff', background: 'rgba(0,0,0,.45)', borderRadius: 999, padding: '3px 10px' }}>Precisa de pelo menos {MIN_PLAYERS} jogadores</div>}
+          </div>
+        )}
+        {!isHost && (
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 14, textAlign: 'center', zIndex: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(6px)', borderRadius: 999, padding: '5px 14px' }}>
+              Aguardando o host começar... ({impostoresQtd || 1} impostor{(impostoresQtd || 1) > 1 ? 'es' : ''})
+            </span>
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar pelo convés enquanto espera.</div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
    SALA — lobby da partida, sorteio de papéis e placeholder do jogo
    ═══════════════════════════════════════════════════════════════════════════ */
 const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
@@ -941,6 +1111,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const morteAnimRef = useRef(null);
   const corpoProximoRef = useRef(null);
   const reportarRef = useRef(null);
+
+  /* ── Barco do lobby (ago/2026): mesma lógica de posição-por-broadcast do
+     mapa principal, só que com coordenadas próprias (dentro da elipse do
+     convés) e só ativo na fase 'lobby'. */
+  const [myBarcoPos, setMyBarcoPos] = useState(() => ({ x: BARCO_ELIPSE.cx, y: BARCO_ELIPSE.cy }));
+  const [barcoPositions, setBarcoPositions] = useState({});
+  const myBarcoPosRef = useRef(myBarcoPos);
+  useEffect(() => { myBarcoPosRef.current = myBarcoPos; }, [myBarcoPos]);
 
   /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
      (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
@@ -1264,6 +1442,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (stateRef.current?.phase !== 'jogando') return;
       ch.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y, moving: isMovingRef.current } });
     });
+    // Posição no BARCO do lobby — mesmo padrão de pos/pos-req acima, só que
+    // só faz sentido enquanto a sala ainda tá esperando (fase 'lobby').
+    ch.on('broadcast', { event: 'barco-pos' }, ({ payload }) => {
+      if (!payload?.name || payload.name === name) return;
+      setBarcoPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y } }));
+    });
+    ch.on('broadcast', { event: 'barco-pos-req' }, ({ payload }) => {
+      if (payload?.name === name) return;
+      const fase = stateRef.current?.phase;
+      if (fase && fase !== 'lobby') return;
+      ch.send({ type: 'broadcast', event: 'barco-pos', payload: { name, x: myBarcoPosRef.current.x, y: myBarcoPosRef.current.y } });
+    });
     ch.subscribe();
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1414,6 +1604,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
     pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null });
   };
+  const escolherImpostores = (n) => {
+    if (!isHost || !state) return;
+    pushState({ ...state, impostoresQtd: n });
+  };
   const marcarPronto = () => {
     if (!state || state.phase !== 'sorteando') return;
     if (state.prontos?.[name]) return;
@@ -1522,30 +1716,41 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 )}
               </div>
             )}
-            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>Jogadores ({players.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                {players.map(p => (
-                  <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
-                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{p.name.split(' ')[0]}{p.name === host && ' 👑'}</span>
-                  </div>
-                ))}
+            {state?.phase === 'over' && (
+              <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 10 }}>Jogadores ({players.length})</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {players.map(p => (
+                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
+                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{p.name.split(' ')[0]}{p.name === host && ' 👑'}</span>
+                    </div>
+                  ))}
+                </div>
+                {players.length < MIN_PLAYERS && (
+                  <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>Precisa de pelo menos {MIN_PLAYERS} jogadores pra sortear os papéis.</div>
+                )}
+                {isHost ? (
+                  <button className="sus-btn" onClick={sortearEComecar} disabled={players.length < MIN_PLAYERS}
+                    style={{ width: '100%', padding: '12px', borderRadius: 11, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
+                      background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, opacity: players.length < MIN_PLAYERS ? .6 : 1,
+                      boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${IMPOSTOR_COR}55` }}>
+                    🔄 Sortear de novo
+                  </button>
+                ) : (
+                  <div style={{ textAlign: 'center', fontSize: 12.5, color: T.textT, padding: '8px 0' }}>Aguardando o host começar...</div>
+                )}
               </div>
-              {players.length < MIN_PLAYERS && (
-                <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>Precisa de pelo menos {MIN_PLAYERS} jogadores pra sortear os papéis.</div>
-              )}
-              {isHost ? (
-                <button className="sus-btn" onClick={sortearEComecar} disabled={players.length < MIN_PLAYERS}
-                  style={{ width: '100%', padding: '12px', borderRadius: 11, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14, cursor: players.length < MIN_PLAYERS ? 'not-allowed' : 'pointer',
-                    background: players.length < MIN_PLAYERS ? T.textD : `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, opacity: players.length < MIN_PLAYERS ? .6 : 1,
-                    boxShadow: players.length < MIN_PLAYERS ? 'none' : `0 6px 18px ${IMPOSTOR_COR}55` }}>
-                  {state?.phase === 'over' ? '🔄 Sortear de novo' : '🎲 Sortear papéis e começar'}
-                </button>
-              ) : (
-                <div style={{ textAlign: 'center', fontSize: 12.5, color: T.textT, padding: '8px 0' }}>Aguardando o host começar...</div>
-              )}
-            </div>
+            )}
+
+            {/* ── Fase 'lobby': todo mundo entra direto no barco, andando
+                livre pelo convés, esperando o host apertar Iniciar Partida. */}
+            {(!state || state.phase === 'lobby') && (
+              <BarcoLobby name={name} players={players} isHost={isHost}
+                impostoresQtd={state?.impostoresQtd || 1} podeIniciar={players.length >= MIN_PLAYERS}
+                onEscolherImpostores={escolherImpostores} onIniciar={sortearEComecar}
+                myPos={myBarcoPos} setMyPos={setMyBarcoPos} positions={barcoPositions} chanRef={chanRef} />
+            )}
 
             <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '14px 18px' }}>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>🗺️ Cômodos da casa</div>
@@ -1765,7 +1970,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             )}
 
             {morteAnim && (
-              <MorteOverlay matadorFoto={players.find(p => p.name === morteAnim.matador)?.photo} vitimaFoto={photo} />
+              <MorteOverlay matador={morteAnim.matador} vitimaFoto={photo} />
             )}
           </div>
         )}
