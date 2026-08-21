@@ -749,7 +749,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
                   return (
                     <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
-                      width: `${(PLAYER_R * 2.6 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
+                      width: `${(PLAYER_R * 1.8 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
                       <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
