@@ -137,6 +137,28 @@ const isWalkable = (x, y) => {
   return WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
 };
 
+/* ── Tarefas (ago/2026) ───────────────────────────────────────────────────
+   Cada tarefa é marcada no editor do Dashboard RH (Dashboard RH → Uniko
+   Suspect → modo "Tarefas": tabela uniko_suspect_map, coluna `tasks`,
+   [{id,label,x,y}]) — o ADMIN escolhe o NOME livre e a POSIÇÃO na hora de
+   marcar. Aqui a gente casa o nome digitado com um MINI-JOGO específico
+   (por normalização do texto: sem acento, minúsculo). Um nome que não bata
+   com nenhum dos conhecidos cai no mini-jogo genérico ("segurar pra
+   concluir") — assim o admin pode marcar tarefas novas no editor sem
+   quebrar nada, só sem mini-jogo dedicado ainda (é só adicionar aqui). */
+const normalizeTxt = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+const TASK_TYPE_BY_LABEL = {
+  'limpar geladeira': 'geladeira',
+  'remendar flaminga': 'flamingo',
+  'coloque os chocolates no bolso': 'chocolates',
+  'lavar louca': 'louca',
+  'consertar energia': 'energia',
+  'concertar energia': 'energia',   // erro de digitação comum ("concertar" em vez de "consertar") — aceita os dois
+  'fazer churrasco': 'churrasco',
+};
+const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'generica';
+const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
+
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
    a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
@@ -188,16 +210,249 @@ const SUS_CSS = `
 @keyframes susReveal { 0% { transform: scale(.4) rotateY(90deg); opacity: 0; } 60% { transform: scale(1.08) rotateY(0deg); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes susWalk  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
+@keyframes susTwinkle { 0%,100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.18); opacity: 1; } }
+@keyframes susEmergPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 6px #DC2626) drop-shadow(0 0 14px #DC262699); }
+  50% { transform: scale(1.22); filter: drop-shadow(0 0 12px #DC2626) drop-shadow(0 0 26px #DC2626cc); } }
 .sus-fade   { animation: susFade .35s ease both; }
 .sus-pop    { animation: susPop .3s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-reveal { animation: susReveal .55s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-float  { animation: susFloat 2.6s ease-in-out infinite; }
 .sus-walk   { animation: susWalk .45s ease-in-out infinite; }
+.sus-twinkle { animation: susTwinkle 1.6s ease-in-out infinite; }
+.sus-emerg  { animation: susEmergPulse 1.1s ease-in-out infinite; }
 .sus-btn { transition: transform .12s, filter .12s; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
-@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg { animation: none !important; } }
 `;
+
+/* ── Estrela (SVG) — marcador de tarefa (azul/verde) e do botão de emergência (vermelho) ── */
+const StarIcon = ({ size = 22, color = '#3B82F6', className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className}
+    style={{ display: 'block', filter: `drop-shadow(0 1px 3px rgba(0,0,0,.55))` }}>
+    <path d="M12 1.5 L15.09 8.76 L23 9.51 L17 14.97 L18.82 22.5 L12 18.4 L5.18 22.5 L7 14.97 L1 9.51 L8.91 8.76 Z"
+      fill={color} stroke="#fff" strokeWidth="1.1" strokeLinejoin="round" />
+  </svg>
+);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MINI-JOGOS DE TAREFA — um por tipo (ver taskTypeFor). Cada um recebe
+   `onComplete` e chama quando o jogador termina; visual simples (emoji +
+   CSS), no mesmo espírito "clique/segurar" combinado com o time (ver
+   decisão de design registrada em memória: tarefas são cliques simples,
+   não mini-jogos complexos — mas cada uma tem uma mecânica própria pra não
+   ficar todas iguais).
+   ═══════════════════════════════════════════════════════════════════════════ */
+const taskBtnCss = { border: 'none', background: 'none', cursor: 'pointer', padding: 0 };
+
+const TaskGeladeira = ({ onComplete }) => {
+  const [restam, setRestam] = useState([0, 1, 2, 3, 4]);
+  const POS = [[18, 22], [55, 18], [82, 30], [30, 62], [68, 68]];
+  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam, onComplete]);
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos 💩 pra tirar da geladeira!</div>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#EAF6FF,#D6ECFB)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
+        {[1, 2].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${i * 33}%`, height: 2, background: 'rgba(0,0,0,.12)' }} />)}
+        {restam.map(i => (
+          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 30 }}
+            onClick={() => setRestam(r => r.filter(x => x !== i))} aria-label="Remover">💩</button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const TaskFlamingo = ({ onComplete }) => {
+  const [remendados, setRemendados] = useState([false, false, false, false]);
+  const POS = [[30, 30], [68, 25], [40, 65], [72, 62]];
+  useEffect(() => { if (remendados.every(Boolean)) onComplete(); }, [remendados, onComplete]);
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos rasgos (❌) pra remendar a boia!</div>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#E6FBFF,#C9F1FB)', border: `2px solid ${T.border}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: 92 }}>🦩</div>
+        {remendados.map((ok, i) => (
+          <button key={i} disabled={ok} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 26, cursor: ok ? 'default' : 'pointer' }}
+            onClick={() => setRemendados(r => r.map((v, j) => j === i ? true : v))}>{ok ? '🩹' : '❌'}</button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const TaskChocolates = ({ onComplete }) => {
+  const [restam, setRestam] = useState([0, 1, 2, 3, 4, 5]);
+  const [bolso, setBolso] = useState(0);
+  const POS = [[15, 25], [38, 20], [61, 25], [84, 20], [27, 55], [73, 55]];
+  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam, onComplete]);
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique nos 🍫 pra guardar no bolso! ({bolso}/6)</div>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#F8F0E3,#EFDFC4)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
+        {restam.map(i => (
+          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)', fontSize: 28 }}
+            onClick={() => { setRestam(r => r.filter(x => x !== i)); setBolso(b => b + 1); }} aria-label="Pegar">🍫</button>
+        ))}
+        <div style={{ position: 'absolute', right: 10, bottom: 8, fontSize: 26 }}>👖</div>
+      </div>
+    </div>
+  );
+};
+
+const TaskLouca = ({ onComplete }) => {
+  const N = 3, ALVO = 4;
+  const [cliques, setCliques] = useState([0, 0, 0]);
+  const done = cliques.every(c => c >= ALVO);
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique bastante em cada peça pra esfregar até brilhar!</div>
+      <div style={{ display: 'flex', gap: 14, justifyContent: 'center', padding: '10px 0' }}>
+        {Array.from({ length: N }).map((_, i) => {
+          const p = Math.min(1, cliques[i] / ALVO);
+          return (
+            <button key={i} disabled={p >= 1} style={{ ...taskBtnCss, cursor: p >= 1 ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+              onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))}>
+              <div style={{ fontSize: 44, filter: `grayscale(${1 - p}) sepia(${(1 - p) * .6})`, transition: 'filter .15s' }}>{i === 2 ? '🥤' : '🍽️'}</div>
+              <div style={{ width: 52, height: 6, borderRadius: 999, background: 'rgba(0,0,0,.12)', overflow: 'hidden' }}>
+                <div style={{ width: `${p * 100}%`, height: '100%', background: p >= 1 ? '#16A34A' : AGUA, transition: 'width .15s' }} />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azul' }, { cor: '#EAB308', nome: 'amarelo' }];
+const TaskEnergia = ({ onComplete }) => {
+  const [direita] = useState(() => [...FIOS].sort(() => Math.random() - 0.5));
+  const [ligados, setLigados] = useState([]);
+  const [selecionado, setSelecionado] = useState(null);
+  const [erro, setErro] = useState(null);
+  useEffect(() => { if (ligados.length === FIOS.length) onComplete(); }, [ligados, onComplete]);
+  const clicarEsquerda = (cor) => { if (!ligados.includes(cor)) setSelecionado(cor); };
+  const clicarDireita = (cor) => {
+    if (!selecionado) return;
+    if (selecionado === cor) { setLigados(l => [...l, cor]); setSelecionado(null); }
+    else { setErro(cor); setTimeout(() => setErro(null), 350); setSelecionado(null); }
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique num fio à esquerda e depois no encaixe da MESMA cor à direita!</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 18px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {FIOS.map(f => (
+            <button key={f.cor} disabled={ligados.includes(f.cor)} style={{ ...taskBtnCss, cursor: ligados.includes(f.cor) ? 'default' : 'pointer',
+              width: 46, height: 22, borderRadius: 999, background: f.cor, opacity: ligados.includes(f.cor) ? .35 : 1,
+              boxShadow: selecionado === f.cor ? `0 0 0 3px ${f.cor}55` : 'none' }} onClick={() => clicarEsquerda(f.cor)} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {direita.map(f => (
+            <button key={f.cor} disabled={ligados.includes(f.cor)} style={{ ...taskBtnCss, cursor: ligados.includes(f.cor) ? 'default' : 'pointer',
+              width: 46, height: 22, borderRadius: 999, border: `3px solid ${erro === f.cor ? '#DC2626' : f.cor}`, background: ligados.includes(f.cor) ? f.cor : 'transparent' }}
+              onClick={() => clicarDireita(f.cor)} />
+          ))}
+        </div>
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 20 }}>{ligados.length === FIOS.length ? '💡' : '🔌'}</div>
+    </div>
+  );
+};
+
+const TaskChurrasco = ({ onComplete }) => {
+  const ALVO_HITS = 3;
+  const [pos, setPos] = useState(0);
+  const [dir, setDir] = useState(1);
+  const [hits, setHits] = useState(0);
+  const [feedback, setFeedback] = useState(null);
+  const posRef = useRef(0);
+  const zona = [42, 62];
+  useEffect(() => {
+    let raf;
+    const vel = 1.1 + hits * 0.35;
+    const tick = () => {
+      posRef.current += vel * dir;
+      if (posRef.current >= 100) { posRef.current = 100; setDir(-1); }
+      if (posRef.current <= 0) { posRef.current = 0; setDir(1); }
+      setPos(posRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [dir, hits]);
+  useEffect(() => { if (hits >= ALVO_HITS) onComplete(); }, [hits, onComplete]);
+  const virar = () => {
+    const noPonto = posRef.current >= zona[0] && posRef.current <= zona[1];
+    if (noPonto) { setHits(h => h + 1); setFeedback('🔥 boa!'); } else { setFeedback('quase...'); }
+    setTimeout(() => setFeedback(null), 500);
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique em "Virar!" quando o 🍖 estiver na faixa verde! ({hits}/{ALVO_HITS})</div>
+      <div style={{ position: 'relative', height: 26, borderRadius: 999, background: 'rgba(0,0,0,.1)', margin: '0 6px 14px' }}>
+        <div style={{ position: 'absolute', left: `${zona[0]}%`, width: `${zona[1] - zona[0]}%`, top: 0, bottom: 0, background: 'rgba(22,163,74,.45)', borderRadius: 999 }} />
+        <div style={{ position: 'absolute', left: `${pos}%`, top: '50%', transform: 'translate(-50%,-50%)', fontSize: 24 }}>🍖</div>
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <button className="sus-btn" onClick={virar} style={{ padding: '9px 22px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+          background: `linear-gradient(135deg, #F97316, #DC2626)`, boxShadow: '0 6px 16px rgba(220,38,38,.35)' }}>🔥 Virar!</button>
+        {feedback && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: feedback.startsWith('🔥') ? '#16A34A' : T.textT }}>{feedback}</div>}
+      </div>
+    </div>
+  );
+};
+
+const TaskGenerica = ({ onComplete }) => {
+  const [p, setP] = useState(0);
+  const holdRef = useRef(null);
+  const start = () => {
+    stop();
+    holdRef.current = setInterval(() => setP(v => {
+      const nv = Math.min(1, v + 0.045);
+      if (nv >= 1) { stop(); setTimeout(onComplete, 150); }
+      return nv;
+    }), 30);
+  };
+  const stop = () => { if (holdRef.current) { clearInterval(holdRef.current); holdRef.current = null; } };
+  useEffect(() => stop, []);
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14 }}>Segure o botão pra concluir a tarefa.</div>
+      <button className="sus-btn" onPointerDown={start} onPointerUp={() => { stop(); setP(0); }} onPointerLeave={() => { stop(); setP(0); }}
+        style={{ width: 96, height: 96, borderRadius: '50%', border: `4px solid ${AGUA}`, background: `conic-gradient(${AGUA} ${p * 360}deg, transparent 0)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none', touchAction: 'none' }}>
+        <div style={{ width: 76, height: 76, borderRadius: '50%', background: T.surface || '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>✋</div>
+      </button>
+    </div>
+  );
+};
+
+const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco, generica: TaskGenerica };
+
+const TaskModal = ({ task, onClose, onComplete }) => {
+  const tipo = taskTypeFor(task.label);
+  const Mini = TASK_MINIGAMES[tipo] || TaskGenerica;
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(4,10,16,.72)', backdropFilter: 'blur(3px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div className="sus-pop" onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 380, borderRadius: 16, background: T.surface || '#fff', border: `1px solid ${T.border}`, boxShadow: '0 24px 70px rgba(0,0,0,.5)', padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <StarIcon size={18} color="#3B82F6" />
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, flex: 1 }}>{task.label}</div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textT, fontSize: 18, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <Mini onComplete={onComplete} />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LOBBY — lista de salas + criar sala
@@ -455,6 +710,54 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   useEffect(() => { loadWallMaskFromDB(); }, []);
 
+  /* ── Tarefas + botão de emergência (ago/2026): posições marcadas no editor
+     do Dashboard RH (tabela uniko_suspect_map). Carrega uma vez ao entrar
+     no mapa — o editor sobe um registro novo, então basta reentrar na sala
+     pra ver mudanças (mesmo padrão simples do wallmask). */
+  const [mapaTarefas, setMapaTarefas] = useState([]);
+  const [mapaEmergencia, setMapaEmergencia] = useState(null);
+  const [emergMsg, setEmergMsg] = useState('');
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const { data } = await supabase.from('uniko_suspect_map').select('tasks, emergency_x, emergency_y').eq('id', 1).maybeSingle();
+        if (!vivo) return;
+        setMapaTarefas(Array.isArray(data?.tasks) ? data.tasks : []);
+        if (data?.emergency_x != null && data?.emergency_y != null) setMapaEmergencia({ x: data.emergency_x, y: data.emergency_y });
+      } catch (e) { console.error('[uniko-suspect] mapa tarefas/emergencia:', e); }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  /* ── Estado de tarefas concluídas: fica dentro do `state` compartilhado da
+     sala (uniko_suspect_state.tasksDone[meuNome] = [taskId,...]) — assim
+     sobrevive a um F5. Cada jogador só escreve a PRÓPRIA chave do mapa, e
+     só ELE vê a própria estrela virar verde (o "dela" do pedido do usuário):
+     tarefas são individuais, cada um faz a sua. */
+  const [tarefaAberta, setTarefaAberta] = useState(null);
+  const tarefaAbertaRef = useRef(null);
+  useEffect(() => { tarefaAbertaRef.current = tarefaAberta; }, [tarefaAberta]);
+  const minhasFeitas = useMemo(() => new Set(state?.tasksDone?.[name] || []), [state?.tasksDone, name]);
+  const tarefaProxima = useMemo(() => {
+    if (state?.phase !== 'jogando') return null;
+    let melhor = null, melhorD = Infinity;
+    for (const t of mapaTarefas) {
+      if (minhasFeitas.has(t.id)) continue;
+      const d = Math.hypot(t.x - myPos.x, t.y - myPos.y);
+      if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
+    }
+    return melhor;
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase]);
+  const tarefaProximaRef = useRef(null);
+  useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
+  const marcarTarefaFeita = (taskId) => {
+    const s = stateRef.current || {};
+    const done = { ...(s.tasksDone || {}) };
+    done[name] = [...new Set([...(done[name] || []), taskId])];
+    pushState({ ...s, tasksDone: done });
+  };
+
   const host = useMemo(() => {
     if (!players.length) return undefined;
     const criador = state?.criador;
@@ -538,9 +841,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
     const onKeyDown = (e) => {
       const k = e.key.toLowerCase();
-      if (!KEY_DIR[k]) return;
       const tag = (document.activeElement?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;   // nunca captura teclado de um campo de texto
+      if (k === 'e') {
+        // Interagir com a tarefa mais próxima (estrela azul dentro do alcance).
+        if (!tarefaAbertaRef.current && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        e.preventDefault();
+        return;
+      }
+      if (k === 'escape' && tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
+      if (!KEY_DIR[k]) return;
+      if (tarefaAbertaRef.current) return;   // com o mini-jogo aberto, WASD não deve mover o boneco por baixo
       pressedRef.current.add(k);
       e.preventDefault();
     };
@@ -552,6 +863,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const step = (ts) => {
       const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
       lastTsRef.current = ts;
+      if (tarefaAbertaRef.current) {
+        // Mini-jogo de tarefa aberto — congela o boneco (some com o bob de andar também).
+        if (isMovingRef.current) { isMovingRef.current = false; setIsMoving(false); }
+        rafRef.current = requestAnimationFrame(step);
+        return;
+      }
       let dx = 0, dy = 0;
       pressedRef.current.forEach(k => { const d = KEY_DIR[k]; if (d) { dx += d[0]; dy += d[1]; } });
       // Animação de "andar" (bob pra cima/baixo): liga/desliga só na TRANSIÇÃO
@@ -728,7 +1045,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
                 {meuPapel === 'impostor' ? 'Você é o Impostor 🔪' : 'Você é Tripulante 🏖️'}
               </div>
-              <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar</div>
+              {mapaTarefas.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
+                  background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.3)', color: '#2563EB' }}>
+                  <StarIcon size={13} color="#2563EB" /> {minhasFeitas.size}/{mapaTarefas.length} tarefas
+                </div>
+              )}
+              <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar · <b>E</b> pra interagir</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="sus-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
@@ -765,6 +1088,32 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 transform: `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)` }}>
                 <img src={MAPA_IMG} alt="" draggable={false}
                   style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill', userSelect: 'none', pointerEvents: 'none' }} />
+
+                {/* Tarefas — estrela azul (pendente) ou verde (já feita POR MIM — cada
+                    jogador só vê a própria estrela mudar, ver marcarTarefaFeita). Clicar
+                    também abre (equivalente à tecla E), sem exigir estar perto. */}
+                {mapaTarefas.map(t => {
+                  const feita = minhasFeitas.has(t.id);
+                  return (
+                    <button key={t.id} onClick={() => setTarefaAberta(t)}
+                      style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
+                      <StarIcon size={22} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
+                    </button>
+                  );
+                })}
+
+                {/* Botão de emergência — brilho vermelho pulsante, sempre visível. */}
+                {mapaEmergencia && (
+                  <button onClick={() => { setEmergMsg('🚧 Reunião de emergência ainda não foi implementada.'); setTimeout(() => setEmergMsg(''), 3000); }}
+                    style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
+                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <StarIcon size={30} color="#DC2626" className="sus-emerg" />
+                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: 'rgba(220,38,38,.85)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                      Estrela de Emergência
+                    </span>
+                  </button>
+                )}
 
                 {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
                 {players.map(p => {
@@ -804,9 +1153,26 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </div>
             </div>
 
+            {tarefaProxima && !tarefaAberta && (
+              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
+                background: 'rgba(37,99,235,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                Pressione <b>E</b> — {tarefaProxima.label}
+              </div>
+            )}
+            {emergMsg && (
+              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
+                background: 'rgba(220,38,38,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                {emergMsg}
+              </div>
+            )}
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              🚧 Tarefas, matar, reuniões e votação chegam nas próximas fases — por enquanto é só andar pela casa.
+              🚧 Matar, sabotagem, reuniões e votação chegam nas próximas fases — por enquanto é andar pela casa e fazer as tarefas.
             </div>
+
+            {tarefaAberta && (
+              <TaskModal task={tarefaAberta} onClose={() => setTarefaAberta(null)}
+                onComplete={() => { marcarTarefaFeita(tarefaAberta.id); setTarefaAberta(null); }} />
+            )}
           </div>
         )}
       </div>
