@@ -1429,6 +1429,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <span style={{ color: ENERGIA, display: 'flex' }}>{IcoFit}</span>
           <span style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
           <div style={{ flex: 1 }} />
+          <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>
 

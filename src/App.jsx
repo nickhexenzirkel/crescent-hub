@@ -505,7 +505,10 @@ export default function CrescentHub() {
             <style>{`@keyframes inviteIn{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}`}</style>
             <div style={{height:5,background:'linear-gradient(90deg,#FF6B35,#F43F5E)'}}/>
             <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:11}}>
-              <img src={chatToast.photo||'/UNIKO_NEW.png'} alt="" style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',background:'#eee',border:'2px solid #FF6B35',flexShrink:0}}/>
+              <div style={{position:'relative',flexShrink:0}}>
+                <img src={chatToast.photo||'/UNIKO_NEW.png'} alt="" style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',background:'#eee',border:'2px solid #FF6B35'}}/>
+                <img src="/uniko-fit-icon.png" alt="" style={{position:'absolute',bottom:-3,right:-3,width:18,height:18,borderRadius:'50%',objectFit:'cover',border:'2px solid #fff',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
+              </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#FF6B35',letterSpacing:'.02em',marginBottom:2}}>Bate-Papo · Uniko FIT</div>
                 <div style={{fontSize:13,color:'#1a1320',lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
