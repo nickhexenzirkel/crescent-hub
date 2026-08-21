@@ -4176,7 +4176,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               <button onClick={() => setNowPlayingOpen(false)} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>Tocando Agora</span>
+              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>Uniko Music</span>
               <div style={{ width:38 }} />
             </div>
 
