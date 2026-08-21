@@ -181,6 +181,14 @@ const KILL_COOLDOWN_MS = 25000;   // tempo de recarga entre mortes, por impostor
 const MORTE_ANIM_MS = 3200;       // duração da animação de morte na tela da vítima
 const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o botão de Reportar
 
+/* ── Sabotagem de energia (ago/2026) — só o Impostor, sem precisar estar
+   perto de nada (a sabotagem é da casa inteira). Enquanto ativa: ninguém
+   faz tarefa (nem o próprio Impostor, que já não tinha mesmo) e os
+   Tripulantes ficam praticamente no escuro. Conserta sozinha depois de um
+   tempo se ninguém for lá resolver, pra não travar a partida pra sempre. */
+const SABOTAGEM_COOLDOWN_MS = 40000;
+const SABOTAGEM_AUTO_FIX_MS = 60000;
+
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
    a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
@@ -192,7 +200,7 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
    como fração do "farthest-corner", então ficam circulares mesmo num mapa
    retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
    papel no Among Us. */
-const LUZ_RAIO = { tripulante: 10, impostor: 16, fantasma: 60 };   // fantasma enxerga praticamente tudo
+const LUZ_RAIO = { tripulante: 10, impostor: 16, fantasma: 60, sabotagem: 4 };   // fantasma enxerga praticamente tudo; sabotagem quase apaga a luz do tripulante
 const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}% ${yPct}%,
   transparent 0%, transparent ${raio}%,
   rgba(4,8,16,.32) ${raio + 10}%,
@@ -453,6 +461,12 @@ const TaskLouca = ({ onComplete }) => {
 
 const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azul' }, { cor: '#EAB308', nome: 'amarelo' },
   { cor: '#16A34A', nome: 'verde' }, { cor: '#A855F7', nome: 'roxo' }];
+// Redesenhada (ago/2026, pedido do usuário: "difícil de entender") — antes
+// eram só duas colunas de barrinhas coloridas, sem indicar visualmente o que
+// era fio/encaixe. Agora: bolinha = ponta do fio, anel oco = encaixe vazio
+// (preenche quando conecta), e uma LINHA DE VERDADE desenhada em SVG liga os
+// dois lados quando acerta — o metáfora de "puxar o fio até o encaixe certo"
+// fica bem mais óbvia.
 const TaskEnergia = ({ onComplete }) => {
   const [direita] = useState(() => [...FIOS].sort(() => Math.random() - 0.5));
   const [ligados, setLigados] = useState([]);
@@ -465,26 +479,51 @@ const TaskEnergia = ({ onComplete }) => {
     if (selecionado === cor) { setLigados(l => [...l, cor]); setSelecionado(null); }
     else { setErro(cor); setTimeout(() => setErro(null), 350); setSelecionado(null); }
   };
+  const N = FIOS.length;
+  const ROW_H = 44, W = 320;
+  const H = ROW_H * N;
+  const rowY = (i) => (i + 0.5) * ROW_H;
+
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique num fio à esquerda e depois no encaixe da MESMA cor à direita!</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 18px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {FIOS.map(f => (
-            <button key={f.cor} disabled={ligados.includes(f.cor)} style={{ ...taskBtnCss, cursor: ligados.includes(f.cor) ? 'default' : 'pointer',
-              width: 46, height: 22, borderRadius: 999, background: f.cor, opacity: ligados.includes(f.cor) ? .35 : 1,
-              boxShadow: selecionado === f.cor ? `0 0 0 3px ${f.cor}55` : 'none' }} onClick={() => clicarEsquerda(f.cor)} />
-          ))}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {direita.map(f => (
-            <button key={f.cor} disabled={ligados.includes(f.cor)} style={{ ...taskBtnCss, cursor: ligados.includes(f.cor) ? 'default' : 'pointer',
-              width: 46, height: 22, borderRadius: 999, border: `3px solid ${erro === f.cor ? '#DC2626' : f.cor}`, background: ligados.includes(f.cor) ? f.cor : 'transparent' }}
-              onClick={() => clicarDireita(f.cor)} />
-          ))}
-        </div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
+        Clique numa <b>bolinha</b> à esquerda e depois no <b>encaixe</b> da MESMA cor à direita, pra puxar o fio até lá!
       </div>
-      <div style={{ textAlign: 'center', fontSize: 20 }}>{ligados.length === FIOS.length ? '💡' : '🔌'}</div>
+      <div style={{ position: 'relative', height: H, width: '100%', maxWidth: W, margin: '0 auto' }}>
+        <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+          {ligados.map(cor => {
+            const i = FIOS.findIndex(f => f.cor === cor);
+            const j = direita.findIndex(f => f.cor === cor);
+            return <line key={cor} x1={26} y1={rowY(i)} x2={W - 26} y2={rowY(j)} stroke={cor} strokeWidth={5} strokeLinecap="round" />;
+          })}
+        </svg>
+        {FIOS.map((f, i) => {
+          const feito = ligados.includes(f.cor);
+          return (
+            <button key={f.cor} disabled={feito} onClick={() => clicarEsquerda(f.cor)} title={f.nome}
+              style={{ ...taskBtnCss, position: 'absolute', left: 0, top: rowY(i) - 15, width: 30, height: 30,
+                cursor: feito ? 'default' : 'pointer' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: f.cor, border: '3px solid #fff',
+                boxShadow: selecionado === f.cor ? `0 0 0 4px ${f.cor}55, 0 0 12px ${f.cor}` : '0 2px 5px rgba(0,0,0,.35)',
+                opacity: feito ? .4 : 1, transition: 'box-shadow .15s' }} />
+            </button>
+          );
+        })}
+        {direita.map((f, j) => {
+          const feito = ligados.includes(f.cor);
+          return (
+            <button key={f.cor} disabled={feito} onClick={() => clicarDireita(f.cor)} title={f.nome}
+              style={{ ...taskBtnCss, position: 'absolute', right: 0, top: rowY(j) - 15, width: 30, height: 30,
+                cursor: feito ? 'default' : 'pointer' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: feito ? f.cor : T.surface || '#fff',
+                border: `3px solid ${erro === f.cor ? '#DC2626' : f.cor}`, boxSizing: 'border-box' }} />
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: T.textT, marginTop: 8 }}>
+        {ligados.length === FIOS.length ? '💡 Energia religada!' : `🔌 ${ligados.length}/${FIOS.length} fios ligados`}
+      </div>
     </div>
   );
 };
@@ -558,6 +597,34 @@ const TaskGenerica = ({ onComplete }) => {
 };
 
 const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco, generica: TaskGenerica };
+
+/* ── Botão de "segurar pra consertar" a sabotagem de energia (ago/2026) —
+   mesmo mecanismo de segurar do TaskGenerica, só que fora do TaskModal
+   (fica solto no HUD, qualquer Tripulante/fantasma pode usar a qualquer
+   momento enquanto a sabotagem estiver ativa). */
+const ConsertarEnergiaBotao = ({ onConsertar }) => {
+  const [p, setP] = useState(0);
+  const holdRef = useRef(null);
+  const start = () => {
+    stop();
+    holdRef.current = setInterval(() => setP(v => {
+      const nv = Math.min(1, v + 0.013);
+      if (nv >= 1) { stop(); setTimeout(onConsertar, 100); }
+      return nv;
+    }), 30);
+  };
+  const stop = () => { if (holdRef.current) { clearInterval(holdRef.current); holdRef.current = null; } };
+  useEffect(() => stop, []);
+  return (
+    <button className="sus-btn sus-pop" onPointerDown={start} onPointerUp={() => { stop(); setP(0); }} onPointerLeave={() => { stop(); setP(0); }}
+      title="Segure pra consertar a energia"
+      style={{ width: 96, height: 96, borderRadius: '50%', border: '4px solid #FBBF24', background: `conic-gradient(#FBBF24 ${p * 360}deg, rgba(0,0,0,.55) 0)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none', touchAction: 'none',
+        boxShadow: '0 8px 20px rgba(0,0,0,.5)' }}>
+      <div style={{ width: 76, height: 76, borderRadius: '50%', background: '#1a1320', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🔧</div>
+    </button>
+  );
+};
 
 /* ═══════════════════════════════════════════════════════════════════════════
    REUNIÃO DE EMERGÊNCIA (ago/2026) — chat de 60s seguido de votação de 60s
@@ -1118,6 +1185,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const lightRef = useRef(null);
   const meuPapelRef = useRef(null);
   const souFantasmaRef = useRef(false);
+  const sabotagemAtivaRef = useRef(false);
   const vitimaProximaRef = useRef(null);
   const matarRef = useRef(null);
   const morteAnimRef = useRef(null);
@@ -1191,6 +1259,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // Fantasma "só faz tarefa" — continua interagindo com elas mesmo com
     // reunião rolando (os vivos ficam congelados na reunião, ele não).
     if (state?.papeis?.[name] === 'impostor') return null;
+    if (state?.sabotagem) return null;   // energia sabotada — ninguém faz tarefa até consertar
     if (state?.phase !== 'jogando' || (state?.reuniao && !state?.fantasmas?.includes(name))) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
@@ -1199,7 +1268,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, name]);
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
   const marcarTarefaFeita = (taskId) => {
@@ -1285,6 +1354,23 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     pushState({ ...s, corpos, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
   };
   useEffect(() => { reportarRef.current = reportar; });
+
+  /* ── Sabotagem de energia (ago/2026) — só o Impostor, de qualquer lugar
+     do mapa (não precisa estar perto de nada). Enquanto ativa, ninguém faz
+     tarefa e os Tripulantes ficam praticamente no escuro (ver LUZ_RAIO). */
+  const sabotarEnergia = () => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return;
+    if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
+    if (s.sabotagem) return;   // já tem uma rolando
+    if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return;
+    pushState({ ...s, sabotagem: { iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } });
+  };
+  const consertarEnergia = () => {
+    const s = stateRef.current;
+    if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return;   // o Impostor não conserta a própria sabotagem
+    pushState({ ...s, sabotagem: null });
+  };
 
   /* ── Reunião de emergência (ago/2026): ver comentário no componente
      ReuniaoEmergencia. `reuniaoAtivaRef` congela o movimento (mesmo mecanismo
@@ -1397,6 +1483,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const iv = setInterval(tick, 500);
     return () => clearInterval(iv);
   }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState]);
+
+  // HOST conserta a sabotagem de energia sozinho depois de um tempo, se
+  // ninguém foi lá resolver — evita travar a partida pra sempre no escuro.
+  useEffect(() => {
+    if (!isHost || !state?.sabotagem?.iniciadaEm) return;
+    const t = setTimeout(() => {
+      const s = stateRef.current;
+      if (s?.sabotagem) pushState({ ...s, sabotagem: null });
+    }, SABOTAGEM_AUTO_FIX_MS);
+    return () => clearTimeout(t);
+  }, [isHost, state?.sabotagem?.iniciadaEm, pushState]);
 
   /* HOST fecha a partida quando uma MORTE (não expulsão — essa já tem seu
      próprio fluxo de 8s dentro da reunião) decide o jogo: dá um tempinho
@@ -1537,7 +1634,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (worldRef.current) worldRef.current.style.transform = `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)`;
       if (myMarkerRef.current) { myMarkerRef.current.style.left = `${nx / MAP_W * 100}%`; myMarkerRef.current.style.top = `${ny / MAP_H * 100}%`; }
       if (lightRef.current) {
-        const raio = souFantasmaRef.current ? LUZ_RAIO.fantasma : LUZ_RAIO[meuPapelRef.current === 'impostor' ? 'impostor' : 'tripulante'];
+        const raio = souFantasmaRef.current ? LUZ_RAIO.fantasma
+          : meuPapelRef.current === 'impostor' ? LUZ_RAIO.impostor
+          : sabotagemAtivaRef.current ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante;
         lightRef.current.style.background = lightGradientBg(nx / MAP_W * 100, ny / MAP_H * 100, raio);
       }
     };
@@ -1616,7 +1715,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null });
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
   };
   const escolherImpostores = (n) => {
     if (!isHost || !state) return;
@@ -1636,6 +1735,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // faz tarefa, e só ELE enxerga todo mundo (vivos continuam sem ver fantasmas).
   const souFantasma = !!state?.fantasmas?.includes(name);
   useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
+  useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
   const jaPronto = !!state?.prontos?.[name];
   const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
 
@@ -1870,12 +1970,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     Impostor não vê nenhuma — ele não tem tarefa de verdade. */}
                 {meuPapel !== 'impostor' && mapaTarefas.map(t => {
                   const feita = minhasFeitas.has(t.id);
+                  const travada = !feita && !!state?.sabotagem;
                   return (
-                    <button key={t.id} onClick={() => setTarefaAberta(t)}
+                    <button key={t.id} onClick={() => { if (!travada) setTarefaAberta(t); }}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
-                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
-                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label} className={feita ? undefined : 'sus-twinkle'}
-                        style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: travada ? 'not-allowed' : 'pointer' }}
+                      title={travada ? `${t.label} (energia sabotada!)` : t.label}>
+                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label} className={feita || travada ? undefined : 'sus-twinkle'}
+                        style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', opacity: travada ? .4 : 1,
+                          filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                     </button>
                   );
                 })}
@@ -1937,8 +2040,30 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
                     verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
-                  background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100, souFantasma ? LUZ_RAIO.fantasma : LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']) }} />
+                  background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100,
+                    souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (state?.sabotagem ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
               </div>
+
+              {/* Sabotar energia (Impostor) / Consertar energia (todo o resto) — canto
+                  inferior ESQUERDO (o direito já é do Matar/Reportar), zIndex 6. */}
+              {meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem && (
+                <div style={{ position: 'absolute', left: '3%', bottom: '3%', zIndex: 6 }}>
+                  <button className="sus-btn" onClick={sabotarEnergia}
+                    disabled={agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS}
+                    title="Sabotar energia"
+                    style={{ padding: '12px 20px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14,
+                      cursor: agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS ? 'not-allowed' : 'pointer',
+                      background: agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS ? 'rgba(0,0,0,.4)' : `linear-gradient(135deg, #F59E0B, #DC2626)`,
+                      boxShadow: '0 8px 20px rgba(0,0,0,.5)' }}>
+                    ⚡ Sabotar Energia
+                  </button>
+                </div>
+              )}
+              {meuPapel !== 'impostor' && !!state?.sabotagem && (
+                <div style={{ position: 'absolute', left: '3%', bottom: '3%', zIndex: 6 }}>
+                  <ConsertarEnergiaBotao onConsertar={consertarEnergia} />
+                </div>
+              )}
 
               {/* Matar/Reportar — botões GRANDES fixos no canto inferior direito da
                   tela do jogo (pedido do usuário), acima da luz/mapa (zIndex 6). */}
@@ -1960,6 +2085,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               )}
             </div>
 
+            {!!state?.sabotagem && (
+              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff',
+                background: 'rgba(217,119,6,.92)', borderRadius: 999, padding: '8px 18px', margin: '0 auto', width: 'fit-content' }}>
+                ⚡ Energia sabotada! {meuPapel === 'impostor' ? 'Ninguém consegue fazer tarefa até alguém consertar.' : 'Segure o 🔧 no canto pra consertar antes que fique escuro demais!'}
+              </div>
+            )}
             {tarefaProxima && !tarefaAberta && (
               <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
                 background: 'rgba(37,99,235,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
