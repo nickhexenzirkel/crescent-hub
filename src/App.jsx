@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
-import { SERVER_URL, supabase as _supabase, loadUserPhoto } from './contexts/user';
+import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName } from './contexts/user';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
@@ -151,6 +151,9 @@ export default function CrescentHub() {
   const [atualAtiva, setAtualAtiva] = useState(null);   // atualização em tela cheia
   const seenAtualIds  = useRef(new Set());
   const [gameInvite, setGameInvite] = useState(null);   // convite de jogo (popup)
+  const [chatToast, setChatToast] = useState(null);     // mensagem nova do Bate-Papo do Uniko FIT (popup)
+  const screenRef = useRef(screen);
+  useEffect(() => { screenRef.current = screen; }, [screen]);
 
   const withCtx = (fn) => {
     try {
@@ -305,6 +308,37 @@ export default function CrescentHub() {
     });
     return off;
   }, [authUser]);
+
+  // ── Mensagem nova no Bate-Papo do Uniko FIT — popup + som + desktop ──
+  // Mesmo padrão do convite de jogo, mas pra mensagem de texto do chat.
+  // Não avisa a própria mensagem, nem enquanto a pessoa já está DENTRO do
+  // Uniko FIT (ela já vê ao vivo lá, o popup só atrapalharia).
+  useEffect(() => {
+    if (!authUser?.name) return;
+    const ch = _supabase.channel('uniko-fit-chat-toast')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_chat' }, async ({ new: row }) => {
+        if (row.player === authUser.name || row.tipo !== 'texto' || !row.texto?.trim()) return;
+        if (screenRef.current === 'uniko-fit') return;
+        let photo = null;
+        try { photo = await fetchPhotoByName(row.player); } catch {}
+        setChatToast({ id: row.id, player: row.player, texto: row.texto, photo });
+        playReminder();
+        notifyDesktop({ id: 'chat-' + row.id, type: 'lembrete', title: `💬 Bate-Papo · Uniko FIT`,
+          message: `${row.player.split(' ')[0]}: ${row.texto}`, active: true });
+      })
+      .subscribe();
+    return () => _supabase.removeChannel(ch);
+  }, [authUser]);
+
+  // Some sozinho depois de um tempo — diferente do convite de jogo (raro,
+  // fica esperando decisão), mensagem de chat pode ser frequente, não dá
+  // pra exigir fechar cada uma manualmente.
+  useEffect(() => {
+    if (!chatToast) return;
+    const t = setTimeout(() => setChatToast(null), 7000);
+    return () => clearTimeout(t);
+  }, [chatToast]);
+  const abrirChatDoToast = () => { setChatToast(null); navPush('uniko-fit'); };
 
   // ── Verificador de horário: dispara lembretes agendados ──
   useEffect(() => {
@@ -461,6 +495,27 @@ export default function CrescentHub() {
                 <button onClick={()=>setGameInvite(null)} style={{flex:1,padding:'9px',borderRadius:10,border:'1px solid #ddd',background:'transparent',color:'#666',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)'}}>Agora não</button>
                 <button onClick={()=>aceitarConvite(gameInvite)} style={{flex:2,padding:'9px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#7C3AED,#C026D3)',color:'#fff',fontSize:12.5,fontWeight:800,cursor:'pointer',fontFamily:'var(--font-body)'}}>Entrar 🚀</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Mensagem nova do Bate-Papo (Uniko FIT) — card no canto superior direito ── */}
+        {authUser && chatToast && (
+          <div onClick={abrirChatDoToast} role="button"
+            style={{position:'fixed',top:20,right:20,zIndex:9998,width:320,maxWidth:'92vw',background:'#fff',borderRadius:16,cursor:'pointer',
+              boxShadow:'0 16px 50px rgba(0,0,0,0.35)',border:'1px solid rgba(255,107,53,0.25)',overflow:'hidden',animation:'inviteIn .3s ease',fontFamily:'var(--font-body)'}}>
+            <style>{`@keyframes inviteIn{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}`}</style>
+            <div style={{height:5,background:'linear-gradient(90deg,#FF6B35,#F43F5E)'}}/>
+            <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:11}}>
+              <img src={chatToast.photo||'/UNIKO_NEW.png'} alt="" style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',background:'#eee',border:'2px solid #FF6B35',flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#FF6B35',letterSpacing:'.02em',marginBottom:2}}>Bate-Papo · Uniko FIT</div>
+                <div style={{fontSize:13,color:'#1a1320',lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
+                  <b>{chatToast.player.split(' ')[0]}:</b> {chatToast.texto}
+                </div>
+              </div>
+              <button onClick={e => { e.stopPropagation(); setChatToast(null); }} aria-label="Fechar"
+                style={{border:'none',background:'none',cursor:'pointer',color:'#999',fontSize:16,lineHeight:1,padding:4,flexShrink:0}}>✕</button>
             </div>
           </div>
         )}
