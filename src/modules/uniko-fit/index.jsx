@@ -25,17 +25,16 @@ const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colabor
 // do arquivo). `emoji` continua existindo em REACOES: é o valor GRAVADO no
 // banco (coluna uniko_fit_reactions.emoji) — só a exibição virou ícone.
 const IcoDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="5" y="7" width="2.5" height="10" rx="1"/><rect x="16.5" y="7" width="2.5" height="10" rx="1"/><line x1="7.5" y1="12" x2="16.5" y2="12"/></svg>;
-const IcoFlame = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c1.2 2.6-2.4 4.2-2.4 7.8a2.4 2.4 0 004.8 0c0-.9-.4-1.6-.8-2 .4 1.6 1.6 2 1.6 3.6a5.6 5.6 0 01-11.2 0c0-3.6 2.8-5.4 2.8-8.2 0-1.3-.4-2.1-.8-3C7.8.8 10.6 1.4 12 2z"/></svg>;
-const IcoHighFive = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 13V6a1.5 1.5 0 013 0v5"/><path d="M11 11V4a1.5 1.5 0 013 0v7"/><path d="M14 11.5V6a1.5 1.5 0 013 0v8"/><path d="M17 12.5v-2a1.5 1.5 0 013 0v6c0 3.3-2.5 5.8-5.8 5.8h-1.7c-1.9 0-2.9-.5-4.2-1.9L5 16.8c-.7-.7-.6-1.9.2-2.5.7-.5 1.6-.4 2.2.2L9 16"/></svg>;
 const IcoCheckCircle = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 10.8 15.3 16 9.5"/></svg>;
 const IcoComment = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
 
-// Reações: 3 emoji + o próprio Uniko "aprovando" (toque de marca).
+// Curtir = reagir com o símbolo de músculo — só essa opção (a pedido; antes
+// tinha 4: força/fogo/palmas/uniko). `REACOES[0]` continua sendo usado pelo
+// duplo-toque de curtir na foto (ver `handlePostTap`), e `emoji` continua o
+// valor gravado no banco (uniko_fit_reactions.emoji) — reações antigas com
+// outro emoji ficam só fora da contagem por tipo, não travam nada.
 const REACOES = [
-  { id: 'forca',  emoji: '💪', svg: IcoDumbbell,  label: 'Força!' },
-  { id: 'fogo',   emoji: '🔥', svg: IcoFlame,     label: 'Treino insano' },
-  { id: 'palmas', emoji: '👏', svg: IcoHighFive,  label: 'Aplausos' },
-  { id: 'uniko',  img: '/UNIKO_NEW.png', label: 'Uniko aprova' },
+  { id: 'forca', emoji: '💪', svg: IcoDumbbell, label: 'Curtir' },
 ];
 
 const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','👍','👎','❤️','🙌','😅','🤔','😴','🥳','🏋️','🏃','🍎','💧','⏰','✅','⭐','🤝','😎','🥵','🎯'];
@@ -1385,7 +1384,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           {posesPorId[post.desafio_pose_id].texto}
                         </div>
                       )}
-                      {post.caption && <div style={{ fontSize: 12.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
+                      {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                     </div>
 
                     <div style={{ position: 'absolute', right: 8, bottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
