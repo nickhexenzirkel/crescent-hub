@@ -615,34 +615,6 @@ const TaskGenerica = ({ onComplete }) => {
 
 const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco, generica: TaskGenerica };
 
-/* ── Botão de "segurar pra consertar" a sabotagem de energia (ago/2026) —
-   mesmo mecanismo de segurar do TaskGenerica, só que fora do TaskModal
-   (fica solto no HUD, qualquer Tripulante/fantasma pode usar a qualquer
-   momento enquanto a sabotagem estiver ativa). */
-const ConsertarEnergiaBotao = ({ onConsertar }) => {
-  const [p, setP] = useState(0);
-  const holdRef = useRef(null);
-  const start = () => {
-    stop();
-    holdRef.current = setInterval(() => setP(v => {
-      const nv = Math.min(1, v + 0.013);
-      if (nv >= 1) { stop(); setTimeout(onConsertar, 100); }
-      return nv;
-    }), 30);
-  };
-  const stop = () => { if (holdRef.current) { clearInterval(holdRef.current); holdRef.current = null; } };
-  useEffect(() => stop, []);
-  return (
-    <button className="sus-btn sus-pop" onPointerDown={start} onPointerUp={() => { stop(); setP(0); }} onPointerLeave={() => { stop(); setP(0); }}
-      title="Segure pra consertar a energia"
-      style={{ width: 96, height: 96, borderRadius: '50%', border: '4px solid #FBBF24', background: `conic-gradient(#FBBF24 ${p * 360}deg, rgba(0,0,0,.55) 0)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', userSelect: 'none', touchAction: 'none',
-        boxShadow: '0 8px 20px rgba(0,0,0,.5)' }}>
-      <div style={{ width: 76, height: 76, borderRadius: '50%', background: '#1a1320', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🔧</div>
-    </button>
-  );
-};
-
 /* ═══════════════════════════════════════════════════════════════════════════
    REUNIÃO DE EMERGÊNCIA (ago/2026) — chat de 60s seguido de votação de 60s
    pra expulsar/acusar alguém de impostor. Fica do lado de fora do módulo de
@@ -1275,24 +1247,34 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // Impostor não tem tarefa de verdade (só os Tripulantes/fantasmas fazem).
     // Fantasma "só faz tarefa" — continua interagindo com elas mesmo com
     // reunião rolando (os vivos ficam congelados na reunião, ele não).
-    if (state?.papeis?.[name] === 'impostor') return null;
-    if (state?.sabotagem) return null;   // energia sabotada — ninguém faz tarefa até consertar
+    if (state?.papeis?.[name] === 'impostor' || state?.vencedor) return null;
     if (state?.phase !== 'jogando' || (state?.reuniao && !state?.fantasmas?.includes(name))) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
-      if (minhasFeitas.has(t.id)) continue;
+      if (state?.sabotagem) {
+        // Sabotagem ativa: SÓ a tarefa de consertar energia libera (ver
+        // TaskEnergia/consertarEnergia) — e some assim que EU já consertei
+        // nessa sabotagem, mesmo que outros ainda não tenham terminado.
+        if (taskTypeFor(t.label) !== 'energia' || state?.sabotagem?.consertadoPor?.includes(name)) continue;
+      } else if (minhasFeitas.has(t.id)) continue;
       const d = Math.hypot(t.x - myPos.x, t.y - myPos.y);
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, name]);
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, state?.vencedor, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
   const marcarTarefaFeita = (taskId) => {
     const s = stateRef.current || {};
     const done = { ...(s.tasksDone || {}) };
     done[name] = [...new Set([...(done[name] || []), taskId])];
-    pushState({ ...s, tasksDone: done });
+    // Vitória por tarefas: quando TODOS os Tripulantes (vivos ou fantasma —
+    // fantasma continua fazendo tarefa) já concluíram TODAS as tarefas.
+    const todosIds = mapaTarefas.map(t => t.id);
+    const tripulantes = Object.keys(s.papeis || {}).filter(n => s.papeis[n] === 'tripulante');
+    const todasFeitas = todosIds.length > 0 && tripulantes.length > 0
+      && tripulantes.every(n => todosIds.every(id => (done[n] || []).includes(id)));
+    pushState({ ...s, tasksDone: done, vencedor: todasFeitas ? 'tripulante' : s.vencedor });
   };
 
   /* ── Matar (ago/2026) — só o Impostor, perto de alguém vivo, com recarga.
@@ -1383,10 +1365,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return;
     pushState({ ...s, sabotagem: { iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } });
   };
+  // Consertar energia (ago/2026, redesenhado): não é mais "segurar um botão
+  // em qualquer lugar" — TODO TRIPULANTE VIVO precisa refazer a tarefa de
+  // consertar energia (a mesma placa "Consertar energia" do mapa, mesmo
+  // durante a sabotagem ela fica liberada — ver tarefaProxima/render). Cada
+  // um que termina entra em `sabotagem.consertadoPor`; quando cobre todo
+  // mundo, a luz volta ao normal.
   const consertarEnergia = () => {
     const s = stateRef.current;
     if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return;   // o Impostor não conserta a própria sabotagem
-    pushState({ ...s, sabotagem: null });
+    const consertadoPor = [...new Set([...(s.sabotagem.consertadoPor || []), name])];
+    const tripulantesVivos = Object.keys(s.papeis || {}).filter(n => s.papeis[n] === 'tripulante' && !(s.fantasmas || []).includes(n));
+    const completo = tripulantesVivos.length > 0 && tripulantesVivos.every(n => consertadoPor.includes(n));
+    pushState({ ...s, sabotagem: completo ? null : { ...s.sabotagem, consertadoPor } });
   };
 
   /* ── Reunião de emergência (ago/2026): ver comentário no componente
@@ -1753,6 +1744,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const souFantasma = !!state?.fantasmas?.includes(name);
   useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
   useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
+  const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
+  const mostrarSabotar = meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem;
   const jaPronto = !!state?.prontos?.[name];
   const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
 
@@ -1986,14 +1979,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     também abre (equivalente à tecla E), sem exigir estar perto.
                     Impostor não vê nenhuma — ele não tem tarefa de verdade. */}
                 {meuPapel !== 'impostor' && mapaTarefas.map(t => {
-                  const feita = minhasFeitas.has(t.id);
-                  const travada = !feita && !!state?.sabotagem;
+                  // Sabotagem ativa: SÓ a placa de energia libera (pra todo
+                  // mundo consertar de novo), o resto fica travado até acabar.
+                  const consertandoSabotagem = !!state?.sabotagem && taskTypeFor(t.label) === 'energia';
+                  const feita = consertandoSabotagem ? !!state?.sabotagem?.consertadoPor?.includes(name) : minhasFeitas.has(t.id);
+                  const travada = !feita && !!state?.sabotagem && !consertandoSabotagem;
                   return (
                     <button key={t.id} onClick={() => { if (!travada) setTarefaAberta(t); }}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: travada ? 'not-allowed' : 'pointer' }}
-                      title={travada ? `${t.label} (energia sabotada!)` : t.label}>
-                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label} className={feita || travada ? undefined : 'sus-twinkle'}
+                      title={travada ? `${t.label} (energia sabotada!)` : consertandoSabotagem ? `${t.label} — conserte a energia!` : t.label}>
+                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
+                        className={feita || travada ? undefined : 'sus-twinkle'}
                         style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', opacity: travada ? .4 : 1,
                           filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                     </button>
@@ -2061,31 +2058,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (state?.sabotagem ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
               </div>
 
-              {/* Sabotar energia (Impostor) / Consertar energia (todo o resto) — canto
-                  inferior ESQUERDO (o direito já é do Matar/Reportar), zIndex 6. */}
-              {meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem && (
-                <div style={{ position: 'absolute', left: '3%', bottom: '3%', zIndex: 6 }}>
-                  <button className="sus-btn" onClick={sabotarEnergia}
-                    disabled={agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS}
-                    title="Sabotar energia"
-                    style={{ padding: '12px 20px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14,
-                      cursor: agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS ? 'not-allowed' : 'pointer',
-                      background: agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS ? 'rgba(0,0,0,.4)' : `linear-gradient(135deg, #F59E0B, #DC2626)`,
-                      boxShadow: '0 8px 20px rgba(0,0,0,.5)' }}>
-                    ⚡ Sabotar Energia
-                  </button>
-                </div>
-              )}
-              {meuPapel !== 'impostor' && !!state?.sabotagem && (
-                <div style={{ position: 'absolute', left: '3%', bottom: '3%', zIndex: 6 }}>
-                  <ConsertarEnergiaBotao onConsertar={consertarEnergia} />
-                </div>
-              )}
-
-              {/* Matar/Reportar — botões GRANDES fixos no canto inferior direito da
-                  tela do jogo (pedido do usuário), acima da luz/mapa (zIndex 6). */}
-              {(vitimaProxima || corpoProximo) && (
+              {/* Sabotar (redondo) / Matar/Reportar — todos no canto inferior DIREITO
+                  da tela do jogo (pedido do usuário: sabotar ao lado do matar), zIndex 6. */}
+              {(mostrarSabotar || vitimaProxima || corpoProximo) && (
                 <div style={{ position: 'absolute', right: '3%', bottom: '3%', zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                  {mostrarSabotar && (
+                    <button className="sus-btn sus-pop" onClick={sabotarEnergia} disabled={emCooldownSabotagem} title="Sabotar energia"
+                      style={{ width: 'clamp(64px, 9vw, 88px)', height: 'clamp(64px, 9vw, 88px)', borderRadius: '50%',
+                        border: '3px solid #fff', color: '#fff', fontSize: 'clamp(26px, 4vw, 36px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: emCooldownSabotagem ? 'not-allowed' : 'pointer', opacity: emCooldownSabotagem ? .5 : 1,
+                        background: `linear-gradient(135deg, #F59E0B, #DC2626)`, boxShadow: '0 8px 20px rgba(0,0,0,.55)' }}>
+                      ⚡
+                    </button>
+                  )}
                   {vitimaProxima && (
                     <button className="sus-btn sus-pop" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
                       <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`}
@@ -2102,12 +2087,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               )}
             </div>
 
-            {!!state?.sabotagem && (
-              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff',
-                background: 'rgba(217,119,6,.92)', borderRadius: 999, padding: '8px 18px', margin: '0 auto', width: 'fit-content' }}>
-                ⚡ Energia sabotada! {meuPapel === 'impostor' ? 'Ninguém consegue fazer tarefa até alguém consertar.' : 'Segure o 🔧 no canto pra consertar antes que fique escuro demais!'}
-              </div>
-            )}
+            {!!state?.sabotagem && (() => {
+              const tripulantesVivos = Object.keys(state?.papeis || {}).filter(n => state.papeis[n] === 'tripulante' && !(state?.fantasmas || []).includes(n));
+              const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
+              return (
+                <div className="sus-pop" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff',
+                  background: 'rgba(217,119,6,.92)', borderRadius: 999, padding: '8px 18px', margin: '0 auto', width: 'fit-content' }}>
+                  ⚡ Energia sabotada! {meuPapel === 'impostor'
+                    ? `Ninguém consegue fazer tarefa até todo mundo consertar (${consertaram}/${tripulantesVivos.length}).`
+                    : `Vá até a tarefa de energia e refaça — todo mundo precisa consertar (${consertaram}/${tripulantesVivos.length})!`}
+                </div>
+              );
+            })()}
             {tarefaProxima && !tarefaAberta && (
               <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
                 background: 'rgba(37,99,235,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
@@ -2129,7 +2120,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
             {tarefaAberta && (
               <TaskModal task={tarefaAberta} onClose={() => setTarefaAberta(null)}
-                onComplete={() => { marcarTarefaFeita(tarefaAberta.id); setTarefaAberta(null); }} />
+                onComplete={() => {
+                  // Durante a sabotagem, a tarefa de energia conserta em vez de
+                  // contar como tarefa normal (ver consertarEnergia/tarefaProxima).
+                  if (state?.sabotagem && taskTypeFor(tarefaAberta.label) === 'energia') consertarEnergia();
+                  else marcarTarefaFeita(tarefaAberta.id);
+                  setTarefaAberta(null);
+                }} />
             )}
 
             {morteAnim && (
