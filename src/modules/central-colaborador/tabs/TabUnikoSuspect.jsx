@@ -148,7 +148,7 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
    como fração do "farthest-corner", então ficam circulares mesmo num mapa
    retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
    papel no Among Us. */
-const LUZ_RAIO = { tripulante: 15, impostor: 23 };
+const LUZ_RAIO = { tripulante: 10, impostor: 16 };
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
@@ -187,14 +187,16 @@ const SUS_CSS = `
 @keyframes susPop  { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susReveal { 0% { transform: scale(.4) rotateY(90deg); opacity: 0; } 60% { transform: scale(1.08) rotateY(0deg); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes susWalk  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
 .sus-fade   { animation: susFade .35s ease both; }
 .sus-pop    { animation: susPop .3s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-reveal { animation: susReveal .55s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-float  { animation: susFloat 2.6s ease-in-out infinite; }
+.sus-walk   { animation: susWalk .45s ease-in-out infinite; }
 .sus-btn { transition: transform .12s, filter .12s; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
-@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk { animation: none !important; } }
 `;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -422,6 +424,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const myPosRef = useRef(myPos);
   useEffect(() => { myPosRef.current = myPos; }, [myPos]);
   const pressedRef = useRef(new Set());
+  const [isMoving, setIsMoving] = useState(false);   // eu — liga a animação de "andar" (sus-walk) no meu boneco
+  const isMovingRef = useRef(false);
   const rafRef = useRef(null);
   const lastSentRef = useRef(0);
   const lastTsRef = useRef(0);
@@ -498,7 +502,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     });
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (!payload?.name || payload.name === name) return;
-      setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y } }));
+      setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y, moving: !!payload.moving } }));
     });
     // Quem acabou de entrar no mapa pede a posição de todo mundo; cada cliente
     // responde com a PRÓPRIA posição (não tem "host" pra isso — todos sabem a
@@ -506,7 +510,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     ch.on('broadcast', { event: 'pos-req' }, ({ payload }) => {
       if (payload?.name === name) return;
       if (stateRef.current?.phase !== 'jogando') return;
-      ch.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y } });
+      ch.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y, moving: isMovingRef.current } });
     });
     ch.subscribe();
     return () => { supabase.removeChannel(ch); chanRef.current = null; };
@@ -550,6 +554,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       lastTsRef.current = ts;
       let dx = 0, dy = 0;
       pressedRef.current.forEach(k => { const d = KEY_DIR[k]; if (d) { dx += d[0]; dy += d[1]; } });
+      // Animação de "andar" (bob pra cima/baixo): liga/desliga só na TRANSIÇÃO
+      // (não todo frame) pra não gerar um re-render por frame à toa — quem
+      // realmente move (posição muda) já re-renderiza via setMyPos abaixo.
+      const movendoAgora = !!(dx || dy);
+      if (movendoAgora !== isMovingRef.current) {
+        isMovingRef.current = movendoAgora;
+        setIsMoving(movendoAgora);
+        if (!movendoAgora) {
+          // Ao soltar a tecla não há mais `setMyPos` (posição parada), então
+          // sem isso os outros clientes nunca saberiam que eu parei de andar.
+          lastSentRef.current = performance.now();
+          chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y, moving: false } });
+        }
+      }
       if (dx || dy) {
         const len = Math.hypot(dx, dy) || 1;
         const cur = myPosRef.current;
@@ -567,7 +585,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           const now = performance.now();
           if (now - lastSentRef.current >= POS_SEND_MS) {
             lastSentRef.current = now;
-            chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: nx, y: ny } });
+            chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: nx, y: ny, moving: true } });
           }
         }
       }
@@ -752,12 +770,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {players.map(p => {
                   const eu = p.name === name;
                   const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
+                  const andando = eu ? isMoving : !!positions[p.name]?.moving;
                   return (
                     <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
                       width: `${(PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
-                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
+                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={andando ? 'sus-walk' : undefined}
+                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
                         filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.4))' }} />
                       <span style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.88)',
                         borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
