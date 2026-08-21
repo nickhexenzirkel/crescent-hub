@@ -1187,8 +1187,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { tarefaAbertaRef.current = tarefaAberta; }, [tarefaAberta]);
   const minhasFeitas = useMemo(() => new Set(state?.tasksDone?.[name] || []), [state?.tasksDone, name]);
   const tarefaProxima = useMemo(() => {
+    // Impostor não tem tarefa de verdade (só os Tripulantes/fantasmas fazem).
     // Fantasma "só faz tarefa" — continua interagindo com elas mesmo com
     // reunião rolando (os vivos ficam congelados na reunião, ele não).
+    if (state?.papeis?.[name] === 'impostor') return null;
     if (state?.phase !== 'jogando' || (state?.reuniao && !state?.fantasmas?.includes(name))) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
@@ -1197,7 +1199,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, name]);
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
   const marcarTarefaFeita = (taskId) => {
@@ -1810,7 +1812,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
                 {meuPapel === 'impostor' ? 'Você é o Impostor 🔪' : 'Você é Tripulante 🏖️'}
               </div>
-              {mapaTarefas.length > 0 && (
+              {mapaTarefas.length > 0 && meuPapel !== 'impostor' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
                   background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.3)', color: '#2563EB' }}>
                   <StarIcon size={13} color="#2563EB" /> {minhasFeitas.size}/{mapaTarefas.length} tarefas
@@ -1864,8 +1866,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
                 {/* Tarefas — placa "disponível" ou "concluída" (já feita POR MIM — cada
                     jogador só vê a própria placa mudar, ver marcarTarefaFeita). Clicar
-                    também abre (equivalente à tecla E), sem exigir estar perto. */}
-                {mapaTarefas.map(t => {
+                    também abre (equivalente à tecla E), sem exigir estar perto.
+                    Impostor não vê nenhuma — ele não tem tarefa de verdade. */}
+                {meuPapel !== 'impostor' && mapaTarefas.map(t => {
                   const feita = minhasFeitas.has(t.id);
                   return (
                     <button key={t.id} onClick={() => setTarefaAberta(t)}
