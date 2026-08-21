@@ -1371,16 +1371,23 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // suficiente: um RELOAD da página não passa pelo ciclo de desmontagem do
   // React a tempo — o navegador mata o JS antes da limpeza rodar — então a
   // marcação nunca era salva se a pessoa recarregasse com a tela ainda
-  // aberta. `visibilitychange`/`pagehide` disparam de verdade nesse
-  // momento (é pra isso que existem), então viram outro gatilho de
-  // gravação, além do cleanup e do botão manual (ver `marcarNotifsComoLidas`
-  // logo abaixo, no header da sheet).
+  // aberta. `visibilitychange`/`pagehide` deviam cobrir isso, mas na
+  // prática continuou voltando (provavelmente algum caminho de reload no
+  // iOS/PWA não dispara nenhum dos dois a tempo — não dá pra confiar 100%
+  // num evento de "página saindo"). Fix definitivo: marca como lida sozinho
+  // depois de ~1,2s com a tela aberta, SEM depender de like a pessoa sai —
+  // aí não importa reload, fechar o app, cair a conexão, nada: se ela viu
+  // por mais de 1,2s, já foi salvo enquanto o app ainda estava rodando.
+  // Os outros gatilhos (visibilitychange/pagehide/cleanup/botão manual)
+  // continuam de reforço pra quem fecha rapidinho antes desse tempo.
   useEffect(() => {
     if (sheet !== 'notif') return;
+    const t = setTimeout(marcarNotifsComoLidas, 1200);
     const onHide = () => { if (document.visibilityState === 'hidden') marcarNotifsComoLidas(); };
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', marcarNotifsComoLidas);
     return () => {
+      clearTimeout(t);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', marcarNotifsComoLidas);
       marcarNotifsComoLidas();
