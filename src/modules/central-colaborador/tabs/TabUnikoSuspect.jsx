@@ -126,10 +126,15 @@ const isWallPixel = (x, y) => {
   return _wallMaskData[(py * _wallMaskW + px) * 4] > 128;   // canal R: 255 = parede
 };
 const isWalkable = (x, y) => {
+  // Com a máscara carregada, ELA é a fonte de verdade (é o que o usuário pintou
+  // à mão, pixel a pixel — muito mais fiel que os retângulos aproximados de
+  // WALK_ZONES). Antes, as duas coisas eram exigidas AO MESMO TEMPO, então um
+  // pedaço andável na máscara mas fora de algum retângulo aproximado ficava
+  // bloqueado "por fantasma" (sem parede vermelha nenhuma ali). Os retângulos
+  // agora só valem como fallback enquanto a máscara ainda não carregou.
+  if (_wallMaskData) return !isWallPixel(x, y);
   const fx = x / MAP_W, fy = y / MAP_H;
-  const emZona = WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
-  if (!emZona) return false;
-  return !isWallPixel(x, y);
+  return WALK_ZONES.some(z => fx >= z.x0 && fx <= z.x1 && fy >= z.y0 && fy <= z.y1);
 };
 
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
@@ -147,7 +152,7 @@ const LUZ_RAIO = { tripulante: 15, impostor: 23 };
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 420;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 520)
+const MOVE_SPEED = 300;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 420)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
