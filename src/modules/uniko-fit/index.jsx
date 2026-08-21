@@ -20,11 +20,21 @@ import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from
 
 const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colaborador'; } catch { return 'Colaborador'; } };
 
+// Ícones das reações e do selo de check-in do feed — SVG em vez de emoji
+// (rende igual em qualquer aparelho/fonte, e combina com o resto dos Ico*
+// do arquivo). `emoji` continua existindo em REACOES: é o valor GRAVADO no
+// banco (coluna uniko_fit_reactions.emoji) — só a exibição virou ícone.
+const IcoDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="5" y="7" width="2.5" height="10" rx="1"/><rect x="16.5" y="7" width="2.5" height="10" rx="1"/><line x1="7.5" y1="12" x2="16.5" y2="12"/></svg>;
+const IcoFlame = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c1.2 2.6-2.4 4.2-2.4 7.8a2.4 2.4 0 004.8 0c0-.9-.4-1.6-.8-2 .4 1.6 1.6 2 1.6 3.6a5.6 5.6 0 01-11.2 0c0-3.6 2.8-5.4 2.8-8.2 0-1.3-.4-2.1-.8-3C7.8.8 10.6 1.4 12 2z"/></svg>;
+const IcoHighFive = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 13V6a1.5 1.5 0 013 0v5"/><path d="M11 11V4a1.5 1.5 0 013 0v7"/><path d="M14 11.5V6a1.5 1.5 0 013 0v8"/><path d="M17 12.5v-2a1.5 1.5 0 013 0v6c0 3.3-2.5 5.8-5.8 5.8h-1.7c-1.9 0-2.9-.5-4.2-1.9L5 16.8c-.7-.7-.6-1.9.2-2.5.7-.5 1.6-.4 2.2.2L9 16"/></svg>;
+const IcoCheckCircle = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 10.8 15.3 16 9.5"/></svg>;
+const IcoComment = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+
 // Reações: 3 emoji + o próprio Uniko "aprovando" (toque de marca).
 const REACOES = [
-  { id: 'forca',  emoji: '💪', label: 'Força!' },
-  { id: 'fogo',   emoji: '🔥', label: 'Treino insano' },
-  { id: 'palmas', emoji: '👏', label: 'Aplausos' },
+  { id: 'forca',  emoji: '💪', svg: IcoDumbbell,  label: 'Força!' },
+  { id: 'fogo',   emoji: '🔥', svg: IcoFlame,     label: 'Treino insano' },
+  { id: 'palmas', emoji: '👏', svg: IcoHighFive,  label: 'Aplausos' },
   { id: 'uniko',  img: '/UNIKO_NEW.png', label: 'Uniko aprova' },
 ];
 
@@ -313,7 +323,7 @@ const CameraCapture = ({ energia, onCapture }) => {
     const ctx = canvas.getContext('2d');
     if (facing === 'user') { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); } // desfaz o espelho do preview
     ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-    setRawShot(canvas.toDataURL('image/jpeg', 0.92));
+    setRawShot(canvas.toDataURL('image/jpeg', 1)); // qualidade máxima — é a fonte pro corte/filtro final, perda aqui se acumula
     setCrop(CROP_DEFAULT); setImgNatural(null); setStickers([]);
     pararCamera();
   };
@@ -339,7 +349,7 @@ const CameraCapture = ({ energia, onCapture }) => {
         if (!blob) return;
         const file = new File([blob], `checkin-${Date.now()}.jpg`, { type: 'image/jpeg' });
         onCapture(file, URL.createObjectURL(blob));
-      }, 'image/jpeg', 0.92);
+      }, 'image/jpeg', 1); // qualidade máxima — sem corte/filtro/emoji, dava pra ser lossless (PNG), mas com eles o canvas precisa reexportar de qualquer jeito
     };
     img.src = rawShot;
   };
@@ -1345,7 +1355,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
                     {post.kind === 'checkin' && (
                       <div style={{ position: 'absolute', top: 12, left: 14, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 999,
-                        background: `${ENERGIA}E6`, color: '#fff', fontSize: 11, fontWeight: 800 }}>✅ Check-in</div>
+                        background: `${ENERGIA}E6`, color: '#fff', fontSize: 11, fontWeight: 800 }}>{IcoCheckCircle} Check-in</div>
                     )}
 
                     {souDono && (
@@ -1371,7 +1381,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.desafio_pose_id && posesPorId[post.desafio_pose_id] && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, marginBottom: 6,
                           background: corDaTagPose(post.desafio_pose_id), color: '#fff', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>
-                          🎯 {posesPorId[post.desafio_pose_id].texto}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+                          {posesPorId[post.desafio_pose_id].texto}
                         </div>
                       )}
                       {post.caption && <div style={{ fontSize: 12.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
@@ -1386,9 +1397,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                           <button key={rc.id} className="fit-btn" onClick={e => { e.stopPropagation(); toggleReacao(post.id, emojiKey); }} title={rc.label}
                             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
                             <div className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`}
-                              style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21,
+                              style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
                                 background: ativo ? `${ENERGIA}E6` : 'rgba(0,0,0,.35)', boxShadow: ativo ? `0 0 0 2px #fff` : 'none' }}>
-                              {rc.img ? <img src={rc.img} alt="" style={{ width: 25, height: 25, objectFit: 'contain' }} /> : rc.emoji}
+                              {rc.img ? <img src={rc.img} alt="" style={{ width: 25, height: 25, objectFit: 'contain' }} /> : rc.svg}
                             </div>
                             {n > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{n}</span>}
                           </button>
@@ -1396,7 +1407,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       })}
                       <button className="fit-btn" onClick={e => { e.stopPropagation(); abrirComentarios(post); }} title="Comentários"
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: 'rgba(0,0,0,.35)' }}>💬</div>
+                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'rgba(0,0,0,.35)' }}>{IcoComment}</div>
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
                       </button>
                       {totalReacoes > 0 && <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.7)' }}>{totalReacoes}</span>}
