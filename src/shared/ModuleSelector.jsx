@@ -3,6 +3,7 @@ import { T } from '../contexts/theme';
 import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { WhatsNew } from './WhatsNew';
 import { UnikoOrigin } from './UnikoOrigin';
+import { InstalarAppGuide } from './InstalarAppGuide';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
@@ -121,11 +122,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <rect x="2" y="8" width="4" height="8" rx="1.3"/><rect x="18" y="8" width="4" height="8" rx="1.3"/><line x1="6" y1="12" x2="18" y2="12"/>
     </svg>
   );
-  const IcoInstall = (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10.5" y1="19" x2="13.5" y2="19"/><path d="M12 7v6M9 10.5l3 3 3-3"/>
-    </svg>
-  );
   // Uniko Fit é o ÚNICO módulo com cor FIXA (laranja), independente do tema — exceto
   // quando o tema ativo já É o laranja, aí ela vira azul (senão o card some no fundo
   // do próprio tema). `T.key` é o id do tema aplicado agora (contexts/theme.js).
@@ -140,7 +136,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
-    {id:'instalar-app',     label:'Instalar Aplicativo',   sub:'Tutorial: adicionar ao iPhone + notificações', icon:IcoInstall, color:T.gold, bg:T.goldGl, tag:'Ajuda', adminOnly:false},
   ];
   const mods = allMods.filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
 
@@ -156,6 +151,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         `}</style>
 
         <UnikoOrigin/>
+        <InstalarAppGuide/>
 
         {/* Top bar */}
         <div style={{position:'sticky', top:0, zIndex:20, background:T.surface,
