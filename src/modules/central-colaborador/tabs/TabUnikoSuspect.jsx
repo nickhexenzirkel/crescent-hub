@@ -160,9 +160,10 @@ const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'gener
 const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
 
 /* ── Matar (ago/2026) — só o Impostor, com recarga entre mortes. ── */
-const KILL_PROXIMIDADE = 90;      // distância (px do mapa) pra aparecer o prompt "Pressione F"
+const KILL_PROXIMIDADE = 90;      // distância (px do mapa) pra aparecer o botão de Matar
 const KILL_COOLDOWN_MS = 25000;   // tempo de recarga entre mortes, por impostor
 const MORTE_ANIM_MS = 3200;       // duração da animação de morte na tela da vítima
+const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o botão de Reportar
 
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
@@ -263,6 +264,16 @@ const StarIcon = ({ size = 22, color = '#3B82F6', className }) => (
       fill={color} stroke="#fff" strokeWidth="1.1" strokeLinejoin="round" />
   </svg>
 );
+
+/* ── Placas do mapa (ago/2026, substituem as estrelas SVG por imagens
+   prontas fornecidas pelo usuário): tarefa disponível/concluída e o botão
+   de iniciar reunião. Os botões de ação (matar/reportar) ficam mais abaixo. */
+const TAREFA_DISPONIVEL_IMG = '/uniko-suspect-tarefa-disponivel.png';
+const TAREFA_CONCLUIDA_IMG = '/uniko-suspect-tarefa-concluida.png';
+const INICIAR_REUNIAO_IMG = '/uniko-suspect-iniciar-reuniao.png';
+const BOTAO_MATAR_IMG = '/uniko-suspect-botao-matar.png';
+const BOTAO_REPORTAR_IMG = '/uniko-suspect-botao-reportar.png';
+const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde o impostor matou
 
 /* ── Tela de morte (ago/2026): só a VÍTIMA vê — o impostor "atira" um laser
    nela. Full-screen preto, texto "Você foi morto!" com glow (inspirado na
@@ -924,6 +935,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const vitimaProximaRef = useRef(null);
   const matarRef = useRef(null);
   const morteAnimRef = useRef(null);
+  const corpoProximoRef = useRef(null);
+  const reportarRef = useRef(null);
 
   /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
      (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
@@ -1031,29 +1044,51 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (p.name === name || state?.papeis?.[p.name] === 'impostor' || state?.fantasmas?.includes(p.name)) continue;
       const pos = positions[p.name]; if (!pos) continue;
       const d = Math.hypot(pos.x - myPos.x, pos.y - myPos.y);
-      if (d < KILL_PROXIMIDADE && d < melhorD) { melhor = p; melhorD = d; }
+      if (d < KILL_PROXIMIDADE && d < melhorD) { melhor = { ...p, x: pos.x, y: pos.y }; melhorD = d; }
     }
     return melhor;
   }, [state?.phase, state?.reuniao, state?.papeis, state?.fantasmas, state?.killCooldowns, agoraTick, players, positions, myPos, name]);
   useEffect(() => { vitimaProximaRef.current = vitimaProxima; }, [vitimaProxima]);
 
-  const matar = (vitimaNome) => {
+  // Corpo mais próximo (pra qualquer vivo reportar — vira reunião na hora).
+  const corpoProximo = useMemo(() => {
+    if (state?.phase !== 'jogando' || state?.reuniao || state?.fantasmas?.includes(name)) return null;
+    let melhor = null, melhorD = Infinity;
+    for (const c of (state?.corpos || [])) {
+      const d = Math.hypot(c.x - myPos.x, c.y - myPos.y);
+      if (d < CORPO_PROXIMIDADE && d < melhorD) { melhor = c; melhorD = d; }
+    }
+    return melhor;
+  }, [state?.phase, state?.reuniao, state?.corpos, state?.fantasmas, myPos, name]);
+  useEffect(() => { corpoProximoRef.current = corpoProximo; }, [corpoProximo]);
+
+  const matar = (vitima) => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando' || s.reuniao) return;
     if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
-    if ((s.fantasmas || []).includes(vitimaNome) || s.papeis?.[vitimaNome] === 'impostor') return;
+    if ((s.fantasmas || []).includes(vitima.name) || s.papeis?.[vitima.name] === 'impostor') return;
     if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return;
-    const fantasmas = [...new Set([...(s.fantasmas || []), vitimaNome])];
+    const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
     const nomesPapeis = Object.keys(s.papeis || {});
     const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !fantasmas.includes(n));
     const tripulantesVivos = nomesPapeis.filter(n => s.papeis[n] === 'tripulante' && !fantasmas.includes(n));
     let vencedor = null;
     if (impostoresVivos.length === 0) vencedor = 'tripulante';
     else if (tripulantesVivos.length === 0) vencedor = 'impostor';
-    pushState({ ...s, fantasmas, vencedor, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
-      ultimaMorte: { vitima: vitimaNome, matador: name, ts: Date.now() } });
+    const corpos = [...(s.corpos || []), { id: uid(), x: vitima.x, y: vitima.y, vitima: vitima.name, matador: name }];
+    pushState({ ...s, fantasmas, vencedor, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
+      ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } });
   };
   useEffect(() => { matarRef.current = matar; });
+
+  // Reportar corpo: some da lista de corpos E já chama a reunião de emergência.
+  const reportar = (corpoId) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor || (s.fantasmas || []).includes(name)) return;
+    const corpos = (s.corpos || []).filter(c => c.id !== corpoId);
+    pushState({ ...s, corpos, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
+  };
+  useEffect(() => { reportarRef.current = reportar; });
 
   /* ── Reunião de emergência (ago/2026): ver comentário no componente
      ReuniaoEmergencia. `reuniaoAtivaRef` congela o movimento (mesmo mecanismo
@@ -1265,7 +1300,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       }
       if (k === 'f') {
         // Matar a vítima mais próxima (só existe alvo se eu for o Impostor — ver vitimaProxima).
-        if (!travado && vitimaProximaRef.current) matarRef.current?.(vitimaProximaRef.current.name);
+        if (!travado && vitimaProximaRef.current) matarRef.current?.(vitimaProximaRef.current);
+        e.preventDefault();
+        return;
+      }
+      if (k === 'r') {
+        // Reportar o corpo mais próximo — já chama a reunião de emergência.
+        if (!travado && corpoProximoRef.current) reportarRef.current?.(corpoProximoRef.current.id);
         e.preventDefault();
         return;
       }
@@ -1367,7 +1408,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null });
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null });
   };
   const marcarPronto = () => {
     if (!state || state.phase !== 'sorteando') return;
@@ -1577,8 +1618,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 <img src={MAPA_IMG} alt="" draggable={false}
                   style={{ width: '100%', height: '100%', display: 'block', objectFit: 'fill', userSelect: 'none', pointerEvents: 'none' }} />
 
-                {/* Tarefas — estrela azul (pendente) ou verde (já feita POR MIM — cada
-                    jogador só vê a própria estrela mudar, ver marcarTarefaFeita). Clicar
+                {/* Tarefas — placa "disponível" ou "concluída" (já feita POR MIM — cada
+                    jogador só vê a própria placa mudar, ver marcarTarefaFeita). Clicar
                     também abre (equivalente à tecla E), sem exigir estar perto. */}
                 {mapaTarefas.map(t => {
                   const feita = minhasFeitas.has(t.id);
@@ -1586,22 +1627,34 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button key={t.id} onClick={() => setTarefaAberta(t)}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
-                      <StarIcon size={42} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
+                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label} className={feita ? undefined : 'sus-twinkle'}
+                        style={{ width: '9vw', maxWidth: 92, minWidth: 54, display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                     </button>
                   );
                 })}
 
-                {/* Botão de emergência — brilho vermelho pulsante. Fantasma não chama reunião. */}
+                {/* Botão de emergência — placa "Iniciar Reunião", brilho pulsante. Fantasma não chama reunião. */}
                 {mapaEmergencia && !souFantasma && (
-                  <button onClick={chamarReuniao}
+                  <button onClick={chamarReuniao} title="Iniciar Reunião"
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
-                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <StarIcon size={56} color="#DC2626" className="sus-emerg" />
-                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: 'rgba(220,38,38,.85)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-                      Estrela de Emergência
-                    </span>
+                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }}>
+                    <img src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
+                      style={{ width: '13vw', maxWidth: 140, minWidth: 82, display: 'block' }} />
                   </button>
                 )}
+
+                {/* Corpos — onde o Impostor matou. Qualquer um pode reportar (vira reunião na hora). */}
+                {(state?.corpos || []).map(c => (
+                  <div key={c.id} style={{ position: 'absolute', left: `${c.x / MAP_W * 100}%`, top: `${c.y / MAP_H * 100}%`,
+                    width: `${(PLAYER_R * 1.1 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%', pointerEvents: 'none', zIndex: 1 }}>
+                    <span style={{ fontSize: 'clamp(10px, 1.3vw, 14px)', fontWeight: 800, color: '#fff', background: 'rgba(139,0,0,.85)',
+                      borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                      💀 {c.vitima.split(' ')[0]}
+                    </span>
+                    <img src={CORPO_IMG} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                  </div>
+                ))}
 
                 {/* Bonecos — sem borda, só a arte do Uniko de cada um. Fantasma enxerga
                     TODO MUNDO (vivo + fantasma); quem tá vivo NÃO enxerga fantasma nenhum
@@ -1647,14 +1700,22 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 Pressione <b>E</b> — {tarefaProxima.label}
               </div>
             )}
-            {vitimaProxima && (
-              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
-                background: 'rgba(220,38,38,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
-                🔫 Pressione <b>F</b> — Matar {vitimaProxima.name.split(' ')[0]}
+            {(vitimaProxima || corpoProximo) && (
+              <div className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '0 auto' }}>
+                {vitimaProxima && (
+                  <button className="sus-btn" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
+                    <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`} style={{ width: 74, display: 'block' }} />
+                  </button>
+                )}
+                {corpoProximo && (
+                  <button className="sus-btn" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
+                    <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo" style={{ width: 74, display: 'block' }} />
+                  </button>
+                )}
               </div>
             )}
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              🚧 Sabotagem chega numa próxima fase — por enquanto é andar pela casa, fazer as tarefas, matar (só o Impostor) e chamar reunião de emergência quando desconfiar de alguém.
+              🚧 Sabotagem chega numa próxima fase — por enquanto é andar pela casa, fazer as tarefas, matar (só o Impostor), reportar corpos e chamar reunião de emergência quando desconfiar de alguém.
             </div>
             </>
             )}
