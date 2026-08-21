@@ -3,6 +3,7 @@ import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
 import { computePontoDays, loadColaboradorPonto } from '../../../shared/pontoCalc';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const BRL = v => 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -47,6 +48,7 @@ const STATUS_STYLE = {
 };
 
 const TabHoras = () => {
+  const isMobile  = useIsMobile();
   const authData  = getAuthUser();
   const salarioBase = USER.salary || authData?.salary || 0;
   const salario1k   = USER.salary_1k || authData?.salary_1k || 0;
@@ -162,23 +164,23 @@ const TabHoras = () => {
       {/* ── BANNER (saldo LÍQUIDO: extras − negativas do ponto) ── */}
       <div style={{
         background: netPos ? `linear-gradient(135deg,${T.blue},${T.blueL})` : 'linear-gradient(135deg,#C04050,#E0697A)',
-        borderRadius: 18, padding: '28px 30px', marginBottom: 22,
+        borderRadius: 18, padding: isMobile ? '22px 16px' : '28px 30px', marginBottom: 22,
         textAlign: 'center', boxShadow: `0 8px 28px ${netPos ? 'rgba(78,143,168,0.25)' : 'rgba(192,64,80,0.25)'}`,
-        position: 'relative', overflow: 'hidden',
+        position: 'relative', overflow: 'hidden', boxSizing: 'border-box',
       }}>
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: isMobile ? 13 : 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>
             BANCO DE HORAS
           </div>
-          <div style={{ width: 250, margin: '0 auto 12px' }}><StarDivider /></div>
-          <div style={{ fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: '-.02em', lineHeight: 1, marginBottom: 6 }}>
+          <div style={{ width: '100%', maxWidth: 250, margin: '0 auto 12px' }}><StarDivider /></div>
+          <div style={{ fontSize: isMobile ? 32 : 44, fontWeight: 700, color: '#fff', letterSpacing: '-.02em', lineHeight: 1, marginBottom: 6, wordBreak: 'break-word' }}>
             {netPos ? '+' : ''}{fmtMin(netMin)}
           </div>
-          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginBottom: 8 }}>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginBottom: 8, padding: '0 6px' }}>
             Extras {fmtMin(extraMin)}{pontoBalanceMin < 0 ? ` · Negativas ${fmtMin(pontoBalanceMin)}` : (pontoBalanceMin > 0 ? ` · Ponto +${fmtMin(pontoBalanceMin)}` : '')}
           </div>
           {valorHora > 0 && totalValor > 0 && (
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,.85)', marginBottom: 8 }}>
+            <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 600, color: 'rgba(255,255,255,.85)', marginBottom: 8 }}>
               Extras ≈ {BRL(totalValor)}
             </div>
           )}
@@ -200,7 +202,7 @@ const TabHoras = () => {
 
       {/* ── HORAS NEGATIVAS (Ponto Eletrônico) ── */}
       {negDays.length > 0 && (
-        <Card style={{ padding: '22px 26px', marginBottom: 18, border: '1px solid rgba(192,64,80,0.25)' }}>
+        <Card style={{ padding: isMobile ? '16px 14px' : '22px 26px', marginBottom: 18, border: '1px solid rgba(192,64,80,0.25)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(192,64,80,0.12)', color: '#C04050', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -218,7 +220,7 @@ const TabHoras = () => {
           <StarDivider my={6} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
             {negDays.map((d, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 15px', background: 'rgba(192,64,80,0.04)', border: '1px solid rgba(192,64,80,0.15)', borderRadius: 11 }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, padding: isMobile ? '10px 12px' : '11px 15px', background: 'rgba(192,64,80,0.04)', border: '1px solid rgba(192,64,80,0.15)', borderRadius: 11, boxSizing: 'border-box' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fmtData(d.data)}</div>
                   <div style={{ fontSize: 11.5, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.data)}</div>
@@ -236,11 +238,11 @@ const TabHoras = () => {
       )}
 
       {/* ── HISTÓRICO ── */}
-      <Card style={{ padding: '24px 26px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: T.text }}>Histórico</div>
+      <Card style={{ padding: isMobile ? '16px 14px' : '24px 26px', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 10 : 8, marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: T.text, textAlign: isMobile ? 'center' : 'left' }}>Histórico</div>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-            style={{ background: 'rgba(0,0,0,0.03)', border: `1.5px solid ${T.border}`, borderRadius: 9, padding: '7px 12px', color: T.text, fontFamily: 'var(--font-body)', fontSize: 13, outline: 'none', width: 180 }} />
+            style={{ background: 'rgba(0,0,0,0.03)', border: `1.5px solid ${T.border}`, borderRadius: 9, padding: '7px 12px', color: T.text, fontFamily: 'var(--font-body)', fontSize: 13, outline: 'none', width: isMobile ? '100%' : 180, boxSizing: 'border-box' }} />
         </div>
         <StarDivider my={4} />
 
@@ -261,7 +263,7 @@ const TabHoras = () => {
                 {filtrados.map(r => {
                   const ss = STATUS_STYLE[r.status] || STATUS_STYLE.pendente;
                   return (
-                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 12 }}>
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 10 : 14, padding: isMobile ? '12px 12px' : '14px 16px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 12, boxSizing: 'border-box' }}>
                       <div style={{ width: 48, height: 48, borderRadius: 12, background: `linear-gradient(135deg,${T.blue},${T.blueL})`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.1 }}>{fmtHoras(Number(r.horas_calculadas))}</div>
                         {r.feriado_domingo && <div style={{ fontSize: 8, opacity: .85 }}>×2</div>}
@@ -304,9 +306,9 @@ const TabHoras = () => {
 
       {/* ── MODAL REGISTRO ── */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
-          <div style={{ background: T.surface || 'white', borderRadius: 20, padding: 32, width: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: `1px solid ${T.border}`, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: isMobile ? 12 : 0, boxSizing: 'border-box' }}>
+          <div style={{ background: T.surface || 'white', borderRadius: 20, padding: isMobile ? '22px 18px' : 32, width: isMobile ? '100%' : 460, maxWidth: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: `1px solid ${T.border}`, maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 20, textAlign: isMobile ? 'center' : 'left' }}>
               Registrar Horas Extras
             </div>
 
@@ -379,7 +381,7 @@ const TabHoras = () => {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: isMobile ? 'center' : 'flex-start', textAlign: isMobile ? 'center' : 'left' }}>
                   <div>
                     <div style={{ fontSize: 11, color: T.textD, marginBottom: 2 }}>Horas trabalhadas</div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{fmtHoras(previewTotal)}</div>
