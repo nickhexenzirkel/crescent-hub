@@ -1398,7 +1398,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                     </div>
 
-                    <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
+                    <div style={{ position: 'absolute', right: 8, top: '62%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
                       {REACOES.map(rc => {
                         const ativo = r.mine === (rc.emoji || rc.id);
                         const emojiKey = rc.emoji || rc.id;
