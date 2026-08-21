@@ -13,6 +13,7 @@ import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
 import UnikoFit from './modules/uniko-fit';
+import InstalarApp from './modules/instalar-app';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -422,6 +423,7 @@ export default function CrescentHub() {
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='instalar-app' && <InstalarApp onBack={handleGoBack}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
