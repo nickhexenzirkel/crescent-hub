@@ -81,7 +81,13 @@ const WALK_ZONES = [
    (photoshop/IA) marcando toda parede/divisória — muito mais fiel que
    qualquer retângulo. `isWalkable` agora exige as DUAS coisas: estar dentro
    de alguma zona andável E não estar em cima de um pixel de parede. */
-const WALLMASK_IMG = '/uniko-suspect-wallmask.png';
+// `public/*` não ganha hash de build (não é processado pelo Vite) — o navegador
+// cacheia a imagem pelo nome do arquivo e continuava servindo a máscara VELHA
+// depois de eu corrigir e publicar uma nova (parecia "apaguei a parede e
+// continua bloqueando", mas era só cache). WALLMASK_VERSION funciona como
+// cache-buster manual: precisa subir esse número toda vez que o PNG mudar.
+const WALLMASK_VERSION = 2;
+const WALLMASK_IMG = `/uniko-suspect-wallmask.png?v=${WALLMASK_VERSION}`;
 let _wallMaskData = null, _wallMaskW = 0, _wallMaskH = 0, _wallMaskLoading = false;
 function loadWallMask() {
   if (_wallMaskData || _wallMaskLoading) return;
