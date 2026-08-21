@@ -222,6 +222,20 @@ const KEY_DIR = {                 // WASD + setas → direção
 // Hash determinístico (mesma técnica do hintOrder do Stop) — spawn consistente
 // sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
 const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+// `array.sort(() => Math.random() - .5)` NÃO embaralha de verdade — o
+// comparador quebra as regras que o sort espera (não é transitivo), então o
+// resultado fica enviesado pela ordem/algoritmo de sort do motor (mais forte
+// ainda em arrays pequenos, tipo a lista de jogadores). Era por isso que,
+// rodada após rodada, quase sempre a MESMA pessoa saía impostor (bug
+// relatado pelo usuário). Fisher-Yates é o shuffle de verdade, sem viés.
+const embaralhar = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 // Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
 const SPAWN_RECT = { x: 640, y: 330, w: 260, h: 150 };   // cabe folgado dentro da zona 'sala'
@@ -471,7 +485,7 @@ const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azu
 // dois lados quando acerta — o metáfora de "puxar o fio até o encaixe certo"
 // fica bem mais óbvia.
 const TaskEnergia = ({ onComplete }) => {
-  const [direita] = useState(() => [...FIOS].sort(() => Math.random() - 0.5));
+  const [direita] = useState(() => embaralhar(FIOS));
   const [ligados, setLigados] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
   const [erro, setErro] = useState(null);
@@ -1714,7 +1728,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const sortearEComecar = () => {
     if (!state || players.length < MIN_PLAYERS) return;
-    const nomes = players.map(p => p.name).sort(() => Math.random() - 0.5);
+    const nomes = embaralhar(players.map(p => p.name));
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
