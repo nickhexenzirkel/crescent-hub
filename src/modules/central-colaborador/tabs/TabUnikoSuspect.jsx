@@ -170,7 +170,7 @@ const ZOOM_W = MAP_W / ZOOM_FACTOR, ZOOM_H = MAP_H / ZOOM_FACTOR;
    como fração do "farthest-corner", então ficam circulares mesmo num mapa
    retangular). Impostor enxerga um pouco mais longe — vantagem clássica do
    papel no Among Us. */
-const LUZ_RAIO = { tripulante: 10, impostor: 16 };
+const LUZ_RAIO = { tripulante: 10, impostor: 16, fantasma: 60 };   // fantasma enxerga praticamente tudo
 const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}% ${yPct}%,
   transparent 0%, transparent ${raio}%,
   rgba(4,8,16,.32) ${raio + 10}%,
@@ -476,7 +476,7 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
         <div style={{ fontSize: 13, color: T.textT, marginTop: 2 }}>
           {reuniao.fase === 'chat' && `Conversem! ${restante}s pra votação começar.`}
           {reuniao.fase === 'votacao' && `Votem em quem acham que é o Impostor. ${restante}s restantes.`}
-          {reuniao.fase === 'resultado' && `Retomando o jogo em ${restante}s...`}
+          {reuniao.fase === 'resultado' && (reuniao.resultado?.vencedor ? 'Fim de jogo!' : `Retomando o jogo em ${restante}s...`)}
         </div>
       </div>
 
@@ -514,15 +514,24 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
       {reuniao.fase === 'votacao' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center' }}>Dá pra trocar de voto quantas vezes quiser até a votação fechar.</div>
-          {players.map(p => (
-            <button key={p.name} className="sus-btn" onClick={() => onVotar(p.name)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11, textAlign: 'left', cursor: 'pointer',
-                border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff') }}>
-              <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{p.name}</span>
-              {votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 13 }}>✅</span>}
-            </button>
-          ))}
+          {players.map(p => {
+            const votosNele = Object.entries(reuniao.votos || {}).filter(([, alvo]) => alvo === p.name).map(([quem]) => quem);
+            return (
+              <button key={p.name} className="sus-btn" onClick={() => onVotar(p.name)}
+                style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '9px 12px', borderRadius: 11, textAlign: 'left', cursor: 'pointer',
+                  border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff') }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{p.name}</span>
+                  {votosNele.length > 0 && <span style={{ fontSize: 11.5, fontWeight: 800, color: IMPOSTOR_COR }}>{votosNele.length} voto{votosNele.length > 1 ? 's' : ''}</span>}
+                  {votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 13 }}>✅</span>}
+                </div>
+                {votosNele.length > 0 && (
+                  <div style={{ fontSize: 11, color: T.textT, paddingLeft: 40 }}>votos de: {votosNele.map(v => v.split(' ')[0]).join(', ')}</div>
+                )}
+              </button>
+            );
+          })}
           <button className="sus-btn" onClick={() => onVotar(null)}
             style={{ padding: '9px 12px', borderRadius: 11, border: `1.5px dashed ${T.border}`, background: 'transparent',
               color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
@@ -553,7 +562,17 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
               <div style={{ fontSize: 13, fontWeight: 800, marginTop: 4, color: papeis?.[reuniao.resultado.expulso] === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
                 Era {papeis?.[reuniao.resultado.expulso] === 'impostor' ? 'IMPOSTOR! 🎉' : 'Tripulante... 😬'}
               </div>
+              <div style={{ fontSize: 11.5, color: T.textT, marginTop: 6 }}>Agora ele é um 👻 fantasma — só consegue fazer tarefas.</div>
             </>
+          )}
+          {reuniao.resultado?.vencedor && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 32 }}>{reuniao.resultado.vencedor === 'impostor' ? '🔪' : '🏆'}</div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800,
+                color: reuniao.resultado.vencedor === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                {reuniao.resultado.vencedor === 'impostor' ? 'O Impostor venceu!' : 'Os Tripulantes venceram!'}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -841,6 +860,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const myMarkerRef = useRef(null);
   const lightRef = useRef(null);
   const meuPapelRef = useRef(null);
+  const souFantasmaRef = useRef(false);
 
   /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
      (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
@@ -897,7 +917,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { tarefaAbertaRef.current = tarefaAberta; }, [tarefaAberta]);
   const minhasFeitas = useMemo(() => new Set(state?.tasksDone?.[name] || []), [state?.tasksDone, name]);
   const tarefaProxima = useMemo(() => {
-    if (state?.phase !== 'jogando' || state?.reuniao) return null;
+    // Fantasma "só faz tarefa" — continua interagindo com elas mesmo com
+    // reunião rolando (os vivos ficam congelados na reunião, ele não).
+    if (state?.phase !== 'jogando' || (state?.reuniao && !state?.fantasmas?.includes(name))) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
       if (minhasFeitas.has(t.id)) continue;
@@ -905,7 +927,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao]);
+  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
   const marcarTarefaFeita = (taskId) => {
@@ -935,7 +957,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const chamarReuniao = () => {
     const s = stateRef.current;
-    if (!s || s.phase !== 'jogando') return;
+    if (!s || s.phase !== 'jogando' || (s.fantasmas || []).includes(name)) return;   // fantasma não chama reunião
     if (s.reuniao) { setEmergMsg('🚨 Já tem uma reunião de emergência rolando!'); setTimeout(() => setEmergMsg(''), 2500); return; }
     pushState({ ...s, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
   };
@@ -950,7 +972,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // (pedido do usuário: dá pra mudar de ideia até a votação fechar).
   const votar = (alvo) => {
     const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'votacao') return;
+    if (!rr || rr.fase !== 'votacao' || (s.fantasmas || []).includes(name)) return;   // fantasma só faz tarefa, não vota
     pushState({ ...s, reuniao: { ...rr, votos: { ...(rr.votos || {}), [name]: alvo } } });
   };
   const retirarVoto = () => {
@@ -964,7 +986,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // cronômetro de chat e já abre a votação, sem esperar os 60s completos.
   const iniciarVotacao = () => {
     const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'chat') return;
+    if (!rr || rr.fase !== 'chat' || (s.fantasmas || []).includes(name)) return;
     pushState({ ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } });
   };
 
@@ -989,7 +1011,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       const decorrido = Date.now() - rr.faseIniciadaEm;
       if (rr.fase === 'chat' && decorrido >= REUNIAO_FASE_MS) {
         pushState({ ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } });
-      } else if (rr.fase === 'votacao' && decorrido >= REUNIAO_FASE_MS) {
+      } else if (rr.fase === 'votacao') {
+        // Fantasmas não votam — só quem ainda tá vivo entra na conta de "todo
+        // mundo já votou" (senão a votação nunca pularia sozinha com alguém já morto na sala).
+        const fantasmasAtuais = s.fantasmas || [];
+        const vivos = playersRef.current.filter(p => !fantasmasAtuais.includes(p.name));
+        const todosVotaram = vivos.length > 0 && vivos.every(p => rr.votos?.[p.name] !== undefined);
+        if (decorrido < REUNIAO_FASE_MS && !todosVotaram) return;   // ainda esperando
+
         const contagem = {};
         Object.values(rr.votos || {}).forEach(alvo => { if (alvo) contagem[alvo] = (contagem[alvo] || 0) + 1; });
         let expulso = null, max = 0, empatados = 0;
@@ -998,12 +1027,25 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           else if (qtd === max) { empatados++; }
         });
         const empate = max > 0 && empatados > 1;
-        pushState({ ...s, reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: empate ? null : expulso, empate } } });
+        const expulsoFinal = empate ? null : expulso;
+
+        // Expulso vira fantasma — checa condição de vitória (todo impostor
+        // fora = tripulantes vencem; todo tripulante fora = impostor vence).
+        const novosFantasmas = expulsoFinal ? [...new Set([...fantasmasAtuais, expulsoFinal])] : fantasmasAtuais;
+        const nomesPapeis = Object.keys(s.papeis || {});
+        const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !novosFantasmas.includes(n));
+        const tripulantesVivos = nomesPapeis.filter(n => s.papeis[n] === 'tripulante' && !novosFantasmas.includes(n));
+        let vencedor = null;
+        if (impostoresVivos.length === 0) vencedor = 'tripulante';
+        else if (tripulantesVivos.length === 0) vencedor = 'impostor';
+
+        pushState({ ...s, fantasmas: novosFantasmas, vencedor,
+          reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: expulsoFinal, empate, vencedor } } });
       } else if (rr.fase === 'resultado' && decorrido >= REUNIAO_RESULTADO_MS) {
-        pushState({ ...s, reuniao: null });
+        pushState(s.vencedor ? { ...s, phase: 'over', reuniao: null } : { ...s, reuniao: null });
       }
     };
-    const iv = setInterval(tick, 1000);
+    const iv = setInterval(tick, 500);
     return () => clearInterval(iv);
   }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState]);
 
@@ -1083,13 +1125,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (tag === 'input' || tag === 'textarea') return;   // nunca captura teclado de um campo de texto
       if (k === 'e') {
         // Interagir com a tarefa mais próxima (estrela azul dentro do alcance).
-        if (!tarefaAbertaRef.current && !reuniaoAtivaRef.current && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        // Fantasma ignora o congelamento da reunião — ele "só faz tarefa"
+        // mesmo, então continua jogando enquanto os vivos estão reunidos.
+        const travadoPelaReuniao = reuniaoAtivaRef.current && !souFantasmaRef.current;
+        if (!tarefaAbertaRef.current && !travadoPelaReuniao && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
         e.preventDefault();
         return;
       }
       if (k === 'escape' && tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
       if (!KEY_DIR[k]) return;
-      if (tarefaAbertaRef.current || reuniaoAtivaRef.current) return;   // mini-jogo/reunião aberta — WASD não move o boneco por baixo
+      if (tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) return;   // mini-jogo/reunião aberta — WASD não move o boneco por baixo (fantasma ignora a reunião)
       pressedRef.current.add(k);
       e.preventDefault();
     };
@@ -1106,7 +1151,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (worldRef.current) worldRef.current.style.transform = `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)`;
       if (myMarkerRef.current) { myMarkerRef.current.style.left = `${nx / MAP_W * 100}%`; myMarkerRef.current.style.top = `${ny / MAP_H * 100}%`; }
       if (lightRef.current) {
-        const raio = LUZ_RAIO[meuPapelRef.current === 'impostor' ? 'impostor' : 'tripulante'];
+        const raio = souFantasmaRef.current ? LUZ_RAIO.fantasma : LUZ_RAIO[meuPapelRef.current === 'impostor' ? 'impostor' : 'tripulante'];
         lightRef.current.style.background = lightGradientBg(nx / MAP_W * 100, ny / MAP_H * 100, raio);
       }
     };
@@ -1116,9 +1161,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const step = (ts) => {
       const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
       lastTsRef.current = ts;
-      if (tarefaAbertaRef.current || reuniaoAtivaRef.current) {
-        // Mini-jogo de tarefa ou reunião de emergência aberta — congela o
-        // boneco (some com o bob de andar também).
+      if (tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) {
+        // Mini-jogo de tarefa aberto, ou reunião rolando e eu não sou
+        // fantasma — congela o boneco (some com o bob de andar também).
         if (isMovingRef.current) { isMovingRef.current = false; setIsMoving(false); }
         rafRef.current = requestAnimationFrame(step);
         return;
@@ -1152,8 +1197,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         // toda zona andável por algum buraco no mapeamento).
         const tryX = Math.min(MAP_W - PLAYER_R, Math.max(PLAYER_R, cur.x + (dx / len) * MOVE_SPEED * dt));
         const tryY = Math.min(MAP_H - PLAYER_R, Math.max(PLAYER_R, cur.y + (dy / len) * MOVE_SPEED * dt));
-        const nx = isWalkable(tryX, cur.y) ? tryX : cur.x;
-        const ny = isWalkable(nx, tryY) ? tryY : cur.y;
+        // Fantasma atravessa parede — só o limite absoluto do mapa (acima) continua valendo.
+        const nx = (souFantasmaRef.current || isWalkable(tryX, cur.y)) ? tryX : cur.x;
+        const ny = (souFantasmaRef.current || isWalkable(nx, tryY)) ? tryY : cur.y;
         if (nx !== cur.x || ny !== cur.y) {
           myPosRef.current = { x: nx, y: ny };   // sempre fresco — nunca "um frame atrasado"
           pintarVisual(nx, ny);                   // suave a 60fps, sem re-render do React
@@ -1184,7 +1230,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {} });
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null });
   };
   const marcarPronto = () => {
     if (!state || state.phase !== 'sorteando') return;
@@ -1196,6 +1242,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const meuPapel = state?.papeis?.[name];
   useEffect(() => { meuPapelRef.current = meuPapel; }, [meuPapel]);
+  // Fantasma (ago/2026): quem foi expulso na reunião. Atravessa parede, só
+  // faz tarefa, e só ELE enxerga todo mundo (vivos continuam sem ver fantasmas).
+  const souFantasma = !!state?.fantasmas?.includes(name);
+  useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
   const jaPronto = !!state?.prontos?.[name];
   const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
 
@@ -1234,9 +1284,37 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         {(!state || state.phase === 'lobby' || state.phase === 'over') && (
           <>
             {state?.phase === 'over' && (
-              <div className="sus-pop" style={{ textAlign: 'center', padding: '10px 0' }}>
-                <div style={{ fontSize: 34 }}>🏁</div>
-                <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>Partida encerrada</div>
+              <div className="sus-pop" style={{ textAlign: 'center', padding: '14px 10px', borderRadius: 16,
+                background: state?.vencedor ? (state.vencedor === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`) : 'transparent',
+                border: state?.vencedor ? `1.5px solid ${state.vencedor === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44` : 'none' }}>
+                {state?.vencedor ? (
+                  <>
+                    <div style={{ fontSize: 44 }}>{state.vencedor === 'impostor' ? '🔪' : '🏆'}</div>
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800,
+                      color: state.vencedor === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                      {state.vencedor === 'impostor' ? 'O Impostor venceu!' : 'Os Tripulantes venceram!'}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: T.textT, marginTop: 4 }}>
+                      {state.vencedor === 'impostor' ? 'Os tripulantes foram todos expulsos.' : 'O impostor foi expulso da casa.'}
+                    </div>
+                    {state?.papeis && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 12 }}>
+                        {Object.entries(state.papeis).map(([n, papel]) => (
+                          <span key={n} style={{ padding: '5px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+                            background: papel === 'impostor' ? `${IMPOSTOR_COR}18` : `${TRIPULANTE_COR}18`,
+                            color: papel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
+                            {papel === 'impostor' ? '🔪' : '🏖️'} {n.split(' ')[0]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 34 }}>🏁</div>
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>Partida encerrada</div>
+                  </>
+                )}
               </div>
             )}
             <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px' }}>
@@ -1337,8 +1415,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               </div>
             </div>
 
-            {state?.reuniao ? (
-              <ReuniaoEmergencia reuniao={state.reuniao} players={players} name={name} papeis={state.papeis}
+            {state?.reuniao && !souFantasma ? (
+              // Fantasma NÃO entra na reunião — ele "só faz tarefa", então
+              // continua livre no mapa enquanto os vivos estão reunidos.
+              <ReuniaoEmergencia reuniao={state.reuniao} players={players.filter(p => !state?.fantasmas?.includes(p.name))} name={name} papeis={state.papeis}
                 mensagens={reuniaoMensagens} chatTexto={chatTexto} setChatTexto={setChatTexto}
                 onEnviarChat={enviarChat} onVotar={votar} onRetirarVoto={retirarVoto} onIniciarVotacao={iniciarVotacao} />
             ) : (
@@ -1374,8 +1454,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   );
                 })}
 
-                {/* Botão de emergência — brilho vermelho pulsante, sempre visível. */}
-                {mapaEmergencia && (
+                {/* Botão de emergência — brilho vermelho pulsante. Fantasma não chama reunião. */}
+                {mapaEmergencia && !souFantasma && (
                   <button onClick={chamarReuniao}
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -1386,23 +1466,27 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </button>
                 )}
 
-                {/* Bonecos — sem borda, só a arte do Uniko de cada um */}
-                {players.map(p => {
+                {/* Bonecos — sem borda, só a arte do Uniko de cada um. Fantasma enxerga
+                    TODO MUNDO (vivo + fantasma); quem tá vivo NÃO enxerga fantasma nenhum
+                    (some do mapa pra eles) — só o próprio fantasma se vê e vê os outros. */}
+                {players.filter(p => p.name === name || souFantasma || !state?.fantasmas?.includes(p.name)).map(p => {
                   const eu = p.name === name;
+                  const ehFantasma = !!state?.fantasmas?.includes(p.name);
                   const pos = eu ? myPosAtual : (positions[p.name] || spawnFor(p.name));
                   const andando = eu ? isMoving : !!positions[p.name]?.moving;
                   return (
                     <div key={p.name} ref={eu ? myMarkerRef : undefined}
                       style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
                       width: `${(PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%', opacity: ehFantasma ? .5 : 1,
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
                       <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={andando ? 'sus-walk' : undefined}
-                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
-                        filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.4))' }} />
+                        style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', filter: ehFantasma
+                          ? `grayscale(1) brightness(1.3) drop-shadow(0 0 8px #fff8)`
+                          : (eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.4))') }} />
                       <span style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.88)',
                         borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-                        {p.name.split(' ')[0]}
+                        {ehFantasma ? '👻 ' : ''}{p.name.split(' ')[0]}
                       </span>
                     </div>
                   );
@@ -1416,7 +1500,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
                     verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
-                  background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100, LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']) }} />
+                  background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100, souFantasma ? LUZ_RAIO.fantasma : LUZ_RAIO[meuPapel === 'impostor' ? 'impostor' : 'tripulante']) }} />
               </div>
             </div>
 
