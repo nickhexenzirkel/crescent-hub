@@ -159,6 +159,11 @@ const TASK_TYPE_BY_LABEL = {
 const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'generica';
 const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
 
+/* ── Matar (ago/2026) — só o Impostor, com recarga entre mortes. ── */
+const KILL_PROXIMIDADE = 90;      // distância (px do mapa) pra aparecer o prompt "Pressione F"
+const KILL_COOLDOWN_MS = 25000;   // tempo de recarga entre mortes, por impostor
+const MORTE_ANIM_MS = 3200;       // duração da animação de morte na tela da vítima
+
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
    a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
@@ -220,6 +225,18 @@ const SUS_CSS = `
 @keyframes susTwinkle { 0%,100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.18); opacity: 1; } }
 @keyframes susEmergPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 6px #DC2626) drop-shadow(0 0 14px #DC262699); }
   50% { transform: scale(1.22); filter: drop-shadow(0 0 12px #DC2626) drop-shadow(0 0 26px #DC2626cc); } }
+/* ── Animação de morte (tela cheia da vítima): recuo do impostor, disparo
+   do laser e a vítima levando o tiro (flash branco → treme → apaga/vira
+   fantasma). Tempos batem com MORTE_ANIM_MS. */
+@keyframes susDeathBeam { 0%,35% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+  40% { transform: translateY(-50%) scaleX(1); opacity: 1; } 70%,100% { transform: translateY(-50%) scaleX(1); opacity: .8; } }
+@keyframes susDeathRecoil { 0%,38% { transform: translateX(0) scale(1); } 42% { transform: translateX(-10px) scale(1.06); } 60%,100% { transform: translateX(0) scale(1); } }
+@keyframes susDeathVictim { 0%,38% { filter: brightness(1) grayscale(0); transform: translateX(0) rotate(0); }
+  42% { filter: brightness(3.2) grayscale(0); transform: translateX(10px); }
+  50% { filter: brightness(1.3) grayscale(.5); transform: translateX(-8px) rotate(-5deg); }
+  100% { filter: brightness(.85) grayscale(1); transform: translateX(0) rotate(-9deg) translateY(8px); opacity: .5; } }
+@keyframes susDeathText { 0%,32% { opacity: 0; transform: scale(.6) translateY(10px); }
+  46% { opacity: 1; transform: scale(1.1) translateY(0); } 60%,100% { opacity: 1; transform: scale(1) translateY(0); } }
 .sus-fade   { animation: susFade .35s ease both; }
 .sus-pop    { animation: susPop .3s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-reveal { animation: susReveal .55s cubic-bezier(.2,1.4,.4,1) both; }
@@ -227,10 +244,15 @@ const SUS_CSS = `
 .sus-walk   { animation: susWalk .45s ease-in-out infinite; }
 .sus-twinkle { animation: susTwinkle 1.6s ease-in-out infinite; }
 .sus-emerg  { animation: susEmergPulse 1.1s ease-in-out infinite; }
+.sus-death-beam   { animation: susDeathBeam 1.6s cubic-bezier(.2,.9,.3,1) both; }
+.sus-death-recoil { animation: susDeathRecoil 1.6s ease both; }
+.sus-death-victim { animation: susDeathVictim 1.6s ease both; }
+.sus-death-text   { animation: susDeathText 1.6s ease both; }
 .sus-btn { transition: transform .12s, filter .12s; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
-@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg,
+  .sus-death-beam,.sus-death-recoil,.sus-death-victim,.sus-death-text { animation: none !important; } }
 `;
 
 /* ── Estrela (SVG) — marcador de tarefa (azul/verde) e do botão de emergência (vermelho) ── */
@@ -240,6 +262,29 @@ const StarIcon = ({ size = 22, color = '#3B82F6', className }) => (
     <path d="M12 1.5 L15.09 8.76 L23 9.51 L17 14.97 L18.82 22.5 L12 18.4 L5.18 22.5 L7 14.97 L1 9.51 L8.91 8.76 Z"
       fill={color} stroke="#fff" strokeWidth="1.1" strokeLinejoin="round" />
   </svg>
+);
+
+/* ── Tela de morte (ago/2026): só a VÍTIMA vê — o impostor "atira" um laser
+   nela. Full-screen preto, texto "Você foi morto!" com glow (inspirado na
+   referência que o usuário mandou) + os dois Unikos com o feixe entre eles. */
+const MORTE_IMG = '/uniko-suspect-voce-foi-morto.png';
+const MorteOverlay = ({ matadorFoto, vitimaFoto }) => (
+  <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: '#000',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh', overflow: 'hidden' }}>
+    <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
+      style={{ width: 'min(80vw, 560px)', filter: 'drop-shadow(0 0 24px rgba(220,38,38,.55))' }} />
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10vw', width: '100%', maxWidth: 760 }}>
+      <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-recoil"
+        style={{ width: '18vw', maxWidth: 120, minWidth: 70, aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover',
+          border: '3px solid #DC2626', boxShadow: '0 0 26px rgba(220,38,38,.65)', zIndex: 2, background: '#111' }} />
+      <div className="sus-death-beam" style={{ position: 'absolute', left: '24%', right: '24%', top: '50%', height: 8,
+        transformOrigin: 'left center', background: 'linear-gradient(90deg, #DC2626, #fff 50%, #DC2626)',
+        boxShadow: '0 0 18px 4px #DC2626, 0 0 40px 12px rgba(220,38,38,.6)', borderRadius: 999, zIndex: 1 }} />
+      <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
+        style={{ width: '18vw', maxWidth: 120, minWidth: 70, aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover',
+          border: '3px solid #666', zIndex: 2, background: '#111' }} />
+    </div>
+  </div>
 );
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -861,6 +906,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const lightRef = useRef(null);
   const meuPapelRef = useRef(null);
   const souFantasmaRef = useRef(false);
+  const vitimaProximaRef = useRef(null);
+  const matarRef = useRef(null);
+  const morteAnimRef = useRef(null);
 
   /* ── Tela cheia: mesmo padrão do botão "tela cheia" do Portal
      (central-colaborador/index.jsx) — só que aplicado no BLOCO DO JOGO
@@ -937,6 +985,61 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     pushState({ ...s, tasksDone: done });
   };
 
+  /* ── Matar (ago/2026) — só o Impostor, perto de alguém vivo, com recarga.
+     Reusa o MESMO mecanismo de fantasma da expulsão (entra em `fantasmas`),
+     e checa vitória igual à reunião: todo tripulante fora = impostor vence. */
+  const [agoraTick, setAgoraTick] = useState(() => Date.now());   // `Date.now()` só no efeito (regra do React Compiler)
+  useEffect(() => { const iv = setInterval(() => setAgoraTick(Date.now()), 500); return () => clearInterval(iv); }, []);
+  const [morteAnim, setMorteAnim] = useState(null);   // { matador } — só aparece pra quem FOI morto
+  useEffect(() => { morteAnimRef.current = morteAnim; }, [morteAnim]);
+  useEffect(() => {
+    if (!morteAnim) return;
+    const t = setTimeout(() => setMorteAnim(null), MORTE_ANIM_MS);
+    return () => clearTimeout(t);
+  }, [morteAnim]);
+  // Detecta que EU fui morto comparando com a última morte vista — ajustado
+  // durante o render (padrão oficial pra "reagir a uma mudança"), não num
+  // efeito solto com setState síncrono (regra do React Compiler).
+  const [ultimaMorteVista, setUltimaMorteVista] = useState(null);
+  if (state?.ultimaMorte && state.ultimaMorte.vitima === name && state.ultimaMorte.ts !== ultimaMorteVista) {
+    setUltimaMorteVista(state.ultimaMorte.ts);
+    setMorteAnim({ matador: state.ultimaMorte.matador });
+  }
+
+  const vitimaProxima = useMemo(() => {
+    if (state?.phase !== 'jogando' || state?.reuniao) return null;
+    if (state?.papeis?.[name] !== 'impostor' || state?.fantasmas?.includes(name)) return null;
+    const cd = state?.killCooldowns?.[name] || 0;
+    if (agoraTick - cd < KILL_COOLDOWN_MS) return null;
+    let melhor = null, melhorD = Infinity;
+    for (const p of players) {
+      if (p.name === name || state?.papeis?.[p.name] === 'impostor' || state?.fantasmas?.includes(p.name)) continue;
+      const pos = positions[p.name]; if (!pos) continue;
+      const d = Math.hypot(pos.x - myPos.x, pos.y - myPos.y);
+      if (d < KILL_PROXIMIDADE && d < melhorD) { melhor = p; melhorD = d; }
+    }
+    return melhor;
+  }, [state?.phase, state?.reuniao, state?.papeis, state?.fantasmas, state?.killCooldowns, agoraTick, players, positions, myPos, name]);
+  useEffect(() => { vitimaProximaRef.current = vitimaProxima; }, [vitimaProxima]);
+
+  const matar = (vitimaNome) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando' || s.reuniao) return;
+    if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
+    if ((s.fantasmas || []).includes(vitimaNome) || s.papeis?.[vitimaNome] === 'impostor') return;
+    if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return;
+    const fantasmas = [...new Set([...(s.fantasmas || []), vitimaNome])];
+    const nomesPapeis = Object.keys(s.papeis || {});
+    const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !fantasmas.includes(n));
+    const tripulantesVivos = nomesPapeis.filter(n => s.papeis[n] === 'tripulante' && !fantasmas.includes(n));
+    let vencedor = null;
+    if (impostoresVivos.length === 0) vencedor = 'tripulante';
+    else if (tripulantesVivos.length === 0) vencedor = 'impostor';
+    pushState({ ...s, fantasmas, vencedor, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
+      ultimaMorte: { vitima: vitimaNome, matador: name, ts: Date.now() } });
+  };
+  useEffect(() => { matarRef.current = matar; });
+
   /* ── Reunião de emergência (ago/2026): ver comentário no componente
      ReuniaoEmergencia. `reuniaoAtivaRef` congela o movimento (mesmo mecanismo
      do `tarefaAbertaRef`) enquanto ela estiver rolando. */
@@ -957,7 +1060,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const chamarReuniao = () => {
     const s = stateRef.current;
-    if (!s || s.phase !== 'jogando' || (s.fantasmas || []).includes(name)) return;   // fantasma não chama reunião
+    if (!s || s.phase !== 'jogando' || s.vencedor || (s.fantasmas || []).includes(name)) return;   // fantasma não chama reunião; jogo já decidido não chama de novo
     if (s.reuniao) { setEmergMsg('🚨 Já tem uma reunião de emergência rolando!'); setTimeout(() => setEmergMsg(''), 2500); return; }
     pushState({ ...s, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
   };
@@ -1049,6 +1152,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     return () => clearInterval(iv);
   }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState]);
 
+  /* HOST fecha a partida quando uma MORTE (não expulsão — essa já tem seu
+     próprio fluxo de 8s dentro da reunião) decide o jogo: dá um tempinho
+     pra vítima ver a animação antes de estourar a tela de vitória. */
+  useEffect(() => {
+    if (!isHost || !state?.vencedor || state?.phase !== 'jogando' || state?.reuniao) return;
+    const t = setTimeout(() => {
+      const s = stateRef.current;
+      if (s?.vencedor && s?.phase === 'jogando' && !s?.reuniao) pushState({ ...s, phase: 'over' });
+    }, MORTE_ANIM_MS + 300);
+    return () => clearTimeout(t);
+  }, [isHost, state?.vencedor, state?.phase, state?.reuniao, pushState]);
+
   useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { if (state) stateRef.current = state; }, [state]);
 
@@ -1123,18 +1238,25 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       const k = e.key.toLowerCase();
       const tag = (document.activeElement?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;   // nunca captura teclado de um campo de texto
+      // Fantasma ignora o congelamento da reunião — ele "só faz tarefa" mesmo,
+      // então continua jogando enquanto os vivos estão reunidos. A animação
+      // de morte (na tela da PRÓPRIA vítima) trava tudo, sem exceção.
+      const travado = !!morteAnimRef.current || tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current);
       if (k === 'e') {
         // Interagir com a tarefa mais próxima (estrela azul dentro do alcance).
-        // Fantasma ignora o congelamento da reunião — ele "só faz tarefa"
-        // mesmo, então continua jogando enquanto os vivos estão reunidos.
-        const travadoPelaReuniao = reuniaoAtivaRef.current && !souFantasmaRef.current;
-        if (!tarefaAbertaRef.current && !travadoPelaReuniao && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        if (!travado && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        e.preventDefault();
+        return;
+      }
+      if (k === 'f') {
+        // Matar a vítima mais próxima (só existe alvo se eu for o Impostor — ver vitimaProxima).
+        if (!travado && vitimaProximaRef.current) matarRef.current?.(vitimaProximaRef.current.name);
         e.preventDefault();
         return;
       }
       if (k === 'escape' && tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
       if (!KEY_DIR[k]) return;
-      if (tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) return;   // mini-jogo/reunião aberta — WASD não move o boneco por baixo (fantasma ignora a reunião)
+      if (travado) return;   // mini-jogo/reunião/animação de morte — WASD não move o boneco por baixo
       pressedRef.current.add(k);
       e.preventDefault();
     };
@@ -1161,9 +1283,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const step = (ts) => {
       const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
       lastTsRef.current = ts;
-      if (tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) {
-        // Mini-jogo de tarefa aberto, ou reunião rolando e eu não sou
-        // fantasma — congela o boneco (some com o bob de andar também).
+      if (morteAnimRef.current || tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) {
+        // Animação de morte, mini-jogo de tarefa aberto, ou reunião rolando
+        // e eu não sou fantasma — congela o boneco (some com o bob também).
         if (isMovingRef.current) { isMovingRef.current = false; setIsMoving(false); }
         rafRef.current = requestAnimationFrame(step);
         return;
@@ -1510,8 +1632,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 Pressione <b>E</b> — {tarefaProxima.label}
               </div>
             )}
+            {vitimaProxima && (
+              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
+                background: 'rgba(220,38,38,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                🔫 Pressione <b>F</b> — Matar {vitimaProxima.name.split(' ')[0]}
+              </div>
+            )}
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              🚧 Matar e sabotagem chegam nas próximas fases — por enquanto é andar pela casa, fazer as tarefas e chamar reunião de emergência quando desconfiar de alguém.
+              🚧 Sabotagem chega numa próxima fase — por enquanto é andar pela casa, fazer as tarefas, matar (só o Impostor) e chamar reunião de emergência quando desconfiar de alguém.
             </div>
             </>
             )}
@@ -1526,6 +1654,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             {tarefaAberta && (
               <TaskModal task={tarefaAberta} onClose={() => setTarefaAberta(null)}
                 onComplete={() => { marcarTarefaFeita(tarefaAberta.id); setTarefaAberta(null); }} />
+            )}
+
+            {morteAnim && (
+              <MorteOverlay matadorFoto={players.find(p => p.name === morteAnim.matador)?.photo} vitimaFoto={photo} />
             )}
           </div>
         )}
