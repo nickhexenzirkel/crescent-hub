@@ -152,7 +152,7 @@ const LUZ_RAIO = { tripulante: 15, impostor: 23 };
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 300;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 420)
+const MOVE_SPEED = 200;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 300)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
@@ -754,7 +754,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   const pos = eu ? myPos : (positions[p.name] || spawnFor(p.name));
                   return (
                     <div key={p.name} style={{ position: 'absolute', left: `${pos.x / MAP_W * 100}%`, top: `${pos.y / MAP_H * 100}%`,
-                      width: `${(PLAYER_R * 1.8 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
+                      width: `${(PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
                       <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
