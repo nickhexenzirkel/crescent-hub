@@ -1643,7 +1643,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }}>
                     <img src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
-                      style={{ width: '19vw', maxWidth: 200, minWidth: 118, display: 'block' }} />
+                      style={{ width: '27vw', maxWidth: 280, minWidth: 160, display: 'block' }} />
                   </button>
                 )}
 
@@ -1704,13 +1704,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   {vitimaProxima && (
                     <button className="sus-btn sus-pop" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
                       <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`}
-                        style={{ width: 'clamp(88px, 14vw, 160px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                        style={{ width: 'clamp(120px, 20vw, 220px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
                     </button>
                   )}
                   {corpoProximo && (
                     <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
                       <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
-                        style={{ width: 'clamp(88px, 14vw, 160px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                        style={{ width: 'clamp(120px, 20vw, 220px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
                     </button>
                   )}
                 </div>
