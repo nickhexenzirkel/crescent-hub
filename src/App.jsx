@@ -323,8 +323,6 @@ export default function CrescentHub() {
         try { photo = await fetchPhotoByName(row.player); } catch {}
         setChatToast({ id: row.id, player: row.player, texto: row.texto, photo });
         playReminder();
-        notifyDesktop({ id: 'chat-' + row.id, type: 'lembrete', title: `💬 Bate-Papo · Uniko FIT`,
-          message: `${row.player.split(' ')[0]}: ${row.texto}`, active: true });
       })
       .subscribe();
     return () => _supabase.removeChannel(ch);
