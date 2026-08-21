@@ -2546,7 +2546,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const festBgVideo = tab==="festival" ? (unikoDaSkin(songSkin)?.bgVideoUrl || '') : '';
 
   return (
-    <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative"}}>
+    <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative",overflowX:"hidden"}}>
       {festBgVideo && <style>{`.ca-bgvid-on [style*="blur"]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}`}</style>}
 
       {/* ── Bloqueio FIXO: Spotify indisponível (rate limit / ban / desconectado) ──
@@ -2767,8 +2767,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         @keyframes festBlob8{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-80px,-20px) scale(1.1)}66%{transform:translate(50px,60px) scale(0.85)}}
       `}</style>
 
-      {/* Topbar */}
-      <div style={{height:56,background:T.topbarBg||headerBg,backdropFilter:"blur(28px)",WebkitBackdropFilter:"blur(28px)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",padding:"0 24px",gap:12,position:"sticky",top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
+      {/* Topbar — `paddingTop` com a safe-area evita nascer embaixo do
+          relógio/notch quando o Portal roda "instalado" (mesmo fix já feito
+          no Uniko FIT). */}
+      <div style={{height:56,boxSizing:"content-box",background:T.topbarBg||headerBg,backdropFilter:"blur(28px)",WebkitBackdropFilter:"blur(28px)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",padding:"0 24px",paddingTop:"env(safe-area-inset-top, 0px)",gap:12,position:"sticky",top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
         <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.textS,fontSize:13,fontFamily:"var(--font-body)",padding:"4px 8px",borderRadius:7}}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||"rgba(0,0,0,0.04)"}
           onMouseLeave={e=>e.currentTarget.style.background="none"}>

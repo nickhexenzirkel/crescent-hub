@@ -520,7 +520,7 @@ export default function CrescentHub() {
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         {/* Some dentro do Uniko Fit (pedido explícito — o módulo tem sua própria identidade visual). */}
-        {screen!=='uniko-fit' && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+        {screen!=='uniko-fit' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
