@@ -24,17 +24,18 @@ const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colabor
 // (rende igual em qualquer aparelho/fonte, e combina com o resto dos Ico*
 // do arquivo). `emoji` continua existindo em REACOES: é o valor GRAVADO no
 // banco (coluna uniko_fit_reactions.emoji) — só a exibição virou ícone.
-const IcoDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="20" y="9" width="3" height="6" rx="1"/><rect x="5" y="7" width="2.5" height="10" rx="1"/><rect x="16.5" y="7" width="2.5" height="10" rx="1"/><line x1="7.5" y1="12" x2="16.5" y2="12"/></svg>;
+const IcoHeart = <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
 const IcoCheckCircle = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 10.8 15.3 16 9.5"/></svg>;
 const IcoComment = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
+const IcoShare = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>;
 
-// Curtir = reagir com o símbolo de músculo — só essa opção (a pedido; antes
-// tinha 4: força/fogo/palmas/uniko). `REACOES[0]` continua sendo usado pelo
+// Curtir = reagir com coração — só essa opção (a pedido; antes tinha 4:
+// força/fogo/palmas/uniko). `REACOES[0]` continua sendo usado pelo
 // duplo-toque de curtir na foto (ver `handlePostTap`), e `emoji` continua o
 // valor gravado no banco (uniko_fit_reactions.emoji) — reações antigas com
 // outro emoji ficam só fora da contagem por tipo, não travam nada.
 const REACOES = [
-  { id: 'forca', emoji: '💪', svg: IcoDumbbell, label: 'Curtir' },
+  { id: 'curtir', emoji: '❤️', svg: IcoHeart, label: 'Curtir' },
 ];
 
 const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','👍','👎','❤️','🙌','😅','🤔','😴','🥳','🏋️','🏃','🍎','💧','⏰','✅','⭐','🤝','😎','🥵','🎯'];
@@ -653,6 +654,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       if (jaEssa) await supabase.from('uniko_fit_reactions').delete().eq('checkin_id', itemId).eq('player', name);
       else await supabase.from('uniko_fit_reactions').upsert({ checkin_id: itemId, player: name, emoji }, { onConflict: 'checkin_id,player' });
     } catch (e) { console.error('[uniko-fit] reação:', e); }
+  };
+
+  // Compartilhar um post do feed no Bate-Papo — guarda o id do check-in
+  // original em `shared_checkin_id` pra o clique no chat levar direto pro
+  // post (ver `irParaFeed` e o render de tipo==='compartilhado' no chat).
+  const compartilharNoChat = async (post) => {
+    try {
+      await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'compartilhado', media_url: post.photo_url, shared_checkin_id: post.id });
+      setTopTab('batepapo');
+    } catch (e) { console.error('[uniko-fit] compartilhar:', e); }
   };
 
   // Apagar post (só o dono) — RLS já permite delete em uniko_fit_checkins;
@@ -1387,7 +1398,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                     </div>
 
-                    <div style={{ position: 'absolute', right: 8, bottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
+                    <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
                       {REACOES.map(rc => {
                         const ativo = r.mine === (rc.emoji || rc.id);
                         const emojiKey = rc.emoji || rc.id;
@@ -1408,6 +1419,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
                         <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'rgba(0,0,0,.35)' }}>{IcoComment}</div>
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
+                      </button>
+                      <button className="fit-btn" onClick={e => { e.stopPropagation(); compartilharNoChat(post); }} title="Compartilhar no Bate-Papo"
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'rgba(0,0,0,.35)' }}>{IcoShare}</div>
                       </button>
                       {totalReacoes > 0 && <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.7)' }}>{totalReacoes}</span>}
                     </div>
@@ -1449,6 +1464,31 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   );
                 }
                 const eu = m.player === name;
+                if (m.tipo === 'compartilhado') {
+                  const ehVideo = isVideoUrl(m.media_url);
+                  return (
+                    <div key={m.id} style={{ display: 'flex', gap: 8, flexDirection: eu ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
+                      <img src={photos[m.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                      <div style={{ maxWidth: '74%' }}>
+                        {!eu && <div style={{ fontSize: 10, fontWeight: 700, color: T.textT, marginBottom: 2 }}>{m.player.split(' ')[0]}</div>}
+                        <div onClick={() => irParaFeed({ id: m.shared_checkin_id })} role="button" aria-label="Ver post compartilhado"
+                          style={{ borderRadius: eu ? '14px 3px 14px 14px' : '3px 14px 14px 14px', overflow: 'hidden', cursor: 'pointer', border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)' }}>
+                          {m.media_url && (ehVideo
+                            ? <FeedVideo src={m.media_url} muted style={{ width: 190, height: 150, objectFit: 'cover', display: 'block' }} />
+                            : <img src={m.media_url} alt="" style={{ width: 190, height: 150, objectFit: 'cover', display: 'block' }} />)}
+                          <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: T.text }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+                            {ehVideo ? 'Vídeo compartilhado' : 'Foto compartilhada'}
+                          </div>
+                        </div>
+                      </div>
+                      {eu && (
+                        <button onClick={() => apagarChatMsg(m)} className="fit-btn" title="Apagar mensagem"
+                          style={{ alignSelf: 'center', border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoTrash}</button>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <div key={m.id} style={{ display: 'flex', gap: 8, flexDirection: eu ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
                     <img src={photos[m.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
