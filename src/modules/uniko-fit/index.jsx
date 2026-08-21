@@ -853,6 +853,34 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     } catch (e) { console.error('[uniko-fit] apagar comentário:', e); }
   };
 
+  // ── Curtidas (drawer por post — segura o coração pra ver quem curtiu) ──
+  const [curtidasAberto, setCurtidasAberto] = useState(null); // post selecionado, null = fechado
+  const [curtidasLista, setCurtidasLista] = useState(null);   // null = carregando
+  const abrirCurtidas = async (post) => {
+    setCurtidasAberto(post); setCurtidasLista(null);
+    const { data } = await supabase.from('uniko_fit_reactions').select('*').eq('checkin_id', post.id).order('created_at', { ascending: false });
+    setCurtidasLista(data || []);
+    ensurePhotos((data || []).map(r => r.player));
+  };
+  // Segurar o coração ~480ms mostra a lista; um toque curto continua
+  // curtindo/descurtindo normal (mesmo `toggleReacao` de sempre) — o timer
+  // decide qual das duas ação aconteceu no soltar.
+  const heartHoldRef = useRef(null);
+  const iniciarSegurarCoracao = (post) => (e) => {
+    e.stopPropagation();
+    const estado = { fired: false, timer: null };
+    estado.timer = setTimeout(() => { estado.fired = true; abrirCurtidas(post); }, 480);
+    heartHoldRef.current = estado;
+  };
+  const soltarCoracao = (post) => (e) => {
+    e.stopPropagation();
+    const estado = heartHoldRef.current;
+    if (!estado) return; // já tratado — pointerup E pointerleave costumam disparar pro mesmo toque
+    clearTimeout(estado.timer);
+    heartHoldRef.current = null;
+    if (!estado.fired) toggleReacao(post.id, REACOES[0].emoji);
+  };
+
   /* ═══════════════════ POSTAR FOTO (Check-In ou Postar no Feed) ═══════════════════ */
   const [postFile, setPostFile] = useState(null);
   const [postPreview, setPostPreview] = useState(null);
@@ -1262,8 +1290,17 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotifs();
-    const poll = setInterval(loadNotifs, 25000); // leve, mesma lógica do poll de reações do feed
-    return () => clearInterval(poll);
+    // Tempo real de verdade (mesmo padrão do canal do feed/chat): curtida ou
+    // comentário novo em QUALQUER check-in recarrega a lista na hora — antes
+    // só o poll de 25s cobria isso, e por não filtrar no canal se é check-in
+    // seu (o filtro fica em `loadNotifs`, do lado do servidor) é mais simples
+    // só reagir a qualquer INSERT nessas duas tabelas.
+    const ch = supabase.channel('uniko-fit-mynotifs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_reactions' }, () => loadNotifs())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_comments' }, () => loadNotifs())
+      .subscribe();
+    const poll = setInterval(loadNotifs, 25000); // leve, fallback se o realtime cair
+    return () => { supabase.removeChannel(ch); clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1285,29 +1322,38 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const abrirNotificacoes = () => setSheet('notif');
   const fecharNotificacoes = () => setSheet(null);
   // Marca como lido ao SAIR da tela de notificações — não ao abrir, pra dar
-  // tempo de ver o destaque de "novo" enquanto olha a lista. Antes isso só
-  // rodava se a pessoa fechasse pelo X/fundo (`onClose` do Sheet); qualquer
-  // OUTRO jeito de sair (pular direto pra outra aba da barra, voltar pro
-  // Portal, fechar a aba do navegador com o celular suspendendo o app etc.)
-  // pulava a marcação, e a leitura "não persistia" ao recarregar depois. Um
-  // efeito com cleanup cobre TODOS esses casos de uma vez: o cleanup roda
-  // sempre que `sheet` deixa de ser 'notif' — seja trocando de sheet, seja
-  // desmontando o componente inteiro — sem precisar caçar cada call site.
+  // tempo de ver o destaque de "novo" enquanto olha a lista.
   const notifsRef = useRef(notifs);
   useEffect(() => { notifsRef.current = notifs; }, [notifs]);
+  const marcarNotifsComoLidas = useCallback(() => {
+    const lista = notifsRef.current;
+    if (!lista?.length) return;
+    setNotifReadIds(prev => {
+      const next = new Set(prev);
+      lista.forEach(n => next.add(n.id));
+      try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
+      return next;
+    });
+  }, []);
+  // Só o cleanup do effect (roda ao trocar de sheet/desmontar) NÃO é
+  // suficiente: um RELOAD da página não passa pelo ciclo de desmontagem do
+  // React a tempo — o navegador mata o JS antes da limpeza rodar — então a
+  // marcação nunca era salva se a pessoa recarregasse com a tela ainda
+  // aberta. `visibilitychange`/`pagehide` disparam de verdade nesse
+  // momento (é pra isso que existem), então viram outro gatilho de
+  // gravação, além do cleanup e do botão manual (ver `marcarNotifsComoLidas`
+  // logo abaixo, no header da sheet).
   useEffect(() => {
     if (sheet !== 'notif') return;
+    const onHide = () => { if (document.visibilityState === 'hidden') marcarNotifsComoLidas(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', marcarNotifsComoLidas);
     return () => {
-      const lista = notifsRef.current;
-      if (!lista?.length) return;
-      setNotifReadIds(prev => {
-        const next = new Set(prev);
-        lista.forEach(n => next.add(n.id));
-        try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
-        return next;
-      });
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', marcarNotifsComoLidas);
+      marcarNotifsComoLidas();
     };
-  }, [sheet]);
+  }, [sheet, marcarNotifsComoLidas]);
 
   /* ═══════════════════ UI ═══════════════════ */
   // "Desafios" tirado TEMPORARIAMENTE da barra (a pedido) — só escondido, o
@@ -1474,8 +1520,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                         const emojiKey = rc.emoji || rc.id;
                         const n = r.counts[emojiKey] || 0;
                         return (
-                          <button key={rc.id} className="fit-btn" onClick={e => { e.stopPropagation(); toggleReacao(post.id, emojiKey); }} title={rc.label}
-                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <button key={rc.id} className="fit-btn" title={rc.label} onContextMenu={e => e.preventDefault()}
+                            onPointerDown={iniciarSegurarCoracao(post)} onPointerUp={soltarCoracao(post)} onPointerLeave={soltarCoracao(post)}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', touchAction: 'manipulation' }}>
                             <div className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`}
                               style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
                                 background: ativo ? `${ENERGIA}E6` : 'rgba(0,0,0,.35)', boxShadow: ativo ? `0 0 0 2px #fff` : 'none' }}>
@@ -1929,6 +1976,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {notifUnreadCount > 0 && (
+                <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={marcarNotifsComoLidas} className="fit-btn"
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: ENERGIA, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 4 }}>
+                    ✓ Marcar como lida
+                  </button>
+                </div>
+              )}
               {notifs.map(n => {
                 const naoLida = !notifReadIds.has(n.id);
                 return (
@@ -2049,6 +2104,33 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 style={{ padding: '9px 18px', borderRadius: 999, border: 'none', cursor: comentTexto.trim() ? 'pointer' : 'default',
                   background: comentTexto.trim() ? `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` : (T.surfaceSub || 'rgba(0,0,0,.06)'), color: '#fff', fontWeight: 700, fontSize: 12.5,
                   opacity: comentTexto.trim() ? 1 : .5 }}>Enviar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Curtidas (drawer por post — segurar o coração) ── */}
+      {curtidasAberto && (
+        <div onClick={() => setCurtidasAberto(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} className="fit-pop" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
+            width: '100%', maxWidth: 480, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 40px rgba(0,0,0,.3)' }}>
+            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoHeartSm} Curtidas</div>
+              <button onClick={() => setCurtidasAberto(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 20, lineHeight: 1 }}>×</button>
+            </div>
+            <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 16px', display: 'flex', flexDirection: 'column' }}>
+              {curtidasLista === null ? (
+                <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Carregando...</div>
+              ) : curtidasLista.length === 0 ? (
+                <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Ninguém curtiu ainda.</div>
+              ) : curtidasLista.map(r => (
+                <div key={`${r.player}-${r.checkin_id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
+                  <img src={photos[r.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: T.text }}>{r.player}</div>
+                  <span style={{ color: ENERGIA, display: 'flex' }}>{IcoHeartSm}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
