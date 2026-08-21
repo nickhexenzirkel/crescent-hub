@@ -1290,17 +1290,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [meusItens, meuEngaj]);
 
   /* ═══════════════════ NOTIFICAÇÕES (curtidas/comentários nas minhas fotos) ═══════════════════ */
-  // Guarda o CONJUNTO DE IDs já lidos (não um "timestamp de última vez que
-  // abriu"): comparar string ISO do client (`toISOString()`, milissegundo,
-  // sufixo "Z") com o `created_at` que volta do Postgres (microssegundo,
-  // sufixo "+00:00") é frágil — em notificações muito próximas no tempo a
-  // comparação de string pode dar errado e a marcação "não persiste" depois
-  // de recarregar. IDs são exatos, sem esse risco.
-  const notifReadKeyRef = useRef(`uniko_fit_notif_read_${(getAuthUser()?.cpf || 'anon').replace(/\D/g, '')}`);
   const [notifs, setNotifs] = useState(null); // null = ainda não carregado
-  const [notifReadIds, setNotifReadIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(notifReadKeyRef.current)) || []); } catch { return new Set(); }
-  });
 
   const loadNotifs = useCallback(async () => {
     const { data: meus } = await supabase.from('uniko_fit_checkins').select('id,photo_url').eq('player', name);
@@ -1350,39 +1340,53 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     return () => { document.removeEventListener('visibilitychange', acordar); window.removeEventListener('focus', acordar); };
   }, [loadFeed, loadChat, loadNotifs]);
 
-  const notifUnreadCount = useMemo(() => (notifs || []).filter(n => !notifReadIds.has(n.id)).length, [notifs, notifReadIds]);
+  // "Até quando" já foi lido — um TIMESTAMP, não um conjunto de IDs, e a
+  // fonte de verdade é o SUPABASE, não localStorage. Já tentamos localStorage
+  // (conjunto de IDs, depois vários gatilhos de gravação diferentes) e o bug
+  // sempre voltava — no iPhone rodando como app instalado, o Safari não
+  // parece persistir localStorage de forma confiável entre sessões, então
+  // qualquer fix só do lado do cliente tinha esse mesmo ponto cego. Guardar
+  // no banco elimina isso: não importa o que o navegador faça com o storage
+  // local, `last_read_at` sempre volta certo no próximo carregamento.
+  // Comparação por DATA (`new Date(...)`), não string — `created_at` do
+  // Postgres e o timestamp gerado aqui têm formatos diferentes, e comparar
+  // como texto seria frágil.
+  const [lastReadAt, setLastReadAt] = useState(null); // Date | null — null = nunca leu nada
+  const [lastReadAtCarregado, setLastReadAtCarregado] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.from('uniko_fit_notif_reads').select('last_read_at').eq('player', name).maybeSingle();
+        setLastReadAt(data?.last_read_at ? new Date(data.last_read_at) : null);
+      } catch { setLastReadAt(null); }
+      setLastReadAtCarregado(true);
+    })();
+  }, [name]);
+
+  const notifUnreadCount = useMemo(() => {
+    if (!lastReadAtCarregado) return 0; // evita mostrar contagem errada por 1 instante enquanto carrega
+    return (notifs || []).filter(n => !lastReadAt || new Date(n.created_at) > lastReadAt).length;
+  }, [notifs, lastReadAt, lastReadAtCarregado]);
   const abrirNotificacoes = () => setSheet('notif');
   const fecharNotificacoes = () => setSheet(null);
-  const notifsRef = useRef(notifs);
-  useEffect(() => { notifsRef.current = notifs; }, [notifs]);
-  const marcarNotifsComoLidas = useCallback(() => {
-    const lista = notifsRef.current;
-    if (!lista?.length) return;
-    setNotifReadIds(prev => {
-      const next = new Set(prev);
-      lista.forEach(n => next.add(n.id));
-      try { localStorage.setItem(notifReadKeyRef.current, JSON.stringify([...next])); } catch { /* localStorage indisponível */ }
-      return next;
-    });
-  }, []);
-  // Marcar "ao sair" (fechar/trocar de aba/reload) sempre teve uma janela de
-  // risco real: depende de pegar um evento de saída a tempo (cleanup do
-  // effect, visibilitychange, pagehide...), e algum caminho de reload no
-  // iOS/PWA não disparava nenhum deles rápido o bastante — a marcação se
-  // perdia. Fix definitivo: marca como lida NA HORA que abre, sem esperar
-  // NADA — não tem mais janela de risco nenhuma, porque a gravação já
-  // aconteceu antes de qualquer chance de reload/fechar acontecer.
-  // `notifsVistosAoAbrir` guarda um retrato de quem JÁ estava lido antes de
-  // abrir, só pra manter o destaque visual de "novo" durante essa visita
-  // (senão o destaque desaparecia na hora também, já que `notifReadIds`
-  // muda imediatamente).
-  const [notifsVistosAoAbrir, setNotifsVistosAoAbrir] = useState(null);
+  const marcarNotifsComoLidas = useCallback(async () => {
+    const agora = new Date();
+    setLastReadAt(agora);
+    try { await supabase.from('uniko_fit_notif_reads').upsert({ player: name, last_read_at: agora.toISOString() }, { onConflict: 'player' }); } catch { /* tenta de novo na próxima abertura */ }
+  }, [name]);
+  // `snapshotLastRead`: retrato de `lastReadAt` de ANTES de abrir — só pra
+  // manter o destaque visual de "novo" durante essa visita (`lastReadAt` já
+  // muda pra "agora" na hora que abre). `undefined` = ainda não tirou o
+  // retrato (evita usar `null` de propósito, que já é um valor válido de
+  // "nunca leu nada").
+  const [snapshotLastRead, setSnapshotLastRead] = useState(undefined);
   useEffect(() => {
-    if (sheet !== 'notif') { setNotifsVistosAoAbrir(null); return; }
-    setNotifsVistosAoAbrir(prev => prev || new Set(notifReadIds));
+    if (sheet !== 'notif') { setSnapshotLastRead(undefined); return; }
+    if (!lastReadAtCarregado) return;
+    setSnapshotLastRead(prev => prev !== undefined ? prev : lastReadAt);
     marcarNotifsComoLidas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sheet, notifs]);
+  }, [sheet, lastReadAtCarregado]);
 
   /* ═══════════════════ UI ═══════════════════ */
   // "Desafios" tirado TEMPORARIAMENTE da barra (a pedido) — só escondido, o
@@ -2008,19 +2012,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               {/* A persistência já acontece sozinha na hora que abre — esse botão só
                   limpa o destaque visual de "novo" na hora, sem precisar esperar sair
                   da tela (pedido explícito: um jeito manual, sempre à mão). */}
-              {notifsVistosAoAbrir && notifsVistosAoAbrir.size < notifs.length && (
+              {snapshotLastRead !== undefined && notifs.some(n => !snapshotLastRead || new Date(n.created_at) > snapshotLastRead) && (
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setNotifsVistosAoAbrir(new Set(notifs.map(n => n.id)))} className="fit-btn"
+                  <button onClick={() => setSnapshotLastRead(new Date())} className="fit-btn"
                     style={{ border: 'none', background: 'none', cursor: 'pointer', color: ENERGIA, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 4 }}>
                     ✓ Marcar como lida
                   </button>
                 </div>
               )}
               {notifs.map(n => {
-                // Usa o retrato de quando abriu (não `notifReadIds` direto) — esse já
+                // Usa o retrato de quando abriu (não `lastReadAt` direto) — esse já
                 // muda na hora que abre, então usar ele aqui apagaria o destaque de
                 // "novo" instantaneamente, antes da pessoa nem ver.
-                const naoLida = notifsVistosAoAbrir ? !notifsVistosAoAbrir.has(n.id) : false;
+                const naoLida = snapshotLastRead !== undefined ? (!snapshotLastRead || new Date(n.created_at) > snapshotLastRead) : false;
                 return (
                   <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${T.border}`, background: naoLida ? `${ENERGIA}0e` : 'transparent' }}>
                     <img src={photos[n.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
