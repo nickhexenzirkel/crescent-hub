@@ -452,7 +452,7 @@ const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, choco
 const REUNIAO_FASE_MS = 60000;
 const REUNIAO_RESULTADO_MS = 8000;
 
-const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatTexto, setChatTexto, onEnviarChat, onVotar }) => {
+const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatTexto, setChatTexto, onEnviarChat, onVotar, onRetirarVoto, onIniciarVotacao }) => {
   // `Date.now()` só pode ser chamado dentro do efeito (impuro) — o render lê
   // só o estado `agora`, que o efeito atualiza 2x/s (regra do React Compiler).
   const [agora, setAgora] = useState(() => Date.now());
@@ -491,14 +491,21 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
             ))}
           </div>
           {reuniao.fase === 'chat' && (
-            <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: `1px solid ${T.border}` }}>
-              <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') onEnviarChat(); }}
-                maxLength={240} placeholder="Escreva algo suspeito..."
-                style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13 }} />
-              <button className="sus-btn" onClick={onEnviarChat} disabled={!chatTexto.trim()}
-                style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
-                  background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderTop: `1px solid ${T.border}` }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') onEnviarChat(); }}
+                  maxLength={240} placeholder="Escreva algo suspeito..."
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13 }} />
+                <button className="sus-btn" onClick={onEnviarChat} disabled={!chatTexto.trim()}
+                  style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
+                    background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
+              </div>
+              <button className="sus-btn" onClick={onIniciarVotacao}
+                style={{ padding: '9px 12px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                  background: `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, boxShadow: `0 6px 16px ${IMPOSTOR_COR}44` }}>
+                🗳️ Vamos votar
+              </button>
             </div>
           )}
         </div>
@@ -506,21 +513,28 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
 
       {reuniao.fase === 'votacao' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center' }}>Dá pra trocar de voto quantas vezes quiser até a votação fechar.</div>
           {players.map(p => (
-            <button key={p.name} className="sus-btn" disabled={jaVotei} onClick={() => onVotar(p.name)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11, textAlign: 'left',
-                border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff'),
-                cursor: jaVotei ? 'default' : 'pointer', opacity: jaVotei && meuVoto !== p.name ? .55 : 1 }}>
+            <button key={p.name} className="sus-btn" onClick={() => onVotar(p.name)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11, textAlign: 'left', cursor: 'pointer',
+                border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff') }}>
               <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
               <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{p.name}</span>
               {votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 13 }}>✅</span>}
             </button>
           ))}
-          <button className="sus-btn" disabled={jaVotei} onClick={() => onVotar(null)}
+          <button className="sus-btn" onClick={() => onVotar(null)}
             style={{ padding: '9px 12px', borderRadius: 11, border: `1.5px dashed ${T.border}`, background: 'transparent',
-              color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: jaVotei ? 'default' : 'pointer', opacity: jaVotei && meuVoto !== null ? .55 : 1 }}>
+              color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
             {meuVoto === null ? '✅ ' : ''}Pular votação
           </button>
+          {jaVotei && (
+            <button className="sus-btn" onClick={onRetirarVoto}
+              style={{ padding: '8px 12px', borderRadius: 11, border: 'none', background: 'transparent',
+                color: T.textD, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+              ↩️ Retirar meu voto
+            </button>
+          )}
         </div>
       )}
 
@@ -931,10 +945,27 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     chanRef.current?.send({ type: 'broadcast', event: 'reuniao-chat', payload: { id: uid(), autor: name, texto: texto.slice(0, 240) } });
     setChatTexto('');
   };
+  // Voto pode ser trocado à vontade enquanto a votação estiver rolando —
+  // clicar em outra pessoa troca, "Retirar meu voto" apaga a chave inteira
+  // (pedido do usuário: dá pra mudar de ideia até a votação fechar).
   const votar = (alvo) => {
     const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'votacao' || rr.votos?.[name] !== undefined) return;
+    if (!rr || rr.fase !== 'votacao') return;
     pushState({ ...s, reuniao: { ...rr, votos: { ...(rr.votos || {}), [name]: alvo } } });
+  };
+  const retirarVoto = () => {
+    const s = stateRef.current; const rr = s?.reuniao;
+    if (!rr || rr.fase !== 'votacao' || rr.votos?.[name] === undefined) return;
+    const votos = { ...(rr.votos || {}) };
+    delete votos[name];
+    pushState({ ...s, reuniao: { ...rr, votos } });
+  };
+  // Botão "Vamos votar" (qualquer jogador pode apertar) — pula o resto do
+  // cronômetro de chat e já abre a votação, sem esperar os 60s completos.
+  const iniciarVotacao = () => {
+    const s = stateRef.current; const rr = s?.reuniao;
+    if (!rr || rr.fase !== 'chat') return;
+    pushState({ ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } });
   };
 
   const host = useMemo(() => {
@@ -990,9 +1021,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     return () => { vivo = false; supabase.removeChannel(ch); clearInterval(poll); };
   }, [roomId, aplicaEstado]);
 
-  /* Canal de broadcast da sala: "pronto" (revisou o papel) + posição no mapa. */
+  /* Canal de broadcast da sala: "pronto" (revisou o papel) + posição no mapa +
+     chat da reunião. `broadcast.self:true` é NECESSÁRIO — por padrão o
+     Supabase Realtime NÃO devolve o broadcast pra quem enviou, então sem
+     isso o próprio remetente nunca via a própria mensagem de chat aparecer
+     (só os outros viam). Os outros handlers (pos/pronto/pos-req) já se
+     protegiam contra processar o próprio eco, então ligar isso é seguro. */
   useEffect(() => {
-    const ch = supabase.channel(`uniko-suspect-room-${roomId}`);
+    const ch = supabase.channel(`uniko-suspect-room-${roomId}`, { config: { broadcast: { self: true } } });
     chanRef.current = ch;
     ch.on('broadcast', { event: 'pronto' }, ({ payload }) => {
       if (!hostRef.current) return;
@@ -1304,7 +1340,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             {state?.reuniao ? (
               <ReuniaoEmergencia reuniao={state.reuniao} players={players} name={name} papeis={state.papeis}
                 mensagens={reuniaoMensagens} chatTexto={chatTexto} setChatTexto={setChatTexto}
-                onEnviarChat={enviarChat} onVotar={votar} />
+                onEnviarChat={enviarChat} onVotar={votar} onRetirarVoto={retirarVoto} onIniciarVotacao={iniciarVotacao} />
             ) : (
             <>
             {/* Viewport (o que a tela mostra): janela pequena, com zoom — não o mapa inteiro.
@@ -1333,7 +1369,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button key={t.id} onClick={() => setTarefaAberta(t)}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }} title={t.label}>
-                      <StarIcon size={29} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
+                      <StarIcon size={42} color={feita ? '#22C55E' : '#3B82F6'} className={feita ? undefined : 'sus-twinkle'} />
                     </button>
                   );
                 })}
@@ -1343,7 +1379,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <button onClick={chamarReuniao}
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <StarIcon size={39} color="#DC2626" className="sus-emerg" />
+                    <StarIcon size={56} color="#DC2626" className="sus-emerg" />
                     <span style={{ fontSize: 9.5, fontWeight: 800, color: '#fff', background: 'rgba(220,38,38,.85)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
                       Estrela de Emergência
                     </span>
