@@ -2058,6 +2058,32 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (state?.sabotagem ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
               </div>
 
+              {/* Mini-mapa redondo — canto superior direito, mostra a casa inteira (não
+                  só a janela com zoom) com um pontinho por tarefa (azul pendente / verde
+                  já feita POR MIM) + minha posição. Impostor não vê (ele não tem tarefa). */}
+              {meuPapel !== 'impostor' && (
+                <div style={{ position: 'absolute', top: '3%', right: '3%', zIndex: 6,
+                  width: 'clamp(88px, 13vw, 150px)', aspectRatio: '1/1', borderRadius: '50%', overflow: 'hidden',
+                  border: '3px solid rgba(255,255,255,.85)', boxShadow: '0 6px 18px rgba(0,0,0,.6)', background: '#0B3D45' }}>
+                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                    <img src={MAPA_IMG} alt="" draggable={false}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: .8, userSelect: 'none', pointerEvents: 'none' }} />
+                    {mapaTarefas.map(t => {
+                      const feita = minhasFeitas.has(t.id);
+                      return (
+                        <div key={t.id} style={{ position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
+                          transform: 'translate(-50%,-50%)', width: '6%', aspectRatio: '1/1', borderRadius: '50%',
+                          background: feita ? '#22C55E' : '#3B82F6', border: '1px solid #fff',
+                          boxShadow: feita ? 'none' : '0 0 5px #3B82F6' }} />
+                      );
+                    })}
+                    <div style={{ position: 'absolute', left: `${myPosAtual.x / MAP_W * 100}%`, top: `${myPosAtual.y / MAP_H * 100}%`,
+                      transform: 'translate(-50%,-50%)', width: '8%', aspectRatio: '1/1', borderRadius: '50%',
+                      background: '#fff', border: `2px solid ${AGUA}`, boxShadow: '0 0 6px #fff' }} />
+                  </div>
+                </div>
+              )}
+
               {/* Sabotar (redondo) / Matar/Reportar — todos no canto inferior DIREITO
                   da tela do jogo (pedido do usuário: sabotar ao lado do matar), zIndex 6. */}
               {(mostrarSabotar || vitimaProxima || corpoProximo) && (
