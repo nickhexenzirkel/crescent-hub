@@ -471,11 +471,18 @@ const SecaoLabel = ({ icon, children }) => (
 // dá play com áudio a partir dali (é um toque real, o navegador libera).
 const FeedVideo = ({ src, style, muted }) => {
   const ref = useRef(null);
+  // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
+  // isso, desmutar tentaria dar play em TODOS os vídeos montados no feed
+  // (inclusive os que estão fora da tela), não só no que a pessoa está
+  // vendo. `visivelRef` guarda se ESSE elemento específico está visível
+  // agora, atualizado pelo IntersectionObserver abaixo.
+  const visivelRef = useRef(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.playsInline = true;
     const io = new IntersectionObserver(([entry]) => {
+      visivelRef.current = entry.isIntersecting;
       if (entry.isIntersecting) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
       else el.pause();
     }, { threshold: 0.6 });
@@ -485,11 +492,13 @@ const FeedVideo = ({ src, style, muted }) => {
   useEffect(() => {
     const el = ref.current; if (!el) return;
     el.muted = muted;
-    // Ao DESMUTAR (toque real no botão de som), tenta tocar de novo — se a
-    // tentativa muda automática (lá em cima, via IntersectionObserver) foi
-    // recusada pelo navegador, isso garante que o vídeo realmente começa
-    // a tocar aproveitando que agora tem um toque de usuário de verdade.
-    if (!muted) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+    // Ao DESMUTAR (toque real no botão de som), tenta tocar de novo — mas só
+    // se ESSE vídeo estiver visível agora; senão toca todo mundo de uma vez
+    // (era esse o bug: música de todos os posts ao mesmo tempo). Se a
+    // tentativa muda automática (lá em cima) foi recusada pelo navegador,
+    // isso garante que o vídeo visível realmente começa a tocar, aproveitando
+    // que agora tem um toque de usuário de verdade.
+    if (!muted && visivelRef.current) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
   }, [muted]);
   return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
@@ -503,6 +512,13 @@ const FeedVideo = ({ src, style, muted }) => {
    sempre mudo (ver render do feed) — só essa música toca. */
 const FeedMusic = ({ src, start, duration, muted }) => {
   const ref = useRef(null);
+  // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
+  // isso, desmutar tentaria dar play em TODAS as músicas montadas no feed
+  // (inclusive posts fora da tela), não só na do post que a pessoa está
+  // vendo — foi exatamente esse bug (todas as músicas tocando juntas).
+  // `visivelRef` guarda se ESSE elemento específico está visível agora,
+  // atualizado pelo IntersectionObserver abaixo.
+  const visivelRef = useRef(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -512,6 +528,7 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     const onTime = () => { if (duration && el.currentTime >= inicio + duration) seek(); };
     el.addEventListener('timeupdate', onTime);
     const io = new IntersectionObserver(([entry]) => {
+      visivelRef.current = entry.isIntersecting;
       if (entry.isIntersecting) { seek(); el.play().catch(() => { /* autoplay recusado até 1ª interação — silencioso */ }); }
       else el.pause();
     }, { threshold: 0.6 });
@@ -524,9 +541,10 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     // O Safari (iPhone) é mais rígido com <audio> do que com <video muted>:
     // recusa autoplay de áudio mesmo mudo, então a 1ª tentativa lá em cima
     // (via IntersectionObserver) costuma falhar silenciosamente nele. Ao
-    // desmutar — um toque real no botão de som — tenta tocar de novo; com
-    // gesto de usuário de verdade, o navegador libera.
-    if (!muted) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+    // desmutar — um toque real no botão de som — tenta tocar de novo, mas só
+    // se ESSE post estiver visível agora (senão toca todo mundo de uma vez).
+    // Com gesto de usuário de verdade, o navegador libera.
+    if (!muted && visivelRef.current) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
   }, [muted]);
   // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
   // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
