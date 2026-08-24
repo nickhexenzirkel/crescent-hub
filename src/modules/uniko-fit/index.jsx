@@ -452,6 +452,13 @@ const Sheet = ({ title, onBack, onClose, children }) => {
   );
 };
 
+/* ── Rótulo de seção dentro de uma sheet (📷 Mídia / ✍️ Legenda / 🎵 Música) ── */
+const SecaoLabel = ({ icon, children }) => (
+  <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ fontSize: 13 }}>{icon}</span>{children}
+  </div>
+);
+
 /* ── Vídeo do feed com autoplay que funciona no celular também ── */
 // No mobile, `autoPlay` sozinho costuma falhar: alguns navegadores ignoram o
 // atributo `muted` do JSX na primeira renderização (precisa setar via DOM), e
@@ -482,9 +489,10 @@ const FeedVideo = ({ src, style, muted }) => {
 /* ── Música de um post (ago/2026, estilo TikTok) ─────────────────────────────
    Mesmo princípio do FeedVideo (autoplay/pause por IntersectionObserver,
    começa mudo até a pessoa tocar no alto-falante) — só que em loop dentro
-   do TRECHINHO escolhido (`start`..`start+duration`) do clipe de prévia do
-   Spotify (~30s), em vez do áudio inteiro. Se o post tem vídeo também, o
-   `<video>` fica sempre mudo (ver render do feed) — só essa música toca. */
+   do TRECHINHO escolhido (`start`..`start+duration`) do áudio (upload
+   próprio, extraído de vídeo ou pego da biblioteca — ver MusicPicker),
+   em vez do áudio inteiro. Se o post tem vídeo também, o `<video>` fica
+   sempre mudo (ver render do feed) — só essa música toca. */
 const FeedMusic = ({ src, start, duration, muted }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -506,42 +514,138 @@ const FeedMusic = ({ src, start, duration, muted }) => {
   return <audio ref={ref} src={src} preload="auto" style={{ display: 'none' }} />;
 };
 
+/* ── Extrair o áudio de um vídeo (ago/2026) ───────────────────────────────────
+   Sem servidor/ffmpeg: toca o vídeo escondido (mudo nas caixinhas — `muted`
+   só afeta a saída de som, não a faixa capturada), pega só a trilha de ÁUDIO
+   via `captureStream()` e grava com `MediaRecorder` (mesma API já usada no
+   áudio do Bate-Papo) num Blob webm/opus. Extração é EM TEMPO REAL (dura o
+   tanto que o vídeo dura), por isso corta em MAX_EXTRACAO_S pra não travar
+   com vídeo longo. `onProgress` recebe 0..1 pra alimentar a barrinha na UI. */
+const MAX_EXTRACAO_S = 60;
+const escolherMimeAudio = () => {
+  const candidatos = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+  for (const m of candidatos) if (window.MediaRecorder?.isTypeSupported?.(m)) return m;
+  return '';
+};
+const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) => {
+  const video = document.createElement('video');
+  video.muted = true; video.playsInline = true; video.preload = 'auto';
+  video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px';
+  video.src = URL.createObjectURL(file);
+  document.body.appendChild(video);
+  let finished = false;
+  const limpar = () => { try { URL.revokeObjectURL(video.src); } catch { /* já liberado */ } try { video.remove(); } catch { /* já removido */ } };
+  const falhar = (msg) => { if (finished) return; finished = true; limpar(); reject(new Error(msg)); };
+  video.onerror = () => falhar('Não consegui abrir esse vídeo.');
+  video.onloadedmetadata = async () => {
+    try {
+      const stream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
+      const audioTracks = stream?.getAudioTracks() || [];
+      if (!audioTracks.length) { falhar('Esse vídeo não tem áudio.'); return; }
+      const mime = escolherMimeAudio();
+      const recorder = new MediaRecorder(new MediaStream(audioTracks), mime ? { mimeType: mime } : undefined);
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+      recorder.onerror = () => falhar('Erro ao gravar o áudio do vídeo.');
+      recorder.onstop = () => {
+        if (finished) return; finished = true; limpar();
+        if (!chunks.length) { reject(new Error('Não consegui extrair áudio desse vídeo.')); return; }
+        resolve(new Blob(chunks, { type: mime || 'audio/webm' }));
+      };
+      const limite = Math.min(video.duration || MAX_EXTRACAO_S, MAX_EXTRACAO_S);
+      const parar = () => { if (finished) return; try { recorder.stop(); } catch { /* já parado */ } try { video.pause(); } catch { /* já pausado */ } };
+      video.ontimeupdate = () => { onProgress?.(Math.min(1, video.currentTime / limite)); if (video.currentTime >= limite) parar(); };
+      video.onended = parar;
+      recorder.start();
+      await video.play();
+    } catch (e) { falhar(e?.message || 'Erro ao extrair áudio.'); }
+  };
+});
+
 /* ── Escolher música pro post (ago/2026, estilo TikTok) ──────────────────────
-   A busca no Spotify foi abandonada: na prática quase nenhuma faixa vem com
-   `preview_url` mais (restrição deles, sem contorno) — confirmado em uso
-   real. Agora a pessoa sobe seu PRÓPRIO arquivo de áudio (do celular/PC) e
-   a etapa de recorte deixa testar/ajustar o INÍCIO e a DURAÇÃO do trechinho
-   antes de confirmar. O arquivo (File) só vai pro Storage na hora de postar
-   (ver postarFoto). */
+   3 fontes: (1) BIBLIOTECA — áudios que a galera já usou em posts antes,
+   reaproveitáveis por qualquer um (tabela uniko_fit_audios); (2) áudio
+   PRÓPRIO, upload direto; (3) extrair de um VÍDEO (ver extrairAudioDeVideo
+   acima) — a pessoa escolhe um vídeo qualquer e a gente puxa só o áudio.
+   Busca no Spotify foi abandonada: na prática quase nenhuma faixa vinha com
+   `preview_url` (restrição deles, sem contorno) — confirmado em uso real.
+   Depois de escolher a fonte, etapa de recorte igual pras 3: testar/ajustar
+   INÍCIO e DURAÇÃO do trechinho antes de confirmar. Ao confirmar um áudio
+   novo (fontes 2/3), sobe pro Storage e entra na biblioteca pra todo mundo —
+   só quando vem DA biblioteca que pula o upload (já está lá). */
 const CLIP_DURACOES = [5, 10, 15];
-const MusicPicker = ({ energia, fogo, onEscolher }) => {
-  const [arquivo, setArquivo] = useState(null);
-  const [previewSrc, setPreviewSrc] = useState(null);
-  const [nomeMusica, setNomeMusica] = useState('');
+const FONTES_MUSICA = [
+  { id: 'biblioteca', label: '📚 Biblioteca' },
+  { id: 'audio', label: '🎤 Meu áudio' },
+  { id: 'video', label: '🎬 De um vídeo' },
+];
+const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
+  const [fonte, setFonte] = useState('biblioteca');
+  const [biblioteca, setBiblioteca] = useState(null);
+  const [buscaBib, setBuscaBib] = useState('');
+  useEffect(() => {
+    let ativo = true;
+    supabase.from('uniko_fit_audios').select('id,title,url,duration,player').order('created_at', { ascending: false }).limit(80)
+      .then(({ data }) => { if (ativo) setBiblioteca(data || []); });
+    return () => { ativo = false; };
+  }, []);
+
+  const [audioSrc, setAudioSrc] = useState(null); // url tocável (blob local OU da biblioteca/Storage)
+  const [blobUrl, setBlobUrl] = useState(null); // preenchido só quando `audioSrc` é um blob local (pra revogar depois)
+  const [uploadFile, setUploadFile] = useState(null); // File a subir pro Storage (null = já veio da biblioteca)
+  const [origemAudio, setOrigemAudio] = useState('audio'); // 'audio' | 'video' | 'biblioteca'
+  const [tituloAudio, setTituloAudio] = useState('');
   const [inicio, setInicio] = useState(0);
   const [duracao, setDuracao] = useState(10);
   const [previewDur, setPreviewDur] = useState(30);
   const [tocando, setTocando] = useState(false);
+  const [extraindo, setExtraindo] = useState(null); // 0..1 durante extração de vídeo, null = parado
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
   const audioRef = useRef(null);
-  const previewSrcRef = useRef(null);
+  const blobUrlRef = useRef(null);
 
-  useEffect(() => { previewSrcRef.current = previewSrc; }, [previewSrc]);
-  useEffect(() => () => { if (previewSrcRef.current) URL.revokeObjectURL(previewSrcRef.current); }, []);
+  useEffect(() => { blobUrlRef.current = blobUrl; }, [blobUrl]);
+  useEffect(() => () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); }, []);
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
 
-  const escolherArquivo = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  const escolherDaBiblioteca = (item) => {
+    setErro('');
+    setAudioSrc(item.url); setBlobUrl(null); setUploadFile(null); setOrigemAudio('biblioteca');
+    setTituloAudio(item.title); setPreviewDur(item.duration || 30);
+    setInicio(0); setDuracao(Math.max(1, Math.min(10, Math.floor(item.duration || 10))));
+  };
+  const escolherArquivoAudio = (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
-    if (previewSrc) URL.revokeObjectURL(previewSrc);
-    setPreviewSrc(URL.createObjectURL(file));
-    setArquivo(file);
-    setNomeMusica(file.name.replace(/\.[^./]+$/, ''));
+    setErro('');
+    const url = URL.createObjectURL(file);
+    setAudioSrc(url); setBlobUrl(url); setUploadFile(file); setOrigemAudio('audio');
+    setTituloAudio(file.name.replace(/\.[^./]+$/, ''));
     setInicio(0); setDuracao(10); setPreviewDur(30);
+  };
+  const escolherArquivoVideo = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setErro(''); setExtraindo(0);
+    try {
+      const blob = await extrairAudioDeVideo(file, (p) => setExtraindo(p));
+      const nomeBase = file.name.replace(/\.[^./]+$/, '');
+      const ext = (blob.type.split(';')[0].split('/')[1]) || 'webm';
+      const audioFile = new File([blob], `${nomeBase}.${ext}`, { type: blob.type || 'audio/webm' });
+      const url = URL.createObjectURL(audioFile);
+      setAudioSrc(url); setBlobUrl(url); setUploadFile(audioFile); setOrigemAudio('video');
+      setTituloAudio(nomeBase);
+      setInicio(0); setDuracao(10); setPreviewDur(30);
+    } catch (err) {
+      setErro(err?.message || 'Não consegui extrair o áudio desse vídeo.');
+    }
+    setExtraindo(null);
   };
   const trocar = () => {
     audioRef.current?.pause(); setTocando(false);
-    if (previewSrc) URL.revokeObjectURL(previewSrc);
-    setPreviewSrc(null); setArquivo(null);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    setAudioSrc(null); setBlobUrl(null); setUploadFile(null); setTituloAudio(''); setErro('');
   };
   const pararPreview = () => { audioRef.current?.pause(); setTocando(false); };
   const testarTrecho = () => {
@@ -549,30 +653,71 @@ const MusicPicker = ({ energia, fogo, onEscolher }) => {
     el.currentTime = inicio; el.play().catch(() => {}); setTocando(true);
   };
   useEffect(() => {
-    const el = audioRef.current; if (!el || !arquivo) return;
-    const onLoaded = () => setPreviewDur(el.duration || 30);
+    const el = audioRef.current; if (!el || !audioSrc) return;
+    // Blobs gravados pelo MediaRecorder às vezes voltam com `duration:Infinity`
+    // (o container webm não fecha os metadados de duração) — truque conhecido
+    // pra forçar o navegador a calcular direito: buscar um ponto bem no fim.
+    const onLoaded = () => {
+      if (isFinite(el.duration)) { setPreviewDur(prev => el.duration || prev); return; }
+      const corrigirDuracao = () => {
+        el.removeEventListener('timeupdate', corrigirDuracao);
+        if (isFinite(el.duration)) setPreviewDur(el.duration);
+        el.currentTime = 0;
+      };
+      el.addEventListener('timeupdate', corrigirDuracao, { once: true });
+      el.currentTime = 1e10;
+    };
     const onTime = () => { if (el.currentTime >= inicio + duracao) el.currentTime = inicio; };
     const onEnded = () => setTocando(false);
     el.addEventListener('loadedmetadata', onLoaded);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('ended', onEnded);
     return () => { el.removeEventListener('loadedmetadata', onLoaded); el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnded); };
-  }, [arquivo, inicio, duracao]);
-  useEffect(() => () => { audioRef.current?.pause(); }, []);
+  }, [audioSrc, inicio, duracao]);
 
   const maxInicio = Math.max(0, Math.floor(previewDur - duracao));
 
-  if (arquivo) {
+  const usarTrecho = async () => {
+    pararPreview();
+    if (origemAudio === 'biblioteca') { onEscolher({ url: audioSrc, title: tituloAudio, start: inicio, duration: duracao }); return; }
+    if (!uploadFile) return;
+    setEnviando(true); setErro('');
+    try {
+      const cpf = (getAuthUser()?.cpf || '').replace(/\D/g, '') || 'anon';
+      const ext = (uploadFile.name.split('.').pop() || 'webm').replace(/[^a-zA-Z0-9]/g, '') || 'webm';
+      const path = `${cpf}/biblioteca-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, uploadFile, { contentType: uploadFile.type || undefined, upsert: false });
+      if (upErr) throw new Error('Falha ao enviar o áudio: ' + upErr.message);
+      const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
+      const titulo = tituloAudio.trim() || 'Música';
+      // Biblioteca é best-effort: se o insert falhar não trava o post, só não
+      // fica disponível pros outros reusarem depois.
+      try { await supabase.from('uniko_fit_audios').insert({ title: titulo, url: pub.publicUrl, duration: Math.round(previewDur) || null, player: name, origem: origemAudio }); } catch { /* biblioteca é best-effort */ }
+      onEscolher({ url: pub.publicUrl, title: titulo, start: inicio, duration: duracao });
+    } catch (err) {
+      setErro(err?.message || 'Erro ao salvar o áudio.');
+    }
+    setEnviando(false);
+  };
+
+  if (audioSrc) {
     return (
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
           <div style={{ width: 56, height: 56, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: `linear-gradient(135deg, ${energia}22, ${fogo}22)`, fontSize: 24 }}>🎵</div>
-          <input value={nomeMusica} onChange={e => setNomeMusica(e.target.value)} placeholder="Nome da música" maxLength={60}
-            style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
-              fontSize: 13.5, fontWeight: 700, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+          {origemAudio === 'biblioteca' ? (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tituloAudio}</div>
+              <div style={{ fontSize: 11.5, color: T.textT }}>Da biblioteca 📚</div>
+            </div>
+          ) : (
+            <input value={tituloAudio} onChange={e => setTituloAudio(e.target.value)} placeholder="Nome da música" maxLength={60}
+              style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
+                fontSize: 13.5, fontWeight: 700, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+          )}
         </div>
-        <audio ref={audioRef} src={previewSrc} preload="auto" />
+        <audio ref={audioRef} src={audioSrc} preload="auto" />
         <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 6 }}>Duração do trecho</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {CLIP_DURACOES.map(d => (
@@ -588,30 +733,85 @@ const MusicPicker = ({ energia, fogo, onEscolher }) => {
           style={{ width: '100%', padding: 11, borderRadius: 10, border: `1.5px solid ${energia}`, background: 'transparent', color: energia, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
           {tocando ? '⏸ Parar' : '▶️ Testar trecho'}
         </button>
+        {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ {erro}</div>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="fit-btn" onClick={trocar}
-            style={{ flex: 1, padding: 11, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          <button className="fit-btn" onClick={trocar} disabled={enviando}
+            style={{ flex: 1, padding: 11, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: enviando ? 'not-allowed' : 'pointer' }}>
             ↺ Trocar
           </button>
-          <button className="fit-btn"
-            onClick={() => { pararPreview(); onEscolher({ file: arquivo, title: nomeMusica.trim() || 'Música', start: inicio, duration: duracao }); }}
-            style={{ flex: 1.4, padding: 11, borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${energia}, ${fogo})`, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-            ✅ Usar esse trecho
+          <button className="fit-btn" onClick={usarTrecho} disabled={enviando}
+            style={{ flex: 1.4, padding: 11, borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${energia}, ${fogo})`, color: '#fff', fontWeight: 800, fontSize: 13,
+              cursor: enviando ? 'not-allowed' : 'pointer', opacity: enviando ? .65 : 1 }}>
+            {enviando ? 'Enviando...' : '✅ Usar esse trecho'}
           </button>
         </div>
       </div>
     );
   }
 
+  const bibFiltrada = biblioteca?.filter(a => !buscaBib.trim() || a.title.toLowerCase().includes(buscaBib.trim().toLowerCase())) ?? null;
+
   return (
     <div style={{ padding: 18 }}>
-      <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
-        borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-        <span style={{ fontSize: 30 }}>🎵</span>
-        <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher áudio</span>
-        <span style={{ fontSize: 11.5, color: T.textT }}>Um arquivo de música do seu celular/PC</span>
-        <input type="file" accept="audio/*" onChange={escolherArquivo} style={{ display: 'none' }} />
-      </label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {FONTES_MUSICA.map(f => (
+          <button key={f.id} className="fit-btn" onClick={() => setFonte(f.id)}
+            style={{ flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+              border: `1.5px solid ${fonte === f.id ? energia : T.border}`, background: fonte === f.id ? `${energia}16` : 'transparent', color: fonte === f.id ? energia : T.textS }}>{f.label}</button>
+        ))}
+      </div>
+
+      {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ {erro}</div>}
+
+      {fonte === 'biblioteca' && (
+        <>
+          <input value={buscaBib} onChange={e => setBuscaBib(e.target.value)} placeholder="Buscar na biblioteca..."
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 13,
+              color: T.text, outline: 'none', boxSizing: 'border-box', marginBottom: 12, fontFamily: 'var(--font-body)' }} />
+          {biblioteca === null && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Carregando...</div>}
+          {bibFiltrada?.length === 0 && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Nenhum áudio na biblioteca ainda — seja a primeira pessoa a adicionar um 🎵</div>}
+          {bibFiltrada?.map(a => (
+            <button key={a.id} className="fit-btn" onClick={() => escolherDaBiblioteca(a)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${energia}18`, fontSize: 17 }}>🎵</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title}</div>
+                <div style={{ fontSize: 11, color: T.textT }}>{a.player}{a.duration ? ` · ${Math.round(a.duration)}s` : ''}</div>
+              </div>
+            </button>
+          ))}
+        </>
+      )}
+
+      {fonte === 'audio' && (
+        <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
+          borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
+          <span style={{ fontSize: 30 }}>🎤</span>
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher áudio</span>
+          <span style={{ fontSize: 11.5, color: T.textT }}>Um arquivo de música do seu celular/PC</span>
+          <input type="file" accept="audio/*" onChange={escolherArquivoAudio} style={{ display: 'none' }} />
+        </label>
+      )}
+
+      {fonte === 'video' && (
+        extraindo !== null ? (
+          <div style={{ padding: '36px 18px', textAlign: 'center' }}>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>🎬</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>Extraindo o áudio do vídeo...</div>
+            <div style={{ width: '100%', height: 8, borderRadius: 99, background: T.border, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round(extraindo * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${energia}, ${fogo})`, transition: 'width .2s' }} />
+            </div>
+          </div>
+        ) : (
+          <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
+            borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontSize: 30 }}>🎬</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher vídeo</span>
+            <span style={{ fontSize: 11.5, color: T.textT }}>A gente extrai o áudio automaticamente</span>
+            <input type="file" accept="video/*" onChange={escolherArquivoVideo} style={{ display: 'none' }} />
+          </label>
+        )
+      )}
     </div>
   );
 };
@@ -1150,17 +1350,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, postFile, { contentType: postFile.type || undefined, upsert: false });
       if (upErr) throw new Error('Falha ao enviar a foto: ' + upErr.message);
       const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
-      let musicUrl = null;
-      if (postMusic?.file) {
-        const mext = (postMusic.file.name.split('.').pop() || 'mp3').replace(/[^a-zA-Z0-9]/g, '');
-        const mpath = `${cpf}/musica-${Date.now()}.${mext}`;
-        const { error: mUpErr } = await supabase.storage.from('uniko-fit-fotos').upload(mpath, postMusic.file, { contentType: postMusic.file.type || undefined, upsert: false });
-        if (mUpErr) throw new Error('Falha ao enviar a música: ' + mUpErr.message);
-        const { data: mPub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(mpath);
-        musicUrl = mPub.publicUrl;
-      }
+      // A música já foi enviada pro Storage (e pra biblioteca, se era nova) na
+      // hora em que a pessoa confirmou o trecho no MusicPicker — aqui só
+      // referencia a URL que já existe, não sobe nada de novo.
       const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind, desafio_pose_id: kind === 'checkin' ? (desafioAtivo?.id || null) : null,
-        music_url: musicUrl, music_title: postMusic?.title || null, music_artist: null,
+        music_url: postMusic?.url || null, music_title: postMusic?.title || null, music_artist: null,
         music_start: postMusic?.start ?? null, music_duration: postMusic?.duration ?? null });
       if (error) {
         if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã 💪'); }
@@ -1961,54 +2155,58 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               </div>
             )}
 
-            {sheet === 'checkin' ? (
-              // Check-in só aceita foto tirada na hora pelo próprio Uniko FIT (sem
-              // galeria) — pedido explícito, evita gente postando foto velha/de outra
-              // pessoa. Tem escolha de filtro de cor antes de confirmar.
-              postPreview ? (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '4/5', background: '#111' }}>
-                    <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                  <button className="fit-btn" onClick={() => { setPostFile(null); setPostPreview(null); }}
-                    style={{ width: '100%', marginTop: 8, padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'none', color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>↺ Tirar outra foto</button>
-                </div>
-              ) : (
-                <div style={{ marginBottom: 14 }}>
-                  <CameraCapture energia={ENERGIA} onCapture={(file, url) => { setPostFile(file); setPostPreview(url); }} />
-                </div>
-              )
-            ) : (
-              <>
-                <input ref={postFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
-                {postPreview ? (
-                  <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, aspectRatio: '4/5', background: '#111' }}>
-                    {postIsVideo
-                      ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                    <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
+            <div style={{ marginBottom: 18 }}>
+              <SecaoLabel icon={sheet === 'checkin' ? '📸' : '📷'}>{sheet === 'checkin' ? 'Foto do treino' : 'Mídia'}</SecaoLabel>
+              {sheet === 'checkin' ? (
+                // Check-in só aceita foto tirada na hora pelo próprio Uniko FIT (sem
+                // galeria) — pedido explícito, evita gente postando foto velha/de outra
+                // pessoa. Tem escolha de filtro de cor antes de confirmar.
+                postPreview ? (
+                  <div>
+                    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', aspectRatio: '4/5', background: '#111', boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>
+                      <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <button className="fit-btn" onClick={() => { setPostFile(null); setPostPreview(null); }}
+                      style={{ width: '100%', marginTop: 8, padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'none', color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>↺ Tirar outra foto</button>
                   </div>
                 ) : (
-                  <button className="fit-btn" onClick={() => postFileRef.current?.click()}
-                    style={{ width: '100%', aspectRatio: '4/5', borderRadius: 14, border: `2px dashed ${ENERGIA}66`, background: `${ENERGIA}0a`,
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', marginBottom: 14 }}>
-                    <div style={{ fontSize: 38 }}>📷🎬</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: ENERGIA }}>Escolher foto ou vídeo</div>
-                  </button>
-                )}
-              </>
-            )}
+                  <CameraCapture energia={ENERGIA} onCapture={(file, url) => { setPostFile(file); setPostPreview(url); }} />
+                )
+              ) : (
+                <>
+                  <input ref={postFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
+                  {postPreview ? (
+                    <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', cursor: 'pointer', aspectRatio: '4/5', background: '#111', boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>
+                      {postIsVideo
+                        ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
+                    </div>
+                  ) : (
+                    <button className="fit-btn" onClick={() => postFileRef.current?.click()}
+                      style={{ width: '100%', aspectRatio: '4/5', borderRadius: 16, border: `2px dashed ${ENERGIA}66`, background: `linear-gradient(160deg, ${ENERGIA}10, ${FOGO}08)`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
+                      <div style={{ fontSize: 42 }}>📷🎬</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: ENERGIA }}>Escolher foto ou vídeo</div>
+                      <div style={{ fontSize: 11.5, color: T.textT }}>Toque em "🎵 Adicionar música" pra usar o áudio de um vídeo</div>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 5 }}>Legenda (opcional)</div>
-              <textarea value={postCaption} onChange={e => setPostCaption(e.target.value)} placeholder="Como foi hoje?" rows={3} maxLength={220}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 13,
-                  color: T.text, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+            <div style={{ marginBottom: 18, padding: 14, borderRadius: 16, background: `linear-gradient(135deg, ${ENERGIA}12, ${FOGO}08)`, border: `1.5px solid ${ENERGIA}33` }}>
+              <SecaoLabel icon="✍️">Legenda</SecaoLabel>
+              <textarea value={postCaption} onChange={e => setPostCaption(e.target.value)}
+                placeholder={sheet === 'checkin' ? 'Como foi o treino hoje? 💪' : 'O que você quer compartilhar?'} rows={4} maxLength={220}
+                style={{ width: '100%', padding: '11px 13px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 14,
+                  color: T.text, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'var(--font-body)', lineHeight: 1.45 }} />
+              <div style={{ textAlign: 'right', fontSize: 10.5, color: T.textD, marginTop: 4 }}>{postCaption.length}/220</div>
             </div>
 
             {sheet === 'post' && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 5 }}>Música (opcional)</div>
+              <div style={{ marginBottom: 18 }}>
+                <SecaoLabel icon="🎵">Música (opcional)</SecaoLabel>
                 {postMusic ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: `${ENERGIA}0f`, border: `1px solid ${ENERGIA}33` }}>
                     <span style={{ fontSize: 18, flexShrink: 0 }}>🎵</span>
@@ -2021,7 +2219,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   </div>
                 ) : (
                   <button className="fit-btn" onClick={() => setMusicaAberta(true)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 12, border: `1.5px dashed ${T.border}`, background: 'transparent',
+                    style={{ width: '100%', padding: '12px 12px', borderRadius: 12, border: `1.5px dashed ${T.border}`, background: 'transparent',
                       color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     🎵 Adicionar música
                   </button>
@@ -2045,7 +2243,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {musicaAberta && (
         <Sheet title="Adicionar música 🎵" onBack={() => setMusicaAberta(false)} onClose={() => setMusicaAberta(false)}>
-          <MusicPicker energia={ENERGIA} fogo={FOGO} onEscolher={(m) => { setPostMusic(m); setMusicaAberta(false); }} />
+          <MusicPicker energia={ENERGIA} fogo={FOGO} name={name} onEscolher={(m) => { setPostMusic(m); setMusicaAberta(false); }} />
         </Sheet>
       )}
 
