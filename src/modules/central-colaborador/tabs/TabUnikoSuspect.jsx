@@ -196,6 +196,51 @@ const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o bot�
 /* ── Vórtex e câmeras (ago/2026) — pontos marcados no editor do RH
    (uniko_suspect_map.vortexes / .cameras). Vórtex: só o Impostor, teleporta
    entre os portais. Câmeras: qualquer um, vê as salas ao vivo. ── */
+/* ── Som ambiente (ago/2026) ──────────────────────────────────────────────
+   Uma trilha de suspense roda o tempo todo (lobby + partida) e é TROCADA pela
+   trilha de "luzes apagadas" enquanto a sabotagem de energia estiver ativa,
+   voltando ao normal quando consertam.
+
+   Volume baixo de propósito: isto é um portal de trabalho, ninguém quer o
+   Uniko Suspect gritando na sala. Também tem botão de mudo, com a escolha
+   guardada no localStorage — quem silenciou uma vez não quer ser surpreendido
+   na próxima partida.
+
+   `<audio>` cria os elementos UMA vez (fora do React) e faz crossfade por
+   volume: recriar o elemento a cada troca cortava o som seco e recomeçava o
+   download do arquivo. */
+const SOM_AMBIENTE = '/uniko-suspect-ambiente.mp3';
+const SOM_LUZES_APAGADAS = '/uniko-suspect-luzes-apagadas.mp3';
+const SOM_VOLUME = 0.22;             // baixo — é trilha de fundo, não destaque
+const SOM_FADE_MS = 700;
+const SOM_MUDO_KEY = 'uniko_suspect_mudo';
+
+const criarTrilha = (src) => {
+  const a = new Audio(src);
+  a.loop = true;
+  a.preload = 'auto';
+  a.volume = 0;
+  return a;
+};
+
+/* Faz o volume caminhar até o alvo em ~SOM_FADE_MS (evita corte seco).
+   Devolve o id do intervalo pra quem chamou poder cancelar. */
+const fadeVolume = (el, alvo, aoTerminar) => {
+  if (!el) return null;
+  const passo = (alvo - el.volume) / (SOM_FADE_MS / 50);
+  const iv = setInterval(() => {
+    const v = el.volume + passo;
+    if ((passo >= 0 && v >= alvo) || (passo < 0 && v <= alvo)) {
+      el.volume = Math.max(0, Math.min(1, alvo));
+      clearInterval(iv);
+      aoTerminar?.();
+      return;
+    }
+    el.volume = Math.max(0, Math.min(1, v));
+  }, 50);
+  return iv;
+};
+
 const VORTEX_PROXIMIDADE = 80;
 const CAMERA_PROXIMIDADE = 85;
 const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois portais
@@ -1447,6 +1492,52 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const playersRef = useRef([]);
   const cardBg = T.surface || '#fff';
 
+  /* ── Som ambiente: toca no lobby e na partida; troca pela trilha de "luzes
+     apagadas" enquanto a sabotagem de energia estiver ativa. ── */
+  const [mudo, setMudo] = useState(() => { try { return localStorage.getItem(SOM_MUDO_KEY) === '1'; } catch { return false; } });
+  const trilhasRef = useRef(null);
+  const fadeRef = useRef({});
+  const luzesApagadas = !!state?.sabotagem;
+
+  // Cria as duas trilhas uma vez e derruba tudo ao sair da sala.
+  useEffect(() => {
+    const t = { normal: criarTrilha(SOM_AMBIENTE), apagado: criarTrilha(SOM_LUZES_APAGADAS) };
+    trilhasRef.current = t;
+    return () => {
+      Object.values(fadeRef.current).forEach(iv => iv && clearInterval(iv));
+      for (const el of Object.values(t)) { try { el.pause(); el.src = ''; } catch { /* já solto */ } }
+      trilhasRef.current = null;
+    };
+  }, []);
+
+  // Decide QUAL trilha deve estar tocando e faz o crossfade.
+  useEffect(() => {
+    const t = trilhasRef.current; if (!t) return;
+    const ativa = luzesApagadas ? t.apagado : t.normal;
+    const outra = luzesApagadas ? t.normal : t.apagado;
+
+    Object.values(fadeRef.current).forEach(iv => iv && clearInterval(iv));
+    fadeRef.current = {};
+
+    if (mudo) {
+      fadeRef.current.a = fadeVolume(ativa, 0, () => { try { ativa.pause(); } catch { /* ok */ } });
+      fadeRef.current.b = fadeVolume(outra, 0, () => { try { outra.pause(); } catch { /* ok */ } });
+      return;
+    }
+    // `play()` pode ser recusado se o navegador ainda não viu um gesto — sem
+    // problema: entrar na sala É um clique, então na prática já está liberado,
+    // e se falhar o próximo efeito (ex. começar a partida) tenta de novo.
+    ativa.play().catch(() => { /* autoplay bloqueado até a 1ª interação */ });
+    fadeRef.current.a = fadeVolume(ativa, SOM_VOLUME);
+    fadeRef.current.b = fadeVolume(outra, 0, () => { try { outra.pause(); } catch { /* ok */ } });
+  }, [luzesApagadas, mudo]);
+
+  const alternarMudo = () => setMudo(m => {
+    const novo = !m;
+    try { localStorage.setItem(SOM_MUDO_KEY, novo ? '1' : '0'); } catch { /* sem localStorage */ }
+    return novo;
+  });
+
   // `pushState` sobe cedo (várias funções abaixo dependem dele — tarefas,
   // reunião de emergência etc.) pra evitar "usado antes de declarado".
   const aplicaEstado = useCallback((st) => {
@@ -2166,6 +2257,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
         </button>
+        {/* Mudo também aqui: a trilha já toca no lobby, então precisa dar pra
+            silenciar antes mesmo da partida começar. */}
+        <button className="sus-btn" onClick={alternarMudo} title={mudo ? 'Ligar o som' : 'Silenciar'}
+          style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)',
+            color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            {mudo
+              ? <><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
+              : <path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/>}
+          </svg>
+        </button>
         <button className="sus-btn" onClick={onLeave} style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.22)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Sair</button>
       </div>
 
@@ -2343,6 +2446,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               )}
               <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar · <b>E</b> pra interagir</div>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button className="sus-btn" onClick={alternarMudo} title={mudo ? 'Ligar o som' : 'Silenciar'}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
+                    background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    {mudo
+                      ? <><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
+                      : <path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/>}
+                  </svg>
+                  {mudo ? 'Som' : 'Mudo'}
+                </button>
                 <button className="sus-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
                     background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
