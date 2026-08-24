@@ -188,6 +188,13 @@ const MORTE_ANIM_MS = 4000;        // duração da animação de morte na tela d
 const REVELACAO_MS = 6000;        // quanto tempo a tela de revelação de papel fica antes de ir pro mapa sozinha
 const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o botão de Reportar
 
+/* ── Vórtex e câmeras (ago/2026) — pontos marcados no editor do RH
+   (uniko_suspect_map.vortexes / .cameras). Vórtex: só o Impostor, teleporta
+   entre os portais. Câmeras: qualquer um, vê as salas ao vivo. ── */
+const VORTEX_PROXIMIDADE = 80;
+const CAMERA_PROXIMIDADE = 85;
+const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois portais
+
 /* ── Sabotagem de energia (ago/2026) — só o Impostor, sem precisar estar
    perto de nada (a sabotagem é da casa inteira). Enquanto ativa: ninguém
    faz tarefa (nem o próprio Impostor, que já não tinha mesmo) e os
@@ -811,6 +818,117 @@ const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, choco
   banheiro: TaskBanheiro, estrelas: TaskEstrelas, computador: TaskComputador, sauna: TaskSauna, generica: TaskGenerica };
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   VÓRTEX (ago/2026) — escolher pra qual portal ir. Só o Impostor chega aqui.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const VortexPainel = ({ atual, vortexes, onIr, onFechar }) => {
+  const destinos = vortexes.filter(v => v.id !== atual.id);
+  return (
+    <div onClick={onFechar} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(8,4,20,.78)', backdropFilter: 'blur(3px)' }}>
+      <div onClick={e => e.stopPropagation()} className="sus-pop" style={{ width: 'min(92%,360px)', background: T.surface || '#fff', borderRadius: 18,
+        border: '2px solid rgba(168,85,247,.55)', boxShadow: '0 20px 60px rgba(0,0,0,.5), 0 0 40px rgba(168,85,247,.25)', padding: 18 }}>
+        <div style={{ textAlign: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 32, marginBottom: 4 }}>🌀</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>Vórtex — {atual.label}</div>
+          <div style={{ fontSize: 12, color: T.textT, marginTop: 3 }}>Escolha pra onde se teletransportar.</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, maxHeight: 220, overflowY: 'auto' }}>
+          {destinos.map(d => (
+            <button key={d.id} className="sus-btn" onClick={() => onIr(d)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', borderRadius: 11, cursor: 'pointer',
+                border: '1.5px solid rgba(168,85,247,.4)', background: 'rgba(168,85,247,.1)', color: T.text, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ fontSize: 17 }}>🌀</span>{d.label}
+            </button>
+          ))}
+        </div>
+        <button className="sus-btn" onClick={onFechar}
+          style={{ width: '100%', marginTop: 12, padding: '9px 0', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent',
+            color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Cancelar (Esc)</button>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CÂMERAS DE SEGURANÇA (ago/2026) — a sala de anexo. Mostra um RECORTE do
+   mapa em volta de cada ponto de câmera, com os bonecos AO VIVO por cima
+   (as posições já chegam por broadcast, então dá pra flagrar um assassinato
+   acontecendo). Passa de uma câmera pra outra com as setas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CAM_ZOOM = 2.6;                       // quanto do mapa cabe na telinha
+const CamerasPainel = ({ cameras, indice, onTrocar, onFechar, players, positions, myPos, name, mortos, corpos, fantasmas }) => {
+  const cam = cameras[indice];
+  const vw = MAP_W / CAM_ZOOM, vh = MAP_H / CAM_ZOOM;
+  // Janela centrada na câmera, presa nas bordas do mapa
+  const vx = Math.max(0, Math.min(MAP_W - vw, cam.x - vw / 2));
+  const vy = Math.max(0, Math.min(MAP_H - vh, cam.y - vh / 2));
+  const dentro = (x, y) => x >= vx && x <= vx + vw && y >= vy && y <= vy + vh;
+  const pct = (v, min, tam) => `${((v - min) / tam) * 100}%`;
+  const ir = (d) => onTrocar((indice + d + cameras.length) % cameras.length);
+
+  return (
+    <div onClick={onFechar} style={{ position: 'absolute', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(2,8,6,.85)', backdropFilter: 'blur(3px)' }}>
+      <div onClick={e => e.stopPropagation()} className="sus-pop" style={{ width: 'min(94%,520px)', background: '#0A140F', borderRadius: 16,
+        border: '2px solid rgba(22,163,74,.5)', boxShadow: '0 20px 60px rgba(0,0,0,.6)', padding: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#7DE0A6', fontSize: 12.5, fontWeight: 800 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', animation: 'susTwinkle 1.2s ease-in-out infinite' }} />
+            AO VIVO · {cam.label}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#4E7D63', fontWeight: 700 }}>{indice + 1}/{cameras.length}</div>
+        </div>
+
+        {/* A "telinha" */}
+        <div style={{ position: 'relative', width: '100%', aspectRatio: `${vw} / ${vh}`, borderRadius: 10, overflow: 'hidden', background: '#000',
+          border: '1px solid rgba(22,163,74,.3)' }}>
+          <img src={MAPA_IMG} alt="" draggable={false} style={{ position: 'absolute', width: `${CAM_ZOOM * 100}%`, height: `${CAM_ZOOM * 100}%`,
+            left: `${-(vx / MAP_W) * CAM_ZOOM * 100}%`, top: `${-(vy / MAP_H) * CAM_ZOOM * 100}%`, imageRendering: 'auto' }} />
+
+          {/* Corpos primeiro (ficam por baixo dos vivos) */}
+          {corpos.filter(c => dentro(c.x, c.y)).map(c => (
+            <div key={`corpo-${c.id}`} style={{ position: 'absolute', left: pct(c.x, vx, vw), top: pct(c.y, vy, vh), transform: 'translate(-50%,-50%)',
+              fontSize: 20, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.8))' }}>💀</div>
+          ))}
+
+          {/* Bonecos vivos — fantasma não aparece na câmera (ninguém vê fantasma) */}
+          {players.filter(p => !mortos.includes(p.name) && !fantasmas.includes(p.name)).map(p => {
+            const pos = p.name === name ? myPos : positions[p.name];
+            if (!pos || !dentro(pos.x, pos.y)) return null;
+            return (
+              <div key={p.name} style={{ position: 'absolute', left: pct(pos.x, vx, vw), top: pct(pos.y, vy, vh), transform: 'translate(-50%,-50%)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover',
+                  border: `2px solid ${p.name === name ? '#7DE0A6' : '#fff'}`, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.7))' }} />
+                <span style={{ fontSize: 8.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px #000', whiteSpace: 'nowrap' }}>
+                  {p.name.split(' ')[0]}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* Chiado de TV, só decorativo */}
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: .1,
+            background: 'repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,.5) 2px 3px)' }} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <button className="sus-btn" onClick={() => ir(-1)} disabled={cameras.length < 2}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid rgba(22,163,74,.4)', background: 'rgba(22,163,74,.12)',
+              color: '#7DE0A6', fontSize: 13, fontWeight: 800, cursor: cameras.length < 2 ? 'not-allowed' : 'pointer', opacity: cameras.length < 2 ? .4 : 1 }}>‹ Anterior</button>
+          <button className="sus-btn" onClick={onFechar}
+            style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,.18)', background: 'transparent',
+              color: '#9FC7B0', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Sair (Esc)</button>
+          <button className="sus-btn" onClick={() => ir(1)} disabled={cameras.length < 2}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid rgba(22,163,74,.4)', background: 'rgba(22,163,74,.12)',
+              color: '#7DE0A6', fontSize: 13, fontWeight: 800, cursor: cameras.length < 2 ? 'not-allowed' : 'pointer', opacity: cameras.length < 2 ? .4 : 1 }}>Próxima ›</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
    REUNIÃO DE EMERGÊNCIA (ago/2026) — chat de 60s seguido de votação de 60s
    pra expulsar/acusar alguém de impostor. Fica do lado de fora do módulo de
    tarefas de propósito: fase ('chat'|'votacao'|'resultado') e votos moram no
@@ -1415,14 +1533,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      pra ver mudanças (mesmo padrão simples do wallmask). */
   const [mapaTarefas, setMapaTarefas] = useState([]);
   const [mapaEmergencia, setMapaEmergencia] = useState(null);
+  const [mapaVortex, setMapaVortex] = useState([]);     // portais do Impostor
+  const [mapaCameras, setMapaCameras] = useState([]);   // pontos de vigilância
   const [emergMsg, setEmergMsg] = useState('');
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const { data } = await supabase.from('uniko_suspect_map').select('tasks, emergency_x, emergency_y').eq('id', 1).maybeSingle();
+        const { data } = await supabase.from('uniko_suspect_map').select('tasks, emergency_x, emergency_y, vortexes, cameras').eq('id', 1).maybeSingle();
         if (!vivo) return;
         setMapaTarefas(Array.isArray(data?.tasks) ? data.tasks : []);
+        setMapaVortex(Array.isArray(data?.vortexes) ? data.vortexes : []);
+        setMapaCameras(Array.isArray(data?.cameras) ? data.cameras : []);
         if (data?.emergency_x != null && data?.emergency_y != null) setMapaEmergencia({ x: data.emergency_x, y: data.emergency_y });
       } catch (e) { console.error('[uniko-suspect] mapa tarefas/emergencia:', e); }
     })();
@@ -1459,6 +1581,67 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, state?.vencedor, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
+
+  /* ── Vórtex (ago/2026): portais marcados no editor. Só o IMPOSTOR usa —
+     chega perto de um, escolhe outro e reaparece lá (as "tubulações" do
+     Among Us). Com menos de 2 marcados não há destino, então nem aparece. */
+  const [vortexAberto, setVortexAberto] = useState(null);   // vórtex em que estou, null = fechado
+  const vortexProximo = useMemo(() => {
+    if (state?.papeis?.[name] !== 'impostor' || state?.vencedor) return null;
+    if (state?.phase !== 'jogando' || state?.reuniao) return null;
+    if (state?.mortos?.includes(name) || mapaVortex.length < 2) return null;
+    let melhor = null, melhorD = Infinity;
+    for (const v of mapaVortex) {
+      const d = Math.hypot(v.x - myPos.x, v.y - myPos.y);
+      if (d < VORTEX_PROXIMIDADE && d < melhorD) { melhor = v; melhorD = d; }
+    }
+    return melhor;
+  }, [mapaVortex, myPos, state?.papeis, state?.phase, state?.reuniao, state?.mortos, state?.vencedor, name]);
+  const vortexProximoRef = useRef(null);
+  useEffect(() => { vortexProximoRef.current = vortexProximo; }, [vortexProximo]);
+
+  /* ── Câmeras (ago/2026): qualquer jogador que chegar perto de um ponto de
+     câmera abre o painel e vê as outras ao vivo (as posições já chegam por
+     broadcast — dá pra flagrar um assassinato acontecendo). ── */
+  const [cameraAberta, setCameraAberta] = useState(null);   // índice da câmera sendo vista, null = fechado
+  const cameraProxima = useMemo(() => {
+    if (state?.vencedor || state?.phase !== 'jogando') return null;
+    if (state?.reuniao && !state?.fantasmas?.includes(name)) return null;
+    if (!mapaCameras.length) return null;
+    let melhor = null, melhorD = Infinity;
+    for (const c of mapaCameras) {
+      const d = Math.hypot(c.x - myPos.x, c.y - myPos.y);
+      if (d < CAMERA_PROXIMIDADE && d < melhorD) { melhor = c; melhorD = d; }
+    }
+    return melhor;
+  }, [mapaCameras, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.vencedor, name]);
+  const cameraProximaRef = useRef(null);
+  useEffect(() => { cameraProximaRef.current = cameraProxima; }, [cameraProxima]);
+  // Refs dos painéis abertos — o handler de teclado (montado uma vez) precisa
+  // ler o valor ATUAL, não o do render em que foi criado.
+  const cameraAbertaRef = useRef(null);
+  useEffect(() => { cameraAbertaRef.current = cameraAberta; }, [cameraAberta]);
+  const vortexAbertoRef = useRef(null);
+  useEffect(() => { vortexAbertoRef.current = vortexAberto; }, [vortexAberto]);
+  const abrirCamerasRef = useRef(null);
+  useEffect(() => {
+    abrirCamerasRef.current = () => {
+      const atual = cameraProximaRef.current;
+      const i = Math.max(0, mapaCameras.findIndex(c => c.id === atual?.id));
+      setCameraAberta(i);
+    };
+  }, [mapaCameras]);
+  // Teleporte: leva o boneco pro destino e avisa os outros na hora (a posição
+  // é minha autoridade local — mesmo caminho do movimento normal).
+  const [vortexCooldownAte, setVortexCooldownAte] = useState(0);
+  const teleportar = (destino) => {
+    const alvo = { x: destino.x, y: destino.y };
+    myPosRef.current = alvo;
+    setMyPos(alvo);
+    setVortexAberto(null);
+    setVortexCooldownAte(Date.now() + VORTEX_COOLDOWN_MS);
+    try { chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: alvo.x, y: alvo.y } }); } catch { /* canal caiu — a próxima posição já corrige */ }
+  };
   const marcarTarefaFeita = (taskId) => {
     const s = stateRef.current || {};
     const done = { ...(s.tasksDone || {}) };
@@ -1800,8 +1983,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       // de morte (na tela da PRÓPRIA vítima) trava tudo, sem exceção.
       const travado = !!morteAnimRef.current || tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current);
       if (k === 'e') {
-        // Interagir com a tarefa mais próxima (estrela azul dentro do alcance).
+        // Ordem importa: tarefa primeiro (é o uso mais comum do E), depois
+        // câmera e por último vórtex — cada um só existe se estiver no alcance.
         if (!travado && tarefaProximaRef.current) { pressedRef.current.clear(); setTarefaAberta(tarefaProximaRef.current); }
+        else if (!travado && cameraProximaRef.current) { pressedRef.current.clear(); abrirCamerasRef.current?.(); }
+        else if (!travado && vortexProximoRef.current) { pressedRef.current.clear(); setVortexAberto(vortexProximoRef.current); }
         e.preventDefault();
         return;
       }
@@ -1817,7 +2003,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         e.preventDefault();
         return;
       }
-      if (k === 'escape' && tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
+      if (k === 'escape') {
+        if (tarefaAbertaRef.current) { setTarefaAberta(null); e.preventDefault(); return; }
+        if (cameraAbertaRef.current !== null) { setCameraAberta(null); e.preventDefault(); return; }
+        if (vortexAbertoRef.current) { setVortexAberto(null); e.preventDefault(); return; }
+      }
       if (!KEY_DIR[k]) return;
       if (travado) return;   // mini-jogo/reunião/animação de morte — WASD não move o boneco por baixo
       pressedRef.current.add(k);
@@ -2199,6 +2389,30 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   );
                 })}
 
+                {/* Câmeras: qualquer um enxerga o pontinho no mapa (é mobília
+                    da casa, não segredo de papel nenhum). */}
+                {mapaCameras.map(c => (
+                  <button key={c.id} onClick={() => { setCameraAberta(mapaCameras.findIndex(x => x.id === c.id)); }} title={c.label}
+                    style={{ ...taskBtnCss, position: 'absolute', left: `${c.x / MAP_W * 100}%`, top: `${c.y / MAP_H * 100}%`,
+                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', width: 44, height: 44, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                      background: 'rgba(22,163,74,.85)', border: '2px solid #fff', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }}>
+                    📹
+                  </button>
+                ))}
+
+                {/* Vórtex: SÓ o Impostor vê (é a vantagem dele — tripulante
+                    não pode saber onde ficam os atalhos). */}
+                {meuPapel === 'impostor' && mapaVortex.map(v => (
+                  <button key={v.id} onClick={() => setVortexAberto(v)} title={`Vórtex — ${v.label}`}
+                    style={{ ...taskBtnCss, position: 'absolute', left: `${v.x / MAP_W * 100}%`, top: `${v.y / MAP_H * 100}%`,
+                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', width: 48, height: 48, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25,
+                      background: 'rgba(168,85,247,.85)', border: '2px solid #fff', filter: 'drop-shadow(0 3px 10px rgba(168,85,247,.7))' }}>
+                    🌀
+                  </button>
+                ))}
+
                 {/* Botão de emergência — placa "Iniciar Reunião", brilho pulsante. Fantasma não chama reunião. */}
                 {mapaEmergencia && !souFantasma && (
                   <button onClick={chamarReuniao} title="Iniciar Reunião"
@@ -2333,8 +2547,27 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 Pressione <b>E</b> — {tarefaProxima.label}
               </div>
             )}
+            {/* Câmeras e vórtex só aparecem quando a tarefa não está pegando o E */}
+            {!tarefaProxima && cameraProxima && cameraAberta === null && (
+              <button className="sus-btn sus-pop" onClick={() => abrirCamerasRef.current?.()}
+                style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff', border: 'none', cursor: 'pointer',
+                  background: 'rgba(22,163,74,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                📹 Pressione <b>E</b> — {cameraProxima.label}
+              </button>
+            )}
+            {!tarefaProxima && !cameraProxima && vortexProximo && !vortexAberto && (
+              <button className="sus-btn sus-pop" disabled={agoraTick < vortexCooldownAte}
+                onClick={() => setVortexAberto(vortexProximo)}
+                style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff', border: 'none',
+                  cursor: agoraTick < vortexCooldownAte ? 'not-allowed' : 'pointer', opacity: agoraTick < vortexCooldownAte ? .55 : 1,
+                  background: 'rgba(168,85,247,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                {agoraTick < vortexCooldownAte
+                  ? `🌀 Recarregando... ${Math.ceil((vortexCooldownAte - agoraTick) / 1000)}s`
+                  : <>🌀 Pressione <b>E</b> — entrar no vórtex</>}
+              </button>
+            )}
             <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              🚧 Sabotagem chega numa próxima fase — por enquanto é andar pela casa, fazer as tarefas, matar (só o Impostor), reportar corpos e chamar reunião de emergência quando desconfiar de alguém.
+              Ande pela casa (WASD), <b>E</b> pra interagir — tarefa, câmeras ou vórtex. <b>F</b> mata (só Impostor), <b>R</b> reporta corpo. As câmeras mostram as salas ao vivo; o vórtex teleporta o Impostor entre os portais.
             </div>
             </>
             )}
@@ -2355,6 +2588,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   else marcarTarefaFeita(tarefaAberta.id);
                   setTarefaAberta(null);
                 }} />
+            )}
+
+            {vortexAberto && (
+              <VortexPainel atual={vortexAberto} vortexes={mapaVortex} onIr={teleportar} onFechar={() => setVortexAberto(null)} />
+            )}
+
+            {cameraAberta !== null && mapaCameras[cameraAberta] && (
+              <CamerasPainel cameras={mapaCameras} indice={cameraAberta} onTrocar={setCameraAberta} onFechar={() => setCameraAberta(null)}
+                players={players} positions={positions} myPos={myPos} name={name}
+                mortos={state?.mortos || []} corpos={state?.corpos || []} fantasmas={state?.fantasmas || []} />
             )}
 
             {morteAnim && (
