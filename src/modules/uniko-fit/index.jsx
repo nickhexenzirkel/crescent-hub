@@ -13,7 +13,18 @@
 // `kind` distingue 'checkin' de 'post' — e uniko_fit_chat com `tipo`/`media_url`
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
-import { T, applyTheme } from '../../contexts/theme';
+import { THEMES } from '../../contexts/theme';
+
+/* ── Tema LOCAL do Uniko FIT: escuro roxo, sempre (ago/2026) ─────────────────
+   O módulo inteiro usa `T` daqui, NÃO o `T` global do Portal. A 1ª tentativa
+   chamava `applyTheme('purpleDark')` ao entrar e restaurava ao sair, mas isso
+   deixava o site inteiro escuro depois de sair: `T` global é um objeto mutável
+   e a limpeza do unmount roda DEPOIS da próxima tela já ter renderizado —
+   quando o tema voltava, nada re-renderizava pra repintar.
+   Sendo uma constante local, o escuro fica contido aqui: nada fora do módulo
+   é tocado, e não há o que restaurar na saída. Só o miolo (max 480px) fica
+   escuro; a margem no desktop segue com o tema que a pessoa escolheu. */
+const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.purpleDark };
 import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
@@ -1034,18 +1045,8 @@ const CheckinCalendar = ({ items, energia, label = 'Treinou' }) => {
 };
 
 const UnikoFit = ({ onBack, authUser, userPhoto }) => {
-  // ── O Uniko FIT roda SEMPRE no escuro (ago/2026) ─────────────────────────
-  // Força `purpleDark` ao entrar, independente do tema que a pessoa usa no
-  // resto do Portal, e devolve o tema dela ao sair. Aplicado no inicializador
-  // do useState (roda ANTES do primeiro render, mesmo padrão do módulo de
-  // Faturamento) porque `T` é um objeto global mutável: mutar depois, num
-  // efeito, não re-renderiza e a 1ª pintura sairia com as cores antigas.
-  useState(() => { applyTheme('purpleDark'); });
-  useEffect(() => () => {
-    // Ao sair, volta pro tema salvo — senão o Portal inteiro fica roxo escuro.
-    try { applyTheme(localStorage.getItem('ch_theme') || 'blue'); } catch { applyTheme('blue'); }
-  }, []);
-
+  // O escuro do módulo vem do `T` local lá em cima — nada de applyTheme aqui:
+  // mexer no tema global vazava o escuro pro resto do Portal ao sair.
   const name = myName();
   const userName = authUser?.name || name;
   const cardBg = T.surface || '#fff';
