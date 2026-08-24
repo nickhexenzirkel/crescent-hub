@@ -1010,7 +1010,7 @@ const CamerasPainel = ({ cameras, indice, onTrocar, onFechar, players, positions
 const REUNIAO_FASE_MS = 60000;
 const REUNIAO_RESULTADO_MS = 8000;
 
-const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatTexto, setChatTexto, onEnviarChat, onVotar, onRetirarVoto, onIniciarVotacao }) => {
+const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensagens, chatTexto, setChatTexto, onEnviarChat, onVotar, onRetirarVoto, onIniciarVotacao }) => {
   // `Date.now()` só pode ser chamado dentro do efeito (impuro) — o render lê
   // só o estado `agora`, que o efeito atualiza 2x/s (regra do React Compiler).
   const [agora, setAgora] = useState(() => Date.now());
@@ -1074,19 +1074,45 @@ const ReuniaoEmergencia = ({ reuniao, players, name, papeis, mensagens, chatText
           <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center' }}>Dá pra trocar de voto quantas vezes quiser até a votação fechar.</div>
           {players.map(p => {
             const votosNele = Object.entries(reuniao.votos || {}).filter(([, alvo]) => alvo === p.name).map(([quem]) => quem);
+            const morto = mortos.includes(p.name);
             return (
-              <button key={p.name} className="sus-btn" onClick={() => onVotar(p.name)}
-                style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '9px 12px', borderRadius: 11, textAlign: 'left', cursor: 'pointer',
-                  border: `1.5px solid ${meuVoto === p.name ? IMPOSTOR_COR : T.border}`, background: meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff') }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text }}>{p.name}</span>
-                  {votosNele.length > 0 && <span style={{ fontSize: 11.5, fontWeight: 800, color: IMPOSTOR_COR }}>{votosNele.length} voto{votosNele.length > 1 ? 's' : ''}</span>}
-                  {votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 13 }}>✅</span>}
+              <button key={p.name} className="sus-btn" onClick={() => { if (!morto) onVotar(p.name); }}
+                disabled={morto}
+                title={morto ? `${p.name} j\u00e1 foi eliminado` : `Votar em ${p.name}`}
+                style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '11px 14px', borderRadius: 13, textAlign: 'left',
+                  cursor: morto ? 'not-allowed' : 'pointer',
+                  border: `1.5px solid ${morto ? 'rgba(220,38,38,.35)' : (meuVoto === p.name ? IMPOSTOR_COR : T.border)}`,
+                  background: morto ? 'rgba(220,38,38,.07)' : (meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff')),
+                  opacity: morto ? .72 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                  {/* Uniko maior + X vermelho por cima de quem morreu */}
+                  <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
+                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover',
+                      background: '#fff', filter: morto ? 'grayscale(1) brightness(.72)' : 'none' }} />
+                    {morto && (
+                      <svg viewBox="0 0 24 24" width="52" height="52" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                        <line x1="4" y1="4" x2="20" y2="20" stroke="#DC2626" strokeWidth="3.2" strokeLinecap="round" />
+                        <line x1="20" y1="4" x2="4" y2="20" stroke="#DC2626" strokeWidth="3.2" strokeLinecap="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800,
+                      color: morto ? '#DC2626' : T.text,
+                      textDecoration: morto ? 'line-through' : 'none',
+                      textDecorationColor: morto ? '#DC2626' : undefined,
+                      textDecorationThickness: morto ? '2px' : undefined }}>{p.name}</div>
+                    {morto
+                      ? <div style={{ fontSize: 11.5, fontWeight: 700, color: '#DC2626', marginTop: 2 }}>Eliminado</div>
+                      : votosNele.length > 0 && (
+                        <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>votos de: {votosNele.map(v => v.split(' ')[0]).join(', ')}</div>
+                      )}
+                  </div>
+                  {!morto && votosNele.length > 0 && (
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: IMPOSTOR_COR, flexShrink: 0 }}>{votosNele.length} voto{votosNele.length > 1 ? 's' : ''}</span>
+                  )}
+                  {!morto && votantes.has(p.name) && <span title="J\u00e1 votou" style={{ fontSize: 15, flexShrink: 0 }}>\u2705</span>}
                 </div>
-                {votosNele.length > 0 && (
-                  <div style={{ fontSize: 11, color: T.textT, paddingLeft: 40 }}>votos de: {votosNele.map(v => v.split(' ')[0]).join(', ')}</div>
-                )}
               </button>
             );
           })}
@@ -2541,7 +2567,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             {state?.reuniao && !souFantasma ? (
               // Fantasma NÃO entra na reunião — ele "só faz tarefa", então
               // continua livre no mapa enquanto os vivos estão reunidos.
-              <ReuniaoEmergencia reuniao={state.reuniao} players={players.filter(p => !state?.fantasmas?.includes(p.name))} name={name} papeis={state.papeis}
+              // Manda TODO mundo (inclusive os mortos) + a lista de mortos: a
+              // votação mostra os eliminados riscados em vez de sumir com eles,
+              // assim dá pra acompanhar quem já caiu.
+              <ReuniaoEmergencia reuniao={state.reuniao} players={players} mortos={state?.fantasmas || []} name={name} papeis={state.papeis}
                 mensagens={reuniaoMensagens} chatTexto={chatTexto} setChatTexto={setChatTexto}
                 onEnviarChat={enviarChat} onVotar={votar} onRetirarVoto={retirarVoto} onIniciarVotacao={iniciarVotacao} />
             ) : (
