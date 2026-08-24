@@ -1843,6 +1843,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
 
+  /* Sabotagem corta a tarefa que estiver ABERTA na hora ────────────────────
+     A regra "só a de energia funciona durante a sabotagem" já valia pra abrir
+     uma tarefa nova, mas quem estivesse no meio de um mini-jogo quando a luz
+     caiu terminava ele numa boa — dava pra ignorar a sabotagem inteira só
+     começando a tarefa antes. Agora, ao ligar a sabotagem, qualquer tarefa
+     aberta que NÃO seja a de consertar energia fecha na hora. */
+  const sabotagemAtiva = !!state?.sabotagem;
+  useEffect(() => {
+    if (!sabotagemAtiva) return;
+    const aberta = tarefaAbertaRef.current;
+    if (aberta && taskTypeFor(aberta.label) !== 'energia') setTarefaAberta(null);
+  }, [sabotagemAtiva]);
+
   /* ── Vórtex (ago/2026): portais marcados no editor. Só o IMPOSTOR usa —
      chega perto de um, escolhe outro e reaparece lá (as "tubulações" do
      Among Us). Com menos de 2 marcados não há destino, então nem aparece. */
@@ -2703,7 +2716,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   // mundo consertar de novo), o resto fica travado até acabar.
                   const consertandoSabotagem = !!state?.sabotagem && taskTypeFor(t.label) === 'energia';
                   const feita = consertandoSabotagem ? !!state?.sabotagem?.consertadoPor?.includes(name) : minhasFeitas.has(t.id);
-                  const travada = !feita && !!state?.sabotagem && !consertandoSabotagem;
+                  // Trava TODA tarefa que não seja a de energia enquanto a
+                  // sabotagem durar — inclusive as que eu já concluí (antes o
+                  // `!feita` deixava as concluídas clicáveis no escuro).
+                  const travada = !!state?.sabotagem && !consertandoSabotagem;
                   return (
                     <button key={t.id} onClick={() => { if (!travada) setTarefaAberta(t); }}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
