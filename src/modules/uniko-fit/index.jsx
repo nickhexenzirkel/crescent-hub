@@ -514,7 +514,13 @@ const FeedMusic = ({ src, start, duration, muted }) => {
   // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
   // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
   // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
-  return <audio ref={ref} src={src} muted={muted} preload="auto" style={{ display: 'none' }} />;
+  // IMPORTANTE: `display:none` tira o elemento do layout inteiro — sem
+  // tamanho/posição, o IntersectionObserver acima NUNCA consegue calcular
+  // interseção, `isIntersecting` nunca vira `true` e `.play()` nunca é
+  // chamado (era esse o motivo real da música nunca tocar). Em vez disso,
+  // cobre a mesma área do card (igual o vídeo/foto) só que transparente e
+  // sem capturar toque — fica "invisível" mas continua no layout de verdade.
+  return <audio ref={ref} src={src} muted={muted} preload="auto" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }} />;
 };
 
 /* ── Extrair o áudio de um vídeo (ago/2026) ───────────────────────────────────
