@@ -1548,7 +1548,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     const PAGE = 1000; let from = 0; const rows = []; let pages = 0;
     for (;;) {
       const { data, error } = await supabase.from('uniko_fit_checkins')
-        .select('id,player,kind,photo_url,caption,created_at')
+        .select('id,player,kind,photo_url,caption,created_at,music_url,music_title')
         .order('created_at', { ascending: false })
         .range(from, from + PAGE - 1);
       if (error || !data?.length) break;
@@ -1604,6 +1604,32 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       .map(e => ({ player: e.player, checkinCount: e.dias.size, items: e.items }))
       .sort((a, b) => b.checkinCount - a.checkinCount || b.items.length - a.items.length);
   }, [fullFeed]);
+
+  /* ═══════════════════ BUSCAR — pessoas, vídeos e áudios (ago/2026) ═══════════════════ */
+  // Busca 100% local em cima do `fullFeed` que ranking/amigos/perfil já usam
+  // (uma carga só, compartilhada) — sem query nova por tecla digitada. Como o
+  // volume é de centenas/poucos milhares de linhas, filtrar em memória é
+  // instantâneo e não gasta requisição do Supabase a cada letra.
+  const [buscaQuery, setBuscaQuery] = useState('');
+  const [buscaFiltro, setBuscaFiltro] = useState('tudo'); // tudo | pessoas | videos | audios
+  useEffect(() => { if (topTab === 'buscar' && !fullFeed) loadFullFeed(); }, [topTab, fullFeed, loadFullFeed]);
+
+  // Ignora acento e caixa: "jose" acha "José", "MUSICA" acha "música".
+  const normalizar = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const buscaResultados = useMemo(() => {
+    const q = normalizar(buscaQuery.trim());
+    if (!q || !fullFeed || !detalhesLista) return null;
+
+    const pessoas = detalhesLista.filter(p => normalizar(p.player).includes(q));
+    // Post entra se casar pelo texto dele (legenda/música) OU pelo nome de quem
+    // postou — assim buscar uma pessoa também traz os vídeos/áudios dela.
+    const casa = (r) => normalizar(r.caption).includes(q) || normalizar(r.music_title).includes(q) || normalizar(r.player).includes(q);
+    const videos = fullFeed.filter(r => isVideoUrl(r.photo_url) && casa(r));
+    const audios = fullFeed.filter(r => r.music_url && casa(r));
+    return { pessoas, videos, audios, total: pessoas.length + videos.length + audios.length };
+  }, [buscaQuery, fullFeed, detalhesLista]);
+
+  const abrirPerfilDe = (player) => { setDetalhesPlayer(player); setSheet('amigos'); if (!fullFeed) loadFullFeed(); };
 
   /* ═══════════════════ DESAFIOS — pose de hoje, minha + da galera ═══════════════════ */
   // Poses extras cadastradas pelo admin (Dashboard RH → aba "Uniko FIT",
@@ -1841,8 +1867,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         </div>
 
         {/* Abas centralizadas */}
-        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
-          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+        {/* gap menor que os 20 originais — com a aba "Buscar" são 4 e precisam caber em tela de celular estreita */}
+        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
+          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
             // Clicar de novo na aba Para Você já ativa recarrega o feed, estilo TikTok.
             return (
@@ -2136,6 +2163,110 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               </button>
             </div>
           </>
+        )}
+
+        {/* ── BUSCAR (pessoas, vídeos e áudios) ── */}
+        {topTab === 'buscar' && (
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 14px 24px' }}>
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input value={buscaQuery} onChange={e => setBuscaQuery(e.target.value)} placeholder="Buscar pessoa, vídeo ou áudio..."
+                style={{ width: '100%', padding: '11px 34px 11px 14px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
+                  fontSize: 14, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+              {buscaQuery && (
+                <button onClick={() => setBuscaQuery('')} className="fit-btn" title="Limpar"
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none',
+                    cursor: 'pointer', color: T.textD, padding: 4, display: 'flex' }}>{IcoClose}</button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              {[['tudo', 'Tudo'], ['pessoas', '👥 Pessoas'], ['videos', '🎬 Vídeos'], ['audios', '🎵 Áudios']].map(([id, label]) => (
+                <button key={id} className="fit-btn" onClick={() => setBuscaFiltro(id)}
+                  style={{ flex: 1, padding: '7px 2px', borderRadius: 999, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap',
+                    border: `1.5px solid ${buscaFiltro === id ? ENERGIA : T.border}`, background: buscaFiltro === id ? `${ENERGIA}16` : 'transparent',
+                    color: buscaFiltro === id ? ENERGIA : T.textS }}>{label}</button>
+              ))}
+            </div>
+
+            {!buscaQuery.trim() ? (
+              <div style={{ textAlign: 'center', padding: '46px 20px', color: T.textT }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Procure alguém ou algum post</div>
+                <div style={{ fontSize: 12, lineHeight: 1.5 }}>Digite o nome de uma pessoa pra abrir o perfil dela, ou parte de uma legenda/música pra achar o vídeo ou áudio.</div>
+              </div>
+            ) : !buscaResultados ? (
+              <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${ENERGIA}`, borderTopColor: 'transparent', animation: 'spin .7s linear infinite', margin: '0 auto 10px' }} />
+                Carregando...
+              </div>
+            ) : buscaResultados.total === 0 ? (
+              <div style={{ textAlign: 'center', padding: '46px 20px', color: T.textT }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>🤔</div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Nada encontrado</div>
+                <div style={{ fontSize: 12 }}>Tente outro nome ou outra palavra.</div>
+              </div>
+            ) : (
+              <>
+                {(buscaFiltro === 'tudo' || buscaFiltro === 'pessoas') && buscaResultados.pessoas.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <SecaoLabel icon="👥">Pessoas ({buscaResultados.pessoas.length})</SecaoLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {buscaResultados.pessoas.map(p => (
+                        <div key={p.player} onClick={() => abrirPerfilDe(p.player)} className="fit-btn"
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
+                            background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
+                          <img src={photos[p.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.player}</div>
+                            <div style={{ fontSize: 11, color: T.textT }}>{p.checkinCount} check-in{p.checkinCount !== 1 ? 's' : ''} · {p.items.length} post{p.items.length !== 1 ? 's' : ''}</div>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: ENERGIA, flexShrink: 0 }}>Ver perfil</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(buscaFiltro === 'tudo' || buscaFiltro === 'videos') && buscaResultados.videos.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <SecaoLabel icon="🎬">Vídeos ({buscaResultados.videos.length})</SecaoLabel>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+                      {buscaResultados.videos.map(it => <ThumbCell key={it.id} it={it} onClick={() => irParaFeed(it)} />)}
+                    </div>
+                  </div>
+                )}
+
+                {(buscaFiltro === 'tudo' || buscaFiltro === 'audios') && buscaResultados.audios.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <SecaoLabel icon="🎵">Áudios ({buscaResultados.audios.length})</SecaoLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {buscaResultados.audios.map(it => (
+                        <div key={it.id} onClick={() => irParaFeed(it)} className="fit-btn"
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
+                            background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${ENERGIA}18`, fontSize: 17 }}>🎵</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.music_title || 'Música'}</div>
+                            <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.player.split(' ').slice(0, 2).join(' ')}</div>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: ENERGIA, flexShrink: 0 }}>Abrir</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* O filtro escolhido pode não ter nada mesmo havendo resultado em outra categoria */}
+                {((buscaFiltro === 'pessoas' && !buscaResultados.pessoas.length) ||
+                  (buscaFiltro === 'videos'  && !buscaResultados.videos.length)  ||
+                  (buscaFiltro === 'audios'  && !buscaResultados.audios.length)) && (
+                  <div style={{ textAlign: 'center', padding: '30px 20px', color: T.textT, fontSize: 12.5 }}>
+                    Nada nessa categoria — experimente a aba <b style={{ color: T.textS }}>Tudo</b>.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {/* ── MEU PERFIL (meus posts + engajamento) ── */}
