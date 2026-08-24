@@ -213,7 +213,7 @@ const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 200;           // pixels do mapa por segundo (reduzido a pedido do usuário — era 300)
+const MOVE_SPEED = 175;           // pixels do mapa por segundo (reduzido um pouco de novo — era 200)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
