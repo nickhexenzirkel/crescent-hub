@@ -171,6 +171,12 @@ const TASK_TYPE_BY_LABEL = {
   'consertar energia': 'energia',
   'concertar energia': 'energia',   // erro de digitação comum ("concertar" em vez de "consertar") — aceita os dois
   'fazer churrasco': 'churrasco',
+  'limpar banheiro': 'banheiro',
+  'observar estrelas': 'estrelas',
+  'excluir pastas no computador': 'computador',
+  'excluir pastas': 'computador',              // versão curta, se o admin abreviar
+  'tomar banho na sauna': 'sauna',
+  'tomar banho de sauna': 'sauna',             // variação natural do nome
 };
 const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'generica';
 const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
@@ -631,7 +637,178 @@ const TaskGenerica = ({ onComplete }) => {
   );
 };
 
-const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco, generica: TaskGenerica };
+/* ── Limpar banheiro: esfregar as manchas até sumirem (arrastar por cima) ── */
+const TaskBanheiro = ({ onComplete }) => {
+  // Posições fixas (nada de Math.random no render — regra do React Compiler,
+  // e de quebra todo mundo vê a mesma coisa).
+  const MANCHAS = [{ x: 18, y: 26 }, { x: 62, y: 18 }, { x: 38, y: 58 }, { x: 74, y: 62 }, { x: 12, y: 70 }];
+  const ALVO = 6;
+  const [esfregado, setEsfregado] = useState(() => Array(MANCHAS.length).fill(0));
+  const done = esfregado.every(v => v >= ALVO);
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  // `onPointerEnter` com o botão apertado = arrastar por cima (não precisa
+  // clicar em cada uma) — `e.buttons` cobre mouse; no toque o pointerdown já conta.
+  const esfregar = (i) => setEsfregado(v => v.map((n, j) => j === i ? Math.min(ALVO, n + 1) : n));
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Passe o dedo (ou o mouse) por cima das manchas até o azulejo brilhar!</div>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 300, height: 190, margin: '0 auto', borderRadius: 12, overflow: 'hidden',
+        background: 'repeating-linear-gradient(0deg,#E8F4F8 0 24px,#DCEDF4 24px 25px), repeating-linear-gradient(90deg,transparent 0 24px,rgba(0,0,0,.05) 24px 25px)',
+        border: `2px solid ${AGUA}44`, touchAction: 'none' }}>
+        {MANCHAS.map((m, i) => {
+          const p = esfregado[i] / ALVO;
+          if (p >= 1) return null;
+          return (
+            <div key={i} onPointerDown={() => esfregar(i)} onPointerEnter={(e) => { if (e.buttons === 1) esfregar(i); }}
+              style={{ position: 'absolute', left: `${m.x}%`, top: `${m.y}%`, width: 46, height: 38, borderRadius: '50%', cursor: 'pointer',
+                background: 'radial-gradient(circle,#8A7B5C,#6B5C40)', opacity: 1 - p * 0.85, transform: `scale(${1 - p * 0.35})`, transition: 'all .12s' }} />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── Observar estrelas: ligar as estrelas na ordem certa (constelação) ── */
+const TaskEstrelas = ({ onComplete }) => {
+  const ESTRELAS = [{ x: 20, y: 70 }, { x: 34, y: 34 }, { x: 52, y: 55 }, { x: 68, y: 24 }, { x: 84, y: 62 }];
+  const [ligadas, setLigadas] = useState([]);
+  const [erro, setErro] = useState(false);
+  const done = ligadas.length === ESTRELAS.length;
+  useEffect(() => { if (done) { const t = setTimeout(onComplete, 500); return () => clearTimeout(t); } }, [done, onComplete]);
+  const tocar = (i) => {
+    if (done) return;
+    if (i === ligadas.length) { setLigadas(l => [...l, i]); setErro(false); }
+    else { setErro(true); setLigadas([]); }   // errou a ordem: recomeça
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
+        {erro ? 'Ordem errada! Comece de novo.' : 'Toque nas estrelas em ordem, da mais fraca pra mais forte (1 → 5).'}
+      </div>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 300, height: 190, margin: '0 auto', borderRadius: 12,
+        background: 'radial-gradient(ellipse at 50% 20%, #1E2B54, #070B1A)', border: '2px solid #2B3A6B', overflow: 'hidden' }}>
+        {/* Linhas da constelação já ligadas */}
+        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {ligadas.slice(1).map((idx, k) => {
+            const a = ESTRELAS[ligadas[k]], b = ESTRELAS[idx];
+            return <line key={k} x1={`${a.x}%`} y1={`${a.y}%`} x2={`${b.x}%`} y2={`${b.y}%`} stroke={CEU} strokeWidth="2" strokeLinecap="round" opacity=".85" />;
+          })}
+        </svg>
+        {ESTRELAS.map((e, i) => {
+          const on = ligadas.includes(i);
+          const tam = 13 + i * 3;   // "mais fraca → mais forte" fica visível no tamanho
+          return (
+            <button key={i} onClick={() => tocar(i)} className="sus-btn"
+              style={{ position: 'absolute', left: `${e.x}%`, top: `${e.y}%`, transform: 'translate(-50%,-50%)', width: tam + 14, height: tam + 14,
+                borderRadius: '50%', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: tam, height: tam, borderRadius: '50%', display: 'block',
+                background: on ? '#FFF6C2' : '#8FA3D8',
+                boxShadow: on ? '0 0 14px 4px rgba(255,240,170,.85)' : '0 0 6px 1px rgba(143,163,216,.5)', transition: 'all .18s' }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── Excluir pastas no computador: selecionar as pastas e mandar pra lixeira ── */
+const TaskComputador = ({ onComplete }) => {
+  const PASTAS = ['relatorios_2019', 'backup_antigo', 'fotos_confra', 'temp_download', 'planilha_v7_final', 'zzz_nao_usar'];
+  const [restantes, setRestantes] = useState(PASTAS);
+  const [selecionada, setSelecionada] = useState(null);
+  const done = restantes.length === 0;
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  const excluir = () => {
+    if (selecionada == null) return;
+    setRestantes(r => r.filter(p => p !== selecionada));
+    setSelecionada(null);
+  };
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Selecione uma pasta e clique na lixeira. Esvazie tudo!</div>
+      <div style={{ maxWidth: 320, margin: '0 auto', borderRadius: 10, overflow: 'hidden', border: '2px solid #3B4A6B', background: '#0F1626' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1B2740', color: '#9FB4DD', fontSize: 11, fontWeight: 700 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57' }} />
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FEBC2E' }} />
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840' }} />
+          <span style={{ marginLeft: 6 }}>Meus Documentos</span>
+        </div>
+        <div style={{ minHeight: 128, padding: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignContent: 'flex-start' }}>
+          {restantes.map(p => (
+            <button key={p} onClick={() => setSelecionada(p)} className="sus-btn"
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 88, padding: '6px 2px', borderRadius: 7, cursor: 'pointer',
+                border: selecionada === p ? `1.5px solid ${CEU}` : '1.5px solid transparent', background: selecionada === p ? 'rgba(95,201,232,.18)' : 'transparent' }}>
+              <span style={{ fontSize: 26 }}>📁</span>
+              <span style={{ fontSize: 9.5, color: '#C7D6F0', wordBreak: 'break-all', lineHeight: 1.2 }}>{p}</span>
+            </button>
+          ))}
+          {done && <div style={{ width: '100%', textAlign: 'center', color: '#16A34A', fontSize: 12.5, fontWeight: 800, padding: '18px 0' }}>Tudo limpo!</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 8, borderTop: '1px solid #2B3A5B' }}>
+          <button onClick={excluir} disabled={selecionada == null} className="sus-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700,
+              cursor: selecionada == null ? 'not-allowed' : 'pointer', opacity: selecionada == null ? .45 : 1, background: '#DC2626', color: '#fff' }}>
+            🗑️ Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Tomar banho na sauna: segurar a temperatura na faixa boa até encher ── */
+const TaskSauna = ({ onComplete }) => {
+  const [temp, setTemp] = useState(20);       // 0..100
+  const [progresso, setProgresso] = useState(0);
+  const aquecendoRef = useRef(false);
+  // Declarado ANTES do efeito que o lê — o React Compiler reclama de usar
+  // variável antes da declaração, mesmo quando só roda depois do mount.
+  const tempRef = useRef(temp);
+  useEffect(() => { tempRef.current = temp; }, [temp]);
+  const done = progresso >= 1;
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  // A temperatura sobe enquanto segura e cai sozinha ao soltar; só conta
+  // progresso na faixa ideal (60–80) — segurar direto passa do ponto.
+  useEffect(() => {
+    if (done) return;
+    const t = setInterval(() => {
+      setTemp(v => Math.max(0, Math.min(100, v + (aquecendoRef.current ? 2.6 : -2))));
+      setProgresso(p => {
+        const ok = tempRef.current >= 60 && tempRef.current <= 80;
+        return Math.min(1, p + (ok ? 0.022 : 0));
+      });
+    }, 60);
+    return () => clearInterval(t);
+  }, [done]);
+  const naFaixa = temp >= 60 && temp <= 80;
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 12, textAlign: 'center' }}>
+        Segure o botão pra jogar água nas pedras. Mantenha a temperatura na <b style={{ color: '#16A34A' }}>faixa verde</b>!
+      </div>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 280, height: 26, margin: '0 auto 8px', borderRadius: 999, overflow: 'hidden',
+        background: 'linear-gradient(90deg,#4FA8D8,#F2C879,#DC2626)', border: '2px solid rgba(0,0,0,.15)' }}>
+        {/* faixa ideal 60–80% */}
+        <div style={{ position: 'absolute', left: '60%', width: '20%', top: 0, bottom: 0, border: '2px solid #16A34A', borderRadius: 4, background: 'rgba(22,163,74,.18)' }} />
+        <div style={{ position: 'absolute', left: `${temp}%`, top: -3, bottom: -3, width: 4, background: '#111', borderRadius: 2, transform: 'translateX(-50%)', transition: 'left .06s linear' }} />
+      </div>
+      <div style={{ width: '100%', maxWidth: 280, height: 9, margin: '0 auto 12px', borderRadius: 999, background: 'rgba(0,0,0,.12)', overflow: 'hidden' }}>
+        <div style={{ width: `${progresso * 100}%`, height: '100%', background: naFaixa ? '#16A34A' : AREIA, transition: 'width .1s' }} />
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <button className="sus-btn" onPointerDown={() => { aquecendoRef.current = true; }}
+          onPointerUp={() => { aquecendoRef.current = false; }} onPointerLeave={() => { aquecendoRef.current = false; }}
+          style={{ padding: '11px 26px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', userSelect: 'none', touchAction: 'none',
+            background: 'linear-gradient(135deg,#F97316,#DC2626)', boxShadow: '0 6px 16px rgba(220,38,38,.35)' }}>💧 Jogar água</button>
+      </div>
+    </div>
+  );
+};
+
+const TASK_MINIGAMES = { geladeira: TaskGeladeira, flamingo: TaskFlamingo, chocolates: TaskChocolates, louca: TaskLouca, energia: TaskEnergia, churrasco: TaskChurrasco,
+  banheiro: TaskBanheiro, estrelas: TaskEstrelas, computador: TaskComputador, sauna: TaskSauna, generica: TaskGenerica };
 
 /* ═══════════════════════════════════════════════════════════════════════════
    REUNIÃO DE EMERGÊNCIA (ago/2026) — chat de 60s seguido de votação de 60s
