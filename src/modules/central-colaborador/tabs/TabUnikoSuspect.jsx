@@ -10,6 +10,7 @@
 // (rodar supabase_uniko_suspect.sql), host eleito no cliente escreve o
 // estado, presence pra saber quem está em qual sala.
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
@@ -41,7 +42,11 @@ const PIADAS = ['🦩 boia de flamingo', '💩 emoji clássico', '🥤 coca-cola
 /* ── Mapa: a arte da casa de praia (gerada pelo usuário) vira o fundo. As
    UNIDADES DO MAPA são os próprios pixels da imagem (1672×941, 16:9) — cada
    ponto (x,y) de jogador é uma coordenada real da arte, sem conversão nenhuma. */
-const MAPA_IMG = '/uniko-suspect-mapa.png';
+// `?v=` só muda quando a ARTE do mapa é trocada: o navegador cacheia por nome
+// de arquivo e continuaria servindo o mapa velho pra quem já tinha aberto o
+// jogo (mesma pegadinha que já deu com a máscara de parede). Ao subir um mapa
+// novo, incremente a data aqui.
+const MAPA_IMG = '/uniko-suspect-mapa.png?v=20260824';
 const MAP_W = 1672, MAP_H = 941;
 
 /* ── Barco do lobby (ago/2026): enquanto a sala tá na fase 'lobby', todo
@@ -1507,6 +1512,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      (cabeçalho + mapa), não na página inteira. */
   const gameWrapRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Enquanto a partida roda o jogo cobre a janela toda (portal + fixed) —
+  // travar o scroll do body evita a página de trás rolando por baixo quando
+  // a pessoa arrasta/usa as setas.
+  const jogando = state?.phase === 'jogando';
+  useEffect(() => {
+    if (!jogando) return;
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = anterior; };
+  }, [jogando]);
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
     document.addEventListener('fullscreenchange', onFsChange);
@@ -2302,12 +2317,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           </div>
         )}
 
-        {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ── */}
-        {state?.phase === 'jogando' && (
-          <div ref={gameWrapRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, minHeight: 0,
-            background: isFullscreen ? (T.page || '#0B1620') : 'transparent', padding: isFullscreen ? 14 : 0,
-            alignItems: isFullscreen ? 'center' : 'stretch', justifyContent: isFullscreen ? 'center' : 'flex-start' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: isFullscreen ? 1400 : 'none' }}>
+        {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ──
+            Enquanto a partida roda, o jogo TOMA A JANELA INTEIRA — some a
+            sidebar, as abas, tudo. Vai por PORTAL pro <body> (não só
+            `position:fixed`) porque fixed dentro de um ancestral com
+            transform/filter passa a se ancorar nesse ancestral em vez da
+            janela; o portal escapa de qualquer contexto de empilhamento da
+            Central do Colaborador. O botão "Tela cheia" continua existindo
+            pra esconder também a barra do navegador (Fullscreen API). */}
+        {state?.phase === 'jogando' && createPortal(
+          <div ref={gameWrapRef} style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', flexDirection: 'column', gap: 10,
+            background: T.page || '#0B1620', padding: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: 1400, flexShrink: 0 }}>
               <div style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
                 background: meuPapel === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`,
                 border: `1px solid ${meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44`,
@@ -2354,13 +2375,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 via transform pra manter o MEU boneco sempre centralizado (câmera clampada nas
                 bordas do mapa). Filhos do mundo (imagem + bonecos + luz) continuam em % de
                 MAP_W/MAP_H, então a matemática de posição não muda — só ganhou essa "janela"
-                por cima. Em tela cheia, o tamanho passa a ser ditado pela ALTURA disponível
-                (86vh) em vez da largura — ocupa bem mais espaço numa tela grande. */}
-            <div style={isFullscreen
-              ? { position: 'relative', height: '86vh', maxWidth: '97vw', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
-                  borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }
-              : { position: 'relative', width: '100%', maxWidth: 1180, margin: '0 auto', aspectRatio: `${ZOOM_W} / ${ZOOM_H}`,
-                  borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
+                por cima. O tamanho é ditado pela ALTURA disponível (não pela largura), já
+                que o jogo ocupa a janela inteira: 86vh no fullscreen nativo (sem barra do
+                navegador) e 74vh dentro da janela, que é o que sobra depois do cabeçalho
+                e dos avisos de baixo. */}
+            <div style={{ position: 'relative', height: isFullscreen ? '86vh' : '74vh', maxWidth: '97vw',
+              aspectRatio: `${ZOOM_W} / ${ZOOM_H}`, borderRadius: 16, overflow: 'hidden',
+              border: `2px solid ${T.border}`, boxShadow: T.sh, background: '#0B3D45' }}>
               <div ref={worldRef} style={{ position: 'absolute', left: 0, top: 0, width: `${ZOOM_FACTOR * 100}%`, height: `${ZOOM_FACTOR * 100}%`,
                 transform: `translate(${-(camX / MAP_W) * 100}%, ${-(camY / MAP_H) * 100}%)` }}>
                 <img src={MAPA_IMG} alt="" draggable={false}
@@ -2603,7 +2624,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             {morteAnim && (
               <MorteOverlay matador={morteAnim.matador} matadorFoto={players.find(p => p.name === morteAnim.matador)?.photo} vitimaFoto={photo} />
             )}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
