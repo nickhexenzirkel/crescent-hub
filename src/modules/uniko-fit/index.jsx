@@ -474,15 +474,16 @@ const FeedVideo = ({ src, style, muted }) => {
   // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
   // isso, desmutar tentaria dar play em TODOS os vídeos montados no feed
   // (inclusive os que estão fora da tela), não só no que a pessoa está
-  // vendo. `visivelRef` guarda se ESSE elemento específico está visível
+  // vendo. `visivel` (estado React, não ref — pra nunca ficar dessincronizado
+  // do ciclo de render) guarda se ESSE elemento específico está visível
   // agora, atualizado pelo IntersectionObserver abaixo.
-  const visivelRef = useRef(false);
+  const [visivel, setVisivel] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.playsInline = true;
     const io = new IntersectionObserver(([entry]) => {
-      visivelRef.current = entry.isIntersecting;
+      setVisivel(entry.isIntersecting);
       if (entry.isIntersecting) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
       else el.pause();
     }, { threshold: 0.6 });
@@ -498,8 +499,8 @@ const FeedVideo = ({ src, style, muted }) => {
     // tentativa muda automática (lá em cima) foi recusada pelo navegador,
     // isso garante que o vídeo visível realmente começa a tocar, aproveitando
     // que agora tem um toque de usuário de verdade.
-    if (!muted && visivelRef.current) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
-  }, [muted]);
+    if (!muted && visivel) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+  }, [muted, visivel]);
   return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
@@ -516,9 +517,10 @@ const FeedMusic = ({ src, start, duration, muted }) => {
   // isso, desmutar tentaria dar play em TODAS as músicas montadas no feed
   // (inclusive posts fora da tela), não só na do post que a pessoa está
   // vendo — foi exatamente esse bug (todas as músicas tocando juntas).
-  // `visivelRef` guarda se ESSE elemento específico está visível agora,
+  // `visivel` (estado React, não ref — pra nunca ficar dessincronizado do
+  // ciclo de render) guarda se ESSE elemento específico está visível agora,
   // atualizado pelo IntersectionObserver abaixo.
-  const visivelRef = useRef(false);
+  const [visivel, setVisivel] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -528,7 +530,7 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     const onTime = () => { if (duration && el.currentTime >= inicio + duration) seek(); };
     el.addEventListener('timeupdate', onTime);
     const io = new IntersectionObserver(([entry]) => {
-      visivelRef.current = entry.isIntersecting;
+      setVisivel(entry.isIntersecting);
       if (entry.isIntersecting) { seek(); el.play().catch(() => { /* autoplay recusado até 1ª interação — silencioso */ }); }
       else el.pause();
     }, { threshold: 0.6 });
@@ -544,8 +546,8 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     // desmutar — um toque real no botão de som — tenta tocar de novo, mas só
     // se ESSE post estiver visível agora (senão toca todo mundo de uma vez).
     // Com gesto de usuário de verdade, o navegador libera.
-    if (!muted && visivelRef.current) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
-  }, [muted]);
+    if (!muted && visivel) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+  }, [muted, visivel]);
   // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
   // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
   // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
