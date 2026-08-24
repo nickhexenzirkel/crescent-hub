@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   PDFDocument, StandardFonts, rgb,
   pushGraphicsState, popGraphicsState, beginText, endText, showText,
@@ -41,10 +41,21 @@ const cssFamily = (serif) => serif
 
 /* mede largura de texto (px) numa fonte — usado para corrigir a largura (scaleX) */
 let _measureCtx = null;
+// `measureText` força o navegador a preparar a fonte e não é barato. Como é
+// chamado no RENDER de cada texto (via scaleXFor), durante um arraste isso
+// virava dezenas de medições por quadro — sempre com os MESMOS argumentos.
+// Cache simples: a largura de um texto numa fonte nunca muda.
+const _measureCache = new Map();
 const measureW = (str, fs, serif, bold, italic) => {
+  const chave = `${fs}|${serif?1:0}${bold?1:0}${italic?1:0}|${str || ''}`;
+  const hit = _measureCache.get(chave);
+  if (hit !== undefined) return hit;
   if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
   _measureCtx.font = `${italic?'italic ':''}${bold?'700 ':''}${fs}px ${cssFamily(serif)}`;
-  return _measureCtx.measureText(str || '').width || 1;
+  const w = _measureCtx.measureText(str || '').width || 1;
+  if (_measureCache.size > 5000) _measureCache.clear();   // teto de memória
+  _measureCache.set(chave, w);
+  return w;
 };
 /* fator de escala horizontal para o texto da camada bater com a largura original */
 const scaleXFor = (a) => {
@@ -60,6 +71,8 @@ const loadSavedSigs = () => {
 const persistSavedSigs = (l) => { try { localStorage.setItem(SIG_STORE, JSON.stringify(l)); } catch { /* ignora */ } };
 
 const COLORS = ['#111111', '#1A6FB5', '#C04050', '#1A9C70', '#C4872A', '#8B5FE8', '#ffffff'];
+// Constante: usar `[]` inline criaria um array novo a cada render de página.
+const EMPTY_ARR = [];
 
 const WHITE_BG = { hex:'#ffffff', r:255, g:255, b:255 };
 const SAMPLE_SCALE = 1.5;
@@ -75,10 +88,17 @@ const dominantColor = (img, x0, y0, x1, y1) => {
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
   x1 = Math.min(img.width, Math.ceil(x1)); y1 = Math.min(img.height, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return WHITE_BG;
+  // AMOSTRAGEM em vez de varrer pixel a pixel: isto roda pra CADA trecho de
+  // texto do PDF ao abrir, e era o que mais pesava na abertura de documentos
+  // grandes. Como só queremos a cor que MAIS aparece (o fundo), olhar 1 pixel
+  // a cada 2 em cada eixo já dá o mesmo resultado com ~1/4 do trabalho — o
+  // fundo domina a região por larga margem, não é um empate apertado.
+  const passo = (x1-x0) * (y1-y0) > 4000 ? 2 : 1;
   const counts = new Map();
-  for (let y = y0; y < y1; y++) {
+  for (let y = y0; y < y1; y += passo) {
     let base = (y*img.width + x0) * 4;
-    for (let x = x0; x < x1; x++, base += 4) {
+    const salto = 4 * passo;
+    for (let x = x0; x < x1; x += passo, base += salto) {
       const key = (img.data[base] << 16) | (img.data[base+1] << 8) | img.data[base+2];
       counts.set(key, (counts.get(key) || 0) + 1);
     }
@@ -132,14 +152,24 @@ const renderSample = async (page) => {
     cv.height = Math.max(1, Math.floor(vp.height));
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    return ctx.getImageData(0, 0, cv.width, cv.height);
+    const img = ctx.getImageData(0, 0, cv.width, cv.height);
+    // Zera o canvas: sem isso o navegador segura a memória de vídeo de UMA
+    // amostra por página do documento até o coletor passar — num PDF grande
+    // isso vira centenas de MB e faz o editor inteiro engasgar.
+    cv.width = cv.height = 0;
+    return img;
   } catch { return null; }
 };
 
 /* ════════════════════════════════════════════════════════════════
    Canvas de uma página (render via pdf.js)
 ════════════════════════════════════════════════════════════════ */
-const PdfCanvas = ({ pdf, index, scale, quality = 1 }) => {
+/* `memo`: sem isso, QUALQUER mexida numa anotação re-renderizava o canvas de
+   TODAS as páginas. O `useEffect` até não re-rodava (as deps não mudam), mas o
+   React refazia o VDOM de todas elas a cada quadro do arraste — desperdício
+   que crescia com o número de páginas. As props aqui são todas primitivas
+   (fora `pdf`, que é estável), então a comparação rasa do memo basta. */
+const PdfCanvas = memo(({ pdf, index, scale, quality = 1 }) => {
   const ref = useRef();
   useEffect(() => {
     let task;
@@ -159,7 +189,7 @@ const PdfCanvas = ({ pdf, index, scale, quality = 1 }) => {
     return () => { try { task && task.cancel(); } catch { /* ok */ } };
   }, [pdf, index, scale, quality]);
   return <canvas ref={ref} style={{ display:'block' }}/>;
-};
+});
 
 /* ════════════════════════════════════════════════════════════════
    Texto editável (sincroniza o DOM sem resetar o cursor ao digitar)
@@ -529,21 +559,50 @@ export const PdfEditor = ({ onDoc }) => {
 
   const updateAnno = (id, patch) => setAnnos(p => p.map(a => a.id===id ? {...a, ...patch} : a));
 
-  /* ── drag / resize ── */
+  /* Agrupa as anotações por página UMA vez por mudança, em vez de rodar um
+     `annos.filter()` por página a cada render: com N páginas e M anotações
+     era O(N×M) por quadro do arraste, e num PDF de muitas páginas isso pesava
+     sozinho. Aqui vira O(M). */
+  const annosPorPagina = useMemo(() => {
+    const m = new Map();
+    for (const a of annos) {
+      const lista = m.get(a.page);
+      if (lista) lista.push(a); else m.set(a.page, [a]);
+    }
+    return m;
+  }, [annos]);
+
+  /* ── drag / resize ──────────────────────────────────────────────────────
+     O `pointermove` dispara MUITAS vezes por quadro (mouse/caneta modernos
+     mandam 120–1000 eventos/s). Antes cada evento fazia um setState, ou seja
+     um `annos.map()` novo + re-render do editor inteiro por evento — era a
+     causa principal da sensação de travado. Agora o evento só ANOTA a última
+     posição e um requestAnimationFrame aplica UMA vez por quadro: o trabalho
+     cai pra ~60 atualizações/s no máximo, sincronizado com a tela. */
+  const rafRef = useRef(0);
+  const lastPtRef = useRef(null);
   useEffect(() => {
-    const move = (e) => {
+    const aplicar = () => {
+      rafRef.current = 0;
+      const e = lastPtRef.current; if (!e) return;
       const d = dragRef.current;
       if (d) {
         const s = scaleRef.current;
         const dx = (e.clientX-d.sx)/s, dy = (e.clientY-d.sy)/s;
-        setAnnos(prev => prev.map(a => {
-          const match = d.group ? a.group === d.group : a.id === d.id;
-          if (!match) return a;
-          if (d.mode === 'move')    return { ...a, x:d.ox+dx, top:d.oy+dy };
-          if (d.mode === 'resizeI') { const w=Math.max(24,d.ow+dx); return { ...a, w, h:w/d.aspect }; }
-          if (d.mode === 'resizeWH') { return { ...a, w:Math.max(24,d.ow+dx), h:Math.max(16,d.oh+dy) }; }
-          return a;
-        }));
+        setAnnos(prev => {
+          let mudou = false;
+          const out = prev.map(a => {
+            const match = d.group ? a.group === d.group : a.id === d.id;
+            if (!match) return a;
+            let novo = a;
+            if (d.mode === 'move')     novo = { ...a, x:d.ox+dx, top:d.oy+dy };
+            else if (d.mode === 'resizeI')  { const w=Math.max(24,d.ow+dx); novo = { ...a, w, h:w/d.aspect }; }
+            else if (d.mode === 'resizeWH') novo = { ...a, w:Math.max(24,d.ow+dx), h:Math.max(16,d.oh+dy) };
+            if (novo !== a) mudou = true;
+            return novo;
+          });
+          return mudou ? out : prev;   // nada mudou → não re-renderiza
+        });
         return;
       }
       const w = drawRef.current; if (!w) return;
@@ -552,7 +611,20 @@ export const PdfEditor = ({ onDoc }) => {
       const x1 = (e.clientX-w.rect.left)/s, y1 = (e.clientY-w.rect.top)/s;
       setDrawBox({ pageIdx:w.pageIdx, x:Math.min(x0,x1), top:Math.min(y0,y1), w:Math.abs(x1-x0), h:Math.abs(y1-y0) });
     };
+    const move = (e) => {
+      if (!dragRef.current && !drawRef.current) return;   // nem arrastando nem desenhando: ignora
+      // Guarda só o que interessa (o evento nativo é reciclado pelo navegador).
+      lastPtRef.current = { clientX:e.clientX, clientY:e.clientY };
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(aplicar);
+    };
     const up = (e) => {
+      // Aplica o último movimento pendente ANTES de encerrar — senão o quadro
+      // agendado rodaria depois com dragRef já nulo e a peça "voltaria" um
+      // fio pra posição do quadro anterior.
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current); rafRef.current = 0;
+        if (dragRef.current || drawRef.current) aplicar();
+      }
       if (dragRef.current) { dragRef.current = null; return; }
       const w = drawRef.current; if (!w) return;
       drawRef.current = null;
@@ -565,9 +637,13 @@ export const PdfEditor = ({ onDoc }) => {
       if (wid < 6 || hei < 6) addWhiteout(w.pageIdx, x0, y0);
       else addWhiteoutRect(w.pageIdx, Math.min(x0,x1), Math.min(y0,y1), wid, hei);
     };
-    window.addEventListener('pointermove', move);
+    window.addEventListener('pointermove', move, { passive: true });
     window.addEventListener('pointerup', up);
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
+    };
   }, [addWhiteout, addWhiteoutRect]);
 
   const startDrag = (e, a, mode) => {
@@ -806,7 +882,7 @@ export const PdfEditor = ({ onDoc }) => {
                   {drawBox && drawBox.pageIdx===i && (
                     <div style={{position:'absolute',left:drawBox.x*scale,top:drawBox.top*scale,width:drawBox.w*scale,height:drawBox.h*scale,background:'rgba(255,255,255,.65)',outline:`1.5px dashed ${T.gold}`,zIndex:7,pointerEvents:'none'}}/>
                   )}
-                  {annos.filter(a=>a.page===i).map(a => {
+                  {(annosPorPagina.get(i) || EMPTY_ARR).map(a => {
                     const selected = a.id===selId;
                     if (a.type === 'text') {
                       const visible = focusId===a.id || a.str!==a.orig || !a.isOriginal;

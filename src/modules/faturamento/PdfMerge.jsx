@@ -79,17 +79,27 @@ export const PdfMerge = () => {
   const addFiles = async (newFiles) => {
     setLoading(true); setError('');
     try {
-      for (const file of newFiles) {
-        const buf = await file.arrayBuffer();
-        const bytes = new Uint8Array(buf);
+      // Em PARALELO (era um `for await`, que lia um arquivo por vez e fazia
+      // parecer travado ao soltar vários de uma vez). `Promise.all` preserva a
+      // ordem do array, então a lista sai na ordem em que a pessoa escolheu —
+      // o append em série de antes também dependia disso.
+      const lidos = await Promise.all(Array.from(newFiles).map(async (file) => {
+        const bytes = new Uint8Array(await file.arrayBuffer());
         const fileId = uid();
         const libDoc = await PDFDocument.load(bytes.slice());
-        docsRef.current[fileId] = libDoc;
         const jsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
-        const firstPage = await jsDoc.getPage(1);
-        const thumb = await renderThumb(firstPage);
-        setFiles(prev => [...prev, { id: fileId, name: file.name, pageCount: libDoc.getPageCount(), thumb }]);
-      }
+        try {
+          const thumb = await renderThumb(await jsDoc.getPage(1));
+          return { doc: libDoc, entry: { id: fileId, name: file.name, pageCount: libDoc.getPageCount(), thumb } };
+        } finally {
+          // A miniatura já foi gerada — o documento do pdf.js seria só peso
+          // parado na memória (um PDF grande custa dezenas de MB). Sem isso,
+          // juntar muitos arquivos ia enchendo a memória e engasgando tudo.
+          try { await jsDoc.destroy(); } catch { /* já liberado */ }
+        }
+      }));
+      for (const { doc, entry } of lidos) docsRef.current[entry.id] = doc;
+      setFiles(prev => [...prev, ...lidos.map(l => l.entry)]);   // um setState só, não um por arquivo
     } catch (e) {
       setError('Não consegui ler um dos PDFs: ' + (e?.message || 'erro desconhecido'));
     }
