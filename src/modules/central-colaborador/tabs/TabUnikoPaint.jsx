@@ -461,34 +461,32 @@ const THEMES = [
     'areia', 'tijolo', 'telha', 'viga', 'coluna', 'planta baixa', 'trado',
     'guindaste', 'retroescavadeira', 'trator', 'britadeira', 'cone de trânsito',
     'fita zebrada', 'obra', 'placa de obra', 'caixa de ferramentas'] },
-  /* Disney: personagens e objetos ICÔNICOS, do tipo que dá pra reconhecer pelo
-     desenho. Sem título de filme (ninguém desenha "Rei Leão", desenha o leão)
-     e sem nome que só funciona escrito. */
-  /* Disney: NOMES de verdade (personagem ou filme). A 1ª versão usava
-     descrição ('astronauta de brinquedo' em vez de 'Buzz Lightyear') e ficava
-     impossível de adivinhar exato — num jogo de adivinhação o nome próprio é
-     justamente o que dá a resposta certa. */
+  /* Disney: peso nos TÍTULOS DE FILME, que é o que a galera reconhece de
+     cara. Personagem só entra se for nome de todo mundo (Simba, Elsa, Woody)
+     — secundário tipo Doc Hudson/Linguini saiu: ninguém acerta e trava a
+     rodada. Antes disso a lista usava DESCRIÇÃO ('astronauta de brinquedo'),
+     que era pior ainda pra adivinhar. */
   { id: 'disney', nome: 'Filmes da Disney', emoji: '🏰', words: [
-    'Mickey Mouse', 'Minnie', 'Pato Donald', 'Pluto', 'Pateta', 'Tio Patinhas',
-    'Branca de Neve', 'Cinderela', 'Bela Adormecida', 'Aurora', 'Ariel', 'Sebastião',
-    'Linguado', 'Ursula', 'Bela', 'Fera', 'Lumière', 'Horloge', 'Madame Samovar', 'Jasmine',
-    'Aladdin', 'Gênio', 'Abu', 'Jafar', 'Tapete Mágico', 'Mulan', 'Mushu', 'Pocahontas',
-    'Rapunzel', 'Pascal', 'Flynn Rider', 'Tiana', 'Mérida', 'Moana', 'Maui', 'Elsa', 'Anna',
-    'Olaf', 'Sven', 'Kristoff', 'Simba', 'Mufasa', 'Scar', 'Timão', 'Pumba', 'Rafiki',
-    'Zazu', 'Dumbo', 'Bambi', 'Tambor', 'Pinóquio', 'Grilo Falante', 'Peter Pan', 'Sininho',
-    'Capitão Gancho', 'Alice', 'Gato Risonho', 'Rainha de Copas', 'Mogli', 'Baloo',
-    'Bagheera', 'Shere Khan', 'Kaa', 'Tarzan', 'Cruella de Vil', '101 Dalmatas', 'Robin Hood',
-    'Rei Arthur', 'Merlin', 'Hercules', 'Megara', 'Hades', 'Stitch', 'Lilo',
-    'Buzz Lightyear', 'Woody', 'Jessie', 'Sr. Cabeça de Batata', 'Rex', 'Slinky', 'Forky',
-    'Nemo', 'Dory', 'Marlin', 'Crush', 'Bruce', 'Sulley', 'Mike Wazowski', 'Boo', 'Randall',
-    'Relâmpago McQueen', 'Mate', 'Doc Hudson', 'Wall-E', 'Eva', 'Carl Fredricksen',
-    'Russell', 'Dug', 'Kevin', 'Remy', 'Linguini', 'Riley', 'Alegria', 'Tristeza',
-    'Raiva', 'Miguel Rivera', 'Dante', 'Hector', 'O Rei Leão', 'A Pequena Sereia',
-    'A Bela e a Fera', 'Frozen', 'Toy Story', 'Procurando Nemo', 'Monstros S.A.',
-    'Os Incríveis', 'Up Altas Aventuras', 'Divertida Mente', 'Viva a Vida é uma Festa',
-    'Ratatouille', 'Carros', 'Enrolados', 'Valente', 'Zootopia', 'Encanto',
-    'Luca', 'Castelo da Disney', 'Orelhas do Mickey', 'Lâmpada Mágica', 'Maçã Envenenada',
-    'Sapatinho de Cristal', 'Rosa Encantada'] },
+    'Branca de Neve e os Sete Anões', 'Pinóquio', 'Dumbo', 'Bambi', 'Cinderela',
+    'Alice no País das Maravilhas', 'Peter Pan', 'A Dama e o Vagabundo',
+    'A Bela Adormecida', '101 Dálmatas', 'Mogli o Menino Lobo', 'Aristogatas', 'Robin Hood',
+    'Bernardo e Bianca', 'Oliver e sua Turma', 'A Pequena Sereia', 'A Bela e a Fera',
+    'Aladdin', 'O Rei Leão', 'Pocahontas', 'O Corcunda de Notre Dame', 'Hércules', 'Mulan',
+    'Tarzan', 'Fantasia', 'A Nova Onda do Imperador', 'Atlantis', 'Lilo & Stitch',
+    'Irmão Urso', 'Bolt', 'A Princesa e o Sapo', 'Enrolados', 'Detona Ralph', 'Frozen',
+    'Operação Big Hero', 'Zootopia', 'Moana', 'Ralph vs. Internet', 'Frozen 2',
+    'Raya e o Último Dragão', 'Encanto', 'Wish', 'Toy Story', 'Vida de Inseto',
+    'Monstros S.A.', 'Procurando Nemo', 'Os Incríveis', 'Carros', 'Ratatouille', 'Wall-E',
+    'Up Altas Aventuras', 'Valente', 'Divertida Mente', 'O Bom Dinossauro',
+    'Procurando Dory', 'Viva a Vida é uma Festa', 'Dois Irmãos', 'Soul', 'Luca',
+    'Red Crescer é uma Fera', 'Elementos', 'Piratas do Caribe', 'Mary Poppins',
+    'O Livro da Selva', 'Mickey Mouse', 'Minnie', 'Pato Donald', 'Pateta', 'Pluto', 'Simba',
+    'Timão', 'Pumba', 'Elsa', 'Anna', 'Olaf', 'Ariel', 'Branca de Neve', 'Bela', 'Fera',
+    'Jasmine', 'Gênio', 'Rapunzel', 'Maui', 'Stitch', 'Woody', 'Buzz Lightyear', 'Nemo',
+    'Dory', 'Sulley', 'Mike Wazowski', 'Remy', 'Sininho', 'Capitão Gancho',
+    'Cruella de Vil', 'Relâmpago McQueen', 'Baloo', 'Alegria', 'Tristeza',
+    'Castelo da Disney', 'Orelhas do Mickey', 'Lâmpada Mágica', 'Maçã Envenenada',
+    'Sapatinho de Cristal', 'Tapete Mágico'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
