@@ -40,6 +40,10 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
   const [coords, setCoords] = useState(null);
 
   const [tasks, setTasks] = useState([]);
+  // Vórtex (teleporte do Impostor) e câmeras de segurança — mesmo formato das
+  // tarefas: [{id,label,x,y}] em coordenadas do mapa.
+  const [vortexes, setVortexes] = useState([]);
+  const [cameras, setCameras] = useState([]);
   const [emergency, setEmergency] = useState(null); // {x,y} | null
   const [emergencyIconUrl, setEmergencyIconUrl] = useState('');
   const [emergencyIconUploading, setEmergencyIconUploading] = useState(false);
@@ -68,6 +72,30 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       octx.fillStyle = '#fff'; octx.font = 'bold 15px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText(String(i + 1), t.x, t.y);
     });
+    // Vórtex: roxo, ligados por linha tracejada (deixa óbvio que um leva ao outro)
+    if (vortexes.length > 1) {
+      octx.save();
+      octx.setLineDash([10, 8]); octx.lineWidth = 3; octx.strokeStyle = 'rgba(168,85,247,.75)';
+      octx.beginPath();
+      vortexes.forEach((v, i) => (i ? octx.lineTo(v.x, v.y) : octx.moveTo(v.x, v.y)));
+      octx.closePath(); octx.stroke();
+      octx.restore();
+    }
+    vortexes.forEach((v, i) => {
+      octx.beginPath(); octx.arc(v.x, v.y, 16, 0, Math.PI * 2);
+      octx.fillStyle = 'rgba(168,85,247,.92)'; octx.fill();
+      octx.lineWidth = 3; octx.strokeStyle = '#fff'; octx.stroke();
+      octx.fillStyle = '#fff'; octx.font = 'bold 14px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+      octx.fillText(String(i + 1), v.x, v.y);
+    });
+    // Câmeras: verde
+    cameras.forEach((c, i) => {
+      octx.beginPath(); octx.arc(c.x, c.y, 16, 0, Math.PI * 2);
+      octx.fillStyle = 'rgba(22,163,74,.92)'; octx.fill();
+      octx.lineWidth = 3; octx.strokeStyle = '#fff'; octx.stroke();
+      octx.fillStyle = '#fff'; octx.font = 'bold 14px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+      octx.fillText(String(i + 1), c.x, c.y);
+    });
     if (emergency) {
       octx.beginPath(); octx.arc(emergency.x, emergency.y, 19, 0, Math.PI * 2);
       octx.fillStyle = 'rgba(220,38,38,.92)'; octx.fill();
@@ -75,7 +103,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       octx.fillStyle = '#fff'; octx.font = 'bold 19px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText('!', emergency.x, emergency.y);
     }
-  }, [showMask, opacity, tasks, emergency]);
+  }, [showMask, opacity, tasks, emergency, vortexes, cameras]);
 
   useEffect(() => { composite(); }, [composite]);
 
@@ -102,6 +130,8 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       if (!alive) return;
       if (row) {
         setTasks(Array.isArray(row.tasks) ? row.tasks : []);
+        setVortexes(Array.isArray(row.vortexes) ? row.vortexes : []);
+        setCameras(Array.isArray(row.cameras) ? row.cameras : []);
         if (row.emergency_x != null && row.emergency_y != null) setEmergency({ x: row.emergency_x, y: row.emergency_y });
         if (row.emergency_icon_url) setEmergencyIconUrl(row.emergency_icon_url);
         setUpdatedAt(row.updated_at || null);
@@ -184,6 +214,21 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         const label = window.prompt('Nome da tarefa:', `Tarefa ${tasks.length + 1}`);
         if (label && label.trim()) setTasks(ts => [...ts, { id: uid(), label: label.trim(), x: Math.round(p.x), y: Math.round(p.y) }]);
       }
+    } else if (mode === 'vortex' || mode === 'cameras') {
+      // Mesmo comportamento das tarefas: clicar perto de um remove, clicar no
+      // vazio adiciona. O nome é só pra você se achar na lista (e vira o rótulo
+      // que aparece no jogo).
+      const ehVortex = mode === 'vortex';
+      const lista = ehVortex ? vortexes : cameras;
+      const setLista = ehVortex ? setVortexes : setCameras;
+      const oQue = ehVortex ? 'vórtex' : 'câmera';
+      const near = lista.find(v => Math.hypot(v.x - p.x, v.y - p.y) < 22);
+      if (near) {
+        if (window.confirm(`Remover ${oQue} "${near.label}"?`)) setLista(l => l.filter(v => v.id !== near.id));
+      } else {
+        const label = window.prompt(`Nome d${ehVortex ? 'o' : 'a'} ${oQue}:`, `${ehVortex ? 'Vórtex' : 'Câmera'} ${lista.length + 1}`);
+        if (label && label.trim()) setLista(l => [...l, { id: uid(), label: label.trim(), x: Math.round(p.x), y: Math.round(p.y) }]);
+      }
     } else if (mode === 'emergencia') {
       setEmergency({ x: Math.round(p.x), y: Math.round(p.y) });
     }
@@ -238,6 +283,8 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         id: 1,
         wall_mask_url: urlData.publicUrl,
         tasks,
+        vortexes,
+        cameras,
         emergency_x: emergency?.x ?? null,
         emergency_y: emergency?.y ?? null,
         emergency_icon_url: emergencyIconUrl || null,
@@ -271,10 +318,12 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         <div style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Card style={{ padding: 14 }}>
             <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 8 }}>MODO</div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button style={modeBtnStyle(mode === 'paredes', '#DC2626')} onClick={() => setMode('paredes')}>🧱 Paredes</button>
               <button style={modeBtnStyle(mode === 'tarefas', '#2563EB')} onClick={() => setMode('tarefas')}>📋 Tarefas</button>
               <button style={modeBtnStyle(mode === 'emergencia', '#D97706')} onClick={() => setMode('emergencia')}>🚨 Emergência</button>
+              <button style={modeBtnStyle(mode === 'vortex', '#A855F7')} onClick={() => setMode('vortex')}>🌀 Vórtex</button>
+              <button style={modeBtnStyle(mode === 'cameras', '#16A34A')} onClick={() => setMode('cameras')}>📹 Câmeras</button>
             </div>
           </Card>
 
@@ -312,6 +361,41 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
               </div>
             </Card>
           )}
+
+          {(mode === 'vortex' || mode === 'cameras') && (() => {
+            const ehVortex = mode === 'vortex';
+            const lista = ehVortex ? vortexes : cameras;
+            const setLista = ehVortex ? setVortexes : setCameras;
+            const cor = ehVortex ? '#A855F7' : '#16A34A';
+            return (
+              <Card style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em' }}>
+                  {ehVortex ? 'VÓRTEX' : 'CÂMERAS'} ({lista.length})
+                </div>
+                <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>
+                  Clique num ponto vazio do mapa pra adicionar; clique em cima de um pino pra remover.
+                  {ehVortex
+                    ? ' Só o Impostor usa: ele entra num e escolhe pra qual outro ir. Precisa de pelo menos 2 pra funcionar.'
+                    : ' Qualquer jogador que chegar perto de um ponto abre o painel e vê as câmeras ao vivo.'}
+                </div>
+                {ehVortex && lista.length === 1 && (
+                  <div style={{ fontSize: 12, color: '#D97706', background: 'rgba(217,119,6,.09)', border: '1px solid rgba(217,119,6,.25)', borderRadius: 8, padding: '7px 9px' }}>
+                    Só 1 vórtex marcado — sem um segundo, não há pra onde teleportar e o jogo não oferece a ação.
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                  {lista.length === 0 && <div style={{ fontSize: 12, color: T.textD, padding: '8px 0' }}>Nenhum ponto marcado ainda.</div>}
+                  {lista.map((v, i) => (
+                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8, background: `${cor}12`, border: `1px solid ${cor}33` }}>
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: cor, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ flex: 1, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</span>
+                      <button onClick={() => setLista(l => l.filter(x => x.id !== v.id))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C04050', fontSize: 14, flexShrink: 0 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
 
           {mode === 'emergencia' && (
             <Card style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
