@@ -179,6 +179,7 @@ const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt 
 const KILL_PROXIMIDADE = 90;      // distância (px do mapa) pra aparecer o botão de Matar
 const KILL_COOLDOWN_MS = 25000;   // tempo de recarga entre mortes, por impostor
 const MORTE_ANIM_MS = 3200;       // duração da animação de morte na tela da vítima
+const REVELACAO_MS = 6000;        // quanto tempo a tela de revelação de papel fica antes de ir pro mapa sozinha
 const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o botão de Reportar
 
 /* ── Sabotagem de energia (ago/2026) — só o Impostor, sem precisar estar
@@ -1538,12 +1539,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => {
     const ch = supabase.channel(`uniko-suspect-room-${roomId}`, { config: { broadcast: { self: true } } });
     chanRef.current = ch;
-    ch.on('broadcast', { event: 'pronto' }, ({ payload }) => {
-      if (!hostRef.current) return;
-      const s = stateRef.current; if (!s) return;
-      const p = { ...(s.prontos || {}) }; p[payload.name] = true;
-      pushState({ ...s, prontos: p });
-    });
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (!payload?.name || payload.name === name) return;
       setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y, moving: !!payload.moving } }));
@@ -1578,14 +1573,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  /* Motor: quando todos os presentes marcaram "pronto" na revelação, o HOST avança pro jogo. */
+  /* Motor: a revelação de papel avança pro jogo sozinha depois de um tempo —
+     não precisa mais de "Entendi, tô pronto!" de cada um (o lobby já era o
+     barco com todo mundo dentro; depois de "Iniciar Partida" já era pra
+     começar de vez). O HOST empurra a transição; todo mundo só vê a tela
+     de revelação por REVELACAO_MS antes do mapa aparecer. */
   useEffect(() => {
-    if (!isHost || !state || state.phase !== 'sorteando') return;
-    const presentes = playersRef.current.map(p => p.name);
-    const prontos = Object.keys(state.prontos || {}).filter(n => presentes.includes(n));
-    if (presentes.length && prontos.length >= presentes.length) pushState({ ...state, phase: 'jogando' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, state, players]);
+    if (!isHost || state?.phase !== 'sorteando') return;
+    const t = setTimeout(() => {
+      const s = stateRef.current;
+      if (s?.phase === 'sorteando') pushState({ ...s, phase: 'jogando' });
+    }, REVELACAO_MS);
+    return () => clearTimeout(t);
+  }, [isHost, state?.phase, state?.round, pushState]);
 
   /* ── Loop de movimento: teclado (WASD/setas) + requestAnimationFrame ──────
      Só roda durante a fase 'jogando'. Move localmente (autoridade própria,
@@ -1729,12 +1729,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (!isHost || !state) return;
     pushState({ ...state, impostoresQtd: n });
   };
-  const marcarPronto = () => {
-    if (!state || state.phase !== 'sorteando') return;
-    if (state.prontos?.[name]) return;
-    chanRef.current?.send({ type: 'broadcast', event: 'pronto', payload: { name } });
-    if (isHost) { const p = { ...(state.prontos || {}) }; p[name] = true; pushState({ ...state, prontos: p }); }
-  };
   const encerrar = () => { if (isHost && state) pushState({ ...state, phase: 'over' }); };
 
   const meuPapel = state?.papeis?.[name];
@@ -1746,9 +1740,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
   const mostrarSabotar = meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem;
-  const jaPronto = !!state?.prontos?.[name];
-  const nProntos = Object.keys(state?.prontos || {}).filter(n => players.some(p => p.name === n)).length;
-
   // Câmera: janela de ZOOM_W×ZOOM_H (campo de visão menor) centrada no MEU boneco,
   // clampada pra nunca mostrar além da borda do mapa. Usa o estado `myPos`
   // (React proíbe ler `ref.current` durante o render — regra do React
@@ -1888,25 +1879,42 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           </>
         )}
 
-        {/* ── REVELAÇÃO DE PAPEL ── */}
+        {/* ── REVELAÇÃO DE PAPEL (ago/2026, redesenhada) ── */}
+        {/* Sem botão "tô pronto" — o barco do lobby já reúne todo mundo antes
+            de "Iniciar Partida", então a revelação só precisa aparecer e
+            seguir sozinha pro mapa depois de REVELACAO_MS (ver o efeito do
+            host acima). Estilo pedido pelo usuário: nome do papel grande e
+            com brilho + todo mundo que tá na partida enfileirado, o MEU
+            Uniko maior/na frente — igual à tela clássica de reveal. */}
         {state?.phase === 'sorteando' && (
-          <div className="sus-reveal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '20px 10px', textAlign: 'center' }}>
-            <div className="sus-float" style={{ fontSize: 64 }}>{meuPapel === 'impostor' ? '🔪' : '🏖️'}</div>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 800, color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
-              {meuPapel === 'impostor' ? 'Você é o IMPOSTOR!' : 'Você é Tripulante'}
+          <div className="sus-reveal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
+            padding: '28px 14px', textAlign: 'center', borderRadius: 18, background: '#05070c' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(30px, 6vw, 46px)', fontWeight: 800, letterSpacing: '.03em',
+              color: meuPapel === 'impostor' ? IMPOSTOR_COR : '#9FE8FF',
+              textShadow: meuPapel === 'impostor' ? `0 0 10px ${IMPOSTOR_COR}, 0 0 28px ${IMPOSTOR_COR}99` : `0 0 10px #9FE8FF, 0 0 28px #6FD8FF99` }}>
+              {meuPapel === 'impostor' ? 'IMPOSTOR' : 'TRIPULANTE'}
             </div>
-            <div style={{ fontSize: 13, color: T.textT, maxWidth: 340, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, color: '#fff' }}>
+              Há <b style={{ color: IMPOSTOR_COR }}>{state?.impostoresQtd || 1}</b> Impostor{(state?.impostoresQtd || 1) > 1 ? 'es' : ''} entre nós.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 8, flexWrap: 'wrap', maxWidth: 480 }}>
+              {players.map(p => {
+                const eu = p.name === name;
+                return (
+                  <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    transform: eu ? 'scale(1.35) translateY(-4px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
+                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: '#fff',
+                      border: eu ? `3px solid ${AGUA}` : '2px solid rgba(255,255,255,.4)', boxShadow: eu ? `0 0 16px ${AGUA}aa` : 'none' }} />
+                    {eu && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff' }}>Você</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.65)', maxWidth: 340, lineHeight: 1.5 }}>
               {meuPapel === 'impostor'
-                ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego. (Tarefas/matar chegam nas próximas fases)'
-                : 'Complete suas tarefas pela casa e desconfie de quem agir estranho. (Tarefas chegam na próxima fase)'}
+                ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego.'
+                : 'Complete suas tarefas pela casa e desconfie de quem agir estranho.'}
             </div>
-            {jaPronto ? (
-              <div style={{ fontSize: 12.5, color: T.textT }}>Esperando os outros... ({nProntos}/{players.length})</div>
-            ) : (
-              <button className="sus-btn" onClick={marcarPronto}
-                style={{ padding: '12px 28px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer',
-                  background: `linear-gradient(135deg, ${AGUA}, ${CEU})`, boxShadow: `0 6px 18px ${AG}` }}>Entendi, tô pronto!</button>
-            )}
           </div>
         )}
 
