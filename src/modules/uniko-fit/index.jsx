@@ -539,12 +539,30 @@ const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) 
   let finished = false;
   const limpar = () => { try { URL.revokeObjectURL(video.src); } catch { /* já liberado */ } try { video.remove(); } catch { /* já removido */ } };
   const falhar = (msg) => { if (finished) return; finished = true; limpar(); reject(new Error(msg)); };
+  // Safari (iPhone/Mac) não implementa captureStream() de jeito nenhum —
+  // sem essa API não tem como extrair áudio no navegador, então nem tenta:
+  // erro claro na hora em vez da mensagem enganosa "vídeo não tem áudio".
+  if (!video.captureStream && !video.mozCaptureStream) {
+    limpar();
+    reject(new Error('Esse navegador não consegue extrair áudio de vídeo (comum no Safari/iPhone) — anexa um áudio direto em vez do vídeo.'));
+    return;
+  }
   video.onerror = () => falhar('Não consegui abrir esse vídeo.');
   video.onloadedmetadata = async () => {
     try {
-      const stream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
-      const audioTracks = stream?.getAudioTracks() || [];
-      if (!audioTracks.length) { falhar('Esse vídeo não tem áudio.'); return; }
+      // Chamar captureStream() ANTES do vídeo começar a tocar de verdade é
+      // pouco confiável em navegador de celular — a trilha de ÁUDIO pode
+      // não aparecer ainda mesmo com getAudioTracks() (era isso que fazia
+      // achar "vídeo não tem áudio" com vídeo que tinha áudio sim). Toca
+      // primeiro, aí tenta capturar de novo por até ~1.5s antes de desistir.
+      await video.play();
+      let audioTracks = [];
+      for (let tentativa = 0; tentativa < 10 && !audioTracks.length; tentativa++) {
+        const streamTentativa = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+        audioTracks = streamTentativa?.getAudioTracks() || [];
+        if (!audioTracks.length) await new Promise(r => setTimeout(r, 150));
+      }
+      if (!audioTracks.length) { falhar('Não encontrei trilha de áudio nesse vídeo — tenta anexar um áudio direto em vez do vídeo.'); return; }
       const mime = escolherMimeAudio();
       const recorder = new MediaRecorder(new MediaStream(audioTracks), mime ? { mimeType: mime } : undefined);
       const chunks = [];
@@ -565,7 +583,9 @@ const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) 
       video.ontimeupdate = () => { onProgress?.(Math.min(1, video.currentTime / limite)); if (video.currentTime >= limite) parar(); };
       video.onended = parar;
       recorder.start();
-      await video.play();
+      // O vídeo já está tocando desde a detecção da trilha de áudio ali em
+      // cima — só garante que não ficou pausado no meio do caminho.
+      if (video.paused) await video.play();
     } catch (e) { falhar(e?.message || 'Erro ao extrair áudio.'); }
   };
 });
