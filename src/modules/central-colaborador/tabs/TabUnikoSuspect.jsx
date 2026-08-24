@@ -251,6 +251,13 @@ const fadeVolume = (el, alvo, aoTerminar) => {
   return iv;
 };
 
+/* Botões do HUD da partida — mesmo visual pros três (mudo/tela cheia/encerrar) */
+const hudBtnCss = {
+  display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10,
+  border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)',
+  color: '#8AB0D4', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+};
+
 const VORTEX_PROXIMIDADE = 80;
 const CAMERA_PROXIMIDADE = 85;
 const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois portais
@@ -376,6 +383,9 @@ const SUS_CSS = `
    todo mundo espera o host começar. Duas camadas — um brilho que desliza
    bem devagar (a "água" em si) e linhas finas de onda por cima — mais o
    barco balançando suavemente. */
+/* Enquanto a partida roda, o Assistente Uniko sai da frente (ele é fixed com
+   z-index acima do jogo e ficava flutuando por cima do mapa). */
+body.sus-jogando .uniko-assistant { display: none !important; }
 @keyframes susOceanShine { 0% { background-position: 0% 50%, 100% 50%; } 100% { background-position: 200% 50%, -100% 50%; } }
 @keyframes susWaveLines { from { background-position: 0 0; } to { background-position: 160px 0; } }
 @keyframes susBoatSway { 0%,100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(5px) rotate(.5deg); } }
@@ -1625,7 +1635,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (!jogando) return;
     const anterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = anterior; };
+    // A classe some com o Assistente Uniko (ver regra em SUS_CSS): ele é
+    // `position:fixed` com z-index acima do jogo, então ficava flutuando por
+    // cima do mapa e atrapalhando. Some só enquanto a partida roda.
+    document.body.classList.add('sus-jogando');
+    return () => {
+      document.body.style.overflow = anterior;
+      document.body.classList.remove('sus-jogando');
+    };
   }, [jogando]);
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
@@ -2240,6 +2257,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // Fantasma (ago/2026): quem foi expulso na reunião. Atravessa parede, só
   // faz tarefa, e só ELE enxerga todo mundo (vivos continuam sem ver fantasmas).
   const souFantasma = !!state?.fantasmas?.includes(name);
+  // Cor do papel usada pelo HUD (fantasma tem a sua, senão some no escuro).
+  const papelCor = souFantasma ? '#A78BFA' : meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR;
   useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
   useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
@@ -2446,24 +2465,55 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         {state?.phase === 'jogando' && createPortal(
           <div ref={gameWrapRef} style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', flexDirection: 'column', gap: 10,
             background: T.page || '#0B1620', padding: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, width: '100%', maxWidth: 1400, flexShrink: 0 }}>
-              <div style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
-                background: meuPapel === 'impostor' ? `${IMPOSTOR_COR}14` : `${TRIPULANTE_COR}14`,
-                border: `1px solid ${meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR}44`,
-                color: meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR }}>
-                {meuPapel === 'impostor' ? 'Você é o Impostor 🔪' : 'Você é Tripulante 🏖️'}
-              </div>
-              {mapaTarefas.length > 0 && meuPapel !== 'impostor' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 800,
-                  background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.3)', color: '#2563EB' }}>
-                  <StarIcon size={13} color="#2563EB" /> {minhasFeitas.size}/{mapaTarefas.length} tarefas
+            {/* ── HUD do topo ─────────────────────────────────
+                Antes eram 3 chips minúsculos encostados na esquerda. Agora o
+                cartão do PAPEL fica grande e CENTRALIZADO (dizendo também o
+                que você deve fazer), o progresso de tarefas vem ao lado e os
+                botões ficam ancorados na direita, fora do fluxo, pra não
+                empurrarem o cartão pro canto. */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 10, width: '100%', maxWidth: 1400, flexShrink: 0, minHeight: 58 }}>
+
+              <div className="sus-pop" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 20px', borderRadius: 14,
+                background: `linear-gradient(135deg, ${papelCor}22, ${papelCor}08)`,
+                border: `1.5px solid ${papelCor}66`, boxShadow: `0 6px 22px ${papelCor}30` }}>
+                <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 21, background: `${papelCor}28`, border: `1px solid ${papelCor}55` }}>
+                  {souFantasma ? '👻' : meuPapel === 'impostor' ? '🔪' : '🏖️'}
                 </div>
-              )}
-              <div style={{ fontSize: 11.5, color: T.textT }}>Use <b>WASD</b> ou as <b>setas</b> pra andar · <b>E</b> pra interagir</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="sus-btn" onClick={alternarMudo} title={mudo ? 'Ligar o som' : 'Silenciar'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
-                    background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, lineHeight: 1.1, color: papelCor }}>
+                    {souFantasma ? 'Você é um Fantasma' : meuPapel === 'impostor' ? 'Você é o Impostor' : 'Você é Tripulante'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: T.textS, marginTop: 2, whiteSpace: 'nowrap' }}>
+                    {souFantasma
+                      ? 'Ninguém te vê — termine as tarefas pra ajudar o time'
+                      : meuPapel === 'impostor'
+                        ? 'Finja fazer tarefas, sabote e elimine sem ser pego'
+                        : 'Complete as tarefas e descubra quem é o impostor'}
+                  </div>
+                </div>
+              </div>
+
+              {mapaTarefas.length > 0 && meuPapel !== 'impostor' && (() => {
+                const feitas = minhasFeitas.size, total = mapaTarefas.length;
+                const pct = total ? Math.round((feitas / total) * 100) : 0;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 15px', borderRadius: 14,
+                    background: 'rgba(74,159,232,.12)', border: '1.5px solid rgba(74,159,232,.35)' }}>
+                    <StarIcon size={15} color="#6BB8FF" />
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: '#6BB8FF', lineHeight: 1 }}>{feitas}/{total} tarefas</div>
+                      <div style={{ width: 78, height: 5, borderRadius: 999, background: 'rgba(255,255,255,.12)', marginTop: 5, overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg,#4A9FE8,#6BB8FF)', transition: 'width .25s' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 7 }}>
+                <button className="sus-btn" onClick={alternarMudo} title={mudo ? 'Ligar o som' : 'Silenciar'} style={hudBtnCss}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                     {mudo
@@ -2472,9 +2522,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </svg>
                   {mudo ? 'Som' : 'Mudo'}
                 </button>
-                <button className="sus-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
-                    background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                <button className="sus-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'} style={hudBtnCss}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     {isFullscreen
                       ? <><path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/><path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/></>
@@ -2483,9 +2531,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   {isFullscreen ? 'Sair' : 'Tela cheia'}
                 </button>
                 {isHost && (
-                  <button className="sus-btn" onClick={encerrar}
-                    style={{ padding: '6px 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
-                    Encerrar partida
+                  <button className="sus-btn" onClick={encerrar} style={{ ...hudBtnCss, color: '#FF8A9B', borderColor: 'rgba(255,138,155,.35)' }}>
+                    Encerrar
                   </button>
                 )}
               </div>
@@ -2716,8 +2763,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   : <>🌀 Pressione <b>E</b> — entrar no vórtex</>}
               </button>
             )}
-            <div style={{ textAlign: 'center', fontSize: 11, color: T.textT }}>
-              Ande pela casa (WASD), <b>E</b> pra interagir — tarefa, câmeras ou vórtex. <b>F</b> mata (só Impostor), <b>R</b> reporta corpo. As câmeras mostram as salas ao vivo; o vórtex teleporta o Impostor entre os portais.
+            {/* Legenda de controles em "teclas" de verdade — antes era uma
+                linha corrida de texto apagado, difícil de ler no meio do jogo. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 14, fontSize: 11.5, color: T.textT }}>
+              {[['WASD', 'andar'], ['E', 'interagir'], ...(meuPapel === 'impostor' ? [['F', 'matar']] : []), ['R', 'reportar corpo']].map(([tecla, oQue]) => (
+                <span key={tecla} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <kbd style={{ padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,.08)',
+                    border: '1px solid rgba(255,255,255,.16)', color: T.text, fontSize: 10.5, fontWeight: 800,
+                    fontFamily: 'inherit', lineHeight: 1.4 }}>{tecla}</kbd>
+                  {oQue}
+                </span>
+              ))}
             </div>
             </>
             )}
