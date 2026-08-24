@@ -511,7 +511,10 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     return () => { io.disconnect(); el.removeEventListener('loadedmetadata', seek); el.removeEventListener('timeupdate', onTime); };
   }, [src, start, duration]);
   useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
-  return <audio ref={ref} src={src} preload="auto" style={{ display: 'none' }} />;
+  // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
+  // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
+  // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
+  return <audio ref={ref} src={src} muted={muted} preload="auto" style={{ display: 'none' }} />;
 };
 
 /* ── Extrair o áudio de um vídeo (ago/2026) ───────────────────────────────────
@@ -550,7 +553,12 @@ const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) 
       recorder.onstop = () => {
         if (finished) return; finished = true; limpar();
         if (!chunks.length) { reject(new Error('Não consegui extrair áudio desse vídeo.')); return; }
-        resolve(new Blob(chunks, { type: mime || 'audio/webm' }));
+        // `recorder.mimeType` é o codec REAL que o navegador usou (nem sempre
+        // é um dos `candidatos` de escolherMimeAudio — em navegadores sem
+        // nenhum deles suportado, ex. Safari, o navegador escolhe outro
+        // sozinho). Rotular o Blob com o formato errado faz o áudio parecer
+        // corrompido e não tocar em lugar nenhum depois (foi um bug real).
+        resolve(new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' }));
       };
       const limite = Math.min(video.duration || MAX_EXTRACAO_S, MAX_EXTRACAO_S);
       const parar = () => { if (finished) return; try { recorder.stop(); } catch { /* já parado */ } try { video.pause(); } catch { /* já pausado */ } };
@@ -563,22 +571,28 @@ const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) 
 });
 
 /* ── Escolher música pro post (ago/2026, estilo TikTok) ──────────────────────
-   3 fontes: (1) BIBLIOTECA — áudios que a galera já usou em posts antes,
-   reaproveitáveis por qualquer um (tabela uniko_fit_audios); (2) áudio
-   PRÓPRIO, upload direto; (3) extrair de um VÍDEO (ver extrairAudioDeVideo
-   acima) — a pessoa escolhe um vídeo qualquer e a gente puxa só o áudio.
+   2 fontes: (1) BIBLIOTECA — áudios que a galera já usou em posts antes,
+   reaproveitáveis por qualquer um (tabela uniko_fit_audios); (2) VÍDEO OU
+   ÁUDIO — um único seletor (`accept="video/*,audio/*"`) que aceita as duas
+   coisas: se for vídeo, extrai só o áudio (ver extrairAudioDeVideo acima);
+   se já for áudio, usa direto. Antes eram 2 abas separadas ("Meu áudio" /
+   "De um vídeo") — juntadas a pedido do usuário, ficava confuso ter que
+   escolher o TIPO do arquivo antes mesmo de escolher o arquivo.
    Busca no Spotify foi abandonada: na prática quase nenhuma faixa vinha com
    `preview_url` (restrição deles, sem contorno) — confirmado em uso real.
-   Depois de escolher a fonte, etapa de recorte igual pras 3: testar/ajustar
+   Depois de escolher a fonte, etapa de recorte igual pras 2: testar/ajustar
    INÍCIO e DURAÇÃO do trechinho antes de confirmar. Ao confirmar um áudio
-   novo (fontes 2/3), sobe pro Storage e entra na biblioteca pra todo mundo —
-   só quando vem DA biblioteca que pula o upload (já está lá). */
+   novo, sobe pro Storage e entra na biblioteca pra todo mundo — só quando
+   vem DA biblioteca que pula o upload (já está lá). */
 const CLIP_DURACOES = [5, 10, 15];
 const FONTES_MUSICA = [
   { id: 'biblioteca', label: '📚 Biblioteca' },
-  { id: 'audio', label: '🎤 Meu áudio' },
-  { id: 'video', label: '🎬 De um vídeo' },
+  { id: 'arquivo', label: '🎬 Vídeo ou áudio' },
 ];
+// Alguns seletores de arquivo do Android devolvem `file.type` vazio pra
+// certos áudios — sem isso o Storage salva como `application/octet-stream`
+// e o navegador se recusa a tocar depois. Chute pela extensão como reforço.
+const MIME_AUDIO_POR_EXT = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/opus', webm: 'audio/webm', flac: 'audio/flac' };
 const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
   const [fonte, setFonte] = useState('biblioteca');
   const [biblioteca, setBiblioteca] = useState(null);
@@ -615,32 +629,31 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
     setTituloAudio(item.title); setPreviewDur(item.duration || 30);
     setInicio(0); setDuracao(Math.max(1, Math.min(10, Math.floor(item.duration || 10))));
   };
-  const escolherArquivoAudio = (e) => {
-    const file = e.target.files?.[0]; e.target.value = '';
-    if (!file) return;
-    setErro('');
+  const usarArquivoLocal = (file, origem) => {
     const url = URL.createObjectURL(file);
-    setAudioSrc(url); setBlobUrl(url); setUploadFile(file); setOrigemAudio('audio');
+    setAudioSrc(url); setBlobUrl(url); setUploadFile(file); setOrigemAudio(origem);
     setTituloAudio(file.name.replace(/\.[^./]+$/, ''));
     setInicio(0); setDuracao(10); setPreviewDur(30);
   };
-  const escolherArquivoVideo = async (e) => {
+  const escolherArquivo = async (e) => {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
-    setErro(''); setExtraindo(0);
-    try {
-      const blob = await extrairAudioDeVideo(file, (p) => setExtraindo(p));
-      const nomeBase = file.name.replace(/\.[^./]+$/, '');
-      const ext = (blob.type.split(';')[0].split('/')[1]) || 'webm';
-      const audioFile = new File([blob], `${nomeBase}.${ext}`, { type: blob.type || 'audio/webm' });
-      const url = URL.createObjectURL(audioFile);
-      setAudioSrc(url); setBlobUrl(url); setUploadFile(audioFile); setOrigemAudio('video');
-      setTituloAudio(nomeBase);
-      setInicio(0); setDuracao(10); setPreviewDur(30);
-    } catch (err) {
-      setErro(err?.message || 'Não consegui extrair o áudio desse vídeo.');
+    setErro('');
+    if (file.type.startsWith('video/')) {
+      setExtraindo(0);
+      try {
+        const blob = await extrairAudioDeVideo(file, (p) => setExtraindo(p));
+        const nomeBase = file.name.replace(/\.[^./]+$/, '');
+        const ext = (blob.type.split(';')[0].split('/')[1]) || 'webm';
+        usarArquivoLocal(new File([blob], `${nomeBase}.${ext}`, { type: blob.type || 'audio/webm' }), 'video');
+      } catch (err) {
+        setErro(err?.message || 'Não consegui extrair o áudio desse vídeo.');
+      }
+      setExtraindo(null);
+    } else {
+      const tipo = file.type || MIME_AUDIO_POR_EXT[(file.name.split('.').pop() || '').toLowerCase()] || 'audio/mpeg';
+      usarArquivoLocal(file.type ? file : new File([file], file.name, { type: tipo }), 'audio');
     }
-    setExtraindo(null);
   };
   const trocar = () => {
     audioRef.current?.pause(); setTocando(false);
@@ -783,17 +796,7 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         </>
       )}
 
-      {fonte === 'audio' && (
-        <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
-          borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-          <span style={{ fontSize: 30 }}>🎤</span>
-          <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher áudio</span>
-          <span style={{ fontSize: 11.5, color: T.textT }}>Um arquivo de música do seu celular/PC</span>
-          <input type="file" accept="audio/*" onChange={escolherArquivoAudio} style={{ display: 'none' }} />
-        </label>
-      )}
-
-      {fonte === 'video' && (
+      {fonte === 'arquivo' && (
         extraindo !== null ? (
           <div style={{ padding: '36px 18px', textAlign: 'center' }}>
             <div style={{ fontSize: 30, marginBottom: 8 }}>🎬</div>
@@ -805,10 +808,10 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         ) : (
           <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
             borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-            <span style={{ fontSize: 30 }}>🎬</span>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher vídeo</span>
-            <span style={{ fontSize: 11.5, color: T.textT }}>A gente extrai o áudio automaticamente</span>
-            <input type="file" accept="video/*" onChange={escolherArquivoVideo} style={{ display: 'none' }} />
+            <span style={{ fontSize: 30 }}>🎬🎵</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Adicionar vídeo ou áudio</span>
+            <span style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você</span>
+            <input type="file" accept="video/*,audio/*" onChange={escolherArquivo} style={{ display: 'none' }} />
           </label>
         )
       )}
