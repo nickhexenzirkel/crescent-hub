@@ -469,7 +469,7 @@ const SecaoLabel = ({ icon, children }) => (
 // Começa MUDO de propósito (navegador só autoplay com som depois de um toque
 // do usuário — sem isso o vídeo nem tocava) — o botão de alto-falante no card
 // dá play com áudio a partir dali (é um toque real, o navegador libera).
-const FeedVideo = ({ src, style, muted }) => {
+const FeedVideo = ({ src, style, muted, onEl }) => {
   const ref = useRef(null);
   // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
   // isso, desmutar tentaria dar play em TODOS os vídeos montados no feed
@@ -501,7 +501,7 @@ const FeedVideo = ({ src, style, muted }) => {
     // que agora tem um toque de usuário de verdade.
     if (!muted && visivel) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
   }, [muted, visivel]);
-  return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
+  return <video ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
 /* ── Música de um post (ago/2026, estilo TikTok) ─────────────────────────────
@@ -511,7 +511,7 @@ const FeedVideo = ({ src, style, muted }) => {
    próprio, extraído de vídeo ou pego da biblioteca — ver MusicPicker),
    em vez do áudio inteiro. Se o post tem vídeo também, o `<video>` fica
    sempre mudo (ver render do feed) — só essa música toca. */
-const FeedMusic = ({ src, start, duration, muted }) => {
+const FeedMusic = ({ src, start, duration, muted, onEl }) => {
   const ref = useRef(null);
   // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
   // isso, desmutar tentaria dar play em TODAS as músicas montadas no feed
@@ -557,7 +557,7 @@ const FeedMusic = ({ src, start, duration, muted }) => {
   // chamado (era esse o motivo real da música nunca tocar). Em vez disso,
   // cobre a mesma área do card (igual o vídeo/foto) só que transparente e
   // sem capturar toque — fica "invisível" mas continua no layout de verdade.
-  return <audio ref={ref} src={src} muted={muted} preload="auto" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }} />;
+  return <audio ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} preload="auto" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }} />;
 };
 
 /* ── Extrair o áudio de um vídeo (ago/2026) ───────────────────────────────────
@@ -1217,6 +1217,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   // ── Ir pro Para Você e mostrar um post específico lá (usado pelo Meu Perfil/Amigos) ──
   const feedItemRefs = useRef({});
+  // DOM real do <video>/<audio> de cada post (id → elemento) — o botão de som
+  // precisa chamar `.play()` SÍNCRONO dentro do próprio onClick (não num
+  // useEffect disparado depois) porque o Safari só libera autoplay de áudio
+  // com som se a chamada acontecer dentro da pilha do gesto de toque de
+  // verdade; um efeito rodando depois do re-render já "perdeu" esse gesto.
+  const mediaElRefs = useRef({});
   const [highlightPostId, setHighlightPostId] = useState(null);
   const [flashPostId, setFlashPostId] = useState(null);
   const irParaFeed = async (post) => {
@@ -1927,12 +1933,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     className="fit-card" style={{ position: 'relative', width: '100%', height: '100%', background: '#111',
                       boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
                     {isVideoUrl(post.photo_url)
-                      ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
+                          onEl={el => { mediaElRefs.current[post.id] = { ...mediaElRefs.current[post.id], video: el }; }}
+                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     {/* Tem música escolhida no post (ver postarFoto/MusicPicker) — toca o
                         trechinho em loop; se o post também é vídeo, o vídeo acima já foi
                         forçado mudo (`post.music_url ? true : feedMuted`) pra não brigar. */}
-                    {post.music_url && <FeedMusic src={post.music_url} start={post.music_start} duration={post.music_duration} muted={feedMuted} />}
+                    {post.music_url && <FeedMusic src={post.music_url} start={post.music_start} duration={post.music_duration} muted={feedMuted}
+                      onEl={el => { mediaElRefs.current[post.id] = { ...mediaElRefs.current[post.id], audio: el }; }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
                     {heartBurst === post.id && (
@@ -1955,7 +1964,22 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     )}
 
                     {(isVideoUrl(post.photo_url) || post.music_url) && (
-                      <button onClick={e => { e.stopPropagation(); setFeedMuted(m => !m); }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
+                      <button onClick={e => {
+                        e.stopPropagation();
+                        const vaiDesmutar = feedMuted;
+                        setFeedMuted(m => !m);
+                        // Chama play() SÍNCRONO aqui dentro do próprio toque (não num
+                        // useEffect depois) — no Safari/iPhone, autoplay de áudio com
+                        // som só é liberado se a chamada acontecer na pilha do gesto
+                        // de toque de verdade; um efeito rodando após o re-render já
+                        // "perdeu" esse gesto e o navegador recusa. Só o post ATUAL
+                        // (por id, via mediaElRefs) — nada dos outros posts do feed.
+                        if (vaiDesmutar) {
+                          const els = mediaElRefs.current[post.id];
+                          if (els?.video) { els.video.muted = false; els.video.play().catch(() => {}); }
+                          if (els?.audio) { els.audio.muted = false; els.audio.play().catch(() => {}); }
+                        }
+                      }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
                         style={{ position: 'absolute', top: souDono ? 52 : 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
                           background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{feedMuted ? IcoVolOff : IcoVolOn}</button>
                     )}
