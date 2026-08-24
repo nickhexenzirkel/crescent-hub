@@ -461,11 +461,11 @@ const THEMES = [
     'areia', 'tijolo', 'telha', 'viga', 'coluna', 'planta baixa', 'trado',
     'guindaste', 'retroescavadeira', 'trator', 'britadeira', 'cone de trânsito',
     'fita zebrada', 'obra', 'placa de obra', 'caixa de ferramentas'] },
-  /* Disney: peso nos TÍTULOS DE FILME, que é o que a galera reconhece de
-     cara. Personagem só entra se for nome de todo mundo (Simba, Elsa, Woody)
-     — secundário tipo Doc Hudson/Linguini saiu: ninguém acerta e trava a
-     rodada. Antes disso a lista usava DESCRIÇÃO ('astronauta de brinquedo'),
-     que era pior ainda pra adivinhar. */
+  /* Disney: SO nome de personagem ou título de filme — nada de objeto
+     genérico ('Orelhas do Mickey', 'Maçã Envenenada'): dá pra desenhar, mas
+     ninguém acerta a frase exata e a rodada trava. Personagem só entra se
+     for nome de todo mundo (Simba, Elsa, Woody); secundário tipo Doc Hudson
+     já saiu pelo mesmo motivo. */
   { id: 'disney', nome: 'Filmes da Disney', emoji: '🏰', words: [
     'Branca de Neve e os Sete Anões', 'Pinóquio', 'Dumbo', 'Bambi', 'Cinderela',
     'Alice no País das Maravilhas', 'Peter Pan', 'A Dama e o Vagabundo',
@@ -484,9 +484,7 @@ const THEMES = [
     'Timão', 'Pumba', 'Elsa', 'Anna', 'Olaf', 'Ariel', 'Branca de Neve', 'Bela', 'Fera',
     'Jasmine', 'Gênio', 'Rapunzel', 'Maui', 'Stitch', 'Woody', 'Buzz Lightyear', 'Nemo',
     'Dory', 'Sulley', 'Mike Wazowski', 'Remy', 'Sininho', 'Capitão Gancho',
-    'Cruella de Vil', 'Relâmpago McQueen', 'Baloo', 'Alegria', 'Tristeza',
-    'Castelo da Disney', 'Orelhas do Mickey', 'Lâmpada Mágica', 'Maçã Envenenada',
-    'Sapatinho de Cristal', 'Tapete Mágico'] },
+    'Cruella de Vil', 'Relâmpago McQueen', 'Baloo', 'Alegria', 'Tristeza'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
