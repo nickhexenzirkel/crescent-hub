@@ -525,6 +525,14 @@ const FeedMusic = ({ src, start, duration, muted }) => {
    tanto que o vídeo dura), por isso corta em MAX_EXTRACAO_S pra não travar
    com vídeo longo. `onProgress` recebe 0..1 pra alimentar a barrinha na UI. */
 const MAX_EXTRACAO_S = 60;
+// Safari (iPhone/Mac) nunca vai ter captureStream() — checa uma vez só (não
+// muda durante a sessão) pra já nem oferecer a opção de vídeo nesse
+// navegador, em vez de deixar a pessoa escolher um vídeo e só DEPOIS
+// descobrir que não tem como extrair o áudio ali.
+const SUPORTA_CAPTURE_AUDIO = typeof document !== 'undefined' && (() => {
+  const v = document.createElement('video');
+  return !!(v.captureStream || v.mozCaptureStream);
+})();
 const escolherMimeAudio = () => {
   const candidatos = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
   for (const m of candidatos) if (window.MediaRecorder?.isTypeSupported?.(m)) return m;
@@ -828,10 +836,14 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         ) : (
           <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
             borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-            <span style={{ fontSize: 30 }}>🎬🎵</span>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Adicionar vídeo ou áudio</span>
-            <span style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você</span>
-            <input type="file" accept="video/*,audio/*" onChange={escolherArquivo} style={{ display: 'none' }} />
+            <span style={{ fontSize: 30 }}>{SUPORTA_CAPTURE_AUDIO ? '🎬🎵' : '🎤'}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>{SUPORTA_CAPTURE_AUDIO ? 'Adicionar vídeo ou áudio' : 'Adicionar áudio'}</span>
+            <span style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>
+              {SUPORTA_CAPTURE_AUDIO
+                ? 'Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você'
+                : 'Esse navegador (Safari/iPhone) não extrai áudio de vídeo sozinho — escolha um arquivo de áudio, ele vai tocar como música do seu post lá no Para Você'}
+            </span>
+            <input type="file" accept={SUPORTA_CAPTURE_AUDIO ? 'video/*,audio/*' : 'audio/*'} onChange={escolherArquivo} style={{ display: 'none' }} />
           </label>
         )
       )}
