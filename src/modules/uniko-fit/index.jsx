@@ -13,7 +13,7 @@
 // `kind` distingue 'checkin' de 'post' — e uniko_fit_chat com `tipo`/`media_url`
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
-import { T } from '../../contexts/theme';
+import { T, applyTheme } from '../../contexts/theme';
 import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
@@ -39,6 +39,12 @@ const REACOES = [
 ];
 
 const EMOJIS = ['😀','😂','😍','🔥','💪','👏','🎉','😢','😡','👍','👎','❤️','🙌','😅','🤔','😴','🥳','🏋️','🏃','🍎','💧','⏰','✅','⭐','🤝','😎','🥵','🎯'];
+// Adesivos que vão EM CIMA da foto (check-in e post) — lista própria, separada
+// do teclado do Bate-Papo: ali o que importa é reagir a mensagem (⏰, ✅, 🍎
+// fazem sentido), aqui é decorar a foto do treino. A fila rola na horizontal e
+// não mostra que tem mais itens, então a ordem importa de verdade: o que a
+// galera mais usa fica no começo, alcançável sem arrastar.
+const EMOJIS_FOTO = ['😎','💪','🔥','🥵','😤','🏋️','🏃','💧','😅','🥳','🎯','😍','😂','👏','🙌','👍','❤️','⭐','🤝','💯','😴','🤔'];
 
 /* ═══════════════════ DESAFIOS — pose diária individual, sem servidor ═══════════════════
    Sem cron/servidor próprio, então a atribuição é 100% DETERMINÍSTICA (mesma
@@ -422,7 +428,7 @@ const CameraCapture = ({ energia, onCapture }) => {
 
       {rawShot && (
         <div style={{ display: 'flex', gap: 7, padding: '0 2px 11px', overflowX: 'auto' }}>
-          {EMOJIS.map(e => (
+          {EMOJIS_FOTO.map(e => (
             <button key={e} onClick={() => addSticker(e)} className="fit-btn" title="Adicionar emoji na foto"
               style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 17, background: 'rgba(128,128,128,.12)' }}>{e}</button>
           ))}
@@ -1028,6 +1034,18 @@ const CheckinCalendar = ({ items, energia, label = 'Treinou' }) => {
 };
 
 const UnikoFit = ({ onBack, authUser, userPhoto }) => {
+  // ── O Uniko FIT roda SEMPRE no escuro (ago/2026) ─────────────────────────
+  // Força `purpleDark` ao entrar, independente do tema que a pessoa usa no
+  // resto do Portal, e devolve o tema dela ao sair. Aplicado no inicializador
+  // do useState (roda ANTES do primeiro render, mesmo padrão do módulo de
+  // Faturamento) porque `T` é um objeto global mutável: mutar depois, num
+  // efeito, não re-renderiza e a 1ª pintura sairia com as cores antigas.
+  useState(() => { applyTheme('purpleDark'); });
+  useEffect(() => () => {
+    // Ao sair, volta pro tema salvo — senão o Portal inteiro fica roxo escuro.
+    try { applyTheme(localStorage.getItem('ch_theme') || 'blue'); } catch { applyTheme('blue'); }
+  }, []);
+
   const name = myName();
   const userName = authUser?.name || name;
   const cardBg = T.surface || '#fff';
@@ -1070,13 +1088,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     try { await supabase.from('uniko_fit_terms_acceptance').upsert({ player: name, accepted_at: new Date().toISOString() }, { onConflict: 'player' }); } catch { /* best-effort — o localStorage já resolveu pra esse aparelho */ }
   };
 
-  // ── Cor fixa do módulo: laranja, SEMPRE — a única exceção é quando o tema
-  // ativo já É laranja, aí ela vira azul (senão o módulo some dentro do próprio
-  // tema). `T.key` é o id do tema aplicado agora (ver contexts/theme.js). ──
-  const isOrangeTheme = T.key === 'orange' || T.key === 'orangeDark';
-  const ENERGIA = isOrangeTheme ? '#2A82D2' : '#FF6B35';
-  const FOGO    = isOrangeTheme ? '#1A6FB5' : '#F43F5E';
-  const EG = isOrangeTheme ? 'rgba(42,130,210,.35)' : 'rgba(255,107,53,.35)';
+  // ── Cor do módulo: ROXO, sempre (ago/2026 — era laranja) ─────────────────
+  // Não precisa mais do desvio "se o tema for laranja, usa azul": como o
+  // módulo força `purpleDark` (ver topo do componente), o fundo é sempre o
+  // mesmo e dá pra fixar um par só. Roxo vivo + magenta mantém o degradê
+  // "energético" que o laranja→rosa tinha, e destaca bem no fundo escuro.
+  const ENERGIA = '#A855F7';
+  const FOGO    = '#EC4899';
+  const EG = 'rgba(168,85,247,.35)';
 
   const FIT_CSS = `
 /* No celular, 100vh conta com a barra de endereço ESCONDIDA — quando ela está
