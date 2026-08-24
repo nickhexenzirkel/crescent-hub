@@ -14,7 +14,7 @@
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { T } from '../../contexts/theme';
-import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
+import { USER, getAuthUser, supabase, fetchPhotoByName } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
 
@@ -507,60 +507,41 @@ const FeedMusic = ({ src, start, duration, muted }) => {
 };
 
 /* ── Escolher música pro post (ago/2026, estilo TikTok) ──────────────────────
-   Busca no Spotify (reusa /api/search do crescent-hub-server — MESMO endpoint
-   que a Central Alexa já usa, com cache de 180s no servidor pra não abusar da
-   cota, que é apertada — ver debounce de 600ms/mín. 2 letras aqui). Cada
-   resultado só vira selecionável se tiver `preview_url` (clipe de ~30s que o
-   Spotify manda) — MUITAS faixas não têm mais (restrição deles, não dá pra
-   contornar), daí o aviso "sem prévia". Depois de escolher, a etapa de
-   recorte deixa a pessoa testar e ajustar o INÍCIO e a DURAÇÃO do trechinho
-   dentro desse clipe antes de confirmar. */
+   A busca no Spotify foi abandonada: na prática quase nenhuma faixa vem com
+   `preview_url` mais (restrição deles, sem contorno) — confirmado em uso
+   real. Agora a pessoa sobe seu PRÓPRIO arquivo de áudio (do celular/PC) e
+   a etapa de recorte deixa testar/ajustar o INÍCIO e a DURAÇÃO do trechinho
+   antes de confirmar. O arquivo (File) só vai pro Storage na hora de postar
+   (ver postarFoto). */
 const CLIP_DURACOES = [5, 10, 15];
 const MusicPicker = ({ energia, fogo, onEscolher }) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState(null);
-  const [buscando, setBuscando] = useState(false);
-  const [erro, setErro] = useState('');
-  const [semPreview, setSemPreview] = useState(null);
-  const [selecionada, setSelecionada] = useState(null);
+  const [arquivo, setArquivo] = useState(null);
+  const [previewSrc, setPreviewSrc] = useState(null);
+  const [nomeMusica, setNomeMusica] = useState('');
   const [inicio, setInicio] = useState(0);
   const [duracao, setDuracao] = useState(10);
-  const [previewDur, setPreviewDur] = useState(29);
+  const [previewDur, setPreviewDur] = useState(30);
   const [tocando, setTocando] = useState(false);
   const audioRef = useRef(null);
-  const reqRef = useRef(0);
+  const previewSrcRef = useRef(null);
 
-  // Limpa os resultados quando a busca fica curta demais — ajustado durante
-  // o render (padrão oficial pra "resetar estado quando algo muda"), não
-  // num efeito com setState solto (regra do React Compiler).
-  const [ultimaQueryCurta, setUltimaQueryCurta] = useState(null);
-  const queryCurta = query.trim().length < 2;
-  if (queryCurta && ultimaQueryCurta !== query) {
-    setUltimaQueryCurta(query);
-    if (results !== null) setResults(null);
-    if (erro) setErro('');
-  }
+  useEffect(() => { previewSrcRef.current = previewSrc; }, [previewSrc]);
+  useEffect(() => () => { if (previewSrcRef.current) URL.revokeObjectURL(previewSrcRef.current); }, []);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) return;
-    const meu = ++reqRef.current;
-    const t = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const r = await fetch(`${SERVER_URL}/api/search?q=${encodeURIComponent(q)}`);
-        const j = await r.json();
-        if (reqRef.current !== meu) return; // resposta de uma busca já trocada — ignora
-        if (j?.error) { setErro(j.error); setResults([]); } else { setResults(j.tracks || []); setErro(''); }
-      } catch { if (reqRef.current === meu) { setErro('Servidor de busca offline.'); setResults([]); } }
-      if (reqRef.current === meu) setBuscando(false);
-    }, 600);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const escolherFaixa = (t) => {
-    if (!t.preview_url) { setSemPreview(t.title); setTimeout(() => setSemPreview(null), 2600); return; }
-    setSelecionada(t); setInicio(0); setDuracao(10); setPreviewDur(29);
+  const escolherArquivo = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (previewSrc) URL.revokeObjectURL(previewSrc);
+    setPreviewSrc(URL.createObjectURL(file));
+    setArquivo(file);
+    setNomeMusica(file.name.replace(/\.[^./]+$/, ''));
+    setInicio(0); setDuracao(10); setPreviewDur(30);
+  };
+  const trocar = () => {
+    audioRef.current?.pause(); setTocando(false);
+    if (previewSrc) URL.revokeObjectURL(previewSrc);
+    setPreviewSrc(null); setArquivo(null);
   };
   const pararPreview = () => { audioRef.current?.pause(); setTocando(false); };
   const testarTrecho = () => {
@@ -568,30 +549,30 @@ const MusicPicker = ({ energia, fogo, onEscolher }) => {
     el.currentTime = inicio; el.play().catch(() => {}); setTocando(true);
   };
   useEffect(() => {
-    const el = audioRef.current; if (!el || !selecionada) return;
-    const onLoaded = () => setPreviewDur(el.duration || 29);
+    const el = audioRef.current; if (!el || !arquivo) return;
+    const onLoaded = () => setPreviewDur(el.duration || 30);
     const onTime = () => { if (el.currentTime >= inicio + duracao) el.currentTime = inicio; };
     const onEnded = () => setTocando(false);
     el.addEventListener('loadedmetadata', onLoaded);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('ended', onEnded);
     return () => { el.removeEventListener('loadedmetadata', onLoaded); el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnded); };
-  }, [selecionada, inicio, duracao]);
+  }, [arquivo, inicio, duracao]);
   useEffect(() => () => { audioRef.current?.pause(); }, []);
 
   const maxInicio = Math.max(0, Math.floor(previewDur - duracao));
 
-  if (selecionada) {
+  if (arquivo) {
     return (
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-          <img src={selecionada.album_art || '/UNIKO_NEW.png'} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selecionada.title}</div>
-            <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selecionada.artist}</div>
-          </div>
+          <div style={{ width: 56, height: 56, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: `linear-gradient(135deg, ${energia}22, ${fogo}22)`, fontSize: 24 }}>🎵</div>
+          <input value={nomeMusica} onChange={e => setNomeMusica(e.target.value)} placeholder="Nome da música" maxLength={60}
+            style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
+              fontSize: 13.5, fontWeight: 700, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
         </div>
-        <audio ref={audioRef} src={selecionada.preview_url} preload="auto" />
+        <audio ref={audioRef} src={previewSrc} preload="auto" />
         <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 6 }}>Duração do trecho</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {CLIP_DURACOES.map(d => (
@@ -608,12 +589,12 @@ const MusicPicker = ({ energia, fogo, onEscolher }) => {
           {tocando ? '⏸ Parar' : '▶️ Testar trecho'}
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="fit-btn" onClick={() => { pararPreview(); setSelecionada(null); }}
+          <button className="fit-btn" onClick={trocar}
             style={{ flex: 1, padding: 11, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
             ↺ Trocar
           </button>
           <button className="fit-btn"
-            onClick={() => { pararPreview(); onEscolher({ url: selecionada.preview_url, title: selecionada.title, artist: selecionada.artist, start: inicio, duration: duracao }); }}
+            onClick={() => { pararPreview(); onEscolher({ file: arquivo, title: nomeMusica.trim() || 'Música', start: inicio, duration: duracao }); }}
             style={{ flex: 1.4, padding: 11, borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${energia}, ${fogo})`, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
             ✅ Usar esse trecho
           </button>
@@ -624,25 +605,13 @@ const MusicPicker = ({ energia, fogo, onEscolher }) => {
 
   return (
     <div style={{ padding: 18 }}>
-      <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar música ou artista..." autoFocus
-        style={{ width: '100%', padding: '11px 14px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 14,
-          color: T.text, outline: 'none', boxSizing: 'border-box', marginBottom: 14, fontFamily: 'var(--font-body)' }} />
-      {semPreview && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ "{semPreview}" não tem prévia disponível — tenta outra música.</div>}
-      {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ {erro}</div>}
-      {buscando && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Buscando...</div>}
-      {!buscando && results?.length === 0 && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Nada encontrado.</div>}
-      {!buscando && results?.map(t => (
-        <button key={t.id} className="fit-btn" onClick={() => escolherFaixa(t)}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-          <img src={t.album_art || '/UNIKO_NEW.png'} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0, opacity: t.preview_url ? 1 : .45 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
-            <div style={{ fontSize: 11.5, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.artist}</div>
-          </div>
-          {!t.preview_url && <span style={{ fontSize: 10, color: T.textD, flexShrink: 0 }}>sem prévia</span>}
-        </button>
-      ))}
-      {!results && !buscando && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12, padding: 24 }}>Digite pra buscar uma música 🎵</div>}
+      <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
+        borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
+        <span style={{ fontSize: 30 }}>🎵</span>
+        <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Escolher áudio</span>
+        <span style={{ fontSize: 11.5, color: T.textT }}>Um arquivo de música do seu celular/PC</span>
+        <input type="file" accept="audio/*" onChange={escolherArquivo} style={{ display: 'none' }} />
+      </label>
     </div>
   );
 };
@@ -1181,8 +1150,17 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, postFile, { contentType: postFile.type || undefined, upsert: false });
       if (upErr) throw new Error('Falha ao enviar a foto: ' + upErr.message);
       const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
+      let musicUrl = null;
+      if (postMusic?.file) {
+        const mext = (postMusic.file.name.split('.').pop() || 'mp3').replace(/[^a-zA-Z0-9]/g, '');
+        const mpath = `${cpf}/musica-${Date.now()}.${mext}`;
+        const { error: mUpErr } = await supabase.storage.from('uniko-fit-fotos').upload(mpath, postMusic.file, { contentType: postMusic.file.type || undefined, upsert: false });
+        if (mUpErr) throw new Error('Falha ao enviar a música: ' + mUpErr.message);
+        const { data: mPub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(mpath);
+        musicUrl = mPub.publicUrl;
+      }
       const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind, desafio_pose_id: kind === 'checkin' ? (desafioAtivo?.id || null) : null,
-        music_url: postMusic?.url || null, music_title: postMusic?.title || null, music_artist: postMusic?.artist || null,
+        music_url: musicUrl, music_title: postMusic?.title || null, music_artist: null,
         music_start: postMusic?.start ?? null, music_duration: postMusic?.duration ?? null });
       if (error) {
         if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã 💪'); }
@@ -1729,7 +1707,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.music_url && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, fontSize: 12, fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>
                           <span className="fit-note-spin" style={{ display: 'inline-block' }}>🎵</span>
-                          <span style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.music_title} · {post.music_artist}</span>
+                          <span style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.music_title || 'Música'}</span>
                         </div>
                       )}
                     </div>
@@ -2036,7 +2014,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     <span style={{ fontSize: 18, flexShrink: 0 }}>🎵</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{postMusic.title}</div>
-                      <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{postMusic.artist} · {postMusic.duration}s</div>
+                      <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{postMusic.duration}s</div>
                     </div>
                     <button onClick={() => setPostMusic(null)} className="fit-btn" title="Remover música"
                       style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoClose}</button>
