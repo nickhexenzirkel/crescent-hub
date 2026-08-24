@@ -582,6 +582,14 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
 
+  // ── Confirmação antes de gastar prisma ───────────────────────────────────
+  // Resgate é irreversível (debita a carteira e baixa estoque), e os botões da
+  // loja ficam logo abaixo da imagem — dá pra tocar sem querer, ainda mais no
+  // celular. Guarda o item pendente aqui; só depois do "Sim" é que `buyItem`
+  // roda de verdade. Como todos os 3 botões de resgate (destaque, card da
+  // grade e lightbox) recebem o MESMO `onBuy`, interceptar aqui cobre os três.
+  const [confirmarItem, setConfirmarItem] = useState(null);
+
   const addHistory = async (entry) => {
     setState(s => ({ ...s, history: [{ id: 'h' + Date.now(), date: todayStr(), ...entry }, ...s.history] }));
     // Antes disparava o insert sem aguardar nem checar erro — uma falha (RLS, coluna
@@ -771,7 +779,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
           </div>
         )}
 
-        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={buyItem} ownedUnikoIds={ownedUnikoIds} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={setConfirmarItem} ownedUnikoIds={ownedUnikoIds} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
@@ -779,6 +787,55 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} missionDefs={missionDefs} setMissionDefs={setMissionDefs} />}
       </div>
+
+      {/* ── Confirmação de resgate ──────────────────────────────────────────
+          zIndex acima do lightbox do item (9999): dá pra resgatar de dentro
+          dele, e a confirmação precisa ficar por cima. */}
+      {confirmarItem && (() => {
+        const it = confirmarItem;
+        const moeda = it.cur === 'premium' ? PREMIUM : COMUM;
+        const saldo = state[it.cur];
+        const restante = saldo - it.price;
+        return (
+          <div onClick={() => setConfirmarItem(null)} style={{
+            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, background: 'rgba(8,8,16,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', animation: 'meFade .2s ease',
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              width: '100%', maxWidth: 380, background: cardBg, borderRadius: 20, padding: 24, textAlign: 'center',
+              border: `1.5px solid ${moeda.color}55`, boxShadow: `0 24px 80px rgba(0,0,0,0.5), 0 0 50px ${moeda.glow}`,
+              animation: 'mePop .25s cubic-bezier(.16,1,.3,1)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                {prizeImages(it).length > 0
+                  ? <PrizeMedia item={it} h={110} radius={14} style={{ maxWidth: 170 }} />
+                  : <span style={{ fontSize: 64, lineHeight: 1 }}>{it.emoji}</span>}
+              </div>
+
+              <div style={{ fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 6, lineHeight: 1.25 }}>
+                Resgatar “{it.name}”?
+              </div>
+              <div style={{ fontSize: 13.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>
+                Vai custar <b style={{ color: moeda.color }}>{it.price} {moeda.name}</b>.
+                <br />
+                Seu saldo depois fica em <b style={{ color: T.text }}>{restante}</b>.
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setConfirmarItem(null)} style={{
+                  flex: 1, padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                  border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontFamily: 'inherit',
+                }}>Cancelar</button>
+                <button onClick={() => { const alvo = it; setConfirmarItem(null); buyItem(alvo); }} style={{
+                  flex: 1.3, padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                  border: 'none', background: moeda.color, color: '#fff', fontFamily: 'inherit',
+                  boxShadow: `0 8px 22px ${moeda.glow}`,
+                }}>Sim, resgatar</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Toast ── */}
       {toast && (
