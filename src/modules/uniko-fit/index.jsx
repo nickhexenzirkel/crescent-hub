@@ -14,7 +14,7 @@
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { T } from '../../contexts/theme';
-import { USER, getAuthUser, supabase, fetchPhotoByName } from '../../contexts/user';
+import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
 
@@ -535,97 +535,52 @@ const FeedMusic = ({ src, start, duration, muted, ativo, postId, onEl, onRatio }
     if (ativo) { try { el.currentTime = start || 0; } catch { /* metadata ainda não carregou */ } el.play().catch(() => { /* autoplay recusado até 1ª interação */ }); }
     else el.pause();
   }, [ativo, muted, start]);
-  // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
-  // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
-  // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
-  // IMPORTANTE: `display:none` tira o elemento do layout inteiro — sem
-  // tamanho/posição, o IntersectionObserver acima NUNCA consegue calcular
-  // interseção, `isIntersecting` nunca vira `true` e `.play()` nunca é
-  // chamado (era esse o motivo real da música nunca tocar). Em vez disso,
-  // cobre a mesma área do card (igual o vídeo/foto) só que transparente e
-  // sem capturar toque — fica "invisível" mas continua no layout de verdade.
-  return <audio ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} preload="auto" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }} />;
+  // É um <video> tocando um arquivo de ÁUDIO — não é engano. No iPhone os
+  // vídeos do feed tocavam com som normalmente enquanto a música anexada
+  // (num <audio>) nunca saía: o Safari trata as duas tags com políticas de
+  // autoplay diferentes, e só a de <video> está liberada aqui. Como <video>
+  // toca mp3 sem problema, usar a tag que comprovadamente funciona resolve
+  // sem depender de exceção nenhuma. `playsInline` evita que o iOS tente
+  // abrir em tela cheia; `muted` também vai no JSX (não só no efeito) porque
+  // alguns navegadores mobile ignoram o atributo setado só via efeito na 1ª
+  // renderização, o que sozinho já bloqueia o autoplay.
+  // IMPORTANTE: nada de `display:none` aqui — isso tira o elemento do layout
+  // inteiro e o IntersectionObserver nunca consegue medir visibilidade (já
+  // foi bug real: a música não tocava nunca). Cobre a área do card, invisível
+  // e sem capturar toque, mas presente no layout de verdade.
+  return <video ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} playsInline preload="auto"
+    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none' }} />;
 };
 
-/* ── Extrair o áudio de um vídeo (ago/2026) ───────────────────────────────────
-   Sem servidor/ffmpeg: toca o vídeo escondido (mudo nas caixinhas — `muted`
-   só afeta a saída de som, não a faixa capturada), pega só a trilha de ÁUDIO
-   via `captureStream()` e grava com `MediaRecorder` (mesma API já usada no
-   áudio do Bate-Papo) num Blob webm/opus. Extração é EM TEMPO REAL (dura o
-   tanto que o vídeo dura), por isso corta em MAX_EXTRACAO_S pra não travar
-   com vídeo longo. `onProgress` recebe 0..1 pra alimentar a barrinha na UI. */
-const MAX_EXTRACAO_S = 60;
-// Safari (iPhone/Mac) nunca vai ter captureStream() — checa uma vez só (não
-// muda durante a sessão) pra já nem oferecer a opção de vídeo nesse
-// navegador, em vez de deixar a pessoa escolher um vídeo e só DEPOIS
-// descobrir que não tem como extrair o áudio ali.
-const SUPORTA_CAPTURE_AUDIO = typeof document !== 'undefined' && (() => {
-  const v = document.createElement('video');
-  return !!(v.captureStream || v.mozCaptureStream);
-})();
-const escolherMimeAudio = () => {
-  const candidatos = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
-  for (const m of candidatos) if (window.MediaRecorder?.isTypeSupported?.(m)) return m;
-  return '';
-};
+/* ── Extrair o áudio de um vídeo — NO SERVIDOR (ago/2026) ────────────────
+   A 1ª versão fazia isso no navegador (captureStream + MediaRecorder), mas o
+   Safari/iPhone não implementa captureStream() — lá era simplesmente impossível
+   e o app tinha que pedir pra pessoa anexar um áudio pronto. Agora o vídeo sobe
+   pro crescent-hub-server, que já mantém um ffmpeg de pé pro yt-dlp (ver
+   ensureFfmpeg no index.js dele), e volta um mp3. Funciona em qualquer aparelho
+   e ficou melhor que a versão local: é conversão de verdade (não gravação em
+   tempo real), sem o teto de 60s e devolvendo mp3 em vez de webm/opus.
+   `onProgress` acompanha o UPLOAD (a parte demorada) — a conversão em si o
+   ffmpeg faz rapidinho. */
 const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) => {
-  const video = document.createElement('video');
-  video.muted = true; video.playsInline = true; video.preload = 'auto';
-  video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px';
-  video.src = URL.createObjectURL(file);
-  document.body.appendChild(video);
-  let finished = false;
-  const limpar = () => { try { URL.revokeObjectURL(video.src); } catch { /* já liberado */ } try { video.remove(); } catch { /* já removido */ } };
-  const falhar = (msg) => { if (finished) return; finished = true; limpar(); reject(new Error(msg)); };
-  // Safari (iPhone/Mac) não implementa captureStream() de jeito nenhum —
-  // sem essa API não tem como extrair áudio no navegador, então nem tenta:
-  // erro claro na hora em vez da mensagem enganosa "vídeo não tem áudio".
-  if (!video.captureStream && !video.mozCaptureStream) {
-    limpar();
-    reject(new Error('Esse navegador não consegue extrair áudio de vídeo (comum no Safari/iPhone) — anexa um áudio direto em vez do vídeo.'));
-    return;
-  }
-  video.onerror = () => falhar('Não consegui abrir esse vídeo.');
-  video.onloadedmetadata = async () => {
-    try {
-      // Chamar captureStream() ANTES do vídeo começar a tocar de verdade é
-      // pouco confiável em navegador de celular — a trilha de ÁUDIO pode
-      // não aparecer ainda mesmo com getAudioTracks() (era isso que fazia
-      // achar "vídeo não tem áudio" com vídeo que tinha áudio sim). Toca
-      // primeiro, aí tenta capturar de novo por até ~1.5s antes de desistir.
-      await video.play();
-      let audioTracks = [];
-      for (let tentativa = 0; tentativa < 10 && !audioTracks.length; tentativa++) {
-        const streamTentativa = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-        audioTracks = streamTentativa?.getAudioTracks() || [];
-        if (!audioTracks.length) await new Promise(r => setTimeout(r, 150));
-      }
-      if (!audioTracks.length) { falhar('Não encontrei trilha de áudio nesse vídeo — tenta anexar um áudio direto em vez do vídeo.'); return; }
-      const mime = escolherMimeAudio();
-      const recorder = new MediaRecorder(new MediaStream(audioTracks), mime ? { mimeType: mime } : undefined);
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
-      recorder.onerror = () => falhar('Erro ao gravar o áudio do vídeo.');
-      recorder.onstop = () => {
-        if (finished) return; finished = true; limpar();
-        if (!chunks.length) { reject(new Error('Não consegui extrair áudio desse vídeo.')); return; }
-        // `recorder.mimeType` é o codec REAL que o navegador usou (nem sempre
-        // é um dos `candidatos` de escolherMimeAudio — em navegadores sem
-        // nenhum deles suportado, ex. Safari, o navegador escolhe outro
-        // sozinho). Rotular o Blob com o formato errado faz o áudio parecer
-        // corrompido e não tocar em lugar nenhum depois (foi um bug real).
-        resolve(new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' }));
-      };
-      const limite = Math.min(video.duration || MAX_EXTRACAO_S, MAX_EXTRACAO_S);
-      const parar = () => { if (finished) return; try { recorder.stop(); } catch { /* já parado */ } try { video.pause(); } catch { /* já pausado */ } };
-      video.ontimeupdate = () => { onProgress?.(Math.min(1, video.currentTime / limite)); if (video.currentTime >= limite) parar(); };
-      video.onended = parar;
-      recorder.start();
-      // O vídeo já está tocando desde a detecção da trilha de áudio ali em
-      // cima — só garante que não ficou pausado no meio do caminho.
-      if (video.paused) await video.play();
-    } catch (e) { falhar(e?.message || 'Erro ao extrair áudio.'); }
+  const xhr = new XMLHttpRequest();
+  const form = new FormData();
+  form.append('video', file, file.name || 'video.mp4');
+  xhr.open('POST', SERVER_URL + '/api/uniko-fit/extrair-audio');
+  xhr.responseType = 'blob';
+  // Progresso real do upload — sem isso a barra ficaria parada num vídeo
+  // grande e pareceria travado.
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+  xhr.onload = async () => {
+    if (xhr.status === 200) { onProgress?.(1); resolve(xhr.response); return; }
+    // Erro vem como JSON mesmo com responseType blob — lê o texto pra mostrar a
+    // mensagem de verdade (ex.: "Esse vídeo não tem áudio.").
+    let msg = 'Falha na conversão (erro ' + xhr.status + ').';
+    try { msg = JSON.parse(await xhr.response.text()).error || msg; } catch { /* resposta não era JSON */ }
+    reject(new Error(msg));
   };
+  xhr.onerror = () => reject(new Error('Não consegui falar com o servidor de conversão. Confira sua internet e tente de novo.'));
+  xhr.send(form);
 });
 
 /* ── Escolher música pro post (ago/2026, estilo TikTok) ──────────────────────
@@ -701,9 +656,10 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
       setExtraindo(0);
       try {
         const blob = await extrairAudioDeVideo(file, (p) => setExtraindo(p));
+        // O servidor sempre devolve mp3 (ver /api/uniko-fit/extrair-audio) —
+        // o `blob.type` é só confirmação, daí o fallback ser mp3 e não webm.
         const nomeBase = file.name.replace(/\.[^./]+$/, '');
-        const ext = (blob.type.split(';')[0].split('/')[1]) || 'webm';
-        usarArquivoLocal(new File([blob], `${nomeBase}.${ext}`, { type: blob.type || 'audio/webm' }), 'video');
+        usarArquivoLocal(new File([blob], `${nomeBase}.mp3`, { type: blob.type || 'audio/mpeg' }), 'video');
       } catch (err) {
         setErro(err?.message || 'Não consegui extrair o áudio desse vídeo.');
       }
@@ -858,7 +814,10 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         extraindo !== null ? (
           <div style={{ padding: '36px 18px', textAlign: 'center' }}>
             <div style={{ fontSize: 30, marginBottom: 8 }}>🎬</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>Extraindo o áudio do vídeo...</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+              {extraindo >= 1 ? 'Convertendo o áudio...' : 'Enviando o vídeo...'}
+            </div>
+            <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>Pode demorar um pouco em vídeo grande</div>
             <div style={{ width: '100%', height: 8, borderRadius: 99, background: T.border, overflow: 'hidden' }}>
               <div style={{ width: `${Math.round(extraindo * 100)}%`, height: '100%', background: `linear-gradient(90deg, ${energia}, ${fogo})`, transition: 'width .2s' }} />
             </div>
@@ -866,14 +825,12 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         ) : (
           <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
             borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-            <span style={{ fontSize: 30 }}>{SUPORTA_CAPTURE_AUDIO ? '🎬🎵' : '🎤'}</span>
-            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>{SUPORTA_CAPTURE_AUDIO ? 'Adicionar vídeo ou áudio' : 'Adicionar áudio'}</span>
+            <span style={{ fontSize: 30 }}>🎬🎵</span>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Adicionar vídeo ou áudio</span>
             <span style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>
-              {SUPORTA_CAPTURE_AUDIO
-                ? 'Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você'
-                : 'Esse navegador (Safari/iPhone) não extrai áudio de vídeo sozinho — escolha um arquivo de áudio, ele vai tocar como música do seu post lá no Para Você'}
+              Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você
             </span>
-            <input type="file" accept={SUPORTA_CAPTURE_AUDIO ? 'video/*,audio/*' : 'audio/*'} onChange={escolherArquivo} style={{ display: 'none' }} />
+            <input type="file" accept="video/*,audio/*" onChange={escolherArquivo} style={{ display: 'none' }} />
           </label>
         )
       )}
