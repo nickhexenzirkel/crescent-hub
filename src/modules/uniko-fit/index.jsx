@@ -459,6 +459,20 @@ const SecaoLabel = ({ icon, children }) => (
   </div>
 );
 
+/* ── Quando um post conta como "o que estou vendo agora" ──────────────────────
+   PEGADINHA do IntersectionObserver que causou um bug real (som de vários
+   posts acumulando ao rolar o feed): `entry.isIntersecting` é `true` sempre
+   que o elemento aparece na tela em QUALQUER grau — até 1% — e o `threshold`
+   só decide QUANDO o callback dispara, não o valor de `isIntersecting`. Ou
+   seja, ao rolar pro próximo post, o anterior cruzava 60% pra baixo, o
+   callback disparava, mas `isIntersecting` continuava `true` (ainda tinha um
+   pedaço dele na tela) — então chamava play() de novo em vez de pausar, e ia
+   somando som. Por isso aqui sempre se compara o `intersectionRatio` com
+   VISIVEL_MIN à mão, nunca `isIntersecting` sozinho. Os thresholds incluem 0
+   e 1 pra garantir callback também nas bordas (sair/entrar por completo). */
+const VISIVEL_MIN = 0.6;
+const IO_THRESHOLDS = [0, VISIVEL_MIN, 1];
+
 /* ── Vídeo do feed com autoplay que funciona no celular também ── */
 // No mobile, `autoPlay` sozinho costuma falhar: alguns navegadores ignoram o
 // atributo `muted` do JSX na primeira renderização (precisa setar via DOM), e
@@ -483,10 +497,11 @@ const FeedVideo = ({ src, style, muted, onEl }) => {
     if (!el) return;
     el.playsInline = true;
     const io = new IntersectionObserver(([entry]) => {
-      setVisivel(entry.isIntersecting);
-      if (entry.isIntersecting) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
+      const naTela = entry.intersectionRatio >= VISIVEL_MIN;
+      setVisivel(naTela);
+      if (naTela) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
       else el.pause();
-    }, { threshold: 0.6 });
+    }, { threshold: IO_THRESHOLDS });
     io.observe(el);
     return () => io.disconnect();
   }, []);
@@ -530,10 +545,13 @@ const FeedMusic = ({ src, start, duration, muted, onEl }) => {
     const onTime = () => { if (duration && el.currentTime >= inicio + duration) seek(); };
     el.addEventListener('timeupdate', onTime);
     const io = new IntersectionObserver(([entry]) => {
-      setVisivel(entry.isIntersecting);
-      if (entry.isIntersecting) { seek(); el.play().catch(() => { /* autoplay recusado até 1ª interação — silencioso */ }); }
+      // Ver comentário do VISIVEL_MIN lá em cima: `isIntersecting` sozinho
+      // não serve (é true com 1% na tela), tem que olhar o ratio.
+      const naTela = entry.intersectionRatio >= VISIVEL_MIN;
+      setVisivel(naTela);
+      if (naTela) { seek(); el.play().catch(() => { /* autoplay recusado até 1ª interação — silencioso */ }); }
       else el.pause();
-    }, { threshold: 0.6 });
+    }, { threshold: IO_THRESHOLDS });
     io.observe(el);
     return () => { io.disconnect(); el.removeEventListener('loadedmetadata', seek); el.removeEventListener('timeupdate', onTime); };
   }, [src, start, duration]);
