@@ -464,28 +464,31 @@ const THEMES = [
   /* Disney: personagens e objetos ICÔNICOS, do tipo que dá pra reconhecer pelo
      desenho. Sem título de filme (ninguém desenha "Rei Leão", desenha o leão)
      e sem nome que só funciona escrito. */
+  /* Disney: NOMES de verdade (personagem ou filme). A 1ª versão usava
+     descrição ('astronauta de brinquedo' em vez de 'Buzz Lightyear') e ficava
+     impossível de adivinhar exato — num jogo de adivinhação o nome próprio é
+     justamente o que dá a resposta certa. */
   { id: 'disney', nome: 'Filmes da Disney', emoji: '🏰', words: [
-    'castelo da disney', 'rato de luvas brancas', 'pata de laço', 'pato marinheiro',
-    'cão pateta', 'cachorro amarelo', 'leãozinho', 'javali', 'suricato', 'mandril',
-    'sereia ruiva', 'caranguejo vermelho', 'peixinho amarelo', 'tridente',
-    'princesa adormecida', 'roca de fiar', 'maçã envenenada', 'anões',
-    'espelho mágico', 'bruxa má', 'fada madrinha', 'varinha', 'sapatinho de cristal',
-    'abóbora carruagem', 'meia-noite', 'rainha do gelo', 'boneco de neve falante',
-    'rena', 'trança loira', 'torre alta', 'cabelo comprido', 'frigideira',
-    'lâmpada mágica', 'gênio', 'tapete voador', 'macaquinho', 'papagaio',
-    'menino que voa', 'fada pequenina', 'pó de pirlimpimpim', 'crocodilo com relógio',
-    'capitão de gancho', 'boneco de madeira', 'nariz crescendo', 'grilo falante',
-    'baleia gigante', 'elefante orelhudo', 'pena mágica', 'filhote de tigre',
-    'ursinho de mel', 'pote de mel', 'burrinho cinza', 'porquinho rosa',
-    'urso grandão', 'menino da selva', 'pantera negra', 'cobra hipnotizadora',
-    'dálmatas', 'cervo órfão', 'coelho da neve', 'gambá', 'espadas cruzadas',
-    'espada na pedra', 'peixe-palhaço perdido', 'peixinha azul', 'tartaruga surfista',
-    'carro de corrida vermelho', 'guindaste enferrujado', 'robô lixeiro',
-    'planta na bota', 'boneco de brinquedo', 'astronauta de brinquedo',
-    'cabeça de batata', 'dinossauro verde de brinquedo', 'monstro azul peludo',
-    'monstro de um olho', 'porta de armário', 'casa com balões', 'passarinho gigante',
-    'ratinho chef', 'chapéu de cozinheiro', 'carro amarelo velho', 'bússola',
-    'orelhas de rato', 'mãozinha de luva', 'estrela dos desejos'] },
+    'Mickey Mouse', 'Minnie', 'Pato Donald', 'Pluto', 'Pateta', 'Tio Patinhas',
+    'Branca de Neve', 'Cinderela', 'Bela Adormecida', 'Aurora', 'Ariel', 'Sebastião',
+    'Linguado', 'Ursula', 'Bela', 'Fera', 'Lumière', 'Horloge', 'Madame Samovar', 'Jasmine',
+    'Aladdin', 'Gênio', 'Abu', 'Jafar', 'Tapete Mágico', 'Mulan', 'Mushu', 'Pocahontas',
+    'Rapunzel', 'Pascal', 'Flynn Rider', 'Tiana', 'Mérida', 'Moana', 'Maui', 'Elsa', 'Anna',
+    'Olaf', 'Sven', 'Kristoff', 'Simba', 'Mufasa', 'Scar', 'Timão', 'Pumba', 'Rafiki',
+    'Zazu', 'Dumbo', 'Bambi', 'Tambor', 'Pinóquio', 'Grilo Falante', 'Peter Pan', 'Sininho',
+    'Capitão Gancho', 'Alice', 'Gato Risonho', 'Rainha de Copas', 'Mogli', 'Baloo',
+    'Bagheera', 'Shere Khan', 'Kaa', 'Tarzan', 'Cruella de Vil', 'Dalmatas', 'Robin Hood',
+    'Rei Arthur', 'Merlin', 'Hercules', 'Megara', 'Hades', 'Stitch', 'Lilo',
+    'Buzz Lightyear', 'Woody', 'Jessie', 'Sr. Cabeça de Batata', 'Rex', 'Slinky', 'Forky',
+    'Nemo', 'Dory', 'Marlin', 'Crush', 'Bruce', 'Sulley', 'Mike Wazowski', 'Boo', 'Randall',
+    'Relâmpago McQueen', 'Mate', 'Doc Hudson', 'Wall-E', 'Eva', 'Carl Fredricksen',
+    'Russell', 'Dug', 'Kevin', 'Remy', 'Linguini', 'Merida', 'Riley', 'Alegria', 'Tristeza',
+    'Raiva', 'Miguel Rivera', 'Dante', 'Hector', 'O Rei Leão', 'A Pequena Sereia',
+    'A Bela e a Fera', 'Frozen', 'Toy Story', 'Procurando Nemo', 'Monstros S.A.',
+    'Os Incríveis', 'Up Altas Aventuras', 'Divertida Mente', 'Viva a Vida é uma Festa',
+    'Ratatouille', 'Carros', 'Enrolados', 'Valente', 'Zootopia', 'Vaiana', 'Encanto',
+    'Luca', 'Castelo da Disney', 'Orelhas do Mickey', 'Lâmpada Mágica', 'Maçã Envenenada',
+    'Sapatinho de Cristal', 'Rosa Encantada'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
