@@ -90,16 +90,31 @@ export async function loadColaboradorPonto({ cpf, name }) {
   const freq = {};
   for (const m of marcacoes) if (m.cpf) freq[m.cpf] = (freq[m.cpf] || 0) + 1;
   const pontoCpf = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || cpfs[0] || '';
-  return { marcacoes, justifs: just.data || [], cpfs, pontoCpf };
+  // Até onde os dados do ponto vão NO SISTEMA (última marcação de QUALQUER
+  // pessoa). É o limite honesto pra contar falta: além disso o lote ainda não
+  // foi importado, então o dia não é falta — é dia sem dado.
+  // Sem isso o corte era a última marcação DA PRÓPRIA PESSOA, e quem faltou/
+  // se afastou depois dela simplesmente não via esses dias (bug real: a
+  // colaboradora tinha afastamento em dias posteriores à última batida dela e
+  // eles não apareciam, embora o RH os tivesse lançado).
+  let limiteISO = '';
+  try {
+    const { data: ult } = await supabase.from('ponto_marcacoes').select('data').order('data', { ascending: false }).limit(1);
+    limiteISO = ult?.[0]?.data || '';
+  } catch { /* sem limite global: cai no comportamento antigo */ }
+  return { marcacoes, justifs: just.data || [], cpfs, pontoCpf, limiteISO };
 }
 
 export const PONTO_DEFAULTS = { jornada: 480, tolerance: 1, toleranciaAtraso: 10 };
 
 // marcacoes: [{data:'YYYY-MM-DD', hora:'HH:MM(:SS)'}]; abonadoDates: Set de 'YYYY-MM-DD'.
 // Devolve dias ASC: [{date, times[], totalMin, expected, balance(min), wknd, abonado, falta}].
-// Além dos dias COM marcação, gera os dias úteis SEM nenhuma marcação (faltas) entre a 1ª
-// e a última marcação (limitado a hoje), pra que o colaborador possa justificá-los — do
-// contrário esses dias somem do cálculo e a falta nunca aparece.
+// Além dos dias COM marcação, gera os dias úteis SEM nenhuma marcação (faltas) da 1ª
+// marcação até o fim da janela, pra que o colaborador veja/justifique — do contrário
+// esses dias somem do cálculo e a falta nunca aparece.
+// cfg.limiteISO = até onde os dados do ponto vão no sistema (última marcação de QUALQUER
+// pessoa, ver loadColaboradorPonto). Passe sempre que tiver: sem isso a janela para na
+// última batida da própria pessoa e quem faltou/se afastou depois some da tela.
 export function computePontoDays(marcacoes, abonadoDates = new Set(), cfg = {}) {
   const jornada   = cfg.jornada ?? PONTO_DEFAULTS.jornada;
   const tolerance = cfg.tolerance ?? PONTO_DEFAULTS.tolerance;
@@ -139,7 +154,14 @@ export function computePontoDays(marcacoes, abonadoDates = new Set(), cfg = {}) 
     const todayISO = _toISO(new Date());
     const firstMark = datas[0];
     const lastMark  = datas[datas.length - 1];
-    const endISO    = lastMark < todayISO ? lastMark : todayISO;
+    // Fim da janela: o mais LONGE entre a última batida da pessoa, o limite
+    // global de dados (cfg.limiteISO) e o último dia que tem justificativa
+    // dela — sempre limitado a hoje. Parar na última batida da PRÓPRIA pessoa
+    // escondia quem faltou/se afastou depois disso (era o bug); o limite
+    // global evita o oposto, inventar falta em dia que ainda não foi importado.
+    const ultimaJustif = [...abonadoDates].sort().pop() || '';
+    let endISO = [lastMark, cfg.limiteISO || '', ultimaJustif].filter(Boolean).sort().pop();
+    if (endISO > todayISO) endISO = todayISO;
     let cursor = new Date(firstMark + 'T12:00:00');
     const end  = new Date(endISO + 'T12:00:00');
     while (cursor <= end) {

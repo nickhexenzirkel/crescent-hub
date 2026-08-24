@@ -85,10 +85,10 @@ const TabHoras = () => {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { marcacoes, justifs } = await loadColaboradorPonto({ cpf: authData?.cpf || USER.cpf, name: USER.name });
+      const { marcacoes, justifs, limiteISO } = await loadColaboradorPonto({ cpf: authData?.cpf || USER.cpf, name: USER.name });
       if (!alive) return;
       const abonado = new Set((justifs || []).filter(j => j.texto && j.abonado !== false).map(j => j.data));
-      const days = computePontoDays(marcacoes, abonado);
+      const days = computePontoDays(marcacoes, abonado, { limiteISO });
       const negs = days.filter(d => d.balance < 0).map(d => ({ data: d.date, saldo: d.balance })).sort((a, b) => (a.data < b.data ? 1 : -1));
       setNegDays(negs);
       setPontoBalanceMin(days.reduce((a, d) => a + d.balance, 0));

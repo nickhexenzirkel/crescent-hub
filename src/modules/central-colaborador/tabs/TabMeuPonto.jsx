@@ -33,6 +33,7 @@ const TabMeuPonto = () => {
   const [justifs, setJustifs]     = useState([]);
   const [solics, setSolics]       = useState([]);
   const [pontoCpf, setPontoCpf]   = useState('');   // id do colaborador no ponto (PIS)
+  const [limiteISO, setLimiteISO] = useState('');   // até onde os dados do ponto vão no sistema
   const [loading, setLoading]     = useState(true);
 
   // modal de solicitação
@@ -62,6 +63,7 @@ const TabMeuPonto = () => {
         setMarcacoes(pt.marcacoes);
         setJustifs(pt.justifs);
         setPontoCpf(pt.pontoCpf || '');
+        setLimiteISO(pt.limiteISO || '');
         setSolics(sol.data || []);
       } catch {}
       if (alive) setLoading(false);
@@ -71,7 +73,7 @@ const TabMeuPonto = () => {
 
   // dias justificados (abonados) → zeram no cálculo
   const abonadoDates = new Set(justifs.filter(j => j.texto && j.abonado !== false).map(j => j.data));
-  const days = computePontoDays(marcacoes, abonadoDates);          // ASC
+  const days = computePontoDays(marcacoes, abonadoDates, { limiteISO }); // ASC
   const diasDesc = [...days].reverse();                            // mais recente primeiro
 
   const totalSaldo = days.reduce((a, d) => a + d.balance, 0);
