@@ -11,7 +11,17 @@
 // estado, presence pra saber quem está em qual sala.
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { T } from '../../../contexts/theme';
+import { THEMES } from '../../../contexts/theme';
+
+/* ── Tema LOCAL do Uniko Suspect: escuro, sempre (ago/2026) ──────────────────
+   O jogo inteiro usa o `T` daqui, NÃO o `T` global do Portal — clima noturno
+   combina com o jogo e nada de branco estoura a tela no meio da partida.
+   Ser uma constante LOCAL (e não `applyTheme('blueDark')`) é de propósito: o
+   `T` global é um objeto mutável e trocá-lo vazava o escuro pro Portal todo
+   depois de sair (bug real que já aconteceu no Uniko FIT — a limpeza do
+   unmount roda DEPOIS da próxima tela renderizar, então nada repintava).
+   Assim o escuro fica contido aqui e não há o que restaurar na saída. */
+const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.blueDark };
 import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
@@ -1206,9 +1216,12 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         boxShadow: `0 8px 26px ${AG}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: 0, opacity: .16, pointerEvents: 'none',
           background: 'radial-gradient(circle at 10% 20%, #fff 0%, transparent 45%)' }} />
+        {/* Vidro escuro no lugar do bloco branco sólido — o branco chapado
+            destoava demais agora que o módulo inteiro é escuro. */}
         <div className="sus-float" style={{ width: 62, height: 62, borderRadius: 16, flexShrink: 0, position: 'relative',
-          background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
-          boxShadow: '0 6px 18px rgba(0,0,0,.2)' }}>🕵️</div>
+          background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
+          boxShadow: '0 6px 18px rgba(0,0,0,.3)' }}>🕵️</div>
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Suspect</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.9)' }}>Tripulantes x Impostor — casa de praia 🏖️</div>
@@ -1222,8 +1235,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
         </button>
         <button className="sus-btn" onClick={() => setCriando(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 999, border: 'none',
-            background: '#fff', color: AGUA, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 999,
+            background: 'rgba(8,16,30,.85)', color: '#fff', border: '1px solid rgba(255,255,255,.3)',
+            fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.3)' }}>
           + Criar sala
         </button>
       </div>
@@ -1312,12 +1326,12 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                   style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
                     background: `linear-gradient(135deg, ${AGUA}, ${CEU})`, boxShadow: `0 4px 14px ${AG}` }}>Entrar</button>
                 {confirmDel === r.id && (
-                  <div className="sus-pop" style={{ position: 'absolute', inset: 0, borderRadius: 14, zIndex: 2, background: 'rgba(255,255,255,.97)',
+                  <div className="sus-pop" style={{ position: 'absolute', inset: 0, borderRadius: 14, zIndex: 2, background: 'rgba(8,16,30,.97)',
                     border: '1px solid #E6394655', padding: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A2E' }}>Excluir esta sala?</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: T.text }}>Excluir esta sala?</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="sus-btn" onClick={() => excluir(r.id)} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#E63946', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
-                      <button className="sus-btn" onClick={() => setConfirmDel(null)} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #d1d5db', background: 'transparent', color: '#374151', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                      <button className="sus-btn" onClick={() => setConfirmDel(null)} style={{ padding: '7px 16px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                     </div>
                   </div>
                 )}
@@ -2246,7 +2260,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       {/* Cabeçalho */}
       <div style={{ borderRadius: 16, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 13,
         background: `linear-gradient(120deg, ${AGUA} 0%, ${CEU} 55%, ${AREIA} 120%)`, boxShadow: `0 8px 26px ${AG}`, flexShrink: 0 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🕵️</div>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🕵️</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{state?.nome || 'Sala'}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.85)' }}>{players.length} jogador{players.length !== 1 ? 'es' : ''} · {host ? `host: ${host.split(' ')[0]}` : '...'}</div>
@@ -2836,7 +2851,10 @@ const TabUnikoSuspect = () => {
   );
 
   return (
-    <>
+    // Fundo escuro do módulo: sem este contêiner sobraria o fundo CLARO do
+    // Portal em volta do conteúdo (a raiz era um fragmento), e a aba ficava
+    // metade escura metade clara.
+    <div style={{ background: T.page, color: T.text, borderRadius: 16, padding: 14, minHeight: '100%', boxSizing: 'border-box' }}>
       {room
         ? <Sala roomId={room} name={name} photo={photo} players={naSala} onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
         : <Lobby name={name} photo={photo} porSala={porSala} onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
@@ -2899,7 +2917,7 @@ const TabUnikoSuspect = () => {
           </div>
         );
       })()}
-    </>
+    </div>
   );
 };
 
