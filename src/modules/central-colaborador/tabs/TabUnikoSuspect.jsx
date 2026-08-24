@@ -251,6 +251,88 @@ const fadeVolume = (el, alvo, aoTerminar) => {
   return iv;
 };
 
+/* ── Efeitos sonoros (ago/2026) ───────────────────────────────────────────
+   SINTETIZADOS na hora com a Web Audio API, sem arquivo nenhum: são bipes
+   curtos, então gerar sai mais leve que baixar 4 mp3 (e não tem o atraso do
+   primeiro play, que numa ação rápida como "matar" estragaria o efeito).
+
+   Um AudioContext só, criado na primeira vez que toca — navegador bloqueia
+   criar/retomar sem gesto do usuário, e a essa altura a pessoa já clicou
+   bastante. Respeita o mesmo botão de mudo da trilha (ver `efeitosMudos`). */
+let _ac = null;
+let efeitosMudos = false;
+const setEfeitosMudos = (v) => { efeitosMudos = v; };
+const audioCtx = () => {
+  if (!_ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    _ac = new AC();
+  }
+  if (_ac.state === 'suspended') _ac.resume().catch(() => { /* precisa de gesto — tenta na próxima */ });
+  return _ac;
+};
+
+/* Um "beep" com envelope: sobe rápido e decai, senão estala no fim. */
+const beep = (ctx, { tipo = 'sine', de, para, inicio, dur, vol = 0.18 }) => {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = tipo;
+  const t = ctx.currentTime + inicio;
+  osc.frequency.setValueAtTime(de, t);
+  if (para != null) osc.frequency.exponentialRampToValueAtTime(Math.max(1, para), t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+};
+
+/* Chiado curto (ruído branco) — usado no impacto da morte. */
+const ruido = (ctx, { inicio, dur, vol = 0.14 }) => {
+  const frames = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+  const src = ctx.createBufferSource();
+  const g = ctx.createGain();
+  src.buffer = buf;
+  g.gain.value = vol;
+  src.connect(g).connect(ctx.destination);
+  src.start(ctx.currentTime + inicio);
+};
+
+const EFEITOS = {
+  // Sugado pra dentro: varre grave→agudo e volta, com um "puf" no fim.
+  vortex: (ctx) => {
+    beep(ctx, { tipo: 'sawtooth', de: 180, para: 900, inicio: 0, dur: 0.22, vol: 0.13 });
+    beep(ctx, { tipo: 'sine', de: 900, para: 140, inicio: 0.18, dur: 0.3, vol: 0.15 });
+  },
+  // Impacto seco e grave + chiado: curto de propósito, pra dar susto.
+  matar: (ctx) => {
+    ruido(ctx, { inicio: 0, dur: 0.18, vol: 0.16 });
+    beep(ctx, { tipo: 'square', de: 220, para: 45, inicio: 0, dur: 0.34, vol: 0.2 });
+  },
+  // Dois toques subindo — o "conseguiu" clássico.
+  tarefa: (ctx) => {
+    beep(ctx, { tipo: 'triangle', de: 660, inicio: 0, dur: 0.12, vol: 0.16 });
+    beep(ctx, { tipo: 'triangle', de: 990, inicio: 0.1, dur: 0.2, vol: 0.16 });
+  },
+  // Acorde grave subindo: anuncia que a partida começou.
+  partida: (ctx) => {
+    beep(ctx, { tipo: 'sawtooth', de: 110, para: 220, inicio: 0, dur: 0.5, vol: 0.1 });
+    beep(ctx, { tipo: 'sine', de: 330, inicio: 0.12, dur: 0.4, vol: 0.12 });
+    beep(ctx, { tipo: 'sine', de: 440, inicio: 0.26, dur: 0.45, vol: 0.12 });
+  },
+};
+
+const tocarEfeito = (nome) => {
+  if (efeitosMudos) return;
+  try {
+    const ctx = audioCtx();
+    if (ctx) EFEITOS[nome]?.(ctx);
+  } catch { /* sem áudio disponível — o jogo segue normal */ }
+};
+
 /* Botões do HUD da partida — mesmo visual pros três (mudo/tela cheia/encerrar) */
 const hudBtnCss = {
   display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10,
@@ -1582,6 +1664,22 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     fadeRef.current.b = fadeVolume(outra, 0, () => { try { outra.pause(); } catch { /* ok */ } });
   }, [luzesApagadas, mudo]);
 
+  // O mesmo botão de mudo cala trilha E efeitos.
+  useEffect(() => { setEfeitosMudos(mudo); }, [mudo]);
+
+  /* Som de "partida começou": dispara na TRANSIÇÃO pra fase de revelação de
+     papéis, não no clique do host — assim todo mundo na sala ouve, não só
+     quem apertou o botão. O ref guarda a fase anterior pra não tocar de novo
+     a cada re-render enquanto a fase continua a mesma. */
+  const fasePrevRef = useRef(null);
+  useEffect(() => {
+    const fase = state?.phase;
+    if (fase && fase !== fasePrevRef.current) {
+      if (fase === 'sorteando' && fasePrevRef.current !== null) tocarEfeito('partida');
+      fasePrevRef.current = fase;
+    }
+  }, [state?.phase]);
+
   const alternarMudo = () => setMudo(m => {
     const novo = !m;
     try { localStorage.setItem(SOM_MUDO_KEY, novo ? '1' : '0'); } catch { /* sem localStorage */ }
@@ -1798,6 +1896,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // é minha autoridade local — mesmo caminho do movimento normal).
   const [vortexCooldownAte, setVortexCooldownAte] = useState(0);
   const teleportar = (destino) => {
+    tocarEfeito('vortex');
     const alvo = { x: destino.x, y: destino.y };
     myPosRef.current = alvo;
     setMyPos(alvo);
@@ -1806,6 +1905,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     try { chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { name, x: alvo.x, y: alvo.y } }); } catch { /* canal caiu — a próxima posição já corrige */ }
   };
   const marcarTarefaFeita = (taskId) => {
+    tocarEfeito('tarefa');
     const s = stateRef.current || {};
     const done = { ...(s.tasksDone || {}) };
     done[name] = [...new Set([...(done[name] || []), taskId])];
@@ -1873,6 +1973,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
     if ((s.fantasmas || []).includes(vitima.name) || s.papeis?.[vitima.name] === 'impostor') return;
     if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return;
+    // Só aqui: passou por todas as travas, a morte vai acontecer mesmo.
+    tocarEfeito('matar');
     const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
     const nomesPapeis = Object.keys(s.papeis || {});
     const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !fantasmas.includes(n));
