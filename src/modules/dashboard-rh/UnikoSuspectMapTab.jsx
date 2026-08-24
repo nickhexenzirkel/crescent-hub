@@ -44,6 +44,8 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
   // tarefas: [{id,label,x,y}] em coordenadas do mapa.
   const [vortexes, setVortexes] = useState([]);
   const [cameras, setCameras] = useState([]);
+  // Modal de "dar nome ao ponto" — substitui o window.prompt (ver onPointerDown)
+  const [nomeModal, setNomeModal] = useState(null); // {mode,x,y,valor,nome} | null
   const [emergency, setEmergency] = useState(null); // {x,y} | null
   const [emergencyIconUrl, setEmergencyIconUrl] = useState('');
   const [emergencyIconUploading, setEmergencyIconUploading] = useState(false);
@@ -206,33 +208,42 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       paintAt(p.x, p.y);
       composite();
       try { overlayCanvasRef.current.setPointerCapture(e.pointerId); } catch {}
-    } else if (mode === 'tarefas') {
-      const near = tasks.find(t => Math.hypot(t.x - p.x, t.y - p.y) < 22);
+    } else if (mode === 'tarefas' || mode === 'vortex' || mode === 'cameras') {
+      // Clicar em cima de um pino remove; clicar no vazio abre o modal de nome.
+      // NADA de window.prompt aqui: depois de algumas caixas seguidas o Chrome
+      // oferece "impedir que esta página crie mais diálogos" e, uma vez
+      // marcado, todo prompt passa a devolver null na hora — o clique parava
+      // de fazer efeito SEM erro nenhum, e parecia que o editor tinha quebrado
+      // (foi exatamente o que aconteceu). Modal do app não depende disso.
+      const cfg = {
+        tarefas: { lista: tasks,    setLista: setTasks,    nome: 'tarefa', padrao: 'Tarefa' },
+        vortex:  { lista: vortexes, setLista: setVortexes, nome: 'vórtex', padrao: 'Vórtex' },
+        cameras: { lista: cameras,  setLista: setCameras,  nome: 'câmera', padrao: 'Câmera' },
+      }[mode];
+      const near = cfg.lista.find(t => Math.hypot(t.x - p.x, t.y - p.y) < 22);
       if (near) {
-        if (window.confirm(`Remover a tarefa "${near.label}"?`)) setTasks(ts => ts.filter(t => t.id !== near.id));
+        cfg.setLista(l => l.filter(t => t.id !== near.id));
       } else {
-        const label = window.prompt('Nome da tarefa:', `Tarefa ${tasks.length + 1}`);
-        if (label && label.trim()) setTasks(ts => [...ts, { id: uid(), label: label.trim(), x: Math.round(p.x), y: Math.round(p.y) }]);
-      }
-    } else if (mode === 'vortex' || mode === 'cameras') {
-      // Mesmo comportamento das tarefas: clicar perto de um remove, clicar no
-      // vazio adiciona. O nome é só pra você se achar na lista (e vira o rótulo
-      // que aparece no jogo).
-      const ehVortex = mode === 'vortex';
-      const lista = ehVortex ? vortexes : cameras;
-      const setLista = ehVortex ? setVortexes : setCameras;
-      const oQue = ehVortex ? 'vórtex' : 'câmera';
-      const near = lista.find(v => Math.hypot(v.x - p.x, v.y - p.y) < 22);
-      if (near) {
-        if (window.confirm(`Remover ${oQue} "${near.label}"?`)) setLista(l => l.filter(v => v.id !== near.id));
-      } else {
-        const label = window.prompt(`Nome d${ehVortex ? 'o' : 'a'} ${oQue}:`, `${ehVortex ? 'Vórtex' : 'Câmera'} ${lista.length + 1}`);
-        if (label && label.trim()) setLista(l => [...l, { id: uid(), label: label.trim(), x: Math.round(p.x), y: Math.round(p.y) }]);
+        setNomeModal({ mode, x: Math.round(p.x), y: Math.round(p.y), valor: `${cfg.padrao} ${cfg.lista.length + 1}`, nome: cfg.nome });
       }
     } else if (mode === 'emergencia') {
       setEmergency({ x: Math.round(p.x), y: Math.round(p.y) });
     }
   };
+  // Confirma o modal de nome: cria o ponto na lista certa (tarefa/vórtex/câmera).
+  const confirmarNome = () => {
+    setNomeModal(m => {
+      if (!m) return null;
+      const label = (m.valor || '').trim();
+      if (!label) return m;   // sem nome não cria — mantém o modal aberto
+      const ponto = { id: uid(), label, x: m.x, y: m.y };
+      if (m.mode === 'tarefas') setTasks(l => [...l, ponto]);
+      else if (m.mode === 'vortex') setVortexes(l => [...l, ponto]);
+      else setCameras(l => [...l, ponto]);
+      return null;
+    });
+  };
+
   const onPointerMove = (e) => {
     if (!ready) return;
     const p = mapPoint(e);
@@ -446,6 +457,37 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
           </div>
         </div>
       </div>
+
+      {/* Modal de nome do ponto (substitui o window.prompt) */}
+      {nomeModal && (
+        <div onClick={() => setNomeModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(10,10,20,.55)',
+          backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, background: T.surface || '#fff', borderRadius: 16,
+            border: `1px solid ${T.border}`, boxShadow: '0 22px 60px rgba(0,0,0,.35)', padding: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4, textTransform: 'capitalize' }}>Nome d{nomeModal.nome === 'câmera' ? 'a' : 'o'} {nomeModal.nome}</div>
+            <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>
+              Posição no mapa: x={nomeModal.x}, y={nomeModal.y}
+              {nomeModal.mode === 'tarefas' && ' · o nome é o que liga o marcador ao mini-jogo (ex.: "Limpar banheiro")'}
+            </div>
+            <input autoFocus value={nomeModal.valor}
+              onChange={e => setNomeModal(m => ({ ...m, valor: e.target.value }))}
+              onKeyDown={e => {
+                if (e.key === 'Enter') confirmarNome();
+                if (e.key === 'Escape') setNomeModal(null);
+              }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
+                color: T.text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setNomeModal(null)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent',
+                  color: T.textS, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+              <button onClick={confirmarNome}
+                style={{ flex: 1.4, padding: '10px 0', borderRadius: 10, border: 'none', background: T.gold, color: '#fff',
+                  fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Adicionar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

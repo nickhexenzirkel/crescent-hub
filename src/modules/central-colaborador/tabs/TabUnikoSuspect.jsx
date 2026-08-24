@@ -258,7 +258,7 @@ const hudBtnCss = {
   color: '#8AB0D4', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
 };
 
-const VORTEX_PROXIMIDADE = 80;
+const VORTEX_PROXIMIDADE = 38;    // bem perto mesmo — tem que estar praticamente em cima do portal
 const CAMERA_PROXIMIDADE = 85;
 const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois portais
 
@@ -294,7 +294,7 @@ const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 175;           // pixels do mapa por segundo (reduzido um pouco de novo — era 200)
+const MOVE_SPEED = 140;           // pixels do mapa por segundo (baixou de novo a pedido: 200 → 175 → 140)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
@@ -2600,15 +2600,29 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
                 {/* Vórtex: SÓ o Impostor vê (é a vantagem dele — tripulante
                     não pode saber onde ficam os atalhos). */}
-                {meuPapel === 'impostor' && mapaVortex.map(v => (
-                  <button key={v.id} onClick={() => setVortexAberto(v)} title={`Vórtex — ${v.label}`}
-                    style={{ ...taskBtnCss, position: 'absolute', left: `${v.x / MAP_W * 100}%`, top: `${v.y / MAP_H * 100}%`,
-                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', width: 48, height: 48, borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25,
-                      background: 'rgba(168,85,247,.85)', border: '2px solid #fff', filter: 'drop-shadow(0 3px 10px rgba(168,85,247,.7))' }}>
-                    🌀
-                  </button>
-                ))}
+                {meuPapel === 'impostor' && mapaVortex.map(v => {
+                  // Só dá pra ENTRAR estando praticamente em cima do portal
+                  // (VORTEX_PROXIMIDADE). Antes o clique no pino teleportava de
+                  // qualquer distância — dava pra atravessar o mapa sem sair do
+                  // lugar. Os outros continuam visíveis, mas apagados, pro
+                  // impostor saber pra onde pode ir.
+                  const perto = vortexProximo?.id === v.id;
+                  return (
+                    <button key={v.id} onClick={() => { if (perto) setVortexAberto(v); }}
+                      title={perto ? `Entrar no vórtex — ${v.label}` : `${v.label} (chegue mais perto pra entrar)`}
+                      style={{ ...taskBtnCss, position: 'absolute', left: `${v.x / MAP_W * 100}%`, top: `${v.y / MAP_H * 100}%`,
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: perto ? 'pointer' : 'not-allowed',
+                        width: 48, height: 48, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25,
+                        opacity: perto ? 1 : .42,
+                        background: perto ? 'rgba(168,85,247,.9)' : 'rgba(168,85,247,.35)',
+                        border: `2px solid ${perto ? '#fff' : 'rgba(255,255,255,.5)'}`,
+                        filter: perto ? 'drop-shadow(0 3px 12px rgba(168,85,247,.85))' : 'none',
+                        animation: perto ? 'susTwinkle 1.4s ease-in-out infinite' : 'none' }}>
+                      🌀
+                    </button>
+                  );
+                })}
 
                 {/* Botão de emergência — placa "Iniciar Reunião", brilho pulsante. Fantasma não chama reunião. */}
                 {mapaEmergencia && !souFantasma && (
