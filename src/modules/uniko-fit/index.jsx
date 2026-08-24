@@ -459,83 +459,66 @@ const SecaoLabel = ({ icon, children }) => (
   </div>
 );
 
-/* ── Quando um post conta como "o que estou vendo agora" ──────────────────────
-   PEGADINHA do IntersectionObserver que causou um bug real (som de vários
-   posts acumulando ao rolar o feed): `entry.isIntersecting` é `true` sempre
-   que o elemento aparece na tela em QUALQUER grau — até 1% — e o `threshold`
-   só decide QUANDO o callback dispara, não o valor de `isIntersecting`. Ou
-   seja, ao rolar pro próximo post, o anterior cruzava 60% pra baixo, o
-   callback disparava, mas `isIntersecting` continuava `true` (ainda tinha um
-   pedaço dele na tela) — então chamava play() de novo em vez de pausar, e ia
-   somando som. Por isso aqui sempre se compara o `intersectionRatio` com
-   VISIVEL_MIN à mão, nunca `isIntersecting` sozinho. Os thresholds incluem 0
-   e 1 pra garantir callback também nas bordas (sair/entrar por completo). */
-const VISIVEL_MIN = 0.6;
-const IO_THRESHOLDS = [0, VISIVEL_MIN, 1];
+/* ── Quem toca som no feed: UM post só, eleito pelo componente pai ────────────
+   Depois de vários bugs seguidos de som (nada tocava / tocava tudo junto /
+   ia acumulando a cada rolagem), o play/pause deixou de ser decisão de cada
+   card e passou a ser CENTRALIZADO: cada player só REPORTA o quanto de si
+   está na tela (`onRatio`) e obedece a um prop `ativo`; o pai escolhe o post
+   de maior visibilidade, marca só ele como ativo e ainda faz uma varredura
+   pausando todos os outros (ver `postAtivoId` no componente principal). Assim
+   "só toca o que estou vendo" é uma INVARIANTE garantida, não o resultado
+   torto de cada card decidindo por conta própria.
+
+   PEGADINHA que causou o bug do som acumulando: `entry.isIntersecting` é
+   `true` sempre que o elemento aparece na tela em QUALQUER grau — até 1% — e
+   o `threshold` só decide QUANDO o callback dispara, não o valor de
+   `isIntersecting`. Por isso aqui só se usa `intersectionRatio` (número),
+   nunca `isIntersecting`. Thresholds granulares pra o pai conseguir comparar
+   os cards e eleger o mais visível durante a rolagem. */
+const VISIVEL_MIN = 0.5;
+const IO_THRESHOLDS = [0, 0.25, 0.5, 0.75, 1];
 
 /* ── Vídeo do feed com autoplay que funciona no celular também ── */
 // No mobile, `autoPlay` sozinho costuma falhar: alguns navegadores ignoram o
 // atributo `muted` do JSX na primeira renderização (precisa setar via DOM), e
-// o autoplay só é permitido de verdade quando o vídeo está VISÍVEL na tela —
-// por isso o play/pause aqui é disparado por IntersectionObserver, não pelo
-// atributo `autoPlay` (que só dispara uma vez, no mount, e não repete quando
-// o card volta a ficar visível depois de rolar pra longe e voltar).
+// o autoplay só é permitido de verdade quando o vídeo está VISÍVEL na tela.
 // Começa MUDO de propósito (navegador só autoplay com som depois de um toque
 // do usuário — sem isso o vídeo nem tocava) — o botão de alto-falante no card
 // dá play com áudio a partir dali (é um toque real, o navegador libera).
-const FeedVideo = ({ src, style, muted, onEl }) => {
+const FeedVideo = ({ src, style, muted, ativo, postId, onEl, onRatio }) => {
   const ref = useRef(null);
-  // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
-  // isso, desmutar tentaria dar play em TODOS os vídeos montados no feed
-  // (inclusive os que estão fora da tela), não só no que a pessoa está
-  // vendo. `visivel` (estado React, não ref — pra nunca ficar dessincronizado
-  // do ciclo de render) guarda se ESSE elemento específico está visível
-  // agora, atualizado pelo IntersectionObserver abaixo.
-  const [visivel, setVisivel] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.playsInline = true;
-    const io = new IntersectionObserver(([entry]) => {
-      const naTela = entry.intersectionRatio >= VISIVEL_MIN;
-      setVisivel(naTela);
-      if (naTela) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
-      else el.pause();
-    }, { threshold: IO_THRESHOLDS });
+    const io = new IntersectionObserver(([entry]) => onRatio(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
     io.observe(el);
-    return () => io.disconnect();
-  }, []);
+    return () => { io.disconnect(); onRatio(postId, 0); };
+  }, [postId, onRatio]);
   useEffect(() => {
     const el = ref.current; if (!el) return;
     el.muted = muted;
-    // Ao DESMUTAR (toque real no botão de som), tenta tocar de novo — mas só
-    // se ESSE vídeo estiver visível agora; senão toca todo mundo de uma vez
-    // (era esse o bug: música de todos os posts ao mesmo tempo). Se a
-    // tentativa muda automática (lá em cima) foi recusada pelo navegador,
-    // isso garante que o vídeo visível realmente começa a tocar, aproveitando
-    // que agora tem um toque de usuário de verdade.
-    if (!muted && visivel) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
-  }, [muted, visivel]);
+    if (ativo) el.play().catch(() => { /* autoplay pode ser recusado até 1ª interação — silencioso */ });
+    else el.pause();
+  }, [ativo, muted]);
   return <video ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
 /* ── Música de um post (ago/2026, estilo TikTok) ─────────────────────────────
-   Mesmo princípio do FeedVideo (autoplay/pause por IntersectionObserver,
-   começa mudo até a pessoa tocar no alto-falante) — só que em loop dentro
-   do TRECHINHO escolhido (`start`..`start+duration`) do áudio (upload
-   próprio, extraído de vídeo ou pego da biblioteca — ver MusicPicker),
-   em vez do áudio inteiro. Se o post tem vídeo também, o `<video>` fica
-   sempre mudo (ver render do feed) — só essa música toca. */
-const FeedMusic = ({ src, start, duration, muted, onEl }) => {
+   Mesmo princípio do FeedVideo (o pai elege quem toca) — só que em loop
+   dentro do TRECHINHO escolhido (`start`..`start+duration`) do áudio (upload
+   próprio, extraído de vídeo ou pego da biblioteca — ver MusicPicker), em vez
+   do áudio inteiro. Se o post tem vídeo também, o `<video>` fica sempre mudo
+   (ver render do feed) — só essa música toca. */
+const FeedMusic = ({ src, start, duration, muted, ativo, postId, onEl, onRatio }) => {
   const ref = useRef(null);
-  // `muted` é um estado GLOBAL (um botão de som só, pra todo o feed) — sem
-  // isso, desmutar tentaria dar play em TODAS as músicas montadas no feed
-  // (inclusive posts fora da tela), não só na do post que a pessoa está
-  // vendo — foi exatamente esse bug (todas as músicas tocando juntas).
-  // `visivel` (estado React, não ref — pra nunca ficar dessincronizado do
-  // ciclo de render) guarda se ESSE elemento específico está visível agora,
-  // atualizado pelo IntersectionObserver abaixo.
-  const [visivel, setVisivel] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => onRatio(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
+    io.observe(el);
+    return () => { io.disconnect(); onRatio(postId, 0); };
+  }, [postId, onRatio]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -544,28 +527,14 @@ const FeedMusic = ({ src, start, duration, muted, onEl }) => {
     el.addEventListener('loadedmetadata', seek);
     const onTime = () => { if (duration && el.currentTime >= inicio + duration) seek(); };
     el.addEventListener('timeupdate', onTime);
-    const io = new IntersectionObserver(([entry]) => {
-      // Ver comentário do VISIVEL_MIN lá em cima: `isIntersecting` sozinho
-      // não serve (é true com 1% na tela), tem que olhar o ratio.
-      const naTela = entry.intersectionRatio >= VISIVEL_MIN;
-      setVisivel(naTela);
-      if (naTela) { seek(); el.play().catch(() => { /* autoplay recusado até 1ª interação — silencioso */ }); }
-      else el.pause();
-    }, { threshold: IO_THRESHOLDS });
-    io.observe(el);
-    return () => { io.disconnect(); el.removeEventListener('loadedmetadata', seek); el.removeEventListener('timeupdate', onTime); };
+    return () => { el.removeEventListener('loadedmetadata', seek); el.removeEventListener('timeupdate', onTime); };
   }, [src, start, duration]);
   useEffect(() => {
     const el = ref.current; if (!el) return;
     el.muted = muted;
-    // O Safari (iPhone) é mais rígido com <audio> do que com <video muted>:
-    // recusa autoplay de áudio mesmo mudo, então a 1ª tentativa lá em cima
-    // (via IntersectionObserver) costuma falhar silenciosamente nele. Ao
-    // desmutar — um toque real no botão de som — tenta tocar de novo, mas só
-    // se ESSE post estiver visível agora (senão toca todo mundo de uma vez).
-    // Com gesto de usuário de verdade, o navegador libera.
-    if (!muted && visivel) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
-  }, [muted, visivel]);
+    if (ativo) { try { el.currentTime = start || 0; } catch { /* metadata ainda não carregou */ } el.play().catch(() => { /* autoplay recusado até 1ª interação */ }); }
+    else el.pause();
+  }, [ativo, muted, start]);
   // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
   // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
   // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
@@ -1241,6 +1210,37 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // com som se a chamada acontecer dentro da pilha do gesto de toque de
   // verdade; um efeito rodando depois do re-render já "perdeu" esse gesto.
   const mediaElRefs = useRef({});
+
+  /* ── Quem é "o post que estou vendo agora" (só ELE toca som) ───────────────
+     Cada player do feed reporta aqui o quanto de si está na tela; a gente
+     elege o de maior visibilidade como `postAtivoId` e passa `ativo` só pra
+     ele. Centralizar isso resolveu de vez o bug do som acumulando: enquanto
+     cada card decidia sozinho (via IntersectionObserver próprio), sobrava
+     brecha pra mais de um se achar "visível" ao mesmo tempo durante a
+     rolagem. Ver VISIVEL_MIN/IO_THRESHOLDS no topo do arquivo. */
+  const ratiosRef = useRef({});
+  const [postAtivoId, setPostAtivoId] = useState(null);
+  const reportarRatio = useCallback((postId, ratio) => {
+    ratiosRef.current[postId] = ratio;
+    let melhorId = null, melhorRatio = 0;
+    for (const [id, r] of Object.entries(ratiosRef.current)) {
+      if (r > melhorRatio) { melhorRatio = r; melhorId = id; }
+    }
+    setPostAtivoId(melhorRatio >= VISIVEL_MIN ? melhorId : null);
+  }, []);
+  // Rede de segurança: pausa TODO player que não seja o ativo. Mesmo que algum
+  // card tente tocar por conta própria (autoplay do navegador, corrida de
+  // efeitos, post novo chegando pelo realtime), essa varredura garante a
+  // invariante "só um toca por vez" — foi o que faltava nas tentativas
+  // anteriores de corrigir o som acumulando.
+  useEffect(() => {
+    for (const [id, els] of Object.entries(mediaElRefs.current)) {
+      if (id === postAtivoId || !els) continue;
+      for (const el of [els.video, els.audio]) {
+        if (el && !el.paused) { try { el.pause(); } catch { /* elemento já saiu do DOM */ } }
+      }
+    }
+  }, [postAtivoId]);
   const [highlightPostId, setHighlightPostId] = useState(null);
   const [flashPostId, setFlashPostId] = useState(null);
   const irParaFeed = async (post) => {
@@ -1952,14 +1952,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
                     {isVideoUrl(post.photo_url)
                       ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
-                          onEl={el => { mediaElRefs.current[post.id] = { ...mediaElRefs.current[post.id], video: el }; }}
+                          postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                          onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }}
                           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     {/* Tem música escolhida no post (ver postarFoto/MusicPicker) — toca o
                         trechinho em loop; se o post também é vídeo, o vídeo acima já foi
                         forçado mudo (`post.music_url ? true : feedMuted`) pra não brigar. */}
                     {post.music_url && <FeedMusic src={post.music_url} start={post.music_start} duration={post.music_duration} muted={feedMuted}
-                      onEl={el => { mediaElRefs.current[post.id] = { ...mediaElRefs.current[post.id], audio: el }; }} />}
+                      postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                      onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], audio: el }; }} />}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
 
                     {heartBurst === post.id && (
@@ -1993,8 +1995,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                         // "perdeu" esse gesto e o navegador recusa. Só o post ATUAL
                         // (por id, via mediaElRefs) — nada dos outros posts do feed.
                         if (vaiDesmutar) {
-                          const els = mediaElRefs.current[post.id];
-                          if (els?.video) { els.video.muted = false; els.video.play().catch(() => {}); }
+                          const els = mediaElRefs.current[String(post.id)];
+                          // Se o post tem música, o vídeo continua mudo de propósito
+                          // (só a música toca) — ver o prop `muted` lá em cima.
+                          if (els?.video) { els.video.muted = !!post.music_url; els.video.play().catch(() => {}); }
                           if (els?.audio) { els.audio.muted = false; els.audio.play().catch(() => {}); }
                         }
                       }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
