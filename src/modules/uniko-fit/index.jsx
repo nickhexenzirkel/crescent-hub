@@ -482,7 +482,15 @@ const FeedVideo = ({ src, style, muted }) => {
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.muted = muted;
+    // Ao DESMUTAR (toque real no botão de som), tenta tocar de novo — se a
+    // tentativa muda automática (lá em cima, via IntersectionObserver) foi
+    // recusada pelo navegador, isso garante que o vídeo realmente começa
+    // a tocar aproveitando que agora tem um toque de usuário de verdade.
+    if (!muted) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+  }, [muted]);
   return <video ref={ref} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
@@ -510,7 +518,16 @@ const FeedMusic = ({ src, start, duration, muted }) => {
     io.observe(el);
     return () => { io.disconnect(); el.removeEventListener('loadedmetadata', seek); el.removeEventListener('timeupdate', onTime); };
   }, [src, start, duration]);
-  useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.muted = muted;
+    // O Safari (iPhone) é mais rígido com <audio> do que com <video muted>:
+    // recusa autoplay de áudio mesmo mudo, então a 1ª tentativa lá em cima
+    // (via IntersectionObserver) costuma falhar silenciosamente nele. Ao
+    // desmutar — um toque real no botão de som — tenta tocar de novo; com
+    // gesto de usuário de verdade, o navegador libera.
+    if (!muted) el.play().catch(() => { /* ainda assim recusado — sem toque suficiente */ });
+  }, [muted]);
   // `muted` também vai direto no JSX (não só no efeito) — mesmo padrão do
   // FeedVideo: alguns navegadores mobile ignoram o atributo setado só via
   // efeito na 1ª renderização, o que sozinho já bloqueia o autoplay mudo.
