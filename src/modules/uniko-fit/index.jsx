@@ -24,7 +24,7 @@ const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colabor
 // (rende igual em qualquer aparelho/fonte, e combina com o resto dos Ico*
 // do arquivo). `emoji` continua existindo em REACOES: é o valor GRAVADO no
 // banco (coluna uniko_fit_reactions.emoji) — só a exibição virou ícone.
-const IcoHeart = <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
+const IcoHeart = <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>;
 const IcoCheckCircle = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 10.8 15.3 16 9.5"/></svg>;
 const IcoComment = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
 const IcoShare = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>;
@@ -171,12 +171,24 @@ const IcoMic    = <svg width="19" height="19" viewBox="0 0 24 24" fill="none" st
 const IcoStop   = <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>;
 const IcoClose  = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>;
 const IcoBell   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
-const IcoHeartSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z"/></svg>;
+const IcoHeartSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>;
 const IcoCommentSm = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>;
 const IcoTrash  = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>;
 const IcoVolOn  = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>;
 const IcoVolOff = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>;
 const IcoFlip   = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>;
+// ── Ícones da busca / mídia (trocaram os emojis que havia antes na UI) ──
+const ico = (d, size = 16, extra = {}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...extra}>{d}</svg>;
+const IcoSearch = ico(<><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></>);
+const IcoUsers  = ico(<><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></>);
+const IcoVideo  = ico(<><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></>);
+const IcoMusic  = ico(<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>);
+const IcoPlay   = ico(<polygon points="6 4 20 12 6 20 6 4" fill="currentColor"/>);
+const IcoPause  = ico(<><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/></>);
+const IcoLib    = ico(<><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></>);
+const IcoAlert  = ico(<><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></>);
+const IcoFlame  = ico(<path d="M12 22a7 7 0 007-7c0-4-3-6-4.5-9.5C13.5 3 12 2 12 2s-.5 2.5-2.5 4.5S5 11 5 15a7 7 0 007 7z"/>);
+const IcoPen    = ico(<><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></>);
 
 /* ── Filtros de cor pra foto do check-in — aplicados via CSS `filter` no
    preview e "assados" no canvas na hora de gerar o arquivo final. ── */
@@ -390,7 +402,7 @@ const CameraCapture = ({ energia, onCapture }) => {
                 {st.emoji}
                 <button onPointerDown={e => e.stopPropagation()} onClick={() => removerSticker(st.id)} title="Remover emoji"
                   style={{ position: 'absolute', top: -8, right: -8, width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                    background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>
+                    background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>{IcoClose}</button>
                 <div onPointerDown={iniciarSticker(st.id, 'resize')} onPointerMove={moverSticker} onPointerUp={soltarSticker} title="Arraste pra redimensionar"
                   style={{ position: 'absolute', bottom: -6, right: -6, width: 14, height: 14, borderRadius: '50%', border: `2px solid ${energia}`, background: '#fff', cursor: 'nwse-resize', touchAction: 'none' }} />
               </div>
@@ -421,13 +433,13 @@ const CameraCapture = ({ energia, onCapture }) => {
         {rawShot ? (
           <>
             <button onClick={() => { setRawShot(null); setCrop(CROP_DEFAULT); setImgNatural(null); setStickers([]); }} className="fit-btn"
-              style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${energia}55`, background: 'none', color: energia, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>↺ Tirar de novo</button>
+              style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${energia}55`, background: 'none', color: energia, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoFlip} Tirar de novo</span></button>
             <button onClick={confirmar} className="fit-btn"
-              style={{ flex: 2, padding: 12, borderRadius: 12, border: 'none', background: energia, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>✓ Usar essa foto</button>
+              style={{ flex: 2, padding: 12, borderRadius: 12, border: 'none', background: energia, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoCheckCircle} Usar essa foto</span></button>
           </>
         ) : (
           <button onClick={tirarFoto} disabled={!!erro} className="fit-btn"
-            style={{ flex: 1, padding: 13, borderRadius: 999, border: 'none', background: erro ? '#999' : energia, color: '#fff', fontWeight: 800, fontSize: 14, cursor: erro ? 'not-allowed' : 'pointer' }}>📸 Tirar foto</button>
+            style={{ flex: 1, padding: 13, borderRadius: 999, border: 'none', background: erro ? '#999' : energia, color: '#fff', fontWeight: 800, fontSize: 14, cursor: erro ? 'not-allowed' : 'pointer' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{IcoCamera} Tirar foto</span></button>
         )}
       </div>
     </div>
@@ -455,7 +467,7 @@ const Sheet = ({ title, onBack, onClose, children }) => {
 /* ── Rótulo de seção dentro de uma sheet (📷 Mídia / ✍️ Legenda / 🎵 Música) ── */
 const SecaoLabel = ({ icon, children }) => (
   <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-    <span style={{ fontSize: 13 }}>{icon}</span>{children}
+    <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>{children}
   </div>
 );
 
@@ -599,8 +611,8 @@ const extrairAudioDeVideo = (file, onProgress) => new Promise((resolve, reject) 
    vem DA biblioteca que pula o upload (já está lá). */
 const CLIP_DURACOES = [5, 10, 15];
 const FONTES_MUSICA = [
-  { id: 'biblioteca', label: '📚 Biblioteca' },
-  { id: 'arquivo', label: '🎬 Vídeo ou áudio' },
+  { id: 'biblioteca', label: 'Biblioteca', icone: IcoLib },
+  { id: 'arquivo', label: 'Vídeo ou áudio', icone: IcoVideo },
 ];
 // Alguns seletores de arquivo do Android devolvem `file.type` vazio pra
 // certos áudios — sem isso o Storage salva como `application/octet-stream`
@@ -732,11 +744,11 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
           <div style={{ width: 56, height: 56, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: `linear-gradient(135deg, ${energia}22, ${fogo}22)`, fontSize: 24 }}>🎵</div>
+            background: `linear-gradient(135deg, ${energia}22, ${fogo}22)`, color: energia }}>{IcoMusic}</div>
           {origemAudio === 'biblioteca' ? (
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tituloAudio}</div>
-              <div style={{ fontSize: 11.5, color: T.textT }}>Da biblioteca 📚</div>
+              <div style={{ fontSize: 11.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 4 }}>{IcoLib} Da biblioteca</div>
             </div>
           ) : (
             <input value={tituloAudio} onChange={e => setTituloAudio(e.target.value)} placeholder="Nome da música" maxLength={60}
@@ -758,18 +770,18 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
           onChange={e => { setInicio(+e.target.value); pararPreview(); }} style={{ width: '100%', marginBottom: 18 }} />
         <button className="fit-btn" onClick={() => (tocando ? pararPreview() : testarTrecho())}
           style={{ width: '100%', padding: 11, borderRadius: 10, border: `1.5px solid ${energia}`, background: 'transparent', color: energia, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
-          {tocando ? '⏸ Parar' : '▶️ Testar trecho'}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{tocando ? IcoPause : IcoPlay}{tocando ? 'Parar' : 'Testar trecho'}</span>
         </button>
-        {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ {erro}</div>}
+        {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoAlert}{erro}</div>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="fit-btn" onClick={trocar} disabled={enviando}
             style={{ flex: 1, padding: 11, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: enviando ? 'not-allowed' : 'pointer' }}>
-            ↺ Trocar
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoFlip} Trocar</span>
           </button>
           <button className="fit-btn" onClick={usarTrecho} disabled={enviando}
             style={{ flex: 1.4, padding: 11, borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${energia}, ${fogo})`, color: '#fff', fontWeight: 800, fontSize: 13,
               cursor: enviando ? 'not-allowed' : 'pointer', opacity: enviando ? .65 : 1 }}>
-            {enviando ? 'Enviando...' : '✅ Usar esse trecho'}
+            {enviando ? 'Enviando...' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoCheckCircle} Usar esse trecho</span>}
           </button>
         </div>
       </div>
@@ -784,11 +796,11 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         {FONTES_MUSICA.map(f => (
           <button key={f.id} className="fit-btn" onClick={() => setFonte(f.id)}
             style={{ flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
-              border: `1.5px solid ${fonte === f.id ? energia : T.border}`, background: fonte === f.id ? `${energia}16` : 'transparent', color: fonte === f.id ? energia : T.textS }}>{f.label}</button>
+              border: `1.5px solid ${fonte === f.id ? energia : T.border}`, background: fonte === f.id ? `${energia}16` : 'transparent', color: fonte === f.id ? energia : T.textS }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{f.icone}{f.label}</span></button>
         ))}
       </div>
 
-      {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10 }}>⚠️ {erro}</div>}
+      {erro && <div style={{ fontSize: 12, color: '#C04050', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoAlert}{erro}</div>}
 
       {fonte === 'biblioteca' && (
         <>
@@ -796,11 +808,11 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
             style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 13,
               color: T.text, outline: 'none', boxSizing: 'border-box', marginBottom: 12, fontFamily: 'var(--font-body)' }} />
           {biblioteca === null && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Carregando...</div>}
-          {bibFiltrada?.length === 0 && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Nenhum áudio na biblioteca ainda — seja a primeira pessoa a adicionar um 🎵</div>}
+          {bibFiltrada?.length === 0 && <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, padding: 20 }}>Nenhum áudio na biblioteca ainda — seja a primeira pessoa a adicionar um</div>}
           {bibFiltrada?.map(a => (
             <button key={a.id} className="fit-btn" onClick={() => escolherDaBiblioteca(a)}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${energia}18`, fontSize: 17 }}>🎵</div>
+              <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${energia}18`, color: energia }}>{IcoMusic}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title}</div>
                 <div style={{ fontSize: 11, color: T.textT }}>{a.player}{a.duration ? ` · ${Math.round(a.duration)}s` : ''}</div>
@@ -813,7 +825,7 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
       {fonte === 'arquivo' && (
         extraindo !== null ? (
           <div style={{ padding: '36px 18px', textAlign: 'center' }}>
-            <div style={{ fontSize: 30, marginBottom: 8 }}>🎬</div>
+            <div style={{ color: energia, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{IcoVideo}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>
               {extraindo >= 1 ? 'Convertendo o áudio...' : 'Enviando o vídeo...'}
             </div>
@@ -825,7 +837,7 @@ const MusicPicker = ({ energia, fogo, name, onEscolher }) => {
         ) : (
           <label className="fit-btn" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '36px 18px',
             borderRadius: 14, border: `1.5px dashed ${T.border}`, cursor: 'pointer', textAlign: 'center' }}>
-            <span style={{ fontSize: 30 }}>🎬🎵</span>
+            <span style={{ color: energia, display: 'flex' }}><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
             <span style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>Adicionar vídeo ou áudio</span>
             <span style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>
               Escolha um vídeo (a gente extrai o áudio) ou um áudio direto — ele vai tocar como música do seu post lá no Para Você
@@ -864,7 +876,7 @@ const ThumbCell = ({ it, engaj, onClick, onDelete }) => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,.9)" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.5))' }}><polygon points="6 4 20 12 6 20" /></svg>
       </div>
     )}
-    {it.kind === 'checkin' && <div style={{ position: 'absolute', top: 3, right: 3, fontSize: 12, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }}>✅</div>}
+    {it.kind === 'checkin' && <div style={{ position: 'absolute', top: 3, right: 3, color: '#4ade80', display: 'flex', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.7))' }}>{IcoCheckCircle}</div>}
     {onDelete && (
       <button onClick={e => { e.stopPropagation(); onDelete(it); }} className="fit-btn"
         style={{ position: 'absolute', top: 3, left: 3, width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer',
@@ -1316,7 +1328,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [postPreview, setPostPreview] = useState(null);
   const [postCaption, setPostCaption] = useState('');
   const [postSaving, setPostSaving] = useState(false);
-  const [postMsg, setPostMsg] = useState('');
+  const [postMsg, setPostMsg] = useState(null); // null | { ok, texto }
   const postFileRef = useRef(null);
   // Música do post (ago/2026, estilo TikTok) — {url,title,artist,start,duration}
   // ou null. Só existe na etapa de criação; vira colunas music_* no insert.
@@ -1343,7 +1355,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }, [name]);
   /* ═══════════════════ NOTIFICAÇÃO PUSH NO CELULAR (comentário/reação/chat, com o app fechado) ═══════════════════ */
   const [pushBannerOff, setPushBannerOff] = useState(() => { try { return localStorage.getItem('uniko_fit_push_banner_off') === '1'; } catch { return false; } });
-  const [pushMsg, setPushMsg] = useState('');
+  const [pushMsg, setPushMsg] = useState(null); // null | { ok, texto }
   // null = ainda checando (não decide nada enquanto isso, evita o banner
   // "piscar" antes de saber). NÃO usa `Notification.permission==='granted'`
   // pra isso — o Portal já pede permissão de notificação em geral no 1º
@@ -1355,10 +1367,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   useEffect(() => { hasActivePushSubscription().then(setPushJaInscrito); }, []);
   const dispensarPushBanner = () => { setPushBannerOff(true); try { localStorage.setItem('uniko_fit_push_banner_off', '1'); } catch { /* localStorage indisponível */ } };
   const ativarPush = async () => {
-    setPushMsg('');
-    try { await ensurePushSubscription(name); setPushJaInscrito(true); dispensarPushBanner(); setPushMsg('✅ Notificações ativadas!'); }
-    catch (e) { setPushMsg('❌ ' + (e.message || 'Erro ao ativar')); }
-    setTimeout(() => setPushMsg(''), 6000);
+    setPushMsg(null);
+    try { await ensurePushSubscription(name); setPushJaInscrito(true); dispensarPushBanner(); setPushMsg({ ok: true, texto: 'Notificações ativadas!' }); }
+    catch (e) { setPushMsg({ ok: false, texto: e.message || 'Erro ao ativar' }); }
+    setTimeout(() => setPushMsg(null), 6000);
   };
   // O botão fica sempre visível (até ativar ou dispensar) — os motivos de não
   // dar certo (iPhone sem instalar, navegador sem suporte, permissão negada)
@@ -1378,7 +1390,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   const postIsVideo = !!postFile?.type?.startsWith('video/');
   const escolherFoto = (f) => {
-    setPostFile(f || null); setPostMsg('');
+    setPostFile(f || null); setPostMsg(null);
     if (!f) { setPostPreview(null); return; }
     if (f.type.startsWith('video/')) { setPostPreview(URL.createObjectURL(f)); return; } // vídeo: prévia via blob URL, sem carregar tudo em base64
     const reader = new FileReader();
@@ -1387,13 +1399,13 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
   const limparPost = () => {
     if (postPreview?.startsWith('blob:')) { try { URL.revokeObjectURL(postPreview); } catch { /* já liberado */ } }
-    setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(''); setDesafioAtivo(null); setPostMusic(null); if (postFileRef.current) postFileRef.current.value = '';
+    setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(null); setDesafioAtivo(null); setPostMusic(null); if (postFileRef.current) postFileRef.current.value = '';
   };
 
   // kind: 'checkin' (1 por dia, conta pro ranking + avisa no Bate-Papo) | 'post' (só feed, sem limite)
   const postarFoto = async (kind) => {
-    if (!postFile) { setPostMsg(kind === 'post' ? '⚠️ Escolha uma foto ou vídeo pra continuar!' : '⚠️ Escolha uma foto pra continuar!'); return; }
-    setPostSaving(true); setPostMsg('');
+    if (!postFile) { setPostMsg({ ok: false, texto: kind === 'post' ? 'Escolha uma foto ou vídeo pra continuar!' : 'Escolha uma foto pra continuar!' }); return; }
+    setPostSaving(true); setPostMsg(null);
     try {
       if (kind === 'checkin') {
         // Confere de novo na hora de enviar (evita brecha se o sheet ficou aberto
@@ -1401,7 +1413,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         // a corrida de "duas abas ao mesmo tempo" (ver catch do 23505 abaixo).
         const { start, end } = limitesDeHoje();
         const { data: jaFez } = await supabase.from('uniko_fit_checkins').select('id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
-        if (jaFez?.length) { setCheckinHojeFeito(true); setPostMsg('⚠️ Você já fez o check-in de hoje! Volte amanhã 💪'); setPostSaving(false); return; }
+        if (jaFez?.length) { setCheckinHojeFeito(true); setPostMsg({ ok: false, texto: 'Você já fez o check-in de hoje! Volte amanhã' }); setPostSaving(false); return; }
       }
       const ext = (postFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const cpf = (getAuthUser()?.cpf || '').replace(/\D/g, '') || 'anon';
@@ -1416,7 +1428,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         music_url: postMusic?.url || null, music_title: postMusic?.title || null, music_artist: null,
         music_start: postMusic?.start ?? null, music_duration: postMusic?.duration ?? null });
       if (error) {
-        if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã 💪'); }
+        if (error.code === '23505') { setCheckinHojeFeito(true); throw new Error('Você já fez o check-in de hoje! Volte amanhã'); }
         throw new Error(error.message);
       }
       if (kind === 'checkin') {
@@ -1429,11 +1441,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         // desafio: <texto>").
         try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl, texto: desafioAtivo?.texto || null }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
       }
-      setPostMsg(kind === 'checkin' ? '✅ Check-in registrado! Bora treinar mais 💪' : '✅ Postado no feed!');
+      setPostMsg({ ok: true, texto: kind === 'checkin' ? 'Check-in registrado! Bora treinar mais' : 'Postado no feed!' });
       setFullFeed(null); // invalida cache do ranking/detalhes pra refletir o novo item
       await loadFeed();
       setTimeout(() => { limparPost(); setSheet(null); setTopTab('paravoce'); }, 1100);
-    } catch (e) { setPostMsg('❌ ' + (e.message || 'Erro ao postar')); }
+    } catch (e) { setPostMsg({ ok: false, texto: e.message || 'Erro ao postar' }); }
     setPostSaving(false);
   };
 
@@ -1611,8 +1623,21 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // volume é de centenas/poucos milhares de linhas, filtrar em memória é
   // instantâneo e não gasta requisição do Supabase a cada letra.
   const [buscaQuery, setBuscaQuery] = useState('');
-  const [buscaFiltro, setBuscaFiltro] = useState('tudo'); // tudo | pessoas | videos | audios
-  useEffect(() => { if (topTab === 'buscar' && !fullFeed) loadFullFeed(); }, [topTab, fullFeed, loadFullFeed]);
+  const [buscaFiltro, setBuscaFiltro] = useState('tudo'); // tudo | pessoas | fotos | videos | audios
+  // Biblioteca de áudios (uniko_fit_audios) — a busca precisa dela porque um
+  // áudio pode existir SEM nenhum post usando ele ainda (a pessoa sobe/converte
+  // pelo MusicPicker e o áudio entra na biblioteca na hora). Procurar só nos
+  // posts fazia áudio existente parecer inexistente — foi bug real.
+  const [audioLib, setAudioLib] = useState(null);
+  useEffect(() => {
+    if (topTab !== 'buscar') return;
+    if (!fullFeed) loadFullFeed();
+    if (audioLib === null) {
+      supabase.from('uniko_fit_audios').select('id,title,url,duration,player')
+        .order('created_at', { ascending: false }).limit(300)
+        .then(({ data }) => setAudioLib(data || []));
+    }
+  }, [topTab, fullFeed, loadFullFeed, audioLib]);
 
   // Ignora acento e caixa: "jose" acha "José", "MUSICA" acha "música".
   const normalizar = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1621,13 +1646,34 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     if (!q || !fullFeed || !detalhesLista) return null;
 
     const pessoas = detalhesLista.filter(p => normalizar(p.player).includes(q));
-    // Post entra se casar pelo texto dele (legenda/música) OU pelo nome de quem
-    // postou — assim buscar uma pessoa também traz os vídeos/áudios dela.
+    // Post entra se casar pela LEGENDA, pelo título da música OU pelo nome de
+    // quem postou — assim procurar uma pessoa também traz os posts dela.
     const casa = (r) => normalizar(r.caption).includes(q) || normalizar(r.music_title).includes(q) || normalizar(r.player).includes(q);
-    const videos = fullFeed.filter(r => isVideoUrl(r.photo_url) && casa(r));
-    const audios = fullFeed.filter(r => r.music_url && casa(r));
-    return { pessoas, videos, audios, total: pessoas.length + videos.length + audios.length };
-  }, [buscaQuery, fullFeed, detalhesLista]);
+    // FOTOS é categoria própria pra legenda de post de foto ser encontrável:
+    // sem ela, post que não é vídeo nem tem música não caía em categoria
+    // nenhuma e a busca por legenda parecia não funcionar.
+    const fotos  = fullFeed.filter(r => !isVideoUrl(r.photo_url) && casa(r));
+    const videos = fullFeed.filter(r =>  isVideoUrl(r.photo_url) && casa(r));
+    // Áudios vêm da BIBLIOTECA (não dos posts): é onde o áudio existe assim que
+    // alguém sobe/converte, mesmo antes de virar post.
+    const audios = (audioLib || []).filter(a => normalizar(a.title).includes(q) || normalizar(a.player).includes(q));
+    return { pessoas, fotos, videos, audios, total: pessoas.length + fotos.length + videos.length + audios.length };
+  }, [buscaQuery, fullFeed, detalhesLista, audioLib]);
+
+  /* Prévia de um áudio da biblioteca direto no resultado da busca.
+     Usa <video> (não <audio>) pelo mesmo motivo do FeedMusic: no Safari/iPhone
+     a política de autoplay do <audio> barra o som, a do <video> não. Um player
+     só, compartilhado — tocar um áudio para o anterior automaticamente. */
+  const [previewAudioId, setPreviewAudioId] = useState(null);
+  const previewAudioRef = useRef(null);
+  const alternarPreviewAudio = (a) => {
+    const el = previewAudioRef.current; if (!el) return;
+    if (previewAudioId === a.id) { el.pause(); setPreviewAudioId(null); return; }
+    el.src = a.url; el.muted = false;
+    try { el.currentTime = 0; } catch { /* metadata ainda não carregou */ }
+    el.play().catch(() => { /* recusado sem gesto — aqui sempre vem de um toque */ });
+    setPreviewAudioId(a.id);
+  };
 
   const abrirPerfilDe = (player) => { setDetalhesPlayer(player); setSheet('amigos'); if (!fullFeed) loadFullFeed(); };
 
@@ -1897,7 +1943,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           </div>
         )}
         {pushMsg && (
-          <div style={{ position: 'sticky', top: 0, zIndex: 5, padding: '8px 12px', textAlign: 'center', fontSize: 12, fontWeight: 700, background: pushMsg.startsWith('✅') ? 'rgba(34,197,94,.12)' : 'rgba(192,64,80,.1)', color: pushMsg.startsWith('✅') ? '#16a34a' : '#C04050' }}>{pushMsg}</div>
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 700, background: pushMsg.ok ? 'rgba(34,197,94,.12)' : 'rgba(192,64,80,.1)', color: pushMsg.ok ? '#16a34a' : '#C04050' }}>{pushMsg.ok ? IcoCheckCircle : IcoAlert}{pushMsg.texto}</div>
         )}
 
         {/* ── PARA VOCÊ (feed unificado: check-ins + posts) ── */}
@@ -1909,12 +1955,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </div>
           ) : feed.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <div style={{ fontSize: 44, marginBottom: 10 }}>🏋️</div>
+              <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 10 }}><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="8" width="4" height="8" rx="1.3"/><rect x="18" y="8" width="4" height="8" rx="1.3"/><line x1="6" y1="12" x2="18" y2="12"/></svg></div>
               <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Ainda ninguém postou nada</div>
-              <div style={{ fontSize: 13, color: T.textT, marginBottom: 16 }}>Seja o primeiro a fazer check-in! 💪</div>
+              <div style={{ fontSize: 13, color: T.textT, marginBottom: 16 }}>Seja o primeiro a fazer check-in!</div>
               <button className="fit-btn" onClick={() => openSheet('checkin')}
                 style={{ padding: '10px 22px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                  background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 6px 18px ${EG}` }}>📸 Fazer check-in</button>
+                  background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 6px 18px ${EG}` }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{IcoCamera} Fazer check-in</span></button>
             </div>
           ) : (
             <div ref={feedScrollRef} className="fit-feed" onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd}
@@ -1951,7 +1997,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     {heartBurst === post.id && (
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                         <svg className="fit-heart-burst" width="92" height="92" viewBox="0 0 24 24" fill="#fff" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,.45))' }}>
-                          <path d="M12 21s-7.5-4.6-10-9.1C.4 8.3 2 4.5 5.7 4c2-.3 3.6.7 4.9 2.3C11.9 4.7 13.5 3.7 15.5 4c3.7.5 5.3 4.3 3.7 7.9C21.5 16.4 12 21 12 21z" />
+                          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
                         </svg>
                       </div>
                     )}
@@ -2008,7 +2054,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
                       {post.music_url && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, fontSize: 12, fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>
-                          <span className="fit-note-spin" style={{ display: 'inline-block' }}>🎵</span>
+                          <span className="fit-note-spin" style={{ display: 'inline-flex' }}>{IcoMusic}</span>
                           <span style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.music_title || 'Música'}</span>
                         </div>
                       )}
@@ -2057,7 +2103,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               {chat === null ? (
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Carregando chat...</div>
               ) : chat.length === 0 ? (
-                <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Nenhuma mensagem ainda. Chama a galera pra treinar! 💪</div>
+                <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 20 }}>Nenhuma mensagem ainda. Chama a galera pra treinar!</div>
               ) : chat.map(m => {
                 if (m.tipo === 'checkin') {
                   const souEu = m.player === name;
@@ -2070,8 +2116,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       )}
                       <div style={{ fontSize: 11, fontWeight: 700, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,.04)', padding: '5px 13px', borderRadius: 999, textAlign: 'center', border: `1px solid ${T.border}` }}>
                         {m.texto
-                          ? <>🎯 <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez o desafio: <b>{m.texto}</b> às {horaCurta(m.created_at)}</>
-                          : <>✅ <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}</>}
+                          ? <><span style={{ display: 'inline-flex', verticalAlign: -2, color: ENERGIA }}>{IcoTarget}</span> <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez o desafio: <b>{m.texto}</b> às {horaCurta(m.created_at)}</>
+                          : <><span style={{ display: 'inline-flex', verticalAlign: -2, color: ENERGIA }}>{IcoCheckCircle}</span> <b style={{ color: ENERGIA }}>{m.player.split(' ')[0]}</b> fez check-in às {horaCurta(m.created_at)}</>}
                       </div>
                       {m.media_url && (
                         <img src={m.media_url} alt="" onClick={() => setChatImgZoom(m.media_url)} role="button" aria-label="Ver foto em tela grande"
@@ -2165,12 +2211,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           </>
         )}
 
-        {/* ── BUSCAR (pessoas, vídeos e áudios) ── */}
+        {/* ── BUSCAR (pessoas, fotos, vídeos e áudios) ── */}
         {topTab === 'buscar' && (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 14px 24px' }}>
+            {/* Player único das prévias de áudio da biblioteca. É <video> (não
+                <audio>) pelo mesmo motivo do FeedMusic: no Safari/iPhone a
+                política de autoplay do <audio> barra o som. */}
+            <video ref={previewAudioRef} playsInline onEnded={() => setPreviewAudioId(null)}
+              style={{ position: 'fixed', bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+
             <div style={{ position: 'relative', marginBottom: 12 }}>
-              <input value={buscaQuery} onChange={e => setBuscaQuery(e.target.value)} placeholder="Buscar pessoa, vídeo ou áudio..."
-                style={{ width: '100%', padding: '11px 34px 11px 14px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.textD, display: 'flex', pointerEvents: 'none' }}>{IcoSearch}</span>
+              <input value={buscaQuery} onChange={e => setBuscaQuery(e.target.value)} placeholder="Buscar pessoa, legenda ou áudio..."
+                style={{ width: '100%', padding: '11px 34px 11px 36px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page || '#fff',
                   fontSize: 14, color: T.text, outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
               {buscaQuery && (
                 <button onClick={() => setBuscaQuery('')} className="fit-btn" title="Limpar"
@@ -2179,8 +2232,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-              {[['tudo', 'Tudo'], ['pessoas', '👥 Pessoas'], ['videos', '🎬 Vídeos'], ['audios', '🎵 Áudios']].map(([id, label]) => (
+            <div style={{ display: 'flex', gap: 5, marginBottom: 16 }}>
+              {[['tudo', 'Tudo'], ['pessoas', 'Pessoas'], ['fotos', 'Fotos'], ['videos', 'Vídeos'], ['audios', 'Áudios']].map(([id, label]) => (
                 <button key={id} className="fit-btn" onClick={() => setBuscaFiltro(id)}
                   style={{ flex: 1, padding: '7px 2px', borderRadius: 999, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap',
                     border: `1.5px solid ${buscaFiltro === id ? ENERGIA : T.border}`, background: buscaFiltro === id ? `${ENERGIA}16` : 'transparent',
@@ -2190,9 +2243,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
             {!buscaQuery.trim() ? (
               <div style={{ textAlign: 'center', padding: '46px 20px', color: T.textT }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Procure alguém ou algum post</div>
-                <div style={{ fontSize: 12, lineHeight: 1.5 }}>Digite o nome de uma pessoa pra abrir o perfil dela, ou parte de uma legenda/música pra achar o vídeo ou áudio.</div>
+                <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Procure alguém, um post ou um áudio</div>
+                <div style={{ fontSize: 12, lineHeight: 1.5 }}>Digite o nome de uma pessoa pra abrir o perfil dela, ou uma palavra da legenda pra achar o post.</div>
               </div>
             ) : !buscaResultados ? (
               <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>
@@ -2201,7 +2256,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               </div>
             ) : buscaResultados.total === 0 ? (
               <div style={{ textAlign: 'center', padding: '46px 20px', color: T.textT }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>🤔</div>
+                <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12.01" y2="16.5"/></svg>
+                </div>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, marginBottom: 5 }}>Nada encontrado</div>
                 <div style={{ fontSize: 12 }}>Tente outro nome ou outra palavra.</div>
               </div>
@@ -2209,7 +2266,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               <>
                 {(buscaFiltro === 'tudo' || buscaFiltro === 'pessoas') && buscaResultados.pessoas.length > 0 && (
                   <div style={{ marginBottom: 20 }}>
-                    <SecaoLabel icon="👥">Pessoas ({buscaResultados.pessoas.length})</SecaoLabel>
+                    <SecaoLabel icon={IcoUsers}>Pessoas ({buscaResultados.pessoas.length})</SecaoLabel>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {buscaResultados.pessoas.map(p => (
                         <div key={p.player} onClick={() => abrirPerfilDe(p.player)} className="fit-btn"
@@ -2227,39 +2284,66 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   </div>
                 )}
 
-                {(buscaFiltro === 'tudo' || buscaFiltro === 'videos') && buscaResultados.videos.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <SecaoLabel icon="🎬">Vídeos ({buscaResultados.videos.length})</SecaoLabel>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-                      {buscaResultados.videos.map(it => <ThumbCell key={it.id} it={it} onClick={() => irParaFeed(it)} />)}
+                {/* Fotos e vídeos em LISTA (não grade) de propósito: numa busca o que
+                    importa é ver a LEGENDA que casou, e grade de miniatura não mostra texto. */}
+                {[['fotos', 'Fotos', IcoImg], ['videos', 'Vídeos', IcoVideo]].map(([cat, titulo, icone]) => (
+                  (buscaFiltro === 'tudo' || buscaFiltro === cat) && buscaResultados[cat].length > 0 && (
+                    <div key={cat} style={{ marginBottom: 20 }}>
+                      <SecaoLabel icon={icone}>{titulo} ({buscaResultados[cat].length})</SecaoLabel>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {buscaResultados[cat].map(it => (
+                          <div key={it.id} onClick={() => irParaFeed(it)} className="fit-btn"
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 12,
+                              background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
+                            <div style={{ width: 46, height: 46, borderRadius: 9, overflow: 'hidden', flexShrink: 0, background: '#111' }}>
+                              {isVideoUrl(it.photo_url)
+                                ? <video src={it.photo_url} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <img src={it.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 600, color: it.caption ? T.text : T.textD, lineHeight: 1.35,
+                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                {it.caption || 'Sem legenda'}
+                              </div>
+                              <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{it.player.split(' ').slice(0, 2).join(' ')}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                ))}
 
                 {(buscaFiltro === 'tudo' || buscaFiltro === 'audios') && buscaResultados.audios.length > 0 && (
                   <div style={{ marginBottom: 20 }}>
-                    <SecaoLabel icon="🎵">Áudios ({buscaResultados.audios.length})</SecaoLabel>
+                    <SecaoLabel icon={IcoLib}>Áudios na biblioteca ({buscaResultados.audios.length})</SecaoLabel>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {buscaResultados.audios.map(it => (
-                        <div key={it.id} onClick={() => irParaFeed(it)} className="fit-btn"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
-                            background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${ENERGIA}18`, fontSize: 17 }}>🎵</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.music_title || 'Música'}</div>
-                            <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.player.split(' ').slice(0, 2).join(' ')}</div>
+                      {buscaResultados.audios.map(a => {
+                        const tocandoEsse = previewAudioId === a.id;
+                        return (
+                          <div key={a.id} onClick={() => alternarPreviewAudio(a)} className="fit-btn"
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
+                              background: tocandoEsse ? `${ENERGIA}14` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
+                              border: `1px solid ${tocandoEsse ? ENERGIA : T.border}`, cursor: 'pointer' }}>
+                            <div style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              background: tocandoEsse ? ENERGIA : `${ENERGIA}18`, color: tocandoEsse ? '#fff' : ENERGIA }}>
+                              {tocandoEsse ? IcoPause : IcoPlay}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title}</div>
+                              <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {a.player.split(' ').slice(0, 2).join(' ')}{a.duration ? ` · ${Math.round(a.duration)}s` : ''}
+                              </div>
+                            </div>
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: ENERGIA, flexShrink: 0 }}>Abrir</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
                 {/* O filtro escolhido pode não ter nada mesmo havendo resultado em outra categoria */}
-                {((buscaFiltro === 'pessoas' && !buscaResultados.pessoas.length) ||
-                  (buscaFiltro === 'videos'  && !buscaResultados.videos.length)  ||
-                  (buscaFiltro === 'audios'  && !buscaResultados.audios.length)) && (
+                {buscaFiltro !== 'tudo' && buscaResultados[buscaFiltro].length === 0 && (
                   <div style={{ textAlign: 'center', padding: '30px 20px', color: T.textT, fontSize: 12.5 }}>
                     Nada nessa categoria — experimente a aba <b style={{ color: T.textS }}>Tudo</b>.
                   </div>
@@ -2303,7 +2387,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               </div>
 
               {!meusItens.length ? (
-                <div style={{ textAlign: 'center', padding: '30px 10px', color: T.textT, fontSize: 13 }}>Você ainda não postou nada. Bora fazer seu primeiro check-in! 💪</div>
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: T.textT, fontSize: 13 }}>Você ainda não postou nada. Bora fazer seu primeiro check-in!</div>
               ) : (
                 <>
                   <div style={{ fontSize: 12, fontWeight: 700, color: T.textS, marginBottom: 8 }}>Meus posts</div>
@@ -2342,14 +2426,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Check-In / Postar no Feed ── */}
       {(sheet === 'checkin' || sheet === 'post') && (
-        <Sheet title={sheet === 'checkin' ? 'Registrar treino 📸' : 'Postar no feed 🖼️'} onClose={() => { setSheet(null); limparPost(); }}>
+        <Sheet title={sheet === 'checkin' ? 'Registrar treino' : 'Postar no feed'} onClose={() => { setSheet(null); limparPost(); }}>
           {sheet === 'checkin' && checkinHojeFeito === null ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Verificando...</div>
           ) : sheet === 'checkin' && checkinHojeFeito ? (
             <div style={{ padding: '32px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
+              <div style={{ color: '#16a34a', display: 'flex', justifyContent: 'center', marginBottom: 12 }}><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 10.8 15.3 16 9.5"/></svg></div>
               <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Você já fez check-in hoje!</div>
-              <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5 }}>O check-in é 1 por dia — volta amanhã pra registrar o próximo treino. Se quiser postar mais fotos hoje, use "Postar no Feed" (não conta ranking, mas fica lá do mesmo jeito 💪).</div>
+              <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5 }}>O check-in é 1 por dia — volta amanhã pra registrar o próximo treino. Se quiser postar mais fotos hoje, use "Postar no Feed" (não conta ranking, mas fica lá do mesmo jeito).</div>
             </div>
           ) : (
           <div style={{ padding: 18 }}>
@@ -2368,18 +2452,20 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             )}
 
             <div style={{ marginBottom: 18 }}>
-              <SecaoLabel icon={sheet === 'checkin' ? '📸' : '📷'}>{sheet === 'checkin' ? 'Foto do treino' : 'Mídia'}</SecaoLabel>
+              <SecaoLabel icon={IcoCamera}>{sheet === 'checkin' ? 'Foto do treino' : 'Mídia'}</SecaoLabel>
               {sheet === 'checkin' ? (
                 // Check-in só aceita foto tirada na hora pelo próprio Uniko FIT (sem
                 // galeria) — pedido explícito, evita gente postando foto velha/de outra
                 // pessoa. Tem escolha de filtro de cor antes de confirmar.
                 postPreview ? (
-                  <div>
-                    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', aspectRatio: '4/5', background: '#111', boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', width: 148, height: 148, flexShrink: 0, background: '#111', boxShadow: '0 4px 14px rgba(0,0,0,.16)' }}>
                       <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <button className="fit-btn" onClick={() => { setPostFile(null); setPostPreview(null); }}
-                      style={{ width: '100%', marginTop: 8, padding: 10, borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'none', color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>↺ Tirar outra foto</button>
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'none', color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+                      {IcoFlip} Tirar outra
+                    </button>
                   </div>
                 ) : (
                   <CameraCapture energia={ENERGIA} onCapture={(file, url) => { setPostFile(file); setPostPreview(url); }} />
@@ -2387,20 +2473,25 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               ) : (
                 <>
                   <input ref={postFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
+                  {/* Prévia/seletor num QUADRADO COMPACTO (não mais 4/5 ocupando a
+                      sheet inteira) — a legenda e a música ficam visíveis sem rolar. */}
                   {postPreview ? (
-                    <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', cursor: 'pointer', aspectRatio: '4/5', background: '#111', boxShadow: '0 6px 20px rgba(0,0,0,.18)' }}>
+                    <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+                      width: 148, height: 148, background: '#111', boxShadow: '0 4px 14px rgba(0,0,0,.16)' }}>
                       {postIsVideo
-                        ? <video src={postPreview} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <video src={postPreview} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      <div style={{ position: 'absolute', bottom: 8, right: 8, padding: '5px 11px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>Trocar {postIsVideo ? 'vídeo' : 'foto'}</div>
+                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '4px 0', textAlign: 'center',
+                        background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10.5, fontWeight: 700, pointerEvents: 'none' }}>Trocar</div>
                     </div>
                   ) : (
                     <button className="fit-btn" onClick={() => postFileRef.current?.click()}
-                      style={{ width: '100%', aspectRatio: '4/5', borderRadius: 16, border: `2px dashed ${ENERGIA}66`, background: `linear-gradient(160deg, ${ENERGIA}10, ${FOGO}08)`,
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}>
-                      <div style={{ fontSize: 42 }}>📷🎬</div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: ENERGIA }}>Escolher foto ou vídeo</div>
-                      <div style={{ fontSize: 11.5, color: T.textT }}>Toque em "🎵 Adicionar música" pra usar o áudio de um vídeo</div>
+                      style={{ width: 148, height: 148, borderRadius: 14, border: `2px dashed ${ENERGIA}66`, background: `linear-gradient(160deg, ${ENERGIA}10, ${FOGO}08)`,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7, cursor: 'pointer', padding: 10 }}>
+                      <span style={{ color: ENERGIA, display: 'flex' }}>
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                      </span>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: ENERGIA, textAlign: 'center', lineHeight: 1.25 }}>Escolher<br />foto ou vídeo</span>
                     </button>
                   )}
                 </>
@@ -2408,9 +2499,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </div>
 
             <div style={{ marginBottom: 18, padding: 14, borderRadius: 16, background: `linear-gradient(135deg, ${ENERGIA}12, ${FOGO}08)`, border: `1.5px solid ${ENERGIA}33` }}>
-              <SecaoLabel icon="✍️">Legenda</SecaoLabel>
+              <SecaoLabel icon={IcoPen}>Legenda</SecaoLabel>
               <textarea value={postCaption} onChange={e => setPostCaption(e.target.value)}
-                placeholder={sheet === 'checkin' ? 'Como foi o treino hoje? 💪' : 'O que você quer compartilhar?'} rows={4} maxLength={220}
+                placeholder={sheet === 'checkin' ? 'Como foi o treino hoje?' : 'O que você quer compartilhar?'} rows={4} maxLength={220}
                 style={{ width: '100%', padding: '11px 13px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 14,
                   color: T.text, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'var(--font-body)', lineHeight: 1.45 }} />
               <div style={{ textAlign: 'right', fontSize: 10.5, color: T.textD, marginTop: 4 }}>{postCaption.length}/220</div>
@@ -2418,10 +2509,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
             {sheet === 'post' && (
               <div style={{ marginBottom: 18 }}>
-                <SecaoLabel icon="🎵">Música (opcional)</SecaoLabel>
+                <SecaoLabel icon={IcoMusic}>Música (opcional)</SecaoLabel>
                 {postMusic ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: `${ENERGIA}0f`, border: `1px solid ${ENERGIA}33` }}>
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>🎵</span>
+                    <span style={{ flexShrink: 0, color: ENERGIA, display: 'flex' }}>{IcoMusic}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{postMusic.title}</div>
                       <div style={{ fontSize: 11, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{postMusic.duration}s</div>
@@ -2433,20 +2524,20 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <button className="fit-btn" onClick={() => setMusicaAberta(true)}
                     style={{ width: '100%', padding: '12px 12px', borderRadius: 12, border: `1.5px dashed ${T.border}`, background: 'transparent',
                       color: T.textS, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    🎵 Adicionar música
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoMusic} Adicionar música</span>
                   </button>
                 )}
               </div>
             )}
 
-            {postMsg && <div style={{ fontSize: 12.5, marginBottom: 12, padding: '8px 13px', borderRadius: 8,
-              color: postMsg.startsWith('✅') ? '#16a34a' : '#C04050', background: postMsg.startsWith('✅') ? 'rgba(34,197,94,.08)' : 'rgba(192,64,80,.06)' }}>{postMsg}</div>}
+            {postMsg && <div style={{ fontSize: 12.5, marginBottom: 12, padding: '8px 13px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 7,
+              color: postMsg.ok ? '#16a34a' : '#C04050', background: postMsg.ok ? 'rgba(34,197,94,.08)' : 'rgba(192,64,80,.06)' }}>{postMsg.ok ? IcoCheckCircle : IcoAlert}<span>{postMsg.texto}</span></div>}
 
             <button className="fit-btn" onClick={() => postarFoto(sheet)} disabled={postSaving || !postFile}
               style={{ width: '100%', padding: 13, borderRadius: 12, border: 'none', color: '#fff', fontWeight: 800, fontSize: 14,
                 cursor: (postSaving || !postFile) ? 'not-allowed' : 'pointer', opacity: (postSaving || !postFile) ? .55 : 1,
                 background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: (postSaving || !postFile) ? 'none' : `0 6px 18px ${EG}` }}>
-              {postSaving ? 'Enviando...' : (sheet === 'checkin' ? '🔥 Registrar check-in' : '🖼️ Postar no feed')}
+              {postSaving ? 'Enviando...' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{sheet === 'checkin' ? IcoFlame : IcoImg}{sheet === 'checkin' ? 'Registrar check-in' : 'Postar no feed'}</span>}
             </button>
           </div>
           )}
@@ -2454,14 +2545,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       )}
 
       {musicaAberta && (
-        <Sheet title="Adicionar música 🎵" onBack={() => setMusicaAberta(false)} onClose={() => setMusicaAberta(false)}>
+        <Sheet title="Adicionar música" onBack={() => setMusicaAberta(false)} onClose={() => setMusicaAberta(false)}>
           <MusicPicker energia={ENERGIA} fogo={FOGO} name={name} onEscolher={(m) => { setPostMusic(m); setMusicaAberta(false); }} />
         </Sheet>
       )}
 
       {/* ── Desafios: pose diária individual (não repete na semana) ── */}
       {sheet === 'desafios' && (
-        <Sheet title="Desafios 🎯" onClose={() => setSheet(null)}>
+        <Sheet title="Desafios" onClose={() => setSheet(null)}>
           <div style={{ padding: '14px 16px 0' }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 4, justifyContent: 'center' }}>
               {[['hoje', 'Desafio de hoje'], ['historico', 'Histórico']].map(([id, label]) => {
@@ -2487,13 +2578,13 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, lineHeight: 1.35 }}>{meuDesafioHoje.texto}</div>
                 </div>
                 {checkinHojeFeito && checkinHojeDesafioId === meuDesafioHoje.id ? (
-                  <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>✅ Desafio concluído hoje!</div>
+                  <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoCheckCircle} Desafio concluído hoje!</div>
                 ) : checkinHojeFeito ? (
-                  <div style={{ marginTop: 12, fontSize: 11.5, opacity: .9 }}>Você já fez o check-in de hoje sem marcar esse desafio — vale igual, relaxa 💪</div>
+                  <div style={{ marginTop: 12, fontSize: 11.5, opacity: .9 }}>Você já fez o check-in de hoje sem marcar esse desafio — vale igual, relaxa</div>
                 ) : (
                   <button className="fit-btn" onClick={() => abrirCheckinComDesafio(meuDesafioHoje)}
                     style={{ marginTop: 12, width: '100%', padding: 11, borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: 'rgba(255,255,255,.22)', color: '#fff', fontWeight: 800, fontSize: 13 }}>📸 Fazer check-in com esse desafio</button>
+                      background: 'rgba(255,255,255,.22)', color: '#fff', fontWeight: 800, fontSize: 13 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{IcoCamera} Fazer check-in com esse desafio</span></button>
                 )}
               </div>
 
@@ -2521,7 +2612,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 <div style={{ textAlign: 'center', padding: 30, color: T.textT, fontSize: 13 }}>Carregando...</div>
               ) : desafiosHistorico.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                  <div style={{ fontSize: 36, marginBottom: 10 }}>🎯</div>
+                  <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 10 }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></div>
                   <div style={{ fontSize: 13, color: T.textT }}>Você ainda não marcou nenhum desafio num check-in.</div>
                 </div>
               ) : (
@@ -2530,7 +2621,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     const pose = posesPorId[h.desafio_pose_id];
                     return (
                       <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
-                        {pose ? <PoseThumb pose={pose} size={40} round={9} /> : <div style={{ width: 40, height: 40, borderRadius: 9, flexShrink: 0, background: 'rgba(128,128,128,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>❓</div>}
+                        {pose ? <PoseThumb pose={pose} size={40} round={9} /> : <div style={{ width: 40, height: 40, borderRadius: 9, flexShrink: 0, background: 'rgba(128,128,128,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>?</div>}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>{pose ? pose.texto : 'Pose removida'}</div>
                           <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{new Date(h.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} às {horaCurta(h.created_at)}</div>
@@ -2550,7 +2641,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Ranking ── */}
       {sheet === 'ranking' && (
-        <Sheet title="Ranking 🏆" onClose={() => setSheet(null)}>
+        <Sheet title="Ranking" onClose={() => setSheet(null)}>
           <div style={{ padding: '16px 16px 24px' }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
               {[['mes', 'Este mês'], ['total', 'Todos os tempos']].map(([id, label]) => {
@@ -2570,7 +2661,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               const lista = Object.entries(mapa).sort((a, b) => b[1] - a[1]);
               if (!lista.length) return (
                 <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>
-                  Ninguém treinou {rankPeriodo === 'mes' ? 'este mês' : 'ainda'}. Bora ser o primeiro! 💪
+                  Ninguém treinou {rankPeriodo === 'mes' ? 'este mês' : 'ainda'}. Bora ser o primeiro!
                 </div>
               );
               const medalha = ['🥇', '🥈', '🥉'];
@@ -2581,7 +2672,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     display: 'flex', alignItems: 'center', gap: 12, boxShadow: `0 8px 24px ${EG}`, color: '#fff' }}>
                     <img src={photos[lider[0]] || '/UNIKO_NEW.png'} alt="" style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', border: '3px solid #fff', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.05em', opacity: .9 }}>🏆 {rankPeriodo === 'mes' ? 'ATLETA DO MÊS' : 'MAIOR RATO DE ACADEMIA'}</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.05em', opacity: .9, display: 'flex', alignItems: 'center', gap: 5 }}>{IcoTrophy} {rankPeriodo === 'mes' ? 'ATLETA DO MÊS' : 'MAIOR RATO DE ACADEMIA'}</div>
                       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>{lider[0].split(' ').slice(0, 2).join(' ')}</div>
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 800 }}>{lider[1]}<span style={{ fontSize: 10.5, fontWeight: 600, opacity: .85 }}> dias</span></div>
@@ -2606,12 +2697,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Notificações: curtidas e comentários nas minhas fotos ── */}
       {sheet === 'notif' && (
-        <Sheet title="Notificações 🔔" onClose={fecharNotificacoes}>
+        <Sheet title="Notificações" onClose={fecharNotificacoes}>
           {!notifs ? (
             <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>
           ) : notifs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🔔</div>
+              <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 10 }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
               <div style={{ fontSize: 13, color: T.textT }}>Ninguém curtiu ou comentou suas fotos ainda.</div>
             </div>
           ) : (
@@ -2623,7 +2714,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={() => setSnapshotLastRead(new Date())} className="fit-btn"
                     style={{ border: 'none', background: 'none', cursor: 'pointer', color: ENERGIA, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 4 }}>
-                    ✓ Marcar como lida
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoCheckCircle} Marcar como lida</span>
                   </button>
                 </div>
               )}
@@ -2657,7 +2748,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Amigos: lista de pessoas + perfil individual ── */}
       {sheet === 'amigos' && (
-        <Sheet title={detalhesPlayer ? detalhesPlayer.split(' ').slice(0, 2).join(' ') : 'Amigos 👥'}
+        <Sheet title={detalhesPlayer ? detalhesPlayer.split(' ').slice(0, 2).join(' ') : 'Amigos'}
           onBack={detalhesPlayer ? () => setDetalhesPlayer(null) : undefined}
           onClose={() => { setSheet(null); setDetalhesPlayer(null); }}>
           {!detalhesLista ? (
@@ -2717,7 +2808,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <div onClick={e => e.stopPropagation()} className="fit-pop" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
             width: '100%', maxWidth: 480, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 40px rgba(0,0,0,.3)' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>💬 Comentários</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', gap: 7 }}>{IcoComment} Comentários</div>
               <button onClick={() => setComentAberto(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 20, lineHeight: 1 }}>×</button>
             </div>
             <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2786,7 +2877,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         <div onClick={() => setPoseZoom(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.82)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'pointer' }}>
           <button onClick={() => setPoseZoom(null)} aria-label="Fechar"
-            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoClose}</button>
           {poseZoom.image_url ? (
             <img src={poseZoom.image_url} alt={poseZoom.texto} onClick={e => e.stopPropagation()}
               style={{ maxWidth: '92%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
@@ -2806,7 +2897,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         <div onClick={() => setChatImgZoom(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'pointer' }}>
           <button onClick={() => setChatImgZoom(null)} aria-label="Fechar"
-            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoClose}</button>
           {isVideoUrl(chatImgZoom)
             ? <video src={chatImgZoom} controls autoPlay onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />
             : <img src={chatImgZoom} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 16, boxShadow: '0 12px 40px rgba(0,0,0,.5)' }} />}
@@ -2820,7 +2911,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <div className="fit-pop" style={{ background: cardBg, borderRadius: 20, maxWidth: 380, width: '100%', maxHeight: '86vh', overflowY: 'auto',
             padding: '28px 24px', boxShadow: '0 20px 60px rgba(0,0,0,.4)', border: `1px solid ${T.border}` }}>
             {[
-              <div key="emoji" style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>💪</div>,
+              <div key="emoji" style={{ color: ENERGIA, display: 'flex', justifyContent: 'center', marginBottom: 6 }}><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="8" width="4" height="8" rx="1.3"/><rect x="18" y="8" width="4" height="8" rx="1.3"/><line x1="6" y1="12" x2="18" y2="12"/></svg></div>,
               <div key="titulo" style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, textAlign: 'center', marginBottom: 10 }}>Bem-vindo(a) ao Uniko FIT!</div>,
               <div key="intro" style={{ fontSize: 13, color: T.textS, lineHeight: 1.5, textAlign: 'center', marginBottom: 16 }}>Antes de continuar, um combinado rápido pra esse espaço ser bom pra todo mundo:</div>,
               <div key="r1" style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 10, fontSize: 13, color: T.text, lineHeight: 1.4 }}><span style={{ color: ENERGIA, flexShrink: 0 }}>{IcoCheckCircle}</span>Não compartilhe indevidamente as fotos/vídeos daqui fora do Uniko FIT — nem "de zoeira".</div>,
