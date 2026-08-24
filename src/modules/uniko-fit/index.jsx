@@ -516,6 +516,72 @@ const FeedVideo = ({ src, style, muted, ativo, postId, onEl, onRatio }) => {
   return <video ref={el => { ref.current = el; onEl?.(el); }} src={src} muted={muted} loop playsInline preload="auto" style={style} />;
 };
 
+/* ── Carrossel de mídias de um post (ago/2026, estilo Instagram) ─────────────
+   Arrasta pro lado pra ver as outras fotos/vídeos. Usa scroll-snap horizontal
+   NATIVO (não lib, nem drag manual): o navegador já dá inércia e "trava" no
+   slide certo, e o gesto horizontal não briga com o scroll-snap VERTICAL do
+   feed — cada eixo é de um container diferente, o navegador resolve sozinho.
+   `onIndice` avisa o pai qual slide está visível pra ele pausar/tocar o vídeo
+   certo (só o slide à vista toca). */
+const FeedCarrossel = ({ midias, muted, onEl, indice, onIndice, postAtivo, postId, onRatio }) => {
+  const scrollRef = useRef(null);
+
+  // Reporta a visibilidade DO POST pro pai (mesma eleição de "quem toca som"
+  // dos demais players) — sem isso um carrossel só de vídeo, sem música,
+  // nunca seria eleito e o vídeo não tocaria.
+  useEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    const io = new IntersectionObserver(([e]) => onRatio(postId, e.intersectionRatio), { threshold: IO_THRESHOLDS });
+    io.observe(el);
+    return () => { io.disconnect(); onRatio(postId, 0); };
+  }, [postId, onRatio]);
+
+  // Descobre o slide atual pela posição do scroll (mais confiável no mobile
+  // que um IntersectionObserver por slide, e não depende de threshold).
+  const aoRolar = () => {
+    const el = scrollRef.current; if (!el || !el.clientWidth) return;
+    const i = Math.round(el.scrollLeft / el.clientWidth);
+    if (i !== indice && i >= 0 && i < midias.length) onIndice(i);
+  };
+
+  return (
+    <>
+      <div ref={scrollRef} onScroll={aoRolar} className="fit-carrossel"
+        style={{ position: 'absolute', inset: 0, display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory' }}>
+        {midias.map((url, i) => (
+          <div key={url + i} style={{ position: 'relative', flex: '0 0 100%', width: '100%', height: '100%', scrollSnapAlign: 'center', scrollSnapStop: 'always' }}>
+            {isVideoUrl(url)
+              // Toca só se o POST está à vista E é o slide atual — senão os
+              // vídeos dos outros slides tocariam juntos (mesmo problema que
+              // já deu entre posts do feed).
+              ? <FeedVideo src={url} muted={muted} ativo={postAtivo && indice === i} postId={`${postId}-${i}`} onRatio={() => {}}
+                  onEl={i === 0 ? onEl : undefined}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          </div>
+        ))}
+      </div>
+
+      {midias.length > 1 && (
+        <>
+          {/* Contador "2/5" */}
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', padding: '3px 10px', borderRadius: 999,
+            background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>
+            {indice + 1}/{midias.length}
+          </div>
+          {/* Bolinhas */}
+          <div style={{ position: 'absolute', bottom: 92, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5, pointerEvents: 'none' }}>
+            {midias.map((_, i) => (
+              <span key={i} style={{ width: i === indice ? 7 : 5, height: i === indice ? 7 : 5, borderRadius: '50%',
+                background: i === indice ? '#fff' : 'rgba(255,255,255,.5)', transition: 'all .18s' }} />
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+};
+
 /* ── Música de um post (ago/2026, estilo TikTok) ─────────────────────────────
    Mesmo princípio do FeedVideo (o pai elege quem toca) — só que em loop
    dentro do TRECHINHO escolhido (`start`..`start+duration`) do áudio (upload
@@ -1035,6 +1101,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 .fit-btn:active:not(:disabled) { transform: scale(.94); }
 .fit-feed { scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
 .fit-feed::-webkit-scrollbar { display: none; }
+/* Carrossel: rolagem horizontal sem barra visível. O touch-action com pan-x e
+   pan-y deixa os dois eixos passarem — arrastar de lado troca a foto, arrastar
+   pra cima/baixo continua rolando o feed.
+   (Sem crase aqui dentro: este CSS mora num template literal do JS.) */
+.fit-carrossel { scrollbar-width: none; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.fit-carrossel::-webkit-scrollbar { display: none; }
 .fit-card { scroll-snap-align: start; scroll-snap-stop: always; }
 .fit-scroll { scrollbar-width: thin; scrollbar-color: ${ENERGIA}99 rgba(128,128,128,.14); -webkit-overflow-scrolling: touch; }
 .fit-scroll::-webkit-scrollbar { width: 6px; }
@@ -1157,6 +1229,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // Detecção manual (não `onDoubleClick` nativo) pra funcionar igual em toque e mouse.
   const lastTapRef = useRef({ id: null, t: 0 });
   const [heartBurst, setHeartBurst] = useState(null); // id do post com o coração animando
+  const [carrosselIdx, setCarrosselIdx] = useState({}); // id do post → slide visível no carrossel
   const handlePostTap = (post) => {
     const now = Date.now();
     const last = lastTapRef.current;
@@ -1389,16 +1462,36 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   const postIsVideo = !!postFile?.type?.startsWith('video/');
-  const escolherFoto = (f) => {
-    setPostFile(f || null); setPostMsg(null);
-    if (!f) { setPostPreview(null); return; }
-    if (f.type.startsWith('video/')) { setPostPreview(URL.createObjectURL(f)); return; } // vídeo: prévia via blob URL, sem carregar tudo em base64
-    const reader = new FileReader();
-    reader.onload = (e) => setPostPreview(e.target.result);
-    reader.readAsDataURL(f);
+  // Fotos/vídeos EXTRA do carrossel (o `postFile` continua sendo a CAPA, item 0)
+  // — manter a capa separada evita mexer em todo o resto que já lê postFile.
+  const MAX_CARROSSEL = 10;
+  const [postExtras, setPostExtras] = useState([]); // [{ file, preview }]
+  const escolherFoto = (lista) => {
+    const arquivos = Array.from(lista || []).slice(0, MAX_CARROSSEL);
+    setPostMsg(null);
+    if (!arquivos.length) { setPostFile(null); setPostPreview(null); limparExtras(); return; }
+    const [capa, ...resto] = arquivos;
+    setPostFile(capa);
+    setPostPreview(URL.createObjectURL(capa));
+    limparExtras();
+    setPostExtras(resto.map(f => ({ file: f, preview: URL.createObjectURL(f) })));
+  };
+  const limparExtras = () => {
+    setPostExtras(prev => {
+      prev.forEach(e => { try { URL.revokeObjectURL(e.preview); } catch { /* já liberado */ } });
+      return [];
+    });
+  };
+  const removerExtra = (i) => {
+    setPostExtras(prev => {
+      const alvo = prev[i];
+      if (alvo) { try { URL.revokeObjectURL(alvo.preview); } catch { /* já liberado */ } }
+      return prev.filter((_, j) => j !== i);
+    });
   };
   const limparPost = () => {
     if (postPreview?.startsWith('blob:')) { try { URL.revokeObjectURL(postPreview); } catch { /* já liberado */ } }
+    limparExtras();
     setPostFile(null); setPostPreview(null); setPostCaption(''); setPostMsg(null); setDesafioAtivo(null); setPostMusic(null); if (postFileRef.current) postFileRef.current.value = '';
   };
 
@@ -1415,16 +1508,26 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         const { data: jaFez } = await supabase.from('uniko_fit_checkins').select('id').eq('player', name).eq('kind', 'checkin').gte('created_at', start).lt('created_at', end).limit(1);
         if (jaFez?.length) { setCheckinHojeFeito(true); setPostMsg({ ok: false, texto: 'Você já fez o check-in de hoje! Volte amanhã' }); setPostSaving(false); return; }
       }
-      const ext = (postFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const cpf = (getAuthUser()?.cpf || '').replace(/\D/g, '') || 'anon';
-      const path = `${cpf}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, postFile, { contentType: postFile.type || undefined, upsert: false });
-      if (upErr) throw new Error('Falha ao enviar a foto: ' + upErr.message);
-      const { data: pub } = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path);
+      // Capa + extras do carrossel. Sobe na ordem pra `media_urls` sair na
+      // mesma sequência que a pessoa escolheu.
+      const paraSubir = [postFile, ...postExtras.map(e => e.file)];
+      const urls = [];
+      for (let i = 0; i < paraSubir.length; i++) {
+        const f = paraSubir[i];
+        const ext = (f.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+        const path = `${cpf}/${Date.now()}-${i}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, f, { contentType: f.type || undefined, upsert: false });
+        if (upErr) throw new Error(`Falha ao enviar ${paraSubir.length > 1 ? `a mídia ${i + 1}` : 'a foto'}: ` + upErr.message);
+        urls.push(supabase.storage.from('uniko-fit-fotos').getPublicUrl(path).data.publicUrl);
+      }
       // A música já foi enviada pro Storage (e pra biblioteca, se era nova) na
       // hora em que a pessoa confirmou o trecho no MusicPicker — aqui só
       // referencia a URL que já existe, não sobe nada de novo.
-      const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: pub.publicUrl, caption: postCaption.trim() || null, kind, desafio_pose_id: kind === 'checkin' ? (desafioAtivo?.id || null) : null,
+      // `photo_url` = capa (o resto do app lê essa coluna); `media_urls` só
+      // quando tem mais de uma — posts de mídia única seguem exatamente como antes.
+      const { error } = await supabase.from('uniko_fit_checkins').insert({ player: name, photo_url: urls[0], caption: postCaption.trim() || null, kind, desafio_pose_id: kind === 'checkin' ? (desafioAtivo?.id || null) : null,
+        media_urls: urls.length > 1 ? urls : null,
         music_url: postMusic?.url || null, music_title: postMusic?.title || null, music_artist: null,
         music_start: postMusic?.start ?? null, music_duration: postMusic?.duration ?? null });
       if (error) {
@@ -1439,7 +1542,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         // qual foi (ver render de `tipo==='checkin'` no Bate-Papo: usa
         // `m.texto` quando presente pra trocar "fez check-in" por "fez o
         // desafio: <texto>").
-        try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: pub.publicUrl, texto: desafioAtivo?.texto || null }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
+        try { await supabase.from('uniko_fit_chat').insert({ player: name, tipo: 'checkin', media_url: urls[0], texto: desafioAtivo?.texto || null }); } catch { /* aviso no chat é cortesia, não bloqueia o check-in */ }
       }
       setPostMsg({ ok: true, texto: kind === 'checkin' ? 'Check-in registrado! Bora treinar mais' : 'Postado no feed!' });
       setFullFeed(null); // invalida cache do ranking/detalhes pra refletir o novo item
@@ -1980,12 +2083,19 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <div key={post.id} ref={el => { if (el) feedItemRefs.current[post.id] = el; }} onClick={() => handlePostTap(post)}
                     className="fit-card" style={{ position: 'relative', width: '100%', height: '100%', background: '#111',
                       boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
-                    {isVideoUrl(post.photo_url)
-                      ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
-                          postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
-                          onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }}
-                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    {/* Post com várias mídias (media_urls) vira carrossel; com uma
+                        só continua exatamente como era antes. */}
+                    {(post.media_urls?.length > 1)
+                      ? <FeedCarrossel midias={post.media_urls} muted={post.music_url ? true : feedMuted}
+                          postId={String(post.id)} postAtivo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                          indice={carrosselIdx[post.id] || 0} onIndice={i => setCarrosselIdx(m => ({ ...m, [post.id]: i }))}
+                          onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }} />
+                      : isVideoUrl(post.photo_url)
+                        ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
+                            postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                            onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }}
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                     {/* Tem música escolhida no post (ver postarFoto/MusicPicker) — toca o
                         trechinho em loop; se o post também é vídeo, o vídeo acima já foi
                         forçado mudo (`post.music_url ? true : feedMuted`) pra não brigar. */}
@@ -2472,17 +2582,48 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                 )
               ) : (
                 <>
-                  <input ref={postFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files?.[0] || null)} />
+                  {/* `multiple`: dá pra mandar várias de uma vez e vira carrossel */}
+                  <input ref={postFileRef} type="file" accept="image/*,video/*" multiple style={{ display: 'none' }} onChange={e => escolherFoto(e.target.files)} />
                   {/* Prévia/seletor num QUADRADO COMPACTO (não mais 4/5 ocupando a
                       sheet inteira) — a legenda e a música ficam visíveis sem rolar. */}
                   {postPreview ? (
-                    <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
-                      width: 148, height: 148, background: '#111', boxShadow: '0 4px 14px rgba(0,0,0,.16)' }}>
-                      {postIsVideo
-                        ? <video src={postPreview} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '4px 0', textAlign: 'center',
-                        background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10.5, fontWeight: 700, pointerEvents: 'none' }}>Trocar</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
+                      <div onClick={() => postFileRef.current?.click()} style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+                        width: 148, height: 148, background: '#111', boxShadow: '0 4px 14px rgba(0,0,0,.16)' }}>
+                        {postIsVideo
+                          ? <video src={postPreview} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <img src={postPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                        {postExtras.length > 0 && (
+                          <div style={{ position: 'absolute', top: 6, left: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,.6)',
+                            color: '#fff', fontSize: 10, fontWeight: 800, pointerEvents: 'none' }}>CAPA</div>
+                        )}
+                        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '4px 0', textAlign: 'center',
+                          background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10.5, fontWeight: 700, pointerEvents: 'none' }}>Trocar</div>
+                      </div>
+
+                      {/* Miniaturas das mídias extras do carrossel */}
+                      {postExtras.map((ex, i) => (
+                        <div key={ex.preview} style={{ position: 'relative', width: 70, height: 70, borderRadius: 10, overflow: 'hidden', background: '#111' }}>
+                          {ex.file.type.startsWith('video/')
+                            ? <video src={ex.preview} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <img src={ex.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                          <button onClick={() => removerExtra(i)} className="fit-btn" title="Remover"
+                            style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                              background: 'rgba(0,0,0,.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+                          </button>
+                          <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 9.5, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,.8)' }}>{i + 2}</div>
+                        </div>
+                      ))}
+
+                      {postExtras.length + 1 < MAX_CARROSSEL && (
+                        <button className="fit-btn" onClick={() => postFileRef.current?.click()} title="Escolher outras"
+                          style={{ width: 70, height: 70, borderRadius: 10, border: `1.5px dashed ${T.border}`, background: 'transparent',
+                            color: T.textT, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          <span style={{ fontSize: 9 }}>mais</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <button className="fit-btn" onClick={() => postFileRef.current?.click()}
@@ -2491,8 +2632,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                       <span style={{ color: ENERGIA, display: 'flex' }}>
                         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                       </span>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: ENERGIA, textAlign: 'center', lineHeight: 1.25 }}>Escolher<br />foto ou vídeo</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: ENERGIA, textAlign: 'center', lineHeight: 1.25 }}>Escolher<br />fotos ou vídeos</span>
                     </button>
+                  )}
+                  {postPreview && (
+                    <div style={{ fontSize: 11, color: T.textT, marginTop: 7 }}>
+                      {postExtras.length > 0
+                        ? `${postExtras.length + 1} mídias — vira carrossel, dá pra arrastar pro lado no feed.`
+                        : 'Dica: dá pra escolher várias de uma vez e virar carrossel.'}
+                    </div>
                   )}
                 </>
               )}
