@@ -214,6 +214,10 @@ const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt 
 /* ── Matar (ago/2026) — só o Impostor, com recarga entre mortes. ── */
 const KILL_PROXIMIDADE = 90;      // distância (px do mapa) pra aparecer o botão de Matar
 const KILL_COOLDOWN_MS = 25000;   // tempo de recarga entre mortes, por impostor
+/* Trégua inicial: como todo mundo nasce EMPILHADO no centro (ver spawnFor),
+   sem isso o impostor mataria no primeiro segundo, na frente da sala toda.
+   Conta do sorteio, e o mapa só abre REVELACAO_MS depois. */
+const KILL_GRACA_INICIAL_MS = 20000;
 const MORTE_ANIM_MS = 4000;        // duração da animação de morte na tela da vítima (~4s)
 const REVELACAO_MS = 6000;        // quanto tempo a tela de revelação de papel fica antes de ir pro mapa sozinha
 const CORPO_PROXIMIDADE = 90;     // distância (px do mapa) pra aparecer o botão de Reportar
@@ -1280,6 +1284,7 @@ const TaskComputador = ({ onComplete }) => {
 };
 
 /* ── Tomar banho na sauna: segurar a temperatura na faixa boa até encher ── */
+const SAUNA_MIN = 52, SAUNA_MAX = 82;   // faixa verde da sauna (ver comentário no efeito)
 const TaskSauna = ({ onComplete }) => {
   const [temp, setTemp] = useState(20);       // 0..100
   const [progresso, setProgresso] = useState(0);
@@ -1290,20 +1295,24 @@ const TaskSauna = ({ onComplete }) => {
   useEffect(() => { tempRef.current = temp; }, [temp]);
   const done = progresso >= 1;
   useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
-  // A temperatura sobe enquanto segura e cai sozinha ao soltar; só conta
-  // progresso na faixa ideal (60–80) — segurar direto passa do ponto.
+  /* A temperatura sobe enquanto segura e cai sozinha ao soltar; só conta
+     progresso na faixa ideal — segurar direto passa do ponto.
+     Afrouxada (ago/2026): a faixa era estreita (60–80) e o ponteiro voava
+     (43%/s subindo), então acertar virava sorte. Agora a faixa é 50% maior,
+     o ponteiro anda quase na metade da velocidade e o progresso enche mais
+     rápido — dá pra "pilotar" a temperatura em vez de caçar o ponto. */
   useEffect(() => {
     if (done) return;
     const t = setInterval(() => {
-      setTemp(v => Math.max(0, Math.min(100, v + (aquecendoRef.current ? 2.6 : -2))));
+      setTemp(v => Math.max(0, Math.min(100, v + (aquecendoRef.current ? 1.5 : -1.1))));
       setProgresso(p => {
-        const ok = tempRef.current >= 60 && tempRef.current <= 80;
-        return Math.min(1, p + (ok ? 0.022 : 0));
+        const ok = tempRef.current >= SAUNA_MIN && tempRef.current <= SAUNA_MAX;
+        return Math.min(1, p + (ok ? 0.03 : 0));
       });
     }, 60);
     return () => clearInterval(t);
   }, [done]);
-  const naFaixa = temp >= 60 && temp <= 80;
+  const naFaixa = temp >= SAUNA_MIN && temp <= SAUNA_MAX;
   return (
     <div>
       <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 12, textAlign: 'center' }}>
@@ -1311,8 +1320,8 @@ const TaskSauna = ({ onComplete }) => {
       </div>
       <div style={{ position: 'relative', width: '100%', maxWidth: 280, height: 26, margin: '0 auto 8px', borderRadius: 999, overflow: 'hidden',
         background: 'linear-gradient(90deg,#4FA8D8,#F2C879,#DC2626)', border: '2px solid rgba(0,0,0,.15)' }}>
-        {/* faixa ideal 60–80% */}
-        <div style={{ position: 'absolute', left: '60%', width: '20%', top: 0, bottom: 0, border: '2px solid #16A34A', borderRadius: 4, background: 'rgba(22,163,74,.18)' }} />
+        {/* faixa ideal — desenhada a partir das MESMAS constantes que contam o progresso */}
+        <div style={{ position: 'absolute', left: `${SAUNA_MIN}%`, width: `${SAUNA_MAX - SAUNA_MIN}%`, top: 0, bottom: 0, border: '2px solid #16A34A', borderRadius: 4, background: 'rgba(22,163,74,.18)' }} />
         <div style={{ position: 'absolute', left: `${temp}%`, top: -3, bottom: -3, width: 4, background: '#111', borderRadius: 2, transform: 'translateX(-50%)', transition: 'left .06s linear' }} />
       </div>
       <div style={{ width: '100%', maxWidth: 280, height: 9, margin: '0 auto 12px', borderRadius: 999, background: 'rgba(0,0,0,.12)', overflow: 'hidden' }}>
@@ -2078,8 +2087,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (atual?.ts && st.ts && st.ts < atual.ts) return;
     stateRef.current = st; setState(st);
   }, []);
+  /* `ts` é um relógio LÓGICO (estilo Lamport), NÃO a hora do computador.
+     Com `Date.now()` puro, bastava UM jogador com o relógio adiantado pra
+     travar a partida inteira: o ts dele ficava no futuro e, a partir daí,
+     toda gravação dos outros nascia com ts MENOR e era descartada pelo guard
+     de `aplicaEstado` — tanto em quem gravou quanto em todo mundo. Era esse
+     o bug de "concluí a tarefa e não foi", "não dá pra reportar corpo nem
+     chamar reunião" e "o impostor não mata a segunda pessoa": a gravação
+     saía, mas ninguém aceitava. Agora cada gravação usa o MAIOR entre agora
+     e o último ts conhecido + 1, então o carimbo só anda pra frente, não
+     importa o relógio de quem grava. */
   const pushState = useCallback(async (next) => {
-    const carimbado = { ...next, ts: Date.now() };
+    const conhecido = Math.max(stateRef.current?.ts || 0, next?.ts || 0);
+    const carimbado = { ...next, ts: Math.max(Date.now(), conhecido + 1) };
     aplicaEstado(carimbado);
     try { await supabase.from('uniko_suspect_state').update({ state: carimbado, updated_at: new Date().toISOString() }).eq('id', roomId); }
     catch (e) { console.error('[uniko-suspect] pushState:', e); }
@@ -2099,12 +2119,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      ou null pra desistir (as travas do jogo são reavaliadas lá dentro, já
      com o estado de verdade). */
   const mutateState = useCallback(async (fn) => {
-    let base = stateRef.current;
+    let remoto = null;
     try {
       const { data } = await supabase.from('uniko_suspect_state').select('state').eq('id', roomId).maybeSingle();
-      const remoto = data?.state;
-      if (remoto && (remoto.ts || 0) >= (base?.ts || 0)) base = remoto;
+      remoto = data?.state || null;
     } catch (e) { console.error('[uniko-suspect] mutateState:', e); }
+    // O estado local é relido DEPOIS do await, não antes: enquanto a leitura
+    // ia e voltava, o realtime pode ter trazido algo mais novo, e comparar
+    // com o retrato velho fazia a gravação apagar o que acabou de chegar.
+    const local = stateRef.current;
+    // Só adota o remoto se ele for de VERDADE mais novo E da mesma partida —
+    // uma resposta atrasada (ou de uma rodada anterior) como base fazia as
+    // travas do jogo ("já tem reunião", "jogo decidido") barrarem a ação.
+    const base = (remoto && (remoto.ts || 0) > (local?.ts || 0) && (remoto.round ?? 0) === (local?.round ?? 0))
+      ? remoto : local;
     const proximo = fn(base);
     if (proximo) await pushState(proximo);
   }, [roomId, pushState]);
@@ -2162,10 +2190,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      na rodada anterior, enquanto quem acabou de chegar nascia no meio.
      Ajustado durante o render (padrão oficial do React pra "resetar estado
      quando algo muda"), não num efeito com setState solto. */
+  const [agoraTick, setAgoraTick] = useState(() => Date.now());   // `Date.now()` só no efeito (regra do React Compiler)
+  useEffect(() => { const iv = setInterval(() => setAgoraTick(Date.now()), 500); return () => clearInterval(iv); }, []);
   const [roundVisto, setRoundVisto] = useState(state?.round ?? 0);
+  const [killLiberadoEm, setKillLiberadoEm] = useState(0);   // trégua inicial do impostor, no relógio DESTA máquina
+  const killLiberadoRef = useRef(0);
   if ((state?.round ?? 0) !== roundVisto) {
     setRoundVisto(state?.round ?? 0);
     setMyPos(spawnFor());   // `myPosRef` (o que o loop de 60fps lê) acompanha no efeito de [myPos]
+    setKillLiberadoEm(agoraTick + KILL_GRACA_INICIAL_MS);   // relógio LOCAL — ver KILL_GRACA_INICIAL_MS
   }
 
   const pintarSeta = useCallback(() => {
@@ -2400,8 +2433,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   /* ── Matar (ago/2026) — só o Impostor, perto de alguém vivo, com recarga.
      Reusa o MESMO mecanismo de fantasma da expulsão (entra em `fantasmas`),
      e checa vitória igual à reunião: todo tripulante fora = impostor vence. */
-  const [agoraTick, setAgoraTick] = useState(() => Date.now());   // `Date.now()` só no efeito (regra do React Compiler)
-  useEffect(() => { const iv = setInterval(() => setAgoraTick(Date.now()), 500); return () => clearInterval(iv); }, []);
   const [morteAnim, setMorteAnim] = useState(null);   // { matador } — só aparece pra quem FOI morto
   useEffect(() => { morteAnimRef.current = morteAnim; }, [morteAnim]);
   useEffect(() => {
@@ -2421,6 +2452,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const vitimaProxima = useMemo(() => {
     if (state?.phase !== 'jogando' || state?.reuniao) return null;
     if (state?.papeis?.[name] !== 'impostor' || state?.fantasmas?.includes(name)) return null;
+    if (agoraTick < killLiberadoEm) return null;   // trégua do começo da partida
     const cd = state?.killCooldowns?.[name] || 0;
     if (agoraTick - cd < KILL_COOLDOWN_MS) return null;
     let melhor = null, melhorD = Infinity;
@@ -2434,8 +2466,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < KILL_PROXIMIDADE && d < melhorD) { melhor = { ...p, x: pos.x, y: pos.y }; melhorD = d; }
     }
     return melhor;
-  }, [state?.phase, state?.reuniao, state?.papeis, state?.fantasmas, state?.killCooldowns, agoraTick, players, positions, myPos, name]);
+  }, [state?.phase, state?.reuniao, state?.papeis, state?.fantasmas, state?.killCooldowns, killLiberadoEm, agoraTick, players, positions, myPos, name]);
   useEffect(() => { vitimaProximaRef.current = vitimaProxima; }, [vitimaProxima]);
+  useEffect(() => { killLiberadoRef.current = killLiberadoEm; }, [killLiberadoEm]);
 
   // Corpo mais próximo (pra qualquer vivo reportar — vira reunião na hora).
   const corpoProximo = useMemo(() => {
@@ -2458,6 +2491,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return null;
       if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return null;
       if ((s.fantasmas || []).includes(vitima.name) || s.papeis?.[vitima.name] === 'impostor') return null;
+      if (Date.now() < killLiberadoRef.current) return null;   // trégua do começo da partida
       if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return null;
       const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
       const corpos = [...(s.corpos || []), { id: uid(), x: vitima.x, y: vitima.y, vitima: vitima.name, matador: name }];
@@ -2904,14 +2938,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
-    /* Recarga inicial do assassinato: agora todo mundo nasce EMPILHADO no
-       centro (ver spawnFor), então sem isso o impostor mataria no primeiro
-       segundo, na frente da sala inteira. A contagem começa aqui, no
-       sorteio, e o mapa só abre REVELACAO_MS depois — sobra a diferença
-       (KILL_COOLDOWN_MS - REVELACAO_MS) de trégua com o jogo já rolando. */
-    const killCooldowns = {};
-    nomes.forEach(n => { if (papeis[n] === 'impostor') killCooldowns[n] = Date.now(); });
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
+    /* A trégua inicial do assassinato NÃO vai carimbada aqui de propósito:
+       um `Date.now()` gravado pelo host é o relógio DA MÁQUINA DELE, e o
+       impostor compara com o relógio da própria — bastava o host estar
+       adiantado pra o botão de matar nunca liberar. Cada impostor marca a
+       própria trégua localmente ao entrar no mapa (ver killLiberadoEm). */
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
   };
   const escolherImpostores = (n) => {
     if (!isHost || !state) return;
