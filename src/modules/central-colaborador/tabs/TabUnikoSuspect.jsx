@@ -53,16 +53,19 @@ const vivosPorTime = (s, players = []) => {
 };
 
 /* ── Regra de vitória (ago/2026) ────────────────────────────────────────────
-   • Impostor(es) só vencem quando NÃO SOBRA nenhum tripulante vivo — matar
-     um não acaba nada.
-   • Tripulantes só vencem quando TODOS os impostores estão fora. Com 2+
+   • Tripulantes vencem quando TODOS os impostores estão fora. Com 2+
      impostores, expulsar um NÃO termina o jogo (o outro segue solto).
+   • Impostor(es) vencem quando ficam em número IGUAL ou MAIOR que os
+     tripulantes vivos — é o ponto em que não dá mais pra perder: 1 impostor
+     contra 1 tripulante já é vitória dele (mata quando quiser e não existe
+     maioria pra expulsá-lo). Arrastar até "matar todo mundo" só faria a sala
+     inteira esperar um desfecho que já estava decidido.
    Retorna null enquanto o jogo continua. */
 const decidirVencedor = (s, players = []) => {
   if (!s?.papeis || Object.keys(s.papeis).length === 0) return null;   // partida nem sorteada
   const { impostores, tripulantes } = vivosPorTime(s, players);
   if (impostores.length === 0) return 'tripulante';
-  if (tripulantes.length === 0) return 'impostor';
+  if (impostores.length >= tripulantes.length) return 'impostor';
   return null;
 };
 
@@ -3066,7 +3069,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       {state.vencedor === 'impostor' ? 'O Impostor venceu!' : 'Os Tripulantes venceram!'}
                     </div>
                     <div style={{ fontSize: 12.5, color: T.textT, marginTop: 4 }}>
-                      {state.vencedor === 'impostor' ? 'Os tripulantes foram todos expulsos.' : 'O impostor foi expulso da casa.'}
+                      {state.vencedor === 'impostor'
+                        ? 'Sobrou tripulante de menos — não dava mais pra impedir.'
+                        : 'O impostor foi expulso da casa.'}
                     </div>
                     {/* Fotos dos vencedores lado a lado — só o time que venceu
                         (se foi o Impostor, aparece só ele; se foram os
