@@ -12,6 +12,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { THEMES } from '../../../contexts/theme';
+import { taskTypeFor } from '../../../shared/unikoDetetiveTarefas';
 
 /* ── Tema LOCAL do Uniko Suspect: escuro, sempre (ago/2026) ──────────────────
    O jogo inteiro usa o `T` daqui, NÃO o `T` global do Portal — clima noturno
@@ -177,41 +178,6 @@ const isWalkable = (x, y) => {
    com nenhum dos conhecidos cai no mini-jogo genérico ("segurar pra
    concluir") — assim o admin pode marcar tarefas novas no editor sem
    quebrar nada, só sem mini-jogo dedicado ainda (é só adicionar aqui). */
-const normalizeTxt = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-const TASK_TYPE_BY_LABEL = {
-  'limpar geladeira': 'geladeira',
-  'remendar flaminga': 'flamingo',
-  'coloque os chocolates no bolso': 'chocolates',
-  'lavar louca': 'louca',
-  'consertar energia': 'energia',
-  'concertar energia': 'energia',   // erro de digitação comum ("concertar" em vez de "consertar") — aceita os dois
-  'fazer churrasco': 'churrasco',
-  'limpar banheiro': 'banheiro',
-  'observar estrelas': 'estrelas',
-  'excluir pastas no computador': 'computador',
-  'excluir pastas': 'computador',              // versão curta, se o admin abreviar
-  'tomar banho na sauna': 'sauna',
-  'tomar banho de sauna': 'sauna',             // variação natural do nome
-};
-const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'generica';
-
-/* Catálogo pro editor do RH mostrar QUAIS nomes têm mini-jogo próprio — sem
-   isso o admin tinha que adivinhar o texto exato na hora de marcar a tarefa
-   (nome que não bate cai no mini-jogo genérico de "segurar pra concluir").
-   Só os nomes canônicos: os apelidos/variações de TASK_TYPE_BY_LABEL
-   continuam funcionando, mas não precisam aparecer na lista. */
-const TAREFAS_DISPONIVEIS = [
-  { label: 'Limpar geladeira',              desc: 'tirar o que estragou' },
-  { label: 'Remendar flaminga',             desc: 'costurar os rasgos' },
-  { label: 'Coloque os chocolates no bolso', desc: 'juntar os chocolates' },
-  { label: 'Lavar louça',                   desc: 'esfregar até brilhar' },
-  { label: 'Consertar energia',             desc: 'ligar os fios certos (usada na sabotagem)' },
-  { label: 'Fazer churrasco',               desc: 'virar no ponto certo' },
-  { label: 'Limpar banheiro',               desc: 'esfregar as manchas' },
-  { label: 'Observar estrelas',             desc: 'ligar a constelação na ordem' },
-  { label: 'Excluir pastas no computador',  desc: 'mandar as pastas pra lixeira' },
-  { label: 'Tomar banho na sauna',          desc: 'segurar a temperatura na faixa verde' },
-];
 const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
 
 /* ── Matar (ago/2026) — só o Impostor, com recarga entre mortes. ── */
@@ -2925,7 +2891,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       title={travada ? `${t.label} (energia sabotada!)` : consertandoSabotagem ? `${t.label} — conserte a energia!` : t.label}>
                       <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
                         className={feita || travada ? undefined : 'sus-twinkle'}
-                        style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', opacity: travada ? .4 : 1,
+                        style={{ width: '8vw', maxWidth: 82, minWidth: 50, display: 'block', opacity: travada ? .4 : 1,
                           filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                       {brilhoTarefa === t.id && <BrilhoTarefa />}
                     </button>
@@ -2976,7 +2942,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }}>
                     <img src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
-                      style={{ width: '27vw', maxWidth: 280, minWidth: 160, display: 'block' }} />
+                      style={{ width: '15vw', maxWidth: 155, minWidth: 92, display: 'block' }} />
                   </button>
                 )}
 
@@ -3071,7 +3037,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <button className="sus-btn sus-pop" onClick={usarAlvoProximo} title={alvoUsar.titulo}
                     style={{ ...taskBtnCss, cursor: 'pointer' }}>
                     <img src={BOTAO_USAR_IMG} alt={alvoUsar.titulo}
-                      style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                      style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
 
@@ -3079,7 +3045,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {corpoProximo && (
                   <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
                     <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
-                      style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                      style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
 
@@ -3090,17 +3056,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       title={emCooldownSabotagem ? 'Sabotagem recarregando' : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
                       style={{ ...taskBtnCss, cursor: podeSabotar ? 'pointer' : 'not-allowed' }}>
                       <img src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
-                        style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block',
+                        style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block',
                           opacity: podeSabotar ? 1 : .45,
-                          filter: podeSabotar ? 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' : 'grayscale(1) drop-shadow(0 6px 14px rgba(0,0,0,.5))' }} />
+                          filter: podeSabotar ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
                     </button>
                     <button className="sus-btn" onClick={() => vitimaProxima && matar(vitimaProxima)} disabled={!vitimaProxima}
                       title={vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
                       style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
                       <img src={BOTAO_MATAR_IMG} alt="Matar"
-                        style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block',
+                        style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block',
                           opacity: vitimaProxima ? 1 : .45,
-                          filter: vitimaProxima ? 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' : 'grayscale(1) drop-shadow(0 6px 14px rgba(0,0,0,.5))' }} />
+                          filter: vitimaProxima ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
                     </button>
                   </>
                 )}
@@ -3351,5 +3317,5 @@ const TabUnikoSuspect = () => {
 
 // Exportados pra Dashboard RH → aba "Uniko Suspect" (UnikoSuspectMapTab.jsx)
 // reusar o MESMO mapa/dimensões no editor, sem duplicar constantes.
-export { TabUnikoSuspect, MAPA_IMG, MAP_W, MAP_H, TAREFAS_DISPONIVEIS, taskTypeFor };
+export { TabUnikoSuspect, MAPA_IMG, MAP_W, MAP_H };
 export default TabUnikoSuspect;

@@ -10,7 +10,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, Moon } from '../../shared/components';
-import { MAPA_IMG, MAP_W, MAP_H, TAREFAS_DISPONIVEIS, taskTypeFor } from '../central-colaborador/tabs/TabUnikoSuspect';
+import { MAPA_IMG, MAP_W, MAP_H } from '../central-colaborador/tabs/TabUnikoSuspect';
+import { TAREFAS_DISPONIVEIS, taskTypeFor } from '../../shared/unikoDetetiveTarefas';
 
 const BUCKET = 'uniko-suspect-map';
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
