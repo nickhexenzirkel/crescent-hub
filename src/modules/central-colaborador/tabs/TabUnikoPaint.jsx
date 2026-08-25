@@ -577,6 +577,8 @@ const mesmasLetras = (a, b) => [...a].sort().join('') === [...b].sort().join('')
    resposta — bastaria chutar até o jogo dizer "quase" e você saberia que a
    palavra é parecida com aquela. Por isso não dá pra usar distância de edição
    pura: "rato" fica a 1 letra de "gato", mas é outra palavra.
+   A saída é atrelar a tolerância ao TAMANHO da palavra: quanto mais longa,
+   menor a chance de uma diferença de uma letra ser outra palavra de verdade.
    Só conta como quase: */
 const quaseLa = (palpite, alvo) => {
   const p = normFolgado(palpite), a = normFolgado(alvo);
@@ -589,9 +591,19 @@ const quaseLa = (palpite, alvo) => {
   // 3) letras trocadas de lugar (dedo escorregou): MESMAS letras, ordem diferente
   //    "geladeria" ≈ "geladeira" — e "rato" NÃO tem as mesmas letras de "gato"
   if (p.length === a.length && mesmasLetras(p, a) && distancia(p, a) <= 2) return true;
-  // 4) uma letra a mais ou a menos ("geladera" ≈ "geladeira") — inserção/remoção,
-  //    nunca TROCA de letra, que é o que faz virar outra palavra
+  // 4) uma letra a mais ou a menos ("geladera" ≈ "geladeira") — inserção/remoção
   if (Math.abs(p.length - a.length) === 1 && distancia(p, a) === 1) return true;
+  /* 5) uma letra ERRADA ("bicicreta" ≈ "bicicleta"). Este é o caso perigoso —
+     é o que transforma "rato" em "gato" —, então só vale de 6 letras em
+     diante: numa palavra desse tamanho, uma única troca é dedo errado quase
+     sempre, não outro palpite. Abaixo disso continua fora (com 4 letras,
+     "rato" e "gato" são palavras diferentes de verdade). */
+  if (p.length === a.length && a.length >= 6 && distancia(p, a) === 1) return true;
+  /* 6) palavra bem comprida (12+ letras, o caso de quase todo nome composto:
+     "homemaranha", "motoqueirofantasma"): aí tolera DOIS erros de escrita de
+     qualquer tipo. Duas palavras diferentes desse tamanho praticamente nunca
+     ficam a 2 letras uma da outra. */
+  if (a.length >= 12 && distancia(p, a) <= 2) return true;
   return false;
 };
 
