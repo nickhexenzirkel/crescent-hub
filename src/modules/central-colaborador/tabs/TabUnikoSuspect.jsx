@@ -2213,6 +2213,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   if ((state?.round ?? 0) !== roundVisto) {
     setRoundVisto(state?.round ?? 0);
     setMyPos(spawnFor());   // `myPosRef` (o que o loop de 60fps lê) acompanha no efeito de [myPos]
+    /* Zerar as posições DOS OUTROS é o que faltava pra todo mundo realmente
+       renascer no centro: `positions` só muda quando chega broadcast, e
+       ninguém manda nada enquanto está parado. Então, na partida seguinte,
+       cada boneco continuava desenhado onde tinha parado na anterior até a
+       pessoa dar o primeiro passo. Com a lista vazia, o desenho cai no
+       fallback `spawnFor()` — o centro — até a primeira posição de verdade
+       chegar. */
+    setPositions({});
     setKillLiberadoEm(agoraTick + KILL_GRACA_INICIAL_MS);   // relógio LOCAL — ver KILL_GRACA_INICIAL_MS
   }
 
@@ -2764,7 +2772,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // própria posição, ninguém mais sabe a de todos).
     ch.on('broadcast', { event: 'pos-req' }, ({ payload }) => {
       if (payload?.name === name) return;
-      if (stateRef.current?.phase !== 'jogando') return;
+      // Vale também na REVELAÇÃO: os clientes entram no mapa com alguns
+      // décimos de diferença, e quem ainda estava na tela de papel ignorava o
+      // pedido — aí a posição dessa pessoa só aparecia pros outros quando ela
+      // andasse pela primeira vez.
+      const fase = stateRef.current?.phase;
+      if (fase !== 'jogando' && fase !== 'sorteando') return;
       ch.send({ type: 'broadcast', event: 'pos', payload: { name, x: myPosRef.current.x, y: myPosRef.current.y, moving: isMovingRef.current } });
     });
     // Posição no BARCO do lobby — mesmo padrão de pos/pos-req acima, só que
