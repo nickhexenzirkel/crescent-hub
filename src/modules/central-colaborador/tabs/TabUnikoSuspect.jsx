@@ -383,7 +383,7 @@ const lightGradientBg = (xPct, yPct, raio) => `radial-gradient(circle at ${xPct}
 
 /* ── Movimento livre em tempo real ── */
 const PLAYER_R = 36;              // "raio" do boneco em pixels do mapa (clamp nas bordas)
-const MOVE_SPEED = 140;           // pixels do mapa por segundo (baixou de novo a pedido: 200 → 175 → 140)
+const MOVE_SPEED = 118;           // pixels do mapa por segundo (baixou a pedido: 200 → 175 → 140 → 118)
 const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posição
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
@@ -2047,13 +2047,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const cameraProxima = useMemo(() => {
     if (state?.vencedor || state?.phase !== 'jogando') return null;
     if (state?.reuniao && !state?.fantasmas?.includes(name)) return null;
-    if (!mapaCameras.length) return null;
-    let melhor = null, melhorD = Infinity;
-    for (const c of mapaCameras) {
-      const d = Math.hypot(c.x - myPos.x, c.y - myPos.y);
-      if (d < CAMERA_PROXIMIDADE && d < melhorD) { melhor = c; melhorD = d; }
-    }
-    return melhor;
+    // A SALA DE ANEXO é a câmera #1 (a primeira marcada no editor): é o único
+    // lugar de onde se assiste. As outras são só os ângulos que aparecem lá.
+    const console_ = mapaCameras[0];
+    if (!console_) return null;
+    const d = Math.hypot(console_.x - myPos.x, console_.y - myPos.y);
+    return d < CAMERA_PROXIMIDADE ? console_ : null;
   }, [mapaCameras, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.vencedor, name]);
   const cameraProximaRef = useRef(null);
   useEffect(() => { cameraProximaRef.current = cameraProxima; }, [cameraProxima]);
@@ -2925,11 +2924,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   // sabotagem durar — inclusive as que eu já concluí (antes o
                   // `!feita` deixava as concluídas clicáveis no escuro).
                   const travada = !!state?.sabotagem && !consertandoSabotagem;
+                  // Só dá pra abrir estando PERTO (mesma regra da tecla E / do
+                  // botão Usar). Antes o clique na placa abria a tarefa de
+                  // qualquer canto do mapa — dava pra fazer tudo sem sair do
+                  // lugar, que era o bug relatado.
+                  const naoAlcanca = tarefaProxima?.id !== t.id;
                   return (
-                    <button key={t.id} onClick={() => { if (!travada) setTarefaAberta(t); }}
+                    <button key={t.id} onClick={() => { if (!travada && !naoAlcanca) setTarefaAberta(t); }}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
-                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: travada ? 'not-allowed' : 'pointer' }}
-                      title={travada ? `${t.label} (energia sabotada!)` : consertandoSabotagem ? `${t.label} — conserte a energia!` : t.label}>
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: (travada || naoAlcanca) ? 'not-allowed' : 'pointer' }}
+                      title={travada ? `${t.label} (energia sabotada!)`
+                        : consertandoSabotagem ? `${t.label} — conserte a energia!`
+                        : naoAlcanca ? `${t.label} — chegue perto pra fazer` : t.label}>
                       <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
                         className={feita || travada ? undefined : 'sus-twinkle'}
                         style={{ width: '8vw', maxWidth: 82, minWidth: 50, display: 'block', opacity: travada ? .4 : 1,
@@ -2941,15 +2947,40 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
                 {/* Câmeras: qualquer um enxerga o pontinho no mapa (é mobília
                     da casa, não segredo de papel nenhum). */}
-                {mapaCameras.map(c => (
-                  <button key={c.id} onClick={() => { setCameraAberta(mapaCameras.findIndex(x => x.id === c.id)); }} title={c.label}
-                    style={{ ...taskBtnCss, position: 'absolute', left: `${c.x / MAP_W * 100}%`, top: `${c.y / MAP_H * 100}%`,
-                      transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer', width: 44, height: 44, borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                      background: 'rgba(22,163,74,.85)', border: '2px solid #fff', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }}>
-                    📹
-                  </button>
-                ))}
+                {mapaCameras.map((c, i) => {
+                  // SO a câmera #1 é a SALA DE ANEXO (onde se assiste) — e mesmo ela
+                  // só abre estando perto. Antes qualquer pino abria o painel de
+                  // qualquer lugar do mapa, o que dispensava ir até a sala.
+                  const ehConsole = i === 0;
+                  const perto = ehConsole && cameraProxima?.id === c.id;
+                  if (!ehConsole) {
+                    // Demais pontos: só marcam "aqui tem câmera te vendo".
+                    return (
+                      <div key={c.id} title={`${c.label} (vigiada pela sala de anexo)`}
+                        style={{ position: 'absolute', left: `${c.x / MAP_W * 100}%`, top: `${c.y / MAP_H * 100}%`,
+                          transform: 'translate(-50%,-50%)', zIndex: 1, width: 26, height: 26, borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, opacity: .75,
+                          background: 'rgba(22,163,74,.45)', border: '1.5px solid rgba(255,255,255,.7)', pointerEvents: 'none' }}>
+                        📹
+                      </div>
+                    );
+                  }
+                  return (
+                    <button key={c.id} onClick={() => { if (perto) abrirCamerasRef.current?.(); }}
+                      title={perto ? 'Ver as câmeras' : `${c.label} — chegue perto pra assistir`}
+                      style={{ ...taskBtnCss, position: 'absolute', left: `${c.x / MAP_W * 100}%`, top: `${c.y / MAP_H * 100}%`,
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: perto ? 'pointer' : 'not-allowed',
+                        width: 44, height: 44, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                        opacity: perto ? 1 : .45,
+                        background: perto ? 'rgba(22,163,74,.9)' : 'rgba(22,163,74,.35)',
+                        border: `2px solid ${perto ? '#fff' : 'rgba(255,255,255,.5)'}`,
+                        filter: perto ? 'drop-shadow(0 3px 10px rgba(22,163,74,.8))' : 'none',
+                        animation: perto ? 'susTwinkle 3.4s ease-in-out infinite' : 'none' }}>
+                      📹
+                    </button>
+                  );
+                })}
 
                 {/* Vórtex: SÓ o Impostor vê (é a vantagem dele — tripulante
                     não pode saber onde ficam os atalhos). */}

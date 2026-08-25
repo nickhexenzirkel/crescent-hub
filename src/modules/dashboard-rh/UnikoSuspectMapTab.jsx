@@ -429,7 +429,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
                   Clique num ponto vazio do mapa pra adicionar; clique em cima de um pino pra remover.
                   {ehVortex
                     ? ' Só o Impostor usa: ele entra num e escolhe pra qual outro ir. Precisa de pelo menos 2 pra funcionar.'
-                    : ' Qualquer jogador que chegar perto de um ponto abre o painel e vê as câmeras ao vivo.'}
+                    : ' A CÂMERA 1 é a sala de anexo — é o único lugar de onde se assiste, e só chegando perto. As outras são apenas os ângulos que aparecem lá.'}
                 </div>
                 {ehVortex && lista.length === 1 && (
                   <div style={{ fontSize: 12, color: '#D97706', background: 'rgba(217,119,6,.09)', border: '1px solid rgba(217,119,6,.25)', borderRadius: 8, padding: '7px 9px' }}>
@@ -441,7 +441,10 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
                   {lista.map((v, i) => (
                     <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8, background: `${cor}12`, border: `1px solid ${cor}33` }}>
                       <span style={{ width: 20, height: 20, borderRadius: '50%', background: cor, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-                      <span style={{ flex: 1, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</span>
+                        {!ehVortex && i === 0 && <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: '#16A34A' }}>sala de anexo (onde se assiste)</span>}
+                      </span>
                       <button onClick={() => setLista(l => l.filter(x => x.id !== v.id))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C04050', fontSize: 14, flexShrink: 0 }}>×</button>
                     </div>
                   ))}
