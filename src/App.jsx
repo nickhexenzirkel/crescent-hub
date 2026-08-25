@@ -29,6 +29,29 @@ export default function CrescentHub() {
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   const isMobile = useIsMobile();
+
+  /* ── Nada de arrastar imagem, em TODO o Portal (ago/2026) ─────────────────
+     Metade CSS do bloqueio está em index.css (`user-drag: none`, que resolve
+     Chrome/Edge/Safari). O Firefox ignora essa propriedade, então aqui vai a
+     outra metade: um único ouvinte de `dragstart` no documento, que cancela o
+     arrasto quando ele nasce numa imagem. Um ouvinte só no topo cobre o site
+     inteiro (o evento borbulha), em vez de espalhar `draggable={false}` por
+     centenas de tags.
+     A exceção importante: os arrastos DE VERDADE do site — cartão do Kanban
+     da Conexão Setorial, reordenar página no editor de PDF, reordenar arquivo
+     no PdfMerge — acontecem dentro de um elemento marcado `draggable="true"`.
+     Esses passam direto, senão as miniaturas parariam de arrastar junto. */
+  useEffect(() => {
+    const bloqueiaArrastoDeImagem = (e) => {
+      const alvo = e.target;
+      if (!alvo || typeof alvo.closest !== 'function') return;
+      if (alvo.closest('[draggable="true"]')) return;      // arrasto de verdade — deixa passar
+      if (alvo.closest('img, svg, canvas, picture, video')) e.preventDefault();
+    };
+    document.addEventListener('dragstart', bloqueiaArrastoDeImagem);
+    return () => document.removeEventListener('dragstart', bloqueiaArrastoDeImagem);
+  }, []);
+
   // Config do "Capture o Uniko" — o aviso (som + assistente) é GLOBAL; o card só no Portal.
   // Atualiza em tempo real (realtime + poll) pra o spawn chegar a todos ~ao mesmo tempo.
   const rawCaptureCfgRef = useRef(null); // config CRU (mesmo desligado) — o agendador compara com ele

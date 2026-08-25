@@ -1,0 +1,32 @@
+/* ── Nada de arrastar imagem, em TODO o Portal (ago/2026) ────────────────────
+   Dava pra segurar qualquer arte do site — foto de perfil, Uniko, mapa, ícone
+   — e sair arrastando a "cópia fantasma" do navegador pela tela, ou largá-la
+   numa aba nova. Aqui vai a metade CSS do bloqueio, que resolve Chrome, Edge
+   e Safari; o Firefox ignora `user-drag`, e lá quem segura a onda é o
+   `dragstart` cancelado no App (ver bloqueiaArrastoDeImagem, em App.jsx).
+
+   Os arrastos DE VERDADE do site (cartões do Kanban da Conexão Setorial,
+   reordenar páginas no editor de PDF) acontecem em elementos marcados com
+   `draggable="true"` — por isso a regra abre exceção pro que estiver dentro
+   de um deles, senão as miniaturas de página parariam de arrastar junto. */
+img, svg, canvas, picture, video {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+[draggable="true"] {
+  -webkit-user-drag: element;
+  user-drag: element;
+}
+[draggable="true"] img, [draggable="true"] svg, [draggable="true"] canvas,
+[draggable="true"] picture, [draggable="true"] video {
+  -webkit-user-drag: auto;
+  user-drag: auto;
+}
+
+/* Selecionar imagem com o mouse era o outro jeito de "pegar" a arte sem
+   querer (e deixava tudo azul no meio de um clique). Texto continua
+   selecionável normalmente. */
+img, svg, canvas, picture, video {
+  -webkit-user-select: none;
+  user-select: none;
+}
