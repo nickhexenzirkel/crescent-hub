@@ -62,7 +62,10 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
   const nav = NAV_FOR(getAuthUser()?.role === 'admin');
   if (isMobile) return null;
   return(
-    <div style={{width:collapsed?76:252,minHeight:'100vh',
+    /* `portal-sidebar` (ago/2026): classe só pra outros módulos poderem
+       ESCONDER a barra por CSS quando o conteúdo pede a tela inteira —
+       hoje o Uniko Detetive, ao entrar numa sala (ver SUS_CSS). */
+    <div className="portal-sidebar" style={{width:collapsed?76:252,minHeight:'100vh',
       background:T.sidebarBg,
       borderRight:`1px solid ${T.border}`,
       display:'flex',flexDirection:'column',
@@ -234,7 +237,7 @@ const TopBar = ({tab,onBack}) => {
 
   if(tab==='inicio')return null;
   return(
-    <div style={{height:52,display:'flex',alignItems:'center',gap:isMobile?8:12,padding:isMobile?'0 14px':'0 30px',
+    <div className="portal-topbar" style={{height:52,display:'flex',alignItems:'center',gap:isMobile?8:12,padding:isMobile?'0 14px':'0 30px',
       background:T.topbarBg,backdropFilter:'blur(12px)',
       borderBottom:`1px solid ${T.border}`,flexShrink:0,
       fontFamily:'var(--font-body)',position:'relative',zIndex:300}}>

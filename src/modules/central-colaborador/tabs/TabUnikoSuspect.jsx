@@ -35,6 +35,37 @@ const AG = 'rgba(14,165,183,.35)';
 const MIN_PLAYERS = 2;                 // temporário (testando) — subir de novo antes do lançamento
 const ROOM_TTL_MS = 20 * 60 * 1000;    // sala vazia parada há 20min = lixo
 
+/* ── Quem ainda está vivo, por time (ago/2026) ──────────────────────────────
+   Conta TODO MUNDO que está na sala, não só os nomes que aparecem em
+   `papeis`: quem entrou DEPOIS do sorteio fica sem papel, e o HUD já trata
+   esse pessoal como Tripulante. Sem isso a partida podia terminar na
+   PRIMEIRA morte achando que só existiam os 2 nomes sorteados — era esse o
+   bug da sala com 5 pessoas que acabou com um único assassinato. */
+const vivosPorTime = (s, players = []) => {
+  const papeis = s?.papeis || {};
+  const fantasmas = s?.fantasmas || [];
+  const nomes = [...new Set([...Object.keys(papeis), ...players.map(p => p?.name).filter(Boolean)])];
+  const vivos = nomes.filter(n => !fantasmas.includes(n));
+  return {
+    impostores: vivos.filter(n => papeis[n] === 'impostor'),
+    tripulantes: vivos.filter(n => papeis[n] !== 'impostor'),
+  };
+};
+
+/* ── Regra de vitória (ago/2026) ────────────────────────────────────────────
+   • Impostor(es) só vencem quando NÃO SOBRA nenhum tripulante vivo — matar
+     um não acaba nada.
+   • Tripulantes só vencem quando TODOS os impostores estão fora. Com 2+
+     impostores, expulsar um NÃO termina o jogo (o outro segue solto).
+   Retorna null enquanto o jogo continua. */
+const decidirVencedor = (s, players = []) => {
+  if (!s?.papeis || Object.keys(s.papeis).length === 0) return null;   // partida nem sorteada
+  const { impostores, tripulantes } = vivosPorTime(s, players);
+  if (impostores.length === 0) return 'tripulante';
+  if (tripulantes.length === 0) return 'impostor';
+  return null;
+};
+
 /* Cômodos da casa (só pra prévia/flavor no lobby da sala — o mapa em si agora é
    a ARTE `MAPA_IMG`, ver abaixo). */
 const ROOMS = [
@@ -341,6 +372,40 @@ const BrilhoTarefa = () => (
   </div>
 );
 
+/* ── Explosão do vórtex (ago/2026) ─────────────────────────────────────────
+   Estoura sempre que alguém ENTRA ou SAI de um portal: um anel roxo abrindo
+   + 18 partículas roxas/azuis pra todo lado. Ângulos e distâncias fixos
+   (nada de Math.random no render — mesma regra do BrilhoTarefa, e assim todo
+   mundo na sala vê exatamente a mesma explosão). */
+const VORTEX_CORES = ['#A855F7', '#7C3AED', '#38BDF8', '#22D3EE', '#C084FC', '#60A5FA'];
+const PARTICULAS_VORTEX = Array.from({ length: 18 }, (_, i) => {
+  const ang = (i / 18) * Math.PI * 2;
+  const raio = 34 + (i % 3) * 15;
+  return {
+    dx: `${Math.cos(ang) * raio}px`, dy: `${Math.sin(ang) * raio}px`,
+    atraso: (i % 5) * 0.035, cor: VORTEX_CORES[i % VORTEX_CORES.length],
+    tam: 7 + (i % 3) * 3,
+  };
+});
+
+const ExplosaoVortex = ({ x, y }) => (
+  // `zIndex` ABAIXO da luz (que é 4) de propósito: quem estiver longe/no
+  // escuro não pode ver o clarão e descobrir de graça onde o Impostor saiu.
+  <div style={{ position: 'absolute', left: `${x / MAP_W * 100}%`, top: `${y / MAP_H * 100}%`,
+    width: 0, height: 0, pointerEvents: 'none', zIndex: 3 }}>
+    <div className="sus-vortex-anel" style={{ position: 'absolute', left: 0, top: 0, width: 46, height: 46,
+      borderRadius: '50%', border: '5px solid #A855F7', boxShadow: '0 0 22px #A855F7cc, inset 0 0 14px #38BDF8aa' }} />
+    <div className="sus-vortex-anel" style={{ position: 'absolute', left: 0, top: 0, width: 46, height: 46,
+      borderRadius: '50%', border: '3px solid #38BDF8', boxShadow: '0 0 18px #38BDF8cc', animationDelay: '.09s' }} />
+    {PARTICULAS_VORTEX.map((p, i) => (
+      <span key={i} className="sus-vortex-part"
+        style={{ position: 'absolute', left: 0, top: 0, width: p.tam, height: p.tam, borderRadius: '50%',
+          background: p.cor, color: p.cor, boxShadow: '0 0 12px currentColor',
+          animationDelay: `${p.atraso}s`, '--dx': p.dx, '--dy': p.dy }} />
+    ))}
+  </div>
+);
+
 const hudBtnCss = {
   display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10,
   border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)',
@@ -389,9 +454,6 @@ const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
   a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
 };
-// Hash determinístico (mesma técnica do hintOrder do Stop) — spawn consistente
-// sem precisar sincronizar nada: todo cliente calcula o mesmo ponto pro mesmo nome.
-const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 // `array.sort(() => Math.random() - .5)` NÃO embaralha de verdade — o
 // comparador quebra as regras que o sort espera (não é transitivo), então o
 // resultado fica enviesado pela ordem/algoritmo de sort do motor (mais forte
@@ -407,14 +469,13 @@ const embaralhar = (arr) => {
   return a;
 };
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
-// Todo mundo nasce perto da sala de estar (centro da casa na arte), espalhado por hash do nome.
+/* Nascimento (ago/2026): TODO MUNDO no MESMO ponto, o centro da sala de
+   estar — antes cada um caía num canto diferente (posição sorteada por hash
+   do nome) e a partida já começava com o grupo espalhado, sem aquele momento
+   "todos juntos" do começo do Among Us. */
 const SPAWN_RECT = { x: 640, y: 330, w: 260, h: 150 };   // cabe folgado dentro da zona 'sala'
-const spawnFor = (playerName) => {
-  const h = hashStr(playerName || '?');
-  const x = SPAWN_RECT.x + (h % SPAWN_RECT.w);
-  const y = SPAWN_RECT.y + ((h >> 8) % SPAWN_RECT.h);
-  return { x, y };
-};
+const SPAWN_CENTRO = { x: SPAWN_RECT.x + SPAWN_RECT.w / 2, y: SPAWN_RECT.y + SPAWN_RECT.h / 2 };
+const spawnFor = () => ({ ...SPAWN_CENTRO });
 
 const myName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
@@ -447,6 +508,30 @@ const SUS_CSS = `
 }
 .sus-particula { animation: susParticula .85s ease-out forwards; }
 .sus-anel-ok   { animation: susAnelOk .7s ease-out forwards; }
+
+/* Seta da sabotagem de energia: fica orbitando o boneco (o giro em si vem do
+   rotate que o JS aplica no pai) e "respira" pra fora, chamando atencao no
+   escuro. O translateX e o raio da orbita. */
+@keyframes susSeta {
+  0%,100% { transform: translate(-50%,-50%) translateX(52px) scale(1);    opacity: .88; }
+  50%     { transform: translate(-50%,-50%) translateX(72px) scale(1.14); opacity: 1; }
+}
+.sus-seta { animation: susSeta 1s ease-in-out infinite; }
+
+/* Vórtex: explosãozinha roxa/azul quando alguém entra ou sai do portal.
+   Mesma mecânica do brilho de tarefa (--dx/--dy inline), só que com um anel
+   roxo e partículas mais rápidas. */
+@keyframes susVortexAnel {
+  0%   { transform: translate(-50%,-50%) scale(.2); opacity: .95; border-width: 5px; }
+  100% { transform: translate(-50%,-50%) scale(3.1); opacity: 0; border-width: 1px; }
+}
+@keyframes susVortexParticula {
+  0%   { transform: translate(-50%,-50%) scale(.25) rotate(0deg); opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.9) rotate(220deg); opacity: 0; }
+}
+.sus-vortex-anel { animation: susVortexAnel .62s ease-out forwards; }
+.sus-vortex-part { animation: susVortexParticula .72s cubic-bezier(.15,.8,.3,1) forwards; }
 
 /* Pulsação LENTA e discreta: o "pum-pum" rápido de antes cansava a vista com
    várias placas na tela. A escala mal muda (1 → 1.04) e quem dá vida é a AURA
@@ -541,6 +626,20 @@ const SUS_CSS = `
 /* Enquanto a partida roda, o Assistente Uniko sai da frente (ele é fixed com
    z-index acima do jogo e ficava flutuando por cima do mapa). */
 body.sus-jogando .uniko-assistant { display: none !important; }
+/* ── Dentro de uma sala o jogo toma a tela inteira (ago/2026) ───────────────
+   Assim que a pessoa entra na sala, o Portal em volta sai de cena: barra
+   lateral, cabeçalho e o menu de baixo do celular somem, e o conteúdo perde
+   a margem/padding que existiam pra caber ao lado deles. Ao sair da sala
+   tudo volta sozinho (a classe é removida no efeito que a colocou). */
+body.sus-na-sala .portal-sidebar,
+body.sus-na-sala .portal-topbar,
+body.sus-na-sala .portal-mobilenav { display: none !important; }
+body.sus-na-sala .portal-conteudo { margin-left: 0 !important; }
+body.sus-na-sala .portal-area {
+  height: 100vh !important;
+  padding: 0 !important;
+  overflow-y: auto;
+}
 @keyframes susOceanShine { 0% { background-position: 0% 50%, 100% 50%; } 100% { background-position: 200% 50%, -100% 50%; } }
 @keyframes susWaveLines { from { background-position: 0 0; } to { background-position: 160px 0; } }
 @keyframes susBoatSway { 0%,100% { transform: translateY(0) rotate(-.5deg); } 50% { transform: translateY(5px) rotate(.5deg); } }
@@ -1563,6 +1662,13 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
             const st = r.state || {};
             const gente = porSala[r.id] || [];
             const jogando = st.phase && st.phase !== 'lobby' && st.phase !== 'over';
+            /* Partida em andamento = porta fechada (ago/2026). Ninguém NOVO
+               entra no meio do jogo — chegar depois do sorteio deixava a
+               pessoa sem papel e bagunçava a contagem de vivos. Quem já foi
+               sorteado pra ESTA partida continua podendo voltar (um F5 no
+               meio do jogo não pode expulsar a pessoa da própria sala). */
+            const souDaPartida = !!st.papeis?.[name];
+            const portaFechada = !!jogando && !souDaPartida;
             const podeExcluir = st.criador === name; // dentro deste tab, todo mundo que vê já é admin
             return (
               <div key={r.id} className="sus-fade" style={{ background: cardBg, borderRadius: 14, padding: 14, border: `1.5px solid ${T.border}`,
@@ -1594,9 +1700,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                     </>
                   ) : <span style={{ fontSize: 11.5, color: T.textD }}>Vazia — seja o primeiro</span>}
                 </div>
-                <button className="sus-btn" onClick={() => onEnter(r.id)}
-                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                    background: `linear-gradient(135deg, ${AGUA}, ${CEU})`, boxShadow: `0 4px 14px ${AG}` }}>Entrar</button>
+                <button className="sus-btn" onClick={() => { if (!portaFechada) onEnter(r.id); }} disabled={portaFechada}
+                  title={portaFechada ? 'A partida já começou — espere a próxima' : undefined}
+                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800,
+                    cursor: portaFechada ? 'not-allowed' : 'pointer', opacity: portaFechada ? .55 : 1,
+                    background: portaFechada ? T.textD : `linear-gradient(135deg, ${AGUA}, ${CEU})`,
+                    boxShadow: portaFechada ? 'none' : `0 4px 14px ${AG}` }}>
+                  {portaFechada ? '🔒 Partida em andamento' : (jogando && souDaPartida ? 'Voltar pra partida' : 'Entrar')}
+                </button>
                 {confirmDel === r.id && (
                   <div className="sus-pop" style={{ position: 'absolute', inset: 0, borderRadius: 14, zIndex: 2, background: 'rgba(8,16,30,.97)',
                     border: '1px solid #E6394655', padding: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -1864,6 +1975,30 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     catch (e) { console.error('[uniko-suspect] pushState:', e); }
   }, [roomId, aplicaEstado]);
 
+  /* ── Escrita SEGURA no estado da sala (ago/2026) ────────────────────────
+     `pushState` grava o jsonb INTEIRO. Quando dois clientes gravavam quase
+     ao mesmo tempo — o que acontece o tempo todo durante a SABOTAGEM, com
+     cada tripulante mandando "consertei" e o impostor matando no meio —, o
+     último a escrever apagava por cima o que o outro tinha acabado de
+     gravar. Era esse o bug do "com a energia sabotada o impostor não
+     consegue matar ninguém": a morte ia pro banco e o `consertarEnergia` de
+     outra pessoa, montado em cima de um estado ANTIGO, desfazia tudo.
+     `mutateState` relê a linha do banco na hora, aplica a mudança em cima do
+     estado FRESCO e só então grava (a janela de corrida cai de segundos pra
+     poucos milissegundos). `fn` recebe o estado atual e devolve o próximo —
+     ou null pra desistir (as travas do jogo são reavaliadas lá dentro, já
+     com o estado de verdade). */
+  const mutateState = useCallback(async (fn) => {
+    let base = stateRef.current;
+    try {
+      const { data } = await supabase.from('uniko_suspect_state').select('state').eq('id', roomId).maybeSingle();
+      const remoto = data?.state;
+      if (remoto && (remoto.ts || 0) >= (base?.ts || 0)) base = remoto;
+    } catch (e) { console.error('[uniko-suspect] mutateState:', e); }
+    const proximo = fn(base);
+    if (proximo) await pushState(proximo);
+  }, [roomId, pushState]);
+
   /* ── Movimento livre no mapa (Fase 3) ──────────────────────────────────
      Posição NÃO entra no `state` (jsonb persistido) — muda rápido demais e é
      efêmera, então vai só por BROADCAST (mesmo princípio dos traços do Uniko
@@ -1892,6 +2027,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const worldRef = useRef(null);
   const myMarkerRef = useRef(null);
   const lightRef = useRef(null);
+  const setaRef = useRef(null);          // seta que aponta pra sala de energia durante a sabotagem
+  const energiaAlvoRef = useRef(null);   // { x, y } da tarefa de energia mais perto (null = sem sabotagem)
   const meuPapelRef = useRef(null);
   const souFantasmaRef = useRef(false);
   const sabotagemAtivaRef = useRef(false);
@@ -1900,6 +2037,38 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const morteAnimRef = useRef(null);
   const corpoProximoRef = useRef(null);
   const reportarRef = useRef(null);
+  const explodirVortexRef = useRef(null);   // o canal de broadcast monta uma vez só e precisa da versão atual
+
+  /* ── Seta pra sala de energia (ago/2026) ────────────────────────────────
+     Com a luz sabotada ninguém achava o painel no escuro. Enquanto a
+     sabotagem estiver de pé, quem ainda não consertou vê uma seta girando
+     em volta do próprio boneco, apontando EM TEMPO REAL pra tarefa de
+     energia mais perto (igual à setinha de sabotagem do Among Us).
+     Pintada direto no DOM, junto do resto do visual — o estado do React só
+     acompanha o movimento no ritmo lento do broadcast, e a seta ficaria
+     "pulando". */
+  /* Toda partida NOVA recomeça com o boneco no centro (ver spawnFor) — sem
+     isso quem já estava no mapa continuava exatamente de onde tinha parado
+     na rodada anterior, enquanto quem acabou de chegar nascia no meio.
+     Ajustado durante o render (padrão oficial do React pra "resetar estado
+     quando algo muda"), não num efeito com setState solto. */
+  const [roundVisto, setRoundVisto] = useState(state?.round ?? 0);
+  if ((state?.round ?? 0) !== roundVisto) {
+    setRoundVisto(state?.round ?? 0);
+    setMyPos(spawnFor());   // `myPosRef` (o que o loop de 60fps lê) acompanha no efeito de [myPos]
+  }
+
+  const pintarSeta = useCallback(() => {
+    const seta = setaRef.current; if (!seta) return;
+    const alvo = energiaAlvoRef.current;
+    if (!alvo) { seta.style.display = 'none'; return; }
+    const { x, y } = myPosRef.current;
+    const ang = Math.atan2(alvo.y - y, alvo.x - x) * 180 / Math.PI;
+    seta.style.display = 'block';
+    seta.style.left = `${x / MAP_W * 100}%`;
+    seta.style.top = `${y / MAP_H * 100}%`;
+    seta.style.transform = `rotate(${ang}deg)`;
+  }, []);
 
   /* ── Barco do lobby (ago/2026): mesma lógica de posição-por-broadcast do
      mapa principal, só que com coordenadas próprias (dentro da elipse do
@@ -2027,14 +2196,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const vortexProximo = useMemo(() => {
     if (state?.papeis?.[name] !== 'impostor' || state?.vencedor) return null;
     if (state?.phase !== 'jogando' || state?.reuniao) return null;
-    if (state?.mortos?.includes(name) || mapaVortex.length < 2) return null;
+    // Impostor virado fantasma não teleporta mais (o campo antigo `mortos`
+    // não existe mais — quem morre/é expulso entra em `fantasmas`).
+    if (state?.fantasmas?.includes(name) || mapaVortex.length < 2) return null;
     let melhor = null, melhorD = Infinity;
     for (const v of mapaVortex) {
       const d = Math.hypot(v.x - myPos.x, v.y - myPos.y);
       if (d < VORTEX_PROXIMIDADE && d < melhorD) { melhor = v; melhorD = d; }
     }
     return melhor;
-  }, [mapaVortex, myPos, state?.papeis, state?.phase, state?.reuniao, state?.mortos, state?.vencedor, name]);
+  }, [mapaVortex, myPos, state?.papeis, state?.phase, state?.reuniao, state?.fantasmas, state?.vencedor, name]);
   const vortexProximoRef = useRef(null);
   useEffect(() => { vortexProximoRef.current = vortexProximo; }, [vortexProximo]);
 
@@ -2071,9 +2242,23 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // Teleporte: leva o boneco pro destino e avisa os outros na hora (a posição
   // é minha autoridade local — mesmo caminho do movimento normal).
   const [vortexCooldownAte, setVortexCooldownAte] = useState(0);
+  /* Explosões do vórtex (ago/2026): lista curta de {id,x,y} que se apaga
+     sozinha. Vai por BROADCAST pra todo mundo na sala ver o clarão — é o
+     único rastro que o portal deixa (quem estiver por perto vê que alguém
+     acabou de sumir/aparecer ali). */
+  const [vortexFx, setVortexFx] = useState([]);
+  const explodirVortex = useCallback((x, y, propagar = true) => {
+    const id = uid();
+    setVortexFx(l => [...l.slice(-5), { id, x, y }]);
+    setTimeout(() => setVortexFx(l => l.filter(f => f.id !== id)), 900);
+    if (propagar) { try { chanRef.current?.send({ type: 'broadcast', event: 'vortex-fx', payload: { de: name, x, y } }); } catch { /* canal caiu — só o efeito local */ } }
+  }, [name]);
+  useEffect(() => { explodirVortexRef.current = explodirVortex; }, [explodirVortex]);
   const teleportar = (destino) => {
     tocarEfeito('vortex');
     const alvo = { x: destino.x, y: destino.y };
+    explodirVortex(myPosRef.current.x, myPosRef.current.y);   // saída
+    explodirVortex(alvo.x, alvo.y);                            // chegada
     myPosRef.current = alvo;
     setMyPos(alvo);
     setVortexAberto(null);
@@ -2085,16 +2270,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // Brilho na placa que acabou de ser concluída (some sozinho).
     setBrilhoTarefa(taskId);
     setTimeout(() => setBrilhoTarefa(b => (b === taskId ? null : b)), 900);
-    const s = stateRef.current || {};
-    const done = { ...(s.tasksDone || {}) };
-    done[name] = [...new Set([...(done[name] || []), taskId])];
-    // Vitória por tarefas: quando TODOS os Tripulantes (vivos ou fantasma —
-    // fantasma continua fazendo tarefa) já concluíram TODAS as tarefas.
-    const todosIds = mapaTarefas.map(t => t.id);
-    const tripulantes = Object.keys(s.papeis || {}).filter(n => s.papeis[n] === 'tripulante');
-    const todasFeitas = todosIds.length > 0 && tripulantes.length > 0
-      && tripulantes.every(n => todosIds.every(id => (done[n] || []).includes(id)));
-    pushState({ ...s, tasksDone: done, vencedor: todasFeitas ? 'tripulante' : s.vencedor });
+    mutateState(s => {
+      if (!s) return null;
+      const done = { ...(s.tasksDone || {}) };
+      done[name] = [...new Set([...(done[name] || []), taskId])];
+      // Vitória por tarefas: quando TODOS os Tripulantes (vivos ou fantasma —
+      // fantasma continua fazendo tarefa) já concluíram TODAS as tarefas.
+      const todosIds = mapaTarefas.map(t => t.id);
+      const tripulantes = Object.keys(s.papeis || {}).filter(n => s.papeis[n] === 'tripulante');
+      const todasFeitas = todosIds.length > 0 && tripulantes.length > 0
+        && tripulantes.every(n => todosIds.every(id => (done[n] || []).includes(id)));
+      return { ...s, tasksDone: done, vencedor: todasFeitas ? 'tripulante' : s.vencedor };
+    });
   };
 
   /* ── Matar (ago/2026) — só o Impostor, perto de alguém vivo, com recarga.
@@ -2126,7 +2313,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     let melhor = null, melhorD = Infinity;
     for (const p of players) {
       if (p.name === name || state?.papeis?.[p.name] === 'impostor' || state?.fantasmas?.includes(p.name)) continue;
-      const pos = positions[p.name]; if (!pos) continue;
+      // Mesmo fallback do desenho do boneco (`spawnFor`): quem ainda não
+      // mexeu nunca mandou posição, e sem isso ficava IMORTAL — aparecia no
+      // mapa mas o botão de matar nunca acendia em cima dele.
+      const pos = positions[p.name] || spawnFor(p.name);
       const d = Math.hypot(pos.x - myPos.x, pos.y - myPos.y);
       if (d < KILL_PROXIMIDADE && d < melhorD) { melhor = { ...p, x: pos.x, y: pos.y }; melhorD = d; }
     }
@@ -2147,32 +2337,32 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { corpoProximoRef.current = corpoProximo; }, [corpoProximo]);
 
   const matar = (vitima) => {
-    const s = stateRef.current;
-    if (!s || s.phase !== 'jogando' || s.reuniao) return;
-    if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
-    if ((s.fantasmas || []).includes(vitima.name) || s.papeis?.[vitima.name] === 'impostor') return;
-    if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return;
-    // Só aqui: passou por todas as travas, a morte vai acontecer mesmo.
+    // Som na hora do clique (a checagem de verdade acontece já com o estado
+    // fresco lá dentro; se a morte não valer, o efeito some no meio do jogo
+    // e ninguém percebe — melhor que um clique de matar sem resposta).
     tocarEfeito('matar');
-    const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
-    const nomesPapeis = Object.keys(s.papeis || {});
-    const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !fantasmas.includes(n));
-    const tripulantesVivos = nomesPapeis.filter(n => s.papeis[n] === 'tripulante' && !fantasmas.includes(n));
-    let vencedor = null;
-    if (impostoresVivos.length === 0) vencedor = 'tripulante';
-    else if (tripulantesVivos.length === 0) vencedor = 'impostor';
-    const corpos = [...(s.corpos || []), { id: uid(), x: vitima.x, y: vitima.y, vitima: vitima.name, matador: name }];
-    pushState({ ...s, fantasmas, vencedor, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
-      ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } });
+    mutateState(s => {
+      if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return null;
+      if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return null;
+      if ((s.fantasmas || []).includes(vitima.name) || s.papeis?.[vitima.name] === 'impostor') return null;
+      if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return null;
+      const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
+      const corpos = [...(s.corpos || []), { id: uid(), x: vitima.x, y: vitima.y, vitima: vitima.name, matador: name }];
+      const proximo = { ...s, fantasmas, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
+        ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } };
+      // Vitória só quando não sobra NENHUM tripulante vivo (ver decidirVencedor).
+      return { ...proximo, vencedor: decidirVencedor(proximo, playersRef.current) };
+    });
   };
   useEffect(() => { matarRef.current = matar; });
 
   // Reportar corpo: some da lista de corpos E já chama a reunião de emergência.
   const reportar = (corpoId) => {
-    const s = stateRef.current;
-    if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor || (s.fantasmas || []).includes(name)) return;
-    const corpos = (s.corpos || []).filter(c => c.id !== corpoId);
-    pushState({ ...s, corpos, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
+    mutateState(s => {
+      if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor || (s.fantasmas || []).includes(name)) return null;
+      const corpos = (s.corpos || []).filter(c => c.id !== corpoId);
+      return { ...s, corpos, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } };
+    });
   };
   useEffect(() => { reportarRef.current = reportar; });
 
@@ -2180,12 +2370,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      do mapa (não precisa estar perto de nada). Enquanto ativa, ninguém faz
      tarefa e os Tripulantes ficam praticamente no escuro (ver LUZ_RAIO). */
   const sabotarEnergia = () => {
-    const s = stateRef.current;
-    if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return;
-    if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return;
-    if (s.sabotagem) return;   // já tem uma rolando
-    if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return;
-    pushState({ ...s, sabotagem: { iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } });
+    mutateState(s => {
+      if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return null;
+      if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return null;
+      if (s.sabotagem) return null;   // já tem uma rolando
+      if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return null;
+      return { ...s, sabotagem: { iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } };
+    });
   };
   // Consertar energia (ago/2026, redesenhado): não é mais "segurar um botão
   // em qualquer lugar" — TODO TRIPULANTE VIVO precisa refazer a tarefa de
@@ -2194,12 +2385,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // um que termina entra em `sabotagem.consertadoPor`; quando cobre todo
   // mundo, a luz volta ao normal.
   const consertarEnergia = () => {
-    const s = stateRef.current;
-    if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return;   // o Impostor não conserta a própria sabotagem
-    const consertadoPor = [...new Set([...(s.sabotagem.consertadoPor || []), name])];
-    const tripulantesVivos = Object.keys(s.papeis || {}).filter(n => s.papeis[n] === 'tripulante' && !(s.fantasmas || []).includes(n));
-    const completo = tripulantesVivos.length > 0 && tripulantesVivos.every(n => consertadoPor.includes(n));
-    pushState({ ...s, sabotagem: completo ? null : { ...s.sabotagem, consertadoPor } });
+    mutateState(s => {
+      if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return null;   // o Impostor não conserta a própria sabotagem
+      const consertadoPor = [...new Set([...(s.sabotagem.consertadoPor || []), name])];
+      const tripulantesVivos = vivosPorTime(s, playersRef.current).tripulantes;
+      const completo = tripulantesVivos.length > 0 && tripulantesVivos.every(n => consertadoPor.includes(n));
+      return { ...s, sabotagem: completo ? null : { ...s.sabotagem, consertadoPor } };
+    });
   };
 
   /* ── Reunião de emergência (ago/2026): ver comentário no componente
@@ -2224,7 +2416,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando' || s.vencedor || (s.fantasmas || []).includes(name)) return;   // fantasma não chama reunião; jogo já decidido não chama de novo
     if (s.reuniao) { setEmergMsg('🚨 Já tem uma reunião de emergência rolando!'); setTimeout(() => setEmergMsg(''), 2500); return; }
-    pushState({ ...s, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } });
+    mutateState(st => {
+      if (!st || st.phase !== 'jogando' || st.vencedor || st.reuniao || (st.fantasmas || []).includes(name)) return null;
+      return { ...st, reuniao: { id: uid(), chamadaPor: name, fase: 'chat', faseIniciadaEm: Date.now(), votos: {} } };
+    });
   };
   const enviarChat = () => {
     const texto = chatTexto.trim();
@@ -2236,23 +2431,31 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // clicar em outra pessoa troca, "Retirar meu voto" apaga a chave inteira
   // (pedido do usuário: dá pra mudar de ideia até a votação fechar).
   const votar = (alvo) => {
-    const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'votacao' || (s.fantasmas || []).includes(name)) return;   // fantasma só faz tarefa, não vota
-    pushState({ ...s, reuniao: { ...rr, votos: { ...(rr.votos || {}), [name]: alvo } } });
+    // `mutateState`: sem isso dois votos quase simultâneos se apagavam
+    // (cada cliente gravava o jsonb inteiro por cima do outro).
+    mutateState(s => {
+      const rr = s?.reuniao;
+      if (!rr || rr.fase !== 'votacao' || (s.fantasmas || []).includes(name)) return null;   // fantasma só faz tarefa, não vota
+      return { ...s, reuniao: { ...rr, votos: { ...(rr.votos || {}), [name]: alvo } } };
+    });
   };
   const retirarVoto = () => {
-    const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'votacao' || rr.votos?.[name] === undefined) return;
-    const votos = { ...(rr.votos || {}) };
-    delete votos[name];
-    pushState({ ...s, reuniao: { ...rr, votos } });
+    mutateState(s => {
+      const rr = s?.reuniao;
+      if (!rr || rr.fase !== 'votacao' || rr.votos?.[name] === undefined) return null;
+      const votos = { ...(rr.votos || {}) };
+      delete votos[name];
+      return { ...s, reuniao: { ...rr, votos } };
+    });
   };
   // Botão "Vamos votar" (qualquer jogador pode apertar) — pula o resto do
   // cronômetro de chat e já abre a votação, sem esperar os 60s completos.
   const iniciarVotacao = () => {
-    const s = stateRef.current; const rr = s?.reuniao;
-    if (!rr || rr.fase !== 'chat' || (s.fantasmas || []).includes(name)) return;
-    pushState({ ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } });
+    mutateState(s => {
+      const rr = s?.reuniao;
+      if (!rr || rr.fase !== 'chat' || (s.fantasmas || []).includes(name)) return null;
+      return { ...s, reuniao: { ...rr, fase: 'votacao', faseIniciadaEm: Date.now() } };
+    });
   };
 
   const host = useMemo(() => {
@@ -2263,6 +2466,39 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   }, [players, state?.criador]);
   const isHost = host === name;
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
+
+  /* Apuração da votação — separada do tick porque precisa do estado FRESCO
+     do banco (ver mutateState). */
+  const apurarVotacao = useCallback(() => mutateState(s => {
+    const rr = s?.reuniao;
+    if (!rr || rr.fase !== 'votacao') return null;   // outro tick já apurou
+    const fantasmasAtuais = s.fantasmas || [];
+    const contagem = {};
+    Object.values(rr.votos || {}).forEach(alvo => { if (alvo) contagem[alvo] = (contagem[alvo] || 0) + 1; });
+    let expulso = null, max = 0, empatados = 0;
+    Object.entries(contagem).forEach(([nome, qtd]) => {
+      if (qtd > max) { max = qtd; expulso = nome; empatados = 1; }
+      else if (qtd === max) { empatados++; }
+    });
+    const empate = max > 0 && empatados > 1;
+    /* MAIORIA de verdade (ago/2026): antes bastava ser o mais votado — com
+       5 pessoas, 2 votos já expulsavam alguém. Agora o acusado precisa de
+       MAIS DA METADE dos votos dados (os "Pular votação" contam no total,
+       então pular protege quem está sendo acusado). Sem maioria, ninguém
+       sai da casa. */
+    const totalVotos = Object.keys(rr.votos || {}).length;
+    const temMaioria = max * 2 > totalVotos;
+    const expulsoFinal = (empate || !temMaioria) ? null : expulso;
+
+    // Expulso vira fantasma — e a partida só acaba pelas regras de
+    // `decidirVencedor` (com 2+ impostores, tirar um NÃO encerra o jogo).
+    const novosFantasmas = expulsoFinal ? [...new Set([...fantasmasAtuais, expulsoFinal])] : fantasmasAtuais;
+    const proximo = { ...s, fantasmas: novosFantasmas };
+    const vencedor = decidirVencedor(proximo, playersRef.current);
+
+    return { ...proximo, vencedor,
+      reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: expulsoFinal, empate, vencedor } } };
+  }), [mutateState]);
 
   /* HOST avança as fases da reunião no tempo certo (chat→votação→resultado→
      fecha) — todo mundo lê o `faseIniciadaEm` compartilhado pra mostrar a
@@ -2279,51 +2515,35 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       } else if (rr.fase === 'votacao') {
         // Fantasmas não votam — só quem ainda tá vivo entra na conta de "todo
         // mundo já votou" (senão a votação nunca pularia sozinha com alguém já morto na sala).
-        const fantasmasAtuais = s.fantasmas || [];
-        const vivos = playersRef.current.filter(p => !fantasmasAtuais.includes(p.name));
-        const todosVotaram = vivos.length > 0 && vivos.every(p => rr.votos?.[p.name] !== undefined);
-        if (decorrido < REUNIAO_FASE_MS && !todosVotaram) return;   // ainda esperando
-
-        const contagem = {};
-        Object.values(rr.votos || {}).forEach(alvo => { if (alvo) contagem[alvo] = (contagem[alvo] || 0) + 1; });
-        let expulso = null, max = 0, empatados = 0;
-        Object.entries(contagem).forEach(([nome, qtd]) => {
-          if (qtd > max) { max = qtd; expulso = nome; empatados = 1; }
-          else if (qtd === max) { empatados++; }
-        });
-        const empate = max > 0 && empatados > 1;
-        const expulsoFinal = empate ? null : expulso;
-
-        // Expulso vira fantasma — checa condição de vitória (todo impostor
-        // fora = tripulantes vencem; todo tripulante fora = impostor vence).
-        const novosFantasmas = expulsoFinal ? [...new Set([...fantasmasAtuais, expulsoFinal])] : fantasmasAtuais;
-        const nomesPapeis = Object.keys(s.papeis || {});
-        const impostoresVivos = nomesPapeis.filter(n => s.papeis[n] === 'impostor' && !novosFantasmas.includes(n));
-        const tripulantesVivos = nomesPapeis.filter(n => s.papeis[n] === 'tripulante' && !novosFantasmas.includes(n));
-        let vencedor = null;
-        if (impostoresVivos.length === 0) vencedor = 'tripulante';
-        else if (tripulantesVivos.length === 0) vencedor = 'impostor';
-
-        pushState({ ...s, fantasmas: novosFantasmas, vencedor,
-          reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: expulsoFinal, empate, vencedor } } });
+        const fantasmasPrevia = s.fantasmas || [];
+        const vivosPrevia = playersRef.current.filter(p => !fantasmasPrevia.includes(p.name));
+        const todosVotaramPrevia = vivosPrevia.length > 0 && vivosPrevia.every(p => rr.votos?.[p.name] !== undefined);
+        if (decorrido < REUNIAO_FASE_MS && !todosVotaramPrevia) return;   // ainda esperando
+        // A APURAÇÃO em si vai por `mutateState`: é a hora em que um voto
+        // recém-dado por outra pessoa ainda pode estar a caminho, e contar
+        // uma cédula a menos mudaria quem sai da casa.
+        apurarVotacao();
       } else if (rr.fase === 'resultado' && decorrido >= REUNIAO_RESULTADO_MS) {
         pushState(s.vencedor ? { ...s, phase: 'over', reuniao: null } : { ...s, reuniao: null });
       }
     };
     const iv = setInterval(tick, 500);
     return () => clearInterval(iv);
-  }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState]);
+  }, [isHost, state?.reuniao?.id, state?.reuniao?.fase, pushState, apurarVotacao]);
+
 
   // HOST conserta a sabotagem de energia sozinho depois de um tempo, se
   // ninguém foi lá resolver — evita travar a partida pra sempre no escuro.
   useEffect(() => {
     if (!isHost || !state?.sabotagem?.iniciadaEm) return;
+    // `mutateState` e não `pushState`: este timer estoura no meio do escuro,
+    // justamente quando mais gente está gravando estado ao mesmo tempo — com
+    // o jsonb montado em cima de um estado velho ele apagaria mortes.
     const t = setTimeout(() => {
-      const s = stateRef.current;
-      if (s?.sabotagem) pushState({ ...s, sabotagem: null });
+      mutateState(s => (s?.sabotagem ? { ...s, sabotagem: null } : null));
     }, SABOTAGEM_AUTO_FIX_MS);
     return () => clearTimeout(t);
-  }, [isHost, state?.sabotagem?.iniciadaEm, pushState]);
+  }, [isHost, state?.sabotagem?.iniciadaEm, mutateState]);
 
   /* HOST fecha a partida quando uma MORTE (não expulsão — essa já tem seu
      próprio fluxo de 8s dentro da reunião) decide o jogo: dá um tempinho
@@ -2363,6 +2583,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
       if (!payload?.name || payload.name === name) return;
       setPositions(prev => ({ ...prev, [payload.name]: { x: payload.x, y: payload.y, moving: !!payload.moving } }));
+    });
+    // Explosão do vórtex — puro efeito visual. O canal tem `self:true`, então
+    // o próprio eco volta pra mim: como já pintei localmente na hora do
+    // teleporte, ignoro o que veio com o meu nome (senão pinta em dobro).
+    ch.on('broadcast', { event: 'vortex-fx' }, ({ payload }) => {
+      if (!payload || payload.de === name) return;
+      if (typeof payload.x !== 'number' || typeof payload.y !== 'number') return;
+      explodirVortexRef.current?.(payload.x, payload.y, false);
     });
     // Chat da reunião de emergência — efêmero, não persiste (mesmo princípio da posição).
     ch.on('broadcast', { event: 'reuniao-chat' }, ({ payload }) => {
@@ -2480,6 +2708,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           : sabotagemAtivaRef.current ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante;
         lightRef.current.style.background = lightGradientBg(nx / MAP_W * 100, ny / MAP_H * 100, raio);
       }
+      pintarSeta();   // a seta da energia segue o boneco no mesmo frame
     };
     pintarVisual(myPosRef.current.x, myPosRef.current.y);
 
@@ -2554,7 +2783,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       teclas.clear();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [state?.phase, name]);
+  }, [state?.phase, name, pintarSeta]);
 
   const sortearEComecar = () => {
     if (!state || players.length < MIN_PLAYERS) return;
@@ -2562,7 +2791,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
     const papeis = {};
     nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
+    /* Recarga inicial do assassinato: agora todo mundo nasce EMPILHADO no
+       centro (ver spawnFor), então sem isso o impostor mataria no primeiro
+       segundo, na frente da sala inteira. A contagem começa aqui, no
+       sorteio, e o mapa só abre REVELACAO_MS depois — sobra a diferença
+       (KILL_COOLDOWN_MS - REVELACAO_MS) de trégua com o jogo já rolando. */
+    const killCooldowns = {};
+    nomes.forEach(n => { if (papeis[n] === 'impostor') killCooldowns[n] = Date.now(); });
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
   };
   const escolherImpostores = (n) => {
     if (!isHost || !state) return;
@@ -2579,6 +2815,26 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const papelCor = souFantasma ? '#A78BFA' : meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR;
   useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
   useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
+
+  /* Alvo da seta de energia: a placa de energia mais perto, enquanto a
+     sabotagem estiver de pé e EU ainda não tiver consertado a minha parte.
+     O Impostor não vê seta nenhuma (a sabotagem é dele). */
+  const energiaAlvo = useMemo(() => {
+    if (!state?.sabotagem || meuPapel === 'impostor') return null;
+    if (state.sabotagem.consertadoPor?.includes(name)) return null;
+    let melhor = null, melhorD = Infinity;
+    for (const t of mapaTarefas) {
+      if (taskTypeFor(t.label) !== 'energia') continue;
+      const d = Math.hypot(t.x - myPos.x, t.y - myPos.y);
+      if (d < melhorD) { melhor = t; melhorD = d; }
+    }
+    return melhor;
+  }, [state?.sabotagem, meuPapel, mapaTarefas, myPos, name]);
+  // Repinta na hora em que a sabotagem começa/termina — o loop de movimento
+  // só repinta quando o boneco anda, e parado a seta nunca apareceria.
+  useEffect(() => { energiaAlvoRef.current = energiaAlvo; pintarSeta(); }, [energiaAlvo, pintarSeta]);
+  // Distância até a energia (pro aviso de baixo) — em "passos" arredondados.
+  const energiaDist = energiaAlvo ? Math.round(Math.hypot(energiaAlvo.x - myPos.x, energiaAlvo.y - myPos.y)) : 0;
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
   const mostrarSabotar = meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem;
   // O botão de sabotar agora fica SEMPRE na tela (fixo ao lado do matar) e só
@@ -2980,18 +3236,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   );
                 })}
 
-                {/* Vórtex: SÓ o Impostor vê (é a vantagem dele — tripulante
-                    não pode saber onde ficam os atalhos). */}
-                {meuPapel === 'impostor' && mapaVortex.map(v => {
-                  // Só dá pra ENTRAR estando praticamente em cima do portal
-                  // (VORTEX_PROXIMIDADE). Antes o clique no pino teleportava de
-                  // qualquer distância — dava pra atravessar o mapa sem sair do
-                  // lugar. Os outros continuam visíveis, mas apagados, pro
-                  // impostor saber pra onde pode ir.
-                  const perto = vortexProximo?.id === v.id;
+                {/* Vórtex: TODO MUNDO enxerga os portais (ago/2026) — faz parte
+                    da casa, e saber onde eles ficam é justamente o que dá ao
+                    tripulante a chance de desconfiar de quem some por ali. Só o
+                    IMPOSTOR consegue USAR: pra todos os outros o pino fica
+                    apagado e o clique não faz nada.
+                    Mesmo pro impostor, só dá pra entrar estando praticamente em
+                    cima do portal (VORTEX_PROXIMIDADE) — antes o clique no pino
+                    teleportava de qualquer distância. */}
+                {mapaVortex.map(v => {
+                  const souDono = meuPapel === 'impostor' && !souFantasma;
+                  const perto = souDono && vortexProximo?.id === v.id;
                   return (
                     <button key={v.id} onClick={() => { if (perto) setVortexAberto(v); }}
-                      title={perto ? `Entrar no vórtex — ${v.label}` : `${v.label} (chegue mais perto pra entrar)`}
+                      title={!souDono ? `${v.label} — só o Impostor consegue usar o vórtex`
+                        : perto ? `Entrar no vórtex — ${v.label}` : `${v.label} (chegue mais perto pra entrar)`}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${v.x / MAP_W * 100}%`, top: `${v.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: perto ? 'pointer' : 'not-allowed',
                         width: 48, height: 48, borderRadius: '50%',
@@ -3005,6 +3264,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     </button>
                   );
                 })}
+
+                {/* Clarão roxo/azul de quem entrou ou saiu de um portal. */}
+                {vortexFx.map(fx => <ExplosaoVortex key={fx.id} x={fx.x} y={fx.y} />)}
 
                 {/* Botão de emergência — placa "Iniciar Reunião", brilho pulsante. Fantasma não chama reunião. */}
                 {mapaEmergencia && !souFantasma && (
@@ -3062,6 +3324,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     de sumir de vez, em vez de ir de "visível" pra "preto" de repente.
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
                     verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
+                {/* Seta da energia — orbita o meu boneco apontando pro painel
+                    (ver pintarSeta). `zIndex` acima da luz de propósito: ela
+                    precisa brilhar JUSTO quando está tudo escuro. */}
+                <div ref={setaRef} style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0,
+                  display: 'none', zIndex: 5, pointerEvents: 'none' }}>
+                  <div className="sus-seta" style={{ position: 'absolute', left: 0, top: 0 }}>
+                    <svg width="52" height="52" viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 8px #FBBF24) drop-shadow(0 0 18px #F59E0Bcc)' }}>
+                      <path d="M3 12h11" stroke="#FDE68A" strokeWidth="3.4" strokeLinecap="round" />
+                      <path d="M13 5.5L21 12l-8 6.5z" fill="#FBBF24" stroke="#FFFBEB" strokeWidth="1.2" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100,
                     souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (state?.sabotagem ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
@@ -3086,6 +3361,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                           boxShadow: feita ? 'none' : '0 0 5px #3B82F6' }} />
                       );
                     })}
+                    {/* Sabotagem: a sala de energia pisca em amarelo no mini-mapa,
+                        pra dar a direção geral que a seta aponta de perto. */}
+                    {energiaAlvo && (
+                      <div className="sus-emerg" style={{ position: 'absolute', left: `${energiaAlvo.x / MAP_W * 100}%`, top: `${energiaAlvo.y / MAP_H * 100}%`,
+                        transform: 'translate(-50%,-50%)', width: '13%', aspectRatio: '1/1', borderRadius: '50%',
+                        background: '#FBBF24', border: '2px solid #fff', boxShadow: '0 0 10px #FBBF24' }} />
+                    )}
                     <div style={{ position: 'absolute', left: `${myPosAtual.x / MAP_W * 100}%`, top: `${myPosAtual.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', width: '8%', aspectRatio: '1/1', borderRadius: '50%',
                       background: '#fff', border: `2px solid ${AGUA}`, boxShadow: '0 0 6px #fff' }} />
@@ -3144,14 +3426,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             </div>
 
             {!!state?.sabotagem && (() => {
-              const tripulantesVivos = Object.keys(state?.papeis || {}).filter(n => state.papeis[n] === 'tripulante' && !(state?.fantasmas || []).includes(n));
+              const tripulantesVivos = vivosPorTime(state, players).tripulantes;
               const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
               return (
                 <div className="sus-pop" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff',
                   background: 'rgba(217,119,6,.92)', borderRadius: 999, padding: '8px 18px', margin: '0 auto', width: 'fit-content' }}>
                   ⚡ Energia sabotada! {meuPapel === 'impostor'
                     ? `Ninguém consegue fazer tarefa até todo mundo consertar (${consertaram}/${tripulantesVivos.length}).`
-                    : `Vá até a tarefa de energia e refaça — todo mundo precisa consertar (${consertaram}/${tripulantesVivos.length})!`}
+                    : energiaAlvo
+                      ? `Siga a seta 🡒 até a sala de energia (${energiaDist} de distância) — todo mundo precisa consertar (${consertaram}/${tripulantesVivos.length})!`
+                      : `Você já consertou a sua parte — falta o resto do pessoal (${consertaram}/${tripulantesVivos.length}).`}
                 </div>
               );
             })()}
@@ -3245,6 +3529,39 @@ const TabUnikoSuspect = () => {
     supabase.from('uniko_suspect_state').select('id').limit(1).then(({ error }) => { if (semTabela(error)) setSqlMissing(true); });
   }, []);
 
+  /* ── Entrar numa sala = jogo em tela cheia (ago/2026) ───────────────────
+     Pedido do usuário: ao clicar em "entrar", o Portal em volta sai de cena.
+     Duas coisas acontecem juntas:
+     1) a classe `sus-na-sala` esconde barra lateral / cabeçalho / menu do
+        celular por CSS (ver SUS_CSS);
+     2) o navegador entra em tela cheia de verdade (Fullscreen API). Isso SÓ
+        funciona dentro do gesto do clique, por isso o pedido sai daqui, do
+        próprio handler do botão, e não de um efeito depois. Se o navegador
+        recusar (permissão/iframe), o item 1 já resolve o essencial. */
+  useEffect(() => {
+    if (!room) return;
+    document.body.classList.add('sus-na-sala');
+    return () => document.body.classList.remove('sus-na-sala');
+  }, [room]);
+  const entrarNaSala = (id) => {
+    setRoom(id);
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+        pedir?.call(el)?.catch?.(() => { /* navegador recusou — o CSS já cobre */ });
+      }
+    } catch { /* Fullscreen API indisponível */ }
+  };
+  const sairDaSala = () => {
+    setRoom(null);
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      }
+    } catch { /* já saiu */ }
+  };
+
   const refreshPresence = useCallback(() => {
     const ch = lobbyChan.current; if (!ch) return;
     const list = Object.values(ch.presenceState()).map(arr => arr[arr.length - 1]).filter(Boolean)
@@ -3320,8 +3637,8 @@ const TabUnikoSuspect = () => {
     // metade escura metade clara.
     <div style={{ background: T.page, color: T.text, borderRadius: 16, padding: 14, minHeight: '100%', boxSizing: 'border-box' }}>
       {room
-        ? <Sala roomId={room} name={name} photo={photo} players={naSala} onLeave={() => setRoom(null)} onAbrirPicker={() => setPicker(true)} />
-        : <Lobby name={name} photo={photo} porSala={porSala} onEnter={setRoom} onAbrirPicker={() => setPicker(true)} />}
+        ? <Sala roomId={room} name={name} photo={photo} players={naSala} onLeave={sairDaSala} onAbrirPicker={() => setPicker(true)} />
+        : <Lobby name={name} photo={photo} porSala={porSala} onEnter={entrarNaSala} onAbrirPicker={() => setPicker(true)} />}
 
       {picker && (() => {
         const termo = busca.trim().toLowerCase();

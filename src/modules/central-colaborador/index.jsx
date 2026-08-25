@@ -171,7 +171,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
       <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'}/>
-      <div style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
             `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
@@ -182,7 +182,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
             container ia de 668px pra 1348px com 60 mensagens, e a lista nunca
             rolava). Com `basis:auto` o `height` vira a base e a altura se mantém.
             Só pro Paint pra não mexer no layout das outras abas. */}
-        <div style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? '1 1 auto' : 1,
+        <div className="portal-area" style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? '1 1 auto' : 1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
           overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? 'hidden' : 'auto',
           minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? 0 : undefined,
@@ -208,7 +208,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
 
       {/* ── Mobile bottom nav ── */}
       {isMobile && tab!=='unikowave' && (
-        <div style={{position:'fixed',bottom:0,left:0,right:0,zIndex:300,
+        <div className="portal-mobilenav" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:300,
           background:T.surface,borderTop:`1px solid ${T.border}`,
           display:'flex',height:60,fontFamily:'var(--font-body)'}}>
           {MOBILE_NAV.map(n=>{
