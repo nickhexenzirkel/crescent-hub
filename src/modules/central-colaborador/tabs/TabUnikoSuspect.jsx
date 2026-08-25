@@ -334,6 +334,29 @@ const tocarEfeito = (nome) => {
 };
 
 /* Botões do HUD da partida — mesmo visual pros três (mudo/tela cheia/encerrar) */
+/* ── Brilho de tarefa concluída ────────────────────────────────────────────
+   12 partículas em círculo + um anel que abre. Os ângulos são FIXOS (nada de
+   Math.random no render — regra do React Compiler, e de quebra todo mundo vê
+   igual). Fica sobre a placa da tarefa, sem capturar clique. */
+const PARTICULAS_OK = Array.from({ length: 12 }, (_, i) => {
+  const ang = (i / 12) * Math.PI * 2;
+  return { dx: `${Math.cos(ang) * 46}px`, dy: `${Math.sin(ang) * 46}px`, atraso: (i % 4) * 0.05 };
+});
+
+const BrilhoTarefa = () => (
+  <div style={{ position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none', zIndex: 5 }}>
+    <div className="sus-anel-ok" style={{ position: 'absolute', left: 0, top: 0, width: 54, height: 54, marginLeft: -27, marginTop: -27,
+      borderRadius: '50%', border: '4px solid #6BF7B0', boxShadow: '0 0 18px #6BF7B0aa' }} />
+    {PARTICULAS_OK.map((p, i) => (
+      <span key={i} className="sus-particula"
+        style={{ position: 'absolute', left: 0, top: 0, width: 9, height: 9, borderRadius: '50%',
+          background: i % 3 === 0 ? '#FFF6A8' : i % 3 === 1 ? '#6BF7B0' : '#8BE9FF',
+          boxShadow: '0 0 10px currentColor', animationDelay: `${p.atraso}s`,
+          '--dx': p.dx, '--dy': p.dy }} />
+    ))}
+  </div>
+);
+
 const hudBtnCss = {
   display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10,
   border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)',
@@ -427,9 +450,27 @@ const SUS_CSS = `
 @keyframes susReveal { 0% { transform: scale(.4) rotateY(90deg); opacity: 0; } 60% { transform: scale(1.08) rotateY(0deg); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes susWalk  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
-@keyframes susTwinkle { 0%,100% { transform: scale(1); opacity: .92; } 50% { transform: scale(1.18); opacity: 1; } }
-@keyframes susEmergPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 6px #DC2626) drop-shadow(0 0 14px #DC262699); }
-  50% { transform: scale(1.22); filter: drop-shadow(0 0 12px #DC2626) drop-shadow(0 0 26px #DC2626cc); } }
+/* Brilho ao concluir tarefa: cada partícula sobe/abre pro seu lado (o ângulo
+   vem de --dx/--dy, definidos inline) enquanto some. */
+@keyframes susParticula {
+  0%   { transform: translate(-50%,-50%) scale(.3); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+}
+@keyframes susAnelOk {
+  0%   { transform: translate(-50%,-50%) scale(.2); opacity: .9; border-width: 4px; }
+  100% { transform: translate(-50%,-50%) scale(2.6); opacity: 0; border-width: 1px; }
+}
+.sus-particula { animation: susParticula .85s ease-out forwards; }
+.sus-anel-ok   { animation: susAnelOk .7s ease-out forwards; }
+
+/* Pulsação LENTA e discreta: o "pum-pum" rápido de antes cansava a vista com
+   várias placas na tela. A escala mal muda (1 → 1.04) e quem dá vida é a AURA
+   (drop-shadow) respirando junto. */
+@keyframes susTwinkle { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 5px #6BB8FF66) drop-shadow(0 0 12px #4A9FE833); }
+  50% { transform: scale(1.04); filter: drop-shadow(0 0 12px #6BB8FFaa) drop-shadow(0 0 28px #4A9FE866); } }
+@keyframes susEmergPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 6px #DC262677) drop-shadow(0 0 16px #DC262633); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 0 14px #DC2626bb) drop-shadow(0 0 32px #DC262677); } }
 /* ── Animação de morte (tela cheia da vítima, ~4s, bate com MORTE_ANIM_MS):
    o Impostor recua e dispara um laser PELOS OLHOS (duas linhas finas) que
    atravessa até a vítima; no impacto ela EXPLODE (flash + onda de choque)
@@ -454,8 +495,10 @@ const SUS_CSS = `
 .sus-reveal { animation: susReveal .55s cubic-bezier(.2,1.4,.4,1) both; }
 .sus-float  { animation: susFloat 2.6s ease-in-out infinite; }
 .sus-walk   { animation: susWalk .45s ease-in-out infinite; }
-.sus-twinkle { animation: susTwinkle 1.6s ease-in-out infinite; }
-.sus-emerg  { animation: susEmergPulse 1.1s ease-in-out infinite; }
+/* Bem mais lentas que antes (1.6s → 3.4s / 1.1s → 3s): a ideia é "respirar",
+   não piscar. */
+.sus-twinkle { animation: susTwinkle 3.4s ease-in-out infinite; }
+.sus-emerg  { animation: susEmergPulse 3s ease-in-out infinite; }
 .sus-death-recoil { animation: susDeathRecoil 4s ease both; }
 .sus-eye-laser    { animation: susEyeLaser 4s cubic-bezier(.2,.9,.3,1) both; }
 .sus-explosion    { animation: susExplosion 4s ease both; }
@@ -500,10 +543,17 @@ const StarIcon = ({ size = 22, color = '#3B82F6', className }) => (
 /* ── Placas do mapa (ago/2026, substituem as estrelas SVG por imagens
    prontas fornecidas pelo usuário): tarefa disponível/concluída e o botão
    de iniciar reunião. Os botões de ação (matar/reportar) ficam mais abaixo. */
-const TAREFA_DISPONIVEL_IMG = '/uniko-suspect-tarefa-disponivel.png';
-const TAREFA_CONCLUIDA_IMG = '/uniko-suspect-tarefa-concluida.png';
-const INICIAR_REUNIAO_IMG = '/uniko-suspect-iniciar-reuniao.png';
-const BOTAO_MATAR_IMG = '/uniko-suspect-botao-matar.png';
+// `?v=` = data da última troca de arte. O navegador cacheia por NOME de
+// arquivo: sem isso quem já abriu o jogo continuaria vendo os botões velhos
+// (mesma pegadinha do mapa e da máscara de parede). Ao trocar as imagens de
+// novo, incremente a data.
+const ARTE_V = '?v=20260825';
+const TAREFA_DISPONIVEL_IMG = '/uniko-suspect-tarefa-disponivel.png' + ARTE_V;
+const TAREFA_CONCLUIDA_IMG = '/uniko-suspect-tarefa-concluida.png' + ARTE_V;
+const INICIAR_REUNIAO_IMG = '/uniko-suspect-iniciar-reuniao.png' + ARTE_V;
+const BOTAO_MATAR_IMG = '/uniko-suspect-botao-matar.png' + ARTE_V;
+const BOTAO_SABOTAR_IMG = '/uniko-suspect-botao-sabotar.png' + ARTE_V;
+const BOTAO_USAR_IMG = '/uniko-suspect-botao-usar.png' + ARTE_V;
 const BOTAO_REPORTAR_IMG = '/uniko-suspect-botao-reportar.png';
 const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde o impostor matou
 
@@ -562,7 +612,10 @@ const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
    não mini-jogos complexos — mas cada uma tem uma mecânica própria pra não
    ficar todas iguais).
    ═══════════════════════════════════════════════════════════════════════════ */
-const taskBtnCss = { border: 'none', background: 'none', cursor: 'pointer', padding: 0 };
+// `position:relative` pro brilho de conclusão (BrilhoTarefa, absolute) se
+// ancorar na placa. Sem `overflow:hidden` de propósito: as partículas
+// precisam transbordar pra fora da imagem.
+const taskBtnCss = { border: 'none', background: 'none', cursor: 'pointer', padding: 0, position: 'relative' };
 
 // Cada 💩/🍫/rasgo agora exige MAIS DE UM clique (`ALVO_CLIQUES`) antes de
 // sumir — só um clique ficava instantâneo demais (pedido do usuário: as
@@ -1818,6 +1871,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      só ELE vê a própria estrela virar verde (o "dela" do pedido do usuário):
      tarefas são individuais, cada um faz a sua. */
   const [tarefaAberta, setTarefaAberta] = useState(null);
+  const [brilhoTarefa, setBrilhoTarefa] = useState(null);   // id da tarefa com o brilho de conclusão
   const tarefaAbertaRef = useRef(null);
   useEffect(() => { tarefaAbertaRef.current = tarefaAberta; }, [tarefaAberta]);
   const minhasFeitas = useMemo(() => new Set(state?.tasksDone?.[name] || []), [state?.tasksDone, name]);
@@ -1919,6 +1973,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   };
   const marcarTarefaFeita = (taskId) => {
     tocarEfeito('tarefa');
+    // Brilho na placa que acabou de ser concluída (some sozinho).
+    setBrilhoTarefa(taskId);
+    setTimeout(() => setBrilhoTarefa(b => (b === taskId ? null : b)), 900);
     const s = stateRef.current || {};
     const done = { ...(s.tasksDone || {}) };
     done[name] = [...new Set([...(done[name] || []), taskId])];
@@ -2404,6 +2461,28 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
   const mostrarSabotar = meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem;
+  // O botão de sabotar agora fica SEMPRE na tela (fixo ao lado do matar) e só
+  // muda de estado — `podeSabotar` diz se o clique vale agora.
+  const podeSabotar = mostrarSabotar && !emCooldownSabotagem;
+
+  /* ── Botão USAR: um só pra qualquer interação de proximidade ──────────────
+     Antes cada coisa tinha seu próprio aviso ("Pressione E — tarefa", botão
+     de câmera, botão de vórtex) e a tela virava uma colcha de retalhos. Agora
+     é UM botão que muda de alvo, na mesma ordem de prioridade da tecla E:
+     tarefa > câmera > vórtex. */
+  const alvoUsar = useMemo(() => {
+    if (tarefaAberta || cameraAberta !== null || vortexAberto) return null;   // já tem algo aberto
+    if (tarefaProxima) return { tipo: 'tarefa', titulo: tarefaProxima.label };
+    if (cameraProxima) return { tipo: 'camera', titulo: cameraProxima.label };
+    if (vortexProximo) return { tipo: 'vortex', titulo: `Entrar no vórtex — ${vortexProximo.label}` };
+    return null;
+  }, [tarefaProxima, cameraProxima, vortexProximo, tarefaAberta, cameraAberta, vortexAberto]);
+
+  const usarAlvoProximo = () => {
+    if (tarefaProximaRef.current) { setTarefaAberta(tarefaProximaRef.current); return; }
+    if (cameraProximaRef.current) { abrirCamerasRef.current?.(); return; }
+    if (vortexProximoRef.current) setVortexAberto(vortexProximoRef.current);
+  };
   // Câmera: janela de ZOOM_W×ZOOM_H (campo de visão menor) centrada no MEU boneco,
   // clampada pra nunca mostrar além da borda do mapa. Usa o estado `myPos`
   // (React proíbe ler `ref.current` durante o render — regra do React
@@ -2729,6 +2808,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                         className={feita || travada ? undefined : 'sus-twinkle'}
                         style={{ width: '13vw', maxWidth: 132, minWidth: 78, display: 'block', opacity: travada ? .4 : 1,
                           filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                      {brilhoTarefa === t.id && <BrilhoTarefa />}
                     </button>
                   );
                 })}
@@ -2858,33 +2938,54 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 </div>
               )}
 
-              {/* Sabotar (redondo) / Matar/Reportar — todos no canto inferior DIREITO
-                  da tela do jogo (pedido do usuário: sabotar ao lado do matar), zIndex 6. */}
-              {(mostrarSabotar || vitimaProxima || corpoProximo) && (
-                <div style={{ position: 'absolute', right: '3%', bottom: '3%', zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-                  {mostrarSabotar && (
-                    <button className="sus-btn sus-pop" onClick={sabotarEnergia} disabled={emCooldownSabotagem} title="Sabotar energia"
-                      style={{ width: 'clamp(64px, 9vw, 88px)', height: 'clamp(64px, 9vw, 88px)', borderRadius: '50%',
-                        border: '3px solid #fff', color: '#fff', fontSize: 'clamp(26px, 4vw, 36px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: emCooldownSabotagem ? 'not-allowed' : 'pointer', opacity: emCooldownSabotagem ? .5 : 1,
-                        background: `linear-gradient(135deg, #F59E0B, #DC2626)`, boxShadow: '0 8px 20px rgba(0,0,0,.55)' }}>
-                      ⚡
+              {/* ── Botoeira do canto inferior direito ───────────────────
+                  Impostor: MATAR e SABOTAR ficam FIXOS lado a lado o tempo
+                  todo (antes apareciam/sumiam e a mão nunca sabia onde ir);
+                  quando não dá pra usar, só ficam apagados.
+                  Todos: USAR aparece quando tem algo perto — tarefa ou câmera
+                  pro tripulante, e também o vórtex pro impostor. */}
+              <div style={{ position: 'absolute', right: '3%', bottom: '3%', zIndex: 6,
+                display: 'flex', alignItems: 'flex-end', gap: 'clamp(8px, 1.4vw, 16px)' }}>
+
+                {/* USAR — só quando há alvo perto */}
+                {alvoUsar && (
+                  <button className="sus-btn sus-pop" onClick={usarAlvoProximo} title={alvoUsar.titulo}
+                    style={{ ...taskBtnCss, cursor: 'pointer' }}>
+                    <img src={BOTAO_USAR_IMG} alt={alvoUsar.titulo}
+                      style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                  </button>
+                )}
+
+                {/* REPORTAR — só quando há corpo perto */}
+                {corpoProximo && (
+                  <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
+                    <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
+                      style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                  </button>
+                )}
+
+                {/* SABOTAR + MATAR — fixos, só pro impostor vivo */}
+                {meuPapel === 'impostor' && !souFantasma && !state?.vencedor && (
+                  <>
+                    <button className="sus-btn" onClick={sabotarEnergia} disabled={!podeSabotar}
+                      title={emCooldownSabotagem ? 'Sabotagem recarregando' : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
+                      style={{ ...taskBtnCss, cursor: podeSabotar ? 'pointer' : 'not-allowed' }}>
+                      <img src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
+                        style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block',
+                          opacity: podeSabotar ? 1 : .45,
+                          filter: podeSabotar ? 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' : 'grayscale(1) drop-shadow(0 6px 14px rgba(0,0,0,.5))' }} />
                     </button>
-                  )}
-                  {vitimaProxima && (
-                    <button className="sus-btn sus-pop" onClick={() => matar(vitimaProxima)} style={{ ...taskBtnCss, cursor: 'pointer' }} title={`Matar ${vitimaProxima.name}`}>
-                      <img src={BOTAO_MATAR_IMG} alt={`Matar ${vitimaProxima.name}`}
-                        style={{ width: 'clamp(120px, 20vw, 220px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
+                    <button className="sus-btn" onClick={() => vitimaProxima && matar(vitimaProxima)} disabled={!vitimaProxima}
+                      title={vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
+                      style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
+                      <img src={BOTAO_MATAR_IMG} alt="Matar"
+                        style={{ width: 'clamp(96px, 15vw, 165px)', display: 'block',
+                          opacity: vitimaProxima ? 1 : .45,
+                          filter: vitimaProxima ? 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' : 'grayscale(1) drop-shadow(0 6px 14px rgba(0,0,0,.5))' }} />
                     </button>
-                  )}
-                  {corpoProximo && (
-                    <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
-                      <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
-                        style={{ width: 'clamp(120px, 20vw, 220px)', display: 'block', filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.6))' }} />
-                    </button>
-                  )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </div>
 
             {!!state?.sabotagem && (() => {
@@ -2899,30 +3000,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 </div>
               );
             })()}
-            {tarefaProxima && !tarefaAberta && (
+            {/* Um aviso só, dizendo O QUE o botão USAR vai fazer. Antes eram
+                três caixinhas diferentes (tarefa/câmera/vórtex) empilhadas. */}
+            {alvoUsar && (
               <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
-                background: 'rgba(37,99,235,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
-                Pressione <b>E</b> — {tarefaProxima.label}
+                background: alvoUsar.tipo === 'vortex' ? 'rgba(168,85,247,.92)'
+                  : alvoUsar.tipo === 'camera' ? 'rgba(22,163,74,.92)' : 'rgba(37,99,235,.92)',
+                borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
+                {alvoUsar.titulo} — use o botão ou <b>E</b>
               </div>
             )}
-            {/* Câmeras e vórtex só aparecem quando a tarefa não está pegando o E */}
-            {!tarefaProxima && cameraProxima && cameraAberta === null && (
-              <button className="sus-btn sus-pop" onClick={() => abrirCamerasRef.current?.()}
-                style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff', border: 'none', cursor: 'pointer',
-                  background: 'rgba(22,163,74,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
-                📹 Pressione <b>E</b> — {cameraProxima.label}
-              </button>
-            )}
-            {!tarefaProxima && !cameraProxima && vortexProximo && !vortexAberto && (
-              <button className="sus-btn sus-pop" disabled={agoraTick < vortexCooldownAte}
-                onClick={() => setVortexAberto(vortexProximo)}
-                style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff', border: 'none',
-                  cursor: agoraTick < vortexCooldownAte ? 'not-allowed' : 'pointer', opacity: agoraTick < vortexCooldownAte ? .55 : 1,
-                  background: 'rgba(168,85,247,.92)', borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
-                {agoraTick < vortexCooldownAte
-                  ? `🌀 Recarregando... ${Math.ceil((vortexCooldownAte - agoraTick) / 1000)}s`
-                  : <>🌀 Pressione <b>E</b> — entrar no vórtex</>}
-              </button>
+            {vortexProximo && agoraTick < vortexCooldownAte && (
+              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff',
+                background: 'rgba(120,60,180,.85)', borderRadius: 999, padding: '6px 14px', margin: '0 auto', width: 'fit-content' }}>
+                Vórtex recarregando... {Math.ceil((vortexCooldownAte - agoraTick) / 1000)}s
+              </div>
             )}
             {/* Legenda de controles em "teclas" de verdade — antes era uma
                 linha corrida de texto apagado, difícil de ler no meio do jogo. */}
