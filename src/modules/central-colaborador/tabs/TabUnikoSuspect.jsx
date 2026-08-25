@@ -1017,7 +1017,30 @@ const TaskEnergia = ({ onComplete }) => {
   const [ligados, setLigados] = useState([]);
   const [selecionado, setSelecionado] = useState(null);
   const [erro, setErro] = useState(null);
-  useEffect(() => { if (ligados.length === FIOS.length) onComplete(); }, [ligados, onComplete]);
+  /* O fio desenhado precisa começar e terminar EXATAMENTE no meio das
+     bolinhas. Antes o SVG tinha `viewBox="0 0 320 H"` com `width="100%"`:
+     em qualquer tela onde a caixa não coubesse nos 320px, o navegador
+     encolhia o desenho inteiro (inclusive na vertical, e ainda centralizava
+     a sobra) enquanto as bolinhas continuavam em pixels — os fios saíam
+     tortos, ligando o nada a lugar nenhum. Agora a largura real é MEDIDA e o
+     SVG desenha em pixel de verdade, sem viewBox e sem escala. */
+  const caixaRef = useRef(null);
+  const [larg, setLarg] = useState(320);
+  useEffect(() => {
+    const el = caixaRef.current; if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setLarg(el.clientWidth || 320));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // `onComplete` chegava numa arrow function nova a cada render do pai, então
+  // o efeito reexecutava e chamava a conclusão de novo. Uma vez basta.
+  const done = ligados.length === FIOS.length;
+  const avisou = useRef(false);
+  useEffect(() => {
+    if (!done || avisou.current) return;
+    avisou.current = true;
+    onComplete();
+  }, [done, onComplete]);
   const clicarEsquerda = (cor) => { if (!ligados.includes(cor)) setSelecionado(cor); };
   const clicarDireita = (cor) => {
     if (!selecionado) return;
@@ -1034,12 +1057,13 @@ const TaskEnergia = ({ onComplete }) => {
       <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
         Clique numa <b>bolinha</b> à esquerda e depois no <b>encaixe</b> da MESMA cor à direita, pra puxar o fio até lá!
       </div>
-      <div style={{ position: 'relative', height: H, width: '100%', maxWidth: W, margin: '0 auto' }}>
-        <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0 }}>
+      <div ref={caixaRef} style={{ position: 'relative', height: H, width: '100%', maxWidth: W, margin: '0 auto' }}>
+        <svg width={larg} height={H} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}>
           {ligados.map(cor => {
             const i = FIOS.findIndex(f => f.cor === cor);
             const j = direita.findIndex(f => f.cor === cor);
-            return <line key={cor} x1={26} y1={rowY(i)} x2={W - 26} y2={rowY(j)} stroke={cor} strokeWidth={5} strokeLinecap="round" />;
+            // 15px = o centro das bolinhas (30px de largura, coladas na borda).
+            return <line key={cor} x1={15} y1={rowY(i)} x2={larg - 15} y2={rowY(j)} stroke={cor} strokeWidth={5} strokeLinecap="round" />;
           })}
         </svg>
         {FIOS.map((f, i) => {
@@ -1519,7 +1543,11 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
               </div>
             ))}
           </div>
-          {reuniao.fase === 'chat' && (
+          {/* O campo de texto vale no CHAT e também na VOTAÇÃO: antes ele
+              sumia quando a votação abria e a sala ficava muda justo na hora
+              de se defender ("o chat some e não dá pra digitar"). O botão
+              "Vamos votar" é que só aparece na fase de chat. */}
+          {reuniao.fase !== 'resultado' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderTop: `1px solid ${T.border}` }}>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
@@ -1530,11 +1558,13 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
                   style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
                     background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
               </div>
-              <button className="sus-btn" onClick={onIniciarVotacao}
-                style={{ padding: '9px 12px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                  background: `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, boxShadow: `0 6px 16px ${IMPOSTOR_COR}44` }}>
-                🗳️ Vamos votar
-              </button>
+              {reuniao.fase === 'chat' && (
+                <button className="sus-btn" onClick={onIniciarVotacao}
+                  style={{ padding: '9px 12px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                    background: `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, boxShadow: `0 6px 16px ${IMPOSTOR_COR}44` }}>
+                  🗳️ Vamos votar
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1587,10 +1617,16 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
               </button>
             );
           })}
+          {/* Do mesmo tamanho dos cartões de voto: era uma tirinha fina de
+              12px que ninguém achava no meio da lista. */}
           <button className="sus-btn" onClick={() => onVotar(null)}
-            style={{ padding: '9px 12px', borderRadius: 11, border: `1.5px dashed ${T.border}`, background: 'transparent',
-              color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-            {meuVoto === null ? '✅ ' : ''}Pular votação
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+              padding: '15px 14px', borderRadius: 13,
+              border: meuVoto === null ? `2px solid ${AGUA}` : `2px dashed ${T.border}`,
+              background: meuVoto === null ? `${AGUA}18` : 'transparent',
+              color: meuVoto === null ? AGUA : T.textS, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
+            <span style={{ fontSize: 20 }}>{meuVoto === null ? '✅' : '⏭️'}</span>
+            Pular votação (não votar em ninguém)
           </button>
           {jaVotei && (
             <button className="sus-btn" onClick={onRetirarVoto}
@@ -2593,7 +2629,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   };
   const enviarChat = () => {
     const texto = chatTexto.trim();
-    if (!texto || stateRef.current?.reuniao?.fase !== 'chat') return;
+    // Vale na votação também (ver o campo de texto em ReuniaoEmergencia).
+    const faseAtual = stateRef.current?.reuniao?.fase;
+    if (!texto || (faseAtual !== 'chat' && faseAtual !== 'votacao')) return;
     chanRef.current?.send({ type: 'broadcast', event: 'reuniao-chat', payload: { id: uid(), autor: name, texto: texto.slice(0, 240) } });
     setChatTexto('');
   };
