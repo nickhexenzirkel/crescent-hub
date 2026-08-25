@@ -461,6 +461,27 @@ const ExplosaoVortex = ({ x, y }) => (
   </div>
 );
 
+/* ── Aviso grande do topo do mapa (ago/2026) ───────────────────────────────
+   Antes as dicas ("Pressione E", energia sabotada, vórtex recarregando)
+   ficavam EMPILHADAS ABAIXO do mapa: cada uma que aparecia empurrava a tela
+   inteira pra cima, então só chegar perto de uma tarefa já dava um solavanco.
+   Agora elas flutuam POR CIMA do mapa, no alto e no centro, com a mesma cara
+   do cartão de papel do HUD — e como o posicionamento é absoluto, aparecer e
+   sumir não mexe mais em nada. */
+const AvisoJogo = ({ cor, icone, titulo, sub }) => (
+  <div className="sus-pop" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 22px', borderRadius: 15,
+    background: `linear-gradient(135deg, ${cor}f2, ${cor}cc)`, border: '1.5px solid rgba(255,255,255,.45)',
+    boxShadow: `0 8px 26px rgba(0,0,0,.55), 0 0 24px ${cor}66`, backdropFilter: 'blur(4px)' }}>
+    <div style={{ width: 'clamp(34px, 3vw, 46px)', aspectRatio: '1/1', borderRadius: 12, flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'clamp(18px, 1.8vw, 25px)',
+      background: 'rgba(255,255,255,.22)', border: '1px solid rgba(255,255,255,.4)' }}>{icone}</div>
+    <div style={{ minWidth: 0, textAlign: 'left' }}>
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(15px, 1.6vw, 22px)', fontWeight: 800, lineHeight: 1.15, color: '#fff' }}>{titulo}</div>
+      {sub && <div style={{ fontSize: 'clamp(11.5px, 1.05vw, 15px)', fontWeight: 600, color: 'rgba(255,255,255,.92)', marginTop: 3, lineHeight: 1.35 }}>{sub}</div>}
+    </div>
+  </div>
+);
+
 const hudBtnCss = {
   display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10,
   border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)',
@@ -3504,38 +3525,37 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   </>
                 )}
               </div>
+
+              {/* ── Avisos grandes, no ALTO e no CENTRO do mapa (ver AvisoJogo).
+                  `pointerEvents:none` pra não roubar clique do mapa, e a pilha
+                  para em 62% da largura pra nunca cobrir o mini-mapa. */}
+              <div style={{ position: 'absolute', top: '2.5%', left: '50%', transform: 'translateX(-50%)', zIndex: 7,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none', maxWidth: '62%' }}>
+                {!!state?.sabotagem && (() => {
+                  const tripulantesVivos = vivosPorTime(state, players).tripulantes;
+                  const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
+                  return (
+                    <AvisoJogo cor="#D97706" icone="⚡" titulo="Energia sabotada!"
+                      sub={meuPapel === 'impostor'
+                        ? `Ninguém faz tarefa até todo mundo consertar (${consertaram}/${tripulantesVivos.length}).`
+                        : energiaAlvo
+                          ? `Siga a seta até a sala de energia (${energiaDist} de distância) — ${consertaram}/${tripulantesVivos.length} consertaram.`
+                          : `Você já consertou a sua parte — falta o resto (${consertaram}/${tripulantesVivos.length}).`} />
+                  );
+                })()}
+                {alvoUsar && (
+                  <AvisoJogo
+                    cor={alvoUsar.tipo === 'vortex' ? '#A855F7' : alvoUsar.tipo === 'camera' ? '#16A34A' : '#2563EB'}
+                    icone={alvoUsar.tipo === 'vortex' ? <PortalVortex size={28} /> : alvoUsar.tipo === 'camera' ? '📹' : '📋'}
+                    titulo={alvoUsar.titulo} sub="Use o botão ou aperte E" />
+                )}
+                {vortexProximo && agoraTick < vortexCooldownAte && (
+                  <AvisoJogo cor="#7C3AED" icone={<PortalVortex size={28} />} titulo="Vórtex recarregando"
+                    sub={`Falta ${Math.ceil((vortexCooldownAte - agoraTick) / 1000)}s pra poder usar de novo.`} />
+                )}
+              </div>
             </div>
 
-            {!!state?.sabotagem && (() => {
-              const tripulantesVivos = vivosPorTime(state, players).tripulantes;
-              const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
-              return (
-                <div className="sus-pop" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#fff',
-                  background: 'rgba(217,119,6,.92)', borderRadius: 999, padding: '8px 18px', margin: '0 auto', width: 'fit-content' }}>
-                  ⚡ Energia sabotada! {meuPapel === 'impostor'
-                    ? `Ninguém consegue fazer tarefa até todo mundo consertar (${consertaram}/${tripulantesVivos.length}).`
-                    : energiaAlvo
-                      ? `Siga a seta 🡒 até a sala de energia (${energiaDist} de distância) — todo mundo precisa consertar (${consertaram}/${tripulantesVivos.length})!`
-                      : `Você já consertou a sua parte — falta o resto do pessoal (${consertaram}/${tripulantesVivos.length}).`}
-                </div>
-              );
-            })()}
-            {/* Um aviso só, dizendo O QUE o botão USAR vai fazer. Antes eram
-                três caixinhas diferentes (tarefa/câmera/vórtex) empilhadas. */}
-            {alvoUsar && (
-              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, color: '#fff',
-                background: alvoUsar.tipo === 'vortex' ? 'rgba(168,85,247,.92)'
-                  : alvoUsar.tipo === 'camera' ? 'rgba(22,163,74,.92)' : 'rgba(37,99,235,.92)',
-                borderRadius: 999, padding: '7px 16px', margin: '0 auto', width: 'fit-content' }}>
-                {alvoUsar.titulo} — use o botão ou <b>E</b>
-              </div>
-            )}
-            {vortexProximo && agoraTick < vortexCooldownAte && (
-              <div className="sus-pop" style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff',
-                background: 'rgba(120,60,180,.85)', borderRadius: 999, padding: '6px 14px', margin: '0 auto', width: 'fit-content' }}>
-                Vórtex recarregando... {Math.ceil((vortexCooldownAte - agoraTick) / 1000)}s
-              </div>
-            )}
             {/* Legenda de controles em "teclas" de verdade — antes era uma
                 linha corrida de texto apagado, difícil de ler no meio do jogo. */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 14, fontSize: 11.5, color: T.textT }}>
