@@ -372,6 +372,61 @@ const BrilhoTarefa = () => (
   </div>
 );
 
+/* ── Portal do vórtex (ago/2026) ───────────────────────────────────────────
+   Substitui o emoji 🌀 por um portal desenhado à mão em SVG: halo que
+   respira, três anéis elípticos girando (o "funil"), dois braços em espiral
+   em sentidos opostos, uma poeira de faíscas orbitando e o núcleo pulsando
+   no meio. Todo o movimento é CSS (ver SUS_CSS) — nenhum timer de JS, então
+   dá pra ter vários no mapa sem peso nenhum.
+   Sem `<defs>`/gradiente de propósito: `url(#id)` obrigaria a um id único por
+   portal, e vários com o mesmo id no documento é HTML inválido. Aqui é tudo
+   traço com opacidade, que repete à vontade. */
+const PortalVortex = ({ size = 52, ativo = false }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block', overflow: 'visible' }}>
+    {/* Halo — a "boca" do portal vazando luz */}
+    <circle className="sus-portal-g sus-portal-halo" cx="50" cy="50" r="44" fill="#A855F7" />
+    <circle className="sus-portal-g sus-portal-halo" cx="50" cy="50" r="30" fill="#38BDF8" style={{ animationDelay: '-1.2s' }} />
+
+    {/* Funil: anéis elípticos girando — achatados de propósito, é o
+        achatamento girando que dá a sensação de profundidade. */}
+    <ellipse className="sus-portal-g sus-portal-anel" cx="50" cy="50" rx="42" ry="30"
+      fill="none" stroke="#C084FC" strokeWidth="3" opacity=".75" />
+    <ellipse className="sus-portal-g sus-portal-anel" cx="50" cy="50" rx="32" ry="21"
+      fill="none" stroke="#60A5FA" strokeWidth="2.6" opacity=".8" style={{ animationDuration: '3s', animationDirection: 'reverse' }} />
+    <ellipse className="sus-portal-g sus-portal-anel" cx="50" cy="50" rx="21" ry="13"
+      fill="none" stroke="#22D3EE" strokeWidth="2.2" opacity=".85" style={{ animationDuration: '2.1s' }} />
+
+    {/* Braços em espiral — de fora pra dentro, um em cada sentido */}
+    <g className="sus-portal-g sus-portal-braco">
+      <path d="M50 6 C76 6 94 24 94 50 C94 70 79 84 60 84 C46 84 35 73 35 59 C35 49 43 41 52 41"
+        fill="none" stroke="#E9D5FF" strokeWidth="4.5" strokeLinecap="round" opacity=".9" />
+    </g>
+    <g className="sus-portal-g sus-portal-braco2">
+      <path d="M50 94 C24 94 6 76 6 50 C6 30 21 16 40 16 C54 16 65 27 65 41 C65 51 57 59 48 59"
+        fill="none" stroke="#7DD3FC" strokeWidth="4" strokeLinecap="round" opacity=".85" />
+    </g>
+
+    {/* Poeira: faíscas orbitando no sentido contrário */}
+    <g className="sus-portal-g sus-portal-poeira">
+      <circle cx="50" cy="12" r="2.6" fill="#F5D0FE" />
+      <circle cx="86" cy="62" r="2.1" fill="#A5F3FC" />
+      <circle cx="20" cy="72" r="2.3" fill="#DDD6FE" />
+      <circle cx="24" cy="30" r="1.8" fill="#BAE6FD" />
+    </g>
+
+    {/* Núcleo — o buraco pra onde tudo cai */}
+    <circle className="sus-portal-g sus-portal-nucleo" cx="50" cy="50" r="11" fill="#2E1065" opacity=".95" />
+    <circle className="sus-portal-g sus-portal-nucleo" cx="50" cy="50" r="6" fill="#F0ABFC"
+      style={{ animationDelay: '-.55s' }} />
+
+    {/* Anel de "pode entrar": só acende pro Impostor quando ele chega perto */}
+    {ativo && (
+      <circle className="sus-portal-g sus-portal-halo" cx="50" cy="50" r="47"
+        fill="none" stroke="#fff" strokeWidth="2.5" strokeDasharray="7 9" opacity=".9" />
+    )}
+  </svg>
+);
+
 /* ── Explosão do vórtex (ago/2026) ─────────────────────────────────────────
    Estoura sempre que alguém ENTRA ou SAI de um portal: um anel roxo abrindo
    + 18 partículas roxas/azuis pra todo lado. Ângulos e distâncias fixos
@@ -517,6 +572,23 @@ const SUS_CSS = `
   50%     { transform: translate(-50%,-50%) translateX(72px) scale(1.14); opacity: 1; }
 }
 .sus-seta { animation: susSeta 1s ease-in-out infinite; }
+
+/* Portal do vórtex: o desenho em si está em PortalVortex (SVG). Aqui só o
+   movimento — anéis e braços girando em sentidos opostos, núcleo pulsando.
+   transform-box: view-box faz o transform-origin valer o CENTRO DO SVG
+   (50% 50% do viewBox), e não o centro da caixa de cada traço: sem isso cada
+   braço giraria em torno de si mesmo e o portal ficava tremendo. */
+@keyframes susPortalGira    { from { transform: rotate(0deg); }   to { transform: rotate(360deg); } }
+@keyframes susPortalGiraInv { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+@keyframes susPortalNucleo  { 0%,100% { transform: scale(.82); opacity: .8; } 50% { transform: scale(1.18); opacity: 1; } }
+@keyframes susPortalHalo    { 0%,100% { transform: scale(.96); opacity: .25; } 50% { transform: scale(1.14); opacity: .5; } }
+.sus-portal-g      { transform-box: view-box; transform-origin: 50% 50%; }
+.sus-portal-anel   { animation: susPortalGira 4.2s linear infinite; }
+.sus-portal-braco  { animation: susPortalGira 2.6s linear infinite; }
+.sus-portal-braco2 { animation: susPortalGiraInv 3.6s linear infinite; }
+.sus-portal-poeira { animation: susPortalGiraInv 6s linear infinite; }
+.sus-portal-nucleo { animation: susPortalNucleo 1.7s ease-in-out infinite; }
+.sus-portal-halo   { animation: susPortalHalo 2.6s ease-in-out infinite; }
 
 /* Vórtex: explosãozinha roxa/azul quando alguém entra ou sai do portal.
    Mesma mecânica do brilho de tarefa (--dx/--dy inline), só que com um anel
@@ -1232,7 +1304,7 @@ const VortexPainel = ({ atual, vortexes, onIr, onFechar }) => {
       <div onClick={e => e.stopPropagation()} className="sus-pop" style={{ width: 'min(92%,360px)', background: T.surface || '#fff', borderRadius: 18,
         border: '2px solid rgba(168,85,247,.55)', boxShadow: '0 20px 60px rgba(0,0,0,.5), 0 0 40px rgba(168,85,247,.25)', padding: 18 }}>
         <div style={{ textAlign: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 32, marginBottom: 4 }}>🌀</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><PortalVortex size={58} /></div>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>Vórtex — {atual.label}</div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 3 }}>Escolha pra onde se teletransportar.</div>
         </div>
@@ -1241,7 +1313,7 @@ const VortexPainel = ({ atual, vortexes, onIr, onFechar }) => {
             <button key={d.id} className="sus-btn" onClick={() => onIr(d)}
               style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', borderRadius: 11, cursor: 'pointer',
                 border: '1.5px solid rgba(168,85,247,.4)', background: 'rgba(168,85,247,.1)', color: T.text, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ fontSize: 17 }}>🌀</span>{d.label}
+              <PortalVortex size={26} />{d.label}
             </button>
           ))}
         </div>
@@ -2086,7 +2158,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // Enquanto a partida roda o jogo cobre a janela toda (portal + fixed) —
   // travar o scroll do body evita a página de trás rolando por baixo quando
   // a pessoa arrasta/usa as setas.
-  const jogando = state?.phase === 'jogando';
+  // Vale da REVELAÇÃO em diante: a tela de "você é Impostor/Tripulante" já
+  // cobre a janela inteira igual ao mapa (ver o createPortal lá embaixo), e
+  // o Assistente Uniko não pode ficar flutuando por cima dela.
+  const jogando = state?.phase === 'jogando' || state?.phase === 'sorteando';
   useEffect(() => {
     if (!jogando) return;
     const anterior = document.body.style.overflow;
@@ -3021,37 +3096,47 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             host acima). Estilo pedido pelo usuário: nome do papel grande e
             com brilho + todo mundo que tá na partida enfileirado, o MEU
             Uniko maior/na frente — igual à tela clássica de reveal. */}
-        {state?.phase === 'sorteando' && (
-          <div className="sus-reveal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
-            padding: '28px 14px', textAlign: 'center', borderRadius: 18, background: '#05070c' }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(30px, 6vw, 46px)', fontWeight: 800, letterSpacing: '.03em',
-              color: meuPapel === 'impostor' ? IMPOSTOR_COR : '#9FE8FF',
-              textShadow: meuPapel === 'impostor' ? `0 0 10px ${IMPOSTOR_COR}, 0 0 28px ${IMPOSTOR_COR}99` : `0 0 10px #9FE8FF, 0 0 28px #6FD8FF99` }}>
-              {meuPapel === 'impostor' ? 'IMPOSTOR' : 'TRIPULANTE'}
+        {/* Vai por PORTAL pro <body>, em `position:fixed inset:0`, EXATAMENTE
+            como o mapa logo abaixo. Antes ela era um cartão no meio da
+            página: aparecia pequena, espremida entre o resto do Portal, e só
+            então o jogo estourava em tela cheia — o "pisca" que o usuário
+            reclamou. Agora as duas telas têm a mesma moldura e a troca é
+            direta. As medidas viraram vh/vw pelo mesmo motivo: a tela é a
+            unidade, não o cartão. */}
+        {state?.phase === 'sorteando' && createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#05070c', overflow: 'hidden' }}>
+            <div className="sus-reveal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 'clamp(14px, 2.6vh, 30px)', padding: 'clamp(16px, 4vh, 48px) 5vw', textAlign: 'center', width: '100%', maxHeight: '100%' }}>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(42px, 10vw, 112px)', fontWeight: 800, letterSpacing: '.03em', lineHeight: 1,
+                color: meuPapel === 'impostor' ? IMPOSTOR_COR : '#9FE8FF',
+                textShadow: meuPapel === 'impostor' ? `0 0 18px ${IMPOSTOR_COR}, 0 0 52px ${IMPOSTOR_COR}99` : `0 0 18px #9FE8FF, 0 0 52px #6FD8FF99` }}>
+                {meuPapel === 'impostor' ? 'IMPOSTOR' : 'TRIPULANTE'}
+              </div>
+              <div style={{ fontSize: 'clamp(14px, 2vw, 22px)', color: '#fff' }}>
+                Há <b style={{ color: IMPOSTOR_COR }}>{state?.impostoresQtd || 1}</b> Impostor{(state?.impostoresQtd || 1) > 1 ? 'es' : ''} entre nós.
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(8px, 1.4vw, 18px)', flexWrap: 'wrap', maxWidth: '80vw' }}>
+                {players.map(p => {
+                  const eu = p.name === name;
+                  return (
+                    <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      transform: eu ? 'scale(1.35) translateY(-6px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
+                      <img src={p.photo || '/UNIKO_NEW.png'} alt=""
+                        style={{ width: 'clamp(52px, 6.5vw, 92px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#fff',
+                          border: eu ? `3px solid ${AGUA}` : '2px solid rgba(255,255,255,.4)', boxShadow: eu ? `0 0 22px ${AGUA}aa` : 'none' }} />
+                      {eu && <span style={{ fontSize: 'clamp(10px, 1.1vw, 14px)', fontWeight: 800, color: '#fff' }}>Você</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 'clamp(12.5px, 1.5vw, 19px)', color: 'rgba(255,255,255,.65)', maxWidth: 'min(90vw, 640px)', lineHeight: 1.55 }}>
+                {meuPapel === 'impostor'
+                  ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego.'
+                  : 'Complete suas tarefas pela casa e desconfie de quem agir estranho.'}
+              </div>
             </div>
-            <div style={{ fontSize: 14, color: '#fff' }}>
-              Há <b style={{ color: IMPOSTOR_COR }}>{state?.impostoresQtd || 1}</b> Impostor{(state?.impostoresQtd || 1) > 1 ? 'es' : ''} entre nós.
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 8, flexWrap: 'wrap', maxWidth: 480 }}>
-              {players.map(p => {
-                const eu = p.name === name;
-                return (
-                  <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    transform: eu ? 'scale(1.35) translateY(-4px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
-                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: '#fff',
-                      border: eu ? `3px solid ${AGUA}` : '2px solid rgba(255,255,255,.4)', boxShadow: eu ? `0 0 16px ${AGUA}aa` : 'none' }} />
-                    {eu && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff' }}>Você</span>}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.65)', maxWidth: 340, lineHeight: 1.5 }}>
-              {meuPapel === 'impostor'
-                ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego.'
-                : 'Complete suas tarefas pela casa e desconfie de quem agir estranho.'}
-            </div>
-          </div>
-        )}
+          </div>, document.body)}
 
         {/* ── MAPA (Fase 3): casa de praia, movimento livre em WASD/setas ──
             Enquanto a partida roda, o jogo TOMA A JANELA INTEIRA — some a
@@ -3253,14 +3338,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                         : perto ? `Entrar no vórtex — ${v.label}` : `${v.label} (chegue mais perto pra entrar)`}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${v.x / MAP_W * 100}%`, top: `${v.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: perto ? 'pointer' : 'not-allowed',
-                        width: 48, height: 48, borderRadius: '50%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25,
-                        opacity: perto ? 1 : .42,
-                        background: perto ? 'rgba(168,85,247,.9)' : 'rgba(168,85,247,.35)',
-                        border: `2px solid ${perto ? '#fff' : 'rgba(255,255,255,.5)'}`,
-                        filter: perto ? 'drop-shadow(0 3px 12px rgba(168,85,247,.85))' : 'none',
-                        animation: perto ? 'susTwinkle 1.4s ease-in-out infinite' : 'none' }}>
-                      🌀
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        opacity: perto ? 1 : .5,
+                        filter: perto ? 'drop-shadow(0 0 14px rgba(168,85,247,.9))' : 'drop-shadow(0 2px 6px rgba(0,0,0,.5))' }}>
+                      <PortalVortex size={perto ? 62 : 52} ativo={perto} />
                     </button>
                   );
                 })}
@@ -3389,7 +3470,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <button className="sus-btn sus-pop" onClick={usarAlvoProximo} title={alvoUsar.titulo}
                     style={{ ...taskBtnCss, cursor: 'pointer' }}>
                     <img src={BOTAO_USAR_IMG} alt={alvoUsar.titulo}
-                      style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
+                      style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
 
@@ -3397,7 +3478,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {corpoProximo && (
                   <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
                     <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
-                      style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
+                      style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
 
@@ -3408,7 +3489,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       title={emCooldownSabotagem ? 'Sabotagem recarregando' : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
                       style={{ ...taskBtnCss, cursor: podeSabotar ? 'pointer' : 'not-allowed' }}>
                       <img src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
-                        style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block',
+                        style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: podeSabotar ? 1 : .45,
                           filter: podeSabotar ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
                     </button>
@@ -3416,7 +3497,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       title={vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
                       style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
                       <img src={BOTAO_MATAR_IMG} alt="Matar"
-                        style={{ width: 'clamp(58px, 8.5vw, 96px)', display: 'block',
+                        style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: vitimaProxima ? 1 : .45,
                           filter: vitimaProxima ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
                     </button>
