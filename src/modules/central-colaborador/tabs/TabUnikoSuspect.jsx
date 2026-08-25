@@ -1199,7 +1199,11 @@ const TaskBanheiro = ({ onComplete }) => {
 
 /* ── Observar estrelas: ligar as estrelas na ordem certa (constelação) ── */
 const TaskEstrelas = ({ onComplete }) => {
-  const ESTRELAS = [{ x: 20, y: 70 }, { x: 34, y: 34 }, { x: 52, y: 55 }, { x: 68, y: 24 }, { x: 84, y: 62 }];
+  /* As cinco estrelas ficam LONGE das bordas de propósito (relato de que "só
+     aparecem 4"): a última estava em x=84%, praticamente colada na direita, e
+     era a que passava batido. Nenhuma passa de 78% agora, e o céu ficou mais
+     alto pra elas não se espremerem. */
+  const ESTRELAS = [{ x: 17, y: 74 }, { x: 32, y: 30 }, { x: 48, y: 58 }, { x: 63, y: 25 }, { x: 78, y: 66 }];
   const [ligadas, setLigadas] = useState([]);
   const [erro, setErro] = useState(false);
   const done = ligadas.length === ESTRELAS.length;
@@ -1214,7 +1218,7 @@ const TaskEstrelas = ({ onComplete }) => {
       <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
         {erro ? 'Ordem errada! Comece de novo.' : 'Toque nas estrelas em ordem, da mais fraca pra mais forte (1 → 5).'}
       </div>
-      <div style={{ position: 'relative', width: '100%', maxWidth: 300, height: 190, margin: '0 auto', borderRadius: 12,
+      <div style={{ position: 'relative', width: '100%', maxWidth: 300, height: 210, margin: '0 auto', borderRadius: 12,
         background: 'radial-gradient(ellipse at 50% 20%, #1E2B54, #070B1A)', border: '2px solid #2B3A6B', overflow: 'hidden' }}>
         {/* Linhas da constelação já ligadas */}
         <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -1225,17 +1229,25 @@ const TaskEstrelas = ({ onComplete }) => {
         </svg>
         {ESTRELAS.map((e, i) => {
           const on = ligadas.includes(i);
-          const tam = 13 + i * 3;   // "mais fraca → mais forte" fica visível no tamanho
+          const tam = 15 + i * 3;   // "mais fraca → mais forte" fica visível no tamanho
           return (
-            <button key={i} onClick={() => tocar(i)} className="sus-btn"
-              style={{ position: 'absolute', left: `${e.x}%`, top: `${e.y}%`, transform: 'translate(-50%,-50%)', width: tam + 14, height: tam + 14,
+            // Área de toque bem maior que a estrela (mínimo 40px) — no celular
+            // as menores eram difíceis de acertar com o dedo.
+            <button key={i} onClick={() => tocar(i)} title={`Estrela ${i + 1}`}
+              style={{ position: 'absolute', left: `${e.x}%`, top: `${e.y}%`, transform: 'translate(-50%,-50%)',
+                width: Math.max(40, tam + 20), height: Math.max(40, tam + 20),
                 borderRadius: '50%', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ width: tam, height: tam, borderRadius: '50%', display: 'block',
-                background: on ? '#FFF6C2' : '#8FA3D8',
-                boxShadow: on ? '0 0 14px 4px rgba(255,240,170,.85)' : '0 0 6px 1px rgba(143,163,216,.5)', transition: 'all .18s' }} />
+                background: on ? '#FFF6C2' : '#B7C8F2',
+                boxShadow: on ? '0 0 14px 4px rgba(255,240,170,.85)' : '0 0 9px 2px rgba(183,200,242,.65)', transition: 'all .18s' }} />
             </button>
           );
         })}
+      </div>
+      {/* Contador: sem ele não dava pra saber se faltava uma estrela ou se
+          alguma não tinha aparecido. */}
+      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: T.textT, marginTop: 8 }}>
+        {ligadas.length} de {ESTRELAS.length} ligadas
       </div>
     </div>
   );
