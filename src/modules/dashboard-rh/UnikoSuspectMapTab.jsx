@@ -10,7 +10,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, Moon } from '../../shared/components';
-import { MAPA_IMG, MAP_W, MAP_H } from '../central-colaborador/tabs/TabUnikoSuspect';
+import { MAPA_IMG, MAP_W, MAP_H, TAREFAS_DISPONIVEIS, taskTypeFor } from '../central-colaborador/tabs/TabUnikoSuspect';
 
 const BUCKET = 'uniko-suspect-map';
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
@@ -358,17 +358,58 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
 
           {mode === 'tarefas' && (
             <Card style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em' }}>TAREFAS ({tasks.length})</div>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em' }}>MARCADAS NO MAPA ({tasks.length})</div>
               <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>Clique num ponto vazio do mapa pra adicionar; clique em cima de um pino pra remover.</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                 {tasks.length === 0 && <div style={{ fontSize: 12, color: T.textD, padding: '8px 0' }}>Nenhuma tarefa marcada ainda.</div>}
-                {tasks.map((t, i) => (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8, background: 'rgba(37,99,235,0.07)', border: '1px solid rgba(37,99,235,0.2)' }}>
-                    <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#2563EB', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
-                    <button onClick={() => setTasks(ts => ts.filter(x => x.id !== t.id))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C04050', fontSize: 14, flexShrink: 0 }}>×</button>
-                  </div>
-                ))}
+                {tasks.map((t, i) => {
+                  // Nome que n\u00e3o bate com nenhum mini-jogo cai no gen\u00e9rico ("segurar
+                  // pra concluir") \u2014 avisa aqui em vez de o admin s\u00f3 descobrir jogando.
+                  const generica = taskTypeFor(t.label) === 'generica';
+                  return (
+                    <div key={t.id} title={generica ? 'Sem mini-jogo pr\u00f3prio: vai cair no gen\u00e9rico de segurar o bot\u00e3o' : ''}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8,
+                        background: generica ? 'rgba(217,119,6,0.08)' : 'rgba(37,99,235,0.07)',
+                        border: `1px solid ${generica ? 'rgba(217,119,6,0.3)' : 'rgba(37,99,235,0.2)'}` }}>
+                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: generica ? '#D97706' : '#2563EB', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 12.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
+                        {generica && <span style={{ display: 'block', fontSize: 10.5, color: '#D97706', fontWeight: 700 }}>sem mini-jogo pr\u00f3prio</span>}
+                      </span>
+                      <button onClick={() => setTasks(ts => ts.filter(x => x.id !== t.id))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C04050', fontSize: 14, flexShrink: 0 }}>\u00d7</button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Cat\u00e1logo: quais nomes t\u00eam mini-jogo pr\u00f3prio. Sem isso o admin
+                  tinha que adivinhar o texto exato na hora de marcar. */}
+              <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 4, paddingTop: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em', marginBottom: 4 }}>TAREFAS QUE EXISTEM ({TAREFAS_DISPONIVEIS.length})</div>
+                <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.5, marginBottom: 8 }}>
+                  Use um destes nomes pra tarefa ter mini-jogo pr\u00f3prio. Clique pra copiar.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 230, overflowY: 'auto' }}>
+                  {TAREFAS_DISPONIVEIS.map(d => {
+                    const jaNoMapa = tasks.some(t => taskTypeFor(t.label) === taskTypeFor(d.label));
+                    return (
+                      <button key={d.label} onClick={() => { try { navigator.clipboard.writeText(d.label); flash(`Copiado: ${d.label}`); } catch { /* sem permiss\u00e3o de \u00e1rea de transfer\u00eancia */ } }}
+                        title="Copiar o nome"
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                          background: jaNoMapa ? 'rgba(22,163,74,0.08)' : 'transparent',
+                          border: `1px solid ${jaNoMapa ? 'rgba(22,163,74,0.3)' : T.border}` }}>
+                        <span style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: jaNoMapa ? '#16A34A' : 'transparent', border: jaNoMapa ? 'none' : `1.5px solid ${T.textD}`, color: '#fff', fontSize: 10, fontWeight: 800 }}>
+                          {jaNoMapa ? '\u2713' : ''}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.text }}>{d.label}</span>
+                          <span style={{ display: 'block', fontSize: 10.5, color: T.textT }}>{d.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </Card>
           )}

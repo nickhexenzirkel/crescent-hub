@@ -194,6 +194,24 @@ const TASK_TYPE_BY_LABEL = {
   'tomar banho de sauna': 'sauna',             // variação natural do nome
 };
 const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] || 'generica';
+
+/* Catálogo pro editor do RH mostrar QUAIS nomes têm mini-jogo próprio — sem
+   isso o admin tinha que adivinhar o texto exato na hora de marcar a tarefa
+   (nome que não bate cai no mini-jogo genérico de "segurar pra concluir").
+   Só os nomes canônicos: os apelidos/variações de TASK_TYPE_BY_LABEL
+   continuam funcionando, mas não precisam aparecer na lista. */
+const TAREFAS_DISPONIVEIS = [
+  { label: 'Limpar geladeira',              desc: 'tirar o que estragou' },
+  { label: 'Remendar flaminga',             desc: 'costurar os rasgos' },
+  { label: 'Coloque os chocolates no bolso', desc: 'juntar os chocolates' },
+  { label: 'Lavar louça',                   desc: 'esfregar até brilhar' },
+  { label: 'Consertar energia',             desc: 'ligar os fios certos (usada na sabotagem)' },
+  { label: 'Fazer churrasco',               desc: 'virar no ponto certo' },
+  { label: 'Limpar banheiro',               desc: 'esfregar as manchas' },
+  { label: 'Observar estrelas',             desc: 'ligar a constelação na ordem' },
+  { label: 'Excluir pastas no computador',  desc: 'mandar as pastas pra lixeira' },
+  { label: 'Tomar banho na sauna',          desc: 'segurar a temperatura na faixa verde' },
+];
 const TASK_PROXIMIDADE = 75;   // distância (px do mapa) pra aparecer o prompt "Pressione E"
 
 /* ── Matar (ago/2026) — só o Impostor, com recarga entre mortes. ── */
@@ -3333,5 +3351,5 @@ const TabUnikoSuspect = () => {
 
 // Exportados pra Dashboard RH → aba "Uniko Suspect" (UnikoSuspectMapTab.jsx)
 // reusar o MESMO mapa/dimensões no editor, sem duplicar constantes.
-export { TabUnikoSuspect, MAPA_IMG, MAP_W, MAP_H };
+export { TabUnikoSuspect, MAPA_IMG, MAP_W, MAP_H, TAREFAS_DISPONIVEIS, taskTypeFor };
 export default TabUnikoSuspect;
