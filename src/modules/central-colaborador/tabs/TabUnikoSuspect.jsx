@@ -476,18 +476,61 @@ const SUS_CSS = `
    atravessa até a vítima; no impacto ela EXPLODE (flash + onda de choque)
    e só depois apaga/vira fantasma. Tudo em porcentagem de uma timeline de
    4s — pra mudar a duração total só troca o valor "4s" nas classes .sus-death-*. */
-@keyframes susDeathRecoil { 0%,10% { transform: translateX(0) scale(1); }
-  16% { transform: translateX(-16px) scale(1.08); } 30%,100% { transform: translateX(0) scale(1); } }
-@keyframes susEyeLaser { 0%,13% { opacity: 0; transform: scaleX(0); }
-  16% { opacity: 1; } 36% { opacity: 1; transform: scaleX(1); }
-  44%,100% { opacity: 0; transform: scaleX(1); } }
-@keyframes susExplosion { 0%,33% { opacity: 0; transform: translate(-50%,-50%) scale(.15); }
-  40% { opacity: 1; transform: translate(-50%,-50%) scale(1.4); }
-  56% { opacity: 0; transform: translate(-50%,-50%) scale(2.6); } 100% { opacity: 0; } }
-@keyframes susDeathVictim { 0%,34% { filter: brightness(1) grayscale(0); transform: translateX(0) rotate(0) scale(1); }
-  40% { filter: brightness(3.6) grayscale(0); transform: translateX(12px) scale(1.1); }
-  50% { filter: brightness(1.3) grayscale(.55) ; transform: translateX(-9px) rotate(-6deg) scale(.95); }
-  100% { filter: brightness(.82) grayscale(1); transform: translateX(0) rotate(-10deg) translateY(10px) scale(.92); opacity: .48; } }
+@keyframes susDeathDash {
+  /* O Impostor dá 4 investidas: some de um lado, reaparece do outro batendo.
+     Cada golpe leva ~22% da linha do tempo. As posições são RELATIVAS ao ponto
+     onde ele nasce (esquerda da tela), por isso os translates são grandes. */
+  0%      { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+  6%      { transform: translate(0,0) scale(.86) rotate(-8deg); }               /* agacha pra saltar */
+  /* golpe 1 — chega pela esquerda */
+  12%     { transform: translate(52vw,-4vh) scale(1.12) rotate(14deg); }
+  18%     { transform: translate(46vw,-2vh) scale(1) rotate(0deg); }
+  /* golpe 2 — por cima */
+  24%     { transform: translate(58vw,-16vh) scale(.9) rotate(-20deg); }
+  32%     { transform: translate(56vw,-7vh) scale(1.14) rotate(10deg); }
+  /* golpe 3 — por baixo */
+  40%     { transform: translate(60vw,14vh) scale(.9) rotate(22deg); }
+  48%     { transform: translate(57vw,6vh) scale(1.14) rotate(-12deg); }
+  /* golpe 4 — pela direita, o mais forte */
+  56%     { transform: translate(70vw,2vh) scale(.88) rotate(-26deg); }
+  64%     { transform: translate(61vw,0) scale(1.2) rotate(16deg); }
+  /* recua e observa */
+  76%     { transform: translate(50vw,-3vh) scale(1) rotate(0deg); opacity: 1; }
+  100%    { transform: translate(46vw,-3vh) scale(.96) rotate(0deg); opacity: .9; }
+}
+/* Rastro do salto: um risco que aparece junto de cada investida */
+@keyframes susDeathTrail {
+  0%,10%   { opacity: 0; transform: translate(-50%,-50%) scaleX(0) rotate(var(--rot,0deg)); }
+  14%      { opacity: .9; transform: translate(-50%,-50%) scaleX(1) rotate(var(--rot,0deg)); }
+  24%,100% { opacity: 0; transform: translate(-50%,-50%) scaleX(1) rotate(var(--rot,0deg)); }
+}
+/* Estrelinha/faisca de impacto — uma por golpe, cada uma com seu atraso */
+@keyframes susDeathHit {
+  0%   { opacity: 0; transform: translate(-50%,-50%) scale(.2) rotate(0deg); }
+  25%  { opacity: 1; transform: translate(-50%,-50%) scale(1.25) rotate(25deg); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.9) rotate(60deg); }
+}
+/* A tela treme a cada pancada */
+@keyframes susDeathShake {
+  0%,10%,21%,29%,37%,45%,53%,61%,70%,100% { transform: translate(0,0); }
+  18%  { transform: translate(-7px, 4px); }
+  33%  { transform: translate(6px,-5px); }
+  49%  { transform: translate(-6px,-4px); }
+  65%  { transform: translate(8px, 5px); }
+}
+/* Vítima: leva os 4 golpes (cada um joga ela pro lado) e só depois apaga */
+@keyframes susDeathVictim {
+  0%,14%  { filter: brightness(1) grayscale(0); transform: translate(-50%,-50%) rotate(0) scale(1); }
+  19%     { filter: brightness(2.8); transform: translate(calc(-50% + 14px),-50%) rotate(7deg) scale(1.06); }
+  24%     { filter: brightness(1); transform: translate(-50%,-50%) rotate(0) scale(1); }
+  33%     { filter: brightness(2.8); transform: translate(-50%, calc(-50% + 12px)) rotate(-9deg) scale(1.05); }
+  38%     { filter: brightness(1) grayscale(.15); transform: translate(-50%,-50%) rotate(0) scale(1); }
+  49%     { filter: brightness(2.8); transform: translate(calc(-50% - 13px),-50%) rotate(10deg) scale(1.05); }
+  54%     { filter: brightness(1) grayscale(.3); transform: translate(-50%,-50%) rotate(0) scale(1); }
+  65%     { filter: brightness(3.4); transform: translate(-50%, calc(-50% - 10px)) rotate(-14deg) scale(1.1); }
+  74%     { filter: brightness(1.1) grayscale(.6); transform: translate(-50%,-50%) rotate(-6deg) scale(.97); }
+  100%    { filter: brightness(.8) grayscale(1); transform: translate(-50%, calc(-50% + 10px)) rotate(-12deg) scale(.9); opacity: .45; }
+}
 @keyframes susDeathText { 0%,10% { opacity: 0; transform: scale(.6) translateY(10px); }
   22% { opacity: 1; transform: scale(1.1) translateY(0); } 34%,100% { opacity: 1; transform: scale(1) translateY(0); } }
 .sus-fade   { animation: susFade .35s ease both; }
@@ -499,9 +542,12 @@ const SUS_CSS = `
    não piscar. */
 .sus-twinkle { animation: susTwinkle 3.4s ease-in-out infinite; }
 .sus-emerg  { animation: susEmergPulse 3s ease-in-out infinite; }
-.sus-death-recoil { animation: susDeathRecoil 4s ease both; }
-.sus-eye-laser    { animation: susEyeLaser 4s cubic-bezier(.2,.9,.3,1) both; }
-.sus-explosion    { animation: susExplosion 4s ease both; }
+/* Todas na MESMA linha de tempo de 4s (bate com MORTE_ANIM_MS) — pra mudar a
+   duração total basta trocar o "4s" aqui. */
+.sus-death-dash   { animation: susDeathDash 4s cubic-bezier(.3,.9,.3,1) both; }
+.sus-death-trail  { animation: susDeathTrail 4s ease both; }
+.sus-death-hit    { animation: susDeathHit .5s ease-out both; }
+.sus-death-shake  { animation: susDeathShake 4s ease both; }
 .sus-death-victim { animation: susDeathVictim 4s ease both; }
 .sus-death-text   { animation: susDeathText 4s ease both; }
 /* ── Lobby do barco (ago/2026): oceano animado ao redor do barco enquanto
@@ -556,7 +602,7 @@ body.sus-jogando .uniko-assistant { display: none !important; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
 @media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg,
-  .sus-death-recoil,.sus-eye-laser,.sus-explosion,.sus-death-victim,.sus-death-text,.sus-ocean,.sus-wave-lines,.sus-boat-sway,
+  .sus-death-dash,.sus-death-trail,.sus-death-hit,.sus-death-shake,.sus-death-victim,.sus-death-text,.sus-ocean,.sus-wave-lines,.sus-boat-sway,
   .sus-nevoa-baixa,.sus-nevoa-alta,.sus-nuvem { animation: none !important; } }
 `;
 
@@ -594,47 +640,62 @@ const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde 
 const MORTE_IMG = '/uniko-suspect-voce-foi-morto.png';
 const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
   // `position:absolute` (não `fixed`) preenchendo o `gameWrapRef` (que tem
-  // `position:relative`) — cobre a TELA DO JOGO inteira. A imagem do feixe
-  // é o FUNDO em `object-fit:cover` (ocupa 100% da tela de verdade), e por
-  // CIMA dela roda a cena de verdade: o Impostor recua ao atirar, um raio
-  // laser atravessa até a vítima, e ela reage (flash → treme → apaga).
-  <div style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16, overflow: 'hidden' }}>
+  // `position:relative`) — cobre a TELA DO JOGO inteira. A imagem do feixe azul
+  // continua sendo o FUNDO (`object-fit:cover`); por cima dela o IMPOSTOR dá 4
+  // investidas ao redor da vítima, batendo de ângulos diferentes (esquerda, cima,
+  // baixo e direita) até ela cair — no lugar do laser que existia antes.
+  <div className="sus-death-shake" style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16, overflow: 'hidden' }}>
     <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
 
-    <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-recoil"
-      style={{ position: 'absolute', left: '17%', top: '48%', transform: 'translate(-50%,-50%)',
-        width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
-        border: '4px solid #DC2626', boxShadow: '0 0 22px 6px rgba(220,38,38,.65)', zIndex: 2 }} />
+    {/* Rastros dos saltos — um por investida, cada um no ângulo do golpe */}
+    {[
+      { top: '46%', rot: '0deg',   atraso: '0.42s' },
+      { top: '34%', rot: '38deg',  atraso: '0.94s' },
+      { top: '58%', rot: '-34deg', atraso: '1.56s' },
+      { top: '48%', rot: '10deg',  atraso: '2.20s' },
+    ].map((r, i) => (
+      <div key={i} className="sus-death-trail"
+        style={{ position: 'absolute', left: '62%', top: r.top, width: '30%', height: 5, zIndex: 1,
+          transformOrigin: 'center', borderRadius: 999, animationDelay: r.atraso,
+          background: 'linear-gradient(90deg, transparent, #9fe0ff 40%, #fff)',
+          boxShadow: '0 0 14px 4px rgba(120,200,255,.8)', '--rot': r.rot }} />
+    ))}
 
-    {/* Laser saindo dos "olhos" do Impostor — duas linhas finas (uma por
-        olho) em vez de um feixe grosso só, dá o efeito de raio-x ocular. */}
-    <div className="sus-eye-laser" style={{ position: 'absolute', left: '23%', width: '54%', top: '45.5%', height: 4,
-      transformOrigin: 'left center', borderRadius: 999, zIndex: 1,
-      background: 'linear-gradient(90deg, #FF3B3B, #FFD866 55%, #9fe0ff)', boxShadow: '0 0 12px 3px #FF3B3B' }} />
-    <div className="sus-eye-laser" style={{ position: 'absolute', left: '23%', width: '54%', top: '50.5%', height: 4,
-      transformOrigin: 'left center', borderRadius: 999, zIndex: 1,
-      background: 'linear-gradient(90deg, #FF3B3B, #FFD866 55%, #9fe0ff)', boxShadow: '0 0 12px 3px #FF3B3B' }} />
+    {/* Faíscas de impacto — uma por golpe, em volta da vítima */}
+    {[
+      { left: '76%', top: '48%', atraso: '0.70s' },
+      { left: '83%', top: '38%', atraso: '1.28s' },
+      { left: '83%', top: '58%', atraso: '1.90s' },
+      { left: '90%', top: '48%', atraso: '2.54s' },
+    ].map((h, i) => (
+      <div key={i} className="sus-death-hit"
+        style={{ position: 'absolute', left: h.left, top: h.top, zIndex: 4, pointerEvents: 'none',
+          width: 'min(13vw, 26vh, 130px)', aspectRatio: '1/1', animationDelay: h.atraso,
+          background: 'radial-gradient(circle, #fff 0%, #FFE9A8 26%, #FF9E4B 52%, rgba(255,120,40,0) 72%)',
+          clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' }} />
+    ))}
 
-    {/* Explosão no impacto — atrás do Uniko da vítima (que continua legível por cima). */}
-    <div className="sus-explosion" style={{ position: 'absolute', left: '83%', top: '48%',
-      width: 'min(26vw, 50vh, 260px)', aspectRatio: '1/1', borderRadius: '50%', zIndex: 2, pointerEvents: 'none',
-      background: 'radial-gradient(circle, #fff 0%, #FFD866 30%, #FF7A3B 55%, rgba(255,90,20,0) 75%)' }} />
-
+    {/* A VÍTIMA fica parada no lugar de sempre, levando os golpes */}
     <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
-      style={{ position: 'absolute', left: '83%', top: '48%', transform: 'translate(-50%,-50%)',
+      style={{ position: 'absolute', left: '83%', top: '48%',
         width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
         border: '4px solid rgba(255,255,255,.9)', boxShadow: '0 0 34px 8px rgba(120,200,255,.85), 0 0 70px 20px rgba(70,150,255,.55)', zIndex: 3 }} />
 
+    {/* O IMPOSTOR nasce à esquerda e circula batendo (susDeathDash) */}
+    <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-dash"
+      style={{ position: 'absolute', left: '17%', top: '48%', marginLeft: 'min(-7.5vw,-75px)', marginTop: 'min(-7.5vw,-75px)',
+        width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
+        border: '4px solid #DC2626', boxShadow: '0 0 22px 6px rgba(220,38,38,.65)', zIndex: 5 }} />
+
     {matador && (
-      <div className="sus-pop" style={{ position: 'absolute', left: '50%', bottom: '6%', transform: 'translateX(-50%)', zIndex: 4,
+      <div className="sus-pop" style={{ position: 'absolute', left: '50%', bottom: '6%', transform: 'translateX(-50%)', zIndex: 6,
         fontSize: 13, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,.55)', borderRadius: 999, padding: '6px 16px', whiteSpace: 'nowrap' }}>
-        💀 {matador} te matou
+        \U0001F480 {matador} te matou
       </div>
     )}
   </div>
 );
-
 /* ═══════════════════════════════════════════════════════════════════════════
    MINI-JOGOS DE TAREFA — um por tipo (ver taskTypeFor). Cada um recebe
    `onComplete` e chama quando o jogador termina; visual simples (emoji +
