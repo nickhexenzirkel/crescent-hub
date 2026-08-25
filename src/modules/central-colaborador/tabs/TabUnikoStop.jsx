@@ -141,6 +141,12 @@ const STOP_CSS = `
 .us-scroll::-webkit-scrollbar { width: 9px; }
 .us-scroll::-webkit-scrollbar-track { background: rgba(128,128,128,.14); border-radius: 99px; margin: 4px 0; }
 .us-scroll::-webkit-scrollbar-thumb { background: ${US.roxo}99; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
+/* Tela estreita: o grid de 3 colunas (jogadores | jogo | chat) não cabe.
+   Vira coluna única, com o chat por último e altura própria pra ele não
+   espremer o jogo. */
+@media (max-width: 900px) {
+  .us-corpo { grid-template-columns: 1fr !important; grid-template-rows: auto minmax(0, 1fr) 240px !important; overflow-y: auto !important; }
+}
 .us-sembarra { scrollbar-width: none; -ms-overflow-style: none; }
 .us-sembarra::-webkit-scrollbar { width: 0; display: none; }
 .us-halo { position: relative; }
@@ -706,6 +712,61 @@ const Lobby = ({ name, porSala, onEnter }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    SALA — a partida
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ── Chat da sala (ago/2026) ─────────────────────────────────────────────────
+   Conversa livre ao lado do jogo — combinar a próxima rodada, discutir uma
+   validação, zoar quem deu STOP cedo. Vai por BROADCAST, igual às respostas:
+   é efêmero e muda rápido demais pra entrar no `state`, que é o jsonb da sala
+   regravado no banco a cada mudança. O canal do Supabase não devolve o
+   broadcast pra quem enviou, então a própria mensagem entra na lista na hora
+   do envio (ver enviarChat). */
+const ChatSala = ({ mensagens, texto, setTexto, onEnviar, name, cardBg }) => {
+  const listaRef = useRef(null);
+  // Rola pro fim a cada mensagem nova — sem isso a conversa "some" pra baixo.
+  useEffect(() => { const el = listaRef.current; if (el) el.scrollTop = el.scrollHeight; }, [mensagens]);
+  return (
+    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, boxShadow: T.sh,
+      display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', padding: '11px 11px 8px', flexShrink: 0 }}>
+        💬 CHAT
+      </div>
+      <div ref={listaRef} className="us-scroll"
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 11px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {mensagens.length === 0 && (
+          <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 18, lineHeight: 1.5 }}>
+            Ninguém falou nada ainda.<br />Manda um oi! 👋
+          </div>
+        )}
+        {mensagens.map(m => (
+          <div key={m.id} className="us-fade" style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+            <img src={m.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover',
+              background: T.surfaceSub, flexShrink: 0 }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: m.name === name ? US.roxo : T.textT }}>
+                {String(m.name || '').split(' ')[0]}
+              </div>
+              <div style={{ fontSize: 12.5, color: T.text, wordBreak: 'break-word', lineHeight: 1.4 }}>{m.text}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, padding: 11, borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+        <input value={texto} onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onEnviar(); } }}
+          maxLength={200} placeholder="Escreva algo..."
+          style={{ flex: 1, minWidth: 0, padding: '8px 11px', borderRadius: 9, border: `1px solid ${T.border}`,
+            background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 12.5, outline: 'none',
+            fontFamily: 'var(--font-body)' }} />
+        <button className="us-btn" onClick={onEnviar} disabled={!texto.trim()} title="Enviar"
+          style={{ padding: '8px 13px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 12.5,
+            cursor: texto.trim() ? 'pointer' : 'not-allowed',
+            background: texto.trim() ? `linear-gradient(135deg, ${US.roxo}, ${US.azul})` : T.textD }}>
+          ➤
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const Sala = ({ roomId, name, players, onLeave }) => {
   const [state, setState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
@@ -729,6 +790,26 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   }, [state?.phase, state?.round]);
 
   const chanRef = useRef(null);
+
+  /* Chat da sala — ver o componente ChatSala logo acima. Mora aqui (e não no
+     `state`) porque é efêmero: some quando a pessoa sai, e não faz sentido
+     gravar no banco a cada mensagem. */
+  const [chatMsgs, setChatMsgs] = useState([]);
+  const [chatTexto, setChatTexto] = useState('');
+  // A foto vem da lista de jogadores (a mesma que aparece no ranking), com o
+  // Uniko do assistente como reserva se a presença ainda não trouxe a minha.
+  const playersFotoRef = useRef([]);
+  useEffect(() => { playersFotoRef.current = players; }, [players]);
+  const minhaFoto = () => playersFotoRef.current.find(p => p.name === name)?.photo || unikoAtivoArt();
+  const enviarChat = () => {
+    const t = chatTexto.trim();
+    if (!t) return;
+    const msg = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name, photo: minhaFoto(), text: t.slice(0, 200) };
+    setChatMsgs(l => [...l.slice(-79), msg]);   // o broadcast não volta pra mim
+    chanRef.current?.send({ type: 'broadcast', event: 'chat', payload: msg });
+    setChatTexto('');
+  };
   const stateRef = useRef(null);
   const hostRef = useRef(false);
   const playersRef = useRef([]);
@@ -1069,6 +1150,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       // effect de fase, quando todos virem 'parando' — evita corrida de escrita.
       if (hostRef.current) irParaParando(payload?.name, payload?.uniko);
     });
+    ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
+      if (!payload?.id || !payload?.text || payload.name === name) return;   // a minha já entrou no envio
+      setChatMsgs(l => [...l.slice(-79), payload]);
+    });
     ch.on('broadcast', { event: 'respostas' }, ({ payload }) => {
       if (!hostRef.current) return;         // só o host junta
       const s = stateRef.current; if (!s) return;
@@ -1227,8 +1312,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
         </button>
       </div>
 
-      {/* Corpo */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '216px 1fr',
+      {/* Corpo — jogadores | jogo | chat */}
+      <div className="us-corpo" style={{ flex: 1, display: 'grid', gridTemplateColumns: '216px minmax(0, 1fr) 262px',
         gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0, overflow: 'hidden' }}>
         {/* Jogadores */}
         <div className="us-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14,
@@ -1623,6 +1708,10 @@ const Sala = ({ roomId, name, players, onLeave }) => {
             </>
           )}
         </div>
+
+        {/* Chat da sala — 3ª coluna, ao lado do jogo */}
+        <ChatSala mensagens={chatMsgs} texto={chatTexto} setTexto={setChatTexto}
+          onEnviar={enviarChat} name={name} cardBg={cardBg} />
       </div>
     </div>
   );
