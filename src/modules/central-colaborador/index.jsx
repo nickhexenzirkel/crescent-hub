@@ -145,7 +145,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
-    if(tab==='unikosuspect' && getAuthUser()?.role==='admin') return <TabUnikoSuspect/>;
+    if(tab==='unikosuspect') return <TabUnikoSuspect/>;
     return null;
   };
 

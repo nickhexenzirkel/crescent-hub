@@ -1500,8 +1500,6 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Detetive</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.9)' }}>Tripulantes x Impostor — casa de praia 🏖️</div>
         </div>
-        <div style={{ padding: '5px 12px', borderRadius: 999, background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.3)',
-          fontSize: 10.5, fontWeight: 800, color: '#fff', flexShrink: 0 }}>🔒 EM DEV</div>
         <button className="sus-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer', flexShrink: 0 }}>
@@ -1621,7 +1619,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, textAlign: 'center', padding: '40px 24px' }}>
             <div style={{ fontSize: 40 }}>🏖️</div>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, maxWidth: 380, lineHeight: 1.3 }}>
-              Ainda em construção — mas já dá pra testar o lobby e o sorteio de papéis!
+              Nenhuma sala aberta agora — crie a sua e chame a galera!
             </div>
             <div style={{ fontSize: 12.5, color: T.textT }}>Use o botão <b style={{ color: AGUA }}>Criar sala</b> ali em cima 👆 (mínimo {MIN_PLAYERS} jogadores pra começar)</div>
           </div>
