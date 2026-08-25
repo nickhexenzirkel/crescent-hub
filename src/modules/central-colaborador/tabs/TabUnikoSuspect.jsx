@@ -719,6 +719,23 @@ const SUS_CSS = `
 /* Enquanto a partida roda, o Assistente Uniko sai da frente (ele é fixed com
    z-index acima do jogo e ficava flutuando por cima do mapa). */
 body.sus-jogando .uniko-assistant { display: none !important; }
+/* ── Nada de arrastar imagem (ago/2026) ─────────────────────────────────────
+   Dava pra segurar o mapa, um Uniko ou uma placa de tarefa e sair arrastando
+   a "cópia fantasma" do navegador pela tela — atrapalhava no meio da partida
+   e dava pra soltar a arte em qualquer lugar. user-drag resolve no Chrome/
+   Edge/Safari; o Firefox ignora a propriedade, e la quem segura a onda sao o
+   draggable={false} de cada imagem e o onDragStart que cancela o arrasto na
+   raiz de cada bloco do jogo (dragstart borbulha, entao um handler no topo
+   cobre tudo que estiver dentro). */
+.sus-root img, .sus-root svg, .sus-root canvas {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+}
+.sus-root img, .sus-root svg, .sus-root kbd, .sus-root button {
+  -webkit-user-select: none;
+  user-select: none;
+}
 /* ── Dentro de uma sala o jogo toma a tela inteira (ago/2026) ───────────────
    Assim que a pessoa entra na sala, o Portal em volta sai de cena: barra
    lateral, cabeçalho e o menu de baixo do celular somem, e o conteúdo perde
@@ -821,7 +838,7 @@ const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
   // investidas ao redor da vítima, batendo de ângulos diferentes (esquerda, cima,
   // baixo e direita) até ela cair — no lugar do laser que existia antes.
   <div className="sus-death-shake" style={{ position: 'absolute', inset: 0, zIndex: 300, background: '#000', borderRadius: 16, overflow: 'hidden' }}>
-    <img src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
+    <img draggable={false} src={MORTE_IMG} alt="Você foi morto!" className="sus-death-text"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
 
     {/* Rastros dos saltos — um por investida, cada um no ângulo do golpe */}
@@ -853,13 +870,13 @@ const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
     ))}
 
     {/* A VÍTIMA fica parada no lugar de sempre, levando os golpes */}
-    <img src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
+    <img draggable={false} src={vitimaFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-victim"
       style={{ position: 'absolute', left: '83%', top: '48%',
         width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
         border: '4px solid rgba(255,255,255,.9)', boxShadow: '0 0 34px 8px rgba(120,200,255,.85), 0 0 70px 20px rgba(70,150,255,.55)', zIndex: 3 }} />
 
     {/* O IMPOSTOR nasce à esquerda e circula batendo (susDeathDash) */}
-    <img src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-dash"
+    <img draggable={false} src={matadorFoto || '/UNIKO_NEW.png'} alt="" className="sus-death-dash"
       style={{ position: 'absolute', left: '17%', top: '48%', marginLeft: 'min(-7.5vw,-75px)', marginTop: 'min(-7.5vw,-75px)',
         width: 'min(15vw, 30vh, 150px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#0a1622',
         border: '4px solid #DC2626', boxShadow: '0 0 22px 6px rgba(220,38,38,.65)', zIndex: 5 }} />
@@ -1398,7 +1415,7 @@ const CamerasPainel = ({ cameras, indice, onTrocar, onFechar, players, positions
             return (
               <div key={p.name} style={{ position: 'absolute', left: pct(pos.x, vx, vw), top: pct(pos.y, vy, vh), transform: 'translate(-50%,-50%)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover',
+                <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover',
                   border: `2px solid ${p.name === name ? '#7DE0A6' : '#fff'}`, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.7))' }} />
                 <span style={{ fontSize: 8.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px #000', whiteSpace: 'nowrap' }}>
                   {p.name.split(' ')[0]}
@@ -1517,7 +1534,7 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
                 <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                   {/* Uniko maior + X vermelho por cima de quem morreu */}
                   <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-                    <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover',
+                    <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover',
                       background: '#fff', filter: morto ? 'grayscale(1) brightness(.72)' : 'none' }} />
                     {morto && (
                       <svg viewBox="0 0 24 24" width="52" height="52" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -1687,7 +1704,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         <div className="sus-float" style={{ width: 62, height: 62, borderRadius: 16, flexShrink: 0, position: 'relative',
           background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
-          boxShadow: '0 6px 18px rgba(0,0,0,.3)' }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
+          boxShadow: '0 6px 18px rgba(0,0,0,.3)' }}><img draggable={false} src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Detetive</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.9)' }}>Tripulantes x Impostor — casa de praia 🏖️</div>
@@ -1695,7 +1712,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         <button className="sus-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 5px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer', flexShrink: 0 }}>
-          <img src={photo} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <img draggable={false} src={photo} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
         </button>
         <button className="sus-btn" onClick={() => setCriando(v => !v)}
@@ -1768,7 +1785,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                 boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: `${AGUA}18`, border: `1px solid ${AGUA}33` }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
+                    background: `${AGUA}18`, border: `1px solid ${AGUA}33` }}><img draggable={false} src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.nome || 'Sala'}</div>
                     <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>{st.impostoresQtd || 1} impostor{(st.impostoresQtd || 1) > 1 ? 'es' : ''}</div>
@@ -1785,7 +1802,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                     <>
                       <div style={{ display: 'flex' }}>
                         {gente.slice(0, 6).map((p, i) => (
-                          <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
+                          <img draggable={false} key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
                             style={{ width: 27, height: 27, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
                         ))}
                       </div>
@@ -1926,7 +1943,7 @@ const BarcoLobby = ({ name, players, isHost, impostoresQtd, podeIniciar, onEscol
                 width: `${(BARCO_PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%',
                 pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
-                <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={eu && isMoving ? 'sus-walk' : undefined}
+                <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" className={eu && isMoving ? 'sus-walk' : undefined}
                   style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain',
                     filter: eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.5)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.5))' }} />
                 <span style={{ fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 800, color: '#1a1320', background: 'rgba(255,255,255,.88)',
@@ -2975,7 +2992,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       <div style={{ borderRadius: 16, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 13,
         background: `linear-gradient(120deg, ${AGUA} 0%, ${CEU} 55%, ${AREIA} 120%)`, boxShadow: `0 8px 26px ${AG}`, flexShrink: 0 }}>
         <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><img draggable={false} src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{state?.nome || 'Sala'}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.85)' }}>{players.length} jogador{players.length !== 1 ? 'es' : ''} · {host ? `host: ${host.split(' ')[0]}` : '...'}</div>
@@ -2983,7 +3000,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         <button className="sus-btn" onClick={onAbrirPicker} title="Escolher meu Uniko"
           style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 11px 5px 5px', borderRadius: 999,
             border: '1px solid rgba(255,255,255,.4)', background: 'rgba(255,255,255,.2)', cursor: 'pointer', flexShrink: 0 }}>
-          <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+          <img draggable={false} src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
           <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff' }}>Meu Uniko</span>
         </button>
         {/* Mudo também aqui: a trilha já toca no lobby, então precisa dar pra
@@ -3029,7 +3046,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                           const cor = state.vencedor === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR;
                           return (
                             <div key={n} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-                              <img src={p?.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover',
+                              <img draggable={false} src={p?.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover',
                                 background: '#fff', border: `3px solid ${cor}`, boxShadow: `0 0 20px ${cor}77` }} />
                               <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{n.split(' ')[0]}</span>
                             </div>
@@ -3068,7 +3085,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   {players.map(p => (
                     <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px 5px 5px', borderRadius: 999, background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}` }}>
-                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+                      <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{p.name.split(' ')[0]}{p.name === host && ' 👑'}</span>
                     </div>
                   ))}
@@ -3125,7 +3142,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             direta. As medidas viraram vh/vw pelo mesmo motivo: a tela é a
             unidade, não o cartão. */}
         {state?.phase === 'sorteando' && createPortal(
-          <div style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          <div className="sus-root" onDragStart={e => e.preventDefault()}
+            style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: '#05070c', overflow: 'hidden' }}>
             <div className="sus-reveal" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: 'clamp(14px, 2.6vh, 30px)', padding: 'clamp(16px, 4vh, 48px) 5vw', textAlign: 'center', width: '100%', maxHeight: '100%' }}>
@@ -3143,7 +3161,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   return (
                     <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
                       transform: eu ? 'scale(1.35) translateY(-6px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
-                      <img src={p.photo || '/UNIKO_NEW.png'} alt=""
+                      <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt=""
                         style={{ width: 'clamp(52px, 6.5vw, 92px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#fff',
                           border: eu ? `3px solid ${AGUA}` : '2px solid rgba(255,255,255,.4)', boxShadow: eu ? `0 0 22px ${AGUA}aa` : 'none' }} />
                       {eu && <span style={{ fontSize: 'clamp(10px, 1.1vw, 14px)', fontWeight: 800, color: '#fff' }}>Você</span>}
@@ -3168,7 +3186,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
             Central do Colaborador. O botão "Tela cheia" continua existindo
             pra esconder também a barra do navegador (Fullscreen API). */}
         {state?.phase === 'jogando' && createPortal(
-          <div ref={gameWrapRef} style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', flexDirection: 'column', gap: 10,
+          <div ref={gameWrapRef} className="sus-root" onDragStart={e => e.preventDefault()}
+            style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', flexDirection: 'column', gap: 10,
             background: T.page || '#0B1620', padding: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {/* ── HUD do topo ─────────────────────────────────
                 Antes eram 3 chips minúsculos encostados na esquerda. Agora o
@@ -3296,7 +3315,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       title={travada ? `${t.label} (energia sabotada!)`
                         : consertandoSabotagem ? `${t.label} — conserte a energia!`
                         : naoAlcanca ? `${t.label} — chegue perto pra fazer` : t.label}>
-                      <img src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
+                      <img draggable={false} src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
                         className={feita || travada ? undefined : 'sus-twinkle'}
                         style={{ width: '8vw', maxWidth: 82, minWidth: 50, display: 'block', opacity: travada ? .4 : 1,
                           filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
@@ -3375,7 +3394,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   <button onClick={chamarReuniao} title="Iniciar Reunião"
                     style={{ ...taskBtnCss, position: 'absolute', left: `${mapaEmergencia.x / MAP_W * 100}%`, top: `${mapaEmergencia.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', zIndex: 1, cursor: 'pointer' }}>
-                    <img src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
+                    <img draggable={false} src={INICIAR_REUNIAO_IMG} alt="Iniciar Reunião" className="sus-emerg"
                       style={{ width: '15vw', maxWidth: 155, minWidth: 92, display: 'block' }} />
                   </button>
                 )}
@@ -3389,7 +3408,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>
                       💀 {c.vitima.split(' ')[0]}
                     </span>
-                    <img src={CORPO_IMG} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                    <img draggable={false} src={CORPO_IMG} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                   </div>
                 ))}
 
@@ -3407,7 +3426,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                       width: `${(PLAYER_R * 1.2 / MAP_W) * 100}%`, transform: 'translate(-50%,-50%)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6%', opacity: ehFantasma ? .5 : 1,
                       pointerEvents: 'none', transition: eu ? 'none' : 'left .12s linear, top .12s linear', zIndex: eu ? 3 : 2 }}>
-                      <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={andando ? 'sus-walk' : undefined}
+                      <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" className={andando ? 'sus-walk' : undefined}
                         style={{ width: '100%', aspectRatio: '1/1', objectFit: 'contain', filter: ehFantasma
                           ? `grayscale(1) brightness(1.3) drop-shadow(0 0 8px #fff8)`
                           : (eu ? `drop-shadow(0 3px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px ${AGUA}cc)` : 'drop-shadow(0 3px 6px rgba(0,0,0,.4))') }} />
@@ -3490,7 +3509,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {alvoUsar && (
                   <button className="sus-btn sus-pop" onClick={usarAlvoProximo} title={alvoUsar.titulo}
                     style={{ ...taskBtnCss, cursor: 'pointer' }}>
-                    <img src={BOTAO_USAR_IMG} alt={alvoUsar.titulo}
+                    <img draggable={false} src={BOTAO_USAR_IMG} alt={alvoUsar.titulo}
                       style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
@@ -3498,7 +3517,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {/* REPORTAR — só quando há corpo perto */}
                 {corpoProximo && (
                   <button className="sus-btn sus-pop" onClick={() => reportar(corpoProximo.id)} style={{ ...taskBtnCss, cursor: 'pointer' }} title="Reportar corpo">
-                    <img src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
+                    <img draggable={false} src={BOTAO_REPORTAR_IMG} alt="Reportar corpo"
                       style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' }} />
                   </button>
                 )}
@@ -3509,7 +3528,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button className="sus-btn" onClick={sabotarEnergia} disabled={!podeSabotar}
                       title={emCooldownSabotagem ? 'Sabotagem recarregando' : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
                       style={{ ...taskBtnCss, cursor: podeSabotar ? 'pointer' : 'not-allowed' }}>
-                      <img src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
+                      <img draggable={false} src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
                         style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: podeSabotar ? 1 : .45,
                           filter: podeSabotar ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
@@ -3517,7 +3536,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button className="sus-btn" onClick={() => vitimaProxima && matar(vitimaProxima)} disabled={!vitimaProxima}
                       title={vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
                       style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
-                      <img src={BOTAO_MATAR_IMG} alt="Matar"
+                      <img draggable={false} src={BOTAO_MATAR_IMG} alt="Matar"
                         style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: vitimaProxima ? 1 : .45,
                           filter: vitimaProxima ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
@@ -3736,7 +3755,8 @@ const TabUnikoSuspect = () => {
     // Fundo escuro do módulo: sem este contêiner sobraria o fundo CLARO do
     // Portal em volta do conteúdo (a raiz era um fragmento), e a aba ficava
     // metade escura metade clara.
-    <div style={{ background: T.page, color: T.text, borderRadius: 16, padding: 14, minHeight: '100%', boxSizing: 'border-box' }}>
+    <div className="sus-root" onDragStart={e => e.preventDefault()}
+      style={{ background: T.page, color: T.text, borderRadius: 16, padding: 14, minHeight: '100%', boxSizing: 'border-box' }}>
       {room
         ? <Sala roomId={room} name={name} photo={photo} players={naSala} onLeave={sairDaSala} onAbrirPicker={() => setPicker(true)} />
         : <Lobby name={name} photo={photo} porSala={porSala} onEnter={entrarNaSala} onAbrirPicker={() => setPicker(true)} />}
@@ -3767,14 +3787,14 @@ const TabUnikoSuspect = () => {
                   return (
                     <div key={u.id} style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <img src={u.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />{u.name}
+                        <img draggable={false} src={u.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />{u.name}
                       </div>
                       <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
                         {opts.map(v => (
                           <button key={v.img} onClick={() => choosePhoto(v.img)} title={v.label}
                             style={{ width: 78, padding: 7, borderRadius: 12, cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.03)',
                               border: photo === v.img ? `2px solid ${AGUA}` : `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                            <img src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+                            <img draggable={false} src={v.img} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
                             <span style={{ fontSize: 9.5, color: T.textT, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{v.label}</span>
                           </button>
                         ))}
