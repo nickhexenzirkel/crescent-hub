@@ -13,6 +13,78 @@ import { getUniko, loadUnikoBgVideos } from '../../shared/captureUniko';
 import { loadMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
+/* ── Barra de progresso da música ───────────────────────────────────────────
+   Só leitura pra todo mundo; pro ADMIN vira uma barra ARRASTÁVEL: recebe
+   `onSeek(ms)` e dá pra puxar direto pro minuto que ele quiser (o Spotify
+   aceita `seek`, então o Echo pula na hora).
+   Enquanto o dedo/mouse está na barra, o preenchimento e o relógio da
+   esquerda mostram o ALVO, não o progresso real — senão a barra brigaria com
+   o dedo, voltando sozinha a cada tick do polling de progresso. */
+const BarraProgresso = ({ progressMs, durationMs, cores, onSeek, escuro = false }) => {
+  const trilhoRef = useRef(null);
+  const [arrastando, setArrastando] = useState(null);   // ms do alvo enquanto arrasta (null = parado)
+  const [hover, setHover] = useState(false);
+  const podeArrastar = typeof onSeek === 'function' && durationMs > 0;
+
+  const msDoEvento = (e) => {
+    const r = trilhoRef.current?.getBoundingClientRect();
+    if (!r?.width) return 0;
+    const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    return Math.round(frac * durationMs);
+  };
+  const aoDescer = (e) => {
+    if (!podeArrastar) return;
+    // `setPointerCapture` mantém os eventos vindo pra cá mesmo se o ponteiro
+    // sair da barra no meio do arrasto (sair da barra e soltar longe é o
+    // caminho normal de quem puxa rápido).
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* navegador sem capture */ }
+    setArrastando(msDoEvento(e));
+  };
+  const aoMover  = (e) => { if (arrastando !== null) setArrastando(msDoEvento(e)); };
+  const aoSoltar = (e) => {
+    if (arrastando === null) return;
+    const alvo = msDoEvento(e);
+    setArrastando(null);
+    onSeek(alvo);
+  };
+
+  const mostrado = arrastando ?? progressMs;
+  const pct  = durationMs > 0 ? Math.min(100, Math.max(0, (mostrado / durationMs) * 100)) : 0;
+  const fmt  = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  const ativo = arrastando !== null || hover;
+  const trilhoBg = escuro ? 'rgba(255,255,255,.2)' : T.border;
+  const textoCor = escuro ? 'rgba(255,255,255,.6)' : T.textD;
+  const preenche = `linear-gradient(90deg,${cores?.[0] || T.gold},${cores?.[1] || T.gold}cc)`;
+
+  return (
+    <div>
+      <div
+        onPointerDown={aoDescer} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        title={podeArrastar ? 'Arraste pra pular pro ponto da música' : undefined}
+        style={{ position: 'relative', padding: '9px 0', cursor: podeArrastar ? 'pointer' : 'default',
+          touchAction: podeArrastar ? 'none' : 'auto' }}>
+        <div ref={trilhoRef} style={{ position: 'relative', height: podeArrastar && ativo ? 6 : 4,
+          borderRadius: 99, background: trilhoBg, transition: 'height .12s ease' }}>
+          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: preenche,
+            transition: arrastando === null ? 'width .9s linear' : 'none' }} />
+          {podeArrastar && (
+            <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%,-50%)',
+              width: ativo ? 14 : 10, height: ativo ? 14 : 10, borderRadius: '50%', background: '#fff',
+              border: `2px solid ${cores?.[0] || T.gold}`, boxShadow: '0 2px 6px rgba(0,0,0,.35)',
+              transition: arrastando === null ? 'width .12s ease, height .12s ease, left .9s linear' : 'width .12s ease, height .12s ease',
+              pointerEvents: 'none' }} />
+          )}
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: escuro ? 11 : 10, color: textoCor }}>
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: arrastando !== null ? 800 : 400 }}>{fmt(mostrado)}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(durationMs)}</span>
+      </div>
+    </div>
+  );
+};
+
 // Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
 const FEMALE_NAMES = new Set(['beatriz','isabel','isabela','raquel','rute','ruth','ester','esther','ines','lais','lays','iris','nicole','jaqueline','jacqueline','caroline','carol','rachel','denise','eloise','heloise','karen','karin','miriam','mirian','carmen','carmem','solange','mercedes','yasmin','yasmim','jasmin','liz','mabel','isis','cris','noemi','noemy','sarah','sara','hannah','deborah','debora','judith','lilian','marylin','sharon','estefani','estefany','gabrielly','emily','kimberly','ester','agnes','dulce','flor','pilar']);
 const MALE_NAMES   = new Set(['joshua','josua','luca','juca','nicola','elias','matias','mathias','tobias','jonas','lucas','thomas','tomas','dimas','andre','andres','felipe','filipe','henrique','jorge','jaime','jose','isaque','isaac','levi','kawan','noah','dante','vicente','clemente','enrique','aristoteles','socrates']);
@@ -1531,13 +1603,15 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   };
 
   // ── Polling de progresso para sync da letra ───────────────
+  // A base do relógio local (progresso conhecido + instante em que ele valia)
+  // mora num REF, não numa variável de closure: assim o seek do admin (ver
+  // seekTo) consegue reposicionar a barra na hora, sem esperar o próximo
+  // sync com o servidor — senão a barra voltava pro ponto antigo por até 8s.
+  const progressBase = useRef({ ms: 0, at: Date.now() });
   const startProgressPolling = () => {
     if (progressTimer.current) clearInterval(progressTimer.current);
 
-    // baseMs = progresso no momento baseTime (ms real, compensado de latência)
-    let baseMs   = 0;
-    let baseTime = Date.now();
-    let syncing  = false;
+    let syncing = false;
 
     const syncWithServer = async () => {
       if (syncing) return;
@@ -1548,8 +1622,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         const tReceived = Date.now();
         // Estima que o progresso retornado era válido no meio do RTT
         const halfRtt = (tReceived - tSent) / 2;
-        baseMs   = r.progress_ms + halfRtt; // compensa latência
-        baseTime = tReceived;
+        progressBase.current = { ms: r.progress_ms + halfRtt, at: tReceived }; // compensa latência
       }
       syncing = false;
     };
@@ -1559,11 +1632,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
     // Tick a cada 200ms — clock local preciso entre syncs
     progressTimer.current = setInterval(() => {
-      const now     = Date.now();
-      const current = baseMs + (now - baseTime);
-      setProgressMs(current);
+      const now = Date.now();
+      const { ms, at } = progressBase.current;
+      setProgressMs(ms + (now - at));
       // Re-sync com servidor a cada 8s para corrigir desvio
-      if (now - baseTime > 8000) syncWithServer();
+      if (now - at > 8000) syncWithServer();
     }, 200);
   };
 
@@ -2497,6 +2570,27 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       await _supabase.from('settings').upsert({ key: 'alexa_volume', value: String(newVol) }, { onConflict: 'key' }).catch(()=>{});
       setVolumeSaving(false);
     }, 300);
+  };
+
+  /* ── Arrastar pro minuto da música (admin) ───────────────────────────────
+     Só admin: a barra de progresso vira arrastável e manda o Spotify pular
+     pro ponto escolhido (o Echo acompanha na hora). A base do relógio local
+     é atualizada ANTES da chamada pra a barra não voltar sozinha enquanto a
+     rede responde; se o Spotify recusar, o próximo sync (≤8s) corrige. */
+  const [seekMsg, setSeekMsg] = useState('');
+  const seekTo = async (ms) => {
+    const total = cur?.duration_ms || 0;
+    if (!isAdmin || !total) return;
+    // Trava 1s antes do fim: soltar exatamente no 100% faz o Spotify encerrar
+    // a faixa e a fila avançar, o que não é o que quem arrastou quis fazer.
+    const alvo = Math.max(0, Math.min(total - 1000, Math.round(ms)));
+    progressBase.current = { ms: alvo, at: Date.now() };
+    setProgressMs(alvo);
+    const r = await api('put', `/api/player/seek?position_ms=${alvo}`).catch(() => null);
+    if (!r?.ok) {
+      setSeekMsg('Não deu pra pular pro ponto da música.');
+      setTimeout(() => setSeekMsg(''), 3000);
+    }
   };
 
   const sendAlexa = async () => {
@@ -3539,24 +3633,16 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       )}
                       <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
                       <div style={{fontSize:13,color:T.textS,marginBottom:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
-                      {/* ── Barra de progresso (somente leitura) ── */}
-                      {cur.duration_ms > 0 && (() => {
-                        const pct     = Math.min(100, (progressMs / cur.duration_ms) * 100);
-                        const fmtMs   = ms => { const t=Math.max(0,Math.floor(ms/1000)); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}` };
-                        const elapsed = fmtMs(progressMs);
-                        const total   = fmtMs(cur.duration_ms);
-                        return (
-                          <div style={{marginBottom:14}}>
-                            <div style={{height:3,borderRadius:99,background:`${T.border}`,overflow:"hidden",marginBottom:5}}>
-                              <div key={cur?.id} style={{height:"100%",width:`${pct}%`,borderRadius:99,background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`,transition:"width .9s linear"}}/>
-                            </div>
-                            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textD}}>
-                              <span>{elapsed}</span>
-                              <span>{total}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      {/* ── Barra de progresso — arrastável só pro admin ── */}
+                      {cur.duration_ms > 0 && (
+                        <div style={{marginBottom:10}}>
+                          <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
+                            cores={festColors} onSeek={isAdmin ? seekTo : undefined} />
+                          {isAdmin && seekMsg && (
+                            <div style={{fontSize:10.5,color:"#E63946",fontWeight:700,marginTop:4}}>{seekMsg}</div>
+                          )}
+                        </div>
+                      )}
                     </>
                   : <div style={{fontSize:13,color:T.textT,marginBottom:12,textAlign:"center",padding:"24px 0"}}>
                       <div style={{fontSize:32,marginBottom:8}}>🎵</div>
@@ -4190,20 +4276,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 <div style={{ fontSize:13.5, color:"rgba(255,255,255,.7)", marginTop:4 }}>{cur.artist}</div>
               </div>
 
-              {cur.duration_ms > 0 && (() => {
-                const pct = Math.min(100, (progressMs / cur.duration_ms) * 100);
-                const fmtMs = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
-                return (
-                  <div style={{ width:"100%", maxWidth:340, marginTop:22 }}>
-                    <div style={{ height:4, borderRadius:99, background:"rgba(255,255,255,.2)", overflow:"hidden" }}>
-                      <div style={{ height:"100%", width:`${pct}%`, borderRadius:99, background:`linear-gradient(90deg,${festColors?.[0]||T.gold},${festColors?.[1]||T.gold}cc)`, transition:"width .9s linear" }}/>
-                    </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(255,255,255,.6)", marginTop:6 }}>
-                      <span>{fmtMs(progressMs)}</span><span>{fmtMs(cur.duration_ms)}</span>
-                    </div>
-                  </div>
-                );
-              })()}
+              {cur.duration_ms > 0 && (
+                <div style={{ width:"100%", maxWidth:340, marginTop:16 }}>
+                  <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
+                    cores={festColors} onSeek={isAdmin ? seekTo : undefined} escuro />
+                </div>
+              )}
 
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20, marginTop:30 }}>
                 {canControl && (
