@@ -67,7 +67,7 @@ const MAP_W = 1672, MAP_H = 941;
    retos). Vira uma "sala de espera" de verdade em vez de só uma lista. */
 const BARCO_IMG = '/uniko-suspect-barco.png';
 const BARCO_ELIPSE = { cx: 830, cy: 468, rx: 610, ry: 250 };   // convés andável, ajustar se alguém ficar preso/atravessando a amurada
-const BARCO_MOVE_SPEED = 150;
+const BARCO_MOVE_SPEED = 235;   // lobby é só espera/bagunça, então corre mais que na partida (era 150)
 const BARCO_PLAYER_R = 85;   // bem maior que o boneco do mapa principal (pedido do usuário — só aqui no barco)
 const estaNoBarco = (x, y) => {
   const nx = (x - BARCO_ELIPSE.cx) / BARCO_ELIPSE.rx;
@@ -524,11 +524,40 @@ body.sus-jogando .uniko-assistant { display: none !important; }
   background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.10) 0 2px, transparent 2px 44px);
   animation: susWaveLines 5s linear infinite; }
 .sus-boat-sway { animation: susBoatSway 4.5s ease-in-out infinite; }
+
+/* ── Névoa e nuvens do lobby ───────────────────────────────────────────────
+   Três camadas atravessando a tela em velocidades diferentes (paralaxe) — é
+   o que dá a sensação de neblina de verdade em vez de uma mancha parada.
+   Todas com pointer-events:none pra nunca roubarem o clique dos bonecos. */
+@keyframes susNevoa1 { from { transform: translateX(-25%); } to { transform: translateX(25%); } }
+@keyframes susNevoa2 { from { transform: translateX(20%); } to { transform: translateX(-20%); } }
+@keyframes susNuvemPassa { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
+/* Camada baixa, densa, colada na água */
+.sus-nevoa-baixa { position: absolute; left: -30%; right: -30%; bottom: -6%; height: 46%; pointer-events: none;
+  background:
+    radial-gradient(ellipse 34% 60% at 18% 60%, rgba(200,225,240,.30) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 55% at 52% 70%, rgba(215,235,248,.26) 0%, transparent 72%),
+    radial-gradient(ellipse 30% 50% at 84% 62%, rgba(190,215,235,.24) 0%, transparent 70%);
+  filter: blur(14px);
+  animation: susNevoa1 26s ease-in-out infinite alternate; }
+/* Camada alta, mais rala, indo pro outro lado */
+.sus-nevoa-alta { position: absolute; left: -25%; right: -25%; top: -4%; height: 42%; pointer-events: none;
+  background:
+    radial-gradient(ellipse 38% 55% at 30% 40%, rgba(255,255,255,.16) 0%, transparent 72%),
+    radial-gradient(ellipse 32% 48% at 72% 34%, rgba(220,235,250,.14) 0%, transparent 72%);
+  filter: blur(20px);
+  animation: susNevoa2 34s ease-in-out infinite alternate; }
+/* Nuvem solta que cruza a tela de ponta a ponta, bem devagar */
+.sus-nuvem { position: absolute; pointer-events: none; border-radius: 50%; filter: blur(26px);
+  background: radial-gradient(ellipse at center, rgba(226,240,252,.34) 0%, rgba(200,220,238,.14) 45%, transparent 72%); }
+.sus-nuvem-a { top: 8%;  width: 46%; height: 26%; animation: susNuvemPassa 48s linear infinite; }
+.sus-nuvem-b { top: 34%; width: 60%; height: 30%; animation: susNuvemPassa 72s linear infinite; animation-delay: -24s; opacity: .8; }
 .sus-btn { transition: transform .12s, filter .12s; }
 .sus-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .sus-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
 @media (prefers-reduced-motion: reduce) { .sus-fade,.sus-pop,.sus-reveal,.sus-float,.sus-walk,.sus-twinkle,.sus-emerg,
-  .sus-death-recoil,.sus-eye-laser,.sus-explosion,.sus-death-victim,.sus-death-text,.sus-ocean,.sus-wave-lines,.sus-boat-sway { animation: none !important; } }
+  .sus-death-recoil,.sus-eye-laser,.sus-explosion,.sus-death-victim,.sus-death-text,.sus-ocean,.sus-wave-lines,.sus-boat-sway,
+  .sus-nevoa-baixa,.sus-nevoa-alta,.sus-nuvem { animation: none !important; } }
 `;
 
 /* ── Estrela (SVG) — marcador de tarefa (azul/verde) e do botão de emergência (vermelho) ── */
@@ -1609,6 +1638,9 @@ const BarcoLobby = ({ name, players, isHost, impostoresQtd, podeIniciar, onEscol
       <div style={{ position: 'relative', width: '100%', maxWidth: 1180, margin: '0 auto', aspectRatio: `${MAP_W} / ${MAP_H}`,
         borderRadius: 16, overflow: 'hidden', border: `2px solid ${T.border}`, boxShadow: T.sh }} className="sus-ocean">
         <div className="sus-wave-lines" />
+        {/* Nuvens ATRÁS do barco (passam ao fundo) */}
+        <div className="sus-nuvem sus-nuvem-a" />
+        <div className="sus-nuvem sus-nuvem-b" />
         <div className="sus-boat-sway" style={{ position: 'absolute', inset: 0 }}>
           <img src={BARCO_IMG} alt="" draggable={false}
             style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain', userSelect: 'none', pointerEvents: 'none' }} />
@@ -1633,6 +1665,12 @@ const BarcoLobby = ({ name, players, isHost, impostoresQtd, podeIniciar, onEscol
         </div>
 
         {/* Botão do host, DENTRO do barco — fixo no canto inferior. */}
+        {/* Névoa NA FRENTE do barco: passar por cima dos bonecos é o que dá a
+            sensação de profundidade. Fica abaixo dos controles (zIndex 5) pra
+            não embaçar botão nem nome de jogador. */}
+        <div className="sus-nevoa-alta" style={{ zIndex: 3 }} />
+        <div className="sus-nevoa-baixa" style={{ zIndex: 4 }} />
+
         {isHost && (
           <div style={{ position: 'absolute', left: 0, right: 0, bottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(6px)', borderRadius: 999, padding: '5px 10px' }}>
