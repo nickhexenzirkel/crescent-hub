@@ -548,6 +548,8 @@ const StarIcon = ({ size = 22, color = '#3B82F6', className }) => (
 // (mesma pegadinha do mapa e da máscara de parede). Ao trocar as imagens de
 // novo, incremente a data.
 const ARTE_V = '?v=20260825';
+// Ícone do Uniko Detetive (substituiu o emoji 🕵️ no cabeçalho)
+const UNIKO_DETETIVE_ICONE = '/uniko-detetive-icone.png' + ARTE_V;
 const TAREFA_DISPONIVEL_IMG = '/uniko-suspect-tarefa-disponivel.png' + ARTE_V;
 const TAREFA_CONCLUIDA_IMG = '/uniko-suspect-tarefa-concluida.png' + ARTE_V;
 const INICIAR_REUNIAO_IMG = '/uniko-suspect-iniciar-reuniao.png' + ARTE_V;
@@ -1392,9 +1394,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         <div className="sus-float" style={{ width: 62, height: 62, borderRadius: 16, flexShrink: 0, position: 'relative',
           background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
-          boxShadow: '0 6px 18px rgba(0,0,0,.3)' }}>🕵️</div>
+          boxShadow: '0 6px 18px rgba(0,0,0,.3)' }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Suspect</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Detetive</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.9)' }}>Tripulantes x Impostor — casa de praia 🏖️</div>
         </div>
         <div style={{ padding: '5px 12px', borderRadius: 999, background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.3)',
@@ -1468,7 +1470,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                 boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, background: `${AGUA}18`, border: `1px solid ${AGUA}33` }}>🕵️</div>
+                    background: `${AGUA}18`, border: `1px solid ${AGUA}33` }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.nome || 'Sala'}</div>
                     <div style={{ fontSize: 11, color: T.textT, marginTop: 2 }}>{st.impostoresQtd || 1} impostor{(st.impostoresQtd || 1) > 1 ? 'es' : ''}</div>
@@ -2500,7 +2502,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       <div style={{ borderRadius: 16, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 13,
         background: `linear-gradient(120deg, ${AGUA} 0%, ${CEU} 55%, ${AREIA} 120%)`, boxShadow: `0 8px 26px ${AG}`, flexShrink: 0 }}>
         <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(0,0,0,.28)', border: '1px solid rgba(255,255,255,.25)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🕵️</div>
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><img src={UNIKO_DETETIVE_ICONE} alt="" style={{ width: '78%', height: '78%', objectFit: 'contain' }} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{state?.nome || 'Sala'}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.85)' }}>{players.length} jogador{players.length !== 1 ? 'es' : ''} · {host ? `host: ${host.split(' ')[0]}` : '...'}</div>
@@ -3154,7 +3156,7 @@ const TabUnikoSuspect = () => {
       <div style={{ width: 76, height: 76, borderRadius: 20, margin: '0 auto 14px', background: `linear-gradient(135deg, ${AGUA}, ${CEU})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34 }}>🕵️</div>
       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 8 }}>Falta rodar a migração</div>
       <div style={{ fontSize: 13.5, color: T.textT, lineHeight: 1.6 }}>
-        O Uniko Suspect precisa da tabela dele. Rode <b style={{ color: T.text }}>supabase_uniko_suspect.sql</b> no SQL Editor do Supabase e recarregue.
+        O Uniko Detetive precisa da tabela dele. Rode <b style={{ color: T.text }}>supabase_uniko_suspect.sql</b> no SQL Editor do Supabase e recarregue.
       </div>
     </div>
   );
@@ -3182,7 +3184,7 @@ const TabUnikoSuspect = () => {
               maxWidth: 680, width: '100%', maxHeight: '84vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
               <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 4 }}>Escolha seu Uniko</div>
               <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14, lineHeight: 1.5 }}>
-                Esse vai ser o seu boneco no Uniko Suspect (e também sua foto de perfil no Portal). Só aparecem os Unikos que você já capturou.
+                Esse vai ser o seu boneco no Uniko Detetive (e também sua foto de perfil no Portal). Só aparecem os Unikos que você já capturou.
               </div>
               <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔎 Buscar Uniko pelo nome..."
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surface || '#fff',

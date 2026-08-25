@@ -1,4 +1,4 @@
-// Dashboard RH → aba "Uniko Suspect".
+// Dashboard RH → aba "Uniko Detetive".
 // Editor visual do mapa do jogo: pintar/apagar parede direto em cima da arte
 // real (substitui o editor standalone em public/uniko-suspect-editor.html —
 // esse aqui salva no Supabase em vez de um arquivo estático, então nunca
@@ -315,7 +315,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: '.04em' }}>Uniko Suspect — Editor de Mapa</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: '.04em' }}>Uniko Detetive — Editor de Mapa</div>
           <div style={{ fontSize: 13, color: T.textS, marginTop: 2 }}>
             Pinte a parede direto em cima do mapa real, marque onde ficam as tarefas e a posição do botão de emergência.
             {updatedAt && <> Última vez salvo {updatedBy ? `por ${updatedBy} ` : ''}em {new Date(updatedAt).toLocaleString('pt-BR')}.</>}

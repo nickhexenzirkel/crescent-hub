@@ -42,7 +42,7 @@ const NAV=[
   {id:'unikostop',  label:'Uniko Stop!',    icon:<I><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></I>},
   {id:'unikofaster',label:'Uniko Speed',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
   // Em desenvolvimento — só admin vê enquanto constrói (tirar adminOnly quando lançar pra todos).
-  {id:'unikosuspect',label:'Uniko Suspect',adminOnly:true, icon:<I><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2.5 2-2.5 3.5"/><line x1="12" y1="16" x2="12" y2="16"/></I>},
+  {id:'unikosuspect',label:'Uniko Detetive',adminOnly:true, icon:<I><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></I>},
 ];
 
 /* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
@@ -214,7 +214,7 @@ const TopBar = ({tab,onBack}) => {
     lembretes:'Meus Lembretes',feedback:'Feedback',eventos:'Eventos',
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint',
-    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Speed',unikosuspect:'Uniko Suspect'};
+    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Speed',unikosuspect:'Uniko Detetive'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
