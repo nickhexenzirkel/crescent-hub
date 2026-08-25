@@ -859,42 +859,66 @@ const TaskEnergia = ({ onComplete }) => {
 
 const TaskChurrasco = ({ onComplete }) => {
   const ALVO_HITS = 6;
+  const ZONA = [42, 58];          // faixa de acerto (%) — 16% de largura
   const [pos, setPos] = useState(0);
-  const [dir, setDir] = useState(1);
   const [hits, setHits] = useState(0);
   const [feedback, setFeedback] = useState(null);
   const posRef = useRef(0);
-  const zona = [46, 58];   // faixa bem mais estreita que antes — precisa de mira
+  const dirRef = useRef(1);
+  const hitsRef = useRef(0);
+  useEffect(() => { hitsRef.current = hits; }, [hits]);
+
   useEffect(() => {
-    let raf;
-    const vel = 1.2 + hits * 0.22;
-    const tick = () => {
-      posRef.current += vel * dir;
-      if (posRef.current >= 100) { posRef.current = 100; setDir(-1); }
-      if (posRef.current <= 0) { posRef.current = 0; setDir(1); }
-      setPos(posRef.current);
+    // BUG QUE ISSO CORRIGE: antes a carne andava um tanto fixo POR QUADRO.
+    // Em tela de 144Hz ela ia 2,4x mais rápido que em 60Hz, e a janela de
+    // acerto caia de ~166ms pra ~28ms — dava a sensação de "cliquei no verde
+    // e não contou". Agora a velocidade é em % POR SEGUNDO, então o jogo fica
+    // igual em qualquer monitor.
+    let raf, anterior = performance.now();
+    const tick = (agora) => {
+      const dt = Math.min((agora - anterior) / 1000, 0.05);   // trava o passo se a aba congelar
+      anterior = agora;
+      const vel = 52 + hitsRef.current * 7;                   // %/s (sobe a cada acerto)
+      let np = posRef.current + vel * dt * dirRef.current;
+      if (np >= 100) { np = 100; dirRef.current = -1; }
+      if (np <= 0)   { np = 0;   dirRef.current = 1; }
+      posRef.current = np;
+      setPos(np);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [dir, hits]);
+  }, []);   // sem deps: o loop nunca reinicia (antes reiniciava a cada acerto)
+
   useEffect(() => { if (hits >= ALVO_HITS) onComplete(); }, [hits, onComplete]);
+
   const virar = () => {
-    const noPonto = posRef.current >= zona[0] && posRef.current <= zona[1];
-    if (noPonto) { setHits(h => h + 1); setFeedback('🔥 boa!'); } else { setFeedback('quase...'); }
+    if (hitsRef.current >= ALVO_HITS) return;
+    const noPonto = posRef.current >= ZONA[0] && posRef.current <= ZONA[1];
+    if (noPonto) { setHits(h => h + 1); setFeedback('🔥 boa!'); }
+    else setFeedback('quase...');
     setTimeout(() => setFeedback(null), 500);
   };
+
+  const naZona = pos >= ZONA[0] && pos <= ZONA[1];
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique em "Virar!" quando o 🍖 estiver na faixa verde! ({hits}/{ALVO_HITS})</div>
-      <div style={{ position: 'relative', height: 26, borderRadius: 999, background: 'rgba(0,0,0,.1)', margin: '0 6px 14px' }}>
-        <div style={{ position: 'absolute', left: `${zona[0]}%`, width: `${zona[1] - zona[0]}%`, top: 0, bottom: 0, background: 'rgba(22,163,74,.45)', borderRadius: 999 }} />
-        <div style={{ position: 'absolute', left: `${pos}%`, top: '50%', transform: 'translate(-50%,-50%)', fontSize: 24 }}>🍖</div>
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
+        Clique em "Virar!" quando a carne estiver na faixa verde! ({hits}/{ALVO_HITS})
+      </div>
+      <div style={{ position: 'relative', height: 30, borderRadius: 999, background: 'rgba(0,0,0,.12)', margin: '0 6px 14px' }}>
+        <div style={{ position: 'absolute', left: `${ZONA[0]}%`, width: `${ZONA[1] - ZONA[0]}%`, top: 0, bottom: 0,
+          background: naZona ? 'rgba(22,163,74,.75)' : 'rgba(22,163,74,.4)', borderRadius: 999, transition: 'background .1s' }} />
+        {/* Marcador: barra fina em vez de emoji — o emoji tinha folga lateral
+            e a ponta parecia estar no verde quando o centro ainda não estava. */}
+        <div style={{ position: 'absolute', left: `${pos}%`, top: -3, bottom: -3, width: 4, transform: 'translateX(-50%)',
+          background: naZona ? '#16A34A' : '#111', borderRadius: 2, boxShadow: '0 0 6px rgba(0,0,0,.4)' }} />
+        <div style={{ position: 'absolute', left: `${pos}%`, top: '50%', transform: 'translate(-50%,-50%)', fontSize: 22, pointerEvents: 'none' }}>🍖</div>
       </div>
       <div style={{ textAlign: 'center' }}>
         <button className="sus-btn" onClick={virar} style={{ padding: '9px 22px', borderRadius: 999, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
           background: `linear-gradient(135deg, #F97316, #DC2626)`, boxShadow: '0 6px 16px rgba(220,38,38,.35)' }}>🔥 Virar!</button>
-        {feedback && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: feedback.startsWith('🔥') ? '#16A34A' : T.textT }}>{feedback}</div>}
+        {feedback && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: feedback.includes('boa') ? '#16A34A' : T.textT }}>{feedback}</div>}
       </div>
     </div>
   );
@@ -1136,7 +1160,10 @@ const VortexPainel = ({ atual, vortexes, onIr, onFechar }) => {
    (as posições já chegam por broadcast, então dá pra flagrar um assassinato
    acontecendo). Passa de uma câmera pra outra com as setas.
    ═══════════════════════════════════════════════════════════════════════════ */
-const CAM_ZOOM = 2.6;                       // quanto do mapa cabe na telinha
+// Mesmo enquadramento que o jogador tem no mapa (ZOOM_FACTOR): a câmera
+// mostra um pedaço do tamanho do campo de visão dele, não meio mapa. Estava
+// 2.6 (bem mais aberto) e ficava tudo pequeno demais pra reconhecer alguém.
+const CAM_ZOOM = ZOOM_FACTOR;
 const CamerasPainel = ({ cameras, indice, onTrocar, onFechar, players, positions, myPos, name, mortos, corpos, fantasmas }) => {
   const cam = cameras[indice];
   const vw = MAP_W / CAM_ZOOM, vh = MAP_H / CAM_ZOOM;
@@ -2401,7 +2428,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       // Fantasma ignora o congelamento da reunião — ele "só faz tarefa" mesmo,
       // então continua jogando enquanto os vivos estão reunidos. A animação
       // de morte (na tela da PRÓPRIA vítima) trava tudo, sem exceção.
-      const travado = !!morteAnimRef.current || tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current);
+      // Painel aberto (tarefa, CÂMERAS ou vórtex) trava o boneco: dava pra
+      // andar pelo mapa enquanto olhava as câmeras, o que tirava todo o custo
+      // de ir até a sala de segurança.
+      const travado = !!morteAnimRef.current || tarefaAbertaRef.current
+        || cameraAbertaRef.current !== null || !!vortexAbertoRef.current
+        || (reuniaoAtivaRef.current && !souFantasmaRef.current);
       if (k === 'e') {
         // Ordem importa: tarefa primeiro (é o uso mais comum do E), depois
         // câmera e por último vórtex — cada um só existe se estiver no alcance.
@@ -2458,9 +2490,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     const step = (ts) => {
       const dt = Math.min(0.05, (ts - lastTsRef.current) / 1000);   // clamp: aba em 2º plano não "teleporta"
       lastTsRef.current = ts;
-      if (morteAnimRef.current || tarefaAbertaRef.current || (reuniaoAtivaRef.current && !souFantasmaRef.current)) {
-        // Animação de morte, mini-jogo de tarefa aberto, ou reunião rolando
-        // e eu não sou fantasma — congela o boneco (some com o bob também).
+      if (morteAnimRef.current || tarefaAbertaRef.current
+          || cameraAbertaRef.current !== null || !!vortexAbertoRef.current
+          || (reuniaoAtivaRef.current && !souFantasmaRef.current)) {
+        // Animação de morte, mini-jogo aberto, CÂMERAS/VÓRTEX abertos, ou
+        // reunião rolando e eu não sou fantasma — congela o boneco (some com
+        // o bob também). As câmeras entraram aqui porque dava pra andar pelo
+        // mapa enquanto olhava, tirando o custo de ir até a sala de segurança;
+        // é ESTA a trava que vale, o handler de tecla sozinho não bastava (com
+        // a tecla já segurada o boneco continuava andando).
         if (isMovingRef.current) { isMovingRef.current = false; setIsMoving(false); }
         rafRef.current = requestAnimationFrame(step);
         return;
@@ -2564,6 +2602,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   }, [tarefaProxima, cameraProxima, vortexProximo, tarefaAberta, cameraAberta, vortexAberto]);
 
   const usarAlvoProximo = () => {
+    // Limpa as teclas seguradas: sem isso, quem abre o painel clicando no
+    // botão (em vez do E) fica com o WASD "preso" e sai andando ao fechar.
+    pressedRef.current.clear();
     if (tarefaProximaRef.current) { setTarefaAberta(tarefaProximaRef.current); return; }
     if (cameraProximaRef.current) { abrirCamerasRef.current?.(); return; }
     if (vortexProximoRef.current) setVortexAberto(vortexProximoRef.current);
