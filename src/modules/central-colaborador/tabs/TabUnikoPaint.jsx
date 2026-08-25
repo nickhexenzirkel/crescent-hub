@@ -397,17 +397,25 @@ const THEMES = [
     'aurora boreal', 'eclipse solar', 'eclipse lunar', 'supernova', 'galáxia',
     'universo', 'ovni', 'marciano', 'antena parabólica', 'painel solar', 'módulo lunar',
     'gravidade zero', 'estrela cadente'] },
+  /* Nomes de PERSONAGEM, não os acessórios deles (ago/2026): a lista era
+     genérica ("teia de aranha", "capa", "escudo") e ninguém adivinhava o
+     herói — quem desenhava o Homem-Aranha via "teia de aranha" na tela.
+     Mesmo estilo do tema Filmes e Séries logo acima: minúsculo, como se
+     fala. */
   { id: 'superherois', nome: 'Super-heróis', emoji: '🦸', words: [
-    'super-herói', 'super-heroína', 'capa', 'máscara', 'super-força', 'super-velocidade',
-    'voar', 'raio-x nos olhos', 'teia de aranha', 'escudo', 'martelo mágico', 'capacete',
-    'uniforme colorido', 'símbolo no peito', 'vilão', 'arqui-inimigo', 'cidade em perigo',
-    'prédio pegando fogo', 'resgate', 'laboratório secreto', 'poder secreto',
-    'identidade secreta', 'ajudante do herói', 'base secreta', 'carro do herói',
-    'moto voadora', 'robô gigante', 'raio laser', 'campo de força', 'invisibilidade',
-    'teletransporte', 'super-inteligência', 'garra de metal', 'armadura',
-    'cinto de utilidades', 'lança-chamas', 'super-audição', 'controle mental', 'clone',
-    'revista em quadrinhos', 'história em quadrinhos', 'pose de herói', 'punho erguido',
-    'capa esvoaçante', 'bota de herói', 'kit de gadgets', 'carro blindado'] },
+    'homem-aranha', 'batman', 'super-homem', 'mulher-maravilha', 'homem de ferro',
+    'capitão américa', 'hulk', 'thor', 'viúva negra', 'gavião arqueiro',
+    'pantera negra', 'capitã marvel', 'doutor estranho', 'homem-formiga', 'vespa',
+    'feiticeira escarlate', 'visão', 'flash', 'aquaman', 'lanterna verde',
+    'ciborgue', 'shazam', 'robin', 'batgirl', 'super-girl',
+    'wolverine', 'deadpool', 'tempestade', 'ciclope', 'fera',
+    'noturno', 'vampira', 'mística', 'magneto', 'professor xavier',
+    'demolidor', 'justiceiro', 'motoqueiro fantasma', 'homem de areia',
+    'senhor fantástico', 'mulher invisível', 'tocha humana', 'coisa',
+    'surfista prateado', 'groot', 'rocket raccoon', 'gamora', 'senhor das estrelas',
+    'coringa', 'arlequina', 'mulher-gato', 'pinguim', 'charada', 'duas-caras', 'bane',
+    'duende verde', 'doutor octopus', 'venom', 'thanos', 'loki', 'ultron',
+    'doutor destino', 'mulher-hulk', 'falcão', 'soldado invernal', 'chapolin colorado'] },
   { id: 'praia', nome: 'Praia e Mar', emoji: '🏖️', words: [
     'guarda-sol', 'castelo de areia', 'concha', 'caranguejo', 'água de coco', 'picolé',
     'prancha de surfe', 'boia', 'onda', 'chinelo', 'óculos escuros', 'canga',
