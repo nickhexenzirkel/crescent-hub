@@ -33,14 +33,14 @@ export const taskTypeFor = (label) => TASK_TYPE_BY_LABEL[normalizeTxt(label)] ||
 // Só os nomes CANÔNICOS, pro editor mostrar. Os apelidos acima continuam
 // funcionando, mas não precisam poluir a lista.
 export const TAREFAS_DISPONIVEIS = [
-  { label: 'Limpar geladeira',               desc: 'tirar o que estragou' },
-  { label: 'Remendar flaminga',              desc: 'costurar os rasgos' },
-  { label: 'Coloque os chocolates no bolso', desc: 'juntar os chocolates' },
-  { label: 'Lavar louça',                    desc: 'esfregar até brilhar' },
+  { label: 'Limpar geladeira',               desc: 'arrastar o que estragou pra lixeira' },
+  { label: 'Remendar flaminga',              desc: 'arrastar um remendo pra cima de cada rasgo' },
+  { label: 'Coloque os chocolates no bolso', desc: 'arrastar cada chocolate pro bolso' },
+  { label: 'Lavar louça',                    desc: 'arrastar cada peça pro suporte certo do escorredor' },
   { label: 'Consertar energia',              desc: 'ligar os fios certos (usada na sabotagem)' },
   { label: 'Fazer churrasco',                desc: 'virar no ponto certo' },
   { label: 'Limpar banheiro',                desc: 'esfregar as manchas' },
   { label: 'Observar estrelas',              desc: 'ligar a constelação na ordem' },
-  { label: 'Excluir pastas no computador',   desc: 'mandar as pastas pra lixeira' },
+  { label: 'Excluir pastas no computador',   desc: 'arrastar as pastas velhas pra lixeira' },
   { label: 'Tomar banho na sauna',           desc: 'segurar a temperatura na faixa verde' },
 ];

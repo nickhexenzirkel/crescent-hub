@@ -584,6 +584,10 @@ const SUS_CSS = `
 @keyframes susPop  { 0% { transform: scale(.7); opacity: 0; } 60% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susReveal { 0% { transform: scale(.4) rotateY(90deg); opacity: 0; } 60% { transform: scale(1.08) rotateY(0deg); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes susFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+/* Item de tarefa solto no lugar errado: treme e volta. O transform repete o
+   translate(-50%,-50%) do elemento porque a animação SUBSTITUI o transform
+   inline enquanto roda — sem isso a coisinha pularia pro canto. */
+@keyframes susTremer { 0%,100% { transform: translate(-50%,-50%) rotate(0deg); } 25% { transform: translate(-58%,-50%) rotate(-9deg); } 75% { transform: translate(-42%,-50%) rotate(9deg); } }
 @keyframes susWalk  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5%); } }
 /* Brilho ao concluir tarefa: cada partícula sobe/abre pro seu lado (o ângulo
    vem de --dx/--dy, definidos inline) enquanto some. */
@@ -906,10 +910,11 @@ const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
 /* ═══════════════════════════════════════════════════════════════════════════
    MINI-JOGOS DE TAREFA — um por tipo (ver taskTypeFor). Cada um recebe
    `onComplete` e chama quando o jogador termina; visual simples (emoji +
-   CSS), no mesmo espírito "clique/segurar" combinado com o time (ver
-   decisão de design registrada em memória: tarefas são cliques simples,
-   não mini-jogos complexos — mas cada uma tem uma mecânica própria pra não
-   ficar todas iguais).
+   CSS), gesto único e óbvio por tarefa. A regra de design mudou em ago/2026
+   (pedido do usuário): nada de "clique N vezes na mesma coisinha" — as
+   tarefas agora são ARRASTAR algo até um lugar (ver TarefaArrastar), com
+   ritmo/precisão só onde o gesto conta uma história (virar a carne no ponto,
+   segurar a sauna na faixa, ligar os fios da energia).
    ═══════════════════════════════════════════════════════════════════════════ */
 // `position:relative` pro brilho de conclusão (BrilhoTarefa, absolute) se
 // ancorar na placa. Sem `overflow:hidden` de propósito: as partículas
@@ -932,99 +937,196 @@ const ContagemRecarga = ({ segs }) => {
   );
 };
 
-// Cada 💩/🍫/rasgo agora exige MAIS DE UM clique (`ALVO_CLIQUES`) antes de
-// sumir — só um clique ficava instantâneo demais (pedido do usuário: as
-// tarefas estavam rápidas demais). O número de itens também aumentou.
-const TaskGeladeira = ({ onComplete }) => {
-  const POS = [[14, 20], [37, 16], [60, 20], [83, 24], [22, 60], [45, 66], [68, 60], [88, 68]];
-  const ALVO_CLIQUES = 3;
-  const [cliques, setCliques] = useState(() => POS.map(() => 0));
-  const restam = cliques.map((c, i) => i).filter(i => cliques[i] < ALVO_CLIQUES);
-  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam.length, onComplete]);
+/* ── ARRASTAR E SOLTAR (ago/2026) ──────────────────────────────────────────
+   As tarefas de "clique 3x em cada coisinha" (geladeira, flaminga,
+   chocolates, louça, computador) foram trocadas a pedido do usuário: clicar
+   repetido não é gesto de tarefa nenhuma, cansa e não conta história. Todas
+   passaram a usar o MESMO gesto — pegar uma coisa e levar até um lugar —,
+   que é auto-explicativo (a pessoa entende sem ler) e combina com as que já
+   eram assim (esfregar o banheiro, ligar os fios da energia).
+
+   `TarefaArrastar` é o motor comum: recebe os ITENS (o que se pega) e os
+   ALVOS (onde se solta) em coordenadas de PORCENTAGEM da caixa, então tudo
+   acompanha o tamanho da tela sem conta nenhuma.
+   • `item.alvo` = id do alvo certo, ou '*' pra "qualquer um serve".
+   • `alvo.capacidade` = quantos itens cabem (o rasgo da boia aceita 1
+     remendo; a lixeira aceita o mundo inteiro).
+   Usa Pointer Events (não o drag-and-drop do HTML5, que é inerte no toque) e
+   `touchAction:'none'` pra arrastar no celular sem rolar a página junto. */
+const TarefaArrastar = ({ instrucao, itens, alvos, fundo, decoracao, onComplete }) => {
+  const areaRef = useRef(null);
+  const [entregas, setEntregas] = useState({});      // id do item -> id do alvo onde ele foi parar
+  const [arrasto, setArrasto] = useState(null);      // { id, x, y } — x/y em % da caixa
+  const [errou, setErrou] = useState(null);          // id que voltou pro lugar (tremida)
+
+  const entregues = Object.keys(entregas).length;
+  const done = entregues === itens.length;
+  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+
+  const cheio = (alvoId) => {
+    const alvo = alvos.find(a => a.id === alvoId);
+    if (!alvo?.capacidade) return false;
+    return Object.values(entregas).filter(v => v === alvoId).length >= alvo.capacidade;
+  };
+  const pct = (e) => {
+    const r = areaRef.current?.getBoundingClientRect();
+    if (!r) return null;
+    return { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 };
+  };
+  const dentro = (pos, alvo) => Math.abs(pos.x - alvo.x) <= alvo.w / 2 && Math.abs(pos.y - alvo.y) <= alvo.h / 2;
+  const alvoSob = (pos, item) => alvos.find(a => dentro(pos, a) && (item.alvo === '*' || item.alvo === a.id) && !cheio(a.id));
+
+  const pegar = (item) => (e) => {
+    if (entregas[item.id]) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const pos = pct(e); if (!pos) return;
+    setArrasto({ id: item.id, ...pos });
+  };
+  const mover = (e) => {
+    if (!arrasto) return;
+    const pos = pct(e); if (!pos) return;
+    setArrasto(a => a && { ...a, ...pos });
+  };
+  const soltar = () => {
+    if (!arrasto) return;
+    const item = itens.find(i => i.id === arrasto.id);
+    const alvo = item && alvoSob(arrasto, item);
+    if (alvo) setEntregas(e => ({ ...e, [item.id]: alvo.id }));
+    else { setErrou(arrasto.id); setTimeout(() => setErrou(null), 380); }
+    setArrasto(null);
+  };
+
+  const itemSendoArrastado = arrasto && itens.find(i => i.id === arrasto.id);
+  const alvoDestacado = itemSendoArrastado ? alvoSob(arrasto, itemSendoArrastado)?.id : null;
+
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada 💩 pra tirar da geladeira!</div>
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#EAF6FF,#D6ECFB)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
-        {[1, 2].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${i * 33}%`, height: 2, background: 'rgba(0,0,0,.12)' }} />)}
-        {restam.map(i => (
-          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)',
-            fontSize: 30, opacity: 1 - (cliques[i] / ALVO_CLIQUES) * .5 }}
-            onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))} aria-label="Remover">💩</button>
-        ))}
+      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
+        {instrucao} <b style={{ color: T.text }}>({entregues}/{itens.length})</b>
+      </div>
+      <div ref={areaRef} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}
+        style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, overflow: 'hidden',
+          border: `2px solid ${T.border}`, touchAction: 'none', userSelect: 'none', ...fundo }}>
+        {decoracao}
+        {alvos.map(a => {
+          const aceso = alvoDestacado === a.id;
+          const ocupado = cheio(a.id);
+          return (
+            <div key={a.id} style={{ position: 'absolute', left: `${a.x}%`, top: `${a.y}%`, transform: `translate(-50%,-50%) scale(${aceso ? 1.12 : 1})`,
+              width: `${a.w}%`, height: `${a.h}%`, borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+              border: a.semMoldura ? 'none' : `2.5px dashed ${aceso ? '#16A34A' : 'rgba(0,0,0,.28)'}`,
+              background: a.semMoldura ? 'transparent' : (aceso ? 'rgba(22,163,74,.16)' : 'rgba(255,255,255,.42)'),
+              transition: 'transform .12s, background .12s, border-color .12s', pointerEvents: 'none' }}>
+              <span style={{ fontSize: a.tamanho || 34, lineHeight: 1 }}>{ocupado && a.emojiCheio ? a.emojiCheio : a.emoji}</span>
+              {a.label && <span style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(0,0,0,.55)' }}>{a.label}</span>}
+            </div>
+          );
+        })}
+        {itens.map(item => {
+          if (entregas[item.id]) return null;
+          const sendo = arrasto?.id === item.id;
+          const x = sendo ? arrasto.x : item.x, y = sendo ? arrasto.y : item.y;
+          return (
+            <div key={item.id} onPointerDown={pegar(item)}
+              style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, zIndex: sendo ? 5 : 2,
+                transform: `translate(-50%,-50%) scale(${sendo ? 1.25 : 1})`, cursor: sendo ? 'grabbing' : 'grab',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, touchAction: 'none',
+                filter: sendo ? 'drop-shadow(0 6px 10px rgba(0,0,0,.35))' : 'none',
+                transition: sendo ? 'none' : 'transform .12s',
+                animation: errou === item.id ? 'susTremer .38s' : 'none' }}>
+              <span style={{ fontSize: item.tamanho || 30, lineHeight: 1, pointerEvents: 'none' }}>{item.emoji}</span>
+              {item.label && <span style={{ fontSize: 9, color: item.corLabel || 'rgba(0,0,0,.6)', maxWidth: 74, textAlign: 'center', lineHeight: 1.15, pointerEvents: 'none', wordBreak: 'break-all' }}>{item.label}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
+};
+
+/* Cada tarefa abaixo é só uma "planta" do motor acima: onde nascem as coisas,
+   pra onde elas vão. As listas ficam em `useMemo` com deps vazias pra manter a
+   MESMA referência entre renders (o motor compara itens por id, e recriar tudo
+   a cada frame de arrasto seria lixo à toa). */
+const TaskGeladeira = ({ onComplete }) => {
+  const itens = useMemo(() => [
+    { id: 'a', emoji: '💩', x: 16, y: 20, alvo: 'lixo' },
+    { id: 'b', emoji: '🥛', x: 40, y: 16, alvo: 'lixo' },
+    { id: 'c', emoji: '🥬', x: 64, y: 21, alvo: 'lixo' },
+    { id: 'd', emoji: '🐟', x: 86, y: 17, alvo: 'lixo' },
+    { id: 'e', emoji: '🧀', x: 22, y: 48, alvo: 'lixo' },
+  ], []);
+  const alvos = useMemo(() => [{ id: 'lixo', emoji: '🗑️', label: 'LIXO', x: 76, y: 74, w: 34, h: 40, tamanho: 40 }], []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Arraste o que estragou até a lixeira!"
+    fundo={{ background: 'linear-gradient(180deg,#EAF6FF,#D6ECFB)' }}
+    decoracao={[1, 2].map(i => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${i * 33}%`, height: 2, background: 'rgba(0,0,0,.12)' }} />)}
+    itens={itens} alvos={alvos} />;
 };
 
 const TaskFlamingo = ({ onComplete }) => {
-  const POS = [[26, 26], [62, 22], [82, 42], [36, 64], [66, 68], [50, 40]];
-  const ALVO_CLIQUES = 3;
-  const [cliques, setCliques] = useState(() => POS.map(() => 0));
-  const done = cliques.every(c => c >= ALVO_CLIQUES);
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
-  return (
-    <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada rasgo (❌) pra remendar a boia!</div>
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#E6FBFF,#C9F1FB)', border: `2px solid ${T.border}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: 92 }}>🦩</div>
-        {POS.map((pos, i) => {
-          const ok = cliques[i] >= ALVO_CLIQUES;
-          return (
-            <button key={i} disabled={ok} style={{ ...taskBtnCss, position: 'absolute', left: `${pos[0]}%`, top: `${pos[1]}%`, transform: 'translate(-50%,-50%)', fontSize: 26, cursor: ok ? 'default' : 'pointer' }}
-              onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))}>{ok ? '🩹' : '❌'}</button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // Os remendos ficam na "caixa de costura" embaixo e vão pra QUALQUER rasgo
+  // ('*'), um por rasgo (`capacidade: 1`) — que vira 🩹 quando tapado.
+  const itens = useMemo(() => [
+    { id: 'r1', emoji: '🩹', x: 14, y: 88, alvo: '*', tamanho: 26 },
+    { id: 'r2', emoji: '🩹', x: 30, y: 90, alvo: '*', tamanho: 26 },
+    { id: 'r3', emoji: '🩹', x: 46, y: 88, alvo: '*', tamanho: 26 },
+    { id: 'r4', emoji: '🩹', x: 62, y: 90, alvo: '*', tamanho: 26 },
+  ], []);
+  const alvos = useMemo(() => [
+    { id: 'x1', emoji: '❌', emojiCheio: '🩹', x: 30, y: 26, w: 17, h: 20, capacidade: 1, semMoldura: true, tamanho: 24 },
+    { id: 'x2', emoji: '❌', emojiCheio: '🩹', x: 63, y: 22, w: 17, h: 20, capacidade: 1, semMoldura: true, tamanho: 24 },
+    { id: 'x3', emoji: '❌', emojiCheio: '🩹', x: 40, y: 55, w: 17, h: 20, capacidade: 1, semMoldura: true, tamanho: 24 },
+    { id: 'x4', emoji: '❌', emojiCheio: '🩹', x: 70, y: 52, w: 17, h: 20, capacidade: 1, semMoldura: true, tamanho: 24 },
+  ], []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Arraste um remendo pra cima de cada rasgo da boia!"
+    fundo={{ background: 'linear-gradient(180deg,#E6FBFF,#C9F1FB)' }}
+    decoracao={<>
+      <div style={{ position: 'absolute', left: '50%', top: '40%', transform: 'translate(-50%,-50%)', fontSize: 100, opacity: .95 }}>🦩</div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '26%', background: 'rgba(255,255,255,.5)', borderTop: '2px dashed rgba(0,0,0,.16)' }} />
+      <div style={{ position: 'absolute', right: 10, bottom: 8, fontSize: 10.5, fontWeight: 800, color: 'rgba(0,0,0,.45)' }}>🧵 caixa de costura</div>
+    </>}
+    itens={itens} alvos={alvos} />;
 };
 
 const TaskChocolates = ({ onComplete }) => {
-  const POS = [[12, 22], [32, 18], [52, 22], [72, 18], [90, 24], [20, 58], [42, 62], [64, 58], [84, 62]];
-  const ALVO_CLIQUES = 3;
-  const [cliques, setCliques] = useState(() => POS.map(() => 0));
-  const restam = cliques.map((c, i) => i).filter(i => cliques[i] < ALVO_CLIQUES);
-  const pegos = POS.length - restam.length;
-  useEffect(() => { if (restam.length === 0) onComplete(); }, [restam.length, onComplete]);
-  return (
-    <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique VÁRIAS vezes em cada 🍫 pra guardar no bolso! ({pegos}/{POS.length})</div>
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', borderRadius: 12, background: 'linear-gradient(180deg,#F8F0E3,#EFDFC4)', border: `2px solid ${T.border}`, overflow: 'hidden' }}>
-        {restam.map(i => (
-          <button key={i} style={{ ...taskBtnCss, position: 'absolute', left: `${POS[i][0]}%`, top: `${POS[i][1]}%`, transform: 'translate(-50%,-50%)',
-            fontSize: 28, opacity: 1 - (cliques[i] / ALVO_CLIQUES) * .5 }}
-            onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))} aria-label="Pegar">🍫</button>
-        ))}
-        <div style={{ position: 'absolute', right: 10, bottom: 8, fontSize: 26 }}>👖</div>
-      </div>
-    </div>
-  );
+  const itens = useMemo(() => [
+    { id: 'c1', emoji: '🍫', x: 12, y: 20, alvo: 'bolso' },
+    { id: 'c2', emoji: '🍫', x: 33, y: 15, alvo: 'bolso' },
+    { id: 'c3', emoji: '🍫', x: 54, y: 20, alvo: 'bolso' },
+    { id: 'c4', emoji: '🍫', x: 75, y: 14, alvo: 'bolso' },
+    { id: 'c5', emoji: '🍫', x: 20, y: 52, alvo: 'bolso' },
+    { id: 'c6', emoji: '🍫', x: 44, y: 56, alvo: 'bolso' },
+  ], []);
+  const alvos = useMemo(() => [{ id: 'bolso', emoji: '👖', label: 'BOLSO', x: 78, y: 72, w: 34, h: 42, tamanho: 40 }], []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Arraste cada chocolate pro bolso — sem ninguém ver!"
+    fundo={{ background: 'linear-gradient(180deg,#F8F0E3,#EFDFC4)' }}
+    itens={itens} alvos={alvos} />;
 };
 
 const TaskLouca = ({ onComplete }) => {
-  const N = 4, ALVO = 9;
-  const [cliques, setCliques] = useState(() => Array(N).fill(0));
-  const done = cliques.every(c => c >= ALVO);
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
-  return (
-    <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Clique bastante em cada peça pra esfregar até brilhar!</div>
-      <div style={{ display: 'flex', gap: 14, justifyContent: 'center', padding: '10px 0' }}>
-        {Array.from({ length: N }).map((_, i) => {
-          const p = Math.min(1, cliques[i] / ALVO);
-          return (
-            <button key={i} disabled={p >= 1} style={{ ...taskBtnCss, cursor: p >= 1 ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
-              onClick={() => setCliques(c => c.map((v, j) => j === i ? v + 1 : v))}>
-              <div style={{ fontSize: 44, filter: `grayscale(${1 - p}) sepia(${(1 - p) * .6})`, transition: 'filter .15s' }}>{i % 2 === 0 ? '🍽️' : '🥤'}</div>
-              <div style={{ width: 52, height: 6, borderRadius: 999, background: 'rgba(0,0,0,.12)', overflow: 'hidden' }}>
-                <div style={{ width: `${p * 100}%`, height: '100%', background: p >= 1 ? '#16A34A' : AGUA, transition: 'width .15s' }} />
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  // Aqui cada peça tem SEU lugar (não é '*'): a graça é olhar o desenho do
+  // escorredor e levar cada uma pro suporte certo.
+  const itens = useMemo(() => [
+    { id: 'p1', emoji: '🍽️', x: 13, y: 22, alvo: 'pratos' },
+    { id: 'g1', emoji: '🥤', x: 33, y: 17, alvo: 'copos' },
+    { id: 't1', emoji: '🍴', x: 52, y: 22, alvo: 'talheres' },
+    { id: 'p2', emoji: '🍽️', x: 20, y: 48, alvo: 'pratos' },
+    { id: 'g2', emoji: '🥤', x: 41, y: 47, alvo: 'copos' },
+  ], []);
+  const alvos = useMemo(() => [
+    { id: 'pratos',   emoji: '🍽️', label: 'PRATOS',   x: 74, y: 20, w: 30, h: 26 },
+    { id: 'copos',    emoji: '🥤', label: 'COPOS',    x: 74, y: 50, w: 30, h: 26 },
+    { id: 'talheres', emoji: '🍴', label: 'TALHERES', x: 74, y: 80, w: 30, h: 26 },
+  ], []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Lave arrastando cada peça pro lugar dela no escorredor!"
+    fundo={{ background: 'linear-gradient(180deg,#EAF7F2,#D4EBE4)' }}
+    decoracao={<div style={{ position: 'absolute', left: '2%', top: '68%', fontSize: 34, opacity: .9 }}>🚰</div>}
+    itens={itens} alvos={alvos} />;
 };
 
 const FIOS = [{ cor: '#DC2626', nome: 'vermelho' }, { cor: '#2563EB', nome: 'azul' }, { cor: '#EAB308', nome: 'amarelo' },
@@ -1302,47 +1404,27 @@ const TaskEstrelas = ({ onComplete }) => {
 
 /* ── Excluir pastas no computador: selecionar as pastas e mandar pra lixeira ── */
 const TaskComputador = ({ onComplete }) => {
-  const PASTAS = ['relatorios_2019', 'backup_antigo', 'fotos_confra', 'temp_download', 'planilha_v7_final', 'zzz_nao_usar'];
-  const [restantes, setRestantes] = useState(PASTAS);
-  const [selecionada, setSelecionada] = useState(null);
-  const done = restantes.length === 0;
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
-  const excluir = () => {
-    if (selecionada == null) return;
-    setRestantes(r => r.filter(p => p !== selecionada));
-    setSelecionada(null);
-  };
-  return (
-    <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>Selecione uma pasta e clique na lixeira. Esvazie tudo!</div>
-      <div style={{ maxWidth: 320, margin: '0 auto', borderRadius: 10, overflow: 'hidden', border: '2px solid #3B4A6B', background: '#0F1626' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1B2740', color: '#9FB4DD', fontSize: 11, fontWeight: 700 }}>
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57' }} />
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FEBC2E' }} />
-          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840' }} />
-          <span style={{ marginLeft: 6 }}>Meus Documentos</span>
-        </div>
-        <div style={{ minHeight: 128, padding: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignContent: 'flex-start' }}>
-          {restantes.map(p => (
-            <button key={p} onClick={() => setSelecionada(p)} className="sus-btn"
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 88, padding: '6px 2px', borderRadius: 7, cursor: 'pointer',
-                border: selecionada === p ? `1.5px solid ${CEU}` : '1.5px solid transparent', background: selecionada === p ? 'rgba(95,201,232,.18)' : 'transparent' }}>
-              <span style={{ fontSize: 26 }}>📁</span>
-              <span style={{ fontSize: 9.5, color: '#C7D6F0', wordBreak: 'break-all', lineHeight: 1.2 }}>{p}</span>
-            </button>
-          ))}
-          {done && <div style={{ width: '100%', textAlign: 'center', color: '#16A34A', fontSize: 12.5, fontWeight: 800, padding: '18px 0' }}>Tudo limpo!</div>}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 8, borderTop: '1px solid #2B3A5B' }}>
-          <button onClick={excluir} disabled={selecionada == null} className="sus-btn"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700,
-              cursor: selecionada == null ? 'not-allowed' : 'pointer', opacity: selecionada == null ? .45 : 1, background: '#DC2626', color: '#fff' }}>
-            🗑️ Excluir
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  // Arrastar a pasta pra lixeira é o gesto que todo mundo já faz no
+  // computador de verdade — bem mais óbvio que "selecione e clique em
+  // Excluir", que era o que tinha antes.
+  const itens = useMemo(() => [
+    { id: 'f1', emoji: '📁', label: 'relatorios_2019',  x: 15, y: 18, alvo: 'lixeira', corLabel: '#C7D6F0' },
+    { id: 'f2', emoji: '📁', label: 'backup_antigo',    x: 42, y: 16, alvo: 'lixeira', corLabel: '#C7D6F0' },
+    { id: 'f3', emoji: '📁', label: 'fotos_confra',     x: 69, y: 19, alvo: 'lixeira', corLabel: '#C7D6F0' },
+    { id: 'f4', emoji: '📁', label: 'temp_download',    x: 15, y: 50, alvo: 'lixeira', corLabel: '#C7D6F0' },
+    { id: 'f5', emoji: '📁', label: 'planilha_v7_final', x: 42, y: 48, alvo: 'lixeira', corLabel: '#C7D6F0' },
+  ], []);
+  const alvos = useMemo(() => [{ id: 'lixeira', emoji: '🗑️', label: 'LIXEIRA', x: 78, y: 74, w: 32, h: 38, tamanho: 38 }], []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Arraste as pastas velhas pra lixeira!"
+    fundo={{ background: '#0F1626', border: '2px solid #3B4A6B' }}
+    decoracao={<div style={{ position: 'absolute', left: 0, right: 0, top: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#1B2740', color: '#9FB4DD', fontSize: 11, fontWeight: 700 }}>
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FF5F57' }} />
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#FEBC2E' }} />
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#28C840' }} />
+      <span style={{ marginLeft: 6 }}>Meus Documentos</span>
+    </div>}
+    itens={itens} alvos={alvos} />;
 };
 
 /* ── Tomar banho na sauna: segurar a temperatura na faixa boa até encher ── */
