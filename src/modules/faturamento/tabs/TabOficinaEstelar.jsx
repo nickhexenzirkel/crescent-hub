@@ -6,6 +6,7 @@ import { supabase } from '../../../contexts/user';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
+import { PdfOrganizer } from '../PdfOrganizer';
 import { PdfMerge } from '../PdfMerge';
 import { logAssinatura } from '../assinaturaDb';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
@@ -683,7 +684,7 @@ const BackLink = ({ onClick }) => (
 );
 
 export const TabOficinaEstelar = () => {
-  const [tool, setTool]     = useState(null); // null (escolha) | 'editor' | 'mesclar'
+  const [tool, setTool]     = useState(null); // null (escolha) | 'editor' | 'organizar' | 'mesclar'
   const [hasDoc, setHasDoc] = useState(false);
 
   if (!tool) {
@@ -696,11 +697,26 @@ export const TabOficinaEstelar = () => {
             desc="Edite o texto existente do PDF, adicione textos, imagens e assinaturas."
             onClick={()=>{ setHasDoc(false); setTool('editor'); }}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}/>
+          <ToolCard title="Organizar PDF"
+            desc="Mova e exclua páginas vendo cada uma em miniatura, e salve o PDF na nova ordem."
+            onClick={()=>{ setHasDoc(false); setTool('organizar'); }}
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>}/>
           <ToolCard title="Mesclar PDF"
-            desc="Organize a ordem das páginas arrastando e junte vários PDFs num único arquivo."
+            desc="Junte vários PDFs num único arquivo, na ordem que você definir."
             onClick={()=>setTool('mesclar')}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/><path d="M10 8h4M10 12h4M10 16h4"/></svg>}/>
         </div>
+      </div>
+    );
+  }
+
+  if (tool === 'organizar') {
+    return (
+      <div style={{fontFamily:'var(--font-body)'}}>
+        {!hasDoc && <BackLink onClick={()=>setTool(null)}/>}
+        {!hasDoc && <StellarHero compact eyebrow="Ferramenta de Edição" title="Organizar PDF"
+          subtitle="Mova e exclua páginas vendo cada uma antes de salvar." icon={HERO_ICON}/>}
+        <PdfOrganizer onDoc={setHasDoc}/>
       </div>
     );
   }

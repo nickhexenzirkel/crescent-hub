@@ -1,26 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useMemo, useReducer, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   PDFDocument, StandardFonts, rgb,
   pushGraphicsState, popGraphicsState, beginText, endText, showText,
   setFontAndSize, setFillingRgbColor, setTextMatrix,
 } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { T } from '../../contexts/theme';
 import rubricaUrl from '../../assets/assinatura-evando.png';
+import {
+  uid, clamp, loadPdfDoc, readPageSizes, reordenarPaginas, limparThumbs, novoPoolId, useInView,
+} from './pdfPages';
+import { I, IconeLupa, IconeLixo, PdfCanvas, PageThumb, PagePreviewModal } from './pdfPagesUI';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
-/* ─── Ícone inline ─── */
-const I = (p) => (
-  <svg width={p.size||16} height={p.size||16} viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-    style={{flexShrink:0}}>{p.children}</svg>
-);
-
-const uid = () => Math.random().toString(36).slice(2, 10);
 const NBSP = String.fromCharCode(160);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const hexToRgb01 = (hex) => {
   const h = (hex || '#000000').replace('#', '');
@@ -81,114 +72,8 @@ const RENDER_QUALITY = 2;   // superamostragem do canvas → letras mais nítida
 /* Cache em memória (persiste o trabalho ao trocar de aba / sair e voltar,
    enquanto o app não for recarregado) */
 const editorCache = { src:null, pages:null, annos:null, fileName:'', scale:1.3,
-  poolId:0, origPages:null, extracted:null, bgDone:null };
+  poolId:0, extracted:null, bgDone:null };
 
-/* ════════════════════════════════════════════════════════════════
-   Miniaturas — cache + fila global
-   Um PDF de 300 páginas tem 300 miniaturas. Renderizar todas de uma vez (um
-   <canvas> vivo por página, como era antes) trava a aba por dezenas de
-   segundos e segura centenas de MB de memória de vídeo. Agora cada miniatura:
-     1) só é pedida quando entra (ou está quase entrando) na tela;
-     2) passa por uma fila que desenha no máximo 2 páginas por vez;
-     3) vira um JPEG (data URL) guardado em cache — reordenar/arrastar depois
-        é só trocar um <img> de lugar, sem re-renderizar nada.
-════════════════════════════════════════════════════════════════ */
-const THUMB_W   = 170;   // largura do JPEG da miniatura
-const THUMB_MAX = 700;   // teto do cache (JPEG pequeno: poucos MB no total)
-const thumbCache = new Map();   // `${poolId}:${ref}` → dataURL
-let _poolSeq = 0;
-const _thumbQ = [];
-let _thumbRunning = 0;
-
-const _drawThumb = async (job) => {
-  const page = await job.pdf.getPage(job.ref + 1);
-  const base = page.getViewport({ scale: 1 });
-  const vp   = page.getViewport({ scale: THUMB_W / base.width });
-  const cv = document.createElement('canvas');
-  cv.width  = Math.max(1, Math.round(vp.width));
-  cv.height = Math.max(1, Math.round(vp.height));
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);  // JPEG não tem transparência
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
-  const url = cv.toDataURL('image/jpeg', 0.72);
-  cv.width = cv.height = 0;   // devolve a memória do canvas na hora
-  if (thumbCache.size >= THUMB_MAX) thumbCache.delete(thumbCache.keys().next().value);
-  thumbCache.set(job.key, url);
-  return url;
-};
-
-const _pumpThumbs = () => {
-  while (_thumbRunning < 2 && _thumbQ.length) {
-    // LIFO: o último pedido é o que o usuário está olhando AGORA (ele rolou
-    // até lá). Atender por ordem de chegada deixaria a tela em branco enquanto
-    // a fila desenha páginas que já saíram de vista.
-    const job = _thumbQ.pop();
-    if (job.cancelled) { job.resolve(null); continue; }
-    _thumbRunning++;
-    _drawThumb(job).then(job.resolve, () => job.resolve(null))
-      .then(() => { _thumbRunning--; _pumpThumbs(); });
-  }
-};
-
-const requestThumb = (pdf, poolId, ref) => {
-  const key = poolId + ':' + ref;
-  const hit = thumbCache.get(key);
-  if (hit) return { promise: Promise.resolve(hit), cancel: () => {} };
-  const job = { pdf, ref, key, cancelled: false, resolve: null };
-  const promise = new Promise(res => { job.resolve = res; });
-  _thumbQ.push(job);
-  _pumpThumbs();
-  return { promise, cancel: () => { job.cancelled = true; } };
-};
-
-const limparThumbs = (poolId) => {
-  const pre = poolId + ':';
-  for (const k of [...thumbCache.keys()]) if (k.startsWith(pre)) thumbCache.delete(k);
-};
-
-/* Só monta/renderiza o que está (ou está perto de estar) na tela.
-   UM observer por (container, margem) em vez de um por elemento: num PDF de
-   centenas de páginas seriam centenas de IntersectionObserver vivos ao mesmo
-   tempo, cada um com seu próprio custo de bookkeeping. */
-const _ioPorRoot = new WeakMap();   // elemento que rola → Map<margem, entrada>
-let _ioDaJanela = null;             // idem, pra quando o root é a viewport
-
-const _getIO = (root, rootMargin) => {
-  let porMargem;
-  if (root) {
-    porMargem = _ioPorRoot.get(root);
-    if (!porMargem) { porMargem = new Map(); _ioPorRoot.set(root, porMargem); }
-  } else {
-    porMargem = _ioDaJanela || (_ioDaJanela = new Map());
-  }
-  let entrada = porMargem.get(rootMargin);
-  if (!entrada) {
-    const cbs = new Map();
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        const cb = cbs.get(e.target);
-        if (cb) cb(e.isIntersecting);
-      }
-    }, { root: root || null, rootMargin });
-    entrada = { io, cbs };
-    porMargem.set(rootMargin, entrada);
-  }
-  return entrada;
-};
-
-const useInView = (root, rootMargin = '600px 0px') => {
-  const ref = useRef(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver !== 'function') { setInView(true); return; }
-    const { io, cbs } = _getIO(root, rootMargin);
-    cbs.set(el, setInView);
-    io.observe(el);
-    return () => { cbs.delete(el); io.unobserve(el); };
-  }, [root, rootMargin]);
-  return [ref, inView];
-};
 
 /* Cor dominante (= fundo) dentro de um retângulo de uma ImageData.
    Os pixels de fundo superam os do texto, então a moda é a cor do fundo. */
@@ -217,23 +102,6 @@ const dominantColor = (img, x0, y0, x1, y1) => {
   return { hex: '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''), r, g, b };
 };
 
-/* Dimensões de todas as páginas (a partir de `from`). É o mínimo necessário
-   pra montar o editor — e o único trabalho feito na ABERTURA do arquivo.
-   Em blocos, porque 1 `await` por página num PDF grande é tempo jogado fora. */
-const readPageSizes = async (doc, from = 0) => {
-  const out = [];
-  const BLOCO = 16;
-  for (let i = from; i < doc.numPages; i += BLOCO) {
-    const fim = Math.min(doc.numPages, i + BLOCO);
-    const lote = [];
-    for (let j = i; j < fim; j++) lote.push(doc.getPage(j + 1));
-    for (const page of await Promise.all(lote)) {
-      const vp = page.getViewport({ scale: 1 });
-      out.push({ w: vp.width, h: vp.height });
-    }
-  }
-  return out;
-};
 
 /* Trechos de texto de UMA página (posição, tamanho, estilo).
    Não rasteriza nada: é só o `getTextContent`, rápido mesmo em página cheia.
@@ -310,35 +178,6 @@ const renderSample = async (page) => {
   } catch { return null; }
 };
 
-/* ════════════════════════════════════════════════════════════════
-   Canvas de uma página (render via pdf.js)
-════════════════════════════════════════════════════════════════ */
-/* `memo`: sem isso, QUALQUER mexida numa anotação re-renderizava o canvas de
-   TODAS as páginas. O `useEffect` até não re-rodava (as deps não mudam), mas o
-   React refazia o VDOM de todas elas a cada quadro do arraste — desperdício
-   que crescia com o número de páginas. As props aqui são todas primitivas
-   (fora `pdf`, que é estável), então a comparação rasa do memo basta. */
-const PdfCanvas = memo(({ pdf, index, scale, quality = 1 }) => {
-  const ref = useRef();
-  useEffect(() => {
-    let task;
-    (async () => {
-      try {
-        const page = await pdf.getPage(index + 1);
-        const dpr  = (window.devicePixelRatio || 1) * (quality || 1);
-        const vp   = page.getViewport({ scale: scale * dpr });
-        const cv   = ref.current;
-        if (!cv) return;
-        cv.width = vp.width; cv.height = vp.height;
-        cv.style.width = (vp.width/dpr)+'px'; cv.style.height = (vp.height/dpr)+'px';
-        task = page.render({ canvasContext: cv.getContext('2d'), viewport: vp });
-        await task.promise;
-      } catch { /* cancelado */ }
-    })();
-    return () => { try { task && task.cancel(); } catch { /* ok */ } };
-  }, [pdf, index, scale, quality]);
-  return <canvas ref={ref} style={{ display:'block' }}/>;
-});
 
 /* ════════════════════════════════════════════════════════════════
    Texto editável (sincroniza o DOM sem resetar o cursor ao digitar)
@@ -450,31 +289,6 @@ const SignatureModal = ({ onClose, onUse }) => {
   );
 };
 
-/* ════════════════════════════════════════════════════════════════
-   Miniatura de página (JPEG em cache, desenhada só quando entra na tela)
-════════════════════════════════════════════════════════════════ */
-const PageThumb = memo(({ pdf, poolId, pageRef, ratio, root, rootMargin = '400px 0px' }) => {
-  const [holder, inView] = useInView(root, rootMargin);
-  const key = poolId + ':' + pageRef;
-  const [, redesenhar] = useReducer(x => x + 1, 0);
-  const url = thumbCache.get(key) || null;
-  useEffect(() => {
-    if (!inView || !pdf || thumbCache.has(key)) return;
-    let vivo = true;
-    const job = requestThumb(pdf, poolId, pageRef);
-    job.promise.then(() => { if (vivo) redesenhar(); });
-    return () => { vivo = false; job.cancel(); };
-  }, [pdf, poolId, pageRef, key, inView]);
-  return (
-    <div ref={holder} style={{width:'100%',aspectRatio:String(ratio || 0.707),background:'#fff',
-      display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-      {url
-        ? <img src={url} alt="" draggable={false} style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}}/>
-        : <div style={{width:'100%',height:'100%',background:'linear-gradient(100deg,#f2f2f2 30%,#e8e8e8 50%,#f2f2f2 70%)',
-            backgroundSize:'220% 100%',animation:'pdfShimmer 1.1s linear infinite'}}/>}
-    </div>
-  );
-});
 
 /* Uma página do editor: só monta o canvas + a camada de anotações quando está
    perto da tela. Fora dali fica um espaço vazio do tamanho certo — a rolagem
@@ -491,254 +305,7 @@ const PageSlot = ({ pg, scale, root, onSeen, render }) => {
   );
 };
 
-/* ════════════════════════════════════════════════════════════════
-   Pré-visualização grande de uma página
-════════════════════════════════════════════════════════════════ */
-const PagePreviewModal = ({ pdf, pages, idx, onIdx, onClose }) => {
-  const [box, setBox] = useState({ w: window.innerWidth, h: window.innerHeight });
-  useEffect(() => {
-    const r = () => setBox({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', r);
-    return () => window.removeEventListener('resize', r);
-  }, []);
-  useEffect(() => {
-    const k = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-      else if (e.key === 'ArrowRight') onIdx(Math.min(pages.length - 1, idx + 1));
-      else if (e.key === 'ArrowLeft')  onIdx(Math.max(0, idx - 1));
-    };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  }, [idx, pages.length, onIdx, onClose]);
 
-  const pg = pages[idx];
-  if (!pg) return null;
-  const s = Math.max(0.1, Math.min((box.w * 0.78) / pg.w, (box.h * 0.8) / pg.h));
-  const nav = (d) => (e) => { e.stopPropagation(); onIdx(clamp(idx + d, 0, pages.length - 1)); };
-  const navBtn = {width:38,height:38,borderRadius:'50%',border:'none',background:'rgba(255,255,255,.9)',
-    color:'#222',fontSize:17,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0};
-
-  return (
-    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(10,12,18,.82)',
-      display:'flex',alignItems:'center',justifyContent:'center',gap:14,padding:20,backdropFilter:'blur(3px)'}}>
-      <button style={{...navBtn,visibility:idx>0?'visible':'hidden'}} onClick={nav(-1)}>‹</button>
-      <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
-        <div style={{boxShadow:'0 10px 40px rgba(0,0,0,.5)',background:'#fff',lineHeight:0}}>
-          <PdfCanvas pdf={pdf} index={pg.ref} scale={s} quality={1}/>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:14,color:'#fff',fontSize:13}}>
-          <span>Página {idx + 1} de {pages.length}</span>
-          <button onClick={onClose} style={{background:'rgba(255,255,255,.14)',border:'1px solid rgba(255,255,255,.25)',
-            color:'#fff',borderRadius:8,padding:'6px 14px',fontSize:12.5,cursor:'pointer',fontFamily:'var(--font-body)'}}>Fechar (Esc)</button>
-        </div>
-      </div>
-      <button style={{...navBtn,visibility:idx<pages.length-1?'visible':'hidden'}} onClick={nav(1)}>›</button>
-    </div>
-  );
-};
-
-/* ════════════════════════════════════════════════════════════════
-   ORGANIZAR PÁGINAS
-   Grade de miniaturas: arrastar pra mover, clicar pra selecionar (Shift = faixa),
-   excluir em lote e ampliar qualquer página antes de decidir.
-   Nada aqui reescreve o PDF — só mexe na ORDEM em memória; o arquivo só é
-   remontado na hora de salvar. Por isso mover/excluir é instantâneo mesmo com
-   centenas de páginas.
-════════════════════════════════════════════════════════════════ */
-const ORG_ICONS = {
-  lupa: <><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
-  lixo: <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></>,
-};
-
-const OrgCard = memo(({ pg, idx, pdf, poolId, root, selected, dropSide, busy,
-  onPick, onPreview, onDelete, onNudge, onDragStart, onDragOver, onDrop, onDragEnd, total }) => (
-  <div
-    draggable={!busy}
-    onClick={(e) => onPick(idx, e)}
-    onDoubleClick={() => onPreview(idx)}
-    onDragStart={(e) => onDragStart(idx, e)}
-    onDragOver={(e) => onDragOver(idx, e)}
-    onDrop={(e) => onDrop(idx, e)}
-    onDragEnd={onDragEnd}
-    style={{position:'relative',borderRadius:10,padding:4,cursor:busy?'default':'grab',
-      border:`2px solid ${selected ? T.gold : T.border}`,
-      background:selected ? T.goldGl : T.surface,
-      boxShadow:selected ? `0 0 0 3px ${T.gold}22` : 'none',
-      transition:'border-color .12s, box-shadow .12s'}}>
-    {dropSide && (
-      <div style={{position:'absolute',top:-2,bottom:-2,[dropSide === 'antes' ? 'left' : 'right']:-5,
-        width:3,borderRadius:2,background:T.gold,boxShadow:`0 0 8px ${T.gold}`}}/>
-    )}
-    <div style={{borderRadius:6,overflow:'hidden',background:'#fff',pointerEvents:'none'}}>
-      <PageThumb pdf={pdf} poolId={poolId} pageRef={pg.ref} ratio={pg.w / pg.h} root={root}/>
-    </div>
-    {/* nº da posição */}
-    <div style={{position:'absolute',left:8,bottom:8,minWidth:22,height:19,padding:'0 6px',borderRadius:6,
-      background:selected ? T.gold : 'rgba(20,20,25,.72)',color:'#fff',fontSize:11,fontWeight:700,
-      display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>{idx + 1}</div>
-    {/* ações */}
-    <div style={{position:'absolute',top:8,right:8,display:'flex',gap:4}}>
-      <button title="Ampliar" onClick={(e)=>{ e.stopPropagation(); onPreview(idx); }}
-        style={{width:24,height:24,borderRadius:6,border:'none',background:'rgba(255,255,255,.92)',
-          color:T.textS,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0,
-          boxShadow:'0 1px 4px rgba(0,0,0,.18)'}}><I size={13}>{ORG_ICONS.lupa}</I></button>
-      <button title="Excluir página" onClick={(e)=>{ e.stopPropagation(); onDelete(idx); }} disabled={busy}
-        style={{width:24,height:24,borderRadius:6,border:'none',background:'rgba(255,255,255,.92)',
-          color:T.danger,cursor:busy?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0,
-          boxShadow:'0 1px 4px rgba(0,0,0,.18)'}}><I size={13}>{ORG_ICONS.lixo}</I></button>
-    </div>
-    {/* mover uma casa (alternativa ao arraste) */}
-    <div style={{position:'absolute',right:8,bottom:8,display:'flex',gap:4}}>
-      <button title="Mover para trás" disabled={idx === 0} onClick={(e)=>{ e.stopPropagation(); onNudge(idx, -1); }}
-        style={{width:22,height:19,borderRadius:5,border:'none',background:idx===0?'rgba(255,255,255,.5)':'rgba(255,255,255,.92)',
-          color:idx===0?T.textD:T.textS,fontSize:11,cursor:idx===0?'default':'pointer',padding:0,lineHeight:1,
-          boxShadow:'0 1px 4px rgba(0,0,0,.18)'}}>◀</button>
-      <button title="Mover para frente" disabled={idx === total - 1} onClick={(e)=>{ e.stopPropagation(); onNudge(idx, 1); }}
-        style={{width:22,height:19,borderRadius:5,border:'none',background:idx===total-1?'rgba(255,255,255,.5)':'rgba(255,255,255,.92)',
-          color:idx===total-1?T.textD:T.textS,fontSize:11,cursor:idx===total-1?'default':'pointer',padding:0,lineHeight:1,
-          boxShadow:'0 1px 4px rgba(0,0,0,.18)'}}>▶</button>
-    </div>
-  </div>
-));
-
-const PageOrganizer = ({ pdf, poolId, pages, busy, onMove, onDelete, onRestore, podeRestaurar, onClose, onPreview }) => {
-  const [selRaw, setSel] = useState(() => new Set());
-  const [drop, setDrop] = useState(null);        // { idx, lado }
-  const dragRef  = useRef(null);                 // { ids:[], idx }
-  const ancoraRef = useRef(0);                   // pra seleção com Shift
-  const [wrap, setWrap] = useState(null);
-
-  // páginas excluídas somem da seleção sozinhas (derivado, não guardado)
-  const sel = useMemo(() => {
-    if (!selRaw.size) return selRaw;
-    const vivos = new Set(pages.map(p => p.id));
-    const next = new Set([...selRaw].filter(id => vivos.has(id)));
-    return next.size === selRaw.size ? selRaw : next;
-  }, [selRaw, pages]);
-
-  /* `drop` também num ref: o `soltar` precisa do destino atual sem virar uma
-     função nova a cada dragover (o que re-renderizaria a grade inteira). */
-  const dropRef = useRef(null);
-  const marcarDrop = (d) => { dropRef.current = d; setDrop(d); };
-
-  const idsSelecionados = useCallback((idx) => {
-    const pg = pages[idx];
-    return sel.has(pg.id) && sel.size > 1 ? pages.filter(p => sel.has(p.id)).map(p => p.id) : [pg.id];
-  }, [pages, sel]);
-
-  const pick = useCallback((idx, e) => {
-    const pg = pages[idx];
-    setSel(prev => {
-      const next = new Set(prev);
-      if (e.shiftKey) {
-        const [a, b] = [ancoraRef.current, idx].sort((x, y) => x - y);
-        for (let i = a; i <= b; i++) next.add(pages[i].id);
-        return next;
-      }
-      ancoraRef.current = idx;
-      if (next.has(pg.id)) next.delete(pg.id); else next.add(pg.id);
-      return next;
-    });
-  }, [pages]);
-
-  const onDragStart = useCallback((idx, e) => {
-    dragRef.current = { ids: idsSelecionados(idx), idx };
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', String(idx)); } catch { /* ok */ }
-  }, [idsSelecionados]);
-
-  const onDragOver = useCallback((idx, e) => {
-    if (!dragRef.current) return;
-    e.preventDefault();
-    const r = e.currentTarget.getBoundingClientRect();
-    const lado = (e.clientX - r.left) < r.width / 2 ? 'antes' : 'depois';
-    const atual = dropRef.current;
-    if (atual && atual.idx === idx && atual.lado === lado) return;   // nada mudou
-    marcarDrop({ idx, lado });
-  }, []);
-
-  const soltar = useCallback((idx, e) => {
-    e.preventDefault();
-    const d = dragRef.current; const alvo = dropRef.current;
-    dragRef.current = null; marcarDrop(null);
-    if (!d) return;
-    const lado = alvo && alvo.idx === idx ? alvo.lado : 'antes';
-    onMove(d.ids, lado === 'antes' ? idx : idx + 1);
-  }, [onMove]);
-
-  const encerrar = useCallback(() => { dragRef.current = null; marcarDrop(null); }, []);
-
-  const nudge = useCallback((idx, dir) => {
-    const destino = dir < 0 ? idx - 1 : idx + 2;   // "pra depois do vizinho da frente"
-    onMove([pages[idx].id], destino);
-  }, [pages, onMove]);
-
-  const apagarUm = useCallback((idx) => { onDelete([pages[idx].id]); }, [pages, onDelete]);
-
-  const excluirSelecao = () => {
-    if (!sel.size) return;
-    onDelete([...sel]);
-    setSel(new Set());
-  };
-
-  // Delete apaga a seleção enquanto o organizador está aberto
-  useEffect(() => {
-    const k = (e) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      if (document.activeElement && document.activeElement.isContentEditable) return;
-      if (!sel.size) return;
-      e.preventDefault(); excluirSelecao();
-    };
-    window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
-  });
-
-  const btn = (extra) => ({display:'inline-flex',alignItems:'center',gap:7,padding:'8px 13px',borderRadius:9,
-    border:`1px solid ${T.border}`,background:'transparent',color:T.textS,fontSize:13,fontWeight:500,
-    cursor:'pointer',fontFamily:'var(--font-body)',whiteSpace:'nowrap',...extra});
-
-  return (
-    <div style={{flex:1,minWidth:0}}>
-      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:12}}>
-        <span style={{fontSize:13.5,fontWeight:700,color:T.text}}>
-          {pages.length} página{pages.length !== 1 ? 's' : ''}
-        </span>
-        {sel.size > 0 && <span style={{fontSize:12.5,color:T.gold,fontWeight:600}}>· {sel.size} selecionada{sel.size !== 1 ? 's' : ''}</span>}
-        <div style={{flex:1}}/>
-        <button style={btn()} onClick={() => setSel(new Set(pages.map(p => p.id)))}>Selecionar tudo</button>
-        <button style={btn()} onClick={() => setSel(new Set())} disabled={!sel.size}>Limpar seleção</button>
-        <button style={btn({color:T.danger,borderColor:`${T.danger}55`,opacity:sel.size?1:.45})}
-          onClick={excluirSelecao} disabled={!sel.size || busy}>
-          <I size={14}>{ORG_ICONS.lixo}</I> Excluir selecionadas
-        </button>
-        <button style={btn({opacity:podeRestaurar?1:.45})} onClick={onRestore} disabled={!podeRestaurar || busy}>
-          <I size={14}><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></I> Restaurar ordem
-        </button>
-        <button style={btn({background:T.gold,color:'#fff',border:'none',fontWeight:700})} onClick={onClose}>
-          <I size={14}><polyline points="20 6 9 17 4 12"/></I> Concluir
-        </button>
-      </div>
-
-      <div style={{fontSize:12.5,color:T.textT,marginBottom:10}}>
-        Arraste as páginas pra reordenar · clique pra selecionar (Shift = intervalo) · duplo clique ou a <strong style={{color:T.textS}}>lupa</strong> amplia · Delete exclui a seleção.
-      </div>
-
-      <div ref={setWrap} onDragLeave={() => marcarDrop(null)}
-        style={{maxHeight:'70vh',overflowY:'auto',background:T.page,border:`1px solid ${T.border}`,
-          borderRadius:12,padding:14,display:'grid',gap:12,
-          gridTemplateColumns:'repeat(auto-fill, minmax(148px, 1fr))',alignContent:'start'}}>
-        {pages.map((pg, i) => (
-          <OrgCard key={pg.id} pg={pg} idx={i} total={pages.length} pdf={pdf} poolId={poolId} root={wrap}
-            busy={busy} selected={sel.has(pg.id)}
-            dropSide={drop && drop.idx === i ? drop.lado : null}
-            onPick={pick} onPreview={onPreview} onDelete={apagarUm}
-            onNudge={nudge} onDragStart={onDragStart} onDragOver={onDragOver}
-            onDrop={soltar} onDragEnd={encerrar}/>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 /* ════════════════════════════════════════════════════════════════
    EDITOR DE PDF
@@ -761,12 +328,10 @@ export const PdfEditor = ({ onDoc }) => {
   const [busy, setBusy]     = useState(false);
   const [error, setError]   = useState('');
   const [canUndo, setCanUndo] = useState(false);
-  const [orgOpen, setOrgOpen] = useState(false);      // modo "Organizar páginas"
   const [previewIdx, setPreviewIdx] = useState(null); // pré-visualização grande
   const [scroller, setScroller] = useState(null);     // container que rola as páginas
   const [railEl, setRailEl] = useState(null);         // container das miniaturas laterais
   const [poolId, setPoolId] = useState(0);           // identidade do pool (pro cache de miniaturas)
-  const [origPages, setOrigPages] = useState([]);    // ordem original (pra restaurar)
 
   const srcRef    = useRef(null);
   const scaleRef  = useRef(scale);
@@ -837,11 +402,10 @@ export const PdfEditor = ({ onDoc }) => {
     if (!editorCache.src) return;
     (async () => {
       try {
-        const doc = await pdfjsLib.getDocument({ data: editorCache.src.slice() }).promise;
+        const doc = await loadPdfDoc(editorCache.src.slice());
         srcRef.current = editorCache.src;
-        poolRef.current = editorCache.poolId || ++_poolSeq;
+        poolRef.current = editorCache.poolId || novoPoolId();
         setPoolId(poolRef.current);
-        setOrigPages(editorCache.origPages || editorCache.pages || []);
         extraidoRef.current = new Set(editorCache.extracted || []);
         fundoRef.current    = new Set(editorCache.bgDone || []);
         setPdf(doc); setPages(editorCache.pages || []); setAnnos(editorCache.annos || []);
@@ -857,11 +421,10 @@ export const PdfEditor = ({ onDoc }) => {
       editorCache.pages = pages; editorCache.annos = annos;
       editorCache.fileName = fileName; editorCache.scale = scale;
       editorCache.poolId = poolRef.current;
-      editorCache.origPages = origPages;
       editorCache.extracted = [...extraidoRef.current];
       editorCache.bgDone = [...fundoRef.current];
     }
-  }, [pages, annos, fileName, scale, origPages]);
+  }, [pages, annos, fileName, scale]);
 
   /* ── extração de texto SOB DEMANDA ────────────────────────────────────────
      Abrir um PDF de 200 páginas não pode custar 200 rasterizações. A abertura
@@ -907,20 +470,19 @@ export const PdfEditor = ({ onDoc }) => {
     try {
       const ab  = await file.arrayBuffer();
       const src = new Uint8Array(ab);
-      const doc = await pdfjsLib.getDocument({ data: src.slice() }).promise;
+      const doc = await loadPdfDoc(src.slice());
       const dims = await readPageSizes(doc);
       const pgs = dims.map((d, i) => ({ id: uid(), ref: i, w: d.w, h: d.h }));
       limparThumbs(poolRef.current);
       srcRef.current = src;
-      poolRef.current = ++_poolSeq;
+      poolRef.current = novoPoolId();
       setPoolId(poolRef.current);
-      setOrigPages(pgs);
       extraidoRef.current = new Set(); fundoRef.current = new Set();
       extQ.current.fila.length = 0;
       setPdf(doc); setPages(pgs); setFileName(file.name);
       setAnnos([]); setSelId(null); setFocusId(null);
       histRef.current = []; setCanUndo(false); setActivePage(0);
-      setOrgOpen(false); setPreviewIdx(null);
+      setPreviewIdx(null);
     } catch (e) {
       setError('Não foi possível abrir o PDF: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
@@ -933,11 +495,11 @@ export const PdfEditor = ({ onDoc }) => {
     limparThumbs(poolRef.current);
     srcRef.current = null;
     editorCache.src = null; editorCache.pages = null; editorCache.annos = null; editorCache.fileName = '';
-    editorCache.origPages = null; editorCache.extracted = null; editorCache.bgDone = null;
-    setOrigPages([]); extraidoRef.current = new Set(); fundoRef.current = new Set();
+    editorCache.extracted = null; editorCache.bgDone = null;
+    extraidoRef.current = new Set(); fundoRef.current = new Set();
     extQ.current.fila.length = 0;
     setPdf(null); setPages([]); setAnnos([]); setFileName('');
-    setSelId(null); setFocusId(null); setOrgOpen(false); setPreviewIdx(null);
+    setSelId(null); setFocusId(null); setPreviewIdx(null);
     histRef.current = []; setCanUndo(false); setActivePage(0);
   }, []);
 
@@ -960,35 +522,14 @@ export const PdfEditor = ({ onDoc }) => {
      As anotações não precisam de remapeamento: elas apontam pro `id` da
      página, então acompanham a mudança de graça. */
   const moverPaginas = useCallback((ids, destino) => {
-    const alvo = new Set(ids);
     const atual = pagesRef.current;
-    const bloco = atual.filter(p => alvo.has(p.id));
-    if (!bloco.length) return;
-    const restante = atual.filter(p => !alvo.has(p.id));
-    const antes = atual.slice(0, clamp(destino, 0, atual.length)).filter(p => alvo.has(p.id)).length;
-    const pos = clamp(destino - antes, 0, restante.length);
-    const novo = [...restante.slice(0, pos), ...bloco, ...restante.slice(pos)];
-    if (novo.every((p, i) => p === atual[i])) return;   // nada mudou de lugar
+    const novo = reordenarPaginas(atual, ids, destino);
+    if (novo === atual) return;
     pushHistory();
     setPages(novo);
-    setActivePage(novo.findIndex(p => p.id === bloco[0].id));
+    setActivePage(novo.findIndex(p => ids.includes(p.id)));
     setSelId(null); setFocusId(null);
   }, [pushHistory]);
-
-  const restaurarOrdem = useCallback(() => {
-    const orig = origPages;
-    if (!orig.length) return;
-    pushHistory();
-    setPages(orig);
-    // páginas que voltaram (tinham sido excluídas) precisam de extração de novo
-    const comTexto = new Set(annosRef.current.filter(a => a.isOriginal).map(a => a.pageId));
-    extraidoRef.current = new Set([...extraidoRef.current].filter(id => comTexto.has(id)));
-    fundoRef.current    = new Set([...fundoRef.current].filter(id => comTexto.has(id)));
-    setSelId(null); setFocusId(null); setActivePage(0);
-  }, [pushHistory, origPages]);
-
-  const ordemMudou = pages.length !== origPages.length
-    || pages.some((p, i) => p.id !== origPages[i]?.id);
 
   /* ── adicionar outro PDF (anexa as páginas ao documento atual) ── */
   const addPdf = async (file) => {
@@ -1003,7 +544,7 @@ export const PdfEditor = ({ onDoc }) => {
       const copied = await A.copyPages(B, B.getPageIndices());
       copied.forEach(pg => A.addPage(pg));
       const merged = new Uint8Array(await A.save());
-      const doc = await pdfjsLib.getDocument({ data: merged.slice() }).promise;
+      const doc = await loadPdfDoc(merged.slice());
       // As páginas novas entram no FIM do pool de origem, então todo `ref` que
       // já existia continua apontando pra mesma página: a ordem montada pelo
       // usuário e as anotações ficam de pé, e as miniaturas em cache valem.
@@ -1013,7 +554,6 @@ export const PdfEditor = ({ onDoc }) => {
       pushHistory();
       setPdf(doc);
       setPages(p => [...p, ...novas]);
-      setOrigPages(o => [...o, ...novas]);
     } catch (e) {
       setError('Não foi possível adicionar o PDF: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
@@ -1303,7 +843,7 @@ export const PdfEditor = ({ onDoc }) => {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Delete' && selId && !orgOpen) {
+      if (e.key === 'Delete' && selId) {
         const a = annosRef.current.find(x=>x.id===selId);
         const editing = document.activeElement && document.activeElement.isContentEditable;
         if (a && !(a.type==='text' && editing)) { e.preventDefault(); deleteAnno(selId); }
@@ -1311,7 +851,7 @@ export const PdfEditor = ({ onDoc }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selId, orgOpen, deleteAnno]);
+  }, [selId, deleteAnno]);
 
   /* ── sem arquivo ── */
   if (!pdf) {
@@ -1346,8 +886,6 @@ export const PdfEditor = ({ onDoc }) => {
 
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
-      <style>{'@keyframes pdfShimmer{0%{background-position:120% 0}100%{background-position:-120% 0}}'}</style>
-
       {/* Toolbar */}
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'10px 12px',marginBottom:14,position:'sticky',top:0,zIndex:50}}>
         <button style={tbBtn(false)} onClick={()=>fileInput.current?.click()}>
@@ -1363,23 +901,18 @@ export const PdfEditor = ({ onDoc }) => {
           {busy ? 'Salvando...' : 'Salvar como...'}
         </button>
         <div style={{width:1,height:22,background:T.divider,margin:'0 2px'}}/>
-        <button style={tbBtn(orgOpen)} onClick={()=>{ setOrgOpen(o=>!o); setSelId(null); setFocusId(null); }}>
-          <I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>
-          Organizar páginas
-        </button>
-        <div style={{width:1,height:22,background:T.divider,margin:'0 2px'}}/>
-        <button style={tbBtn(tool==='text')} onClick={()=>{ setOrgOpen(false); setTool(tool==='text'?'select':'text'); }}>
+        <button style={tbBtn(tool==='text')} onClick={()=>setTool(tool==='text'?'select':'text')}>
           <I><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></I> Editar Texto
         </button>
-        <button style={tbBtn(tool==='whiteout')} onClick={()=>{ setOrgOpen(false); setTool(tool==='whiteout'?'select':'whiteout'); }}>
+        <button style={tbBtn(tool==='whiteout')} onClick={()=>setTool(tool==='whiteout'?'select':'whiteout')}>
           <I><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="7" y1="12" x2="17" y2="12"/></I> Whiteout
         </button>
-        <button style={tbBtn(false)} onClick={()=>{ setOrgOpen(false); imgInput.current?.click(); }}>
+        <button style={tbBtn(false)} onClick={()=>imgInput.current?.click()}>
           <I><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></I> Imagem
         </button>
         <input ref={imgInput} type="file" accept="image/png,image/jpeg" style={{display:'none'}}
           onChange={e=>{ const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=()=>addImageAnno(r.result,'image'); r.readAsDataURL(f);} e.target.value=''; }}/>
-        <button style={tbBtn(false)} onClick={()=>{ setOrgOpen(false); setSigOpen(true); }}>
+        <button style={tbBtn(false)} onClick={()=>setSigOpen(true)}>
           <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I> Assinatura
         </button>
         <div style={{width:1,height:22,background:T.divider,margin:'0 2px'}}/>
@@ -1390,28 +923,18 @@ export const PdfEditor = ({ onDoc }) => {
           <I><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></I> Excluir todas as páginas
         </button>
         <div style={{flex:1}}/>
-        {!orgOpen && (
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.max(0.5,+(s-0.1).toFixed(2)))}>−</button>
-            <span style={{fontSize:13,color:T.textS,minWidth:46,textAlign:'center'}}>{Math.round(scale*100)}%</span>
-            <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.min(3,+(s+0.1).toFixed(2)))}>+</button>
-          </div>
-        )}
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.max(0.5,+(s-0.1).toFixed(2)))}>−</button>
+          <span style={{fontSize:13,color:T.textS,minWidth:46,textAlign:'center'}}>{Math.round(scale*100)}%</span>
+          <button style={{...tbBtn(false),padding:'7px 11px'}} onClick={()=>setScale(s=>Math.min(3,+(s+0.1).toFixed(2)))}>+</button>
+        </div>
       </div>
 
       {error && <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,fontSize:13.5,color:T.danger}}>{error}</div>}
 
-      {!orgOpen && tool==='text' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique sobre um texto do PDF para editá-lo, ou clique numa área vazia para adicionar texto novo.</div>}
-      {!orgOpen && tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Arraste sobre a área que quer cobrir de branco (ou só clique pra inserir uma caixa padrão).</div>}
+      {tool==='text' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique sobre um texto do PDF para editá-lo, ou clique numa área vazia para adicionar texto novo.</div>}
+      {tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Arraste sobre a área que quer cobrir de branco (ou só clique pra inserir uma caixa padrão).</div>}
 
-      {orgOpen ? (
-        <PageOrganizer
-          pdf={pdf} poolId={poolId} pages={pages} busy={busy}
-          onMove={moverPaginas} onDelete={removerPaginas}
-          onRestore={restaurarOrdem} podeRestaurar={ordemMudou}
-          onPreview={setPreviewIdx}
-          onClose={()=>setOrgOpen(false)}/>
-      ) : (
       <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
         {/* Miniaturas */}
         <div style={{width:126,flexShrink:0,display:'flex',flexDirection:'column'}}>
@@ -1440,16 +963,13 @@ export const PdfEditor = ({ onDoc }) => {
               <div style={{position:'absolute',bottom:2,right:4,fontSize:10,color:T.textT,background:'rgba(255,255,255,.8)',borderRadius:4,padding:'0 4px'}}>{i+1}</div>
               <button title="Ampliar" onClick={e=>{ e.stopPropagation(); setPreviewIdx(i); }}
                 style={{position:'absolute',top:2,left:2,width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,.85)',border:`1px solid ${T.border}`,borderRadius:5,color:T.textS,cursor:'pointer',padding:0}}>
-                <I size={11}>{ORG_ICONS.lupa}</I></button>
+                <IconeLupa size={11}/></button>
               <button title="Excluir página" onClick={e=>{ e.stopPropagation(); removerPaginas([pg.id]); }} disabled={busy}
                 style={{position:'absolute',top:2,right:2,width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,.85)',border:`1px solid ${T.border}`,borderRadius:5,color:T.danger,cursor:busy?'default':'pointer',padding:0}}>
-                <I size={11}>{ORG_ICONS.lixo}</I></button>
+                <IconeLixo size={11}/></button>
             </div>
           ))}
           </div>
-          <button onClick={()=>setOrgOpen(true)}
-            style={{marginTop:8,padding:'7px 8px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',
-              color:T.textS,fontSize:11.5,cursor:'pointer',fontFamily:'var(--font-body)'}}>Organizar páginas</button>
         </div>
 
         {/* Páginas */}
@@ -1571,7 +1091,6 @@ export const PdfEditor = ({ onDoc }) => {
           <div style={{fontSize:11.5,color:T.textD,marginTop:10,lineHeight:1.5,padding:'0 4px'}}>{fileName} · {pages.length} página{pages.length!==1?'s':''}</div>
         </div>
       </div>
-      )}
 
       {previewIdx != null && (
         <PagePreviewModal pdf={pdf} pages={pages} idx={clamp(previewIdx,0,pages.length-1)}
