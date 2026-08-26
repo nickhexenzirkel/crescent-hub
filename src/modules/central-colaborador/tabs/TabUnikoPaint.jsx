@@ -34,7 +34,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
-import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
+import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
@@ -623,8 +623,8 @@ const myName = () => {
    em base64) e o payload da presence não aguenta — o track é rejeitado em SILÊNCIO,
    e o efeito é cruel: cada um enxerga só a si mesmo, ninguém vê ninguém, e a partida
    nunca começa por "falta de jogadores". Aqui trafega só a URL da imagem (~30 bytes);
-   é a MESMA arte, só não convertida. A foto de perfil do Portal continua sendo o data
-   URL, salva por saveUserPhoto normalmente. */
+   é a MESMA arte, só não convertida. Essa chave é do JOGO — a foto de perfil do
+   Portal não tem nada a ver com ela (ver `choosePhoto`). */
 const PHOTO_SRC_KEY = 'up_photo_src';
 const myPhotoSrc = () => {
   try { return localStorage.getItem(PHOTO_SRC_KEY) || '/UNIKO_NEW.png'; }
@@ -2571,28 +2571,15 @@ const TabUnikoPaint = () => {
       .map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
     return [...base, ...fixos, ...custom];
   }, [owned]);
-  // Duas coisas ao escolher um Uniko:
-  //  • foto de perfil do Portal = data URL 300x300 (mesmo caminho da aba Coleção);
-  //  • foto do jogo/presence = a URL da arte (leve o bastante pra trafegar).
+  // Escolher um Uniko troca SÓ o boneco do jogo (chave `up_photo_src`, também
+  // lida pelo Stop e pelo Detetive). A foto de perfil do Portal NÃO é mexida —
+  // ela só muda em "Seus Dados" ou na aba Coleção, onde a pessoa pede isso de
+  // propósito. Já foi assim (chamava `saveUserPhoto` aqui) e foi reportado como
+  // bug: entrar num jogo trocava a foto do colaborador no Portal inteiro.
   const choosePhoto = (img) => {
     try { localStorage.setItem(PHOTO_SRC_KEY, img); } catch { /* sem localStorage */ }
     setPhoto(img);          // presence reanuncia sozinho no effect de [photo]
     // NÃO fecha o editor: a pessoa ainda pode ajustar o nome e salvar.
-    const im = new Image(); im.crossOrigin = 'anonymous';
-    const salvaPerfil = (val) => {
-      saveUserPhoto(val);
-      try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
-      catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
-    };
-    im.onload = () => {
-      try {
-        const c = document.createElement('canvas'); c.width = c.height = 300;
-        c.getContext('2d').drawImage(im, 0, 0, 300, 300);
-        salvaPerfil(c.toDataURL('image/png'));
-      } catch { salvaPerfil(img); }
-    };
-    im.onerror = () => salvaPerfil(img);
-    im.src = img;
   };
 
   const abrirPicker = () => { setNomeEdit(name); setBusca(''); setPicker(true); };

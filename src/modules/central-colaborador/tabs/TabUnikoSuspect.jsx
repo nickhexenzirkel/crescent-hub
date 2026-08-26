@@ -23,7 +23,7 @@ import { taskTypeFor } from '../../../shared/unikoDetetiveTarefas';
    unmount roda DEPOIS da próxima tela renderizar, então nada repintava).
    Assim o escuro fica contido aqui e não há o que restaurar na saída. */
 const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.blueDark };
-import { supabase, getAuthUser, USER, saveUserPhoto } from '../../../contexts/user';
+import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
 
@@ -3868,7 +3868,7 @@ const TabUnikoSuspect = () => {
 
   /* ── Seletor de Uniko (o "boneco" da pessoa no jogo) — mesma coleção/mecânica
      do Uniko Paint, mesma chave de storage (up_photo_src), então o Uniko escolhido
-     aqui também vale nos outros jogos e como foto de perfil do Portal. ── */
+     aqui também vale nos outros jogos. NÃO mexe na foto de perfil do Portal. ── */
   const [owned, setOwned] = useState(() => getCapturedCollection());
   useEffect(() => { syncCollectionFromServer().then(l => Array.isArray(l) && setOwned(l)); }, []);
   const myUnikos = useMemo(() => {
@@ -3878,25 +3878,13 @@ const TabUnikoSuspect = () => {
     const custom = (getCustomUnikos() || []).filter(u => ids.has(u.id)).map(u => ({ id: u.id, name: u.shortName || u.name, img: u.img }));
     return [...base, ...fixos, ...custom];
   }, [owned]);
+  // Só o boneco do jogo muda aqui — a foto de perfil do Portal fica como está
+  // (chamava `saveUserPhoto` antes; era bug, escolher Uniko trocava a foto do
+  // colaborador no Portal inteiro).
   const choosePhoto = (img) => {
     try { localStorage.setItem(PHOTO_SRC_KEY, img); } catch { /* sem localStorage */ }
     setPhoto(img);            // presence reanuncia sozinho no effect de [photo]
     setPicker(false);
-    const im = new Image(); im.crossOrigin = 'anonymous';
-    const salvaPerfil = (val) => {
-      saveUserPhoto(val);
-      try { const a = getAuthUser(); localStorage.setItem(a?.cpf ? `uniko_photo_${a.cpf}` : `uniko_photo_${USER.name}`, val); }
-      catch { /* localStorage cheio/bloqueado: a foto ainda vale nesta sessão */ }
-    };
-    im.onload = () => {
-      try {
-        const c = document.createElement('canvas'); c.width = c.height = 300;
-        c.getContext('2d').drawImage(im, 0, 0, 300, 300);
-        salvaPerfil(c.toDataURL('image/png'));
-      } catch { salvaPerfil(img); }
-    };
-    im.onerror = () => salvaPerfil(img);
-    im.src = img;
   };
 
   const cardBg = T.surface || '#fff';
