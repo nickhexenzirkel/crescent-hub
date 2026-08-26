@@ -19,11 +19,11 @@ import SakuraScene from './sakuraScene';
 import FairyScene from './fairyScene';
 import OliviaScene from './oliviaScene';
 import {
-  getUniko, isWithinWindow, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
+  getUniko, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, loadRewardOverrides, nowMs, syncServerClock, maxWinnersFor, captureEventId,
+  loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId,
 } from './captureUniko';
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
@@ -95,6 +95,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const phaseRef = useRef(phase); phaseRef.current = phase;
   const resolvingRef = useRef(false);
   const resolveAttemptRef = useRef(null); // sempre a versão mais recente de resolveAttempt (ver onCaptureThrow abaixo)
+  const revealArmedRef = useRef(null);   // evento cujo instante de spawn já foi conferido com o relógio do servidor
 
   /* ── ZERA o estado quando começa um evento NOVO ─────────────────────────────
        Este componente é montado UMA vez no App e nunca desmonta — só recebe um
@@ -114,6 +115,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   useEffect(() => {
     setPhase('idle');
     resolvingRef.current = false;
+    revealArmedRef.current = null;
     setWinners([]);
     setAvailable(false);
     setChecked(false); // o fetch de vencedores logo abaixo devolve pra true
@@ -152,25 +154,55 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
        Continua disponível pra quem ainda não capturou até as 5 vagas acabarem. ── */
   useEffect(() => {
     if (!cfg || !checked || isFull || myWin || isCaptureDone(cfg)) return;
-    let revealT;
-    const evaluate = () => {
-      if (isCaptureDone(cfg)) { setAvailable(false); return; }
-      if (isSpawned(cfg))     { setAvailable(true);  return; }
-      setAvailable(false);
-      // ainda não chegou o spawnAt → agenda a revelação exata (mesmo instante p/ todos,
-      // usando o relógio corrigido pelo servidor — nowMs() — em vez do Date.now() cru,
-      // que pode estar alguns segundos errado dependendo do PC)
+    let alive = true, revealT;
+
+    // Ainda não chegou o spawnAt → agenda a revelação pro instante exato (o mesmo
+    // pra todo mundo, via nowMs()) e, chegando perto, já mede o relógio contra o
+    // servidor pra não pagar o round-trip na hora H.
+    const agendarRevelacao = () => {
       const sp = spawnMoment(cfg);
-      if (sp != null && nowMs() < sp && isWithinWindow(cfg)) {
-        clearTimeout(revealT);
-        revealT = setTimeout(evaluate, Math.max(0, sp - nowMs()) + 40);
-      }
+      if (sp == null) return;
+      const falta = sp - nowMs();
+      if (falta <= 0) return;
+      if (falta < 30000) ensureServerClock();
+      clearTimeout(revealT);
+      revealT = setTimeout(evaluate, falta + 40);
     };
+
+    const evaluate = async () => {
+      if (!alive) return;
+      if (isCaptureDone(cfg)) { setAvailable(false); return; }
+      if (!isSpawned(cfg))    { setAvailable(false); agendarRevelacao(); return; }
+      /* CONFERE O RELÓGIO COM O SERVIDOR ANTES DE REVELAR — e, por tabela, antes de
+         disparar a notificação no desktop (que sai da transição pra `available`).
+         `nowMs()` só é confiável se o desvio foi medido há pouco: num PC com a hora
+         adiantada (ou onde a medição do login falhou/ficou velha), o cliente achava
+         que o Uniko já tinha surgido e avisava ANTES de ele aparecer de verdade pra
+         todo mundo. Uma medição por evento; se ela disser que ainda não é hora, o
+         encontro volta a ficar agendado pro instante certo. */
+      if (revealArmedRef.current !== eventId) {
+        await ensureServerClock();
+        if (!alive) return;
+        revealArmedRef.current = eventId;  // marca mesmo se a medição falhar: relógio não pode travar o evento
+        if (!isSpawned(cfg)) { setAvailable(false); agendarRevelacao(); return; }
+      }
+      setAvailable(true);
+    };
+
     evaluate();
     const tick = setInterval(evaluate, 3000);
-    return () => { clearTimeout(revealT); clearInterval(tick); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, checked, isFull, myWin]);
+    // Aba em segundo plano tem os timers estrangulados pelo navegador (~1x/min):
+    // ao voltar pra aba, reavalia na hora em vez de esperar o próximo tick.
+    const acordar = () => { if (document.visibilityState === 'visible') evaluate(); };
+    document.addEventListener('visibilitychange', acordar);
+    window.addEventListener('focus', acordar);
+    return () => {
+      alive = false;
+      clearTimeout(revealT); clearInterval(tick);
+      document.removeEventListener('visibilitychange', acordar);
+      window.removeEventListener('focus', acordar);
+    };
+  }, [cfg, checked, isFull, myWin, eventId]);
 
   /* ── Avisa no DESKTOP quando o Uniko surge (transição false→true só) — mesmo
        caminho dos lembretes/avisos do RH (extensão Cat-bot → fallback Web Notifications
@@ -178,6 +210,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const notifiedSpawnRef = useRef(null);
   useEffect(() => {
     if (!available || !cfg) { notifiedSpawnRef.current = null; return; }
+    // Trava de segurança: o aviso NUNCA sai antes do instante do spawn (nem fora da
+    // janela do evento). `available` já respeita isso, mas esta é a garantia de que
+    // nenhum caminho futuro consiga avisar antes do Uniko existir pra todo mundo.
+    if (!isSpawned(cfg)) return;
     const spawnKey = `${cfg.unikoId}-${cfg.startAt || ''}`;
     if (notifiedSpawnRef.current === spawnKey) return;
     notifiedSpawnRef.current = spawnKey;
@@ -185,7 +221,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       id: `capture-uniko-${spawnKey}`,
       type: 'lembrete',
       title: '.✧. Um Uniko selvagem apareceu! .✧.',
-      message: `${uniko.name} surgiu no Capture o Uniko — corre lá antes que as vagas acabem! 🐱`,
+      message: `${uniko.name} está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! 🐱`,
     });
   }, [available, cfg, uniko]);
 

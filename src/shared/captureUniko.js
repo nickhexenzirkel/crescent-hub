@@ -18,18 +18,38 @@ import { getActiveAssistantSkinId, setActiveAssistantSkin, registerCustomSkin } 
    chegando via realtime ao mesmo tempo pra todo mundo. `nowMs()` corrige isso
    somando o desvio medido contra o header Date da resposta do Supabase. ── */
 let _clockOffsetMs = 0;
+let _clockAt = 0;           // quando o desvio foi MEDIDO (relógio local); 0 = nunca mediu
+let _clockInFlight = null;  // medição em voo — quem pedir junto divide a mesma
+let _clockTryAt = 0;        // última TENTATIVA (mesmo falha), pra não martelar offline
 export const nowMs = () => Date.now() + _clockOffsetMs;
+/** Há quanto tempo o desvio foi medido (Infinity = nunca). Um offset velho vale
+    pouco: o relógio do PC pode ter sido corrigido/atrasado desde então. */
+export const serverClockAgeMs = () => (_clockAt ? Date.now() - _clockAt : Infinity);
 export async function syncServerClock() {
   try {
     const t0 = Date.now();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/settings?select=key&limit=1`, {
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      cache: 'no-store',   // resposta vinda do cache traria um header Date VELHO
     });
     const t1 = Date.now();
     const serverMs = Date.parse(res.headers.get('date'));
     if (Number.isNaN(serverMs)) return;
     _clockOffsetMs = (serverMs + (t1 - t0) / 2) - t1; // meio do round-trip ≈ instante t1 no servidor
-  } catch {}
+    _clockAt = Date.now();
+  } catch { /* sem rede: segue com o desvio que já tinha */ }
+}
+/** Garante um desvio medido há no máximo `maxAgeMs` — use antes de tomar QUALQUER
+    decisão baseada no instante do spawn (revelar o encontro, avisar no desktop).
+    Nunca rejeita: se a medição falhar, seguimos com o que houver, porque travar o
+    evento por causa do relógio seria pior do que revelar com alguns segundos de erro. */
+export function ensureServerClock(maxAgeMs = 60 * 1000) {
+  if (serverClockAgeMs() <= maxAgeMs) return Promise.resolve();
+  if (_clockInFlight) return _clockInFlight;
+  if (Date.now() - _clockTryAt < 10 * 1000) return Promise.resolve();  // falhou faz pouco: segue sem
+  _clockTryAt = Date.now();
+  _clockInFlight = syncServerClock().finally(() => { _clockInFlight = null; });
+  return _clockInFlight;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
