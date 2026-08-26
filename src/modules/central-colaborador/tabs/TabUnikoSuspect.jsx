@@ -916,6 +916,22 @@ const MorteOverlay = ({ matador, matadorFoto, vitimaFoto }) => (
 // precisam transbordar pra fora da imagem.
 const taskBtnCss = { border: 'none', background: 'none', cursor: 'pointer', padding: 0, position: 'relative' };
 
+/* Contagem de recarga por cima do botão (Matar/Sabotar) — o número em pé no
+   meio do ícone, como no Among Us. Some sozinha quando chega a zero, e não
+   rouba o clique (`pointerEvents:none`) pro botão voltar a funcionar no
+   mesmo instante em que o número desaparece. */
+const ContagemRecarga = ({ segs }) => {
+  if (!segs) return null;
+  return (
+    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <span style={{ minWidth: '1.9em', padding: '2px 8px', borderRadius: 999, background: 'rgba(8,12,20,.66)',
+        border: '1.5px solid rgba(255,255,255,.28)', color: '#fff', textAlign: 'center',
+        fontFamily: 'var(--font-brand)', fontSize: 'clamp(15px, 2.1vw, 24px)', fontWeight: 800, lineHeight: 1.25,
+        textShadow: '0 2px 6px rgba(0,0,0,.8)' }}>{segs}</span>
+    </span>
+  );
+};
+
 // Cada 💩/🍫/rasgo agora exige MAIS DE UM clique (`ALVO_CLIQUES`) antes de
 // sumir — só um clique ficava instantâneo demais (pedido do usuário: as
 // tarefas estavam rápidas demais). O número de itens também aumentou.
@@ -3125,6 +3141,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // Distância até a energia (pro aviso de baixo) — em "passos" arredondados.
   const energiaDist = energiaAlvo ? Math.round(Math.hypot(energiaAlvo.x - myPos.x, energiaAlvo.y - myPos.y)) : 0;
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
+  /* Recarga em SEGUNDOS pra mostrar em cima dos botões (estilo Among Us) —
+     antes o botão só ficava cinza e ninguém sabia quanto faltava. `agoraTick`
+     anda de meio em meio segundo, o bastante pra um contador de segundos.
+     Matar tem duas esperas e vale a MAIOR: a trégua do começo da partida
+     (`killLiberadoEm`, relógio desta máquina) e a recarga entre mortes
+     (`killCooldowns[name]`, gravada pelo próprio impostor — mesmo relógio). */
+  const segsRestantes = (ms) => Math.max(0, Math.ceil(ms / 1000));
+  const killSegs = segsRestantes(Math.max(
+    killLiberadoEm - agoraTick,
+    KILL_COOLDOWN_MS - (agoraTick - (state?.killCooldowns?.[name] || 0)),
+  ));
+  const sabotarSegs = segsRestantes(SABOTAGEM_COOLDOWN_MS - (agoraTick - (state?.sabotagemCooldown?.[name] || 0)));
   const mostrarSabotar = meuPapel === 'impostor' && !souFantasma && state?.phase === 'jogando' && !state?.reuniao && !state?.vencedor && !state?.sabotagem;
   // O botão de sabotar agora fica SEMPRE na tela (fixo ao lado do matar) e só
   // muda de estado — `podeSabotar` diz se o clique vale agora.
@@ -3704,20 +3732,22 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {meuPapel === 'impostor' && !souFantasma && !state?.vencedor && (
                   <>
                     <button className="sus-btn" onClick={sabotarEnergia} disabled={!podeSabotar}
-                      title={emCooldownSabotagem ? 'Sabotagem recarregando' : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
+                      title={sabotarSegs > 0 ? `Sabotagem recarregando (${sabotarSegs}s)` : state?.sabotagem ? 'J\u00e1 tem uma sabotagem rolando' : 'Sabotar energia'}
                       style={{ ...taskBtnCss, cursor: podeSabotar ? 'pointer' : 'not-allowed' }}>
                       <img draggable={false} src={BOTAO_SABOTAR_IMG} alt="Sabotar energia"
                         style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: podeSabotar ? 1 : .45,
                           filter: podeSabotar ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
+                      <ContagemRecarga segs={sabotarSegs} />
                     </button>
                     <button className="sus-btn" onClick={() => vitimaProxima && matar(vitimaProxima)} disabled={!vitimaProxima}
-                      title={vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
+                      title={killSegs > 0 ? `Recarregando (${killSegs}s)` : vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
                       style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
                       <img draggable={false} src={BOTAO_MATAR_IMG} alt="Matar"
                         style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
                           opacity: vitimaProxima ? 1 : .45,
                           filter: vitimaProxima ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
+                      <ContagemRecarga segs={killSegs} />
                     </button>
                   </>
                 )}
