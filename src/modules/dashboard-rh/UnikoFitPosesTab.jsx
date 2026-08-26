@@ -43,16 +43,43 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Reset do ranking/check-ins (mesmo efeito do supabase_uniko_fit_reset.sql,
-  // só que pelo painel). `resetModal` guarda o passo de confirmação.
+  // Limpezas do Uniko FIT, uma por vez (mesmas tabelas do
+  // supabase_uniko_fit_reset.sql, só que picadas): dá pra zerar SÓ os
+  // check-ins (o que reseta o ranking), SÓ os posts do feed ou SÓ o
+  // Bate-Papo. `resetAlvo` guarda qual está sendo confirmado no modal.
   const [resumo, setResumo] = useState(null); // { checkins, posts, chat }
-  const [resetModal, setResetModal] = useState(false);
-  const [resetChat, setResetChat] = useState(false); // apagar o Bate-Papo junto?
+  const [resetAlvo, setResetAlvo] = useState(null); // id do alvo em confirmação, null = fechado
   const [resetTexto, setResetTexto] = useState('');
   const [resetando, setResetando] = useState(false);
   const [resetMsg, setResetMsg] = useState('');
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+
+  // Check-in e post moram na MESMA tabela (`uniko_fit_checkins`), separados
+  // pela coluna `kind` — por isso os dois primeiros alvos são a mesma tabela
+  // com filtros opostos. Apagar uma foto leva as curtidas e comentários dela
+  // junto (`on delete cascade` no banco).
+  const ALVOS = [
+    {
+      id: 'checkins', titulo: 'Check-ins', chave: 'checkins',
+      desc: 'Zera o ranking e a frequência de treino de todo mundo. As curtidas e comentários dessas fotos vão junto; os posts do feed continuam.',
+      apagar: () => _supabase.from('uniko_fit_checkins').delete().eq('kind', 'checkin'),
+      ok: '✅ Check-ins apagados — o ranking está zerado.',
+    },
+    {
+      id: 'posts', titulo: 'Posts do feed', chave: 'posts',
+      desc: 'Apaga só o que foi postado em "Postar no Feed" (com as curtidas e comentários). O ranking e os check-ins não são tocados.',
+      apagar: () => _supabase.from('uniko_fit_checkins').delete().neq('kind', 'checkin'),
+      ok: '✅ Posts do feed apagados.',
+    },
+    {
+      id: 'chat', titulo: 'Mensagens do Bate-Papo', chave: 'chat',
+      desc: 'Limpa a conversa do grupo, incluindo os avisos automáticos de check-in. Não mexe em foto nenhuma.',
+      apagar: () => _supabase.from('uniko_fit_chat').delete().gt('id', 0),
+      ok: '✅ Bate-Papo limpo.',
+    },
+  ];
+  const alvoAtual = ALVOS.find(a => a.id === resetAlvo) || null;
 
   // Quanto tem hoje no Uniko FIT (só pra pessoa ver o tamanho do estrago antes
   // de zerar). `head: true` traz só a contagem, não as linhas.
@@ -67,26 +94,20 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
     } catch { setResumo(null); }
   };
 
+  const abrirReset = (alvo) => { setResetAlvo(alvo.id); setResetTexto(''); setResetMsg(''); carregarResumo(); };
+
   const resetar = async () => {
+    if (!alvoAtual) return;
     if (resetTexto.trim().toUpperCase() !== 'RESETAR') { setResetMsg('Digite RESETAR pra confirmar.'); return; }
     setResetando(true); setResetMsg('');
     try {
-      // Curtidas e comentários sairiam sozinhos no cascade dos check-ins —
-      // apagar na mão primeiro deixa o erro claro se alguma política de RLS
-      // estiver faltando, em vez de falhar tudo de uma vez no fim.
-      for (const tabela of ['uniko_fit_comments', 'uniko_fit_reactions', 'uniko_fit_checkins']) {
-        const { error } = await _supabase.from(tabela).delete().gt('id', 0);
-        if (error) throw new Error(`${tabela}: ${error.message}`);
-      }
-      if (resetChat) {
-        const { error } = await _supabase.from('uniko_fit_chat').delete().gt('id', 0);
-        if (error) throw new Error(`uniko_fit_chat: ${error.message}`);
-      }
-      setResetModal(false); setResetTexto(''); setResetChat(false);
+      const { error } = await alvoAtual.apagar();
+      if (error) throw new Error(error.message);
+      setResetAlvo(null); setResetTexto('');
       await carregarResumo();
-      flash('✅ Ranking e check-ins zerados! Quem estiver com o Uniko FIT aberto precisa recarregar.');
+      flash(`${alvoAtual.ok} Quem estiver com o Uniko FIT aberto precisa recarregar.`);
     } catch (e) {
-      setResetMsg('Erro ao resetar: ' + (e.message || ''));
+      setResetMsg('Erro ao apagar: ' + (e.message || ''));
     }
     setResetando(false);
   };
@@ -276,52 +297,57 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
         </div>
       </Card>
 
-      {/* Zona de perigo — zerar ranking e check-ins */}
-      <Card style={{ padding: '18px 22px', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(192,64,80,0.28)' }} elevated>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 260 }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: '#C04050', marginBottom: 4 }}>Zerar ranking e check-ins</div>
-            <div style={{ fontSize: 12.5, color: T.textS, lineHeight: 1.5 }}>
-              Apaga TODOS os check-ins e posts do feed, com as curtidas, comentários e notificações que vieram deles. O ranking e o &ldquo;Meu Perfil&rdquo; de todo mundo voltam do zero. As poses dos Desafios não são afetadas.
-            </div>
-            <div style={{ fontSize: 11.5, color: T.textT, marginTop: 6 }}>
-              {resumo
-                ? <>Hoje: <b>{resumo.checkins}</b> check-in{resumo.checkins !== 1 ? 's' : ''} · <b>{resumo.posts}</b> post{resumo.posts !== 1 ? 's' : ''} do feed · <b>{resumo.chat}</b> mensagem{resumo.chat !== 1 ? 's' : ''} no Bate-Papo</>
-                : 'Contagem indisponível.'}
-            </div>
+      {/* Zona de perigo — cada coisa se apaga por conta própria */}
+      <Card style={{ padding: 0, overflow: 'hidden', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(192,64,80,0.28)' }} elevated>
+        <div style={{ padding: '16px 22px 12px' }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: '#C04050' }}>Zona de perigo</div>
+          <div style={{ fontSize: 12.5, color: T.textS, marginTop: 3 }}>
+            Cada limpeza vale por si só e é irreversível. As poses dos Desafios nunca são afetadas, e as fotos já enviadas continuam no Storage (só somem do app).
           </div>
-          <button onClick={() => { setResetMsg(''); setResetTexto(''); setResetModal(true); carregarResumo(); }}
-            style={{ padding: '10px 22px', borderRadius: 10, border: '1px solid rgba(192,64,80,0.35)', background: 'rgba(192,64,80,0.07)', color: '#C04050', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)', flexShrink: 0 }}>
-            Resetar tudo
-          </button>
+        </div>
+        {ALVOS.map(a => (
+          <div key={a.id} style={{ padding: '13px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>
+                {a.titulo} <span style={{ fontWeight: 500, color: T.textT, fontSize: 12 }}>· {resumo ? `${resumo[a.chave]} registro${resumo[a.chave] !== 1 ? 's' : ''}` : '—'}</span>
+              </div>
+              <div style={{ fontSize: 12, color: T.textS, marginTop: 2, lineHeight: 1.45 }}>{a.desc}</div>
+            </div>
+            <button onClick={() => abrirReset(a)} disabled={!!resumo && resumo[a.chave] === 0}
+              style={{ padding: '8px 18px', borderRadius: 9, border: '1px solid rgba(192,64,80,0.35)', background: 'rgba(192,64,80,0.07)', color: '#C04050',
+                cursor: (!!resumo && resumo[a.chave] === 0) ? 'default' : 'pointer', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', flexShrink: 0,
+                opacity: (!!resumo && resumo[a.chave] === 0) ? 0.45 : 1 }}>
+              Zerar
+            </button>
+          </div>
+        ))}
+        <div style={{ padding: '10px 22px 14px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={carregarResumo}
+            style={{ padding: '5px 12px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', fontSize: 12, color: T.textS, fontFamily: 'var(--font-body)' }}>↻ Atualizar contagem</button>
         </div>
       </Card>
 
-      {/* Confirmação do reset (irreversível — pede a palavra digitada) */}
-      {resetModal && (
-        <div onClick={() => !resetando && setResetModal(false)}
+      {/* Confirmação (irreversível — pede a palavra digitada) */}
+      {alvoAtual && (
+        <div onClick={() => !resetando && setResetAlvo(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,10,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 460, background: T.surface, borderRadius: 16, border: `1px solid ${T.border}`, boxShadow: '0 20px 60px rgba(0,0,0,.28)', padding: '22px 24px' }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 700, color: '#C04050', marginBottom: 8 }}>Resetar o Uniko FIT?</div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 700, color: '#C04050', marginBottom: 8 }}>Apagar {alvoAtual.titulo.toLowerCase()}?</div>
             <div style={{ fontSize: 13, color: T.textS, lineHeight: 1.55, marginBottom: 14 }}>
-              Isso apaga {resumo ? <><b>{resumo.checkins}</b> check-in{resumo.checkins !== 1 ? 's' : ''} e <b>{resumo.posts}</b> post{resumo.posts !== 1 ? 's' : ''}</> : 'todos os check-ins e posts'} com curtidas e comentários. <b>Não tem como desfazer.</b> As fotos já enviadas continuam no Storage, mas ninguém mais vê.
+              {resumo ? <><b>{resumo[alvoAtual.chave]}</b> registro{resumo[alvoAtual.chave] !== 1 ? 's' : ''} sairão de vez. </> : null}{alvoAtual.desc} <b>Não tem como desfazer.</b>
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.textS, marginBottom: 14, cursor: 'pointer' }}>
-              <input type="checkbox" checked={resetChat} onChange={e => setResetChat(e.target.checked)} />
-              Apagar também as mensagens do Bate-Papo{resumo ? ` (${resumo.chat})` : ''}
-            </label>
             <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Digite <b>RESETAR</b> pra confirmar</div>
             <input value={resetTexto} onChange={e => setResetTexto(e.target.value)} placeholder="RESETAR" autoFocus
               onKeyDown={e => { if (e.key === 'Enter' && !resetando) resetar(); }} style={inputStyle} />
             {resetMsg && <div style={{ fontSize: 12, color: '#C04050', marginTop: 10, padding: '7px 12px', borderRadius: 7, background: 'rgba(192,64,80,0.06)' }}>{resetMsg}</div>}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-              <button onClick={() => setResetModal(false)} disabled={resetando}
+              <button onClick={() => setResetAlvo(null)} disabled={resetando}
                 style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)' }}>Cancelar</button>
               <button onClick={resetar} disabled={resetando || resetTexto.trim().toUpperCase() !== 'RESETAR'}
                 style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: '#C04050', color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
                   cursor: resetando ? 'wait' : 'pointer', opacity: resetTexto.trim().toUpperCase() === 'RESETAR' ? 1 : 0.5 }}>
-                {resetando ? 'Apagando...' : 'Apagar tudo'}
+                {resetando ? 'Apagando...' : 'Apagar'}
               </button>
             </div>
           </div>
