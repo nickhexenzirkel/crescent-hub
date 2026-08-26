@@ -41,11 +41,16 @@ const ROOM_TTL_MS = 20 * 60 * 1000;    // sala vazia parada há 20min = lixo
    esse pessoal como Tripulante. Sem isso a partida podia terminar na
    PRIMEIRA morte achando que só existiam os 2 nomes sorteados — era esse o
    bug da sala com 5 pessoas que acabou com um único assassinato. */
-const vivosPorTime = (s, players = []) => {
+/* Quem está VIVO em cada time. Conta só quem RECEBEU PAPEL no sorteio — a
+   lista de presença (`players`) entrava aqui antes e qualquer pessoa que
+   chegasse na sala DEPOIS do sorteio virava "tripulante vivo" sem papel
+   nenhum, segurando o fim da partida (bug real: o último tripulante era
+   expulso, virava fantasma e a tela de vitória nunca aparecia). `players`
+   continua no parâmetro só pra não mudar a chamada de todo mundo. */
+const vivosPorTime = (s) => {
   const papeis = s?.papeis || {};
   const fantasmas = s?.fantasmas || [];
-  const nomes = [...new Set([...Object.keys(papeis), ...players.map(p => p?.name).filter(Boolean)])];
-  const vivos = nomes.filter(n => !fantasmas.includes(n));
+  const vivos = Object.keys(papeis).filter(n => !fantasmas.includes(n));
   return {
     impostores: vivos.filter(n => papeis[n] === 'impostor'),
     tripulantes: vivos.filter(n => papeis[n] !== 'impostor'),
@@ -55,17 +60,19 @@ const vivosPorTime = (s, players = []) => {
 /* ── Regra de vitória (ago/2026) ────────────────────────────────────────────
    • Tripulantes vencem quando TODOS os impostores estão fora. Com 2+
      impostores, expulsar um NÃO termina o jogo (o outro segue solto).
-   • Impostor(es) vencem quando ficam em número IGUAL ou MAIOR que os
-     tripulantes vivos — é o ponto em que não dá mais pra perder: 1 impostor
-     contra 1 tripulante já é vitória dele (mata quando quiser e não existe
-     maioria pra expulsá-lo). Arrastar até "matar todo mundo" só faria a sala
-     inteira esperar um desfecho que já estava decidido.
+   • Impostor(es) vencem quando NÃO SOBRA nenhum tripulante vivo.
+   A regra era "impostores >= tripulantes" (a do Among Us) e foi trocada a
+   pedido do usuário: numa sala de 2 pessoas o jogo acabava sozinho no
+   primeiro segundo, com o impostor vencendo sem ter feito nada — e a mesma
+   coisa acontecia numa sala de 3 assim que a primeira morte deixava 1x1.
+   Agora o impostor precisa fechar a conta matando (ou fazendo expulsarem)
+   o último tripulante.
    Retorna null enquanto o jogo continua. */
-const decidirVencedor = (s, players = []) => {
+const decidirVencedor = (s) => {
   if (!s?.papeis || Object.keys(s.papeis).length === 0) return null;   // partida nem sorteada
-  const { impostores, tripulantes } = vivosPorTime(s, players);
+  const { impostores, tripulantes } = vivosPorTime(s);
   if (impostores.length === 0) return 'tripulante';
-  if (impostores.length >= tripulantes.length) return 'impostor';
+  if (tripulantes.length === 0) return 'impostor';
   return null;
 };
 
@@ -2318,6 +2325,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     setPositions({});
     setKillLiberadoEm(agoraTick + KILL_GRACA_INICIAL_MS);   // relógio LOCAL — ver KILL_GRACA_INICIAL_MS
   }
+  /* `myPosRef` é a autoridade de verdade: é ele que o loop de 60fps lê, que
+     pinta o boneco no DOM e que vai no broadcast — `myPos` (estado do React)
+     só acompanha de longe. Sem zerar o REF junto, o `setMyPos(spawnFor())`
+     acima não mudava nada na prática e todo mundo reaparecia exatamente onde
+     tinha parado na partida anterior (o efeito de `[myPos]` que o comentário
+     acima menciona só existe no `BarcoLobby`, nunca existiu aqui). */
+  useEffect(() => { myPosRef.current = spawnFor(); }, [roundVisto]);
 
   const pintarSeta = useCallback(() => {
     const seta = setaRef.current; if (!seta) return;
@@ -2616,7 +2630,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       const proximo = { ...s, fantasmas, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
         ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } };
       // Vitória só quando não sobra NENHUM tripulante vivo (ver decidirVencedor).
-      return { ...proximo, vencedor: decidirVencedor(proximo, playersRef.current) };
+      return { ...proximo, vencedor: decidirVencedor(proximo) };
     });
   };
   useEffect(() => { matarRef.current = matar; });
@@ -2653,7 +2667,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     mutateState(s => {
       if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return null;   // o Impostor não conserta a própria sabotagem
       const consertadoPor = [...new Set([...(s.sabotagem.consertadoPor || []), name])];
-      const tripulantesVivos = vivosPorTime(s, playersRef.current).tripulantes;
+      const tripulantesVivos = vivosPorTime(s).tripulantes;
       const completo = tripulantesVivos.length > 0 && tripulantesVivos.every(n => consertadoPor.includes(n));
       return { ...s, sabotagem: completo ? null : { ...s.sabotagem, consertadoPor } };
     });
@@ -2761,7 +2775,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // `decidirVencedor` (com 2+ impostores, tirar um NÃO encerra o jogo).
     const novosFantasmas = expulsoFinal ? [...new Set([...fantasmasAtuais, expulsoFinal])] : fantasmasAtuais;
     const proximo = { ...s, fantasmas: novosFantasmas };
-    const vencedor = decidirVencedor(proximo, playersRef.current);
+    const vencedor = decidirVencedor(proximo);
 
     return { ...proximo, vencedor,
       reuniao: { ...rr, fase: 'resultado', faseIniciadaEm: Date.now(), resultado: { expulso: expulsoFinal, empate, vencedor } } };
@@ -2782,9 +2796,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       } else if (rr.fase === 'votacao') {
         // Fantasmas não votam — só quem ainda tá vivo entra na conta de "todo
         // mundo já votou" (senão a votação nunca pularia sozinha com alguém já morto na sala).
+        // Quem vota = tem papel na partida E ainda está na sala: sem o papel
+        // seria contar quem chegou depois do sorteio (nunca vota, a votação
+        // só terminaria no estouro do relógio); sem a presença seria esperar
+        // por quem fechou o navegador no meio.
         const fantasmasPrevia = s.fantasmas || [];
-        const vivosPrevia = playersRef.current.filter(p => !fantasmasPrevia.includes(p.name));
-        const todosVotaramPrevia = vivosPrevia.length > 0 && vivosPrevia.every(p => rr.votos?.[p.name] !== undefined);
+        const presentes = new Set(playersRef.current.map(p => p.name));
+        const vivosPrevia = Object.keys(s.papeis || {}).filter(n => !fantasmasPrevia.includes(n) && presentes.has(n));
+        const todosVotaramPrevia = vivosPrevia.length > 0 && vivosPrevia.every(n => rr.votos?.[n] !== undefined);
         if (decorrido < REUNIAO_FASE_MS && !todosVotaramPrevia) return;   // ainda esperando
         // A APURAÇÃO em si vai por `mutateState`: é a hora em que um voto
         // recém-dado por outra pessoa ainda pode estar a caminho, e contar
@@ -3710,7 +3729,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               <div style={{ position: 'absolute', top: '2.5%', left: '50%', transform: 'translateX(-50%)', zIndex: 7,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none', maxWidth: '62%' }}>
                 {!!state?.sabotagem && (() => {
-                  const tripulantesVivos = vivosPorTime(state, players).tripulantes;
+                  const tripulantesVivos = vivosPorTime(state).tripulantes;
                   const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
                   return (
                     <AvisoJogo cor="#D97706" icone="⚡" titulo="Energia sabotada!"
