@@ -1511,31 +1511,72 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => { const iv = setInterval(() => setAgora(Date.now()), 500); return () => clearInterval(iv); }, []);
   const chatBoxRef = useRef(null);
-  useEffect(() => { if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight; }, [mensagens]);
+
+  /* O chat virou uma GAVETA (ago/2026, layout no espírito do tablet do Among
+     Us): fica aberto durante a conversa e se recolhe sozinho quando a votação
+     começa, pra a grade de jogadores ocupar a tela. O balãozinho no cabeçalho
+     abre/fecha a qualquer momento e mostra quantas mensagens chegaram
+     enquanto estava fechado. */
+  const [chatAberto, setChatAberto] = useState(true);
+  const [faseVista, setFaseVista] = useState(reuniao.fase);
+  if (faseVista !== reuniao.fase) {
+    setFaseVista(reuniao.fase);
+    setChatAberto(reuniao.fase === 'chat');
+  }
+  const [vistas, setVistas] = useState(mensagens.length);
+  if (chatAberto && vistas !== mensagens.length) setVistas(mensagens.length);
+  const naoLidas = Math.max(0, mensagens.length - vistas);
+  useEffect(() => { if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight; }, [mensagens, chatAberto]);
 
   const duracao = reuniao.fase === 'resultado' ? REUNIAO_RESULTADO_MS : REUNIAO_FASE_MS;
   const restante = Math.max(0, Math.ceil((duracao - (agora - reuniao.faseIniciadaEm)) / 1000));
   const meuVoto = reuniao.votos?.[name];
   const jaVotei = meuVoto !== undefined;
   const votantes = new Set(Object.keys(reuniao.votos || {}));
+  const votando = reuniao.fase === 'votacao';
+  const pularEscolhido = meuVoto === null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 640, margin: '0 auto', padding: '4px 4px 10px' }}>
-      <div className="sus-pop" style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 30 }}>🚨</div>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#DC2626' }}>
-          Reunião de emergência — chamada por {reuniao.chamadaPor.split(' ')[0]}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 760, margin: '0 auto', padding: '4px 4px 10px' }}>
+
+      {/* ── Cabeçalho: quem chamou, cronômetro e o botão do chat ─────────── */}
+      <div className="sus-pop" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+          <div style={{ fontSize: 26, lineHeight: 1 }}>🚨</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: '#DC2626' }}>
+            Reunião de emergência — chamada por {reuniao.chamadaPor.split(' ')[0]}
+          </div>
+          <div style={{ fontSize: 13, color: T.textT, marginTop: 2 }}>
+            {reuniao.fase === 'chat' && `Conversem! ${restante}s pra votação começar.`}
+            {votando && `Votem em quem acham que é o Impostor. ${restante}s restantes.`}
+            {reuniao.fase === 'resultado' && (reuniao.resultado?.vencedor ? 'Fim de jogo!' : `Retomando o jogo em ${restante}s...`)}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: T.textT, marginTop: 2 }}>
-          {reuniao.fase === 'chat' && `Conversem! ${restante}s pra votação começar.`}
-          {reuniao.fase === 'votacao' && `Votem em quem acham que é o Impostor. ${restante}s restantes.`}
-          {reuniao.fase === 'resultado' && (reuniao.resultado?.vencedor ? 'Fim de jogo!' : `Retomando o jogo em ${restante}s...`)}
-        </div>
+        {reuniao.fase !== 'resultado' && (
+          <button className="sus-btn" onClick={() => setChatAberto(a => !a)}
+            title={chatAberto ? 'Fechar o chat' : 'Abrir o chat'}
+            style={{ position: 'relative', flexShrink: 0, width: 54, height: 54, borderRadius: 14, cursor: 'pointer',
+              border: `2px solid ${chatAberto ? AGUA : T.border}`,
+              background: chatAberto ? `${AGUA}1f` : (T.surface || '#fff'),
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25 }}>
+            💬
+            {!chatAberto && naoLidas > 0 && (
+              <span className="sus-pop" style={{ position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, padding: '0 5px',
+                borderRadius: 999, background: IMPOSTOR_COR, color: '#fff', fontSize: 11, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.surface || '#fff'}` }}>
+                {naoLidas > 9 ? '9+' : naoLidas}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
-      {reuniao.fase !== 'resultado' && (
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface || '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div ref={chatBoxRef} style={{ height: 220, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* ── Chat (gaveta) ─────────────────────────────────────────────────── */}
+      {reuniao.fase !== 'resultado' && chatAberto && (
+        <div className="sus-fade" style={{ border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface || '#fff',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div ref={chatBoxRef} style={{ height: votando ? 150 : 220, overflowY: 'auto', padding: '10px 12px',
+            display: 'flex', flexDirection: 'column', gap: 6 }}>
             {mensagens.length === 0 && <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 20 }}>Ninguém falou nada ainda...</div>}
             {mensagens.map(m => (
               <div key={m.id} style={{ fontSize: 12.5, color: T.text }}>
@@ -1543,95 +1584,113 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
               </div>
             ))}
           </div>
-          {/* O campo de texto vale no CHAT e também na VOTAÇÃO: antes ele
-              sumia quando a votação abria e a sala ficava muda justo na hora
-              de se defender ("o chat some e não dá pra digitar"). O botão
-              "Vamos votar" é que só aparece na fase de chat. */}
-          {reuniao.fase !== 'resultado' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderTop: `1px solid ${T.border}` }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') onEnviarChat(); }}
-                  maxLength={240} placeholder="Escreva algo suspeito..."
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13 }} />
-                <button className="sus-btn" onClick={onEnviarChat} disabled={!chatTexto.trim()}
-                  style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
-                    background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
-              </div>
-              {reuniao.fase === 'chat' && (
-                <button className="sus-btn" onClick={onIniciarVotacao}
-                  style={{ padding: '9px 12px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                    background: `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, boxShadow: `0 6px 16px ${IMPOSTOR_COR}44` }}>
-                  🗳️ Vamos votar
-                </button>
-              )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={chatTexto} onChange={e => setChatTexto(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') onEnviarChat(); }}
+                maxLength={240} placeholder="Escreva algo suspeito..."
+                style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`,
+                  background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 13 }} />
+              <button className="sus-btn" onClick={onEnviarChat} disabled={!chatTexto.trim()}
+                style={{ padding: '9px 16px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13,
+                  cursor: chatTexto.trim() ? 'pointer' : 'not-allowed',
+                  background: chatTexto.trim() ? `linear-gradient(135deg, ${AGUA}, ${CEU})` : T.textD }}>Enviar</button>
             </div>
-          )}
+            {reuniao.fase === 'chat' && (
+              <button className="sus-btn" onClick={onIniciarVotacao}
+                style={{ padding: '9px 12px', borderRadius: 9, border: 'none', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+                  background: `linear-gradient(135deg, ${IMPOSTOR_COR}, #FF7A85)`, boxShadow: `0 6px 16px ${IMPOSTOR_COR}44` }}>
+                🗳️ Vamos votar
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {reuniao.fase === 'votacao' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center' }}>Dá pra trocar de voto quantas vezes quiser até a votação fechar.</div>
-          {players.map(p => {
-            const votosNele = Object.entries(reuniao.votos || {}).filter(([, alvo]) => alvo === p.name).map(([quem]) => quem);
-            const morto = mortos.includes(p.name);
-            return (
-              <button key={p.name} className="sus-btn" onClick={() => { if (!morto) onVotar(p.name); }}
-                disabled={morto}
-                title={morto ? `${p.name} j\u00e1 foi eliminado` : `Votar em ${p.name}`}
-                style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '11px 14px', borderRadius: 13, textAlign: 'left',
-                  cursor: morto ? 'not-allowed' : 'pointer',
-                  border: `1.5px solid ${morto ? 'rgba(220,38,38,.35)' : (meuVoto === p.name ? IMPOSTOR_COR : T.border)}`,
-                  background: morto ? 'rgba(220,38,38,.07)' : (meuVoto === p.name ? `${IMPOSTOR_COR}14` : (T.surface || '#fff')),
-                  opacity: morto ? .72 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                  {/* Uniko maior + X vermelho por cima de quem morreu */}
-                  <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-                    <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover',
-                      background: '#fff', filter: morto ? 'grayscale(1) brightness(.72)' : 'none' }} />
+      {/* ── VOTAÇÃO — painel em DUAS COLUNAS, no espírito do tablet do Among
+          Us: título em cima, um cartão por pessoa lado a lado, e o botão de
+          pular grandão no rodapé, ocupando a largura toda. ──────────────── */}
+      {votando && (
+        <div className="sus-fade" style={{ borderRadius: 18, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.03)',
+          padding: 14, boxShadow: T.sh }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text,
+            textAlign: 'center', letterSpacing: '.02em', marginBottom: 4 }}>
+            Quem é o Impostor?
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textT, textAlign: 'center', marginBottom: 12 }}>
+            Dá pra trocar de voto quantas vezes quiser até a votação fechar.
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 9 }}>
+            {players.map(p => {
+              const votosNele = Object.entries(reuniao.votos || {}).filter(([, alvo]) => alvo === p.name).map(([quem]) => quem);
+              const morto = mortos.includes(p.name);
+              const escolhido = meuVoto === p.name;
+              return (
+                <button key={p.name} className="sus-btn" onClick={() => { if (!morto) onVotar(p.name); }}
+                  disabled={morto}
+                  title={morto ? `${p.name} já foi eliminado` : `Votar em ${p.name}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, textAlign: 'left',
+                    cursor: morto ? 'not-allowed' : 'pointer', minWidth: 0,
+                    border: `2px solid ${morto ? 'rgba(220,38,38,.3)' : (escolhido ? IMPOSTOR_COR : T.border)}`,
+                    background: morto ? 'rgba(220,38,38,.06)' : (escolhido ? `${IMPOSTOR_COR}14` : (T.surface || '#fff')),
+                    opacity: morto ? .7 : 1 }}>
+                  {/* Uniko + X vermelho por cima de quem morreu */}
+                  <div style={{ position: 'relative', width: 46, height: 46, flexShrink: 0 }}>
+                    <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt=""
+                      style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover', background: '#fff',
+                        filter: morto ? 'grayscale(1) brightness(.72)' : 'none' }} />
                     {morto && (
-                      <svg viewBox="0 0 24 24" width="52" height="52" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                      <svg viewBox="0 0 24 24" width="46" height="46" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                         <line x1="4" y1="4" x2="20" y2="20" stroke="#DC2626" strokeWidth="3.2" strokeLinecap="round" />
                         <line x1="20" y1="4" x2="4" y2="20" stroke="#DC2626" strokeWidth="3.2" strokeLinecap="round" />
                       </svg>
                     )}
                   </div>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800,
-                      color: morto ? '#DC2626' : T.text,
-                      textDecoration: morto ? 'line-through' : 'none',
-                      textDecorationColor: morto ? '#DC2626' : undefined,
+                    <div style={{ fontSize: 14.5, fontWeight: 800, color: morto ? '#DC2626' : T.text,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      textDecoration: morto ? 'line-through' : 'none', textDecorationColor: morto ? '#DC2626' : undefined,
                       textDecorationThickness: morto ? '2px' : undefined }}>{p.name}</div>
                     {morto
-                      ? <div style={{ fontSize: 11.5, fontWeight: 700, color: '#DC2626', marginTop: 2 }}>Eliminado</div>
+                      ? <div style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', marginTop: 1 }}>Eliminado</div>
                       : votosNele.length > 0 && (
-                        <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>votos de: {votosNele.map(v => v.split(' ')[0]).join(', ')}</div>
+                        <div style={{ fontSize: 11, color: T.textT, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {votosNele.map(v => v.split(' ')[0]).join(', ')}
+                        </div>
                       )}
                   </div>
-                  {!morto && votosNele.length > 0 && (
-                    <span style={{ fontSize: 12.5, fontWeight: 800, color: IMPOSTOR_COR, flexShrink: 0 }}>{votosNele.length} voto{votosNele.length > 1 ? 's' : ''}</span>
-                  )}
-                  {!morto && votantes.has(p.name) && <span title="J\u00e1 votou" style={{ fontSize: 15, flexShrink: 0 }}>\u2705</span>}
-                </div>
-              </button>
-            );
-          })}
-          {/* Do mesmo tamanho dos cartões de voto: era uma tirinha fina de
-              12px que ninguém achava no meio da lista. */}
+
+                  {/* Contador de votos + selo de "esta pessoa já votou" */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                    {!morto && votosNele.length > 0 && (
+                      <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 999, background: `${IMPOSTOR_COR}1f`,
+                        color: IMPOSTOR_COR, fontSize: 12.5, fontWeight: 800,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{votosNele.length}</span>
+                    )}
+                    {!morto && votantes.has(p.name) && <span title="Já votou" style={{ fontSize: 14 }}>✅</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* PULAR VOTAÇÃO — largura toda e bem alto, igual à barra do tablet */}
           <button className="sus-btn" onClick={() => onVotar(null)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-              padding: '15px 14px', borderRadius: 13,
-              border: meuVoto === null ? `2px solid ${AGUA}` : `2px dashed ${T.border}`,
-              background: meuVoto === null ? `${AGUA}18` : 'transparent',
-              color: meuVoto === null ? AGUA : T.textS, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
-            <span style={{ fontSize: 20 }}>{meuVoto === null ? '✅' : '⏭️'}</span>
-            Pular votação (não votar em ninguém)
+            style={{ width: '100%', marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              padding: '16px 14px', borderRadius: 14, cursor: 'pointer',
+              border: pularEscolhido ? `2px solid ${AGUA}` : `2px dashed ${T.border}`,
+              background: pularEscolhido ? `${AGUA}18` : 'transparent',
+              color: pularEscolhido ? AGUA : T.textS, fontSize: 15.5, fontWeight: 800, letterSpacing: '.02em' }}>
+            <span style={{ fontSize: 21 }}>{pularEscolhido ? '✅' : '⏭️'}</span>
+            PULAR VOTAÇÃO
           </button>
+
           {jaVotei && (
             <button className="sus-btn" onClick={onRetirarVoto}
-              style={{ padding: '8px 12px', borderRadius: 11, border: 'none', background: 'transparent',
-                color: T.textD, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+              style={{ width: '100%', marginTop: 7, padding: '9px 12px', borderRadius: 11, border: 'none', background: 'transparent',
+                color: T.textD, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
               ↩️ Retirar meu voto
             </button>
           )}
