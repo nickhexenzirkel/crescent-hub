@@ -43,7 +43,53 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Reset do ranking/check-ins (mesmo efeito do supabase_uniko_fit_reset.sql,
+  // só que pelo painel). `resetModal` guarda o passo de confirmação.
+  const [resumo, setResumo] = useState(null); // { checkins, posts, chat }
+  const [resetModal, setResetModal] = useState(false);
+  const [resetChat, setResetChat] = useState(false); // apagar o Bate-Papo junto?
+  const [resetTexto, setResetTexto] = useState('');
+  const [resetando, setResetando] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+
+  // Quanto tem hoje no Uniko FIT (só pra pessoa ver o tamanho do estrago antes
+  // de zerar). `head: true` traz só a contagem, não as linhas.
+  const carregarResumo = async () => {
+    try {
+      const [ci, po, ch] = await Promise.all([
+        _supabase.from('uniko_fit_checkins').select('id', { count: 'exact', head: true }).eq('kind', 'checkin'),
+        _supabase.from('uniko_fit_checkins').select('id', { count: 'exact', head: true }).neq('kind', 'checkin'),
+        _supabase.from('uniko_fit_chat').select('id', { count: 'exact', head: true }),
+      ]);
+      setResumo({ checkins: ci.count || 0, posts: po.count || 0, chat: ch.count || 0 });
+    } catch { setResumo(null); }
+  };
+
+  const resetar = async () => {
+    if (resetTexto.trim().toUpperCase() !== 'RESETAR') { setResetMsg('Digite RESETAR pra confirmar.'); return; }
+    setResetando(true); setResetMsg('');
+    try {
+      // Curtidas e comentários sairiam sozinhos no cascade dos check-ins —
+      // apagar na mão primeiro deixa o erro claro se alguma política de RLS
+      // estiver faltando, em vez de falhar tudo de uma vez no fim.
+      for (const tabela of ['uniko_fit_comments', 'uniko_fit_reactions', 'uniko_fit_checkins']) {
+        const { error } = await _supabase.from(tabela).delete().gt('id', 0);
+        if (error) throw new Error(`${tabela}: ${error.message}`);
+      }
+      if (resetChat) {
+        const { error } = await _supabase.from('uniko_fit_chat').delete().gt('id', 0);
+        if (error) throw new Error(`uniko_fit_chat: ${error.message}`);
+      }
+      setResetModal(false); setResetTexto(''); setResetChat(false);
+      await carregarResumo();
+      flash('✅ Ranking e check-ins zerados! Quem estiver com o Uniko FIT aberto precisa recarregar.');
+    } catch (e) {
+      setResetMsg('Erro ao resetar: ' + (e.message || ''));
+    }
+    setResetando(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -56,6 +102,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
       const map = {}; (overridesData || []).forEach(o => { map[o.pose_id] = o.image_url; });
       setOverrides(map);
     } catch {}
+    carregarResumo();
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -228,6 +275,58 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
           })}
         </div>
       </Card>
+
+      {/* Zona de perigo — zerar ranking e check-ins */}
+      <Card style={{ padding: '18px 22px', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(192,64,80,0.28)' }} elevated>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: '#C04050', marginBottom: 4 }}>Zerar ranking e check-ins</div>
+            <div style={{ fontSize: 12.5, color: T.textS, lineHeight: 1.5 }}>
+              Apaga TODOS os check-ins e posts do feed, com as curtidas, comentários e notificações que vieram deles. O ranking e o &ldquo;Meu Perfil&rdquo; de todo mundo voltam do zero. As poses dos Desafios não são afetadas.
+            </div>
+            <div style={{ fontSize: 11.5, color: T.textT, marginTop: 6 }}>
+              {resumo
+                ? <>Hoje: <b>{resumo.checkins}</b> check-in{resumo.checkins !== 1 ? 's' : ''} · <b>{resumo.posts}</b> post{resumo.posts !== 1 ? 's' : ''} do feed · <b>{resumo.chat}</b> mensagem{resumo.chat !== 1 ? 's' : ''} no Bate-Papo</>
+                : 'Contagem indisponível.'}
+            </div>
+          </div>
+          <button onClick={() => { setResetMsg(''); setResetTexto(''); setResetModal(true); carregarResumo(); }}
+            style={{ padding: '10px 22px', borderRadius: 10, border: '1px solid rgba(192,64,80,0.35)', background: 'rgba(192,64,80,0.07)', color: '#C04050', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+            Resetar tudo
+          </button>
+        </div>
+      </Card>
+
+      {/* Confirmação do reset (irreversível — pede a palavra digitada) */}
+      {resetModal && (
+        <div onClick={() => !resetando && setResetModal(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,10,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 460, background: T.surface, borderRadius: 16, border: `1px solid ${T.border}`, boxShadow: '0 20px 60px rgba(0,0,0,.28)', padding: '22px 24px' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 700, color: '#C04050', marginBottom: 8 }}>Resetar o Uniko FIT?</div>
+            <div style={{ fontSize: 13, color: T.textS, lineHeight: 1.55, marginBottom: 14 }}>
+              Isso apaga {resumo ? <><b>{resumo.checkins}</b> check-in{resumo.checkins !== 1 ? 's' : ''} e <b>{resumo.posts}</b> post{resumo.posts !== 1 ? 's' : ''}</> : 'todos os check-ins e posts'} com curtidas e comentários. <b>Não tem como desfazer.</b> As fotos já enviadas continuam no Storage, mas ninguém mais vê.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.textS, marginBottom: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={resetChat} onChange={e => setResetChat(e.target.checked)} />
+              Apagar também as mensagens do Bate-Papo{resumo ? ` (${resumo.chat})` : ''}
+            </label>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Digite <b>RESETAR</b> pra confirmar</div>
+            <input value={resetTexto} onChange={e => setResetTexto(e.target.value)} placeholder="RESETAR" autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && !resetando) resetar(); }} style={inputStyle} />
+            {resetMsg && <div style={{ fontSize: 12, color: '#C04050', marginTop: 10, padding: '7px 12px', borderRadius: 7, background: 'rgba(192,64,80,0.06)' }}>{resetMsg}</div>}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+              <button onClick={() => setResetModal(false)} disabled={resetando}
+                style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)' }}>Cancelar</button>
+              <button onClick={resetar} disabled={resetando || resetTexto.trim().toUpperCase() !== 'RESETAR'}
+                style={{ padding: '9px 20px', borderRadius: 9, border: 'none', background: '#C04050', color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
+                  cursor: resetando ? 'wait' : 'pointer', opacity: resetTexto.trim().toUpperCase() === 'RESETAR' ? 1 : 0.5 }}>
+                {resetando ? 'Apagando...' : 'Apagar tudo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

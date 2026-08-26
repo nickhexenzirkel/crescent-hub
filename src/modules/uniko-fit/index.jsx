@@ -1184,6 +1184,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   const feedRef = useRef(null);
   useEffect(() => { feedRef.current = feed; }, [feed]);
+  // Post com o drawer de comentários aberto — o canal de tempo real (deps [])
+  // não enxerga o estado direto, então lê por aqui pra encaixar comentário e
+  // resposta de outra pessoa na conversa aberta na hora.
+  const comentAbertoRef = useRef(null);
 
   useEffect(() => {
     // `loadFeed` é async: o setState só roda depois do await, nunca síncrono
@@ -1196,7 +1200,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         ensurePhotos([row.player]);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_comments' }, ({ new: row }) => {
+        // Os meus já entraram na contagem (e na lista) no otimista do envio —
+        // somar de novo aqui contaria dobrado.
+        if (row.player === name) return;
         setComentCount(prev => ({ ...prev, [row.checkin_id]: (prev[row.checkin_id] || 0) + 1 }));
+        if (comentAbertoRef.current?.id === row.checkin_id) {
+          setComentLista(prev => prev.some(c => c.id === row.id) ? prev : [...prev, row]);
+          ensurePhotos([row.player]);
+        }
       })
       .subscribe();
     // Reações: poll leve de 20s (mais simples que reconciliar delta de UPDATE/DELETE em
@@ -1357,13 +1368,52 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   // ── Comentários (drawer por post) ──
+  // `parent_id` faz thread de UM nível só (estilo Instagram): responder uma
+  // resposta continua pendurando no comentário raiz, então nunca vira escada.
+  // `media_url` é a foto opcional do comentário (mesmo bucket do feed/chat).
+  // Precisa de supabase_uniko_fit_comentarios.sql.
   const [comentAberto, setComentAberto] = useState(null);
   const [comentLista, setComentLista] = useState([]);
   const [comentLoading, setComentLoading] = useState(false);
   const [comentTexto, setComentTexto] = useState('');
+  const [comentRespondendo, setComentRespondendo] = useState(null); // { id: raiz, player } — null = comentário solto
+  const [comentFoto, setComentFoto] = useState(null);       // File escolhido
+  const [comentFotoPrev, setComentFotoPrev] = useState(null); // blob: da prévia
+  const [comentEnviando, setComentEnviando] = useState(false);
+  const comentFileRef = useRef(null);
+  const comentInputRef = useRef(null);
+  useEffect(() => { comentAbertoRef.current = comentAberto; }, [comentAberto]);
+
+  const limparFotoComentario = () => {
+    setComentFotoPrev(prev => { if (prev) { try { URL.revokeObjectURL(prev); } catch { /* já liberado */ } } return null; });
+    setComentFoto(null);
+    if (comentFileRef.current) comentFileRef.current.value = '';
+  };
+  const escolherFotoComentario = (f) => {
+    if (!f) return;
+    limparFotoComentario();
+    setComentFoto(f);
+    setComentFotoPrev(URL.createObjectURL(f));
+  };
+  // Responder: sempre pendura no comentário RAIZ. Quando é resposta de uma
+  // resposta, já deixa "@Nome " digitado pra ficar claro pra quem é.
+  const responderComentario = (c) => {
+    const raizId = c.parent_id || c.id;
+    setComentRespondendo({ id: raizId, player: c.player });
+    if (c.parent_id) setComentTexto(t => t.startsWith('@') ? t : `@${c.player.split(' ')[0]} ${t}`);
+    setTimeout(() => comentInputRef.current?.focus(), 30);
+  };
+
+  // Fechar solta a prévia da foto que ficou escolhida sem enviar (senão o
+  // blob: fica preso na memória até recarregar a página).
+  const fecharComentarios = () => {
+    setComentAberto(null); setComentRespondendo(null); setComentTexto('');
+    limparFotoComentario();
+  };
 
   const abrirComentarios = async (post) => {
     setComentAberto(post); setComentLista([]); setComentLoading(true); setComentTexto('');
+    setComentRespondendo(null); limparFotoComentario();
     const { data } = await supabase.from('uniko_fit_comments').select('*').eq('checkin_id', post.id).order('created_at', { ascending: true });
     setComentLista(data || []);
     ensurePhotos((data || []).map(c => c.player));
@@ -1371,22 +1421,57 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
   const enviarComentario = async () => {
     const texto = comentTexto.trim();
-    if (!texto || !comentAberto) return;
-    setComentTexto('');
-    const { data, error } = await supabase.from('uniko_fit_comments').insert({ checkin_id: comentAberto.id, player: name, texto }).select().single();
-    if (!error && data) {
-      setComentLista(prev => [...prev, data]);
+    if ((!texto && !comentFoto) || !comentAberto || comentEnviando) return;
+    setComentEnviando(true);
+    try {
+      let mediaUrl = null;
+      if (comentFoto) {
+        const ext = (comentFoto.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+        const cpf = (getAuthUser()?.cpf || '').replace(/\D/g, '') || 'anon';
+        const path = `${cpf}/comentarios/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('uniko-fit-fotos').upload(path, comentFoto, { contentType: comentFoto.type || undefined });
+        if (upErr) throw upErr;
+        mediaUrl = supabase.storage.from('uniko-fit-fotos').getPublicUrl(path).data.publicUrl;
+      }
+      const { data, error } = await supabase.from('uniko_fit_comments')
+        .insert({ checkin_id: comentAberto.id, player: name, texto, media_url: mediaUrl, parent_id: comentRespondendo?.id || null })
+        .select().single();
+      if (error) throw error;
+      setComentTexto(''); setComentRespondendo(null); limparFotoComentario();
+      setComentLista(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
       setComentCount(prev => ({ ...prev, [comentAberto.id]: (prev[comentAberto.id] || 0) + 1 }));
-    }
+    } catch (e) { console.error('[uniko-fit] comentário:', e); }
+    setComentEnviando(false);
   };
   // Apaga um comentário — quem comentou OU o dono do post pode apagar.
+  // Apagar um comentário raiz leva as respostas dele junto (o `on delete
+  // cascade` faz isso no banco; aqui só espelha no que já está na tela).
   const apagarComentario = async (c) => {
     try {
       await supabase.from('uniko_fit_comments').delete().eq('id', c.id);
-      setComentLista(prev => prev.filter(x => x.id !== c.id));
-      setComentCount(prev => ({ ...prev, [c.checkin_id]: Math.max(0, (prev[c.checkin_id] || 1) - 1) }));
+      let removidos = 1;
+      setComentLista(prev => {
+        const resto = prev.filter(x => x.id !== c.id && x.parent_id !== c.id);
+        removidos = prev.length - resto.length;
+        return resto;
+      });
+      setComentCount(prev => ({ ...prev, [c.checkin_id]: Math.max(0, (prev[c.checkin_id] || removidos) - removidos) }));
     } catch (e) { console.error('[uniko-fit] apagar comentário:', e); }
   };
+
+  // Comentários em threads pra renderizar: raízes na ordem de sempre, com as
+  // respostas logo abaixo. Resposta cujo pai não está na lista (não deveria
+  // acontecer, mas é barato cobrir) volta a contar como raiz.
+  const comentThreads = useMemo(() => {
+    const idsNaLista = new Set(comentLista.map(c => c.id));
+    const respostasPor = {};
+    const raizes = [];
+    comentLista.forEach(c => {
+      if (c.parent_id && idsNaLista.has(c.parent_id)) (respostasPor[c.parent_id] || (respostasPor[c.parent_id] = [])).push(c);
+      else raizes.push(c);
+    });
+    return raizes.map(r => ({ ...r, respostas: respostasPor[r.id] || [] }));
+  }, [comentLista]);
 
   // ── Curtidas (drawer por post — segura o coração pra ver quem curtiu) ──
   const [curtidasAberto, setCurtidasAberto] = useState(null); // post selecionado, null = fechado
@@ -1895,18 +1980,39 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const [notifs, setNotifs] = useState(null); // null = ainda não carregado
 
   const loadNotifs = useCallback(async () => {
-    const { data: meus } = await supabase.from('uniko_fit_checkins').select('id,photo_url').eq('player', name);
+    // Duas frentes: o que acontece nas MINHAS fotos (curtida/comentário) e as
+    // respostas aos MEUS comentários — essas últimas podem estar na foto de
+    // qualquer pessoa, então não dá pra filtrar pelos meus check-ins.
+    const [{ data: meus }, { data: meusComs }] = await Promise.all([
+      supabase.from('uniko_fit_checkins').select('id,photo_url').eq('player', name),
+      supabase.from('uniko_fit_comments').select('id').eq('player', name),
+    ]);
     const meusRows = meus || [];
     const fotoDoItem = {}; meusRows.forEach(m => { fotoDoItem[m.id] = m.photo_url; });
     const ids = meusRows.map(m => m.id);
-    if (!ids.length) { setNotifs([]); return; }
-    const [reacRes, comRes] = await Promise.all([
-      supabase.from('uniko_fit_reactions').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80),
-      supabase.from('uniko_fit_comments').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80),
+    const meusComIds = (meusComs || []).map(c => c.id);
+    if (!ids.length && !meusComIds.length) { setNotifs([]); return; }
+    const vazio = Promise.resolve({ data: [] });
+    const [reacRes, comRes, respRes] = await Promise.all([
+      ids.length ? supabase.from('uniko_fit_reactions').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80) : vazio,
+      ids.length ? supabase.from('uniko_fit_comments').select('*').in('checkin_id', ids).neq('player', name).order('created_at', { ascending: false }).limit(80) : vazio,
+      meusComIds.length ? supabase.from('uniko_fit_comments').select('*').in('parent_id', meusComIds).neq('player', name).order('created_at', { ascending: false }).limit(60) : vazio,
     ]);
+    const respostas = respRes.data || [];
+    // Miniatura das respostas: o post pode não ser meu, então busca a foto de
+    // quem faltar (as minhas já estão em `fotoDoItem`).
+    const faltando = [...new Set(respostas.map(r => r.checkin_id).filter(id => !fotoDoItem[id]))];
+    if (faltando.length) {
+      const { data: outros } = await supabase.from('uniko_fit_checkins').select('id,photo_url').in('id', faltando);
+      (outros || []).forEach(m => { fotoDoItem[m.id] = m.photo_url; });
+    }
+    const respIds = new Set(respostas.map(r => r.id));
     const likes = (reacRes.data || []).map(r => ({ id: `like-${r.id}`, kind: 'like', player: r.player, photo_url: fotoDoItem[r.checkin_id], emoji: r.emoji, created_at: r.created_at }));
-    const coms  = (comRes.data || []).map(c => ({ id: `com-${c.id}`, kind: 'comment', player: c.player, photo_url: fotoDoItem[c.checkin_id], texto: c.texto, created_at: c.created_at }));
-    const merged = [...likes, ...coms].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
+    // Resposta ao meu comentário na MINHA foto cairia nas duas listas — vale
+    // como resposta (mais específico), então sai daqui.
+    const coms  = (comRes.data || []).filter(c => !respIds.has(c.id)).map(c => ({ id: `com-${c.id}`, kind: 'comment', player: c.player, photo_url: fotoDoItem[c.checkin_id], texto: c.texto, media_url: c.media_url, created_at: c.created_at }));
+    const reps  = respostas.map(c => ({ id: `resp-${c.id}`, kind: 'reply', player: c.player, photo_url: fotoDoItem[c.checkin_id], texto: c.texto, media_url: c.media_url, created_at: c.created_at }));
+    const merged = [...likes, ...coms, ...reps].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
     setNotifs(merged);
     ensurePhotos(merged.map(n => n.player));
   }, [name, ensurePhotos]);
@@ -2897,7 +3003,11 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, color: T.text, lineHeight: 1.4 }}>
                         <b>{n.player.split(' ').slice(0, 2).join(' ')}</b>{' '}
-                        {n.kind === 'like' ? <>curtiu sua foto {n.emoji || '💪'}</> : <>comentou: <span style={{ color: T.textS }}>&ldquo;{(n.texto || '').slice(0, 60)}{(n.texto || '').length > 60 ? '…' : ''}&rdquo;</span></>}
+                        {n.kind === 'like'
+                          ? <>curtiu sua foto {n.emoji || '💪'}</>
+                          : <>{n.kind === 'reply' ? 'respondeu você' : 'comentou'}{n.texto
+                              ? <>: <span style={{ color: T.textS }}>&ldquo;{n.texto.slice(0, 60)}{n.texto.length > 60 ? '…' : ''}&rdquo;</span></>
+                              : <> com uma foto 📷</>}</>}
                       </div>
                       <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{tempoRelativo(n.created_at)}</div>
                     </div>
@@ -2971,44 +3081,89 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Comentários (drawer por post do feed) ── */}
       {comentAberto && (
-        <div onClick={() => setComentAberto(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
+        <div onClick={fecharComentarios} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} className="fit-pop" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
             width: '100%', maxWidth: 480, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 40px rgba(0,0,0,.3)' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', gap: 7 }}>{IcoComment} Comentários</div>
-              <button onClick={() => setComentAberto(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 20, lineHeight: 1 }}>×</button>
+              <button onClick={fecharComentarios} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 20, lineHeight: 1 }}>×</button>
             </div>
             <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {comentLoading ? (
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 10 }}>Carregando...</div>
-              ) : comentLista.length === 0 ? (
+              ) : comentThreads.length === 0 ? (
                 <div style={{ textAlign: 'center', color: T.textT, fontSize: 12.5, marginTop: 10 }}>Seja o primeiro a comentar!</div>
-              ) : comentLista.map(c => {
-                const podeApagar = c.player === name || comentAberto?.player === name;
-                return (
-                  <div key={c.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                    <img src={photos[c.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: T.text }}>{c.player.split(' ')[0]} <span style={{ fontWeight: 500, color: T.textD, fontSize: 10.5 }}>· {tempoRelativo(c.created_at)}</span></div>
-                      <div style={{ fontSize: 13, color: T.textS, lineHeight: 1.4 }}>{c.texto}</div>
+              ) : comentThreads.map(t => {
+                // Uma linha de comentário (raiz ou resposta) — resposta só muda
+                // o tamanho do avatar/texto; o recuo fica no bloco de baixo.
+                const Linha = (c, resposta) => {
+                  const podeApagar = c.player === name || comentAberto?.player === name;
+                  const av = resposta ? 22 : 28;
+                  return (
+                    <div key={c.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                      <img src={photos[c.player] || '/UNIKO_NEW.png'} alt="" style={{ width: av, height: av, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: resposta ? 11.5 : 12, fontWeight: 800, color: T.text }}>{c.player.split(' ')[0]} <span style={{ fontWeight: 500, color: T.textD, fontSize: 10.5 }}>· {tempoRelativo(c.created_at)}</span></div>
+                        {c.texto ? <div style={{ fontSize: resposta ? 12.5 : 13, color: T.textS, lineHeight: 1.4, wordBreak: 'break-word' }}>{c.texto}</div> : null}
+                        {c.media_url && (
+                          isVideoUrl(c.media_url)
+                            ? <video src={c.media_url} controls playsInline onClick={() => setChatImgZoom(c.media_url)}
+                                style={{ marginTop: 5, width: resposta ? 130 : 150, maxWidth: '100%', borderRadius: 12, cursor: 'pointer', display: 'block' }} />
+                            : <img src={c.media_url} alt="" onClick={() => setChatImgZoom(c.media_url)}
+                                style={{ marginTop: 5, width: resposta ? 130 : 150, maxWidth: '100%', maxHeight: 190, objectFit: 'cover', borderRadius: 12, cursor: 'pointer', display: 'block', border: `1px solid ${T.border}` }} />
+                        )}
+                        <button onClick={() => responderComentario(c)} className="fit-btn"
+                          style={{ marginTop: 3, padding: 0, border: 'none', background: 'none', cursor: 'pointer', color: T.textD, fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-body)' }}>Responder</button>
+                      </div>
+                      {podeApagar && (
+                        <button onClick={() => apagarComentario(c)} className="fit-btn" title="Apagar comentário"
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoTrash}</button>
+                      )}
                     </div>
-                    {podeApagar && (
-                      <button onClick={() => apagarComentario(c)} className="fit-btn" title="Apagar comentário"
-                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, padding: 4, flexShrink: 0, display: 'flex' }}>{IcoTrash}</button>
+                  );
+                };
+                return (
+                  <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {Linha(t, false)}
+                    {t.respostas.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 20, paddingLeft: 12, borderLeft: `2px solid ${T.border}` }}>
+                        {t.respostas.map(r => Linha(r, true))}
+                      </div>
                     )}
                   </div>
                 );
               })}
             </div>
-            <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: `1px solid ${T.border}` }}>
-              <input value={comentTexto} onChange={e => setComentTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviarComentario()}
-                placeholder="Escreva um comentário..." maxLength={280}
-                style={{ flex: 1, padding: '10px 13px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 13, color: T.text, outline: 'none', fontFamily: 'var(--font-body)' }} />
-              <button className="fit-btn" onClick={enviarComentario} disabled={!comentTexto.trim()}
-                style={{ padding: '9px 18px', borderRadius: 999, border: 'none', cursor: comentTexto.trim() ? 'pointer' : 'default',
-                  background: comentTexto.trim() ? `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` : (T.surfaceSub || 'rgba(0,0,0,.06)'), color: '#fff', fontWeight: 700, fontSize: 12.5,
-                  opacity: comentTexto.trim() ? 1 : .5 }}>Enviar</button>
+            <div style={{ borderTop: `1px solid ${T.border}` }}>
+              {comentRespondendo && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px 0', fontSize: 11.5, color: T.textT }}>
+                  <span>Respondendo <b style={{ color: ENERGIA }}>{comentRespondendo.player.split(' ')[0]}</b></span>
+                  <button onClick={() => setComentRespondendo(null)} className="fit-btn" title="Cancelar resposta"
+                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+              )}
+              {comentFotoPrev && (
+                <div style={{ padding: '8px 14px 0', display: 'flex' }}>
+                  <div style={{ position: 'relative' }}>
+                    <img src={comentFotoPrev} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, border: `1px solid ${T.border}` }} />
+                    <button onClick={limparFotoComentario} aria-label="Tirar a foto do comentário"
+                      style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.65)', color: '#fff', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, padding: 12, alignItems: 'center' }}>
+                <input ref={comentFileRef} type="file" accept="image/*,video/*" onChange={e => escolherFotoComentario(e.target.files?.[0])} style={{ display: 'none' }} />
+                <button className="fit-btn" onClick={() => comentFileRef.current?.click()} title="Comentar com foto"
+                  style={{ width: 38, height: 38, flexShrink: 0, borderRadius: '50%', border: `1.5px solid ${comentFoto ? ENERGIA : T.border}`, background: 'transparent', cursor: 'pointer', color: comentFoto ? ENERGIA : T.textS, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoCamera}</button>
+                <input ref={comentInputRef} value={comentTexto} onChange={e => setComentTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && enviarComentario()}
+                  placeholder={comentRespondendo ? `Responder ${comentRespondendo.player.split(' ')[0]}...` : 'Escreva um comentário...'} maxLength={280}
+                  style={{ flex: 1, minWidth: 0, padding: '10px 13px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page || '#fff', fontSize: 13, color: T.text, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                <button className="fit-btn" onClick={enviarComentario} disabled={(!comentTexto.trim() && !comentFoto) || comentEnviando}
+                  style={{ padding: '9px 18px', borderRadius: 999, border: 'none', flexShrink: 0, cursor: (comentTexto.trim() || comentFoto) ? 'pointer' : 'default',
+                    background: (comentTexto.trim() || comentFoto) ? `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` : (T.surfaceSub || 'rgba(0,0,0,.06)'), color: '#fff', fontWeight: 700, fontSize: 12.5,
+                    opacity: (comentTexto.trim() || comentFoto) ? 1 : .5 }}>{comentEnviando ? '...' : 'Enviar'}</button>
+              </div>
             </div>
           </div>
         </div>
