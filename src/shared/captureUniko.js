@@ -780,6 +780,15 @@ export async function fetchCaptureWinners(cfg) {
   } catch { return undefined; }
 }
 
+/* Limpa SÓ a marca de "esse evento já era" (sem apagar o cache do resultado).
+   Usada quando o servidor diz que AINDA HÁ VAGA e eu não sou um dos vencedores:
+   nesse caso nada pode me impedir de tentar, e uma marca local velha (de quando
+   o evento tinha menos vagas, ou de uma tentativa que não gravou nada) deixava
+   o card mudo, mostrando "1 de 3 vagas usadas" sem deixar capturar. */
+export function clearCaptureDone(cfg) {
+  try { localStorage.removeItem(doneKey(cfg)); } catch {}
+}
+
 // Limpa o estado LOCAL de captura de um evento (usado quando o servidor diz que não há vencedor).
 export function clearCaptureLocal(cfg) {
   try { localStorage.removeItem(doneKey(cfg)); localStorage.removeItem(resultKey(cfg)); } catch {}
@@ -833,9 +842,17 @@ export async function claimCapture(cfg, uniko) {
         winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: reward.comum, premium: reward.premium, at: new Date().toISOString() } };
     }
     if (row?.already_mine) return { won: false, alreadyMine: true, isFull: false, winner: null };
-    // esgotado (5/5) — busca a lista pra exibir quem conseguiu
+    /* Não ganhou e não é meu. Isso quase sempre quer dizer "as vagas fecharam",
+       mas NÃO necessariamente: a função pode recusar por outro motivo. Antes a
+       recusa virava "esgotado" na marra, e o cliente marcava o evento como
+       encerrado PRA ELE — dava o card mudo mostrando "1 de 3 vagas usadas",
+       com vaga sobrando e sem deixar tentar de novo (bug relatado). Agora a
+       lista real decide: só é esgotado se ela estiver cheia mesmo; senão é
+       recusa (`rejected`) e quem chamou deixa tentar de novo. */
     const winners = await fetchCaptureWinners(cfg);
-    return { won: false, alreadyMine: false, isFull: true, winner: null, winners: winners || [] };
+    const lista = winners || [];
+    const cheio = lista.length >= maxWinnersFor(cfg);
+    return { won: false, alreadyMine: false, isFull: cheio, rejected: !cheio, winner: null, winners: lista };
   } catch (e) {
     console.error('[capture-uniko] claimCapture lançou exceção:', e);
     return { won: false, alreadyMine: false, isFull: false, winner: null, networkError: true };

@@ -22,7 +22,7 @@ import {
   getUniko, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
-  registerCaptureTarget, onCaptureThrow, clearCaptureLocal, subscribeCaptureWinner, syncCollectionFromServer,
+  registerCaptureTarget, onCaptureThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner, syncCollectionFromServer,
   loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId,
 } from './captureUniko';
 
@@ -143,8 +143,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
       setWinners(ws);
       setCaptureResult(cfg, ws);
       const meNow = getAuthUser()?.name;
+      /* O SERVIDOR manda. Se ainda há vaga e eu não sou um dos vencedores, a
+         marca local de "esse evento já era" tem que CAIR — senão o card fica
+         mudo mostrando "1 de 3 vagas usadas" sem deixar ninguém capturar.
+         Isso acontecia de verdade: a marca é gravada quando as vagas fecham,
+         mas se o admin AUMENTASSE o número de vagas do mesmo evento (o id é
+         derivado do startAt, então continua o mesmo), ou se uma tentativa
+         antiga tivesse marcado sem gravar nada no banco, ela ficava presa —
+         só era limpa quando o servidor voltava com ZERO vencedores.
+         Limpar aqui, ANTES do `setChecked(true)`, é o que faz o efeito de
+         disponibilidade logo abaixo reavaliar já sem a marca. */
       if (ws.length >= maxWinners || ws.some(w => w.player === meNow)) markCaptureDone(cfg);
       else if (ws.length === 0) clearCaptureLocal(cfg);
+      else clearCaptureDone(cfg);
       setChecked(true);
     })();
     return () => { alive = false; };
@@ -274,6 +285,15 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     return () => clearTimeout(t);
   }, [winnerAt]);
 
+  /* Enquanto o painel de vencedores está na tela, um tique lento mantém o
+     texto em dia — é ele que decide entre "ainda dá tempo" e "o encontro
+     acabou" (o resto do widget só re-renderiza quando algo mais muda). */
+  useEffect(() => {
+    if (!winnerActive) return;
+    const id = setInterval(() => setNowTs(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [winnerActive]);
+
   /* ── Avisa o Portal se o slot está ocupado (encontro OU painel de resgatado) ── */
   useEffect(() => { emitCaptureSlotBusy(available || winnerActive); }, [available, winnerActive]);
 
@@ -334,10 +354,11 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     // ainda creditou 100/100 em vez do valor novo).
     await Promise.all([loadCustomUnikos(), loadRewardOverrides()]);
     const freshUniko = getUniko(cfg?.unikoId);
-    const { won, alreadyMine, isFull: full, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
-    if (networkError) {
-      // erro de verdade (não é "esgotou"/"já é meu") — NÃO marca como feito;
-      // deixa tentar de novo em vez de fingir sucesso sem nada gravado.
+    const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
+    if (networkError || rejected) {
+      // erro de verdade, ou recusa com vaga ainda sobrando (ver claimCapture)
+      // — NÃO marca como feito; deixa tentar de novo em vez de fingir sucesso
+      // sem nada gravado (era isso que travava o card com vaga livre).
       setPhase('error');
       setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1800);
       return;
@@ -408,6 +429,14 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     );
   }
 
+  /* Sobrar vaga NESTE painel quer dizer que o encontro fechou antes de todas
+     serem usadas — e o painel fica 30 min no ar depois disso. Era daí que vinha
+     o "1 de 3 vagas usadas" que parecia contraditório: a conta dizia que
+     sobrava vaga, mas o evento já tinha acabado e ninguém podia mais pegar.
+     `encontroAberto` separa os dois casos pro texto nunca mentir. */
+  const encontroAberto = isWithinWindow(cfg, nowTs);
+  const sobrando = Math.max(0, maxWinners - winners.length);
+
   // Painel "não fui eu" — dispara sempre que winnerActive (o mesmo sinal que emitCaptureSlotBusy
   // usa lá no TabInicio pra reservar o espaço do card). Antes só cobria o caso "esgotado" (3/3);
   // se alguém capturasse 1 ou 2 vagas sem fechar todas, ninguém mais via NADA aqui (nem esse
@@ -420,14 +449,29 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
             <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, opacity: .5, filter: 'grayscale(.6)' }}/>
             <div style={{ minWidth: 0, flex: 1 }}>
+              {/* "1 de 3 vagas usadas" sozinho era contraditório (relato do
+                  usuário): sobrava vaga na conta e ninguém conseguia pegar.
+                  Sobrar vaga aqui só acontece quando o ENCONTRO ACABOU (a
+                  janela do evento fechou, ou o admin desligou) — as vagas que
+                  faltam simplesmente não vão ser usadas. Agora o painel diz
+                  isso com todas as letras em vez de deixar a conta no ar. */}
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>
-                {isFull ? '★ TODAS AS VAGAS FORAM USADAS ★' : '★ ALGUÉM JÁ CAPTUROU ★'}
+                {isFull ? '★ TODAS AS VAGAS FORAM USADAS ★' : encontroAberto ? '★ ALGUÉM JÁ CAPTUROU ★' : '★ O ENCONTRO ACABOU ★'}
               </div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1 }}>
-                {winners.length} de {maxWinners} vagas usadas
+                {isFull
+                  ? `${winners.length} de ${maxWinners} vagas usadas`
+                  : `${winners.length} de ${maxWinners} ${maxWinners === 1 ? 'vaga foi usada' : 'vagas foram usadas'}`}
               </div>
+              {!isFull && (
+                <div style={{ fontSize: 11.5, color: th.ink, marginTop: 4 }}>
+                  {encontroAberto
+                    ? `Ainda ${sobrando === 1 ? 'sobra 1 vaga' : `sobram ${sobrando} vagas`} — o encontro continua!`
+                    : `${sobrando === 1 ? 'A outra vaga ficou' : `As outras ${sobrando} vagas ficaram`} sem dono — o tempo do evento terminou.`}
+                </div>
+              )}
               <div style={{ fontSize: 11.5, color: th.ink, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {winners.map(w => w.player).join(', ')}
+                {isFull ? '' : 'Capturou: '}{winners.map(w => w.player).join(', ')}
               </div>
             </div>
           </div>
