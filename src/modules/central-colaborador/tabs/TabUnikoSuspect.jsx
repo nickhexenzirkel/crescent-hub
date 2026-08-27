@@ -2422,8 +2422,13 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const worldRef = useRef(null);
   const myMarkerRef = useRef(null);
   const lightRef = useRef(null);
-  const setaRef = useRef(null);          // seta que aponta pra sala de energia durante a sabotagem
-  const energiaAlvoRef = useRef(null);   // { x, y } da tarefa de energia mais perto (null = sem sabotagem)
+  /* Setas da sabotagem: eram UMA só (a da energia). Com a sabotagem da
+     geladeira passaram a ser VÁRIAS ao mesmo tempo — uma por caminho que
+     ainda resolve a sabotagem —, então viraram listas paralelas: o elemento
+     de cada seta, o rótulo (contra-girado pra ficar de pé) e o alvo. */
+  const setasElRef = useRef({});      // id do alvo -> elemento da seta
+  const setasBadgeRef = useRef({});   // id do alvo -> rótulo (contra-girado)
+  const setasAlvosRef = useRef([]);
   const meuPapelRef = useRef(null);
   const souFantasmaRef = useRef(false);
   const sabotagemAtivaRef = useRef(false);   // só a de ENERGIA apaga a luz
@@ -2475,15 +2480,25 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   useEffect(() => { myPosRef.current = spawnFor(); }, [roundVisto]);
 
   const pintarSeta = useCallback(() => {
-    const seta = setaRef.current; if (!seta) return;
-    const alvo = energiaAlvoRef.current;
-    if (!alvo) { seta.style.display = 'none'; return; }
+    const alvos = setasAlvosRef.current || [];
     const { x, y } = myPosRef.current;
-    const ang = Math.atan2(alvo.y - y, alvo.x - x) * 180 / Math.PI;
-    seta.style.display = 'block';
-    seta.style.left = `${x / MAP_W * 100}%`;
-    seta.style.top = `${y / MAP_H * 100}%`;
-    seta.style.transform = `rotate(${ang}deg)`;
+    /* Guardadas por ID do alvo, não por índice: quando a primeira geladeira
+       é limpa a lista encolhe, os índices andam e o ref de um elemento que
+       sobrou podia ser zerado pela limpeza do que saiu — a seta restante
+       sumia sem motivo. */
+    alvos.forEach(alvo => {
+      const el = setasElRef.current[alvo.id];
+      if (!el) return;
+      const ang = Math.atan2(alvo.y - y, alvo.x - x) * 180 / Math.PI;
+      el.style.display = 'block';
+      el.style.left = `${x / MAP_W * 100}%`;
+      el.style.top = `${y / MAP_H * 100}%`;
+      el.style.transform = `rotate(${ang}deg)`;
+      // O rótulo gira ao contrário pra continuar legível com a seta apontando
+      // pra qualquer lado.
+      const badge = setasBadgeRef.current[alvo.id];
+      if (badge) badge.style.transform = `translate(-50%,-50%) rotate(${-ang}deg)`;
+    });
   }, []);
 
   /* ── Barco do lobby (ago/2026): mesma lógica de posição-por-broadcast do
@@ -3364,9 +3379,30 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     }
     return melhor;
   }, [state?.sabotagem, sabotagemTipo, meuPapel, souFantasma, mapaTarefas, myPos, name]);
+  /* ── Pra onde as setas apontam (ago/2026) ────────────────────────────────
+     Energia: uma seta, pro painel mais perto. GELADEIRA: uma seta POR
+     geladeira que ainda falta — os DOIS caminhos ao mesmo tempo, numerados,
+     porque a sabotagem só sai com uma pessoa em cada e o time precisa
+     enxergar na hora que tem que se dividir. Some pra quem já fez a parte
+     dele (mesma regra da energia), pro impostor e pro fantasma. */
+  const setasAlvos = useMemo(() => {
+    if (meuPapel === 'impostor' || souFantasma) return [];
+    if (sabotagemTipo === 'energia') {
+      return energiaAlvo ? [{ id: energiaAlvo.id || 'energia', x: energiaAlvo.x, y: energiaAlvo.y, cor: '#FBBF24', corClara: '#FDE68A', badge: '⚡' }] : [];
+    }
+    if (sabotagemTipo === 'geladeira') {
+      const limpas = state?.sabotagem?.geladeiras || {};
+      if (Object.values(limpas).includes(name)) return [];   // já limpei a minha
+      return mapaGeladeiras
+        .map((g, i) => ({ id: g.id, x: g.x, y: g.y, cor: CEU, corClara: '#DFF6FF', badge: String(i + 1) }))
+        .filter(g => !limpas[g.id]);
+    }
+    return [];
+  }, [sabotagemTipo, energiaAlvo, mapaGeladeiras, state?.sabotagem, meuPapel, souFantasma, name]);
+
   // Repinta na hora em que a sabotagem começa/termina — o loop de movimento
   // só repinta quando o boneco anda, e parado a seta nunca apareceria.
-  useEffect(() => { energiaAlvoRef.current = energiaAlvo; pintarSeta(); }, [energiaAlvo, pintarSeta]);
+  useEffect(() => { setasAlvosRef.current = setasAlvos; pintarSeta(); }, [setasAlvos, pintarSeta]);
   // Distância até a energia (pro aviso de baixo) — em "passos" arredondados.
   const energiaDist = energiaAlvo ? Math.round(Math.hypot(energiaAlvo.x - myPos.x, energiaAlvo.y - myPos.y)) : 0;
   const emCooldownSabotagem = agoraTick - (state?.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS;
@@ -3944,18 +3980,34 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     de sumir de vez, em vez de ir de "visível" pra "preto" de repente.
                     Centrada na MINHA posição — o raio (%) é sempre um círculo de
                     verdade, mesmo o mapa não sendo quadrado (ver LUZ_RAIO). */}
-                {/* Seta da energia — orbita o meu boneco apontando pro painel
-                    (ver pintarSeta). `zIndex` acima da luz de propósito: ela
-                    precisa brilhar JUSTO quando está tudo escuro. */}
-                <div ref={setaRef} style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0,
-                  display: 'none', zIndex: 5, pointerEvents: 'none' }}>
-                  <div className="sus-seta" style={{ position: 'absolute', left: 0, top: 0 }}>
-                    <svg width="52" height="52" viewBox="0 0 24 24" style={{ display: 'block', filter: 'drop-shadow(0 0 8px #FBBF24) drop-shadow(0 0 18px #F59E0Bcc)' }}>
-                      <path d="M3 12h11" stroke="#FDE68A" strokeWidth="3.4" strokeLinecap="round" />
-                      <path d="M13 5.5L21 12l-8 6.5z" fill="#FBBF24" stroke="#FFFBEB" strokeWidth="1.2" strokeLinejoin="round" />
-                    </svg>
+                {/* Setas da sabotagem — orbitam o meu boneco apontando pro que
+                    resolve (ver pintarSeta/setasAlvos). Na energia é UMA (o
+                    painel); na geladeira são DUAS ao mesmo tempo, numeradas —
+                    os dois caminhos que precisam de uma pessoa cada.
+                    `zIndex` acima da luz de propósito: elas precisam brilhar
+                    JUSTO quando está tudo escuro. */}
+                {setasAlvos.map(alvo => (
+                  <div key={alvo.id} ref={el => { if (el) setasElRef.current[alvo.id] = el; else delete setasElRef.current[alvo.id]; }}
+                    style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0, display: 'none', zIndex: 5, pointerEvents: 'none' }}>
+                    <div className="sus-seta" style={{ position: 'absolute', left: 0, top: 0 }}>
+                      <svg width="52" height="52" viewBox="0 0 24 24" style={{ display: 'block', filter: `drop-shadow(0 0 8px ${alvo.cor}) drop-shadow(0 0 18px ${alvo.cor}cc)` }}>
+                        <path d="M3 12h11" stroke={alvo.corClara} strokeWidth="3.4" strokeLinecap="round" />
+                        <path d="M13 5.5L21 12l-8 6.5z" fill={alvo.cor} stroke="#FFFBEB" strokeWidth="1.2" strokeLinejoin="round" />
+                      </svg>
+                      {/* Rótulo na ponta: qual das geladeiras aquela seta está
+                          mostrando (contra-girado em pintarSeta pra ficar de pé). */}
+                      <span ref={el => { if (el) setasBadgeRef.current[alvo.id] = el; else delete setasBadgeRef.current[alvo.id]; }}
+                        // Acima da haste (não na ponta): assim o número não
+                        // tapa a seta em si, e continua colado nela.
+                        style={{ position: 'absolute', left: 27, top: 4, transform: 'translate(-50%,-50%)',
+                          fontSize: 13, fontWeight: 800, color: '#08131B', background: alvo.corClara,
+                          border: `2px solid ${alvo.cor}`, borderRadius: 999, minWidth: 21, height: 21, lineHeight: '17px',
+                          textAlign: 'center', padding: '0 3px', boxShadow: `0 0 10px ${alvo.cor}` }}>
+                        {alvo.badge}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ))}
 
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100,
@@ -3981,13 +4033,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                           boxShadow: feita ? 'none' : '0 0 5px #3B82F6' }} />
                       );
                     })}
-                    {/* Sabotagem: a sala de energia pisca em amarelo no mini-mapa,
-                        pra dar a direção geral que a seta aponta de perto. */}
-                    {energiaAlvo && (
-                      <div className="sus-emerg" style={{ position: 'absolute', left: `${energiaAlvo.x / MAP_W * 100}%`, top: `${energiaAlvo.y / MAP_H * 100}%`,
+                    {/* Sabotagem: o que resolve pisca no mini-mapa, pra dar a
+                        direção geral que as setas apontam de perto. Energia é
+                        um ponto só; geladeira são os DOIS, cada um com o
+                        número da seta correspondente. */}
+                    {setasAlvos.map(alvo => (
+                      <div key={alvo.id} className="sus-emerg" style={{ position: 'absolute', left: `${alvo.x / MAP_W * 100}%`, top: `${alvo.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', width: '13%', aspectRatio: '1/1', borderRadius: '50%',
-                        background: '#FBBF24', border: '2px solid #fff', boxShadow: '0 0 10px #FBBF24' }} />
-                    )}
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 800, color: '#08131B',
+                        background: alvo.cor, border: '2px solid #fff', boxShadow: `0 0 10px ${alvo.cor}` }}>
+                        {alvo.badge !== '⚡' ? alvo.badge : ''}
+                      </div>
+                    ))}
                     <div style={{ position: 'absolute', left: `${myPosAtual.x / MAP_W * 100}%`, top: `${myPosAtual.y / MAP_H * 100}%`,
                       transform: 'translate(-50%,-50%)', width: '8%', aspectRatio: '1/1', borderRadius: '50%',
                       background: '#fff', border: `2px solid ${AGUA}`, boxShadow: '0 0 6px #fff' }} />
@@ -4073,7 +4131,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                         souFantasma ? 'os vivos é que limpam'
                         : meuPapel === 'impostor' ? 'cada uma precisa de uma pessoa diferente'
                         : euLimpei ? 'você já limpou a sua, alguém precisa fazer a outra'
-                        : 'uma pessoa por geladeira, corre!'}`} />
+                        : 'siga uma das setas — uma pessoa por geladeira!'}`} />
                   );
                 })()}
                 {sabotagemTipo === 'energia' && (() => {
