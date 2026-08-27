@@ -66,9 +66,21 @@ const vivosPorTime = (s) => {
    partida ficava no escuro até o conserto automático. */
 const resolverSabotagem = (s) => {
   if (!s?.sabotagem) return s;
-  const feito = s.sabotagem.consertadoPor || [];
   const tripulantesVivos = vivosPorTime(s).tripulantes;
-  const completo = tripulantesVivos.length === 0 || tripulantesVivos.every(n => feito.includes(n));
+  if (tripulantesVivos.length === 0) return { ...s, sabotagem: null };
+  if (sabotagemTipoDe(s) === 'geladeira') {
+    /* Geladeira: uma pessoa por ponto. Acaba quando todas estão limpas — ou
+       quando não sobrou gente suficiente pra limpar as que faltam (quem já
+       limpou uma não pode limpar outra), senão a partida ficava presa. */
+    const alvos = s.sabotagem.alvos || [];
+    const limpas = s.sabotagem.geladeiras || {};
+    const faltam = alvos.filter(a => !limpas[a.id]).length;
+    const jaLimparam = new Set(Object.values(limpas));
+    const disponiveis = tripulantesVivos.filter(n => !jaLimparam.has(n)).length;
+    return (faltam <= 0 || disponiveis < faltam) ? { ...s, sabotagem: null } : s;
+  }
+  const feito = s.sabotagem.consertadoPor || [];
+  const completo = tripulantesVivos.every(n => feito.includes(n));
   return completo ? { ...s, sabotagem: null } : s;
 };
 
@@ -529,6 +541,18 @@ const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois po
 const SABOTAGEM_COOLDOWN_MS = 50000;   // recarga entre sabotagens (era 40s — subiu a pedido do usuário)
 const SABOTAGEM_AUTO_FIX_MS = 60000;
 
+/* ── Sabotagem da GELADEIRA (ago/2026) ──────────────────────────────────────
+   Segunda sabotagem do Impostor. Ele suja as geladeiras da casa e elas só
+   voltam ao normal quando DUAS PESSOAS DIFERENTES limparem — uma em cada
+   geladeira. Quem limpou uma NÃO consegue abrir a outra: é a regra que
+   obriga o time a se dividir (e deixa o impostor saber onde as duas vão
+   estar). Os pontos vêm do editor do RH (uniko_suspect_map.geladeiras) e,
+   com menos de 2 marcadas, a ação nem aparece.
+   Diferente da energia, esta NÃO apaga a luz — só trava as tarefas até as
+   geladeiras ficarem limpas. `sabotagem.tipo` diz qual das duas está de pé
+   (partida antiga, sem o campo, é energia). */
+const sabotagemTipoDe = (s) => (s?.sabotagem ? (s.sabotagem.tipo || 'energia') : null);
+
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
    dele (campo de visão menor), seguindo o próprio boneco. ZOOM_FACTOR=3 →
    a janela mostra 1/3 da largura/altura do mapa (~3x de zoom). */
@@ -842,6 +866,7 @@ const TAREFA_CONCLUIDA_IMG = '/uniko-suspect-tarefa-concluida.png' + ARTE_V;
 const INICIAR_REUNIAO_IMG = '/uniko-suspect-iniciar-reuniao.png' + ARTE_V;
 const BOTAO_MATAR_IMG = '/uniko-suspect-botao-matar.png' + ARTE_V;
 const BOTAO_SABOTAR_IMG = '/uniko-suspect-botao-sabotar.png' + ARTE_V;
+const BOTAO_SABOTAR_GELADEIRA_IMG = '/uniko-suspect-botao-sabotar-geladeira.png' + ARTE_V;
 const BOTAO_USAR_IMG = '/uniko-suspect-botao-usar.png' + ARTE_V;
 const BOTAO_REPORTAR_IMG = '/uniko-suspect-botao-reportar.png';
 const CORPO_IMG = '/uniko-suspect-uniko-morto.png';   // cadáver no chão onde o impostor matou
@@ -1851,7 +1876,9 @@ const ReuniaoEmergencia = ({ reuniao, players, mortos = [], name, papeis, mensag
 };
 
 const TaskModal = ({ task, onClose, onComplete }) => {
-  const tipo = taskTypeFor(task.label);
+  // `_mini` força o mini-jogo (as geladeiras da sabotagem têm nome livre no
+  // editor e cairiam no genérico); sem ele, vale o nome como sempre.
+  const tipo = task._mini || taskTypeFor(task.label);
   const Mini = TASK_MINIGAMES[tipo] || TaskGenerica;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(4,10,16,.72)', backdropFilter: 'blur(3px)',
@@ -2252,7 +2279,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [mudo, setMudo] = useState(() => { try { return localStorage.getItem(SOM_MUDO_KEY) === '1'; } catch { return false; } });
   const trilhasRef = useRef(null);
   const fadeRef = useRef({});
-  const luzesApagadas = !!state?.sabotagem;
+  const luzesApagadas = sabotagemTipoDe(state) === 'energia';   // a da geladeira não apaga a luz
 
   // Cria as duas trilhas uma vez e derruba tudo ao sair da sala.
   useEffect(() => {
@@ -2399,7 +2426,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const energiaAlvoRef = useRef(null);   // { x, y } da tarefa de energia mais perto (null = sem sabotagem)
   const meuPapelRef = useRef(null);
   const souFantasmaRef = useRef(false);
-  const sabotagemAtivaRef = useRef(false);
+  const sabotagemAtivaRef = useRef(false);   // só a de ENERGIA apaga a luz
+  const sabotagemTipoRef = useRef(null);
   const vitimaProximaRef = useRef(null);
   const matarRef = useRef(null);
   const morteAnimRef = useRef(null);
@@ -2519,16 +2547,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [mapaEmergencia, setMapaEmergencia] = useState(null);
   const [mapaVortex, setMapaVortex] = useState([]);     // portais do Impostor
   const [mapaCameras, setMapaCameras] = useState([]);   // pontos de vigilância
+  const [mapaGeladeiras, setMapaGeladeiras] = useState([]);   // geladeiras da sabotagem (precisa de 2+)
   const [emergMsg, setEmergMsg] = useState('');
   useEffect(() => {
     let vivo = true;
     (async () => {
       try {
-        const { data } = await supabase.from('uniko_suspect_map').select('tasks, emergency_x, emergency_y, vortexes, cameras').eq('id', 1).maybeSingle();
+        const { data } = await supabase.from('uniko_suspect_map').select('tasks, emergency_x, emergency_y, vortexes, cameras, geladeiras').eq('id', 1).maybeSingle();
         if (!vivo) return;
         setMapaTarefas(Array.isArray(data?.tasks) ? data.tasks : []);
         setMapaVortex(Array.isArray(data?.vortexes) ? data.vortexes : []);
         setMapaCameras(Array.isArray(data?.cameras) ? data.cameras : []);
+        setMapaGeladeiras(Array.isArray(data?.geladeiras) ? data.geladeiras : []);
         if (data?.emergency_x != null && data?.emergency_y != null) setMapaEmergencia({ x: data.emergency_x, y: data.emergency_y });
       } catch (e) { console.error('[uniko-suspect] mapa tarefas/emergencia:', e); }
     })();
@@ -2556,6 +2586,23 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // conserta, não conta na chamada e não tem as tarefas travadas — segue
     // fazendo as dele normalmente enquanto os vivos correm pra energia.
     const fantasma = !!state?.fantasmas?.includes(name);
+    /* Sabotagem da GELADEIRA: o alvo de "usar" deixa de ser a lista de tarefas
+       e passa a ser a lista de geladeiras sujas. `_mini` força o mini-jogo da
+       geladeira (o nome do ponto é livre no editor e cairia no genérico), e
+       `_geladeira` diz ao modal que concluir aqui LIMPA em vez de marcar
+       tarefa. Quem já limpou uma não enxerga a outra — é a regra das duas
+       pessoas. */
+    const sab = state?.sabotagem;
+    if (sab && !fantasma && (sab.tipo || 'energia') === 'geladeira') {
+      const limpas = sab.geladeiras || {};
+      if (Object.values(limpas).includes(name)) return null;   // eu já fiz a minha
+      for (const g of mapaGeladeiras) {
+        if (limpas[g.id]) continue;
+        const d = Math.hypot(g.x - myPos.x, g.y - myPos.y);
+        if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = { ...g, _mini: 'geladeira', _geladeira: true }; melhorD = d; }
+      }
+      return melhor;
+    }
     for (const t of mapaTarefas) {
       if (state?.sabotagem && !fantasma) {
         // Sabotagem ativa: SÓ a tarefa de consertar energia libera (ver
@@ -2567,7 +2614,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < TASK_PROXIMIDADE && d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [mapaTarefas, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, state?.vencedor, name]);
+  }, [mapaTarefas, mapaGeladeiras, minhasFeitas, myPos, state?.phase, state?.reuniao, state?.fantasmas, state?.papeis, state?.sabotagem, state?.vencedor, name]);
   const tarefaProximaRef = useRef(null);
   useEffect(() => { tarefaProximaRef.current = tarefaProxima; }, [tarefaProxima]);
 
@@ -2578,11 +2625,28 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      começando a tarefa antes. Agora, ao ligar a sabotagem, qualquer tarefa
      aberta que NÃO seja a de consertar energia fecha na hora. */
   const sabotagemAtiva = !!state?.sabotagem && !state?.fantasmas?.includes(name);   // fantasma não é afetado pela sabotagem
+  /* Tipo da sabotagem lido do ESTADO, não do `sabotagemTipoRef`: os refs são
+     atualizados por um efeito declarado mais abaixo, que roda depois destes —
+     no instante da virada o ref ainda estaria com o valor anterior. */
+  const sabotagemEnergiaAtiva = !!state?.sabotagem && (state.sabotagem.tipo || 'energia') === 'energia';
+  const sabotagemGeladeiraAtiva = !!state?.sabotagem && (state.sabotagem.tipo || 'energia') === 'geladeira';
   useEffect(() => {
     if (!sabotagemAtiva) return;
     const aberta = tarefaAbertaRef.current;
-    if (aberta && taskTypeFor(aberta.label) !== 'energia') setTarefaAberta(null);
-  }, [sabotagemAtiva]);
+    // Fecha o que estiver aberto e não for o conserto da sabotagem da vez.
+    const salvaEnergia = sabotagemEnergiaAtiva && aberta && taskTypeFor(aberta.label) === 'energia';
+    if (aberta && !salvaEnergia && !aberta._geladeira) setTarefaAberta(null);
+  }, [sabotagemAtiva, sabotagemEnergiaAtiva]);
+
+  /* Geladeira limpa por outra pessoa (ou sabotagem encerrada) com o meu
+     mini-jogo ABERTO: fecha na hora, senão eu terminaria de limpar algo que
+     já não existe e a tela ficaria mentindo. */
+  const geladeirasLimpas = state?.sabotagem?.geladeiras;
+  useEffect(() => {
+    const aberta = tarefaAbertaRef.current;
+    if (!aberta?._geladeira) return;
+    if (!sabotagemGeladeiraAtiva || geladeirasLimpas?.[aberta.id]) setTarefaAberta(null);
+  }, [geladeirasLimpas, sabotagemGeladeiraAtiva]);
 
   /* ── Vórtex (ago/2026): portais marcados no editor. Só o IMPOSTOR usa —
      chega perto de um, escolhe outro e reaparece lá (as "tubulações" do
@@ -2773,7 +2837,39 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return null;
       if (s.sabotagem) return null;   // já tem uma rolando
       if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return null;
-      return { ...s, sabotagem: { iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } };
+      return { ...s, sabotagem: { tipo: 'energia', iniciadaEm: Date.now() }, sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } };
+    });
+  };
+
+  /* ── Sabotagem da GELADEIRA (ago/2026) — mesma recarga da energia (uma
+     sabotagem de cada vez). Os pontos vão CARIMBADOS no estado (`alvos`): o
+     mapa é carregado por cliente e, se alguém entrasse depois de o admin
+     mexer no editor, as duas pontas discordariam de quantas geladeiras a
+     sabotagem tem — e a conta "1/2" nunca fecharia. */
+  const sabotarGeladeira = () => {
+    mutateState(s => {
+      if (!s || s.phase !== 'jogando' || s.reuniao || s.vencedor) return null;
+      if (s.papeis?.[name] !== 'impostor' || (s.fantasmas || []).includes(name)) return null;
+      if (s.sabotagem) return null;
+      if (mapaGeladeiras.length < 2) return null;   // precisa de duas pessoas, logo de duas geladeiras
+      if (Date.now() - (s.sabotagemCooldown?.[name] || 0) < SABOTAGEM_COOLDOWN_MS) return null;
+      const alvos = mapaGeladeiras.map(g => ({ id: g.id, label: g.label }));
+      return { ...s, sabotagem: { tipo: 'geladeira', iniciadaEm: Date.now(), alvos, geladeiras: {} },
+        sabotagemCooldown: { ...(s.sabotagemCooldown || {}), [name]: Date.now() } };
+    });
+  };
+
+  /* Limpar UMA geladeira. A trava das duas pessoas mora aqui, com o estado
+     fresco do banco: se eu já limpei alguma, a gravação é recusada — não
+     adianta correr pra segunda. */
+  const limparGeladeira = (idGeladeira) => {
+    mutateState(s => {
+      if (!s || sabotagemTipoDe(s) !== 'geladeira') return null;
+      if (s.papeis?.[name] === 'impostor' || (s.fantasmas || []).includes(name)) return null;
+      const limpas = s.sabotagem.geladeiras || {};
+      if (limpas[idGeladeira]) return null;                      // outra pessoa chegou primeiro
+      if (Object.values(limpas).includes(name)) return null;     // uma por pessoa
+      return resolverSabotagem({ ...s, sabotagem: { ...s.sabotagem, geladeiras: { ...limpas, [idGeladeira]: name } } });
     });
   };
   // Consertar energia (ago/2026, redesenhado): não é mais "segurar um botão
@@ -3244,16 +3340,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // Fantasma (ago/2026): quem foi expulso na reunião. Atravessa parede, só
   // faz tarefa, e só ELE enxerga todo mundo (vivos continuam sem ver fantasmas).
   const souFantasma = !!state?.fantasmas?.includes(name);
+  const sabotagemTipo = sabotagemTipoDe(state);   // 'energia' | 'geladeira' | null
   // Cor do papel usada pelo HUD (fantasma tem a sua, senão some no escuro).
   const papelCor = souFantasma ? '#A78BFA' : meuPapel === 'impostor' ? IMPOSTOR_COR : TRIPULANTE_COR;
   useEffect(() => { souFantasmaRef.current = souFantasma; }, [souFantasma]);
-  useEffect(() => { sabotagemAtivaRef.current = !!state?.sabotagem; }, [state?.sabotagem]);
+  useEffect(() => {
+    const tipo = state?.sabotagem ? (state.sabotagem.tipo || 'energia') : null;
+    sabotagemTipoRef.current = tipo;
+    sabotagemAtivaRef.current = tipo === 'energia';   // só a de energia apaga a luz
+  }, [state?.sabotagem]);
 
   /* Alvo da seta de energia: a placa de energia mais perto, enquanto a
      sabotagem estiver de pé e EU ainda não tiver consertado a minha parte.
      O Impostor não vê seta nenhuma (a sabotagem é dele). */
   const energiaAlvo = useMemo(() => {
-    if (!state?.sabotagem || meuPapel === 'impostor' || souFantasma) return null;   // fantasma não conserta
+    if (sabotagemTipo !== 'energia' || meuPapel === 'impostor' || souFantasma) return null;   // fantasma não conserta
     if (state.sabotagem.consertadoPor?.includes(name)) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
@@ -3262,7 +3363,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [state?.sabotagem, meuPapel, souFantasma, mapaTarefas, myPos, name]);
+  }, [state?.sabotagem, sabotagemTipo, meuPapel, souFantasma, mapaTarefas, myPos, name]);
   // Repinta na hora em que a sabotagem começa/termina — o loop de movimento
   // só repinta quando o boneco anda, e parado a seta nunca apareceria.
   useEffect(() => { energiaAlvoRef.current = energiaAlvo; pintarSeta(); }, [energiaAlvo, pintarSeta]);
@@ -3285,6 +3386,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   // O botão de sabotar agora fica SEMPRE na tela (fixo ao lado do matar) e só
   // muda de estado — `podeSabotar` diz se o clique vale agora.
   const podeSabotar = mostrarSabotar && !emCooldownSabotagem;
+  /* Geladeira: mesma recarga, mas só existe com 2+ geladeiras marcadas no
+     editor do RH — sem duas não dá pra exigir duas pessoas. Com menos que
+     isso o botão nem aparece (em vez de aparecer morto e confundir). */
+  const temGeladeiras = mapaGeladeiras.length >= 2;
+  const podeSabotarGeladeira = mostrarSabotar && !emCooldownSabotagem && temGeladeiras;
 
   /* ── Botão USAR: um só pra qualquer interação de proximidade ──────────────
      Antes cada coisa tinha seu próprio aviso ("Pressione E — tarefa", botão
@@ -3293,7 +3399,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      tarefa > câmera > vórtex. */
   const alvoUsar = useMemo(() => {
     if (tarefaAberta || cameraAberta !== null || vortexAberto) return null;   // já tem algo aberto
-    if (tarefaProxima) return { tipo: 'tarefa', titulo: tarefaProxima.label };
+    if (tarefaProxima) return tarefaProxima._geladeira
+      ? { tipo: 'geladeira', titulo: `Limpar ${tarefaProxima.label}` }
+      : { tipo: 'tarefa', titulo: tarefaProxima.label };
     if (cameraProxima) return { tipo: 'camera', titulo: cameraProxima.label };
     if (vortexProximo) return { tipo: 'vortex', titulo: `Entrar no vórtex — ${vortexProximo.label}` };
     return null;
@@ -3660,7 +3768,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 {meuPapel !== 'impostor' && mapaTarefas.map(t => {
                   // Sabotagem ativa: SÓ a placa de energia libera (pra todo
                   // mundo consertar de novo), o resto fica travado até acabar.
-                  const consertandoSabotagem = !!state?.sabotagem && taskTypeFor(t.label) === 'energia';
+                  // Só vale como "conserto" na sabotagem de ENERGIA — na da
+                  // geladeira a placa de energia é tarefa comum e fica travada
+                  // como as outras (senão ela aparecia liberada e sem efeito).
+                  const consertandoSabotagem = sabotagemTipo === 'energia' && taskTypeFor(t.label) === 'energia';
                   const feita = consertandoSabotagem ? !!state?.sabotagem?.consertadoPor?.includes(name) : minhasFeitas.has(t.id);
                   // Trava TODA tarefa que não seja a de energia enquanto a
                   // sabotagem durar — inclusive as que eu já concluí (antes o
@@ -3675,7 +3786,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                     <button key={t.id} onClick={() => { if (!travada && !naoAlcanca) setTarefaAberta(t); }}
                       style={{ ...taskBtnCss, position: 'absolute', left: `${t.x / MAP_W * 100}%`, top: `${t.y / MAP_H * 100}%`,
                         transform: 'translate(-50%,-50%)', zIndex: 1, cursor: (travada || naoAlcanca) ? 'not-allowed' : 'pointer' }}
-                      title={travada ? `${t.label} (energia sabotada!)`
+                      title={travada ? `${t.label} (${sabotagemTipo === 'geladeira' ? 'geladeira sabotada!' : 'energia sabotada!'})`
                         : consertandoSabotagem ? `${t.label} — conserte a energia!`
                         : naoAlcanca ? `${t.label} — chegue perto pra fazer` : t.label}>
                       <img draggable={false} src={feita ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={t.label}
@@ -3683,6 +3794,31 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                         style={{ width: '8vw', maxWidth: 82, minWidth: 50, display: 'block', opacity: travada ? .4 : 1,
                           filter: travada ? 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.6))' : 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
                       {brilhoTarefa === t.id && <BrilhoTarefa />}
+                    </button>
+                  );
+                })}
+
+                {/* Geladeiras da sabotagem: só aparecem ENQUANTO a sabotagem
+                    está de pé (fora dela não são ponto de interação nenhum).
+                    Todo mundo vê — inclusive o impostor, que assim sabe onde
+                    os dois tripulantes vão ter que ir. A limpa fica verde e
+                    mostra quem resolveu; a suja pisca chamando. */}
+                {sabotagemTipo === 'geladeira' && mapaGeladeiras.map(g => {
+                  const quem = state?.sabotagem?.geladeiras?.[g.id];
+                  const alcanca = tarefaProxima?._geladeira && tarefaProxima.id === g.id;
+                  return (
+                    <button key={g.id} onClick={() => { if (alcanca) setTarefaAberta(tarefaProxima); }}
+                      style={{ ...taskBtnCss, position: 'absolute', left: `${g.x / MAP_W * 100}%`, top: `${g.y / MAP_H * 100}%`,
+                        transform: 'translate(-50%,-50%)', zIndex: 1, cursor: alcanca ? 'pointer' : 'not-allowed' }}
+                      title={quem ? `${g.label} — limpa por ${quem.split(' ')[0]}` : alcanca ? `Limpar ${g.label}` : `${g.label} — chegue perto pra limpar`}>
+                      <img draggable={false} src={quem ? TAREFA_CONCLUIDA_IMG : TAREFA_DISPONIVEL_IMG} alt={g.label}
+                        className={quem ? undefined : 'sus-twinkle'}
+                        style={{ width: '8vw', maxWidth: 82, minWidth: 50, display: 'block', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,.6))' }} />
+                      <span style={{ position: 'absolute', left: '50%', top: '42%', transform: 'translate(-50%,-50%)',
+                        fontSize: 'clamp(18px, 2.4vw, 30px)', pointerEvents: 'none', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.6))' }}>
+                        {quem ? '✨' : '🧊'}
+                      </span>
+                      {brilhoTarefa === g.id && <BrilhoTarefa />}
                     </button>
                   );
                 })}
@@ -3823,7 +3959,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
                 <div ref={lightRef} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none',
                   background: lightGradientBg(myPosAtual.x / MAP_W * 100, myPosAtual.y / MAP_H * 100,
-                    souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (state?.sabotagem ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
+                    souFantasma ? LUZ_RAIO.fantasma : meuPapel === 'impostor' ? LUZ_RAIO.impostor : (sabotagemTipo === 'energia' ? LUZ_RAIO.sabotagem : LUZ_RAIO.tripulante)) }} />
               </div>
 
               {/* Mini-mapa redondo — canto superior direito, mostra a casa inteira (não
@@ -3897,6 +4033,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                           filter: podeSabotar ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
                       <ContagemRecarga segs={sabotarSegs} />
                     </button>
+                    {temGeladeiras && (
+                      <button className="sus-btn" onClick={sabotarGeladeira} disabled={!podeSabotarGeladeira}
+                        title={sabotarSegs > 0 ? `Sabotagem recarregando (${sabotarSegs}s)` : state?.sabotagem ? 'Já tem uma sabotagem rolando' : 'Sabotar geladeira — duas pessoas vão ter que limpar'}
+                        style={{ ...taskBtnCss, cursor: podeSabotarGeladeira ? 'pointer' : 'not-allowed' }}>
+                        <img draggable={false} src={BOTAO_SABOTAR_GELADEIRA_IMG} alt="Sabotar geladeira"
+                          style={{ width: 'clamp(66px, 9.7vw, 110px)', display: 'block',
+                            opacity: podeSabotarGeladeira ? 1 : .45,
+                            filter: podeSabotarGeladeira ? 'drop-shadow(0 4px 10px rgba(0,0,0,.55))' : 'grayscale(1) drop-shadow(0 3px 8px rgba(0,0,0,.5))' }} />
+                        <ContagemRecarga segs={sabotarSegs} />
+                      </button>
+                    )}
                     <button className="sus-btn" onClick={() => vitimaProxima && matar(vitimaProxima)} disabled={!vitimaProxima}
                       title={killSegs > 0 ? `Recarregando (${killSegs}s)` : vitimaProxima ? `Matar ${vitimaProxima.name}` : 'Ningu\u00e9m por perto pra matar'}
                       style={{ ...taskBtnCss, cursor: vitimaProxima ? 'pointer' : 'not-allowed' }}>
@@ -3915,7 +4062,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   para em 62% da largura pra nunca cobrir o mini-mapa. */}
               <div style={{ position: 'absolute', top: '2.5%', left: '50%', transform: 'translateX(-50%)', zIndex: 7,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, pointerEvents: 'none', maxWidth: '62%' }}>
-                {!!state?.sabotagem && (() => {
+                {sabotagemTipo === 'geladeira' && (() => {
+                  const alvos = state.sabotagem.alvos || [];
+                  const limpas = state.sabotagem.geladeiras || {};
+                  const feitas = alvos.filter(a => limpas[a.id]).length;
+                  const euLimpei = Object.values(limpas).includes(name);
+                  return (
+                    <AvisoJogo cor={AGUA} icone="🧊" titulo="GELADEIRA SABOTADA!"
+                      sub={`Falta limpar ${alvos.length - feitas}/${alvos.length} geladeiras — ${
+                        souFantasma ? 'os vivos é que limpam'
+                        : meuPapel === 'impostor' ? 'cada uma precisa de uma pessoa diferente'
+                        : euLimpei ? 'você já limpou a sua, alguém precisa fazer a outra'
+                        : 'uma pessoa por geladeira, corre!'}`} />
+                  );
+                })()}
+                {sabotagemTipo === 'energia' && (() => {
                   const tripulantesVivos = vivosPorTime(state).tripulantes;
                   const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
                   return (
@@ -3931,8 +4092,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 })()}
                 {alvoUsar && (
                   <AvisoJogo
-                    cor={alvoUsar.tipo === 'vortex' ? '#A855F7' : alvoUsar.tipo === 'camera' ? '#16A34A' : '#2563EB'}
-                    icone={alvoUsar.tipo === 'vortex' ? <PortalVortex size={28} /> : alvoUsar.tipo === 'camera' ? '📹' : '📋'}
+                    cor={alvoUsar.tipo === 'vortex' ? '#A855F7' : alvoUsar.tipo === 'camera' ? '#16A34A' : alvoUsar.tipo === 'geladeira' ? AGUA : '#2563EB'}
+                    icone={alvoUsar.tipo === 'vortex' ? <PortalVortex size={28} /> : alvoUsar.tipo === 'camera' ? '📹' : alvoUsar.tipo === 'geladeira' ? '🧊' : '📋'}
                     titulo={alvoUsar.titulo} sub="Use o botão ou aperte E" />
                 )}
                 {vortexProximo && agoraTick < vortexCooldownAte && (
@@ -3968,8 +4129,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
               <TaskModal task={tarefaAberta} onClose={() => setTarefaAberta(null)}
                 onComplete={() => {
                   // Durante a sabotagem, a tarefa de energia conserta em vez de
-                  // contar como tarefa normal (ver consertarEnergia/tarefaProxima).
-                  if (state?.sabotagem && taskTypeFor(tarefaAberta.label) === 'energia') consertarEnergia();
+                  // contar como tarefa normal (ver consertarEnergia/tarefaProxima);
+                  // a geladeira suja limpa a geladeira daquele ponto.
+                  if (tarefaAberta._geladeira) {
+                    tocarEfeito('tarefa');
+                    setBrilhoTarefa(tarefaAberta.id);
+                    setTimeout(() => setBrilhoTarefa(b => (b === tarefaAberta.id ? null : b)), 900);
+                    limparGeladeira(tarefaAberta.id);
+                  }
+                  else if (sabotagemTipo === 'energia' && taskTypeFor(tarefaAberta.label) === 'energia') consertarEnergia();
                   else marcarTarefaFeita(tarefaAberta.id);
                   setTarefaAberta(null);
                 }} />

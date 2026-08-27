@@ -45,6 +45,9 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
   // tarefas: [{id,label,x,y}] em coordenadas do mapa.
   const [vortexes, setVortexes] = useState([]);
   const [cameras, setCameras] = useState([]);
+  // Geladeiras da sabotagem nova: mesmo formato, e precisam ser 2+ (a
+  // sabotagem exige uma pessoa DIFERENTE em cada geladeira).
+  const [geladeiras, setGeladeiras] = useState([]);
   // Modal de "dar nome ao ponto" — substitui o window.prompt (ver onPointerDown)
   const [nomeModal, setNomeModal] = useState(null); // {mode,x,y,valor,nome} | null
   const [emergency, setEmergency] = useState(null); // {x,y} | null
@@ -99,6 +102,14 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       octx.fillStyle = '#fff'; octx.font = 'bold 14px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText(String(i + 1), c.x, c.y);
     });
+    // Geladeiras: ciano gelo
+    geladeiras.forEach((g, i) => {
+      octx.beginPath(); octx.arc(g.x, g.y, 16, 0, Math.PI * 2);
+      octx.fillStyle = 'rgba(14,165,183,.92)'; octx.fill();
+      octx.lineWidth = 3; octx.strokeStyle = '#fff'; octx.stroke();
+      octx.fillStyle = '#fff'; octx.font = 'bold 14px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+      octx.fillText(String(i + 1), g.x, g.y);
+    });
     if (emergency) {
       octx.beginPath(); octx.arc(emergency.x, emergency.y, 19, 0, Math.PI * 2);
       octx.fillStyle = 'rgba(220,38,38,.92)'; octx.fill();
@@ -106,7 +117,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       octx.fillStyle = '#fff'; octx.font = 'bold 19px sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText('!', emergency.x, emergency.y);
     }
-  }, [showMask, opacity, tasks, emergency, vortexes, cameras]);
+  }, [showMask, opacity, tasks, emergency, vortexes, cameras, geladeiras]);
 
   useEffect(() => { composite(); }, [composite]);
 
@@ -135,6 +146,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         setTasks(Array.isArray(row.tasks) ? row.tasks : []);
         setVortexes(Array.isArray(row.vortexes) ? row.vortexes : []);
         setCameras(Array.isArray(row.cameras) ? row.cameras : []);
+        setGeladeiras(Array.isArray(row.geladeiras) ? row.geladeiras : []);
         if (row.emergency_x != null && row.emergency_y != null) setEmergency({ x: row.emergency_x, y: row.emergency_y });
         if (row.emergency_icon_url) setEmergencyIconUrl(row.emergency_icon_url);
         setUpdatedAt(row.updated_at || null);
@@ -209,7 +221,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       paintAt(p.x, p.y);
       composite();
       try { overlayCanvasRef.current.setPointerCapture(e.pointerId); } catch {}
-    } else if (mode === 'tarefas' || mode === 'vortex' || mode === 'cameras') {
+    } else if (mode === 'tarefas' || mode === 'vortex' || mode === 'cameras' || mode === 'geladeiras') {
       // Clicar em cima de um pino remove; clicar no vazio abre o modal de nome.
       // NADA de window.prompt aqui: depois de algumas caixas seguidas o Chrome
       // oferece "impedir que esta página crie mais diálogos" e, uma vez
@@ -220,6 +232,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         tarefas: { lista: tasks,    setLista: setTasks,    nome: 'tarefa', padrao: 'Tarefa' },
         vortex:  { lista: vortexes, setLista: setVortexes, nome: 'vórtex', padrao: 'Vórtex' },
         cameras: { lista: cameras,  setLista: setCameras,  nome: 'câmera', padrao: 'Câmera' },
+        geladeiras: { lista: geladeiras, setLista: setGeladeiras, nome: 'geladeira', padrao: 'Geladeira' },
       }[mode];
       const near = cfg.lista.find(t => Math.hypot(t.x - p.x, t.y - p.y) < 22);
       if (near) {
@@ -240,6 +253,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
       const ponto = { id: uid(), label, x: m.x, y: m.y };
       if (m.mode === 'tarefas') setTasks(l => [...l, ponto]);
       else if (m.mode === 'vortex') setVortexes(l => [...l, ponto]);
+      else if (m.mode === 'geladeiras') setGeladeiras(l => [...l, ponto]);
       else setCameras(l => [...l, ponto]);
       return null;
     });
@@ -297,6 +311,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
         tasks,
         vortexes,
         cameras,
+        geladeiras,
         emergency_x: emergency?.x ?? null,
         emergency_y: emergency?.y ?? null,
         emergency_icon_url: emergencyIconUrl || null,
@@ -336,6 +351,7 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
               <button style={modeBtnStyle(mode === 'emergencia', '#D97706')} onClick={() => setMode('emergencia')}>🚨 Emergência</button>
               <button style={modeBtnStyle(mode === 'vortex', '#A855F7')} onClick={() => setMode('vortex')}>🌀 Vórtex</button>
               <button style={modeBtnStyle(mode === 'cameras', '#16A34A')} onClick={() => setMode('cameras')}>📹 Câmeras</button>
+              <button style={modeBtnStyle(mode === 'geladeiras', '#0EA5B7')} onClick={() => setMode('geladeiras')}>🧊 Geladeiras</button>
             </div>
           </Card>
 
@@ -415,25 +431,33 @@ const UnikoSuspectMapTab = ({ cardBg, adminName }) => {
             </Card>
           )}
 
-          {(mode === 'vortex' || mode === 'cameras') && (() => {
+          {(mode === 'vortex' || mode === 'cameras' || mode === 'geladeiras') && (() => {
             const ehVortex = mode === 'vortex';
-            const lista = ehVortex ? vortexes : cameras;
-            const setLista = ehVortex ? setVortexes : setCameras;
-            const cor = ehVortex ? '#A855F7' : '#16A34A';
+            const ehGeladeira = mode === 'geladeiras';
+            const lista = ehVortex ? vortexes : ehGeladeira ? geladeiras : cameras;
+            const setLista = ehVortex ? setVortexes : ehGeladeira ? setGeladeiras : setCameras;
+            const cor = ehVortex ? '#A855F7' : ehGeladeira ? '#0EA5B7' : '#16A34A';
             return (
               <Card style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.05em' }}>
-                  {ehVortex ? 'VÓRTEX' : 'CÂMERAS'} ({lista.length})
+                  {ehVortex ? 'VÓRTEX' : ehGeladeira ? 'GELADEIRAS' : 'CÂMERAS'} ({lista.length})
                 </div>
                 <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>
                   Clique num ponto vazio do mapa pra adicionar; clique em cima de um pino pra remover.
                   {ehVortex
                     ? ' Só o Impostor usa: ele entra num e escolhe pra qual outro ir. Precisa de pelo menos 2 pra funcionar.'
-                    : ' A CÂMERA 1 é a sala de anexo — é o único lugar de onde se assiste, e só chegando perto. As outras são apenas os ângulos que aparecem lá.'}
+                    : ehGeladeira
+                      ? ' Usadas na SABOTAGEM DA GELADEIRA: o Impostor suja todas de uma vez e cada uma precisa de uma pessoa DIFERENTE pra limpar. Precisa de pelo menos 2 marcadas — com menos, a sabotagem nem aparece pro Impostor.'
+                      : ' A CÂMERA 1 é a sala de anexo — é o único lugar de onde se assiste, e só chegando perto. As outras são apenas os ângulos que aparecem lá.'}
                 </div>
                 {ehVortex && lista.length === 1 && (
                   <div style={{ fontSize: 12, color: '#D97706', background: 'rgba(217,119,6,.09)', border: '1px solid rgba(217,119,6,.25)', borderRadius: 8, padding: '7px 9px' }}>
                     Só 1 vórtex marcado — sem um segundo, não há pra onde teleportar e o jogo não oferece a ação.
+                  </div>
+                )}
+                {ehGeladeira && lista.length < 2 && (
+                  <div style={{ fontSize: 12, color: '#D97706', background: 'rgba(217,119,6,.09)', border: '1px solid rgba(217,119,6,.25)', borderRadius: 8, padding: '7px 9px' }}>
+                    {lista.length === 0 ? 'Nenhuma geladeira marcada' : 'Só 1 geladeira marcada'} — a sabotagem da geladeira precisa de 2 (uma pessoa em cada) e fica indisponível pro Impostor.
                   </div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
