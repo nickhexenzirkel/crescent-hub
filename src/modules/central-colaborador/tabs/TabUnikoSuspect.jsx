@@ -26,6 +26,7 @@ const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.blueDark };
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos } from '../../../shared/captureUniko';
 import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSkin';
+import { embaralhar, sortearImpostores } from '../../../shared/unikoSuspectSorteio';
 
 /* ── Paleta casa de praia ── */
 const AGUA = '#0EA5B7', CEU = '#5FC9E8', AREIA = '#F2C879';
@@ -557,20 +558,6 @@ const POS_SEND_MS = 90;           // intervalo mínimo entre broadcasts de posi�
 const KEY_DIR = {                 // WASD + setas → direção
   w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
   a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
-};
-// `array.sort(() => Math.random() - .5)` NÃO embaralha de verdade — o
-// comparador quebra as regras que o sort espera (não é transitivo), então o
-// resultado fica enviesado pela ordem/algoritmo de sort do motor (mais forte
-// ainda em arrays pequenos, tipo a lista de jogadores). Era por isso que,
-// rodada após rodada, quase sempre a MESMA pessoa saía impostor (bug
-// relatado pelo usuário). Fisher-Yates é o shuffle de verdade, sem viés.
-const embaralhar = (arr) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 };
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
 /* Nascimento (ago/2026): TODO MUNDO no MESMO ponto, o centro da sala de
@@ -3207,21 +3194,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     };
   }, [state?.phase, name, pintarSeta]);
 
-  const sortearEComecar = () => {
-    if (!state || players.length < MIN_PLAYERS) return;
-    const nomes = players.map(p => p.name);
+  /* Monta o próximo estado da partida a partir do estado atual da sala. */
+  const montarPartida = (state, nomes) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
-    /* Rodízio (ago/2026, pedido do usuário: "recomeço a partida na mesma sala
-       e o último impostor cai de impostor de novo"). O sorteio já era um
-       Fisher-Yates honesto — mas honesto INCLUI repetir, e com 3 ou 4 pessoas
-       isso cai toda hora e mata a graça. Agora quem foi impostor na partida
-       anterior DESTA sala fica fora do chapéu. Se sobrar gente de menos sem
-       eles (sala pequena), o rodízio é ignorado e todo mundo volta pro
-       chapéu — melhor repetir do que não ter impostor. */
-    const anteriores = new Set(state.ultimosImpostores
-      || Object.entries(state.papeis || {}).filter(([, p]) => p === 'impostor').map(([n]) => n));
-    const elegiveis = nomes.filter(n => !anteriores.has(n));
-    const escolhidos = embaralhar(elegiveis.length >= qtd ? elegiveis : nomes).slice(0, qtd);
+    /* Quem é impostor NÃO é sorteado no chapéu limpo — é uma FILA guardada na
+       sala (ver sortearImpostores). Sorteio honesto inclui repetir, e o
+       usuário estava tendo que criar sala nova toda partida por causa disso.
+       Agora quem já foi impostor fica de fora até todo mundo passar, e na
+       virada do ciclo quem foi na última partida continua de fora — ninguém
+       pega o papel duas vezes seguidas. */
+    const ultimos = state.ultimosImpostores
+      || Object.entries(state.papeis || {}).filter(([, p]) => p === 'impostor').map(([n]) => n);
+    const { escolhidos, ciclo } = sortearImpostores(nomes, qtd, state.cicloImpostores, ultimos);
     const papeis = {};
     nomes.forEach(n => { papeis[n] = escolhidos.includes(n) ? 'impostor' : 'tripulante'; });
     /* A trégua inicial do assassinato NÃO vai carimbada aqui de propósito:
@@ -3229,7 +3213,22 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
        impostor compara com o relógio da própria — bastava o host estar
        adiantado pra o botão de matar nunca liberar. Cada impostor marca a
        própria trégua localmente ao entrar no mapa (ver killLiberadoEm). */
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, ultimosImpostores: escolhidos, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
+    return { ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, ultimosImpostores: escolhidos, cicloImpostores: ciclo, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} };
+  };
+  /* Vai por `mutateState` (e não `pushState`) de propósito: a FILA do rodízio
+     mora no estado da sala, então ela precisa ser lida do banco na hora, já
+     fresca. Com o estado local em cache dava pra sortear em cima de uma fila
+     velha — e a fila velha é justamente o que faria o mesmo impostor voltar.
+     O guard de `sorteando/jogando` também mata o clique duplo no botão, que
+     antes gastava duas posições da fila de uma vez. */
+  const sortearEComecar = () => {
+    if (!state || players.length < MIN_PLAYERS) return;
+    const nomes = players.map(p => p.name);
+    mutateState(s => {
+      const base = s || state;
+      if (base.phase === 'sorteando' || base.phase === 'jogando') return null;   // já começou
+      return montarPartida(base, nomes);
+    });
   };
   const escolherImpostores = (n) => {
     if (!isHost || !state) return;
