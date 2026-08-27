@@ -57,6 +57,20 @@ const vivosPorTime = (s) => {
   };
 };
 
+/* ── Sabotagem: quem ainda deve conserto (ago/2026) ─────────────────────────
+   Só TRIPULANTE VIVO conserta. Fantasma não entra na conta (pedido do
+   usuário) — e como os mortos saem da lista, a sabotagem também precisa ser
+   reavaliada quando alguém morre ou é expulso: se os que faltavam viraram
+   fantasma, quem sobrou já consertou e a luz tem que voltar sozinha, senão a
+   partida ficava no escuro até o conserto automático. */
+const resolverSabotagem = (s) => {
+  if (!s?.sabotagem) return s;
+  const feito = s.sabotagem.consertadoPor || [];
+  const tripulantesVivos = vivosPorTime(s).tripulantes;
+  const completo = tripulantesVivos.length === 0 || tripulantesVivos.every(n => feito.includes(n));
+  return completo ? { ...s, sabotagem: null } : s;
+};
+
 /* ── Regra de vitória (ago/2026) ────────────────────────────────────────────
    • Tripulantes vencem quando TODOS os impostores estão fora. Com 2+
      impostores, expulsar um NÃO termina o jogo (o outro segue solto).
@@ -511,7 +525,7 @@ const VORTEX_COOLDOWN_MS = 6000;  // evita ficar pulando sem parar entre dois po
    faz tarefa (nem o próprio Impostor, que já não tinha mesmo) e os
    Tripulantes ficam praticamente no escuro. Conserta sozinha depois de um
    tempo se ninguém for lá resolver, pra não travar a partida pra sempre. */
-const SABOTAGEM_COOLDOWN_MS = 40000;
+const SABOTAGEM_COOLDOWN_MS = 50000;   // recarga entre sabotagens (era 40s — subiu a pedido do usuário)
 const SABOTAGEM_AUTO_FIX_MS = 60000;
 
 /* ── Câmera com zoom: em vez do mapa inteiro, o jogador vê só uma JANELA
@@ -937,6 +951,27 @@ const ContagemRecarga = ({ segs }) => {
   );
 };
 
+/* ── Concluir tarefa: UMA vez só e à prova de re-render do pai (ago/2026) ──
+   `onComplete` chega numa arrow NOVA a cada render do mapa, e o mapa
+   re-renderiza sozinho a cada broadcast de posição dos outros jogadores
+   (POS_SEND_MS = 90ms). Quem punha `onComplete` nas deps de um efeito com
+   `setTimeout` tinha o timer CANCELADO e reagendado antes de disparar — era
+   por isso que dava pra terminar a tarefa das estrelas e ela nunca fechar
+   (bug relatado pelo usuário). O callback agora mora num ref (o efeito não
+   depende mais dele) e a conclusão sai uma vez só, nunca duas. */
+const useConcluirTarefa = (done, onComplete, delayMs = 0) => {
+  const cbRef = useRef(onComplete);
+  useEffect(() => { cbRef.current = onComplete; }, [onComplete]);
+  const avisou = useRef(false);
+  useEffect(() => {
+    if (!done || avisou.current) return undefined;
+    avisou.current = true;
+    if (!delayMs) { cbRef.current?.(); return undefined; }
+    const t = setTimeout(() => cbRef.current?.(), delayMs);
+    return () => clearTimeout(t);
+  }, [done, delayMs]);
+};
+
 /* ── ARRASTAR E SOLTAR (ago/2026) ──────────────────────────────────────────
    As tarefas de "clique 3x em cada coisinha" (geladeira, flaminga,
    chocolates, louça, computador) foram trocadas a pedido do usuário: clicar
@@ -961,7 +996,7 @@ const TarefaArrastar = ({ instrucao, itens, alvos, fundo, decoracao, onComplete 
 
   const entregues = Object.keys(entregas).length;
   const done = entregues === itens.length;
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  useConcluirTarefa(done, onComplete);
 
   const cheio = (alvoId) => {
     const alvo = alvos.find(a => a.id === alvoId);
@@ -1157,15 +1192,9 @@ const TaskEnergia = ({ onComplete }) => {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // `onComplete` chegava numa arrow function nova a cada render do pai, então
-  // o efeito reexecutava e chamava a conclusão de novo. Uma vez basta.
+  // Uma vez basta — e sem depender do `onComplete` (ver useConcluirTarefa).
   const done = ligados.length === FIOS.length;
-  const avisou = useRef(false);
-  useEffect(() => {
-    if (!done || avisou.current) return;
-    avisou.current = true;
-    onComplete();
-  }, [done, onComplete]);
+  useConcluirTarefa(done, onComplete);
   const clicarEsquerda = (cor) => { if (!ligados.includes(cor)) setSelecionado(cor); };
   const clicarDireita = (cor) => {
     if (!selecionado) return;
@@ -1255,7 +1284,7 @@ const TaskChurrasco = ({ onComplete }) => {
     return () => cancelAnimationFrame(raf);
   }, []);   // sem deps: o loop nunca reinicia (antes reiniciava a cada acerto)
 
-  useEffect(() => { if (hits >= ALVO_HITS) onComplete(); }, [hits, onComplete]);
+  useConcluirTarefa(hits >= ALVO_HITS, onComplete);
 
   const virar = () => {
     if (hitsRef.current >= ALVO_HITS) return;
@@ -1322,7 +1351,7 @@ const TaskBanheiro = ({ onComplete }) => {
   const ALVO = 6;
   const [esfregado, setEsfregado] = useState(() => Array(MANCHAS.length).fill(0));
   const done = esfregado.every(v => v >= ALVO);
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  useConcluirTarefa(done, onComplete);
   // `onPointerEnter` com o botão apertado = arrastar por cima (não precisa
   // clicar em cada uma) — `e.buttons` cobre mouse; no toque o pointerdown já conta.
   const esfregar = (i) => setEsfregado(v => v.map((n, j) => j === i ? Math.min(ALVO, n + 1) : n));
@@ -1346,60 +1375,59 @@ const TaskBanheiro = ({ onComplete }) => {
   );
 };
 
-/* ── Observar estrelas: ligar as estrelas na ordem certa (constelação) ── */
+/* ── Observar estrelas (REFEITA em ago/2026) ────────────────────────────────
+   A versão antiga era "toque nas 5 estrelas na ordem certa" e tinha dois
+   defeitos: errar a ordem zerava tudo (e no escuro isso acontecia toda hora)
+   e, pior, a conclusão passava por um `setTimeout` que o re-render do mapa
+   cancelava — dava pra ligar as cinco e a tarefa NUNCA fechar (o bug que o
+   usuário relatou; a raiz virou o `useConcluirTarefa` lá em cima).
+   A tarefa nova usa o mesmo gesto do resto do jogo: pegar cada estrela na
+   bancada do telescópio e encaixá-la nos pontos vazios do mapa celeste.
+   Sem ordem, sem tempo, sem recomeçar do zero — e a conclusão sai pelo motor
+   comum (TarefaArrastar), o mesmo das outras cinco tarefas de arrastar. */
+const ESTRELAS_ENCAIXES = [
+  { id: 'c1', x: 21, y: 30 }, { id: 'c2', x: 40, y: 15 }, { id: 'c3', x: 57, y: 31 },
+  { id: 'c4', x: 44, y: 47 }, { id: 'c5', x: 76, y: 52 },
+];
 const TaskEstrelas = ({ onComplete }) => {
-  /* As cinco estrelas ficam LONGE das bordas de propósito (relato de que "só
-     aparecem 4"): a última estava em x=84%, praticamente colada na direita, e
-     era a que passava batido. Nenhuma passa de 78% agora, e o céu ficou mais
-     alto pra elas não se espremerem. */
-  const ESTRELAS = [{ x: 17, y: 74 }, { x: 32, y: 30 }, { x: 48, y: 58 }, { x: 63, y: 25 }, { x: 78, y: 66 }];
-  const [ligadas, setLigadas] = useState([]);
-  const [erro, setErro] = useState(false);
-  const done = ligadas.length === ESTRELAS.length;
-  useEffect(() => { if (done) { const t = setTimeout(onComplete, 500); return () => clearTimeout(t); } }, [done, onComplete]);
-  const tocar = (i) => {
-    if (done) return;
-    if (i === ligadas.length) { setLigadas(l => [...l, i]); setErro(false); }
-    else { setErro(true); setLigadas([]); }   // errou a ordem: recomeça
-  };
-  return (
-    <div>
-      <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 10, textAlign: 'center' }}>
-        {erro ? 'Ordem errada! Comece de novo.' : 'Toque nas estrelas em ordem, da mais fraca pra mais forte (1 → 5).'}
-      </div>
-      <div style={{ position: 'relative', width: '100%', maxWidth: 300, height: 210, margin: '0 auto', borderRadius: 12,
-        background: 'radial-gradient(ellipse at 50% 20%, #1E2B54, #070B1A)', border: '2px solid #2B3A6B', overflow: 'hidden' }}>
-        {/* Linhas da constelação já ligadas */}
-        <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          {ligadas.slice(1).map((idx, k) => {
-            const a = ESTRELAS[ligadas[k]], b = ESTRELAS[idx];
-            return <line key={k} x1={`${a.x}%`} y1={`${a.y}%`} x2={`${b.x}%`} y2={`${b.y}%`} stroke={CEU} strokeWidth="2" strokeLinecap="round" opacity=".85" />;
-          })}
-        </svg>
-        {ESTRELAS.map((e, i) => {
-          const on = ligadas.includes(i);
-          const tam = 15 + i * 3;   // "mais fraca → mais forte" fica visível no tamanho
-          return (
-            // Área de toque bem maior que a estrela (mínimo 40px) — no celular
-            // as menores eram difíceis de acertar com o dedo.
-            <button key={i} onClick={() => tocar(i)} title={`Estrela ${i + 1}`}
-              style={{ position: 'absolute', left: `${e.x}%`, top: `${e.y}%`, transform: 'translate(-50%,-50%)',
-                width: Math.max(40, tam + 20), height: Math.max(40, tam + 20),
-                borderRadius: '50%', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ width: tam, height: tam, borderRadius: '50%', display: 'block',
-                background: on ? '#FFF6C2' : '#B7C8F2',
-                boxShadow: on ? '0 0 14px 4px rgba(255,240,170,.85)' : '0 0 9px 2px rgba(183,200,242,.65)', transition: 'all .18s' }} />
-            </button>
-          );
-        })}
-      </div>
-      {/* Contador: sem ele não dava pra saber se faltava uma estrela ou se
-          alguma não tinha aparecido. */}
-      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, color: T.textT, marginTop: 8 }}>
-        {ligadas.length} de {ESTRELAS.length} ligadas
-      </div>
-    </div>
-  );
+  const itens = useMemo(() => [
+    { id: 's1', emoji: '⭐', x: 12, y: 86, alvo: '*', tamanho: 26 },
+    { id: 's2', emoji: '⭐', x: 31, y: 89, alvo: '*', tamanho: 26 },
+    { id: 's3', emoji: '⭐', x: 50, y: 86, alvo: '*', tamanho: 26 },
+    { id: 's4', emoji: '⭐', x: 69, y: 89, alvo: '*', tamanho: 26 },
+    { id: 's5', emoji: '⭐', x: 87, y: 86, alvo: '*', tamanho: 26 },
+  ], []);
+  // Qualquer estrela serve em qualquer encaixe ('*'), um por encaixe.
+  const alvos = useMemo(() => ESTRELAS_ENCAIXES.map(e => ({
+    // Encaixe vazio = só a moldura tracejada (o '✧' de texto herdava a cor do
+    // modal e sumia dentro dela); ao receber a estrela ele vira 🌟.
+    ...e, emoji: '', emojiCheio: '🌟', w: 17, h: 20, capacidade: 1, tamanho: 24,
+  })), []);
+  return <TarefaArrastar onComplete={onComplete}
+    instrucao="Arraste cada estrela pro lugar dela no mapa celeste!"
+    fundo={{ background: 'radial-gradient(ellipse at 50% 15%, #1E2B54, #070B1A)', border: '2px solid #2B3A6B' }}
+    decoracao={<>
+      {/* Linhas da constelação: já desenhadas (tracejadas) pra mostrar o
+          desenho que os encaixes formam — a pessoa entende de cara que está
+          montando uma constelação, não empilhando figurinhas. */}
+      <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        {[[0, 1], [1, 2], [2, 3], [3, 0], [2, 4]].map(([a, b], k) => (
+          <line key={k} x1={`${ESTRELAS_ENCAIXES[a].x}%`} y1={`${ESTRELAS_ENCAIXES[a].y}%`}
+            x2={`${ESTRELAS_ENCAIXES[b].x}%`} y2={`${ESTRELAS_ENCAIXES[b].y}%`}
+            stroke={CEU} strokeWidth="2" strokeDasharray="5 5" strokeLinecap="round" opacity=".5" />
+        ))}
+      </svg>
+      {/* Poeira estelar de fundo — posições fixas de propósito (nada de
+          Math.random no render: regra do React Compiler, e assim todo mundo
+          vê o mesmo céu). */}
+      {[[8, 12], [27, 62], [63, 12], [88, 34], [17, 48], [92, 68], [36, 72], [69, 68]].map(([x, y], i) => (
+        <span key={i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: 3, height: 3, borderRadius: '50%',
+          background: '#B7C8F2', opacity: .55, boxShadow: '0 0 6px 1px rgba(183,200,242,.5)' }} />
+      ))}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '24%', background: 'rgba(255,255,255,.07)', borderTop: '2px dashed rgba(255,255,255,.22)' }} />
+      <div style={{ position: 'absolute', left: 10, bottom: 7, fontSize: 10.5, fontWeight: 800, color: 'rgba(255,255,255,.6)' }}>🔭 bancada do telescópio</div>
+    </>}
+    itens={itens} alvos={alvos} />;
 };
 
 /* ── Excluir pastas no computador: selecionar as pastas e mandar pra lixeira ── */
@@ -1438,7 +1466,7 @@ const TaskSauna = ({ onComplete }) => {
   const tempRef = useRef(temp);
   useEffect(() => { tempRef.current = temp; }, [temp]);
   const done = progresso >= 1;
-  useEffect(() => { if (done) onComplete(); }, [done, onComplete]);
+  useConcluirTarefa(done, onComplete);
   /* A temperatura sobe enquanto segura e cai sozinha ao soltar; só conta
      progresso na faixa ideal — segurar direto passa do ponto.
      Afrouxada (ago/2026): a faixa era estreita (60–80) e o ponteiro voava
@@ -2537,8 +2565,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     if (state?.papeis?.[name] === 'impostor' || state?.vencedor) return null;
     if (state?.phase !== 'jogando' || (state?.reuniao && !state?.fantasmas?.includes(name))) return null;
     let melhor = null, melhorD = Infinity;
+    // Fantasma fica FORA da sabotagem (ago/2026, pedido do usuário): ele não
+    // conserta, não conta na chamada e não tem as tarefas travadas — segue
+    // fazendo as dele normalmente enquanto os vivos correm pra energia.
+    const fantasma = !!state?.fantasmas?.includes(name);
     for (const t of mapaTarefas) {
-      if (state?.sabotagem) {
+      if (state?.sabotagem && !fantasma) {
         // Sabotagem ativa: SÓ a tarefa de consertar energia libera (ver
         // TaskEnergia/consertarEnergia) — e some assim que EU já consertei
         // nessa sabotagem, mesmo que outros ainda não tenham terminado.
@@ -2558,7 +2590,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      caiu terminava ele numa boa — dava pra ignorar a sabotagem inteira só
      começando a tarefa antes. Agora, ao ligar a sabotagem, qualquer tarefa
      aberta que NÃO seja a de consertar energia fecha na hora. */
-  const sabotagemAtiva = !!state?.sabotagem;
+  const sabotagemAtiva = !!state?.sabotagem && !state?.fantasmas?.includes(name);   // fantasma não é afetado pela sabotagem
   useEffect(() => {
     if (!sabotagemAtiva) return;
     const aberta = tarefaAbertaRef.current;
@@ -2725,8 +2757,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (Date.now() - (s.killCooldowns?.[name] || 0) < KILL_COOLDOWN_MS) return null;
       const fantasmas = [...new Set([...(s.fantasmas || []), vitima.name])];
       const corpos = [...(s.corpos || []), { id: uid(), x: vitima.x, y: vitima.y, vitima: vitima.name, matador: name }];
-      const proximo = { ...s, fantasmas, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
-        ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } };
+      // `resolverSabotagem`: se quem faltava consertar acabou de morrer, a luz
+      // volta na hora em vez de ficar apagada até o conserto automático.
+      const proximo = resolverSabotagem({ ...s, fantasmas, corpos, killCooldowns: { ...(s.killCooldowns || {}), [name]: Date.now() },
+        ultimaMorte: { vitima: vitima.name, matador: name, ts: Date.now() } });
       // Vitória só quando não sobra NENHUM tripulante vivo (ver decidirVencedor).
       return { ...proximo, vencedor: decidirVencedor(proximo) };
     });
@@ -2764,10 +2798,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const consertarEnergia = () => {
     mutateState(s => {
       if (!s || !s.sabotagem || s.papeis?.[name] === 'impostor') return null;   // o Impostor não conserta a própria sabotagem
+      if ((s.fantasmas || []).includes(name)) return null;                       // fantasma não conserta nem conta (pedido do usuário)
       const consertadoPor = [...new Set([...(s.sabotagem.consertadoPor || []), name])];
-      const tripulantesVivos = vivosPorTime(s).tripulantes;
-      const completo = tripulantesVivos.length > 0 && tripulantesVivos.every(n => consertadoPor.includes(n));
-      return { ...s, sabotagem: completo ? null : { ...s.sabotagem, consertadoPor } };
+      return resolverSabotagem({ ...s, sabotagem: { ...s.sabotagem, consertadoPor } });
     });
   };
 
@@ -2872,7 +2905,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // Expulso vira fantasma — e a partida só acaba pelas regras de
     // `decidirVencedor` (com 2+ impostores, tirar um NÃO encerra o jogo).
     const novosFantasmas = expulsoFinal ? [...new Set([...fantasmasAtuais, expulsoFinal])] : fantasmasAtuais;
-    const proximo = { ...s, fantasmas: novosFantasmas };
+    const proximo = resolverSabotagem({ ...s, fantasmas: novosFantasmas });
     const vencedor = decidirVencedor(proximo);
 
     return { ...proximo, vencedor,
@@ -3176,16 +3209,27 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
 
   const sortearEComecar = () => {
     if (!state || players.length < MIN_PLAYERS) return;
-    const nomes = embaralhar(players.map(p => p.name));
+    const nomes = players.map(p => p.name);
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
+    /* Rodízio (ago/2026, pedido do usuário: "recomeço a partida na mesma sala
+       e o último impostor cai de impostor de novo"). O sorteio já era um
+       Fisher-Yates honesto — mas honesto INCLUI repetir, e com 3 ou 4 pessoas
+       isso cai toda hora e mata a graça. Agora quem foi impostor na partida
+       anterior DESTA sala fica fora do chapéu. Se sobrar gente de menos sem
+       eles (sala pequena), o rodízio é ignorado e todo mundo volta pro
+       chapéu — melhor repetir do que não ter impostor. */
+    const anteriores = new Set(state.ultimosImpostores
+      || Object.entries(state.papeis || {}).filter(([, p]) => p === 'impostor').map(([n]) => n));
+    const elegiveis = nomes.filter(n => !anteriores.has(n));
+    const escolhidos = embaralhar(elegiveis.length >= qtd ? elegiveis : nomes).slice(0, qtd);
     const papeis = {};
-    nomes.forEach((n, i) => { papeis[n] = i < qtd ? 'impostor' : 'tripulante'; });
+    nomes.forEach(n => { papeis[n] = escolhidos.includes(n) ? 'impostor' : 'tripulante'; });
     /* A trégua inicial do assassinato NÃO vai carimbada aqui de propósito:
        um `Date.now()` gravado pelo host é o relógio DA MÁQUINA DELE, e o
        impostor compara com o relógio da própria — bastava o host estar
        adiantado pra o botão de matar nunca liberar. Cada impostor marca a
        própria trégua localmente ao entrar no mapa (ver killLiberadoEm). */
-    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
+    pushState({ ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, ultimosImpostores: escolhidos, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} });
   };
   const escolherImpostores = (n) => {
     if (!isHost || !state) return;
@@ -3207,7 +3251,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      sabotagem estiver de pé e EU ainda não tiver consertado a minha parte.
      O Impostor não vê seta nenhuma (a sabotagem é dele). */
   const energiaAlvo = useMemo(() => {
-    if (!state?.sabotagem || meuPapel === 'impostor') return null;
+    if (!state?.sabotagem || meuPapel === 'impostor' || souFantasma) return null;   // fantasma não conserta
     if (state.sabotagem.consertadoPor?.includes(name)) return null;
     let melhor = null, melhorD = Infinity;
     for (const t of mapaTarefas) {
@@ -3216,7 +3260,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       if (d < melhorD) { melhor = t; melhorD = d; }
     }
     return melhor;
-  }, [state?.sabotagem, meuPapel, mapaTarefas, myPos, name]);
+  }, [state?.sabotagem, meuPapel, souFantasma, mapaTarefas, myPos, name]);
   // Repinta na hora em que a sabotagem começa/termina — o loop de movimento
   // só repinta quando o boneco anda, e parado a seta nunca apareceria.
   useEffect(() => { energiaAlvoRef.current = energiaAlvo; pintarSeta(); }, [energiaAlvo, pintarSeta]);
@@ -3440,23 +3484,52 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                 textShadow: meuPapel === 'impostor' ? `0 0 18px ${IMPOSTOR_COR}, 0 0 52px ${IMPOSTOR_COR}99` : `0 0 18px #9FE8FF, 0 0 52px #6FD8FF99` }}>
                 {meuPapel === 'impostor' ? 'IMPOSTOR' : 'TRIPULANTE'}
               </div>
-              <div style={{ fontSize: 'clamp(14px, 2vw, 22px)', color: '#fff' }}>
-                Há <b style={{ color: IMPOSTOR_COR }}>{state?.impostoresQtd || 1}</b> Impostor{(state?.impostoresQtd || 1) > 1 ? 'es' : ''} entre nós.
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(8px, 1.4vw, 18px)', flexWrap: 'wrap', maxWidth: '80vw' }}>
-                {players.map(p => {
-                  const eu = p.name === name;
-                  return (
-                    <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                      transform: eu ? 'scale(1.35) translateY(-6px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
-                      <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt=""
-                        style={{ width: 'clamp(52px, 6.5vw, 92px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#fff',
-                          border: eu ? `3px solid ${AGUA}` : '2px solid rgba(255,255,255,.4)', boxShadow: eu ? `0 0 22px ${AGUA}aa` : 'none' }} />
-                      {eu && <span style={{ fontSize: 'clamp(10px, 1.1vw, 14px)', fontWeight: 800, color: '#fff' }}>Você</span>}
+              {/* Quantos impostores: contado dos PAPÉIS de verdade, não do
+                  `impostoresQtd` escolhido no lobby — o sorteio limita o número
+                  em salas pequenas e os dois podiam discordar. */}
+              {(() => {
+                const nomesImpostores = Object.entries(state?.papeis || {}).filter(([, r]) => r === 'impostor').map(([n]) => n);
+                const qtdImp = nomesImpostores.length || (state?.impostoresQtd || 1);
+                const souImpostor = meuPapel === 'impostor';
+                /* Se EU sou impostor, a fila mostra SÓ o meu time (ago/2026,
+                   pedido do usuário): é aqui que um impostor descobre quem é o
+                   outro, como no Among Us. Tripulante continua vendo a sala
+                   inteira, sem nenhuma pista de quem é quem. */
+                const elenco = souImpostor ? players.filter(p => nomesImpostores.includes(p.name)) : players;
+                return (
+                  <>
+                    <div style={{ fontSize: 'clamp(14px, 2vw, 22px)', color: '#fff' }}>
+                      {souImpostor
+                        ? (qtdImp > 1
+                          ? <>Vocês são <b style={{ color: IMPOSTOR_COR }}>{qtdImp}</b> Impostores — estes aqui são do seu time.</>
+                          : <>Você é o <b style={{ color: IMPOSTOR_COR }}>único</b> Impostor da casa.</>)
+                        : <>Há <b style={{ color: IMPOSTOR_COR }}>{qtdImp}</b> Impostor{qtdImp > 1 ? 'es' : ''} entre nós.</>}
                     </div>
-                  );
-                })}
-              </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(8px, 1.4vw, 18px)', flexWrap: 'wrap', maxWidth: '80vw' }}>
+                      {elenco.map(p => {
+                        const eu = p.name === name;
+                        // Parceiro de crime: moldura vermelha + nome, pra não
+                        // restar dúvida de quem é quem na hora do jogo.
+                        const parceiro = souImpostor && !eu;
+                        return (
+                          <div key={p.name} className="sus-pop" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                            transform: eu ? 'scale(1.35) translateY(-6px)' : 'scale(1)', zIndex: eu ? 2 : 1 }}>
+                            <img draggable={false} src={p.photo || '/UNIKO_NEW.png'} alt=""
+                              style={{ width: 'clamp(52px, 6.5vw, 92px)', aspectRatio: '1/1', borderRadius: '50%', objectFit: 'cover', background: '#fff',
+                                border: eu ? `3px solid ${AGUA}` : parceiro ? `3px solid ${IMPOSTOR_COR}` : '2px solid rgba(255,255,255,.4)',
+                                boxShadow: eu ? `0 0 22px ${AGUA}aa` : parceiro ? `0 0 22px ${IMPOSTOR_COR}aa` : 'none' }} />
+                            {(eu || parceiro) && (
+                              <span style={{ fontSize: 'clamp(10px, 1.1vw, 14px)', fontWeight: 800, color: eu ? '#fff' : IMPOSTOR_COR }}>
+                                {eu ? 'Você' : p.name.split(' ')[0]}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
               <div style={{ fontSize: 'clamp(12.5px, 1.5vw, 19px)', color: 'rgba(255,255,255,.65)', maxWidth: 'min(90vw, 640px)', lineHeight: 1.55 }}>
                 {meuPapel === 'impostor'
                   ? 'Finja fazer tarefas, sabote a casa de praia e elimine os tripulantes sem ser pego.'
@@ -3590,7 +3663,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   // Trava TODA tarefa que não seja a de energia enquanto a
                   // sabotagem durar — inclusive as que eu já concluí (antes o
                   // `!feita` deixava as concluídas clicáveis no escuro).
-                  const travada = !!state?.sabotagem && !consertandoSabotagem;
+                  const travada = !!state?.sabotagem && !consertandoSabotagem && !souFantasma;   // fantasma segue nas tarefas dele
                   // Só dá pra abrir estando PERTO (mesma regra da tecla E / do
                   // botão Usar). Antes o clique na placa abria a tarefa de
                   // qualquer canto do mapa — dava pra fazer tudo sem sair do
@@ -3845,7 +3918,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
                   const consertaram = tripulantesVivos.filter(n => state.sabotagem.consertadoPor?.includes(n)).length;
                   return (
                     <AvisoJogo cor="#D97706" icone="⚡" titulo="Energia sabotada!"
-                      sub={meuPapel === 'impostor'
+                      sub={souFantasma
+                        ? `Fantasma não conserta — quem está vivo resolve (${consertaram}/${tripulantesVivos.length}).`
+                        : meuPapel === 'impostor'
                         ? `Ninguém faz tarefa até todo mundo consertar (${consertaram}/${tripulantesVivos.length}).`
                         : energiaAlvo
                           ? `Siga a seta até a sala de energia (${energiaDist} de distância) — ${consertaram}/${tripulantesVivos.length} consertaram.`

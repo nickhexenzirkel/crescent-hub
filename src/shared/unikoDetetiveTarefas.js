@@ -40,7 +40,7 @@ export const TAREFAS_DISPONIVEIS = [
   { label: 'Consertar energia',              desc: 'ligar os fios certos (usada na sabotagem)' },
   { label: 'Fazer churrasco',                desc: 'virar no ponto certo' },
   { label: 'Limpar banheiro',                desc: 'esfregar as manchas' },
-  { label: 'Observar estrelas',              desc: 'ligar a constelação na ordem' },
+  { label: 'Observar estrelas',              desc: 'arrastar cada estrela pro encaixe no mapa celeste' },
   { label: 'Excluir pastas no computador',   desc: 'arrastar as pastas velhas pra lixeira' },
   { label: 'Tomar banho na sauna',           desc: 'segurar a temperatura na faixa verde' },
 ];
