@@ -69,6 +69,47 @@ const GLOBAL_ROOM = 'global';
 /* Mascote oficial do Uniko Paint (gato-robô de boina, respingado de tinta). */
 const MASCOTE = '/uniko-paint.png';
 
+/* ── CELULAR ────────────────────────────────────────────────────────────────
+   `mob` decide o layout inteiro do jogo (empilhado, alvos de toque grandes) e
+   `paisagem` importa de verdade aqui: o desenho é 16:10, então DEITADO ele fica
+   muito maior — em pé a largura da tela é o teto do tamanho do canvas.
+   O teste não é só a largura: celular deitado tem 900+px de largura e continua
+   sendo celular, daí o `pointer: coarse` (dedo, não mouse) junto. */
+const useTela = () => {
+  const ler = () => ({
+    mob: window.innerWidth < 820
+      || (window.matchMedia?.('(pointer: coarse)').matches && window.innerWidth < 1100),
+    paisagem: window.innerWidth > window.innerHeight,
+  });
+  const [t, setT] = useState(ler);
+  useEffect(() => {
+    // Só troca o estado quando algo MUDA de verdade: `resize` dispara a cada
+    // pixel (e a cada abrir de teclado no iOS) e re-renderizar o jogo à toa
+    // durante um traço custa caro.
+    const fn = () => setT(p => { const n = ler(); return (n.mob === p.mob && n.paisagem === p.paisagem) ? p : n; });
+    window.addEventListener('resize', fn);
+    window.addEventListener('orientationchange', fn);
+    return () => { window.removeEventListener('resize', fn); window.removeEventListener('orientationchange', fn); };
+  }, []);
+  return t;
+};
+
+/* Altura real da área visível no celular. Quando o teclado abre, o iOS NÃO
+   encolhe a janela (innerHeight continua o mesmo): ele só encolhe a
+   visualViewport e empurra a página. Sem isso a barra de palpite — o único
+   jeito de jogar pra quem adivinha — ficava embaixo do teclado. */
+const useAlturaVisivel = (ativo) => {
+  const [h, setH] = useState(() => window.visualViewport?.height ?? null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!ativo || !vv) return undefined;
+    const fn = () => setH(vv.height);
+    vv.addEventListener('resize', fn);
+    return () => vv.removeEventListener('resize', fn);
+  }, [ativo]);
+  return ativo ? h : null;
+};
+
 /* ── PALETA ─────────────────────────────────────────────────────────────────
    O Uniko Paint tem identidade PRÓPRIA, tirada do mascote (neon das orelhas e
    olhos + os respingos de tinta), em vez de herdar o azul/cinza do tema do
@@ -916,7 +957,7 @@ const semTabela = (erro) => !!erro && (erro.code === 'PGRST205' || erro.code ===
 
 /* ── Ranking geral (lobby) ──────────────────────────────────────────────────
    Soma dos pontos de todas as partidas. Ver supabase_uniko_paint_ranking.sql. */
-const RankingGeral = ({ name, cardBg }) => {
+const RankingGeral = ({ name, cardBg, maxAltura }) => {
   const [linhas, setLinhas] = useState(null);   // null = carregando
   const [faltaSql, setFaltaSql] = useState(false);
 
@@ -942,7 +983,8 @@ const RankingGeral = ({ name, cardBg }) => {
 
   return (
     <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14,
-      boxShadow: T.sh, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      boxShadow: T.sh, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden',
+      maxHeight: maxAltura }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 11, flexShrink: 0 }}>
         <span style={{ fontSize: 17 }}>🏆</span>
         <span style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.07em' }}>RANKING GERAL</span>
@@ -995,6 +1037,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [temaSala, setTemaSala] = useState('geral');
   const [erro, setErro] = useState('');
   const [confirmarEx, setConfirmarEx] = useState(null);  // id da sala a excluir
+  const { mob } = useTela();
   const cardBg = T.surface || '#fff';
   const isAdmin = getAuthUser()?.role === 'admin';
 
@@ -1053,10 +1096,16 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const podeExcluir = (r) => r.id !== GLOBAL_ROOM && (isAdmin || r.state?.criador === name);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0 }}>
+    <div className="up-sembarra" style={{ display: 'flex', flexDirection: 'column', gap: mob ? 10 : 14,
+      height: '100%', minHeight: 0,
+      /* No celular o lobby rola por conta própria: a área do Portal fica com
+         overflow hidden (por causa da sala, que é tela cheia) e sem isso os
+         cards de sala mais abaixo ficavam inalcançáveis. */
+      overflowY: mob ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
       <style>{PAINT_CSS}</style>
       {/* Cabeçalho */}
-      <div className="up-hd" style={{ borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14,
+      <div className="up-hd" style={{ borderRadius: 16, padding: mob ? '11px 13px' : '14px 18px',
+        display: 'flex', alignItems: 'center', gap: mob ? 10 : 14, flexWrap: mob ? 'wrap' : 'nowrap',
         // brilho embutido no próprio background (evita uma camada só pra isso)
         background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%),
                      radial-gradient(circle at 88% 82%, rgba(255,255,255,.2) 0%, transparent 42%), ${RAINBOW}`,
@@ -1064,37 +1113,46 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
         {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
-        <Mascote size={80} />
+        <Mascote size={mob ? 46 : 80} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: mob ? 18 : 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
+          <div style={{ fontSize: mob ? 11 : 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <ConvidarButton game="paint" roomId={null} accent={A} />
+        {/* No celular os dois botões descem pra uma linha só deles e dividem a
+            largura — espremidos no canto viravam alvos de 2mm. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          flexBasis: mob ? '100%' : 'auto' }}>
+          <ConvidarButton game="paint" roomId={null} accent={A}
+            style={mob ? { flex: 1, justifyContent: 'center', padding: '11px 12px' } : undefined} />
           <button onClick={() => setCriando(v => !v)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 999, border: 'none',
-              background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: mob ? '11px 14px' : '9px 16px', borderRadius: 999, border: 'none', flex: mob ? 1 : undefined,
+              background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+              touchAction: 'manipulation', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
             <IcoPlus size={15} />Criar sala
           </button>
         </div>
       </div>
 
       {/* Seu perfil — card destacado: Uniko atual + nome + editar */}
-      <div style={{ background: cardBg, border: `1.5px solid ${A}44`, borderRadius: 16, padding: '16px 20px',
-        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ background: cardBg, border: `1.5px solid ${A}44`, borderRadius: 16,
+        padding: mob ? '12px 14px' : '16px 20px',
+        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: mob ? 12 : 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <img src={photo} alt="" style={{ width: 66, height: 66, borderRadius: '50%', objectFit: 'cover',
+          <img src={photo} alt="" style={{ width: mob ? 52 : 66, height: mob ? 52 : 66, borderRadius: '50%', objectFit: 'cover',
             background: '#fff', border: `3px solid ${A}`, boxShadow: `0 4px 14px ${AG}` }} />
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, textTransform: 'uppercase', letterSpacing: '.06em' }}>Seu perfil no jogo</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
-          <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>É assim que a galera te vê nas partidas.</div>
+          <div style={{ fontSize: mob ? 17 : 20, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
+          {!mob && <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>É assim que a galera te vê nas partidas.</div>}
         </div>
         <button onClick={onAbrirPicker}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 22px', borderRadius: 12, border: 'none',
-            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer',
-            boxShadow: `0 6px 18px ${AG}` }}>
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+            padding: mob ? '12px 16px' : '12px 22px', borderRadius: 12, border: 'none',
+            flexBasis: mob ? '100%' : 'auto',
+            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: mob ? 14 : 15, fontWeight: 800,
+            cursor: 'pointer', touchAction: 'manipulation', boxShadow: `0 6px 18px ${AG}` }}>
           <IcoEdit size={18} />
           Editar perfil
         </button>
@@ -1144,11 +1202,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
 
       {/* Salas + ranking lado a lado. minmax(0,1fr) na linha pelo mesmo motivo de
           sempre: sem isso a linha cresce com o conteúdo e estica a página. */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 268px',
-        gridTemplateRows: 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
+      <div style={{ flex: mob ? undefined : 1, display: 'grid',
+        gridTemplateColumns: mob ? '1fr' : '1fr 268px',
+        /* No celular as duas caixas viram linhas de altura livre e quem rola é o
+           lobby inteiro — travar a altura aqui espremia a lista de salas. */
+        gridTemplateRows: mob ? 'auto auto' : 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
       {/* Lista de salas — sem barra de rolagem (não vai ter sala demais), mas
           ainda rolável pela roda se um dia passar da tela. */}
-      <div className="up-sembarra" style={{ overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+      <div className="up-sembarra" style={{ overflowY: mob ? 'visible' : 'auto', minHeight: 0, position: 'relative' }}>
         {/* respingos coloridos bem sutis no fundo da lista */}
         <Splat x="-3%"  y="14%" size={190} cor={UP.cyan}   rot={18}  op={0.05} forma={1} />
         <Splat x="72%"  y="52%" size={230} cor={UP.pink}   rot={200} op={0.045} forma={2} />
@@ -1162,7 +1223,8 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
             virava um bloco enorme, enquanto em tela menor ficava compacto — era
             a mesma tela parecendo dois layouts diferentes. Teto de 340px + o
             grid alinhado à esquerda mantém o card sempre do mesmo tamanho. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 340px))',
+        <div style={{ display: 'grid',
+          gridTemplateColumns: mob ? '1fr' : 'repeat(auto-fill, minmax(260px, 340px))',
           justifyContent: 'start', gap: 12, position: 'relative', zIndex: 1 }}>
           {rooms.map(r => {
             const st = r.state || {};
@@ -1238,8 +1300,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
                 </div>
 
                 <button className="up-btn" onClick={() => { SFX.entrou(); onEnter(r.id); }}
-                  style={{ width: '100%', padding: '9px', borderRadius: 10, border: 'none', color: textoSobre(cor),
-                    fontSize: 13, fontWeight: 800, cursor: 'pointer', position: 'relative', zIndex: 1,
+                  style={{ width: '100%', padding: mob ? '13px' : '9px', borderRadius: 10, border: 'none', color: textoSobre(cor),
+                    fontSize: mob ? 14 : 13, fontWeight: 800, cursor: 'pointer', position: 'relative', zIndex: 1,
+                    touchAction: 'manipulation',
                     background: cor, boxShadow: `0 4px 14px ${cor}55` }}>
                   Entrar
                 </button>
@@ -1287,7 +1350,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
         )}
       </div>
 
-      <RankingGeral name={name} cardBg={cardBg} />
+      <RankingGeral name={name} cardBg={cardBg} maxAltura={mob ? 320 : undefined} />
       </div>
     </div>
   );
@@ -1315,6 +1378,16 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const [color, setColor]   = useState(COLORS[0]);
   const [size, setSize]     = useState(SIZES[1]);
   const [filled, setFilled] = useState(false);
+
+  /* ── Celular ───────────────────────────────────────────────────────────
+     A sala no celular vira TELA CHEIA e os painéis laterais (jogadores, menu)
+     viram gavetas — não cabem três colunas em 390px sem espremer o desenho,
+     que é o que a pessoa veio fazer. */
+  const { mob, paisagem } = useTela();
+  const alturaVis = useAlturaVisivel(mob);
+  const [chatAberto, setChatAberto]   = useState(true);
+  const [sheetJog, setSheetJog]       = useState(false);   // gaveta "Jogadores"
+  const [menuMob, setMenuMob]         = useState(false);   // gaveta "⋯"
 
   const canvasRef = useRef(null);
   const baseRef   = useRef(null);   // canvas offscreen com o desenho commitado
@@ -1848,18 +1921,23 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     commit(a);
     chanRef.current?.send({ type: 'broadcast', event: 'act', payload: { from: name, act: a } });
   };
+  /* UM DEDO POR VEZ. No celular, encostar a palma (ou o outro polegar) dispara
+     um pointerdown NOVO no meio do traço: sem isto, o segundo toque começava
+     outro traço e os pontos dos dois dedos entravam no mesmo segmento, riscando
+     o desenho de lado a lado. Guardamos o pointerId do dedo que está desenhando
+     e ignoramos todo o resto até ele soltar. */
   const down = (e) => {
-    if (!isDrawer) return;
+    if (!isDrawer || drag.current) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const p = posOf(e);
     if (tool === 'fill') { sendAct({ t: 'f', p, c: color }); return; }
-    if (TOOLS.find(x => x.id === tool)?.shape) { drag.current = { a: p, b: p }; return; }
+    if (TOOLS.find(x => x.id === tool)?.shape) { drag.current = { a: p, b: p, id: e.pointerId }; return; }
     const seg = { start: true, p, c: color, w: size, e: tool === 'eraser' };
-    drag.current = { free: true };
+    drag.current = { free: true, id: e.pointerId };
     applySeg(seg); pending.current.push(seg);
   };
   const move = (e) => {
-    if (!isDrawer || !drag.current) return;
+    if (!isDrawer || !drag.current || drag.current.id !== e.pointerId) return;
     const p = posOf(e);
     if (drag.current.free) {
       const seg = { start: false, p };
@@ -1869,9 +1947,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
       blit(shapeAct(drag.current.a, p));    // preview sem commitar
     }
   };
-  const up = () => {
-    const d = drag.current; drag.current = null;
+  const up = (e) => {
+    const d = drag.current;
     if (!d) return;
+    if (e && d.id !== e.pointerId) return;   // soltou OUTRO dedo, não o que desenha
+    drag.current = null;
     if (d.free) { flush(); return; }
     sendAct(shapeAct(d.a, d.b));
   };
@@ -1944,11 +2024,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, name]);
 
-  useEffect(() => {
-    const cv = canvasRef.current; if (!cv) return;
+  /* Ref-CALLBACK em vez de efeito de montagem: no celular o <canvas> muda de
+     lugar na árvore (em pé ⇄ deitado, chat aberto ⇄ fechado). Nesses casos o
+     React destrói e recria o elemento SEM remontar a Sala — um efeito `[]` não
+     rodaria de novo e o canvas novo ficava em branco (o desenho continua no
+     `base`, offscreen). Aqui a inicialização acontece a cada canvas montado. */
+  const attachCanvas = useCallback((cv) => {
+    canvasRef.current = cv;
+    if (!cv) return;
     cv.width = CW; cv.height = CH;
     ctxBase(); blit();
-    // Só na montagem: o canvas tem tamanho fixo e `blit` lê tudo de refs.
+    // ctxBase/blit só mexem em refs — a closure do 1º render vale pra sempre.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1961,21 +2047,695 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   const temaAtual = themeById(state?.themeId);
   const noLobby = !state || state.phase === 'lobby' || state.phase === 'over';
 
+  /* Botão de ferramenta. No celular vai SÓ o ícone (o nome fica no title): o
+     rótulo embaixo obriga o botão a ter 54px de largura, e aí as 10 ferramentas
+     não cabem na tela — sem o texto o alvo de toque fica maior, não menor. */
   const btnTool = (t) => {
     const Ico = ICON_OF[t.id];
     const on = tool === t.id;
     return (
-      <button key={t.id} onClick={() => setTool(t.id)} title={t.nome}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
-          borderRadius: 10, cursor: 'pointer', transition: 'all .12s',
+      <button key={t.id} onClick={() => setTool(t.id)} title={t.nome} aria-label={t.nome}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+          width: mob ? undefined : 54, height: mob ? 42 : undefined, minWidth: mob ? 42 : undefined,
+          padding: mob ? 0 : '8px 4px',
+          borderRadius: 10, cursor: 'pointer', transition: 'all .12s', touchAction: 'manipulation',
           border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
           background: on ? `${A}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
-          color: on ? A : T.text, transform: on ? 'translateY(-1px)' : 'none' }}>
-        <Ico size={20} />
-        <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.nome}</span>
+          color: on ? A : T.text, transform: (on && !mob) ? 'translateY(-1px)' : 'none' }}>
+        <Ico size={mob ? 21 : 20} />
+        {!mob && <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.nome}</span>}
       </button>
     );
   };
+
+  /* ═══ PEDAÇOS DA TELA ═════════════════════════════════════════════════════
+     Os mesmos blocos, montados de dois jeitos: três colunas no computador e
+     empilhado no celular. Ficam em variáveis (e não duplicados nos dois
+     layouts) pra não nascer "a versão mobile que esqueceram de atualizar". */
+
+  /* Jogadores em coluna — barra lateral no computador, gaveta no celular. */
+  const listaJogadores = ranked.map((p, i) => {
+    const desenhando = state?.phase === 'drawing' && state?.drawer === p.name;
+    const acertou = state?.hits?.includes(p.name);
+    return (
+      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 8px', borderRadius: 11,
+        background: desenhando ? `${A}14` : 'transparent', marginBottom: 3 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <img src={p.photo || '/UNIKO_NEW.png'} alt=""
+            style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover',
+              border: `2.5px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`,
+              background: T.surfaceSub, boxShadow: desenhando ? `0 0 0 3px ${A}22` : 'none' }} />
+          {i === 0 && (state?.scores?.[p.name] > 0) && (
+            <div style={{ position: 'absolute', top: -7, right: -5, color: '#F0B429' }}><IcoCrown size={16} /></div>
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: p.name === name ? 800 : 700, color: T.text,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
+            {p.name.split(' ')[0]}{p.name === name && ' (você)'}
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+            <b style={{ color: T.text, fontWeight: 700 }}>{p.pts}</b> pts
+            {desenhando && <span style={{ color: A, fontWeight: 700 }}>• desenhando</span>}
+            {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
+            {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
+          </div>
+        </div>
+        {/* Expulsar (voto democrático) — só pra outros jogadores */}
+        {p.name !== name && players.length >= 3 && (() => {
+          const votos = kickVotes[p.name] || [];
+          const eleg  = Math.max(1, players.filter(pl => pl.name !== p.name).length);
+          const alvo  = Math.ceil(eleg * KICK_THRESHOLD);
+          const votei = votos.includes(name);
+          return (
+            <button onClick={() => votarExpulsar(p.name)}
+              title={votei ? `Clique para RETIRAR seu voto de expulsar ${p.name.split(' ')[0]}` : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
+                padding: mob ? '9px 11px' : '4px 7px', borderRadius: 8,
+                border: `1px solid ${votei ? '#E63946' : votos.length ? '#E6394655' : T.border}`,
+                background: votei ? '#E6394622' : votos.length ? '#E6394610' : 'transparent',
+                color: votei ? '#E63946' : T.textT, cursor: 'pointer', touchAction: 'manipulation',
+                fontSize: mob ? 13 : 11, fontWeight: 700, lineHeight: 1 }}>
+              {votei ? '↩' : '🚪'}{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
+            </button>
+          );
+        })()}
+      </div>
+    );
+  });
+
+  /* Faixa horizontal de jogadores — o que sobra da barra lateral no celular.
+     Um toque abre a gaveta com a lista inteira (é lá que ficam os votos de
+     expulsar, que não cabem num chip de 100px). */
+  const stripJogadores = (
+    <div className="up-sembarra" onClick={() => setSheetJog(true)}
+      style={{ display: 'flex', alignItems: 'center', gap: 7, overflowX: 'auto', flexShrink: 0,
+        padding: '0 2px', cursor: 'pointer' }}>
+      {ranked.map((p, i) => {
+        const desenhando = state?.phase === 'drawing' && state?.drawer === p.name;
+        const acertou = state?.hits?.includes(p.name);
+        return (
+          <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+            padding: '4px 10px 4px 4px', borderRadius: 999,
+            background: desenhando ? `${A}1e` : acertou ? '#28a06014' : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+            border: `1px solid ${desenhando ? A : acertou ? '#28a06055' : T.border}` }}>
+            <img src={p.photo || '/UNIKO_NEW.png'} alt=""
+              style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub }} />
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text, maxWidth: 76,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {(i === 0 && state?.scores?.[p.name] > 0) ? '👑 ' : ''}{p.name.split(' ')[0]}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700,
+                color: desenhando ? A : acertou ? '#28a060' : T.textT }}>
+                {desenhando ? 'desenhando' : acertou ? 'acertou' : `${p.pts} pts`}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  /* A palavra (ou os tracinhos) — mesmo miolo nos dois layouts. */
+  const palavraDaRodada = isDrawer ? <span style={{ letterSpacing: '.02em' }}>{word}</span> : (
+    <>
+      {/* Cada palavra é um bloco à parte, com um gap BEM maior entre
+          blocos do que o letterSpacing usado DENTRO de cada palavra —
+          é essa diferença de espaçamento que deixa claro onde tem um
+          espaço de verdade (ex.: "café da manhã" vira 3 blocos bem
+          separados, não uma sequência única de traços). Um <span> só
+          com espaço normal não bastaria: o HTML colapsa espaços
+          repetidos e as palavras virariam um bloco só. */}
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: mob ? 12 : 20, flexWrap: 'wrap' }}>
+        {maskParts(word, revelar).map((g, i) => (
+          <span key={i} style={{ letterSpacing: '.18em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
+        ))}
+      </span>
+      <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0 }}>
+        ({contaLetras(word)} letras
+        {maskParts(word).length > 1 ? `, ${maskParts(word).length} palavras` : ''})
+      </span>
+    </>
+  );
+
+  /* Ações da rodada: dica/pular (quem desenha) e denunciar (quem adivinha). */
+  const btnDica = isDrawer && (
+    <button className="up-btn" onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
+      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: mob ? '8px 13px' : '6px 12px', borderRadius: 999,
+        border: `1px solid ${revelar >= maxHints(word) ? T.border : A}`,
+        cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer', touchAction: 'manipulation',
+        background: revelar >= maxHints(word) ? 'transparent' : `${A}14`,
+        color: revelar >= maxHints(word) ? T.textD : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      <IcoBulb size={13} />{mob ? 'Dica' : 'Dar dica'}
+    </button>
+  );
+  const btnPular = isDrawer && (
+    /* Dois cliques de propósito: pular custa a vez INTEIRA (não
+       desenha e não pontua), então um clique sem querer seria caro. */
+    <button className="up-btn" onClick={() => (confirmPular ? pularVez() : setConfirmPular(true))}
+      disabled={!podePular}
+      onBlur={() => setConfirmPular(false)}
+      title={state?.hits?.length ? 'Alguém já acertou — não dá mais pra pular'
+        : 'Passar a vez pro próximo (você não desenha nem pontua nesta rodada)'}
+      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: mob ? '8px 13px' : '6px 12px', borderRadius: 999,
+        border: `1px solid ${!podePular ? T.border : confirmPular ? UP.red : UP.orange}`,
+        cursor: podePular ? 'pointer' : 'not-allowed', touchAction: 'manipulation',
+        background: !podePular ? 'transparent' : confirmPular ? `${UP.red}18` : `${UP.orange}14`,
+        color: !podePular ? T.textD : confirmPular ? UP.red : UP.orange,
+        fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      <IcoSkip size={13} />{confirmPular ? 'Confirmar?' : (mob ? 'Pular' : 'Pular vez')}
+    </button>
+  );
+  const btnDenunciar = !isDrawer && (
+    <button className="up-btn" onClick={denunciarDesenho} disabled={!podeDenunciar}
+      title={jaDenunciei ? 'Você já denunciou este desenho'
+        : 'Denunciar desenho impróprio ou fora do tema — com votos suficientes, a rodada encerra e quem desenhou não pontua'}
+      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: mob ? '8px 13px' : '6px 12px', borderRadius: 999,
+        border: `1px solid ${jaDenunciei ? T.border : UP.red}`,
+        cursor: podeDenunciar ? 'pointer' : 'not-allowed', touchAction: 'manipulation',
+        background: jaDenunciei ? 'transparent' : `${UP.red}14`,
+        color: jaDenunciei ? T.textD : UP.red, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      <IcoFlag size={13} />{jaDenunciei ? 'Denunciado' : 'Denunciar'}
+      {totalVotantes > 0 && ` (${state?.reports?.length || 0}/${totalVotantes})`}
+    </button>
+  );
+  const relogio = (
+    <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
+        background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub, transition: 'background .3s, color .3s',
+        color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5,
+        minWidth: mob ? 44 : 54, justifyContent: 'center', flexShrink: 0 }}>
+      {secsLeft}s
+    </div>
+  );
+
+  /* Barra de status. No celular ela quebra em duas linhas (palavra em cima,
+     botões embaixo): numa linha só, a palavra sobrava com uns 40px e os
+     tracinhos ficavam ilegíveis. */
+  const barraStatus = (
+    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: mob ? 10 : 12,
+      padding: mob ? '7px 9px' : '9px 14px', display: 'flex', alignItems: 'center',
+      gap: mob ? 8 : 12, flexWrap: mob ? 'wrap' : 'nowrap', boxShadow: T.sh, flexShrink: 0 }}>
+      {state?.phase === 'drawing' ? (
+        <>
+          <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap' }}>
+            {mob ? `${state.round}${state.totalRounds ? `/${state.totalRounds}` : ''}`
+                 : `Rodada ${state.round}${state.totalRounds ? ` de ${state.totalRounds}` : ''}`}
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: mob ? 17 : 20,
+            fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+            {palavraDaRodada}
+          </div>
+          {relogio}
+          {/* No celular os botões descem pra 2ª linha (flexBasis 100%). */}
+          {(isDrawer || btnDenunciar) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', flexShrink: 0,
+              flexBasis: mob ? '100%' : 'auto', justifyContent: mob ? 'center' : 'flex-end' }}>
+              {btnDica}{btnPular}{btnDenunciar}
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: T.textT, fontWeight: 600 }}>
+          {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b>
+            {state.denunciada && <span style={{ color: UP.red, fontWeight: 700 }}> · 🚩 denunciado</span>}</>
+            : state?.phase === 'over' ? 'Fim de jogo!'
+            : `Aguardando jogadores (mínimo ${MIN_PLAYERS})`}
+        </div>
+      )}
+    </div>
+  );
+
+  /* O canvas e tudo que aparece por cima dele. */
+  const areaCanvas = (extra) => (
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, borderRadius: mob ? 10 : 14, overflow: 'hidden',
+      border: `1px solid ${T.border}`, boxShadow: T.sh,
+      /* O "papel" agora mantém a proporção 16:10 e o resto da caixa é moldura.
+         Antes o canvas era esticado pra preencher (width/height 100%): como as
+         ações são normalizadas 0..1, cada tela deformava o desenho de um jeito
+         — no celular em pé um círculo virava ovo pra todo mundo menos pra quem
+         desenhou. */
+      background: T.surfaceSub || 'rgba(0,0,0,.05)',
+      display: 'grid', placeItems: 'center', ...extra }}>
+      <canvas ref={attachCanvas}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}
+        /* Largura E altura em `auto` de propósito: aí valem as dimensões
+           internas do canvas (1000×625) e os dois `max` encolhem o elemento
+           SEM deformar — é a regra clássica de elemento substituído, a mesma
+           que faz uma foto caber numa caixa. Com `width:100%` o navegador
+           obedece a largura e esmaga a altura no `max`, que é justamente o
+           que estamos evitando. */
+        style={{ width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: '100%', display: 'block',
+          background: '#fff', touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none',
+          WebkitTouchCallout: 'none',
+          cursor: isDrawer ? (tool === 'fill' ? 'cell' : 'crosshair') : 'default' }} />
+
+      {state?.phase !== 'drawing' && (
+        <div className="up-scroll" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: mob ? 9 : 12, textAlign: 'center', padding: mob ? 14 : 20,
+          overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
+          <Mascote size={mob ? 72 : 112} halo big />
+          {state?.phase === 'over' ? (
+            <>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: mob ? 18 : 21, fontWeight: 800, color: T.text }}>
+                🏆 {ranked[0]?.name?.split(' ')[0] || '—'} venceu!
+              </div>
+              <div style={{ fontSize: 13, color: T.textT }}>
+                {ranked.slice(0, 3).map((p, i) => `${i + 1}º ${p.name.split(' ')[0]} — ${p.pts} pts`).join('   ·   ')}
+              </div>
+            </>
+          ) : state?.phase === 'reveal' ? (
+            <div style={{ textAlign: 'center' }}>
+              {state.pulada && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: UP.orange, marginBottom: 5 }}>
+                  ⏭ {state.drawer?.split(' ')[0]} passou a vez
+                </div>
+              )}
+              {state.denunciada && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: UP.red, marginBottom: 5 }}>
+                  🚩 desenho denunciado — {state.drawer?.split(' ')[0]} não pontuou nesta rodada
+                </div>
+              )}
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: mob ? 18 : 21, fontWeight: 800, color: T.text }}>
+                A palavra era <span style={{ color: A }}>{state.lastWord}</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: mob ? 17 : 19, fontWeight: 800, color: T.text }}>
+              {state?.nome || 'Sala'}
+            </div>
+          )}
+
+          {/* O tema é o da sala, definido na criação — não se vota. */}
+          {noLobby && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
+              background: `${A}12`, border: `1px solid ${A}44` }}>
+              <span style={{ fontSize: 16 }}>{temaAtual.emoji}</span>
+              <span style={{ fontSize: 12.5, color: T.text, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
+            </div>
+          )}
+
+          {noLobby && (
+            isHost ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>Cada um desenha</span>
+                  {LAP_OPTIONS.map(n => (
+                    <button key={n} onClick={() => setLaps(n)}
+                      style={{ minWidth: mob ? 38 : 30, padding: mob ? '8px 10px' : '5px 9px', borderRadius: 8,
+                        cursor: 'pointer', fontSize: 12.5, fontWeight: 700, touchAction: 'manipulation',
+                        border: laps === n ? `1.5px solid ${A}` : `1px solid ${T.border}`,
+                        background: laps === n ? `${A}14` : 'transparent', color: laps === n ? A : T.text }}>
+                      {n}×
+                    </button>
+                  ))}
+                  <span style={{ fontSize: 11.5, color: T.textD }}>
+                    = {laps * Math.max(players.length, 1)} rodadas
+                    {' '}(~{Math.round(laps * Math.max(players.length, 1) * (ROUND_MS + REVEAL_MS) / 60000)} min)
+                  </span>
+                </div>
+                {/* `!state` também trava: começar antes do state da sala
+                    carregar deixava a partida SEM TEMA (ver startRound). */}
+                <button className="up-btn" onClick={startGame} disabled={players.length < MIN_PLAYERS || !state}
+                  style={{ padding: mob ? '13px 30px' : '11px 26px', borderRadius: 999, border: 'none',
+                    background: (players.length < MIN_PLAYERS || !state) ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
+                    color: '#fff', fontSize: mob ? 15 : 14, fontWeight: 800, touchAction: 'manipulation',
+                    cursor: (players.length < MIN_PLAYERS || !state) ? 'not-allowed' : 'pointer',
+                    boxShadow: (players.length < MIN_PLAYERS || !state) ? 'none' : `0 6px 18px ${AG}` }}>
+                  {!state ? 'Carregando sala...' : state.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
+                </button>
+                {players.length < MIN_PLAYERS && (
+                  <div style={{ fontSize: 12, color: T.textT }}>
+                    Chame mais gente! Precisa de pelo menos {MIN_PLAYERS} jogadores nesta sala.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: T.textT, fontStyle: 'italic' }}>
+                Esperando {host?.split(' ')[0] || 'o host'} começar a partida...
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {state?.phase === 'drawing' && !isDrawer && (
+        <div className="up-drawing-badge" style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+          padding: '4px 12px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff',
+          fontSize: 11.5, fontWeight: 700, pointerEvents: 'none' }}>
+          {iHit ? '✓ você acertou!' : `${state.drawer?.split(' ')[0]} está desenhando`}
+        </div>
+      )}
+
+      {/* Celular EM PÉ: o desenho é 16:10, então em pé a largura da tela é o teto
+          do tamanho dele. Deitado cabe quase o dobro — por isso o aviso, e só
+          pra quem está desenhando (quem adivinha não perde nada em pé). */}
+      {mob && !paisagem && state?.phase === 'drawing' && isDrawer && (
+        <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          padding: '5px 12px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff',
+          fontSize: 11, fontWeight: 700, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          📱↻ Vire o celular pra desenhar maior
+        </div>
+      )}
+
+      {/* ── "Agora é a vez de fulano" — Uniko grande + nome ── */}
+      {vez && (
+        <div className="up-turn" style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: mob ? 10 : 16, pointerEvents: 'none',
+          background: `linear-gradient(160deg, ${A}f2, ${A2}ee 60%, ${A3}f2)` }}>
+          <div style={{ position: 'absolute', inset: 0, opacity: .2,
+            background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
+          {/* Avatar gigante com anéis pulsando */}
+          <div className="up-avatar" style={{ position: 'relative', color: '#fff' }}>
+            <div className="up-ring" />
+            <div className="up-ring up-ring2" />
+            <img src={vez.photo || MASCOTE} alt=""
+              style={{ width: mob ? 86 : 132, height: mob ? 86 : 132, borderRadius: '50%', objectFit: 'cover',
+                border: '5px solid rgba(255,255,255,.95)', background: '#fff',
+                boxShadow: '0 14px 44px rgba(0,0,0,.4)' }} />
+          </div>
+          <div style={{ textAlign: 'center', zIndex: 1 }}>
+            <div style={{ fontSize: mob ? 11.5 : 13, fontWeight: 700, color: 'rgba(255,255,255,.9)', letterSpacing: '.14em',
+              textTransform: 'uppercase', marginBottom: 5 }}>
+              {vez.eu ? 'Sua vez de desenhar!' : 'Agora é a vez de'}
+            </div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: mob ? 27 : 38, fontWeight: 800, color: '#fff',
+              textShadow: '0 4px 20px rgba(0,0,0,.35)', lineHeight: 1.1 }}>
+              {vez.eu ? name.split(' ')[0] : vez.nome.split(' ')[0]}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.9)', marginTop: 8 }}>
+              {vez.eu ? 'Capriche — a galera tá esperando 🎨' : 'Adivinhe a palavra no chat!'}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  /* Grupos da barra de ferramentas. No celular tudo vira grade de 2 linhas com
+     alvos de 42px: no computador a barra é uma linha só que passa de 700px. */
+  const grupoTools = (
+    <div style={{ display: mob ? 'grid' : 'flex', gap: 5,
+      ...(mob ? { gridTemplateColumns: paisagem ? undefined : 'repeat(5, minmax(0, 1fr))',
+                  gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: paisagem ? 'column' : 'row',
+                  gridAutoColumns: 42, flexShrink: 0 }
+              : { flexWrap: 'wrap' }) }}>
+      {TOOLS.map(btnTool)}
+    </div>
+  );
+  const grupoCores = (
+    <div style={{ display: 'grid', gap: 5, flexShrink: 0,
+      ...(mob ? { gridTemplateRows: 'repeat(2, auto)', gridAutoFlow: 'column', gridAutoColumns: 'minmax(0, 1fr)' }
+              : { gridTemplateColumns: 'repeat(6, 1fr)' }) }}>
+      {COLORS.map(c => (
+        <button key={c} onClick={() => { setColor(c); if (tool === 'eraser') setTool('brush'); }} title={c}
+          style={{ width: mob ? 27 : 26, height: mob ? 27 : 26, borderRadius: '50%', background: c,
+            cursor: 'pointer', transition: 'transform .12s', touchAction: 'manipulation',
+            border: color === c ? `3px solid ${A}` : `1px solid ${T.border}`,
+            transform: color === c ? 'scale(1.12)' : 'none' }} />
+      ))}
+    </div>
+  );
+  const grupoTamanhos = (
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+      {SIZES.map(s => (
+        <button key={s} onClick={() => setSize(s)} title={`${s}px`}
+          style={{ width: mob ? 42 : 38, height: mob ? 42 : 38, borderRadius: 9, cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation', flexShrink: 0,
+            border: size === s ? `2px solid ${A}` : `1px solid ${T.border}`,
+            background: size === s ? `${A}14` : 'transparent' }}>
+          <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: T.text }} />
+        </button>
+      ))}
+    </div>
+  );
+  const btnPreencher = (tool === 'rect' || tool === 'circle' || tool === 'tri' || tool === 'hex' || tool === 'star' || tool === 'heart') && (
+    <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
+      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: mob ? '11px 12px' : '9px 12px', borderRadius: 9,
+        cursor: 'pointer', touchAction: 'manipulation', flexShrink: 0,
+        border: filled ? `2px solid ${A}` : `1px solid ${T.border}`,
+        background: filled ? `${A}14` : 'transparent', color: filled ? A : T.text, fontSize: 12, fontWeight: 700 }}>
+      <div style={{ width: 14, height: 14, borderRadius: 3, border: '2px solid currentColor',
+        background: filled ? 'currentColor' : 'transparent' }} />
+      {filled ? 'Cheio' : 'Vazado'}
+    </button>
+  );
+  const grupoDesfazer = (
+    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+      <button onClick={doUndo} title="Desfazer" aria-label="Desfazer"
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+          width: mob ? 46 : 54, height: mob ? 42 : undefined, padding: mob ? 0 : '8px 4px',
+          borderRadius: 10, cursor: 'pointer', touchAction: 'manipulation',
+          border: `1px solid ${T.border}`, background: 'transparent', color: T.text }}>
+        <IcoUndo size={20} />{!mob && <span style={{ fontSize: 9.5, fontWeight: 700 }}>Desfazer</span>}
+      </button>
+      <button onClick={doClear} title="Limpar tudo" aria-label="Limpar tudo"
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+          width: mob ? 46 : 54, height: mob ? 42 : undefined, padding: mob ? 0 : '8px 4px',
+          borderRadius: 10, cursor: 'pointer', touchAction: 'manipulation',
+          border: '1px solid #E6394640', background: '#E6394610', color: '#E63946' }}>
+        <IcoTrash size={20} />{!mob && <span style={{ fontSize: 9.5, fontWeight: 700 }}>Limpar</span>}
+      </button>
+    </div>
+  );
+  const divisor = <div style={{ width: 1, height: 40, background: T.border, flexShrink: 0 }} />;
+
+  const barraFerramentas = isDrawer && (
+    <div className="up-sembarra" style={{ background: cardBg, border: `1px solid ${T.border}`,
+      borderRadius: mob ? 10 : 12, padding: mob ? '7px 8px' : '9px 12px', boxShadow: T.sh, flexShrink: 0,
+      display: 'flex', gap: mob ? 8 : 12,
+      /* Em pé empilha (3 fileiras curtas); deitado vira uma faixa só que rola de
+         lado — sobra largura e falta altura. */
+      flexDirection: (mob && !paisagem) ? 'column' : 'row',
+      alignItems: (mob && !paisagem) ? 'stretch' : 'center',
+      flexWrap: mob ? 'nowrap' : 'wrap',
+      overflowX: (mob && paisagem) ? 'auto' : 'visible' }}>
+      {grupoTools}
+      {!(mob && !paisagem) && divisor}
+      {grupoCores}
+      {!(mob && !paisagem) && divisor}
+      {/* `flexWrap` importa aqui: com uma forma selecionada entra o botão
+          Cheio/Vazado e a fileira passa da largura do celular — sem quebrar, o
+          card inteiro vazava pro lado. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 7 : 12, flexWrap: mob ? 'wrap' : 'nowrap',
+        justifyContent: (mob && !paisagem) ? 'space-between' : undefined }}>
+        {grupoTamanhos}
+        {btnPreencher}
+        {!mob && divisor}
+        {grupoDesfazer}
+      </div>
+    </div>
+  );
+
+  const painelChat = (
+    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: mob ? 10 : 14, display: 'flex',
+      flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', boxShadow: T.sh }}>
+      <div style={{ padding: mob ? '7px 10px' : '10px 12px', borderBottom: `1px solid ${T.border}`, fontSize: 11,
+        fontWeight: 800, color: T.textT, letterSpacing: '.08em', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>PALPITES</span>
+        {mob && (
+          <button onClick={() => setChatAberto(false)} title="Esconder palpites"
+            style={{ border: 'none', background: 'transparent', color: T.textT, fontSize: 15, cursor: 'pointer',
+              padding: '0 4px', lineHeight: 1, touchAction: 'manipulation' }}>▾</button>
+        )}
+      </div>
+      {/* minHeight:0 + flexShrink nos irmãos: sem isso a lista não encolhe abaixo
+          do próprio conteúdo e empurra o card inteiro conforme o chat enche. */}
+      <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+        padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {!chat.length && (
+          <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: mob ? 6 : 20, lineHeight: 1.5 }}>
+            Escreva seu palpite aqui.<br />Quem acerta primeiro leva mais pontos!
+          </div>
+        )}
+        {chat.map(m => (
+          <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
+            color: m.kind === 'hit' ? '#28a060' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? UP.orange
+              : m.kind === 'sys' ? T.textT : T.text,
+            fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
+            fontWeight: (m.kind === 'quase' || m.kind === 'quase-oculto') ? 700 : 400,
+            background: m.kind === 'hit' ? '#28a06012' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? `${UP.orange}14` : 'transparent',
+            border: (m.kind === 'quase' || m.kind === 'quase-oculto') ? `1px solid ${UP.orange}44` : 'none',
+            borderRadius: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? 7 : 0,
+            padding: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? '4px 7px' : 0,
+            opacity: m.kind === 'muted' ? .5 : 1 }}>
+            {m.kind === 'hit' && <IcoCheck size={12} />}{' '}
+            {m.kind !== 'quase' && <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>}{' '}
+            <span>{m.text}</span>
+          </div>
+        ))}
+        <div ref={chatEndRef} />
+      </div>
+      <div style={{ padding: 9, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 6, flexShrink: 0 }}>
+        <input value={guess} onChange={e => setGuess(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && sendGuess()}
+          placeholder={isDrawer ? 'Você está desenhando...' : iHit ? 'Você acertou!' : 'Seu palpite...'}
+          disabled={isDrawer}
+          enterKeyHint="send" autoComplete="off" autoCorrect="off"
+          style={{ flex: 1, minWidth: 0, padding: mob ? '10px 11px' : '8px 11px', borderRadius: 9,
+            border: `1px solid ${T.border}`,
+            background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text,
+            /* 16px no celular NÃO é estética: abaixo disso o Safari do iPhone dá
+               zoom sozinho ao focar o campo e a tela do jogo sai do lugar. */
+            fontSize: mob ? 16 : 12.5,
+            fontFamily: 'var(--font-body)', outline: 'none' }} />
+        <button onClick={sendGuess} disabled={isDrawer} aria-label="Enviar palpite"
+          style={{ width: mob ? 44 : 34, borderRadius: 9, border: 'none', touchAction: 'manipulation',
+            cursor: isDrawer ? 'not-allowed' : 'pointer',
+            background: isDrawer ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <IcoSend size={15} />
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ═══ CELULAR ═════════════════════════════════════════════════════════════
+     A sala ocupa a TELA INTEIRA (position:fixed). O Portal reserva 52px de topo
+     e 76px embaixo pra barra de navegação; com o cabeçalho do jogo sobravam uns
+     200px de altura pro desenho — deitado, menos ainda. Cobrindo a tela, o
+     canvas fica com todo o espaço, e o botão Sair devolve o Portal. */
+  if (mob) {
+    /* EM PÉ com os palpites abertos, a caixa do desenho tem exatamente a
+       proporção do papel (16:10) e TODA a sobra vai pro chat — dividindo a
+       altura no meio, metade do que sobrava pro canvas virava moldura vazia,
+       porque a largura da tela já é o teto do tamanho do desenho.
+       Deitado (ou sem o chat) ele volta a esticar pra ocupar o que tiver. */
+    const estiloCanvasMob = (!paisagem && chatAberto)
+      ? { flex: '0 1 auto', width: '100%', aspectRatio: `${CW} / ${CH}` }
+      : undefined;
+    const btnCabecalho = (props, filho) => (
+      <button className="up-btn" {...props}
+        style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', touchAction: 'manipulation', fontSize: 15,
+          border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.16)', color: '#fff',
+          cursor: 'pointer', ...(props.style || {}) }}>{filho}</button>
+    );
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: T.page || '#fff',
+        display: 'flex', flexDirection: 'column',
+        /* `alturaVis` = visualViewport: com o teclado aberto o iOS não encolhe a
+           janela, só a área visível — sem isso o campo de palpite ficava atrás
+           do teclado. Fallback em dvh (a barra do Chrome do Android some/volta). */
+        height: alturaVis || '100dvh',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
+        overscrollBehavior: 'none' }}>
+        <style>{PAINT_CSS}</style>
+
+        {/* Cabeçalho enxuto */}
+        <div className="up-hd" style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
+          padding: '6px 8px', paddingTop: 'max(6px, env(safe-area-inset-top))',
+          background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%), ${RAINBOW}`,
+          position: 'relative', overflow: 'hidden' }}>
+          <Mascote size={30} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.15,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {state?.nome || (roomId === GLOBAL_ROOM ? 'Sala Geral' : 'Sala')}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,.85)', fontWeight: 700,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {temaAtual.emoji} {temaAtual.nome}
+            </div>
+          </div>
+          {btnCabecalho({ onClick: () => setSheetJog(true), title: 'Jogadores' }, <>👥<span style={{ fontSize: 11, fontWeight: 800, marginLeft: 2 }}>{players.length}</span></>)}
+          {!chatAberto && btnCabecalho({ onClick: () => setChatAberto(true), title: 'Mostrar palpites' }, '💬')}
+          {btnCabecalho({ onClick: () => setMenuMob(true), title: 'Mais opções' }, '⋯')}
+          {btnCabecalho({ onClick: onLeave, title: 'Sair da partida',
+            style: { background: 'rgba(0,0,0,.25)' } }, <IcoExit size={15} />)}
+        </div>
+
+        {/* Corpo: em pé empilha, deitado joga os palpites na coluna da direita. */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: paisagem ? 'row' : 'column',
+          gap: 6, padding: 6 }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {!paisagem && stripJogadores}
+            {barraStatus}
+            {areaCanvas(estiloCanvasMob)}
+            {barraFerramentas}
+          </div>
+          {chatAberto && (
+            <div style={{
+              /* Deitado o chat vira uma coluna estreita ao lado. Em pé ele fica
+                 baixinho pra quem DESENHA (que nem pode digitar — só acompanha
+                 os palpites) e leva toda a sobra pra quem adivinha. */
+              ...(paisagem
+                ? { width: 188, flexShrink: 0, minHeight: 0 }
+                : isDrawer
+                  ? { flex: '0 0 auto', height: 96 }
+                  : { flex: '1 1 0', minHeight: 110 }) }}>
+              {painelChat}
+            </div>
+          )}
+        </div>
+
+        {/* Gaveta: jogadores (com os votos de expulsar) */}
+        {sheetJog && (
+          <div onClick={() => setSheetJog(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 4100, background: 'rgba(10,6,24,.55)',
+              display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={e => e.stopPropagation()} className="up-scroll"
+              style={{ width: '100%', maxHeight: '72vh', overflowY: 'auto', background: cardBg,
+                borderRadius: '18px 18px 0 0', padding: 14,
+                paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.08em' }}>
+                  JOGADORES ({players.length})
+                </div>
+                <button onClick={() => setSheetJog(false)}
+                  style={{ border: 'none', background: 'transparent', color: T.textS || T.textT, fontSize: 24,
+                    lineHeight: 1, cursor: 'pointer', touchAction: 'manipulation' }}>×</button>
+              </div>
+              {listaJogadores}
+            </div>
+          </div>
+        )}
+
+        {/* Gaveta: mais opções (som, Uniko, convidar) */}
+        {menuMob && (
+          <div onClick={() => setMenuMob(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 4100, background: 'rgba(10,6,24,.55)',
+              display: 'flex', alignItems: 'flex-end' }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ width: '100%', background: cardBg, borderRadius: '18px 18px 0 0', padding: 14,
+                paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
+                display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 2 }}>
+                OPÇÕES
+              </div>
+              <button onClick={() => { setSomOn(v => !v); if (!somOn) SFX.clique(); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12,
+                  border: `1px solid ${T.border}`, background: 'transparent', color: T.text,
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
+                {somOn ? <IcoSom size={17} /> : <IcoMudo size={17} />}
+                {somOn ? 'Sons ligados' : 'Sons desligados'}
+              </button>
+              <button onClick={() => { setMenuMob(false); onAbrirPicker(); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12,
+                  border: `1px solid ${T.border}`, background: 'transparent', color: T.text,
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
+                <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
+                Meu Uniko
+              </button>
+              <ConvidarButton game="paint" roomId={roomId} roomName={state?.nome} accent={A}
+                style={{ width: '100%', justifyContent: 'center', padding: '13px 14px', borderRadius: 12, fontSize: 14,
+                  background: `${A}12`, color: A, border: `1px solid ${A}55`, boxShadow: 'none' }} />
+              <button onClick={() => setMenuMob(false)}
+                style={{ padding: '13px 14px', borderRadius: 12, border: 'none', color: '#fff', fontSize: 14,
+                  fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation',
+                  background: `linear-gradient(135deg, ${A}, ${A2})` }}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
@@ -2052,387 +2812,21 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
           <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 9 }}>
             JOGADORES ({players.length})
           </div>
-          {ranked.map((p, i) => {
-            const desenhando = state?.phase === 'drawing' && state?.drawer === p.name;
-            const acertou = state?.hits?.includes(p.name);
-            return (
-              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 7px', borderRadius: 10,
-                background: desenhando ? `${A}14` : 'transparent', marginBottom: 3 }}>
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <img src={p.photo || '/UNIKO_NEW.png'} alt=""
-                    style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover',
-                      border: `2.5px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`,
-                      background: T.surfaceSub, boxShadow: desenhando ? `0 0 0 3px ${A}22` : 'none' }} />
-                  {i === 0 && (state?.scores?.[p.name] > 0) && (
-                    <div style={{ position: 'absolute', top: -7, right: -5, color: '#F0B429' }}><IcoCrown size={16} /></div>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: p.name === name ? 800 : 700, color: T.text,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
-                    {p.name.split(' ')[0]}{p.name === name && ' (você)'}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <b style={{ color: T.text, fontWeight: 700 }}>{p.pts}</b> pts
-                    {desenhando && <span style={{ color: A, fontWeight: 700 }}>• desenhando</span>}
-                    {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
-                    {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
-                  </div>
-                </div>
-                {/* Expulsar (voto democrático) — só pra outros jogadores */}
-                {p.name !== name && players.length >= 3 && (() => {
-                  const votos = kickVotes[p.name] || [];
-                  const eleg  = Math.max(1, players.filter(pl => pl.name !== p.name).length);
-                  const alvo  = Math.ceil(eleg * KICK_THRESHOLD);
-                  const votei = votos.includes(name);
-                  return (
-                    <button onClick={() => votarExpulsar(p.name)}
-                      title={votei ? `Clique para RETIRAR seu voto de expulsar ${p.name.split(' ')[0]}` : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
-                      style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', borderRadius: 8,
-                        border: `1px solid ${votei ? '#E63946' : votos.length ? '#E6394655' : T.border}`,
-                        background: votei ? '#E6394622' : votos.length ? '#E6394610' : 'transparent',
-                        color: votei ? '#E63946' : T.textT, cursor: 'pointer',
-                        fontSize: 11, fontWeight: 700, lineHeight: 1 }}>
-                      {votei ? '↩' : '🚪'}{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
-                    </button>
-                  );
-                })()}
-              </div>
-            );
-          })}
+          {listaJogadores}
         </div>
 
         {/* Canvas */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, minHeight: 0 }}>
-          <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '9px 14px',
-            display: 'flex', alignItems: 'center', gap: 12, boxShadow: T.sh, flexShrink: 0 }}>
-            {state?.phase === 'drawing' ? (
-              <>
-                <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap' }}>
-                  Rodada {state.round}{state.totalRounds ? ` de ${state.totalRounds}` : ''}
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800,
-                  color: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-                  {isDrawer ? <span style={{ letterSpacing: '.02em' }}>{word}</span> : (
-                    <>
-                      {/* Cada palavra é um bloco à parte, com um gap BEM maior entre
-                          blocos do que o letterSpacing usado DENTRO de cada palavra —
-                          é essa diferença de espaçamento que deixa claro onde tem um
-                          espaço de verdade (ex.: "café da manhã" vira 3 blocos bem
-                          separados, não uma sequência única de traços). Um <span> só
-                          com espaço normal não bastaria: o HTML colapsa espaços
-                          repetidos e as palavras virariam um bloco só. */}
-                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap' }}>
-                        {maskParts(word, revelar).map((g, i) => (
-                          <span key={i} style={{ letterSpacing: '.18em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
-                        ))}
-                      </span>
-                      <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0 }}>
-                        ({contaLetras(word)} letras
-                        {maskParts(word).length > 1 ? `, ${maskParts(word).length} palavras` : ''})
-                      </span>
-                    </>
-                  )}
-                </div>
-                {isDrawer && (
-                  <button className="up-btn" onClick={darDica} disabled={revelar >= maxHints(word)} title="Revelar uma letra"
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
-                      border: `1px solid ${revelar >= maxHints(word) ? T.border : A}`,
-                      cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer',
-                      background: revelar >= maxHints(word) ? 'transparent' : `${A}14`,
-                      color: revelar >= maxHints(word) ? T.textD : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <IcoBulb size={13} />Dar dica
-                  </button>
-                )}
-                {isDrawer && (
-                  /* Dois cliques de propósito: pular custa a vez INTEIRA (não
-                     desenha e não pontua), então um clique sem querer seria caro. */
-                  <button className="up-btn" onClick={() => (confirmPular ? pularVez() : setConfirmPular(true))}
-                    disabled={!podePular}
-                    onBlur={() => setConfirmPular(false)}
-                    title={state?.hits?.length ? 'Alguém já acertou — não dá mais pra pular'
-                      : 'Passar a vez pro próximo (você não desenha nem pontua nesta rodada)'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
-                      border: `1px solid ${!podePular ? T.border : confirmPular ? UP.red : UP.orange}`,
-                      cursor: podePular ? 'pointer' : 'not-allowed',
-                      background: !podePular ? 'transparent' : confirmPular ? `${UP.red}18` : `${UP.orange}14`,
-                      color: !podePular ? T.textD : confirmPular ? UP.red : UP.orange,
-                      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <IcoSkip size={13} />{confirmPular ? 'Confirmar?' : 'Pular vez'}
-                  </button>
-                )}
-                {!isDrawer && (
-                  <button className="up-btn" onClick={denunciarDesenho} disabled={!podeDenunciar}
-                    title={jaDenunciei ? 'Você já denunciou este desenho'
-                      : 'Denunciar desenho impróprio ou fora do tema — com votos suficientes, a rodada encerra e quem desenhou não pontua'}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999,
-                      border: `1px solid ${jaDenunciei ? T.border : UP.red}`,
-                      cursor: podeDenunciar ? 'pointer' : 'not-allowed',
-                      background: jaDenunciei ? 'transparent' : `${UP.red}14`,
-                      color: jaDenunciei ? T.textD : UP.red, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    <IcoFlag size={13} />{jaDenunciei ? 'Denunciado' : 'Denunciar'}
-                    {totalVotantes > 0 && ` (${state?.reports?.length || 0}/${totalVotantes})`}
-                  </button>
-                )}
-                <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
-                    background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub, transition: 'background .3s, color .3s',
-                    color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5, minWidth: 54, justifyContent: 'center' }}>
-                  {secsLeft}s
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: T.textT, fontWeight: 600 }}>
-                {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b>
-                  {state.denunciada && <span style={{ color: UP.red, fontWeight: 700 }}> · 🚩 denunciado</span>}</>
-                  : state?.phase === 'over' ? 'Fim de jogo!'
-                  : `Aguardando jogadores (mínimo ${MIN_PLAYERS})`}
-              </div>
-            )}
-          </div>
-
-          <div style={{ position: 'relative', flex: 1, minHeight: 0, borderRadius: 14, overflow: 'hidden',
-            border: `1px solid ${T.border}`, boxShadow: T.sh, background: '#fff' }}>
-            <canvas ref={canvasRef}
-              onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-              style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none',
-                cursor: isDrawer ? (tool === 'fill' ? 'cell' : 'crosshair') : 'default' }} />
-
-            {state?.phase !== 'drawing' && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 12, textAlign: 'center', padding: 20,
-                overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
-                <Mascote size={112} halo big />
-                {state?.phase === 'over' ? (
-                  <>
-                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
-                      🏆 {ranked[0]?.name?.split(' ')[0] || '—'} venceu!
-                    </div>
-                    <div style={{ fontSize: 13, color: T.textT }}>
-                      {ranked.slice(0, 3).map((p, i) => `${i + 1}º ${p.name.split(' ')[0]} — ${p.pts} pts`).join('   ·   ')}
-                    </div>
-                  </>
-                ) : state?.phase === 'reveal' ? (
-                  <div style={{ textAlign: 'center' }}>
-                    {state.pulada && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: UP.orange, marginBottom: 5 }}>
-                        ⏭ {state.drawer?.split(' ')[0]} passou a vez
-                      </div>
-                    )}
-                    {state.denunciada && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: UP.red, marginBottom: 5 }}>
-                        🚩 desenho denunciado — {state.drawer?.split(' ')[0]} não pontuou nesta rodada
-                      </div>
-                    )}
-                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
-                      A palavra era <span style={{ color: A }}>{state.lastWord}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>
-                    {state?.nome || 'Sala'}
-                  </div>
-                )}
-
-                {/* O tema é o da sala, definido na criação — não se vota. */}
-                {noLobby && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
-                    background: `${A}12`, border: `1px solid ${A}44` }}>
-                    <span style={{ fontSize: 16 }}>{temaAtual.emoji}</span>
-                    <span style={{ fontSize: 12.5, color: T.text, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
-                  </div>
-                )}
-
-                {noLobby && (
-                  isHost ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>Cada um desenha</span>
-                        {LAP_OPTIONS.map(n => (
-                          <button key={n} onClick={() => setLaps(n)}
-                            style={{ minWidth: 30, padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
-                              border: laps === n ? `1.5px solid ${A}` : `1px solid ${T.border}`,
-                              background: laps === n ? `${A}14` : 'transparent', color: laps === n ? A : T.text }}>
-                            {n}×
-                          </button>
-                        ))}
-                        <span style={{ fontSize: 11.5, color: T.textD }}>
-                          = {laps * Math.max(players.length, 1)} rodadas
-                          {' '}(~{Math.round(laps * Math.max(players.length, 1) * (ROUND_MS + REVEAL_MS) / 60000)} min)
-                        </span>
-                      </div>
-                      {/* `!state` também trava: começar antes do state da sala
-                          carregar deixava a partida SEM TEMA (ver startRound). */}
-                      <button className="up-btn" onClick={startGame} disabled={players.length < MIN_PLAYERS || !state}
-                        style={{ padding: '11px 26px', borderRadius: 999, border: 'none',
-                          background: (players.length < MIN_PLAYERS || !state) ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
-                          color: '#fff', fontSize: 14, fontWeight: 800,
-                          cursor: (players.length < MIN_PLAYERS || !state) ? 'not-allowed' : 'pointer',
-                          boxShadow: (players.length < MIN_PLAYERS || !state) ? 'none' : `0 6px 18px ${AG}` }}>
-                        {!state ? 'Carregando sala...' : state.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
-                      </button>
-                      {players.length < MIN_PLAYERS && (
-                        <div style={{ fontSize: 12, color: T.textT }}>
-                          Chame mais gente! Precisa de pelo menos {MIN_PLAYERS} jogadores nesta sala.
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 12, color: T.textT, fontStyle: 'italic' }}>
-                      Esperando {host?.split(' ')[0] || 'o host'} começar a partida...
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-
-            {state?.phase === 'drawing' && !isDrawer && (
-              <div className="up-drawing-badge" style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
-                padding: '4px 12px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff',
-                fontSize: 11.5, fontWeight: 700, pointerEvents: 'none' }}>
-                {iHit ? '✓ você acertou!' : `${state.drawer?.split(' ')[0]} está desenhando`}
-              </div>
-            )}
-
-            {/* ── "Agora é a vez de fulano" — Uniko grande + nome ── */}
-            {vez && (
-              <div className="up-turn" style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
-                flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, pointerEvents: 'none',
-                background: `linear-gradient(160deg, ${A}f2, ${A2}ee 60%, ${A3}f2)` }}>
-                <div style={{ position: 'absolute', inset: 0, opacity: .2,
-                  background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
-                {/* Avatar gigante com anéis pulsando */}
-                <div className="up-avatar" style={{ position: 'relative', color: '#fff' }}>
-                  <div className="up-ring" />
-                  <div className="up-ring up-ring2" />
-                  <img src={vez.photo || MASCOTE} alt=""
-                    style={{ width: 132, height: 132, borderRadius: '50%', objectFit: 'cover',
-                      border: '5px solid rgba(255,255,255,.95)', background: '#fff',
-                      boxShadow: '0 14px 44px rgba(0,0,0,.4)' }} />
-                </div>
-                <div style={{ textAlign: 'center', zIndex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,.9)', letterSpacing: '.14em',
-                    textTransform: 'uppercase', marginBottom: 5 }}>
-                    {vez.eu ? 'Sua vez de desenhar!' : 'Agora é a vez de'}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-brand)', fontSize: 38, fontWeight: 800, color: '#fff',
-                    textShadow: '0 4px 20px rgba(0,0,0,.35)', lineHeight: 1.1 }}>
-                    {vez.eu ? name.split(' ')[0] : vez.nome.split(' ')[0]}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.9)', marginTop: 8 }}>
-                    {vez.eu ? 'Capriche — a galera tá esperando 🎨' : 'Adivinhe a palavra no chat!'}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Barra de ferramentas */}
-          {isDrawer && (
-            <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '9px 12px',
-              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', boxShadow: T.sh, flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{TOOLS.map(btnTool)}</div>
-              <div style={{ width: 1, height: 40, background: T.border }} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
-                {COLORS.map(c => (
-                  <button key={c} onClick={() => { setColor(c); if (tool === 'eraser') setTool('brush'); }} title={c}
-                    style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer', transition: 'transform .12s',
-                      border: color === c ? `3px solid ${A}` : `1px solid ${T.border}`,
-                      transform: color === c ? 'scale(1.12)' : 'none' }} />
-                ))}
-              </div>
-              <div style={{ width: 1, height: 40, background: T.border }} />
-              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                {SIZES.map(s => (
-                  <button key={s} onClick={() => setSize(s)} title={`${s}px`}
-                    style={{ width: 38, height: 38, borderRadius: 9, cursor: 'pointer', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center',
-                      border: size === s ? `2px solid ${A}` : `1px solid ${T.border}`,
-                      background: size === s ? `${A}14` : 'transparent' }}>
-                    <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: T.text }} />
-                  </button>
-                ))}
-              </div>
-              {(tool === 'rect' || tool === 'circle' || tool === 'tri' || tool === 'hex' || tool === 'star' || tool === 'heart') && (
-                <>
-                  <div style={{ width: 1, height: 40, background: T.border }} />
-                  <button onClick={() => setFilled(f => !f)} title="Preencher a forma"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
-                      border: filled ? `2px solid ${A}` : `1px solid ${T.border}`,
-                      background: filled ? `${A}14` : 'transparent', color: filled ? A : T.text, fontSize: 12, fontWeight: 700 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: 3, border: '2px solid currentColor',
-                      background: filled ? 'currentColor' : 'transparent' }} />
-                    {filled ? 'Cheio' : 'Vazado'}
-                  </button>
-                </>
-              )}
-              <div style={{ width: 1, height: 40, background: T.border }} />
-              <button onClick={doUndo} title="Desfazer"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
-                  borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent', color: T.text }}>
-                <IcoUndo size={20} /><span style={{ fontSize: 9.5, fontWeight: 700 }}>Desfazer</span>
-              </button>
-              <button onClick={doClear} title="Limpar tudo"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54, padding: '8px 4px',
-                  borderRadius: 10, cursor: 'pointer', border: '1px solid #E6394640', background: '#E6394610', color: '#E63946' }}>
-                <IcoTrash size={20} /><span style={{ fontSize: 9.5, fontWeight: 700 }}>Limpar</span>
-              </button>
-            </div>
-          )}
+          {barraStatus}
+          {areaCanvas()}
+          {barraFerramentas}
         </div>
 
         {/* Chat — `height:100%` + `overflow:hidden` fecham a altura do card no
             tamanho da linha do grid. Sem isso ele ia crescendo junto com o chat
             (e aí a lista nunca "transborda", então a barra de rolagem nunca
             aparecia — o card é que esticava). */}
-        <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, display: 'flex',
-          flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', boxShadow: T.sh }}>
-          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 800,
-            color: T.textT, letterSpacing: '.08em', flexShrink: 0 }}>PALPITES</div>
-          {/* minHeight:0 + flexShrink nos irmãos: sem isso a lista não encolhe abaixo
-              do próprio conteúdo e empurra o card inteiro conforme o chat enche. */}
-          <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
-            padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {!chat.length && (
-              <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: 20, lineHeight: 1.5 }}>
-                Escreva seu palpite aqui.<br />Quem acerta primeiro leva mais pontos!
-              </div>
-            )}
-            {chat.map(m => (
-              <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
-                color: m.kind === 'hit' ? '#28a060' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? UP.orange
-                  : m.kind === 'sys' ? T.textT : T.text,
-                fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
-                fontWeight: (m.kind === 'quase' || m.kind === 'quase-oculto') ? 700 : 400,
-                background: m.kind === 'hit' ? '#28a06012' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? `${UP.orange}14` : 'transparent',
-                border: (m.kind === 'quase' || m.kind === 'quase-oculto') ? `1px solid ${UP.orange}44` : 'none',
-                borderRadius: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? 7 : 0,
-                padding: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? '4px 7px' : 0,
-                opacity: m.kind === 'muted' ? .5 : 1 }}>
-                {m.kind === 'hit' && <IcoCheck size={12} />}{' '}
-                {m.kind !== 'quase' && <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>}{' '}
-                <span>{m.text}</span>
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          <div style={{ padding: 9, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 6, flexShrink: 0 }}>
-            <input value={guess} onChange={e => setGuess(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendGuess()}
-              placeholder={isDrawer ? 'Você está desenhando...' : iHit ? 'Você acertou!' : 'Seu palpite...'}
-              disabled={isDrawer}
-              style={{ flex: 1, minWidth: 0, padding: '8px 11px', borderRadius: 9, border: `1px solid ${T.border}`,
-                background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text, fontSize: 12.5,
-                fontFamily: 'var(--font-body)', outline: 'none' }} />
-            <button onClick={sendGuess} disabled={isDrawer}
-              style={{ width: 34, borderRadius: 9, border: 'none', cursor: isDrawer ? 'not-allowed' : 'pointer',
-                background: isDrawer ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IcoSend size={14} />
-            </button>
-          </div>
-        </div>
+        {painelChat}
       </div>
     </div>
   );
@@ -2444,6 +2838,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const PROFILE_SEEN_KEY = 'up_profile_seen';
 const TabUnikoPaint = () => {
+  const { mob } = useTela();
   const [name, setName]   = useState(() => myName());
   const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
@@ -2634,11 +3029,11 @@ const TabUnikoPaint = () => {
         });
         return (
         <div onClick={fecharPerfil}
-          style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: mob ? 10 : 24 }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: cardBg, borderRadius: 18, border: `1px solid ${T.border}`, padding: 22,
-              maxWidth: 720, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
+            style={{ background: cardBg, borderRadius: 18, border: `1px solid ${T.border}`, padding: mob ? 14 : 22,
+              maxWidth: 720, width: '100%', maxHeight: mob ? '92dvh' : '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text, marginBottom: 4 }}>
               Editar perfil
             </div>
@@ -2706,7 +3101,8 @@ const TabUnikoPaint = () => {
             </div>
 
             <button onClick={fecharPerfil}
-              style={{ marginTop: 14, width: '100%', padding: '12px', borderRadius: 11, border: 'none', flexShrink: 0,
+              style={{ marginTop: 14, width: '100%', padding: mob ? '14px' : '12px', borderRadius: 11, border: 'none',
+                flexShrink: 0, touchAction: 'manipulation',
                 background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer',
                 boxShadow: `0 6px 18px ${AG}` }}>
               Salvar perfil
