@@ -3197,15 +3197,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
   /* Monta o próximo estado da partida a partir do estado atual da sala. */
   const montarPartida = (state, nomes) => {
     const qtd = Math.max(1, Math.min(state.impostoresQtd || 1, nomes.length - 2));
-    /* Quem é impostor NÃO é sorteado no chapéu limpo — é uma FILA guardada na
-       sala (ver sortearImpostores). Sorteio honesto inclui repetir, e o
-       usuário estava tendo que criar sala nova toda partida por causa disso.
-       Agora quem já foi impostor fica de fora até todo mundo passar, e na
-       virada do ciclo quem foi na última partida continua de fora — ninguém
-       pega o papel duas vezes seguidas. */
+    /* Quem é impostor NÃO é sorteado no chapéu limpo — é FILA + ANTIGUIDADE
+       (ver sortearImpostores). Sorteio honesto inclui repetir, e o usuário
+       estava tendo que criar sala nova toda partida por causa disso. Agora
+       quem já foi fica fora até todo mundo passar e, entre os elegíveis,
+       entra quem está há mais partidas sem pegar o papel (`historicoImpostores`
+       guarda a partida da última vez de cada um; quem nunca foi passa na
+       frente). O sorteio só resolve empates. */
     const ultimos = state.ultimosImpostores
       || Object.entries(state.papeis || {}).filter(([, p]) => p === 'impostor').map(([n]) => n);
-    const { escolhidos, ciclo } = sortearImpostores(nomes, qtd, state.cicloImpostores, ultimos);
+    const rodada = (state.round || 0) + 1;
+    const { escolhidos, ciclo, historico } = sortearImpostores(
+      nomes, qtd, state.cicloImpostores, ultimos, state.historicoImpostores, rodada);
     const papeis = {};
     nomes.forEach(n => { papeis[n] = escolhidos.includes(n) ? 'impostor' : 'tripulante'; });
     /* A trégua inicial do assassinato NÃO vai carimbada aqui de propósito:
@@ -3213,7 +3216,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
        impostor compara com o relógio da própria — bastava o host estar
        adiantado pra o botão de matar nunca liberar. Cada impostor marca a
        própria trégua localmente ao entrar no mapa (ver killLiberadoEm). */
-    return { ...state, phase: 'sorteando', round: (state.round || 0) + 1, papeis, ultimosImpostores: escolhidos, cicloImpostores: ciclo, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} };
+    return { ...state, phase: 'sorteando', round: rodada, papeis, ultimosImpostores: escolhidos, cicloImpostores: ciclo, historicoImpostores: historico, prontos: {}, fantasmas: [], vencedor: null, tasksDone: {}, reuniao: null, corpos: [], killCooldowns: {}, ultimaMorte: null, sabotagem: null, sabotagemCooldown: {} };
   };
   /* Vai por `mutateState` (e não `pushState`) de propósito: a FILA do rodízio
      mora no estado da sala, então ela precisa ser lida do banco na hora, já
