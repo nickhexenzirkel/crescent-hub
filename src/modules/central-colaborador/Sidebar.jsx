@@ -26,8 +26,8 @@ const NAV=[
   {id:'inicio',     label:'Início',         icon:<I><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1z"/></I>},
   {id:'dados',      label:'Seus Dados',     icon:<I><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></I>},
   {id:'financeiro', label:'Financeiro',     icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 7v1.5M12 15.5V17M9.5 10.5c0-1.1.9-2 2.5-2s2.5.9 2.5 2-2.5 2-2.5 2-2.5.9-2.5 2 .9 2 2.5 2 2.5-.9 2.5-2"/></I>},
-  {id:'horas',      label:'Banco de Horas', icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
-  {id:'ponto',      label:'Ponto Eletrônico', icon:<I><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1"/><circle cx="12" cy="13" r="3.2"/><path d="M12 11.6V13l1 .8"/></I>},
+  {id:'horas',      label:'Banco de Horas', ponto:true, icon:<I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></I>},
+  {id:'ponto',      label:'Ponto Eletrônico', ponto:true, icon:<I><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2h6v1"/><circle cx="12" cy="13" r="3.2"/><path d="M12 11.6V13l1 .8"/></I>},
   {id:'lembretes',  label:'Meus Lembretes', icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
   /* Grupo 2 — Corporativo (divider antes) */
   {id:'comunicados',label:'Comunicados',    icon:<I><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></I>},
@@ -46,8 +46,12 @@ const NAV=[
 
 /* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
    (o Uniko Paint foi liberado pra todo mundo), mas o filtro fica pronto pra
-   próxima feature que nascer restrita — basta pôr `adminOnly:true` no item. */
-const NAV_FOR = (isAdmin) => NAV.filter(n => !n.adminOnly || isAdmin);
+   próxima feature que nascer restrita — basta pôr `adminOnly:true` no item.
+   `desligado` (RH → Gerenciar Usuários → Desligamento) tira as abas de ponto:
+   quem saiu não acumula mais banco de horas nem falta, então não faz sentido
+   continuar vendo — nem justificando — dia nenhum. */
+const NAV_FOR = (isAdmin, desligado = false) =>
+  NAV.filter(n => (!n.adminOnly || isAdmin) && !(desligado && n.ponto));
 
 const LockIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}>
@@ -56,10 +60,10 @@ const LockIcon = () => (
   </svg>
 );
 
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed}) => {
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado}) => {
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
-  const nav = NAV_FOR(getAuthUser()?.role === 'admin');
+  const nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);
   if (isMobile) return null;
   return(
     /* `portal-sidebar` (ago/2026): classe só pra outros módulos poderem

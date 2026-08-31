@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes, uploadJustifAnexo } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes, uploadJustifAnexo, loadDesligados } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -178,6 +178,13 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
   const jornada          = cfg.jornada ?? 480;
   const toleranciaAtraso = cfg.toleranciaAtraso ?? 10;
   const justifs          = cfg.justifs ?? {};   // dia justificado (abonado) → saldo zerado
+  // Desligados (RH → Gerenciar Usuários): Map(idDoPonto → {name, data}). Quem está
+  // aqui NÃO é contabilizado — some das listas, dos totais e do banco de horas.
+  // Com `showDesligados` o RH pode reexibir pra consultar o histórico; mesmo assim
+  // o cálculo para na data do desligamento (senão o sistema inventaria falta todo
+  // dia útil pra quem não trabalha mais aqui).
+  const desligados       = cfg.desligados ?? new Map();
+  const showDesligados   = cfg.showDesligados ?? false;
 
   /* ── Construir mapa de funcionários ── */
   const empMap = {};
@@ -200,12 +207,16 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
 
   const employees = Object.values(empMap)
     .filter(e => e.marks.length > 0)
+    .filter(e => showDesligados || !desligados.has(e.cpf))
     .sort((a,b) => (a.name||a.cpf).localeCompare(b.name||b.cpf))
     .map((emp, ei) => {
       const name  = emp.name || nameMap[emp.cpf] || '';
       const color = ECOLS[ei % ECOLS.length];
+      const desl  = desligados.get(emp.cpf) || null;
+      const corte = desl?.data || '';           // último dia contabilizado
       const byDay = {};
       for (const m of emp.marks) {
+        if (corte && m.date > corte) continue;  // depois do desligamento não conta
         if (!byDay[m.date]) byDay[m.date] = [];
         byDay[m.date].push(m.time);
       }
@@ -246,8 +257,9 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
       const faltaDays = [];
       const firstMarkDate = Object.keys(byDay).sort()[0];
       if (firstMarkDate) {
+        const endDate = (corte && corte < rangeEndDate) ? corte : rangeEndDate;
         let cursor = new Date(firstMarkDate + 'T12:00:00');
-        const end  = new Date(rangeEndDate + 'T12:00:00');
+        const end  = new Date(endDate + 'T12:00:00');
         while (cursor <= end) {
           const date = toISO_p(cursor);
           if (!byDay[date] && !isDayOff_p(date)) {
@@ -271,7 +283,7 @@ const buildDashboard = ({ marks, nameMap = {}, excluded = new Set(), header = nu
       const totBal    = days.reduce((s,d)=>s+d.balance,0);
       const totIssues = days.reduce((s,d)=>s+d.issues.length,0);
       const sortedDates = emp.marks.map(m=>m.date).sort();
-      return { cpf:emp.cpf, name, color, marks:emp.marks, days:daysWithCum, totMin, totBal, totIssues, firstMark:sortedDates[0], lastMark:sortedDates[sortedDates.length-1], excluded:excluded.has(emp.cpf) };
+      return { cpf:emp.cpf, name, color, marks:emp.marks, days:daysWithCum, totMin, totBal, totIssues, firstMark:sortedDates[0], lastMark:sortedDates[sortedDates.length-1], excluded:excluded.has(emp.cpf), desligado:!!desl, desligamentoData:corte };
     });
 
   const excludedEmployees = [...excluded]
@@ -359,19 +371,46 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
   const [userSearch,    setUserSearch]    = useState('');       // F1: users tab search
   const [calSearch,     setCalSearch]     = useState('');       // F3: calendar employee search
   const [calFilterEmps, setCalFilterEmps] = useState([]);       // F3: selected CPFs in calendar
+  // Desligados (RH → Gerenciar Usuários → Desligamento): saem do cálculo.
+  const [desligados,     setDesligados]     = useState(new Map()); // idDoPonto → {name, data}
+  const [showDesligados, setShowDesligados] = useState(false);
 
   /* ── afd: dashboard recalculado das marcações ACUMULADAS do banco ── */
   const afd = React.useMemo(
-    () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso, justifs }) : null,
-    [rawData, tolerance, jornada, toleranciaAtraso, justifs]
+    () => rawData ? buildDashboard(rawData, { tolerance, jornada, toleranciaAtraso, justifs, desligados, showDesligados }) : null,
+    [rawData, tolerance, jornada, toleranciaAtraso, justifs, desligados, showDesligados]
   );
+
+  /* Lista enxuta pra tela — a mesma pessoa pode casar com mais de um id do ponto. */
+  const desligadosNoPonto = React.useMemo(() => {
+    const vistos = new Set(), out = [];
+    for (const info of desligados.values()) {
+      if (vistos.has(info.name)) continue;
+      vistos.add(info.name); out.push(info);
+    }
+    return out;
+  }, [desligados]);
+
+  /* Quem o RH desligou — resolvido pelo nome/vínculo do ponto (ver loadDesligados).
+     Depende do nameMap, então roda depois que as marcações chegam do banco. */
+  React.useEffect(() => {
+    if (!rawData?.nameMap) return;
+    let alive = true;
+    loadDesligados(rawData.nameMap)
+      .then(m => { if (alive) setDesligados(m); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [rawData]);
 
   /* Persiste o resumo de presença por funcionário/mês (alimenta a missão "Presença Impecável") */
   React.useEffect(() => {
     if (!afd?.employees?.length) return;
     const t = setTimeout(() => {
-      savePontoPresenca(afd.employees).catch(() => {});
-      savePontoNegativos(afd.employees).catch(() => {}); // dias negativos pro colaborador
+      // Desligado não alimenta missão nem os dias negativos do Portal — só entra
+      // na lista quando o RH liga "mostrar desligados" pra consultar histórico.
+      const ativos = afd.employees.filter(e => !e.desligado);
+      savePontoPresenca(ativos).catch(() => {});
+      savePontoNegativos(ativos).catch(() => {}); // dias negativos pro colaborador
     }, 1200);
     return () => clearTimeout(t);
   }, [afd]);
@@ -1020,11 +1059,35 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
                   ))}
                 </div>
               </div>
+              <div>
+                <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
+                  Colaboradores Desligados
+                </div>
+                <div style={{fontSize:12,color:T.textT,marginBottom:8}}>
+                  {desligados.size === 0
+                    ? 'Ninguém desligado — marque em Dashboard RH \u2192 Gerenciar Usuários'
+                    : `${desligadosNoPonto.length || desligados.size} fora do cálculo (banco de horas, faltas e totais)`}
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  {[[false,'Ocultar (padrão)'],[true,'Mostrar histórico']].map(([v,l])=>(
+                    <button key={String(v)} onClick={()=>setShowDesligados(v)}
+                      style={{padding:'6px 14px',borderRadius:8,cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,fontWeight:showDesligados===v?700:400,background:showDesligados===v?T.goldGl:(T.surfaceSub||'rgba(0,0,0,0.03)'),color:showDesligados===v?T.gold:T.textS,border:`1.5px solid ${showDesligados===v?T.goldLine+'55':T.border}`,transition:'all .15s'}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                {showDesligados&&desligadosNoPonto.length>0&&(
+                  <div style={{fontSize:11,color:T.textD,marginTop:8,maxWidth:280,lineHeight:1.5}}>
+                    Exibindo: {desligadosNoPonto.map(d=>d.name).join(', ')}. O cálculo de cada um para na data do desligamento.
+                  </div>
+                )}
+              </div>
               <div style={{fontSize:12,color:T.textT,padding:'10px 16px',borderRadius:10,background:T.surfaceSub||'rgba(0,0,0,0.03)',border:`1px solid ${T.border}`}}>
                 <div style={{fontWeight:600,color:T.text,marginBottom:4}}>Configuração atual</div>
                 <div>Tolerância gêmea: <strong style={{color:T.gold}}>{tolerance===0?'Desligada':`${tolerance} min`}</strong></div>
                 <div>Tolerância atraso: <strong style={{color:T.gold}}>{toleranciaAtraso===0?'Desligada':`${toleranciaAtraso} min`}</strong></div>
                 <div>Jornada: <strong style={{color:T.gold}}>{fmtMin(jornada)}/dia</strong></div>
+                <div>Desligados: <strong style={{color:T.gold}}>{showDesligados?'no cálculo até a data':'fora do cálculo'}</strong></div>
                 <div style={{marginTop:4,fontSize:11,color:T.textD}}>⚠ Alterações aplicam no próximo upload</div>
               </div>
             </div>

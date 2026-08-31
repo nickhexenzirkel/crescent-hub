@@ -165,6 +165,26 @@ export default function CrescentHub() {
     navReplace('login');
   };
 
+  // Acesso desabilitado pelo RH (Gerenciar Usuários → Desligamento): o token dura
+  // 7 dias, então quem já estava com o Portal aberto continuaria navegando até
+  // fechar a aba. Confere a cada 5min e derruba a sessão na hora que o servidor
+  // responder ACCESS_DISABLED — no login, a mensagem explica o motivo.
+  useEffect(() => {
+    if (!authUser) return;
+    const check = async () => {
+      const token = localStorage.getItem('ch_token');
+      if (!token) return;
+      try {
+        const r = await fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } });
+        if (r.status !== 403) return;
+        const d = await r.json().catch(() => ({}));
+        if (d?.code === 'ACCESS_DISABLED') handleLogout();
+      } catch { /* servidor fora do ar não derruba ninguém */ }
+    };
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [authUser]); // eslint-disable-line
+
   const handleModuleSelect = (id) => {
     // Conexão Setorial é liberada pra todo mundo — não entra na lista abaixo.
     // Moderador tem o mesmo acesso de admin ao ponto e ao dashboard (esse último

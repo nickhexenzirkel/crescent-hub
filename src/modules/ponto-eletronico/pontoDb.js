@@ -1,4 +1,4 @@
-import { supabase, getAuthUser } from '../../contexts/user';
+import { supabase, getAuthUser, SERVER_URL } from '../../contexts/user';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — acesso ao Supabase
@@ -70,6 +70,64 @@ export async function loadPonto() {
     : null;
 
   return { marks, nameMap, excluded, justifs, header, hasData: marks.length > 0 };
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DESLIGADOS — quem o RH desligou (Dashboard RH → Gerenciar Usuários)
+   para de contabilizar aqui: banco de horas, faltas, pendências, totais.
+
+   O identificador no AFD costuma ser PIS/PASEP (≠ CPF do cadastro), então
+   resolvemos o id do ponto na ordem: vínculo explícito (ponto_vinculo) →
+   CPF do cadastro → nome (nameMap, que vem de ponto_funcionarios). O match
+   por nome só vale quando é ÚNICO — errar aqui esconderia do ponto alguém
+   que continua na empresa, o que é pior do que não esconder ninguém.
+══════════════════════════════════════════════════════════════════ */
+const soDigitos = s => (s || '').replace(/\D/g, '');
+const normPessoa = s => (s || '').toLowerCase().normalize('NFD')
+  .replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+const tokensPessoa = s => normPessoa(s).split(' ').filter(t => t.length >= 2);
+const contemTodos = (a, b) => a.length >= 2 && a.every(t => b.includes(t));
+
+/* Devolve Map(idDoPonto → { name, data }) — data = 'YYYY-MM-DD' do desligamento
+   (último dia contabilizado) ou '' se o RH não informou. */
+export async function loadDesligados(nameMap = {}) {
+  const out = new Map();
+  let pessoas;
+  try {
+    const r = await fetch(`${SERVER_URL}/api/employees`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` },
+    });
+    if (!r.ok) return out;                       // sem permissão/servidor fora → ninguém desligado
+    pessoas = ((await r.json()).employees || []).filter(e => e.desligado);
+  } catch { return out; }
+  if (!pessoas.length) return out;
+
+  // Vínculos Portal ↔ ponto (fonte da verdade quando o RH ligou os dois)
+  const vinc = {};
+  try {
+    const { data } = await supabase.from('ponto_vinculo').select('portal_cpf,ponto_id');
+    for (const v of (data || [])) if (v.portal_cpf && v.ponto_id) vinc[soDigitos(v.portal_cpf)] = String(v.ponto_id);
+  } catch { /* sem vinculos: cai no CPF/nome */ }
+
+  const doPonto = Object.entries(nameMap).map(([id, nome]) => ({ id: String(id), nome, tok: tokensPessoa(nome) }));
+
+  for (const p of pessoas) {
+    const info = { name: p.name, data: (p.desligamento_data || '').slice(0, 10) };
+    const cpf  = soDigitos(p.cpf || '');
+    const ids  = new Set();
+    if (cpf) {
+      if (vinc[cpf]) ids.add(vinc[cpf]);
+      ids.add(cpf);
+      ids.add(cpf.padStart(11, '0'));            // AFD costuma zero-preencher
+    }
+    // Nome: exato primeiro; se não houver, tokens contidos — sempre exigindo match único.
+    const alvo = normPessoa(p.name), alvoTok = tokensPessoa(p.name);
+    let cand = doPonto.filter(f => normPessoa(f.nome) === alvo);
+    if (!cand.length) cand = doPonto.filter(f => contemTodos(alvoTok, f.tok) || contemTodos(f.tok, alvoTok));
+    if (cand.length === 1) ids.add(cand[0].id);
+    for (const id of ids) if (id) out.set(String(id), info);
+  }
+  return out;
 }
 
 /* Upsert em lotes (Supabase recomenda ≤ ~1000 por request) */

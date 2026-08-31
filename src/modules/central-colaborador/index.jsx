@@ -25,6 +25,23 @@ import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 import { GAME_JOIN_EVENT, readPendingJoin, GAME_TAB } from '../../shared/gameInvites';
 
+/* Tela das abas de ponto pra quem foi desligado — o cálculo parou, não há mais
+   banco de horas nem falta pra mostrar. */
+const DesligadoAviso = ({data}) => (
+  <div style={{maxWidth:520,margin:'40px auto',padding:'30px 28px',borderRadius:16,
+    background:T.surface||'rgba(255,255,255,0.85)',border:`1px solid ${T.border}`,textAlign:'center'}}>
+    <div style={{fontSize:34,marginBottom:10}}>📄</div>
+    <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,marginBottom:8}}>
+      Registro de ponto encerrado
+    </div>
+    <div style={{fontSize:13.5,color:T.textT,lineHeight:1.6}}>
+      Seu vínculo foi encerrado{data?` em ${data.split('-').reverse().join('/')}`:''}, então o banco de horas e as
+      faltas não são mais contabilizados. Para consultar o histórico ou tirar
+      qualquer dúvida, fale com o RH.
+    </div>
+  </div>
+);
+
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const isMobile = useIsMobile();
   const [tab,st]=useState('inicio');
@@ -32,6 +49,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
+  // Desligado pelo RH (Dashboard RH → Gerenciar Usuários → Desligamento): o ponto
+  // para de contabilizar, então as abas de Banco de Horas e Ponto Eletrônico saem
+  // do Portal. Ver supabase_desligamento.sql.
+  const [desligado, setDesligado] = useState({ off:false, data:'' });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const tabRef = useRef(tab);
   useEffect(() => {
@@ -108,6 +129,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
         if (p.ir     !== undefined) USER.ir        = Number(p.ir)     || 0;
         /* vt armazena o valor da 1K Service no banco (campo reaproveitado) */
         if (p.vt     !== undefined) USER.salary_1k = Number(p.vt)     || 0;
+        USER.desligado = !!p.desligado;
+        if (p.desligado) setDesligado({ off:true, data:(p.desligamento_data||'').slice(0,10) });
       }
     })
     .catch(() => {})
@@ -132,6 +155,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
     if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
     if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
+    // Desligado não vê (nem justifica) ponto: o cálculo dele parou na data do
+    // desligamento. As abas somem da navegação, mas a guarda fica aqui também
+    // porque dá pra cair na aba por estado antigo/atalho.
+    if((tab==='horas'||tab==='ponto') && desligado.off) return <DesligadoAviso data={desligado.data}/>;
     if(tab==='horas')      return <TabHoras/>;
     if(tab==='ponto')      return <TabMeuPonto/>;
     if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
@@ -170,7 +197,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
 
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'}/>
+      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>
       <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
@@ -241,7 +268,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
             <div style={{width:36,height:4,borderRadius:99,background:T.border,margin:'0 auto 16px'}}/>
             <div style={{fontSize:11,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',
               padding:'0 4px 10px',fontWeight:600}}>Navegação</div>
-            {NAV_FOR(getAuthUser()?.role==='admin').map(n=>{
+            {NAV_FOR(getAuthUser()?.role==='admin', desligado.off).map(n=>{
               const locked = n.id==='uniko' && !profileComplete;
               return(
                 <div key={n.id}

@@ -25,6 +25,15 @@ const safeKeyPart = (s) => (s || '')
   .replace(/\s+/g, '_')
   .replace(/[^a-zA-Z0-9_-]/g, '');
 
+// Grade da lista de "Gerenciar Usuários" — nome, CPF, cargo, status, editar, desligamento.
+const GER_COLS = '2fr 1.3fr 1fr 112px 92px 120px';
+// 'YYYY-MM-DD' (como vem do banco) → 'DD/MM/AAAA'.
+const fmtDataBR = (iso) => {
+  if (!iso) return '—';
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  return (y && m && d) ? `${d}/${m}/${y}` : iso;
+};
+
 // Mensagem padrão que a Alexa anuncia quando o Uniko spawna no Portal (o servidor
 // faz o anúncio de verdade, vendo o spawnAt gravado em settings.capture_uniko_config —
 // ver checkCaptureUnikoSpawn no crescent-hub-server). Editável na tela de evento/spawn.
@@ -603,6 +612,44 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     if (r.ok) { setGerMsg('✅ Perfil salvo!'); await loadGerList(); setTimeout(()=>setGerMsg(''),2000); }
     else setGerMsg('⚠️ ' + (d.error||'Erro ao salvar'));
     setGerSaving(false);
+  };
+
+  // ── Desligamento (aba Gerenciar Usuários) ────────────────
+  // Duas chaves independentes — ver supabase_desligamento.sql:
+  //  • desligado        → para de contabilizar banco de horas/faltas no Ponto
+  //                       Eletrônico e some das telas do Portal do Colaborador.
+  //  • acesso_bloqueado → não entra mais no Uniko (login barrado e sessão já
+  //                       aberta derrubada no próximo request).
+  const [desModal,  setDesModal]  = useState(null); // null | employee
+  const [desForm,   setDesForm]   = useState({ desligado:false, desligamento_data:'', desligamento_motivo:'', acesso_bloqueado:false });
+  const [desSaving, setDesSaving] = useState(false);
+  const [desMsg,    setDesMsg]    = useState('');
+
+  const openDesModal = (emp) => {
+    setDesMsg('');
+    setDesForm({
+      desligado:           !!emp.desligado,
+      desligamento_data:   (emp.desligamento_data || '').slice(0, 10),
+      desligamento_motivo: emp.desligamento_motivo || '',
+      acesso_bloqueado:    !!emp.acesso_bloqueado,
+    });
+    setDesModal(emp);
+  };
+
+  const saveDesligamento = async () => {
+    if (desForm.desligado && !desForm.desligamento_data) { setDesMsg('⚠️ Informe a data do desligamento.'); return; }
+    setDesSaving(true); setDesMsg('');
+    try {
+      const r = await fetch(`${SERVER_URL}/api/employees/${desModal.id}/desligamento`, {
+        method:'PUT', headers: authHeader(), body: JSON.stringify(desForm),
+      });
+      const d = await r.json();
+      if (!r.ok) { setDesMsg('⚠️ ' + (d.error || 'Erro ao salvar')); setDesSaving(false); return; }
+      await loadGerList();
+      setDesMsg('✅ Salvo!');
+      setTimeout(()=>{ setDesModal(null); setDesMsg(''); }, 1200);
+    } catch { setDesMsg('⚠️ Erro de conexão'); }
+    setDesSaving(false);
   };
 
   useEffect(()=>{ if(tab==='gerenciar') loadGerList(); }, [tab]);
@@ -2145,8 +2192,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
-                <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
-                  {['Nome','CPF','Cargo','Status','Editar'].map(h=>(
+                <div style={{display:'grid',gridTemplateColumns:GER_COLS,padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
+                  {['Nome','CPF','Cargo','Status','Editar','Desligamento'].map(h=>(
                     <div key={h} style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em'}}>{h}</div>
                   ))}
                 </div>
@@ -2155,19 +2202,28 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                       <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
                     </div>
                   : gerList.filter(e=>e.name.toLowerCase().includes(gerSearch.toLowerCase())||(e.cpf||'').includes(gerSearch)).map((emp,i)=>(
-                      <div key={emp.id} style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr 80px 100px',padding:'11px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:emp.active?1:0.55}}>
+                      <div key={emp.id} style={{display:'grid',gridTemplateColumns:GER_COLS,padding:'11px 20px',borderTop:i===0?'none':`1px solid ${T.border}`,alignItems:'center',opacity:(emp.active&&!emp.desligado)?1:0.55}}>
                         <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <div style={{width:30,height:30,borderRadius:8,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0}}>
+                          <div style={{width:30,height:30,borderRadius:8,background:emp.desligado?'linear-gradient(135deg,#8B93A0,#6B7280)':`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}bb)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0}}>
                             {emp.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
                           </div>
-                          <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.name}</div>
+                          <div style={{fontSize:13,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:emp.desligado?'line-through':'none'}}>{emp.name}</div>
                         </div>
                         <div style={{fontSize:11,color:T.textS,fontFamily:'monospace'}}>{emp.cpf}</div>
                         <div style={{fontSize:12,color:T.textT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.cargo||'—'}</div>
-                        <div><span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:emp.active?'rgba(34,197,94,0.1)':'rgba(192,64,80,0.08)',color:emp.active?'#16a34a':'#C04050'}}>{emp.active?'Ativo':'Inativo'}</span></div>
+                        <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                          {emp.desligado
+                            ? <span title={emp.desligamento_data?`Desligado em ${fmtDataBR(emp.desligamento_data)}`:'Desligado'} style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:'rgba(107,114,128,0.16)',color:'#6B7280'}}>Desligado</span>
+                            : <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:5,background:emp.active?'rgba(34,197,94,0.1)':'rgba(192,64,80,0.08)',color:emp.active?'#16a34a':'#C04050'}}>{emp.active?'Ativo':'Inativo'}</span>}
+                          {emp.acesso_bloqueado&&<span title="Acesso ao Uniko desabilitado" style={{fontSize:11}}>🔒</span>}
+                        </div>
                         <button onClick={()=>openGerModal(emp)}
                           style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
                           ✏️ Editar
+                        </button>
+                        <button onClick={()=>openDesModal(emp)} title="Registrar desligamento / desabilitar acesso"
+                          style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${emp.desligado?'rgba(192,64,80,0.35)':T.border}`,background:emp.desligado?'rgba(192,64,80,0.07)':'transparent',cursor:'pointer',fontSize:12,color:emp.desligado?'#C04050':T.textS,fontFamily:'var(--font-body)',outline:'none'}}>
+                          📤 {emp.desligado?'Desligado':'Desligar'}
                         </button>
                       </div>
                     ))
@@ -2247,6 +2303,87 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   </div>
                 </div>
               )}
+
+              {/* ── Modal DESLIGAMENTO ── */}
+              {desModal&&(()=>{
+                const Switch = ({on,onClick}) => (
+                  <button onClick={onClick} style={{width:44,height:24,borderRadius:12,border:'none',cursor:'pointer',outline:'none',flexShrink:0,
+                    background:on?'#C04050':(T.border||'#ccc'),position:'relative',transition:'background .18s'}}>
+                    <span style={{position:'absolute',top:3,left:on?23:3,width:18,height:18,borderRadius:'50%',background:'white',transition:'left .18s',boxShadow:'0 1px 3px rgba(0,0,0,.25)'}}/>
+                  </button>
+                );
+                return (
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+                  <div style={{background:cardBg,borderRadius:20,padding:30,width:'100%',maxWidth:520,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.25)',border:`1px solid ${T.border}`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
+                      <div>
+                        <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:T.text}}>Desligamento</div>
+                        <div style={{fontSize:13,color:T.textS}}>{desModal.name}</div>
+                      </div>
+                      <button onClick={()=>setDesModal(null)} style={{border:'none',background:'transparent',cursor:'pointer',fontSize:20,color:T.textD,outline:'none'}}>×</button>
+                    </div>
+
+                    {/* Chave 1 — desligado */}
+                    <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'14px 16px',borderRadius:12,border:`1.5px solid ${desForm.desligado?'rgba(192,64,80,0.35)':T.border}`,background:desForm.desligado?'rgba(192,64,80,0.05)':'transparent',marginBottom:12}}>
+                      <Switch on={desForm.desligado} onClick={()=>setDesForm(p=>({...p,desligado:!p.desligado}))}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>Colaborador desligado</div>
+                        <div style={{fontSize:12,color:T.textT,marginTop:3,lineHeight:1.45}}>
+                          Para de contabilizar banco de horas, faltas e qualquer outro cálculo no
+                          Ponto Eletrônico, e sai das telas do Portal do Colaborador (Banco de Horas,
+                          Ponto Eletrônico e lista de Colegas). O histórico continua guardado.
+                        </div>
+                      </div>
+                    </div>
+
+                    {desForm.desligado&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:12,padding:'0 2px'}}>
+                        <div>
+                          <div style={{fontSize:11,fontWeight:600,color:T.textS,marginBottom:4}}>Data do desligamento *</div>
+                          <input type="date" value={desForm.desligamento_data||''}
+                            onChange={e=>setDesForm(p=>({...p,desligamento_data:e.target.value}))}
+                            style={{width:'100%',padding:'9px 11px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                          <div style={{fontSize:11,color:T.textD,marginTop:4}}>Último dia contabilizado no ponto.</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,fontWeight:600,color:T.textS,marginBottom:4}}>Motivo</div>
+                          <textarea value={desForm.desligamento_motivo||''} rows={3}
+                            placeholder="Ex: Pedido de demissão, término de contrato..."
+                            onChange={e=>setDesForm(p=>({...p,desligamento_motivo:e.target.value}))}
+                            style={{width:'100%',padding:'9px 11px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Chave 2 — acesso (independente do desligamento) */}
+                    <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'14px 16px',borderRadius:12,border:`1.5px solid ${desForm.acesso_bloqueado?'rgba(192,64,80,0.35)':T.border}`,background:desForm.acesso_bloqueado?'rgba(192,64,80,0.05)':'transparent',marginBottom:14}}>
+                      <Switch on={desForm.acesso_bloqueado} onClick={()=>setDesForm(p=>({...p,acesso_bloqueado:!p.acesso_bloqueado}))}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>🔒 Desabilitar acesso ao Uniko</div>
+                        <div style={{fontSize:12,color:T.textT,marginTop:3,lineHeight:1.45}}>
+                          Bloqueia o login e derruba a sessão que já estiver aberta. É separado do
+                          desligamento — dá pra desligar sem cortar o acesso (aviso prévio) ou cortar
+                          o acesso sem desligar (suspensão).
+                        </div>
+                      </div>
+                    </div>
+
+                    {desMsg&&<div style={{fontSize:12,color:desMsg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'7px 12px',borderRadius:7,background:desMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)'}}>{desMsg}</div>}
+
+                    <div style={{display:'flex',gap:10}}>
+                      <button onClick={()=>setDesModal(null)} style={{flex:1,padding:'11px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>Cancelar</button>
+                      <button onClick={saveDesligamento} disabled={desSaving}
+                        style={{flex:2,padding:'11px',borderRadius:10,border:'none',cursor:desSaving?'wait':'pointer',background:(desForm.desligado||desForm.acesso_bloqueado)?'linear-gradient(135deg,#C04050,#A03040)':`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'white',fontWeight:600,fontSize:13,fontFamily:'var(--font-body)',outline:'none'}}>
+                        {desSaving?'Salvando...':'Salvar'}
+                      </button>
+                    </div>
+                    <div style={{fontSize:11,color:T.textD,marginTop:12,lineHeight:1.5}}>
+                      💡 Rode <code>supabase_desligamento.sql</code> no Supabase antes de usar (cria as colunas).
+                    </div>
+                  </div>
+                </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2877,7 +3014,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                           <div style={labelSt}>Colaborador *</div>
                           <select value={f.colaborador} onChange={e=>set('colaborador',e.target.value)} style={inputSt}>
                             <option value="">Selecione...</option>
-                            {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
+                            {/* Desligado nao entra: o banco de horas dele parou de contar. */}
+                            {empList.filter(e=>e.active!==false&&!e.desligado).sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
                               <option key={e.id} value={e.name}>{e.name}</option>
                             ))}
                           </select>
