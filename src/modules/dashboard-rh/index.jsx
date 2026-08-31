@@ -2452,7 +2452,13 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             const list = (gerList||[]).filter(e=>{
               const q = ipSearch.trim().toLowerCase();
               if (!q) return true;
-              return (e.name||'').toLowerCase().includes(q) || (e.cargo||'').toLowerCase().includes(q) || onlyDigits(e.cpf||'').includes(onlyDigits(q));
+              // Só compara CPF quando a busca TEM dígito: onlyDigits('mara') === '',
+              // e '12345678900'.includes('') é true — era isso que fazia a lista
+              // nunca filtrar ao buscar por nome/cargo.
+              const qd = onlyDigits(q);
+              return (e.name||'').toLowerCase().includes(q)
+                  || (e.cargo||'').toLowerCase().includes(q)
+                  || (!!qd && onlyDigits(e.cpf||'').includes(qd));
             }).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
             const roleBadge = (r) => r==='admin' ? {l:'Admin',c:T.gold,bg:`${T.gold}18`} : r==='moderador' ? {l:'Moderador',c:'#4A78C4',bg:'rgba(74,120,196,0.14)'} : {l:'Colaborador',c:T.textD,bg:'rgba(0,0,0,0.05)'};
             return (
