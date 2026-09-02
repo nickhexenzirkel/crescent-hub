@@ -3692,7 +3692,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   )}
                   {isAdmin && (
                   <button onClick={handleToggleAutoplay}
-                    title={autoplayEnabled ? "Desativar autoplay (Admin)" : "Ativar autoplay (Admin)"}
+                    title={autoplayEnabled
+                      ? "Desativar autoplay (Admin) — hoje ele puxa as mais tocadas da Máquina do Tempo"
+                      : "Ativar autoplay (Admin) — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
                     style={{width:36,height:36,borderRadius:9,
                       border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
                       background:autoplayEnabled ? T.goldGl : "transparent",
