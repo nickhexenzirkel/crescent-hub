@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase, SERVER_URL, getAuthUser } from '../../contexts/user';
 import {
@@ -788,7 +788,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
-        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayOff={todayOff} todayHoliday={todayHoliday} onCheckin={doCheckin} checkins={state.checkins || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayOff={todayOff} todayHoliday={todayHoliday} onCheckin={doCheckin} checkins={state.checkins || []} history={state.history || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'admin' && isAdmin && <Admin items={state.items} expiresAt={state.expiresAt} setState={setState} flash={flash} isMobile={isMobile} cardBg={cardBg} player={userName} missionDefs={missionDefs} setMissionDefs={setMissionDefs} />}
       </div>
@@ -1618,8 +1618,167 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
   );
 };
 
+// ── Calendário do check-in (mês a mês) ──────────────────────────────────────
+// PEDIDO (set/2026): o quadrinho de 5 dias sozinho não conta a história — quem
+// resgatou todo dia via o ciclo voltar pro "dia 1" e achava que tinha perdido a
+// sequência, e não tinha COMO conferir. Agora o mês inteiro fica à mostra: cada
+// dia útil mostra se foi resgatado (com quanto rendeu) ou se faltou, e fim de
+// semana/feriado aparecem apagados justamente porque não contam pra nada.
+//
+// A fonte da verdade é a MESMA do cálculo da sequência (o array `checkins`), então
+// o que o calendário pinta é literalmente o que o sistema conta — se um dia está
+// verde aqui, ele contou; se está vermelho, foi ele que quebrou a sequência.
+const WEEK_INITIALS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+const CheckinCalendar = ({ checkins, history, streak, isMobile, cardBg }) => {
+  const now = new Date();
+  const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const done = useMemo(() => new Set(checkins || []), [checkins]);
+
+  // Quanto cada dia rendeu, tirado do histórico de transações (kind 'checkin').
+  // Dia resgatado que NÃO tem linha aqui rendeu 0 — é o caso do teto mensal já
+  // batido; só rotulamos assim quando o histórico realmente cobre aquele mês
+  // (ele vem limitado às transações mais recentes), pra não inventar "+0" em mês
+  // antigo que simplesmente não veio na consulta.
+  const { rewardBy, monthsCovered } = useMemo(() => {
+    const map = {}; const months = new Set();
+    (history || []).forEach(h => {
+      if (h.kind !== 'checkin' || !h.date) return;
+      map[h.date] = { cur: h.premium ? 'premium' : 'comum', amount: h.premium || h.comum || 0 };
+      months.add(h.date.slice(0, 7));
+    });
+    return { rewardBy: map, monthsCovered: months };
+  }, [history]);
+
+  const today = todayStr();
+  const monthKey = `${view.y}-${pad2(view.m + 1)}`;
+  const isCurrentMonth = view.y === now.getFullYear() && view.m === now.getMonth();
+  const firstDow = new Date(view.y, view.m, 1).getDay();
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const covered = monthsCovered.has(monthKey);
+
+  const days = [];
+  for (let i = 0; i < firstDow; i++) days.push(null);
+  for (let n = 1; n <= daysInMonth; n++) {
+    const d = new Date(view.y, view.m, n);
+    const ds = localDateStr(d);
+    const holiday = brazilHolidayName(d);
+    const off = isWeekend(d) || !!holiday;
+    const claimed = done.has(ds);
+    const future = ds > today;
+    days.push({
+      n, ds, holiday, off, claimed, future,
+      isToday: ds === today,
+      missed: !off && !claimed && !future,   // dia útil que passou em branco = quebrou a sequência
+      reward: rewardBy[ds] || null,
+    });
+  }
+
+  const real = days.filter(Boolean);
+  const claimedCount = real.filter(d => d.claimed).length;
+  const missedCount = real.filter(d => d.missed).length;
+  const openCount = real.filter(d => !d.off && d.future).length; // dias úteis que ainda dá pra pegar
+
+  const shift = (delta) => setView(v => {
+    const d = new Date(v.y, v.m + delta, 1);
+    if (d > new Date(now.getFullYear(), now.getMonth(), 1)) return v; // não navega pro futuro
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+
+  const navBtn = (disabled) => ({
+    width: 30, height: 30, borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent',
+    color: disabled ? T.textD : T.textS, cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800,
+    fontFamily: 'var(--font-body)', opacity: disabled ? 0.45 : 1,
+  });
+  const chip = (color, bg, bd) => ({
+    fontSize: 11.5, fontWeight: 800, color, background: bg, border: `1px solid ${bd}`,
+    borderRadius: 999, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
+  });
+
+  return (
+    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
+      {/* Cabeçalho: mês + navegação */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+          <IcoCalendar size={17} />Seu calendário de check-ins
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => shift(-1)} style={navBtn(false)} title="Mês anterior">‹</button>
+          <span style={{ fontSize: 13, fontWeight: 800, color: T.text, minWidth: isMobile ? 108 : 132, textAlign: 'center' }}>
+            {MONTH_NAMES[view.m]} {view.y}
+          </span>
+          <button onClick={() => shift(1)} disabled={isCurrentMonth} style={navBtn(isCurrentMonth)} title="Próximo mês">›</button>
+        </div>
+      </div>
+      <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
+        Tudo que você resgatou (e o que faltou) em cada dia útil. Fim de semana e feriado nacional ficam apagados: não rendem nada e também não quebram a sequência.
+      </div>
+
+      {/* Resumo do mês */}
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 12 }}>
+        <span style={chip('#16a34a', 'rgba(34,197,94,0.10)', 'rgba(34,197,94,0.4)')}>✓ {claimedCount} resgatado{claimedCount === 1 ? '' : 's'}</span>
+        <span style={chip(missedCount ? '#e23b3b' : T.textT, missedCount ? 'rgba(226,59,59,0.09)' : 'transparent', missedCount ? 'rgba(226,59,59,0.35)' : T.border)}>✕ {missedCount} falta{missedCount === 1 ? '' : 's'}</span>
+        {openCount > 0 && <span style={chip(T.gold, T.goldGl, T.goldLine)}>{openCount} dia{openCount === 1 ? '' : 's'} útil{openCount === 1 ? '' : 'eis'} pela frente</span>}
+        {isCurrentMonth && <span style={chip('#16a34a', 'rgba(34,197,94,0.10)', 'rgba(34,197,94,0.4)')}>🔥 sequência atual: {streak} dia{streak === 1 ? '' : 's'}</span>}
+      </div>
+
+      {/* Grade do mês */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: isMobile ? 4 : 6 }}>
+        {WEEK_INITIALS.map((w, i) => (
+          <div key={`h${i}`} style={{ textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: T.textD, paddingBottom: 2 }}>{w}</div>
+        ))}
+        {days.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />;
+          // Padrão = dia útil que ainda não chegou (ou hoje, antes do resgate)
+          let bg = 'transparent', bd = T.border, num = T.textT, mark = null;
+          let tip = d.isToday ? 'Hoje — resgate ali em cima!' : 'Dia útil ainda por vir';
+          if (d.off) {
+            bg = T.surfaceSub || 'rgba(0,0,0,0.03)'; bd = 'transparent'; num = T.textD;
+            tip = d.holiday ? `Feriado — ${d.holiday} (não conta)` : 'Fim de semana (não conta)';
+            if (d.holiday) mark = <span style={{ fontSize: 9 }}>🎉</span>;
+          } else if (d.claimed) {
+            bg = 'rgba(34,197,94,0.12)'; bd = 'rgba(34,197,94,0.45)'; num = T.text;
+            const r = d.reward;
+            if (r) { mark = <span style={{ display: 'inline-flex', alignItems: 'center', gap: 1.5 }}><PrismIcon type={r.cur} size={11} /><span style={{ fontSize: 9, fontWeight: 800, ...prismText(r.cur) }}>{r.amount}</span></span>; tip = `Resgatado · +${r.amount} ${r.cur === 'premium' ? PREMIUM.name : COMUM.name}`; }
+            else if (covered) { mark = <span style={{ fontSize: 8.5, fontWeight: 800, color: T.textT }}>teto</span>; tip = 'Resgatado, mas o teto mensal da moeda já estava batido (+0)'; }
+            else { mark = <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 900 }}>✓</span>; tip = 'Resgatado'; }
+          } else if (d.missed) {
+            bg = 'rgba(226,59,59,0.09)'; bd = 'rgba(226,59,59,0.38)'; num = '#e23b3b';
+            mark = <span style={{ fontSize: 10, color: '#e23b3b', fontWeight: 900 }}>✕</span>;
+            tip = 'Faltou — este dia quebrou a sequência';
+          }
+          return (
+            <div key={d.ds} title={`${d.n}/${pad2(view.m + 1)} · ${tip}`} style={{
+              borderRadius: 10, border: `1.5px ${!d.off && d.future && !d.isToday ? 'dashed' : 'solid'} ${bd}`, background: bg,
+              minHeight: isMobile ? 40 : 46, padding: '4px 2px 3px', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 1,
+              boxShadow: d.isToday ? `0 0 0 2px ${T.goldLine}` : 'none',
+            }}>
+              <span style={{ fontSize: 11.5, fontWeight: d.isToday ? 900 : 700, color: d.isToday ? T.gold : num }}>{d.n}</span>
+              <span style={{ height: 12, display: 'flex', alignItems: 'center' }}>{mark}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legenda */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12, fontSize: 11, color: T.textT }}>
+        {[['rgba(34,197,94,0.45)', 'rgba(34,197,94,0.12)', 'Resgatado'],
+          ['rgba(226,59,59,0.38)', 'rgba(226,59,59,0.09)', 'Faltou'],
+          ['transparent', T.surfaceSub || 'rgba(0,0,0,0.03)', 'Fim de semana / feriado'],
+          [T.goldLine, 'transparent', 'Hoje']].map(([bd, bg, label]) => (
+            <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 12, height: 12, borderRadius: 4, border: `1.5px solid ${bd === 'transparent' ? T.border : bd}`, background: bg, display: 'inline-block' }} />
+              {label}
+            </span>
+          ))}
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════ CHECK-IN ═══════════════════════
-const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
+const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, history, streak, nextReward, earned, isMobile, cardBg }) => {
   // Posição do dia de hoje dentro do ciclo de 5 (0-based)
   const todayIdx = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length;
   // BUG RELATADO (set/2026): "estava no dia 3 e hoje voltou pro dia 1 em vez de ir
@@ -1683,10 +1842,15 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
         </button>
       </div>
 
-      {/* Ciclo de 5 dias (seg-sex) */}
+      {/* Calendário do mês — a visão principal: mostra dia a dia o que foi resgatado
+          e o que faltou, que é o que ninguém conseguia conferir só com o ciclo de 5 */}
+      <CheckinCalendar checkins={checkins} history={history} streak={streak} isMobile={isMobile} cardBg={cardBg} />
+
+      {/* Ciclo de 5 dias — fica DEPOIS do calendário porque não é mais o placar da
+          pessoa, e sim só a explicação de qual moeda cai em cada dia do rodízio */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Ciclo de 5 dias úteis</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Rodízio de moedas (ciclo de 5 dias úteis)</div>
           <span style={{ fontSize: 11, fontWeight: 800, color: T.gold, background: T.goldGl, border: `1px solid ${T.goldLine}`, borderRadius: 999, padding: '2px 9px' }}>
             {cycleNum}º ciclo · dia {cycleDay}
           </span>
@@ -1698,7 +1862,7 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
             dia 5 e ver os 5 quadradinhos vazios no dia seguinte parecia perda da
             sequência — foi exatamente essa a dúvida que chegou do time. */}
         <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
-          Os selos abaixo mostram só o ciclo atual. Depois do dia 5 o ciclo recomeça no dia 1 — a sua sequência de {streak} {streak === 1 ? 'dia' : 'dias'} continua contando normalmente.
+          Isto aqui é só o rodízio da moeda: a cada 5 dias úteis ele recomeça no dia 1 e os selos abaixo zeram — <b>o que conta de verdade é o calendário acima</b>, e sua sequência de {streak} {streak === 1 ? 'dia' : 'dias'} segue intacta.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: isMobile ? 6 : 11 }}>
           {CHECKIN_CYCLE.map((r, i) => {
@@ -1752,7 +1916,7 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
       {/* Tetos mensais */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>Limite mensal do check-in</div>
-        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Mesmo intercalando, o ganho via check-in é limitado por mês.</div>
+        <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Mesmo intercalando, o ganho via check-in é limitado por mês. Batendo o teto, o check-in do dia continua valendo pra sequência (fica verde no calendário, marcado como <b>teto</b>), só não rende prisma até o mês virar.</div>
         {['premium', 'comum'].map(cur => {
           const { e, pct } = capBar(cur);
           const prem = cur === 'premium';
