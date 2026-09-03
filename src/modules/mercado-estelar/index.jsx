@@ -678,9 +678,14 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
       return next;
     });
     if (nextSnapshot) persistNow(nextSnapshot);
-    if (give > 0) { applyCredit(cur === 'comum' ? give : 0, cur === 'premium' ? give : 0); addHistory({ kind: 'checkin', desc: `Check-in · dia ${streak} de sequência`, [cur]: give }); }
+    // O número mostrado pro colaborador é o dia DENTRO DO CICLO (1-5) — o mesmo que
+    // a aba Check-in destaca. Antes o toast e o histórico usavam o `streak` cru
+    // ("dia 41"), que não batia com nenhum dos 5 quadradinhos da tela; o total de
+    // dias seguidos vai junto, entre parênteses, pra sequência ficar visível também.
+    const cycleDay = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length + 1;
+    if (give > 0) { applyCredit(cur === 'comum' ? give : 0, cur === 'premium' ? give : 0); addHistory({ kind: 'checkin', desc: `Check-in · dia ${cycleDay} do ciclo (${streak}º dia útil seguido)`, [cur]: give }); }
     const label = cur === 'premium' ? PREMIUM.name : COMUM.name;
-    flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${streak})` : `Check-in feito! Teto mensal de ${label} já atingido.`);
+    flash(give > 0 ? `Check-in feito! +${give} ${label} (dia ${cycleDay} do ciclo · ${streak} dias seguidos)` : `Check-in feito! Teto mensal de ${label} já atingido.`);
   });
 
   // ── Missões ──
@@ -1617,6 +1622,16 @@ const Carteira = ({ state, setState, addHistory, flash, isMobile, cardBg, me, ap
 const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, streak, nextReward, earned, isMobile, cardBg }) => {
   // Posição do dia de hoje dentro do ciclo de 5 (0-based)
   const todayIdx = ((streak - 1) % CHECKIN_CYCLE.length + CHECKIN_CYCLE.length) % CHECKIN_CYCLE.length;
+  // BUG RELATADO (set/2026): "estava no dia 3 e hoje voltou pro dia 1 em vez de ir
+  // pro dia 4". A sequência da pessoa NÃO tinha quebrado — ela estava (e segue) com
+  // dezenas de dias úteis seguidos. O que acontece é que o quadro de 5 dias é um
+  // CICLO: quem resgata no dia 5 volta pro dia 1 no dia útil seguinte (é o ciclo que
+  // recomeça, não a sequência). Como a tela só mostrava a posição 1-5 e limpava todos
+  // os selinhos verdes, isso era visualmente idêntico a "perdi minha sequência".
+  // Agora a tela deixa explícito: número do ciclo, dia dentro do ciclo E o total de
+  // dias úteis seguidos, que nunca zera enquanto não faltar um dia útil.
+  const cycleDay = todayIdx + 1;                                   // 1-5 (posição no ciclo)
+  const cycleNum = Math.floor((streak - 1) / CHECKIN_CYCLE.length) + 1; // qual ciclo (1º, 2º, ...)
   const cap = MONTHLY_CAP;
   const capBar = (cur) => {
     const e = Math.min(earned[cur], cap[cur]); const pct = Math.round((e / cap[cur]) * 100);
@@ -1627,7 +1642,7 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
 
   return (
     <div>
-      <SectionHead title="Check-in Diário" sub="Em dias úteis: os ganhos crescem a cada dia da sequência e a moeda intercala. Faltou um dia útil (sem contar fim de semana e feriado nacional)? A sequência volta pro dia 1. Sábado, domingo e feriado nacional não contam (nem quebram a sequência) — sua sequência pode começar em qualquer dia útil, não só segunda." />
+      <SectionHead title="Check-in Diário" sub="Em dias úteis a moeda intercala ao longo de um ciclo de 5 dias. Terminou o dia 5? O CICLO recomeça no dia 1 — isso é normal e NÃO zera nada: sua sequência de dias úteis seguidos continua contando (veja o total no card abaixo). Só faltar um dia útil (fim de semana e feriado nacional não contam nem quebram nada) é que volta tudo pro começo. Sua sequência pode começar em qualquer dia útil, não só segunda." />
 
       {/* Banner do dia + resgatar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: '11px 18px', marginBottom: 12, boxShadow: T.sh, position: 'relative', overflow: 'hidden' }}>
@@ -1637,13 +1652,19 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
         </div>
         <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
-            {canCheckin ? `Dia ${streak} de sequência — recompensa pronta!`
+            {/* BUG CORRIGIDO: aqui mostrava `streak - 1` depois do resgate — o número
+                do dia já resgatado aparecia UM A MENOS do que o real (e igual ao que
+                a tela mostrou no dia anterior), porque `computeStreak` já devolve a
+                posição de HOJE (ela não conta o check-in de hoje, então não muda ao
+                resgatar). Agora mostra o dia certo, sempre dentro do ciclo de 5. */}
+            {canCheckin ? `Dia ${cycleDay} do ciclo — recompensa pronta!`
               : todayOff ? offLabel
-              : `Você já resgatou hoje (dia ${streak - 1})`}
+              : `Você já resgatou hoje (dia ${cycleDay} do ciclo)`}
           </div>
           <div style={{ fontSize: 12, color: T.textT, marginTop: 1, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {canCheckin ? 'Recompensa de hoje:'
               : todayOff ? 'Sua sequência continua intacta — volte no próximo dia útil. Próxima:'
+              : cycleDay === CHECKIN_CYCLE.length ? 'Ciclo completo! Amanhã ele recomeça no dia 1 — sua sequência NÃO zera. Próxima:'
               : 'Volte amanhã para manter a sequência. Próxima:'}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
               <PrismIcon type={nextReward.cur} size={nextReward.cur === 'premium' ? 18 : 14} />
@@ -1664,7 +1685,21 @@ const Checkin = ({ canCheckin, todayOff, todayHoliday, onCheckin, checkins, stre
 
       {/* Ciclo de 5 dias (seg-sex) */}
       <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: isMobile ? '14px 12px' : '16px 18px', boxShadow: T.sh, marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 12 }}>Sequência de 5 dias úteis</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Ciclo de 5 dias úteis</div>
+          <span style={{ fontSize: 11, fontWeight: 800, color: T.gold, background: T.goldGl, border: `1px solid ${T.goldLine}`, borderRadius: 999, padding: '2px 9px' }}>
+            {cycleNum}º ciclo · dia {cycleDay}
+          </span>
+          <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#16a34a' }}>
+            🔥 {streak} {streak === 1 ? 'dia útil seguido' : 'dias úteis seguidos'}
+          </span>
+        </div>
+        {/* O selinho verde é sempre do ciclo ATUAL (1-5). Sem esta linha, terminar o
+            dia 5 e ver os 5 quadradinhos vazios no dia seguinte parecia perda da
+            sequência — foi exatamente essa a dúvida que chegou do time. */}
+        <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12 }}>
+          Os selos abaixo mostram só o ciclo atual. Depois do dia 5 o ciclo recomeça no dia 1 — a sua sequência de {streak} {streak === 1 ? 'dia' : 'dias'} continua contando normalmente.
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: isMobile ? 6 : 11 }}>
           {CHECKIN_CYCLE.map((r, i) => {
             const dayNum = i + 1;
