@@ -1739,7 +1739,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
     // playersRef, NUNCA `players`: esta função roda a partir do handler do canal
     // (closure do 1º render, lista vazia) → `faltam` dava -1 e a rodada encerrava
     // no PRIMEIRO acerto, sem os outros terem chance de pontuar.
-    const faltam = playersRef.current.filter(p => p.name !== s.drawer).length - hits.length;
+    // Conta direto quem AINDA não acertou entre os jogadores presentes AGORA —
+    // não faz total-menos-hits.length: se alguém acerta e sai da sala antes do
+    // fim da rodada, ele some do total (playersRef encolhe) mas continuava em
+    // `hits`, então a subtração ficava 1 a menos e a rodada pulava faltando UM
+    // acertar de verdade.
+    const faltam = playersRef.current.filter(p => p.name !== s.drawer && !hits.includes(p.name)).length;
     pushState(faltam <= 0
       ? { ...s, hits, scores, drawerRoundPts, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) }
       : { ...s, hits, scores, drawerRoundPts });
