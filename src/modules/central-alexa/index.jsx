@@ -1454,6 +1454,20 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
+  // ── Aba Playlist: cola o link do Spotify e lista as faixas com botão de fila ──
+  const [plLinkVal, setPlLinkVal]       = useState("");
+  const [plLoading, setPlLoading]       = useState(false);
+  const [plError, setPlError]           = useState("");
+  const [plData, setPlData]             = useState(null); // { name, image, owner, tracks }
+
+  const loadPlaylistFromLink = async () => {
+    if (!plLinkVal.trim() || plLoading) return;
+    setPlLoading(true); setPlError(""); setPlData(null);
+    const r = await api('get', `/api/playlist/link?url=${encodeURIComponent(plLinkVal.trim())}`);
+    if (r.error) setPlError(r.error);
+    else setPlData(r);
+    setPlLoading(false);
+  };
   const [confirmTrack, setConfirmTrack] = useState(null); // track aguardando confirmação de longa duração
   const [replaceTarget, setReplaceTarget]     = useState(null); // música da fila sendo substituída
   const [replaceVal, setReplaceVal]           = useState("");
@@ -2896,6 +2910,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
           {[
             {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
+            {id:"playlist",  label:"Playlist",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>},
             {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
             {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
           ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
@@ -3758,6 +3773,81 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             </div>
 
           </div>
+          </div>
+        )}
+
+        {/* ══════════ PLAYLIST TAB ══════════ */}
+        {tab==="playlist"&&(
+          <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",gap:16}}>
+            {serverMsg&&(
+              <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(192,64,80,0.07)",border:"1px solid rgba(192,64,80,0.25)",fontSize:12,color:"#C04050"}}>
+                ⚠️ {serverMsg}
+              </div>
+            )}
+            <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12}}>Playlist do Spotify</div>
+              <div style={{display:"flex",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
+                <input
+                  value={plLinkVal}
+                  onChange={e=>setPlLinkVal(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter') loadPlaylistFromLink(); }}
+                  placeholder="Cole o link da playlist do Spotify..."
+                  style={{flex:1,minWidth:0,padding:"12px 16px",borderRadius:12,border:`2px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",color:T.text,fontSize:14,fontFamily:"var(--font-body)",outline:"none"}}/>
+                <button onClick={loadPlaylistFromLink} disabled={plLoading||!plLinkVal.trim()}
+                  style={{padding:"0 20px",borderRadius:12,border:"none",cursor:plLoading?"default":"pointer",
+                    background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontWeight:700,fontSize:13,
+                    fontFamily:"var(--font-body)",opacity:plLinkVal.trim()?1:0.5,flexShrink:0,outline:"none"}}>
+                  {plLoading?"Carregando...":"Carregar"}
+                </button>
+              </div>
+              {plError&&(
+                <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,background:"rgba(192,64,80,0.07)",border:"1px solid rgba(192,64,80,0.25)",fontSize:12,color:"#C04050"}}>
+                  ⚠️ {plError}
+                </div>
+              )}
+            </div>
+
+            {plData&&(
+              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+                  {plData.image
+                    ? <img src={plData.image} alt="" style={{width:56,height:56,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
+                    : <div style={{width:56,height:56,borderRadius:10,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🎵</div>
+                  }
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{plData.name}</div>
+                    <div style={{fontSize:12,color:T.textD}}>{plData.owner?`por ${plData.owner} · `:""}{plData.tracks.length} faixas</div>
+                  </div>
+                </div>
+
+                <div style={{maxHeight:"60vh",overflowY:"auto"}}>
+                  {plData.tracks.map(t=>(
+                    <div key={t.id} onClick={()=>addToQueue(t)}
+                      style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      {t.album_art
+                        ? <img src={t.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                        : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>
+                      }
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                        <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
+                      </div>
+                      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
+                        {isAdding===t.id
+                          ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+                          : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            </div>
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
