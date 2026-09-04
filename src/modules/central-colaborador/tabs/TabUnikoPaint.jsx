@@ -560,7 +560,9 @@ const THEMES = [
     'Praia do Presídio', 'Trisal', 'Mãezinha', 'Flaminga de peruca', 'Coca na piscina',
     'Carnaval das Cagonas', 'Festa na Praia do Presídio', 'Trisal no Quarto Monange',
     'Cagona de peruca', 'Piscina do Presídio', 'Festa dos Signos no Presídio',
-    'She Knows no Carnaval', 'Casa monstro', 'Bananinha da Kill', 'Beats'] },
+    'She Knows no Carnaval', 'Casa monstro', 'Bananinha da Kill', 'Beats',
+    'Cocô na Geladeira', 'Bunda da Abner', 'Quarto dos Héteros', 'Sunga Branca do João',
+    'Língua Azul', 'Lucas Guedes'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
