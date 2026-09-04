@@ -29,6 +29,9 @@ export function AtualizacaoFrame({ maxWidth = 860, children, style }) {
 }
 
 // Tela cheia mostrada quando chega uma atualização nova (App.jsx).
+// Com imagem anexada: mostra SÓ a imagem (ela já traz a informação toda,
+// tipo um cartaz) — sem a moldura dos robôs, título/descrição por cima.
+// Sem imagem: mantém a moldura "ATUALIZAÇÕES" com título/descrição, como antes.
 export function AtualizacaoOverlay({ atual, onClose }) {
   if (!atual) return null;
   return (
@@ -36,29 +39,36 @@ export function AtualizacaoOverlay({ atual, onClose }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(7px)',
       WebkitBackdropFilter: 'blur(7px)', padding: 20, animation: 'atualIn .25s ease' }}>
       <style>{`@keyframes atualIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}`}</style>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 920, position: 'relative' }}>
-        <AtualizacaoFrame maxWidth={920}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, color: '#111',
-            fontSize: 'clamp(20px, 4vw, 46px)', lineHeight: 1.05, letterSpacing: '.01em',
-            textTransform: 'uppercase', wordBreak: 'break-word' }}>{atual.titulo}</div>
-          {atual.imagem_url && (
-            <img src={atual.imagem_url} alt="" style={{ maxWidth: '100%', maxHeight: '42%',
-              objectFit: 'contain', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,.18)' }} />
-          )}
-          {atual.descricao && (
-            <div style={{ color: '#222', fontWeight: 600, fontSize: 'clamp(11px, 1.55vw, 17px)', lineHeight: 1.28,
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '64%', overflowY: 'auto' }}>{atual.descricao}</div>
-          )}
-        </AtualizacaoFrame>
-        <button onClick={onClose} title="Fechar" style={{ position: 'absolute', top: -14, right: -8, width: 42, height: 42,
-          borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#fff', color: '#333', fontSize: 22,
-          lineHeight: 1, boxShadow: '0 6px 22px rgba(0,0,0,.45)' }}>×</button>
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <button onClick={onClose} style={{ padding: '12px 30px', borderRadius: 13, border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(135deg,#7C3AED,#C026D3)', color: '#fff', fontWeight: 700, fontSize: 15,
-            fontFamily: 'var(--font-body)', boxShadow: '0 8px 26px rgba(124,58,237,.5)' }}>Entendi 🎉</button>
+      {atual.imagem_url ? (
+        <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '92vw', maxHeight: '90vh' }}>
+          <img src={atual.imagem_url} alt={atual.titulo || 'Atualização'} style={{ display: 'block',
+            maxWidth: '92vw', maxHeight: '90vh', width: 'auto', height: 'auto', objectFit: 'contain',
+            borderRadius: 16, boxShadow: '0 20px 70px rgba(0,0,0,.5)' }} />
+          <button onClick={onClose} title="Fechar" style={{ position: 'absolute', top: -14, right: -8, width: 42, height: 42,
+            borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#fff', color: '#333', fontSize: 22,
+            lineHeight: 1, boxShadow: '0 6px 22px rgba(0,0,0,.45)' }}>×</button>
         </div>
-      </div>
+      ) : (
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 920, position: 'relative' }}>
+          <AtualizacaoFrame maxWidth={920}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, color: '#111',
+              fontSize: 'clamp(20px, 4vw, 46px)', lineHeight: 1.05, letterSpacing: '.01em',
+              textTransform: 'uppercase', wordBreak: 'break-word' }}>{atual.titulo}</div>
+            {atual.descricao && (
+              <div style={{ color: '#222', fontWeight: 600, fontSize: 'clamp(11px, 1.55vw, 17px)', lineHeight: 1.28,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '64%', overflowY: 'auto' }}>{atual.descricao}</div>
+            )}
+          </AtualizacaoFrame>
+          <button onClick={onClose} title="Fechar" style={{ position: 'absolute', top: -14, right: -8, width: 42, height: 42,
+            borderRadius: '50%', border: 'none', cursor: 'pointer', background: '#fff', color: '#333', fontSize: 22,
+            lineHeight: 1, boxShadow: '0 6px 22px rgba(0,0,0,.45)' }}>×</button>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button onClick={onClose} style={{ padding: '12px 30px', borderRadius: 13, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg,#7C3AED,#C026D3)', color: '#fff', fontWeight: 700, fontSize: 15,
+              fontFamily: 'var(--font-body)', boxShadow: '0 8px 26px rgba(124,58,237,.5)' }}>Entendi 🎉</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2572,38 +2572,60 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 <Moon size={24} color={T.goldL} opacity={0.35} float/>
               </div>
 
-              {/* Editor sobre a moldura */}
+              {/* Editor — com imagem anexada, a tela cheia mostra SÓ a imagem
+                  (sem a moldura), então o preview aqui já reflete isso: a
+                  imagem aparece grande e sozinha, título/descrição viram
+                  campos simples abaixo (usados só na notificação/histórico). */}
               <Card style={{padding:'22px 20px',background:cardBg,display:'flex',flexDirection:'column',alignItems:'center',gap:16}} elevated>
-                <AtualizacaoFrame maxWidth={760}>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                  {atualImagemUrl ? (
+                    <div style={{position:'relative'}}>
+                      <img src={atualImagemUrl} alt="" style={{maxHeight:'min(50vh,420px)',maxWidth:'min(80vw,480px)',objectFit:'contain',borderRadius:14,boxShadow:'0 8px 30px rgba(0,0,0,0.2)',display:'block'}}/>
+                      <button type="button" onClick={()=>setAtualImagemUrl('')} title="Remover imagem"
+                        style={{position:'absolute',top:-10,right:-10,width:26,height:26,borderRadius:'50%',border:'none',cursor:'pointer',background:'#C04050',color:'#fff',fontSize:15,lineHeight:1,boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}>×</button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={()=>atualImgInputRef.current?.click()} disabled={atualImgUploading}
+                      style={{padding:'10px 18px',borderRadius:10,border:`1px dashed ${T.border}`,background:'transparent',color:T.textS,cursor:atualImgUploading?'not-allowed':'pointer',fontSize:13,fontFamily:'var(--font-body)'}}>
+                      {atualImgUploading?'Enviando...':'🖼️ Anexar uma imagem (ela aparece sozinha, em tela cheia)'}
+                    </button>
+                  )}
+                  <input ref={atualImgInputRef} type="file" accept="image/*" style={{display:'none'}}
+                    onChange={e=>{ uploadAtualImagem(e.target.files?.[0]); e.target.value=''; }}/>
+                </div>
+
+                {atualImagemUrl&&(
+                  <div style={{fontSize:12,color:T.textD,textAlign:'center',maxWidth:480}}>
+                    Com imagem anexada, a tela cheia mostra só ela — título e descrição abaixo só valem pra notificação e pro histórico.
+                  </div>
+                )}
+
+                <div style={{width:'100%',maxWidth:520,display:'flex',flexDirection:'column',gap:10}}>
                   <input value={atualForm.titulo} onChange={e=>setAtualForm(f=>({...f,titulo:e.target.value}))}
                     placeholder="Título da atualização"
-                    style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',
-                      color:'#111',fontFamily:'var(--font-brand)',fontWeight:800,textTransform:'uppercase',
-                      fontSize:'clamp(16px, 3vw, 34px)',lineHeight:1.1,letterSpacing:'.01em',padding:0}}/>
-
-                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-                    {atualImagemUrl ? (
-                      <div style={{position:'relative'}}>
-                        <img src={atualImagemUrl} alt="" style={{maxHeight:'clamp(50px,12vw,110px)',maxWidth:'min(70vw,320px)',objectFit:'contain',borderRadius:8,border:'1px solid rgba(0,0,0,0.15)',display:'block'}}/>
-                        <button type="button" onClick={()=>setAtualImagemUrl('')} title="Remover imagem"
-                          style={{position:'absolute',top:-8,right:-8,width:22,height:22,borderRadius:'50%',border:'none',cursor:'pointer',background:'#C04050',color:'#fff',fontSize:13,lineHeight:1,boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}>×</button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={()=>atualImgInputRef.current?.click()} disabled={atualImgUploading}
-                        style={{padding:'6px 14px',borderRadius:8,border:'1px dashed rgba(0,0,0,0.35)',background:'rgba(0,0,0,0.03)',color:'#333',cursor:atualImgUploading?'not-allowed':'pointer',fontSize:12,fontFamily:'var(--font-body)'}}>
-                        {atualImgUploading?'Enviando...':'🖼️ Adicionar imagem (opcional)'}
-                      </button>
-                    )}
-                    <input ref={atualImgInputRef} type="file" accept="image/*" style={{display:'none'}}
-                      onChange={e=>{ uploadAtualImagem(e.target.files?.[0]); e.target.value=''; }}/>
-                  </div>
-
+                    style={{width:'100%',padding:'11px 14px',borderRadius:10,border:`1.5px solid ${T.border}`,
+                      background:isDark?T.surfaceSub||'rgba(255,255,255,0.04)':'white',color:T.text,
+                      fontFamily:'var(--font-brand)',fontWeight:700,fontSize:15,outline:'none'}}/>
                   <textarea value={atualForm.descricao} onChange={e=>setAtualForm(f=>({...f,descricao:e.target.value}))}
-                    placeholder="Descrição das atualizações (opcional)" rows={5}
-                    style={{width:'100%',background:'transparent',border:'none',outline:'none',textAlign:'center',resize:'none',
-                      color:'#222',fontFamily:'var(--font-body)',fontWeight:600,
-                      fontSize:'clamp(10px, 1.4vw, 16px)',lineHeight:1.28,padding:0,maxHeight:'64%',overflowY:'auto'}}/>
-                </AtualizacaoFrame>
+                    placeholder="Descrição (opcional)" rows={3}
+                    style={{width:'100%',padding:'11px 14px',borderRadius:10,border:`1.5px solid ${T.border}`,
+                      background:isDark?T.surfaceSub||'rgba(255,255,255,0.04)':'white',color:T.text,
+                      fontFamily:'var(--font-body)',fontSize:13,lineHeight:1.4,resize:'none',outline:'none'}}/>
+                </div>
+
+                {!atualImagemUrl&&(atualForm.titulo||atualForm.descricao)&&(
+                  <div style={{width:'100%',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                    <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em'}}>Pré-visualização</div>
+                    <AtualizacaoFrame maxWidth={640}>
+                      <div style={{fontFamily:'var(--font-brand)',fontWeight:800,color:'#111',textTransform:'uppercase',
+                        fontSize:'clamp(16px, 3vw, 30px)',lineHeight:1.1,letterSpacing:'.01em',wordBreak:'break-word'}}>{atualForm.titulo||'Título da atualização'}</div>
+                      {atualForm.descricao&&(
+                        <div style={{color:'#222',fontWeight:600,fontSize:'clamp(10px, 1.4vw, 15px)',lineHeight:1.28,
+                          whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:'64%',overflowY:'auto'}}>{atualForm.descricao}</div>
+                      )}
+                    </AtualizacaoFrame>
+                  </div>
+                )}
 
                 {atualMsg&&<div style={{fontSize:13,color:atualMsg.startsWith('✅')?'#16a34a':'#C04050',padding:'8px 14px',borderRadius:9,background:atualMsg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${atualMsg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`,textAlign:'center'}}>{atualMsg}</div>}
 
