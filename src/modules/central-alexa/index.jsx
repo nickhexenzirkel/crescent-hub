@@ -1454,20 +1454,63 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching]   = useState(false);
   const [isAdding, setIsAdding]         = useState(null); // track.id sendo adicionado
-  // ── Aba Playlist: cola o link do Spotify e lista as faixas com botão de fila ──
+  // ── Aba Playlist: biblioteca compartilhada (todo mundo vê tudo que foi
+  // adicionado), com busca. Abrir um card carrega as faixas sob demanda. ──
+  const [plLibrary, setPlLibrary]       = useState([]);
+  const [plLibLoading, setPlLibLoading] = useState(false);
+  const [plSearch, setPlSearch]         = useState("");
   const [plLinkVal, setPlLinkVal]       = useState("");
-  const [plLoading, setPlLoading]       = useState(false);
+  const [plAdding, setPlAdding]         = useState(false);
   const [plError, setPlError]           = useState("");
-  const [plData, setPlData]             = useState(null); // { name, image, owner, tracks }
+  const [plOpenId, setPlOpenId]         = useState(null);   // spotify_id aberto no momento
+  const [plLoading, setPlLoading]       = useState(false);  // carregando faixas do aberto
+  const [plData, setPlData]             = useState(null);   // { name, image, owner, tracks } do aberto
 
-  const loadPlaylistFromLink = async () => {
-    if (!plLinkVal.trim() || plLoading) return;
-    setPlLoading(true); setPlError(""); setPlData(null);
-    const r = await api('get', `/api/playlist/link?url=${encodeURIComponent(plLinkVal.trim())}`);
+  const loadPlaylistLibrary = async () => {
+    setPlLibLoading(true);
+    const r = await api('get', '/api/playlist/library');
+    setPlLibrary(r.playlists || []);
+    setPlLibLoading(false);
+  };
+  useEffect(()=>{ if(tab==='playlist') loadPlaylistLibrary(); }, [tab]);
+
+  // Busca a foto de quem adicionou cada playlist da biblioteca (mesmo cache
+  // usado na fila/chat — evita rebuscar quem já apareceu antes).
+  useEffect(() => {
+    const names = [...new Set(plLibrary.map(p => p.added_by))]
+      .filter(n => n && n !== myName && !photoCache[n]);
+    names.forEach(async name => {
+      const photo = await fetchPhotoByName(name);
+      if (photo) setPhotoCache(p => ({ ...p, [name]: photo }));
+    });
+  }, [plLibrary]); // eslint-disable-line
+
+  const addPlaylistToLibrary = async () => {
+    if (!plLinkVal.trim() || plAdding) return;
+    setPlAdding(true); setPlError("");
+    const r = await api('post', '/api/playlist/library', { url: plLinkVal.trim() });
+    if (r.error) setPlError(r.error);
+    else { setPlLinkVal(""); await loadPlaylistLibrary(); }
+    setPlAdding(false);
+  };
+
+  const openLibraryPlaylist = async (spotifyId) => {
+    setPlOpenId(spotifyId); setPlLoading(true); setPlError(""); setPlData(null);
+    const r = await api('get', `/api/playlist/link?url=spotify:playlist:${spotifyId}`);
     if (r.error) setPlError(r.error);
     else setPlData(r);
     setPlLoading(false);
   };
+
+  const removeFromLibrary = async (spotifyId) => {
+    if (!window.confirm('Remover essa playlist da biblioteca?')) return;
+    await api('delete', `/api/playlist/library/${spotifyId}`);
+    await loadPlaylistLibrary();
+  };
+
+  const filteredLibrary = plLibrary.filter(p =>
+    !plSearch.trim() || p.name?.toLowerCase().includes(plSearch.trim().toLowerCase())
+  );
   const [confirmTrack, setConfirmTrack] = useState(null); // track aguardando confirmação de longa duração
   const [replaceTarget, setReplaceTarget]     = useState(null); // música da fila sendo substituída
   const [replaceVal, setReplaceVal]           = useState("");
@@ -3784,68 +3827,132 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 ⚠️ {serverMsg}
               </div>
             )}
-            <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
-              <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12}}>Playlist do Spotify</div>
-              <div style={{display:"flex",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
-                <input
-                  value={plLinkVal}
-                  onChange={e=>setPlLinkVal(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==='Enter') loadPlaylistFromLink(); }}
-                  placeholder="Cole o link da playlist do Spotify..."
-                  style={{flex:1,minWidth:0,padding:"12px 16px",borderRadius:12,border:`2px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",color:T.text,fontSize:14,fontFamily:"var(--font-body)",outline:"none"}}/>
-                <button onClick={loadPlaylistFromLink} disabled={plLoading||!plLinkVal.trim()}
-                  style={{padding:"0 20px",borderRadius:12,border:"none",cursor:plLoading?"default":"pointer",
-                    background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontWeight:700,fontSize:13,
-                    fontFamily:"var(--font-body)",opacity:plLinkVal.trim()?1:0.5,flexShrink:0,outline:"none"}}>
-                  {plLoading?"Carregando...":"Carregar"}
-                </button>
-              </div>
-              {plError&&(
-                <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,background:"rgba(192,64,80,0.07)",border:"1px solid rgba(192,64,80,0.25)",fontSize:12,color:"#C04050"}}>
-                  ⚠️ {plError}
-                </div>
-              )}
-            </div>
 
-            {plData&&(
+            {/* ── Visão de biblioteca (lista de cards + busca) ── */}
+            {!plOpenId&&(<>
               <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
-                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
-                  {plData.image
-                    ? <img src={plData.image} alt="" style={{width:56,height:56,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
-                    : <div style={{width:56,height:56,borderRadius:10,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🎵</div>
-                  }
-                  <div style={{minWidth:0}}>
-                    <div style={{fontSize:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{plData.name}</div>
-                    <div style={{fontSize:12,color:T.textD}}>{plData.owner?`por ${plData.owner} · `:""}{plData.tracks.length} faixas</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12}}>Adicionar à biblioteca</div>
+                <div style={{display:"flex",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
+                  <input
+                    value={plLinkVal}
+                    onChange={e=>setPlLinkVal(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==='Enter') addPlaylistToLibrary(); }}
+                    placeholder="Cole o link da playlist do Spotify..."
+                    style={{flex:1,minWidth:0,padding:"12px 16px",borderRadius:12,border:`2px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",color:T.text,fontSize:14,fontFamily:"var(--font-body)",outline:"none"}}/>
+                  <button onClick={addPlaylistToLibrary} disabled={plAdding||!plLinkVal.trim()}
+                    style={{padding:"0 20px",borderRadius:12,border:"none",cursor:plAdding?"default":"pointer",
+                      background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:"white",fontWeight:700,fontSize:13,
+                      fontFamily:"var(--font-body)",opacity:plLinkVal.trim()?1:0.5,flexShrink:0,outline:"none"}}>
+                    {plAdding?"Adicionando...":"Adicionar"}
+                  </button>
+                </div>
+                {plError&&(
+                  <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,background:"rgba(192,64,80,0.07)",border:"1px solid rgba(192,64,80,0.25)",fontSize:12,color:"#C04050"}}>
+                    ⚠️ {plError}
+                  </div>
+                )}
+              </div>
+
+              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",flex:1}}>Biblioteca de Playlists ({plLibrary.length})</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:10,border:`1.5px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",minWidth:isMobile?"100%":240}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input value={plSearch} onChange={e=>setPlSearch(e.target.value)} placeholder="Buscar playlist..."
+                      style={{flex:1,background:"transparent",border:"none",outline:"none",fontSize:13,color:T.text,fontFamily:"var(--font-body)"}}/>
                   </div>
                 </div>
 
-                <div style={{maxHeight:"60vh",overflowY:"auto"}}>
-                  {plData.tracks.map(t=>(
-                    <div key={t.id} onClick={()=>addToQueue(t)}
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      {t.album_art
-                        ? <img src={t.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                        : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>
-                      }
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
-                        <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
-                      </div>
-                      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
-                        {isAdding===t.id
-                          ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
-                          : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                {plLibLoading
+                  ? <div style={{textAlign:"center",padding:"30px 0",color:T.textD,fontSize:13}}>Carregando biblioteca...</div>
+                  : filteredLibrary.length===0
+                    ? <div style={{textAlign:"center",padding:"30px 0",color:T.textD,fontSize:13}}>{plLibrary.length===0?"Nenhuma playlist adicionada ainda.":"Nenhuma playlist encontrada."}</div>
+                    : (
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+                        {filteredLibrary.map(p=>{
+                          const addedIsMe = p.added_by===myName;
+                          return (
+                            <div key={p.spotify_id} onClick={()=>openLibraryPlaylist(p.spotify_id)}
+                              style={{position:"relative",borderRadius:14,border:`1px solid ${T.border}`,padding:14,cursor:"pointer",transition:"all .15s",background:isDark?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.015)"}}
+                              onMouseEnter={e=>{e.currentTarget.style.borderColor=T.goldLine+"88";e.currentTarget.style.background=T.goldGl;}}
+                              onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=isDark?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.015)";}}>
+                              {(isAdmin||auth?.role==='moderador')&&(
+                                <button onClick={e=>{e.stopPropagation();removeFromLibrary(p.spotify_id);}}
+                                  title="Remover da biblioteca"
+                                  style={{position:"absolute",top:8,right:8,width:22,height:22,borderRadius:6,border:"none",cursor:"pointer",background:"rgba(0,0,0,0.35)",color:"#fff",fontSize:13,lineHeight:1,outline:"none",zIndex:2}}>×</button>
+                              )}
+                              {p.image
+                                ? <img src={p.image} alt="" style={{width:"100%",aspectRatio:"1",borderRadius:10,objectFit:"cover",marginBottom:10}}/>
+                                : <div style={{width:"100%",aspectRatio:"1",borderRadius:10,background:T.goldGl,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>🎵</div>
+                              }
+                              <div style={{fontSize:13,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:2}}>{p.name}</div>
+                              <div style={{fontSize:11,color:T.textD,marginBottom:10}}>{p.track_count||0} faixas</div>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <AvatarCircle name={p.added_by||'?'} photo={addedIsMe?myPhoto:photoCache[p.added_by]} size={20} fontSize={9} rounded="50%"/>
+                                <span style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addedIsMe?'Você':(p.added_by||'Colaborador')}</span>
+                              </div>
                             </div>
-                        }
+                          );
+                        })}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )
+                }
+              </div>
+            </>)}
+
+            {/* ── Visão de faixas de uma playlist aberta ── */}
+            {plOpenId&&(
+              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+                <button onClick={()=>{setPlOpenId(null);setPlData(null);setPlError("");}}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,fontSize:12,fontFamily:"var(--font-body)",marginBottom:16,outline:"none"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Voltar pra biblioteca
+                </button>
+
+                {plLoading
+                  ? <div style={{textAlign:"center",padding:"30px 0",color:T.textD,fontSize:13}}>Carregando faixas...</div>
+                  : plError
+                    ? <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(192,64,80,0.07)",border:"1px solid rgba(192,64,80,0.25)",fontSize:12,color:"#C04050"}}>⚠️ {plError}</div>
+                    : plData&&(<>
+                      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+                        {plData.image
+                          ? <img src={plData.image} alt="" style={{width:56,height:56,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
+                          : <div style={{width:56,height:56,borderRadius:10,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>🎵</div>
+                        }
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{plData.name}</div>
+                          <div style={{fontSize:12,color:T.textD}}>{plData.owner?`por ${plData.owner} · `:""}{plData.tracks.length} faixas</div>
+                        </div>
+                      </div>
+
+                      <div style={{maxHeight:"60vh",overflowY:"auto"}}>
+                        {plData.tracks.map(t=>(
+                          <div key={t.id} onClick={()=>addToQueue(t)}
+                            style={{display:"flex",alignItems:"center",gap:12,padding:"10px 8px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
+                            onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            {t.album_art
+                              ? <img src={t.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                              : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>
+                            }
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                              <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
+                            </div>
+                            <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
+                              {isAdding===t.id
+                                ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+                                : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                  </div>
+                              }
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>)
+                }
               </div>
             )}
           </div>
