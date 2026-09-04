@@ -2622,9 +2622,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     if (volumeTimer.current) clearTimeout(volumeTimer.current);
     volumeTimer.current = setTimeout(async () => {
       setVolumeSaving(true);
-      await api('put', `/api/player/volume?volume_percent=${newVol}`).catch(()=>{});
-      // Persiste pra sobreviver a refresh/troca de aba e sincronizar entre todos.
-      await _supabase.from('settings').upsert({ key: 'alexa_volume', value: String(newVol) }, { onConflict: 'key' }).catch(()=>{});
+      // Query builder do Supabase não tem .catch() de verdade (só .then thenable) —
+      // encadear .catch() direto quebrava em produção ("...upsert(...).catch is not
+      // a function"). try/catch cobre os dois awaits sem esse risco.
+      try {
+        await api('put', `/api/player/volume?volume_percent=${newVol}`);
+        // Persiste pra sobreviver a refresh/troca de aba e sincronizar entre todos.
+        await _supabase.from('settings').upsert({ key: 'alexa_volume', value: String(newVol) }, { onConflict: 'key' });
+      } catch {}
       setVolumeSaving(false);
     }, 300);
   };
