@@ -554,6 +554,13 @@ const THEMES = [
     'Jasmine', 'Gênio', 'Rapunzel', 'Maui', 'Stitch', 'Woody', 'Buzz Lightyear', 'Nemo',
     'Dory', 'Sulley', 'Mike Wazowski', 'Remy', 'Sininho', 'Capitão Gancho',
     'Cruella de Vil', 'Relâmpago McQueen', 'Baloo', 'Alegria', 'Tristeza'] },
+  { id: 'cagonas', nome: 'Cagonas do Presídio', emoji: '🦩', words: [
+    'Coca da Mãezinha', 'Flaminga', 'She Knows', 'Quarto Monange', 'Piscina',
+    'Perucas', 'Festa dos Signos', 'Carnaval', 'Cagonas do Presídio', 'Festa Maluca',
+    'Praia do Presídio', 'Trisal', 'Mãezinha', 'Flaminga de peruca', 'Coca na piscina',
+    'Carnaval das Cagonas', 'Festa na Praia do Presídio', 'Trisal no Quarto Monange',
+    'Cagona de peruca', 'Piscina do Presídio', 'Festa dos Signos no Presídio',
+    'She Knows no Carnaval', 'Casa monstro', 'Bananinha da Kill', 'Beats'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
@@ -573,6 +580,7 @@ const COR_TEMA = {
   fazenda: UP.lime,    espaco: UP.cyan,      superherois: UP.red,
   praia: UP.cyan, festajunina: UP.yellow, natal: UP.red,
   terror: UP.purple, construcao: UP.yellow, disney: UP.purple,
+  cagonas: UP.orange,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
