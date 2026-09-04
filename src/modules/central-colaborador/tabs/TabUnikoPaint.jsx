@@ -227,6 +227,17 @@ const THEMES = [
     'pão francês', 'bolacha', 'chocolate', 'sorvete de casquinha', 'morango',
     'uva', 'maçã', 'cenoura', 'brócolis', 'arroz e feijão', 'salada', 'sopa',
     'churrasquinho', 'pizza de calabresa', 'mandioca', 'pamonha', 'canjica'] },
+  { id: 'restaurante', nome: 'Restaurante', emoji: '🍽️', words: [
+    'garçom', 'garçonete', 'cardápio', 'mesa reservada', 'guardanapo', 'taça de vinho',
+    'garrafa de vinho', 'saca-rolhas', 'toalha de mesa', 'vela na mesa', 'cesta de pão',
+    'prato do dia', 'prato de entrada', 'prato principal', 'sobremesa', 'chef de cozinha',
+    'cozinha do restaurante', 'fogão industrial', 'panela grande', 'avental',
+    'touca de cozinheiro', 'comanda', 'conta do restaurante', 'gorjeta',
+    'maquininha de cartão', 'buffet', 'rodízio de carnes', 'fila de espera',
+    'mesa de terraço', 'cadeirinha de bebê', 'música ao vivo', 'sommelier', 'molho',
+    'saleiro e pimenteiro', 'palito de dente', 'bandeja de garçom',
+    'carrinho de sobremesas', 'geladeira de bebidas', 'máquina de café expresso',
+    'delivery', 'motoboy', 'embalagem para viagem', 'placa de reservado'] },
   { id: 'animais', nome: 'Animais', emoji: '🐾', words: [
     'gato', 'cachorro', 'pinguim', 'elefante', 'girafa', 'tubarão', 'polvo',
     'borboleta', 'caracol', 'dinossauro', 'coruja', 'tartaruga', 'abelha', 'sapo',
@@ -582,7 +593,7 @@ const COR_TEMA = {
   fazenda: UP.lime,    espaco: UP.cyan,      superherois: UP.red,
   praia: UP.cyan, festajunina: UP.yellow, natal: UP.red,
   terror: UP.purple, construcao: UP.yellow, disney: UP.purple,
-  cagonas: UP.orange,
+  cagonas: UP.orange, restaurante: UP.red,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
