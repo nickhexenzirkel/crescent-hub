@@ -104,6 +104,32 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const cardDragRef = useRef(null);
   const [draggingCard, setDraggingCard] = useState(false);
   useEffect(() => { cardPosRef.current = cardPos; }, [cardPos]);
+  // O card só pode DESCANSAR em um dos 4 cantos da tela (não em qualquer
+  // lugar) — arrastar ainda segue o cursor livremente pra dar feedback, mas
+  // ao soltar ele sempre encaixa no canto mais próximo de onde foi solto.
+  const CARD_MARGIN = 18;
+  const cornerFromPoint = (cx, cy, w, h) => ({
+    x: cx > window.innerWidth / 2 ? window.innerWidth - w - CARD_MARGIN : CARD_MARGIN,
+    y: cy > window.innerHeight / 2 ? window.innerHeight - h - CARD_MARGIN : CARD_MARGIN,
+  });
+  // Posição salva pode ter ficado FORA da tela — foi arrastada com outro nível
+  // de zoom/tamanho de janela, e sem isso o card simplesmente sumia (relatado:
+  // "com o zoom de 100% o card some da tela"). Reencaixa no canto mais
+  // próximo assim que monta e sempre que a janela muda de tamanho/zoom.
+  useEffect(() => {
+    const reencaixar = () => {
+      setCardPos(p => {
+        if (!p) return p;
+        const w = cardElRef.current?.offsetWidth || 200, h = cardElRef.current?.offsetHeight || 140;
+        const next = cornerFromPoint(p.x + w / 2, p.y + h / 2, w, h);
+        if (next.x === p.x && next.y === p.y) return p;
+        saveCardPos(next); return next;
+      });
+    };
+    reencaixar();
+    window.addEventListener('resize', reencaixar);
+    return () => window.removeEventListener('resize', reencaixar);
+  }, []);
   useEffect(() => {
     const move = (e) => {
       const d = cardDragRef.current; if (!d) return;
@@ -115,7 +141,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const up = () => {
       if (!cardDragRef.current) return;
       cardDragRef.current = null; setDraggingCard(false);
-      if (cardPosRef.current) saveCardPos(cardPosRef.current);
+      setCardPos(p => {
+        if (!p) return p;
+        const w = cardElRef.current?.offsetWidth || 200, h = cardElRef.current?.offsetHeight || 140;
+        const next = cornerFromPoint(p.x + w / 2, p.y + h / 2, w, h);
+        saveCardPos(next); return next;
+      });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -234,12 +265,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         <style>{`.mob-card { -webkit-tap-highlight-color: transparent; }`}</style>
 
         {/* Top bar: wordmark + chip de perfil (toca pra editar) */}
-        <div style={{padding:'16px 16px 2px', display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
+        <div style={{padding:'calc(16px + env(safe-area-inset-top)) 16px 2px', display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
           <div>
-            <div style={{fontFamily:'var(--font-brand)', fontSize:27, fontWeight:700,
+            <div style={{fontFamily:'var(--font-brand)', fontSize:36, fontWeight:700,
               color:T.text, letterSpacing:'.07em'}}><UnikoName/></div>
-            <div style={{fontSize:10.5, color:T.textT, letterSpacing:'.11em',
-              textTransform:'uppercase', marginTop:2}}>Sistema Corporativo</div>
+            <div style={{fontSize:13, color:T.textT, letterSpacing:'.11em',
+              textTransform:'uppercase', marginTop:3}}>Sistema Corporativo</div>
           </div>
           {authUser && (
             <div onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
@@ -330,8 +361,42 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // ─── DESKTOP — órbita ────────────────────────────────────────────────────
   const N = orbitMods.length || 1;
   const RX = 44, RY = 35; // raio da elipse, em % da largura/altura do container
-  const orbitPt = (i, offset = 0) => {
-    const ang = (-90 + (360 / N) * (i + offset)) * Math.PI / 180;
+  // Ângulos igualmente espaçados NÃO viram distância igual numa elipse: como
+  // ela é mais "achatada" nos lados (RX > RY), bolhas perto do meio-esquerda/
+  // meio-direita ficavam bem mais coladas que as de cima/baixo (relatado —
+  // "Prisma Store" e "Conexão Setorial" quase se tocando). Em vez do ângulo
+  // bruto, os N ângulos abaixo dividem o PERÍMETRO da elipse em partes iguais
+  // (amostragem fina + comprimento de arco acumulado) — aí toda bolha fica à
+  // mesma distância da vizinha, em qualquer ponto do anel.
+  const orbitAngles = (() => {
+    const SAMPLES = 720, STEP = 360 / SAMPLES;
+    const arcAt = [0];
+    let prevX = RX * Math.cos(-Math.PI / 2), prevY = RY * Math.sin(-Math.PI / 2), total = 0;
+    for (let i = 1; i <= SAMPLES; i++) {
+      const ang = (-90 + i * STEP) * Math.PI / 180;
+      const x = RX * Math.cos(ang), y = RY * Math.sin(ang);
+      total += Math.hypot(x - prevX, y - prevY);
+      arcAt.push(total); prevX = x; prevY = y;
+    }
+    const per = total / N;
+    const out = [];
+    for (let k = 0; k < N; k++) {
+      const want = k * per;
+      let i = 0; while (i < arcAt.length - 1 && arcAt[i] < want) i++;
+      out.push(-90 + i * STEP);
+    }
+    return out;
+  })();
+  const orbitPt = (i) => {
+    const ang = orbitAngles[i % N] * Math.PI / 180;
+    return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
+  };
+  // Pontinho decorativo entre duas bolhas vizinhas — só o meio ANGULAR entre
+  // elas (não precisa ser exato, é decoração).
+  const orbitMidPt = (i) => {
+    const a0 = orbitAngles[i], a1raw = orbitAngles[(i + 1) % N];
+    const a1 = a1raw > a0 ? a1raw : a1raw + 360;
+    const ang = ((a0 + a1) / 2) * Math.PI / 180;
     return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
   };
 
@@ -346,7 +411,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           gap:8,padding:'10px 12px',borderRadius:16,zIndex:10,
           background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL,
           transition:draggingCard?'none':'box-shadow .15s'}}>
-          <div onClick={()=>onSelect('colaborador','dados')} onPointerDown={startCardDrag} title="Arraste para mover · toque para editar o perfil"
+          <div onPointerDown={startCardDrag} title="Arraste para mover"
             style={{display:'flex',alignItems:'center',gap:10,cursor:draggingCard?'grabbing':'grab',touchAction:'none'}}>
             <AvatarCircle name={authUser.name} photo={userPhoto} size={38} fontSize={13} rounded="11px"/>
             <div style={{minWidth:0,flex:1}}>
@@ -357,11 +422,15 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 {isAdmin?'Admin':isModerador?'Moderador':'Colaborador'}
               </div>
             </div>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,width:'100%'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5,width:'100%'}}>
+            <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
+              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
+                border:`1px solid ${T.goldLine}44`,background:T.goldGl,color:T.gold,cursor:'pointer'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </button>
             <button onClick={()=>setShowSettings(true)} title="Configurações"
               style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
                 border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer'}}>
@@ -394,8 +463,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       {/* ── Cabeçalho: wordmark à esquerda · saudação + título ao centro ── */}
       <div className="fsu" style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'start',marginBottom:8}}>
         <div>
-          <div style={{fontFamily:'var(--font-brand)',fontSize:34,fontWeight:700,color:T.text,letterSpacing:'.08em'}}><UnikoName/></div>
-          <div style={{fontSize:13,color:T.textT,letterSpacing:'.14em',textTransform:'uppercase',marginTop:3}}>Sistema Corporativo</div>
+          <div style={{fontFamily:'var(--font-brand)',fontSize:46,fontWeight:700,color:T.text,letterSpacing:'.08em'}}><UnikoName/></div>
+          <div style={{fontSize:15,color:T.textT,letterSpacing:'.14em',textTransform:'uppercase',marginTop:4}}>Sistema Corporativo</div>
         </div>
         <div style={{textAlign:'center'}}>
           {authUser?.name && <div style={{fontSize:11,color:T.textT,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>
@@ -429,9 +498,21 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           <ellipse cx="590" cy="360" rx="519" ry="252" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".22"/>
           <ellipse cx="590" cy="360" rx="440" ry="211" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".15"/>
           <ellipse cx="590" cy="360" rx="360" ry="170" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".1"/>
-          {orbitMods.map((_,i)=>{ const p = orbitPt(i, .5); return (
+          {orbitMods.map((_,i)=>{ const p = orbitMidPt(i); return (
             <circle key={i} cx={p.left/100*1180} cy={p.top/100*720} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
           );})}
+          {/* estrelinhas/planetinhas viajando pelos anéis — quanto mais interno o
+              anel, mais rápido (como órbitas de verdade: raio menor gira mais rápido) */}
+          {[
+            { rx:519, ry:252, dur:'26s', r:3.5, fill:'#ffffff' },
+            { rx:440, ry:211, dur:'19s', r:3,   fill:T.goldL||T.gold },
+            { rx:360, ry:170, dur:'13s', r:2.6, fill:'#ffffff' },
+          ].map((o,oi)=>(
+            <circle key={'orb'+oi} r={o.r} fill={o.fill} opacity=".95" style={{filter:`drop-shadow(0 0 3px ${T.goldL||T.gold})`}}>
+              <animateMotion dur={o.dur} begin={`${-oi*4}s`} repeatCount="indefinite"
+                path={`M ${590+o.rx},360 A ${o.rx},${o.ry} 0 1,1 ${590-o.rx},360 A ${o.rx},${o.ry} 0 1,1 ${590+o.rx},360`}/>
+            </circle>
+          ))}
         </svg>
 
         <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
