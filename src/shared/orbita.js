@@ -95,7 +95,11 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
       return Math.hypot(p.x - q.x, p.y - q.y) - (diams[i] + diams[j]) / 2;
     }))
     : Infinity;
-  return { angulos, ponto, folga };
+  /* Quanto sobra de espaço vazio no miolo do anel: a menor distância entre o
+     centro e a BORDA de alguma bolha. Numa elipse achatada esse mínimo cai
+     sempre em cima ou embaixo, que é onde o mascote era espremido. */
+  const vaoCentral = Math.min(...pts.map((p, i) => Math.hypot(p.x, p.y) - diams[i] / 2));
+  return { angulos, ponto, folga, vaoCentral };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -106,6 +110,7 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    base    — diâmetro de referência de uma bolha "M", em px
    gapAlvo — folga que se quer entre todas as bolhas
    gapMax  — passou disso, o anel inteiro encolhe (senão sobra vão com poucos módulos)
+   vaoMin  — raio que precisa ficar LIVRE no meio do anel (o mascote mora ali)
    dMin/dMax — limites do tamanho BASE (o de uma bolha "M")
    dTeto   — teto de uma bolha individual, já com o multiplicador aplicado
    margem  — respiro entre a bolha mais externa e a borda da caixa
@@ -115,7 +120,7 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    deixam de passar por baixo das bolhas.
    ───────────────────────────────────────────────────────────────────────── */
 export function calcularOrbita({
-  mults, W, H, base = 178, gapAlvo = 46, gapMax = 95,
+  mults, W, H, base = 178, gapAlvo = 46, gapMax = 95, vaoMin = 0,
   dMin = 120, dMax = 250, dTeto = 330, margem = 12,
 }) {
   const N = mults?.length || 0;
@@ -130,13 +135,33 @@ export function calcularOrbita({
      teto na bolha maior, G e GG davam os mesmos 250px, e com 7 módulos o M já
      nascia no teto, então mudar o tamanho não mudava nada na tela). */
   const tamanhos = (d0) => mults.map(m => Math.min(dTeto, d0 * m));
-  const rodar = (d0, encolhe) => {
+  /* `estreita` aperta o anel SÓ na horizontal. Encolher os dois raios juntos
+     seria o óbvio, mas rouba justamente o espaço do mascote: numa elipse
+     achatada o vão do meio é medido em cima e embaixo, ou seja, vale RY. Já
+     mexer só no RX corta perímetro (junta as bolhas) sem tocar nesse vão. */
+  const rodar = (d0, estreita) => {
     const diams = tamanhos(d0);
     const maior = Math.max(...diams);
-    const RXpx = Math.max(40, (W / 2 - maior / 2 - margem) * encolhe);
-    const RYpx = Math.max(40, (H / 2 - maior / 2 - margem) * encolhe);
+    const RYpx = Math.max(40, H / 2 - maior / 2 - margem);
+    const RXpx = Math.max(RYpx * 1.2, (W / 2 - maior / 2 - margem) * estreita);
     return { ...posicionar({ diams, RXpx, RYpx, gap: gapAlvo }), diams, RXpx, RYpx };
   };
+
+  /* Teto do tamanho base imposto pelo vão do meio: é o maior d0 que ainda
+     deixa o mascote respirar. Entra ANTES de tudo, senão as bolhas crescem
+     pra ocupar o anel e só depois são obrigadas a encolher — o que reabriria
+     os buracos que o crescimento tinha fechado. */
+  let capVao = Infinity;
+  if (vaoMin > 0 && N > 0) {
+    let lo = dMin * 0.5, hi = dTeto;
+    if (rodar(hi, 1).vaoCentral < vaoMin) {
+      for (let i = 0; i < 24; i++) {
+        const meio = (lo + hi) / 2;
+        if (rodar(meio, 1).vaoCentral >= vaoMin) lo = meio; else hi = meio;
+      }
+      capVao = lo;
+    }
+  }
 
   /* 1ª etapa — as bolhas crescem (ou encolhem) até a folga bater no alvo.
      Crescer muda os raios, que mudam o perímetro: repete até estabilizar. */
@@ -147,7 +172,7 @@ export function calcularOrbita({
       ? pts.reduce((s, p, i) => { const q = pts[(i + 1) % N]; return s + Math.hypot(p.x - q.x, p.y - q.y); }, 0)
       : 0;
     const querido = N > 1 ? (poli - N * gapAlvo) / somaMults : base;
-    const novo = Math.max(dMin, Math.min(dMax, querido));
+    const novo = Math.max(dMin, Math.min(dMax, capVao, querido));
     const parou = Math.abs(novo - d0) < 0.5;
     d0 = novo; r = rodar(d0, 1);
     if (parou) break;
@@ -156,22 +181,26 @@ export function calcularOrbita({
   /* 2ª etapa — se mesmo na bolha máxima ainda sobra vão (poucos módulos),
      encolhe o anel inteiro até a folga chegar no teto. Busca binária: a
      folga cai junto com o raio, então o intervalo é bem-comportado. */
+  let estreita = 1;
   if (r.folga > gapMax && N > 1) {
-    let lo = 0.35, hi = 1;
-    for (let i = 0; i < 22; i++) {
+    /* Aperta na horizontal até a folga chegar no teto. Os dois limites —
+       folga e vão do meio — crescem junto com o anel, então "cabe" vale pra
+       anel grande e falha pra anel pequeno: basta procurar o menor que cabe. */
+    const cabe = (t) => t.folga >= gapMax && t.vaoCentral >= vaoMin;
+    let lo = 0.3, hi = 1;
+    for (let i = 0; i < 24; i++) {
       const meio = (lo + hi) / 2;
-      const teste = rodar(d0, meio);
-      if (teste.folga > gapMax) hi = meio; else lo = meio;
+      if (cabe(rodar(d0, meio))) hi = meio; else lo = meio;
     }
     const final = rodar(d0, hi);
-    if (final.folga >= gapAlvo * 0.9) r = final;   // nunca encolher a ponto de encostar
+    if (final.folga >= gapAlvo * 0.9) { estreita = hi; r = final; }  // nunca apertar a ponto de encostar
   }
 
   /* 3ª etapa — rede de segurança: se por qualquer motivo ainda houver
      encosto, todo mundo encolhe JUNTO (nunca uma bolha come a vizinha). */
   for (let volta = 0; volta < 3 && r.folga < 0; volta++) {
     d0 = Math.max(dMin * 0.6, d0 * Math.max(0.5, 1 + r.folga / Math.max(...tamanhos(d0))));
-    r = rodar(d0, 1);
+    r = rodar(d0, estreita);
   }
 
   return { angulos: r.angulos, diams: r.diams, RXpx: r.RXpx, RYpx: r.RYpx, ponto: r.ponto };
