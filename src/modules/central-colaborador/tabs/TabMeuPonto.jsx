@@ -10,6 +10,7 @@ import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
 import { computePontoDays, loadColaboradorPonto } from '../../../shared/pontoCalc';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const onlyDigits = s => (s || '').replace(/\D/g, '');
 const fmtMin = m => { const a = Math.abs(Math.round(m)), h = Math.floor(a / 60), mm = a % 60; return `${m < 0 ? '-' : ''}${h}h${mm.toString().padStart(2, '0')}`; };
@@ -28,6 +29,7 @@ const STATUS_S = {
 };
 
 const TabMeuPonto = () => {
+  const isMobile = useIsMobile();
   const cpf = onlyDigits(getAuthUser()?.cpf || USER.cpf);
   const [marcacoes, setMarcacoes] = useState([]);
   const [justifs, setJustifs]     = useState([]);
@@ -115,8 +117,13 @@ const TabMeuPonto = () => {
   };
 
   const SolicBtn = ({ dataRef }) => (
+    // Em largura de celular vira sua própria linha, de ponta a ponta — mais fácil
+    // de tocar do que espremido ao lado do badge de saldo na mesma fileira.
     <button onClick={() => openModal(dataRef)} title="Solicitar justificativa deste dia"
-      style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: '#fff', background: `linear-gradient(135deg,${T.blue},${T.blueL})`, border: 'none', borderRadius: 8, padding: '6px 11px', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
+        width: isMobile ? '100%' : undefined, order: isMobile ? 10 : 0,
+        fontSize: 11.5, fontWeight: 700, color: '#fff', background: `linear-gradient(135deg,${T.blue},${T.blueL})`,
+        border: 'none', borderRadius: 8, padding: isMobile ? '9px 11px' : '6px 11px', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
       <Ico d={<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" /></>} size={13} stroke="#fff" />
       Solicitar justificativa
     </button>
@@ -129,30 +136,30 @@ const TabMeuPonto = () => {
       {/* ── BANNER: saldo ── */}
       <div style={{
         background: positivo ? 'linear-gradient(135deg,#1A9C70,#27C08A)' : 'linear-gradient(135deg,#C04050,#E0697A)',
-        borderRadius: 18, padding: '26px 30px', marginBottom: 16, textAlign: 'center',
+        borderRadius: 18, padding: isMobile ? '20px 18px' : '26px 30px', marginBottom: 16, textAlign: 'center',
         boxShadow: `0 8px 28px ${positivo ? 'rgba(26,156,112,0.25)' : 'rgba(192,64,80,0.25)'}`,
       }}>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>PONTO ELETRÔNICO</div>
-        <div style={{ width: 240, margin: '0 auto 10px' }}><StarDivider /></div>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: isMobile ? 13 : 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>PONTO ELETRÔNICO</div>
+        <div style={{ width: isMobile ? 180 : 240, margin: '0 auto 10px' }}><StarDivider /></div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,.78)', marginBottom: 4 }}>Saldo atual do banco</div>
-        <div style={{ fontSize: 42, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{positivo ? '+' : ''}{fmtMin(totalSaldo)}</div>
+        <div style={{ fontSize: isMobile ? 32 : 42, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{positivo ? '+' : ''}{fmtMin(totalSaldo)}</div>
       </div>
 
       {/* ── positivas / negativas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
-        <Card style={{ padding: '16px 18px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 10 : 14, marginBottom: 18 }}>
+        <Card style={{ padding: isMobile ? '13px 14px' : '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, color: '#1A9C70' }}>
             <Ico d={<><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" /></>} size={15} stroke="#1A9C70" />
             <span style={{ fontSize: 12.5, fontWeight: 600 }}>Horas positivas</span>
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#1A9C70' }}>{fmtMin(positivas)}</div>
+          <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, color: '#1A9C70' }}>{fmtMin(positivas)}</div>
         </Card>
-        <Card style={{ padding: '16px 18px' }}>
+        <Card style={{ padding: isMobile ? '13px 14px' : '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, color: '#C04050' }}>
             <Ico d={<><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>} size={15} stroke="#C04050" />
             <span style={{ fontSize: 12.5, fontWeight: 600 }}>Horas negativas</span>
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: '#C04050' }}>{fmtMin(negativas)}</div>
+          <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, color: '#C04050' }}>{fmtMin(negativas)}</div>
         </Card>
       </div>
 
@@ -169,14 +176,14 @@ const TabMeuPonto = () => {
         <>
           {/* ── Minhas solicitações (as aprovadas somem) ── */}
           {solicsAtivas.length > 0 && (
-            <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
+            <Card style={{ padding: isMobile ? '15px 16px' : '20px 24px', marginBottom: 18 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Minhas solicitações</div>
               <StarDivider my={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                 {solicsAtivas.map(s => {
                   const st = STATUS_S[s.status] || STATUS_S.pendente;
                   return (
-                    <div key={s.id} style={{ display: 'flex', gap: 12, padding: '12px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
+                    <div key={s.id} style={{ display: 'flex', gap: 12, padding: isMobile ? '10px 12px' : '12px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 2 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{s.titulo}</span>
@@ -200,7 +207,7 @@ const TabMeuPonto = () => {
           )}
 
           {/* ── Pontos batidos (botão de justificar só nos dias negativos) ── */}
-          <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
+          <Card style={{ padding: isMobile ? '15px 16px' : '20px 24px', marginBottom: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Pontos batidos</div>
             <StarDivider my={4} />
             {diasDesc.length === 0 ? (
@@ -213,7 +220,7 @@ const TabMeuPonto = () => {
                   const bg = justified ? 'rgba(26,156,112,0.07)' : neg ? 'rgba(192,64,80,0.05)' : 'rgba(0,0,0,0.02)';
                   const bd = justified ? 'rgba(26,156,112,0.35)' : neg ? 'rgba(192,64,80,0.2)' : T.border;
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 15px', background: bg, border: `1px solid ${bd}`, borderRadius: 11 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: isMobile ? '10px 12px' : '11px 15px', background: bg, border: `1px solid ${bd}`, borderRadius: 11 }}>
                       <div style={{ minWidth: 92 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{fmtData(d.date)}</div>
                         <div style={{ fontSize: 11, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.date)}</div>
@@ -247,14 +254,14 @@ const TabMeuPonto = () => {
 
           {/* ── Saldo por mês ── */}
           {meses.length > 0 && (
-            <Card style={{ padding: '20px 24px', marginBottom: 18 }}>
+            <Card style={{ padding: isMobile ? '15px 16px' : '20px 24px', marginBottom: 18 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Saldo por mês</div>
               <StarDivider my={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                 {meses.map((r, i) => {
                   const s = r.saldo, pos = s >= 0;
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: isMobile ? '10px 12px' : '11px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T.text, textTransform: 'capitalize', flex: 1 }}>{monthLabel(r.month)}</div>
                       <span style={{ fontSize: 14, fontWeight: 700, color: pos ? '#1A9C70' : '#C04050', background: pos ? 'rgba(26,156,112,0.10)' : 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 11px', minWidth: 78, textAlign: 'right' }}>{pos ? '+' : ''}{fmtMin(s)}</span>
                     </div>
@@ -266,12 +273,12 @@ const TabMeuPonto = () => {
 
           {/* ── Justificativas abonadas pelo RH ── */}
           {justifs.length > 0 && (
-            <Card style={{ padding: '20px 24px' }}>
+            <Card style={{ padding: isMobile ? '15px 16px' : '20px 24px' }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 4 }}>Justificativas abonadas</div>
               <StarDivider my={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                 {justifs.map((j, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 12, padding: '11px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: isMobile ? '10px 12px' : '11px 15px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 11 }}>
                     <div style={{ minWidth: 70 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#1A9C70' }}>{fmtData(j.data)}</div>
                       {j.abonado && <div style={{ fontSize: 10, color: T.textT }}>Abonado</div>}
@@ -296,7 +303,7 @@ const TabMeuPonto = () => {
       {/* ── MODAL: solicitar justificativa ── */}
       {modal && (
         <div onClick={() => !saving && setModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: T.surface || 'white', borderRadius: 20, padding: 28, width: 480, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: `1px solid ${T.border}` }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface || 'white', borderRadius: 20, padding: isMobile ? 18 : 28, width: 480, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: `1px solid ${T.border}` }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 6 }}>Solicitar justificativa</div>
             <div style={{ fontSize: 12.5, color: T.textS, marginBottom: 18 }}>Explique por que precisa justificar e anexe um comprovante. O RH vai analisar.</div>
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, SERVER_URL, supabase as _supabase } from '../../../contexts/user';
 import { Card, StarDivider, SHead } from '../../../shared/components';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 /* ── helpers ──────────────────────────────────────────────────── */
 const BRL = v => (v||0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -12,6 +13,7 @@ const Ico = ({ d, size=16, stroke='currentColor', fill='none' }) => (
 
 /* ── componente principal ──────────────────────────────────────── */
 const TabFinanceiro = () => {
+  const isMobile = useIsMobile();
   const [histLoading, setHistLoading] = useState(true);
   const [salaryHistory, setSalaryHistory] = useState([]);
   const [contracheques, setContracheques] = useState([]);
@@ -66,12 +68,15 @@ const TabFinanceiro = () => {
           <div style={{ position:'absolute', width:160, height:160, borderRadius:'50%',
             background:'rgba(255,255,255,0.04)', bottom:-40, left:'30%', filter:'blur(18px)' }}/>
         </div>
-        <div style={{ position:'relative', zIndex:1, padding:'16px 24px' }}>
+        <div style={{ position:'relative', zIndex:1, padding: isMobile ? '14px 16px' : '16px 24px' }}>
           <div style={{ fontSize:10, color:'rgba(255,255,255,0.55)', letterSpacing:'.10em',
             textTransform:'uppercase', marginBottom:10, fontWeight:600 }}>
             Informações do Colaborador
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:0 }}>
+          {/* 6 colunas cabiam no desktop, mas em ~375-430px de largura (iPhone) viravam
+              ~60px cada e truncavam quase tudo ("Dependentes" sumia num "D..."). No
+              celular vira 2 colunas e o texto quebra linha em vez de cortar. */}
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(6,1fr)', gap:0 }}>
             {[
               ['Nome',        USER.name],
               ['Categoria',   USER.category],
@@ -81,13 +86,15 @@ const TabFinanceiro = () => {
               ['Hora/Mês',    USER.horasMes],
             ].map(([l, v], i) => (
               <div key={l} style={{
-                padding:'10px 14px',
-                borderRight: i < 5 ? '1px solid rgba(255,255,255,0.14)' : 'none',
+                padding: isMobile ? '9px 10px' : '10px 14px',
+                borderRight: !isMobile && i < 5 ? '1px solid rgba(255,255,255,0.14)' : (isMobile && i % 2 === 0 ? '1px solid rgba(255,255,255,0.14)' : 'none'),
+                borderBottom: isMobile && i < 4 ? '1px solid rgba(255,255,255,0.14)' : 'none',
               }}>
                 <div style={{ fontSize:9.5, color:'rgba(255,255,255,0.52)', letterSpacing:'.08em',
                   textTransform:'uppercase', marginBottom:4, fontWeight:600 }}>{l}</div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#fff',
-                  whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{v||'—'}</div>
+                  whiteSpace: isMobile ? 'normal' : 'nowrap', overflow: isMobile ? 'visible' : 'hidden',
+                  textOverflow: isMobile ? 'clip' : 'ellipsis', wordBreak: isMobile ? 'break-word' : 'normal' }}>{v||'—'}</div>
               </div>
             ))}
           </div>
@@ -95,7 +102,7 @@ const TabFinanceiro = () => {
       </div>
 
       {/* ── RESUMO FINANCEIRO ──────────────────────────────────── */}
-      <Card style={{ padding:'26px 28px', marginBottom:18 }} elevated>
+      <Card style={{ padding: isMobile ? '18px 16px' : '26px 28px', marginBottom:18 }} elevated>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
           <div>
             <div style={{ fontSize:19, fontWeight:700, color:T.text }}>Resumo Financeiro</div>
@@ -115,40 +122,40 @@ const TabFinanceiro = () => {
         {/* SALÁRIO BRUTO */}
         <div style={{
           background:'rgba(40,168,112,0.08)', border:'1px solid rgba(40,168,112,0.22)',
-          borderRadius:13, padding:'18px 22px', marginBottom:10,
-          display:'flex', justifyContent:'space-between', alignItems:'center',
+          borderRadius:13, padding: isMobile ? '14px 16px' : '18px 22px', marginBottom:10,
+          display:'flex', justifyContent:'space-between', alignItems:'center', gap:10,
         }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ fontSize:10.5, color:'#28A870', letterSpacing:'.08em',
               textTransform:'uppercase', marginBottom:5, fontWeight:600 }}>+ Salário Bruto</div>
-            <div style={{ fontSize:22, fontWeight:700, color:'#28A870' }}>
+            <div style={{ fontSize: isMobile ? 19 : 22, fontWeight:700, color:'#28A870' }}>
               {salVisible ? `R$ ${BRL(USER.salary)}` : 'R$ ••••,••'}
             </div>
           </div>
-          <div style={{ width:44, height:44, borderRadius:'50%', background:'#28A870',
+          <div style={{ width: isMobile ? 38 : 44, height: isMobile ? 38 : 44, borderRadius:'50%', background:'#28A870', flexShrink:0,
             display:'flex', alignItems:'center', justifyContent:'center',
             boxShadow:'0 4px 14px rgba(40,168,112,0.35)' }}>
-            <Ico size={18} stroke="white" d={<><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></>}/>
+            <Ico size={isMobile?16:18} stroke="white" d={<><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></>}/>
           </div>
         </div>
 
         {/* 1K SERVICE — todos os colaboradores recebem */}
         <div style={{
           background:'rgba(42,109,181,0.08)', border:`1px solid ${T.blue}30`,
-          borderRadius:13, padding:'18px 22px', marginBottom:10,
-          display:'flex', justifyContent:'space-between', alignItems:'center',
+          borderRadius:13, padding: isMobile ? '14px 16px' : '18px 22px', marginBottom:10,
+          display:'flex', justifyContent:'space-between', alignItems:'center', gap:10,
         }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ fontSize:10.5, color:T.blue, letterSpacing:'.08em',
               textTransform:'uppercase', marginBottom:5, fontWeight:600 }}>+ 1K Service</div>
-            <div style={{ fontSize:22, fontWeight:700, color:T.blue }}>
+            <div style={{ fontSize: isMobile ? 19 : 22, fontWeight:700, color:T.blue }}>
               {salVisible ? `+ R$ ${BRL(gross1k)}` : '+ R$ ••••,••'}
             </div>
           </div>
-          <div style={{ width:44, height:44, borderRadius:'50%', background:T.blue,
+          <div style={{ width: isMobile ? 38 : 44, height: isMobile ? 38 : 44, borderRadius:'50%', background:T.blue, flexShrink:0,
             display:'flex', alignItems:'center', justifyContent:'center',
             boxShadow:`0 4px 14px ${T.blue}44` }}>
-            <Ico size={18} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
+            <Ico size={isMobile?16:18} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
           </div>
         </div>
 
@@ -158,9 +165,9 @@ const TabFinanceiro = () => {
           borderRadius:13, marginBottom:10, overflow:'hidden',
         }}>
           <button onClick={() => setEventosOpen(o => !o)} style={{
-            width:'100%', padding:'16px 22px', background:'none', border:'none',
+            width:'100%', padding: isMobile ? '14px 16px' : '16px 22px', background:'none', border:'none',
             cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center',
-            outline:'none',
+            outline:'none', minHeight:44,
           }}>
             <div style={{ fontSize:10.5, color:'#C04050', letterSpacing:'.08em',
               textTransform:'uppercase', fontWeight:600 }}>− Eventos (Descontos)</div>
@@ -181,14 +188,14 @@ const TabFinanceiro = () => {
           {eventosOpen && (
             <div style={{ borderTop:'1px solid rgba(192,64,80,0.15)', padding:'4px 0 8px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                padding:'10px 22px' }}>
+                padding: isMobile ? '10px 16px' : '10px 22px' }}>
                 <span style={{ fontSize:13, color:T.textS }}>INSS</span>
                 <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
                   {salVisible ? `- R$ ${BRL(inss)}` : '- R$ ••••,••'}
                 </span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                padding:'10px 22px', borderTop:'1px solid rgba(192,64,80,0.14)', marginTop:2 }}>
+                padding: isMobile ? '10px 16px' : '10px 22px', borderTop:'1px solid rgba(192,64,80,0.14)', marginTop:2 }}>
                 <span style={{ fontSize:12, color:'#C04050', fontWeight:700, letterSpacing:'.04em',
                   textTransform:'uppercase' }}>Total Descontos</span>
                 <span style={{ fontSize:14, fontWeight:700, color:'#C04050' }}>
@@ -203,22 +210,22 @@ const TabFinanceiro = () => {
 
         {/* FÓRMULA */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center',
-          gap:8, flexWrap:'wrap', padding:'10px 0', marginBottom:14 }}>
-          <span style={{ fontSize:13, fontWeight:600, color:'#28A870' }}>
+          gap: isMobile ? 6 : 8, flexWrap:'wrap', padding:'10px 0', marginBottom:14 }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, fontWeight:600, color:'#28A870' }}>
             R$ {salVisible ? BRL(USER.salary) : '••••'}
           </span>
-          <span style={{ fontSize:13, color:T.textD }}>+</span>
-          <span style={{ fontSize:13, fontWeight:600, color:T.blue }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color:T.textD }}>+</span>
+          <span style={{ fontSize: isMobile ? 12 : 13, fontWeight:600, color:T.blue }}>
             R$ {salVisible ? BRL(gross1k) : '••••'}
           </span>
           {totalDescontos > 0 && <>
-            <span style={{ fontSize:13, color:T.textD }}>−</span>
-            <span style={{ fontSize:13, fontWeight:600, color:'#C04050' }}>
+            <span style={{ fontSize: isMobile ? 12 : 13, color:T.textD }}>−</span>
+            <span style={{ fontSize: isMobile ? 12 : 13, fontWeight:600, color:'#C04050' }}>
               R$ {salVisible ? BRL(totalDescontos) : '••••'}
             </span>
           </>}
-          <span style={{ fontSize:13, color:T.textD }}>=</span>
-          <span style={{ fontSize:15, fontWeight:700, color:T.gold }}>
+          <span style={{ fontSize: isMobile ? 12 : 13, color:T.textD }}>=</span>
+          <span style={{ fontSize: isMobile ? 14 : 15, fontWeight:700, color:T.gold }}>
             R$ {salVisible ? BRL(liquido) : '•••••'}
           </span>
         </div>
@@ -226,28 +233,28 @@ const TabFinanceiro = () => {
         {/* SALÁRIO LÍQUIDO */}
         <div style={{
           background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold+'cc'} 55%,${T.blue}88)`,
-          borderRadius:14, padding:'22px 26px',
-          display:'flex', justifyContent:'space-between', alignItems:'center',
+          borderRadius:14, padding: isMobile ? '18px 18px' : '22px 26px',
+          display:'flex', justifyContent:'space-between', alignItems:'center', gap:10,
           boxShadow:`0 6px 28px ${T.gold}44`,
         }}>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ fontSize:10, color:'rgba(255,255,255,0.62)', letterSpacing:'.10em',
               textTransform:'uppercase', marginBottom:5, fontWeight:600 }}>↑ Salário Líquido</div>
-            <div style={{ fontSize:28, fontWeight:700, color:'#fff', letterSpacing:'-.01em' }}>
+            <div style={{ fontSize: isMobile ? 23 : 28, fontWeight:700, color:'#fff', letterSpacing:'-.01em' }}>
               {salVisible ? `R$ ${BRL(liquido)}` : 'R$ •••••,••'}
             </div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.58)', marginTop:4 }}>Valor final a receber</div>
           </div>
-          <div style={{ width:48, height:48, borderRadius:'50%',
+          <div style={{ width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, borderRadius:'50%', flexShrink:0,
             background:'rgba(255,255,255,0.18)',
             display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Ico size={20} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
+            <Ico size={isMobile?17:20} stroke="white" d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>
           </div>
         </div>
       </Card>
 
       {/* ── CONTRACHEQUES ANEXADOS ─────────────────────────────── */}
-      <Card style={{ padding:'26px 28px', marginBottom:18 }} elevated>
+      <Card style={{ padding: isMobile ? '18px 16px' : '26px 28px', marginBottom:18 }} elevated>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
           <div>
             <div style={{ fontSize:19, fontWeight:700, color:T.text }}>Contracheques Anexados</div>
@@ -279,7 +286,8 @@ const TabFinanceiro = () => {
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {contracheques.map((ch, i) => (
               <div key={ch.id || i} style={{
-                display:'flex', alignItems:'center', gap:14, padding:'14px 18px',
+                display:'flex', alignItems:'center', flexWrap: isMobile ? 'wrap' : 'nowrap',
+                gap: isMobile ? 10 : 14, padding: isMobile ? '12px 14px' : '14px 18px',
                 background:T.surface, border:`1px solid ${T.border}`, borderRadius:12,
                 transition:'border-color .15s',
               }}
@@ -293,7 +301,7 @@ const TabFinanceiro = () => {
                   <Ico size={16} stroke={T.gold} d={<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>}/>
                 </div>
                 {/* info */}
-                <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ flex:1, minWidth: isMobile ? 140 : 0 }}>
                   <div style={{ fontSize:14, fontWeight:600, color:T.text }}>
                     {ch.competencia || ch.month || `Competência ${i+1}`}
                   </div>
@@ -305,12 +313,12 @@ const TabFinanceiro = () => {
                     Anexado em: {fmtDate(ch.created_at || ch.attached_at)}
                   </div>
                 </div>
-                {/* ações */}
-                <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+                {/* ações — 40px no celular (alvo de toque confortável) */}
+                <div style={{ display:'flex', gap:8, flexShrink:0, marginLeft: isMobile ? 'auto' : 0 }}>
                   {ch.file_url && (
                     <a href={ch.file_url} download target="_blank" rel="noreferrer"
                       title="Baixar" style={{
-                        width:34, height:34, borderRadius:9, display:'flex', alignItems:'center',
+                        width: isMobile?40:34, height: isMobile?40:34, borderRadius:9, display:'flex', alignItems:'center',
                         justifyContent:'center', background:'rgba(40,168,112,0.10)',
                         border:'1px solid rgba(40,168,112,0.25)', color:'#28A870',
                         textDecoration:'none', transition:'background .14s',
@@ -323,7 +331,7 @@ const TabFinanceiro = () => {
                   {ch.file_url && (
                     <a href={ch.file_url} target="_blank" rel="noreferrer"
                       title="Visualizar" style={{
-                        width:34, height:34, borderRadius:9, display:'flex', alignItems:'center',
+                        width: isMobile?40:34, height: isMobile?40:34, borderRadius:9, display:'flex', alignItems:'center',
                         justifyContent:'center', background:T.blueGl,
                         border:`1px solid ${T.blue}25`, color:T.blue,
                         textDecoration:'none', transition:'background .14s',
@@ -341,7 +349,7 @@ const TabFinanceiro = () => {
       </Card>
 
       {/* ── EVOLUÇÃO SALARIAL ─────────────────────────────────── */}
-      <Card style={{ padding:'26px 28px' }} elevated>
+      <Card style={{ padding: isMobile ? '18px 16px' : '26px 28px' }} elevated>
         <div style={{ marginBottom:4 }}>
           <div style={{ fontSize:19, fontWeight:700, color:T.text }}>Evolução Salarial</div>
           <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>Histórico de reajustes</div>

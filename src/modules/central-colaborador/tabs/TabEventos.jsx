@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../../../contexts/user';
 import { Card, Tag, StarDivider, SHead } from '../../../shared/components';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const Ico = ({d, size=16, stroke='currentColor'}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 );
 
 const TabEventos = () => {
+  const isMobile = useIsMobile();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [calMonth, setCalMonth] = useState(() => new Date());
@@ -51,7 +53,7 @@ const TabEventos = () => {
             <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>
             Carregando eventos...
           </div>
-        : <div style={{display:'grid',gridTemplateColumns:'1fr 295px',gap:20}}>
+        : <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 295px',gap:isMobile?16:20}}>
             <div>
               <div style={{fontSize:12,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:14,fontWeight:500}}>
                 {monthName.toUpperCase()}
@@ -68,18 +70,18 @@ const TabEventos = () => {
                     const color = typeColor[ev.type] || T.gold;
                     return (
                       <div key={ev.id} style={{display:'flex',alignItems:'stretch',marginBottom:12}}>
-                        <div style={{width:4,background:`linear-gradient(180deg,${color},${color}44)`,borderRadius:4,flexShrink:0,marginRight:14}}/>
-                        <Card style={{flex:1,padding:'15px 20px'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:14}}>
-                            <div style={{width:52,textAlign:'center',flexShrink:0}}>
+                        <div style={{width:4,background:`linear-gradient(180deg,${color},${color}44)`,borderRadius:4,flexShrink:0,marginRight:isMobile?10:14}}/>
+                        <Card style={{flex:1,padding:isMobile?'13px 14px':'15px 20px',minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:isMobile?10:14}}>
+                            <div style={{width:isMobile?44:52,textAlign:'center',flexShrink:0}}>
                               <div style={{fontSize:22,fontWeight:700,color:isToday?T.gold:T.text}}>{day}</div>
                               <div style={{fontSize:10,color:T.textD,letterSpacing:'.06em'}}>
                                 {d.toLocaleString('pt-BR',{month:'short'}).toUpperCase()}
                               </div>
                             </div>
-                            <div style={{flex:1}}>
+                            <div style={{flex:1,minWidth:0}}>
                               <div style={{marginBottom:6}}><Tag color={color}>{ev.type}</Tag></div>
-                              <div style={{fontSize:15,fontWeight:500,color:T.text}}>{ev.title}</div>
+                              <div style={{fontSize:15,fontWeight:500,color:T.text,wordBreak:'break-word'}}>{ev.title}</div>
                               <div style={{fontSize:12,color:T.textT,marginTop:2,display:'flex',alignItems:'center',gap:4}}><Ico size={12} stroke={T.textT} d={<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 14.5 14"/></>}/>{ev.event_time||'Dia todo'}</div>
                               {ev.description&&<div style={{fontSize:12,color:T.textS,marginTop:4}}>{ev.description}</div>}
                             </div>
@@ -91,11 +93,11 @@ const TabEventos = () => {
               }
             </div>
             {/* Mini calendário */}
-            <Card style={{padding:'22px',alignSelf:'start'}}>
+            <Card style={{padding:isMobile?'16px':'22px',alignSelf:'start'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                <button onClick={prevMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>‹</button>
+                <button onClick={prevMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:isMobile?20:17,padding:isMobile?'6px 12px':4}}>‹</button>
                 <span style={{fontSize:13,fontWeight:500,color:T.text,textTransform:'capitalize'}}>{monthName}</span>
-                <button onClick={nextMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:17,padding:4}}>›</button>
+                <button onClick={nextMonth} style={{background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:isMobile?20:17,padding:isMobile?'6px 12px':4}}>›</button>
               </div>
               <StarDivider my={0}/>
               <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginTop:10,marginBottom:8}}>
@@ -110,10 +112,10 @@ const TabEventos = () => {
                   const isT = yr===today.getFullYear()&&mo===today.getMonth()&&d===today.getDate();
                   const hasEv = daysWithEvents.has(d);
                   return(
-                    <div key={d} style={{textAlign:'center',padding:'6px 2px',borderRadius:7,position:'relative',
+                    <div key={d} style={{textAlign:'center',padding:isMobile?'9px 2px':'6px 2px',borderRadius:7,position:'relative',
                       background:isT?T.gold:hasEv?T.goldGl:'transparent',
                       color:isT?'#fff':hasEv?T.gold:T.textS,
-                      fontSize:12,fontWeight:isT?600:400}}>
+                      fontSize:isMobile?13:12,fontWeight:isT?600:400}}>
                       {d}
                       {hasEv&&!isT&&<span style={{position:'absolute',bottom:1,left:'50%',transform:'translateX(-50%)',
                         width:3,height:3,borderRadius:'50%',background:T.goldL,display:'block'}}/>}

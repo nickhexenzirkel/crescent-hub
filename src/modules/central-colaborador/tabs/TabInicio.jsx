@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser, saveUserPhoto } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { loadMissionDefs, loadMissionProgress } from '../../../shared/prismaMissions';
 import { NAV } from '../Sidebar';
 import { loadRecentTabs } from '../recentTabs';
@@ -101,6 +102,7 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete, captureCfg = null }) => {
+  const isMobile = useIsMobile();
   // Acessos recentes: lido uma vez ao montar (essa aba remonta toda vez que
   // se volta pra Início, então já pega o histórico atualizado sozinha).
   const [recentItems] = useState(() => loadRecentTabs().map(id => NAV.find(n => n.id === id)).filter(Boolean));
@@ -430,7 +432,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       `}</style>
 
       {/* ══ HERO ═══════════════════════════════════════════════════ */}
-      <div style={{borderRadius:22,overflow:'hidden',marginBottom:14,height:196,position:'relative',background:P.bg,boxShadow:'0 10px 48px rgba(4,8,20,.55)',transition:'background .5s ease'}}>
+      <div style={{borderRadius:22,overflow:'hidden',marginBottom:14,height:isMobile?168:196,position:'relative',background:P.bg,boxShadow:'0 10px 48px rgba(4,8,20,.55)',transition:'background .5s ease'}}>
 
         {/* blobs */}
         <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
@@ -445,27 +447,29 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.88)',pointerEvents:'none',animation:`twinkle ${2.2+i*.32}s ease-in-out infinite`,animationDelay:s.d}}/>
         ))}
 
-        {/* estrelas cadentes — wrapper translaciona, filho roda estático */}
-        {P.shooting && SHOOT_POS.map((s,i)=>(
+        {/* estrelas cadentes — wrapper translaciona, filho roda estático. No
+            celular o banner fica bem mais estreito e a trajetória (em px fixos)
+            passava direto por cima do texto da saudação — escondida no mobile. */}
+        {P.shooting && !isMobile && SHOOT_POS.map((s,i)=>(
           <div key={i} style={{position:'absolute',left:s.x,top:s.y,pointerEvents:'none',animation:`shootStar 5s ${s.delay} linear infinite`}}>
             <div style={{width:58,height:1.5,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
           </div>
         ))}
 
         {/* planeta */}
-        <div style={{position:'absolute',right:24,top:'50%',transform:'translateY(-50%)',animation:'moonP 5s ease-in-out infinite',pointerEvents:'none'}}>
+        <div style={{position:'absolute',right:isMobile?10:24,top:'50%',transform:isMobile?'translateY(-50%) scale(.68)':'translateY(-50%)',transformOrigin:'right center',animation:'moonP 5s ease-in-out infinite',pointerEvents:'none'}}>
           <Planet p1={P.p1} p2={P.p2} p3={P.p3} rings={P.rings} spot={P.spot}/>
         </div>
 
         {/* conteúdo */}
-        <div style={{position:'relative',zIndex:1,padding:'26px 30px',height:'100%',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
-          <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <div style={{position:'relative',zIndex:1,padding:isMobile?'18px 16px':'26px 30px',height:'100%',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:isMobile?12:16}}>
             {/* avatar */}
             <div
               onClick={profileComplete ? openPhoto : () => setTab('dados')}
               title={profileComplete ? 'Editar foto' : 'Preencha seus dados (email, endereço, etc.) para editar a foto'}
               style={{
-                width:92,height:92,borderRadius:'50%',flexShrink:0,cursor:'pointer',
+                width:isMobile?68:92,height:isMobile?68:92,borderRadius:'50%',flexShrink:0,cursor:'pointer',
                 background:photo?undefined:'rgba(255,255,255,.92)',
                 ...avatarBg,
                 display:photo?'block':'flex', alignItems:'center', justifyContent:'center',
@@ -488,10 +492,10 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                   </div>
               }
             </div>
-            <div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
-              <div style={{fontSize:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em'}}>{USER.short}!</div>
-              <div style={{fontSize:12,color:'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:isMobile?10:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
+              <div style={{fontSize:isMobile?21:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{USER.short}!</div>
+              <div style={{fontSize:isMobile?11:12,color:'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
               {/* Contagem de férias — só pra quem está na lista seleta. Cabia num
                   card inteiro antes; virou uma pílula discreta aqui embaixo da
                   data, no mesmo canto que já concentra a info "quando" do dia. */}
@@ -536,7 +540,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       )}
 
       {/* ══ TIRA: UNIKO WAVE · MISSÕES · PRISMA STORE · NOW PLAYING ══ */}
-      <div style={{display:'grid',gridTemplateColumns:(isPlay&&nowPlay)?'1fr 1fr 1fr 1.4fr':'1fr 1fr 1fr',gap:12,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':((isPlay&&nowPlay)?'1fr 1fr 1fr 1.4fr':'1fr 1fr 1fr'),gap:isMobile?10:12,marginBottom:14}}>
         {/* Uniko Wave */}
         <Card className="home-card" style={{padding:'14px 16px',cursor:'pointer'}} onClick={()=>setTab('unikowave')}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -654,8 +658,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </div>
       )}
 
-      {/* ══ WIDGETS — 4 numa linha (My Uniko · Eventos · Lembretes · Avisos) ═══ */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
+      {/* ══ WIDGETS — 4 numa linha no desktop, 2×2 no celular (My Uniko · Eventos · Lembretes · Avisos) ═══ */}
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
 
         {/* Coleção de Unikos */}
         <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
@@ -812,7 +816,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       {/* ══ MODAL: FOTO DE PERFIL ═══════════════════════════════════ */}
       {showPhoto&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.62)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9000,backdropFilter:'blur(6px)'}}>
-          <div style={{background:T.surface,borderRadius:20,padding:28,width:380,boxShadow:'0 20px 60px rgba(0,0,0,.35)',border:`1px solid ${T.border}`}}>
+          <div style={{background:T.surface,borderRadius:20,padding:isMobile?18:28,width:380,maxWidth:'92vw',boxSizing:'border-box',boxShadow:'0 20px 60px rgba(0,0,0,.35)',border:`1px solid ${T.border}`}}>
             <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:6}}>Editar Foto de Perfil</div>
             {tmpPhoto&&<div style={{fontSize:11,color:T.textT,marginBottom:18}}>
               Arraste para mover · Use a barra ou o scroll para zoom

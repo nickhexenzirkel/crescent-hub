@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, SERVER_URL, supabase, getAuthUser } from '../../../contexts/user';
 import { Card, Btn, StarDivider, SHead } from '../../../shared/components';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 // Campos da tabela colaborador_info (familiares + saúde) — precisam casar com o SQL.
 const EXTRA_KEYS = ['familiar1_nome','familiar1_cel','familiar1_parentesco','familiar2_nome','familiar2_cel','familiar2_parentesco','doencas','alergias'];
 const emptyExtra = () => EXTRA_KEYS.reduce((o, k) => (o[k] = '', o), {});
 
 const TabDados = ({ onProfileSaved }) => {
+  const isMobile = useIsMobile();
+  const cardPad = isMobile ? '16px' : '26px';
   const cpfDigits = (getAuthUser()?.cpf || '').replace(/\D/g, '');
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
@@ -133,7 +136,7 @@ const TabDados = ({ onProfileSaved }) => {
       {msg && <div style={{fontSize:13,color:msg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'8px 14px',borderRadius:8,background:msg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${msg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`}}>{msg}</div>}
 
       {/* Informações Pessoais — somente leitura */}
-      <Card style={{padding:'26px',marginBottom:16}}>
+      <Card style={{padding:cardPad,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.blue},${T.blue}55)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Informações Pessoais</span>
@@ -151,7 +154,7 @@ const TabDados = ({ onProfileSaved }) => {
       </Card>
 
       {/* Contato — editável */}
-      <Card style={{padding:'26px',marginBottom:16}}>
+      <Card style={{padding:cardPad,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.teal},${T.teal}55)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Contato</span>
@@ -165,7 +168,7 @@ const TabDados = ({ onProfileSaved }) => {
       </Card>
 
       {/* Endereço — editável */}
-      <Card style={{padding:'26px',marginBottom:16}}>
+      <Card style={{padding:cardPad,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.gold},${T.gold}55)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Endereço</span>
@@ -182,7 +185,7 @@ const TabDados = ({ onProfileSaved }) => {
       </Card>
 
       {/* Contato de Familiares — editável pelo próprio colaborador */}
-      <Card style={{padding:'26px',marginBottom:16}}>
+      <Card style={{padding:cardPad,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.pink||'#E0697A'},${(T.pink||'#E0697A')}55)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Contato de Familiares</span>
@@ -206,7 +209,7 @@ const TabDados = ({ onProfileSaved }) => {
       </Card>
 
       {/* Saúde — editável pelo próprio colaborador */}
-      <Card style={{padding:'26px',marginBottom:16}}>
+      <Card style={{padding:cardPad,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
           <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,#C04050,#C0405055)`}}/>
           <span style={{fontSize:18,fontWeight:600,color:T.text}}>Saúde</span>
