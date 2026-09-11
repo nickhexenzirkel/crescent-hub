@@ -1,10 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { T, applyTheme } from '../contexts/theme';
 import { BrandLogo, StarDivider, Logo, Tag, AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
 import { UnikoOrigin } from './UnikoOrigin';
 import { InstalarAppGuide } from './InstalarAppGuide';
 import { useIsMobile } from '../hooks/useIsMobile';
+
+/* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
+   preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
+const MODULE_ORDER_PREFIX = 'uniko_module_order_';
+const orderKey = (authUser) => MODULE_ORDER_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+const loadModuleOrder = (authUser) => {
+  try { const r = JSON.parse(localStorage.getItem(orderKey(authUser)) || '[]'); return Array.isArray(r) ? r : []; }
+  catch { return []; }
+};
+const saveModuleOrder = (authUser, order) => { try { localStorage.setItem(orderKey(authUser), JSON.stringify(order)); } catch { /* ignora */ } };
+// Módulos na ordem salva primeiro (na ordem salva); os que não estão nela (novos
+// módulos, ou 1ª vez do usuário) ficam no fim, na ordem padrão entre si.
+const applyOrder = (list, order) => {
+  if (!order || !order.length) return list;
+  const idx = new Map(order.map((id, i) => [id, i]));
+  return [...list].sort((a, b) => (idx.has(a.id) ? idx.get(a.id) : 999) - (idx.has(b.id) ? idx.get(b.id) : 999));
+};
+
+/* Posição livre do card de perfil (avatar/editar perfil/config/sair) — o usuário
+   pode arrastá-lo pra qualquer lugar da tela; fica salvo por navegador. Sem
+   posição salva, usa o canto padrão (top:16, right:20). */
+const CARD_POS_KEY = 'uniko_profile_card_pos';
+const loadCardPos = () => {
+  try { const p = JSON.parse(localStorage.getItem(CARD_POS_KEY) || 'null'); if (p && typeof p.x === 'number' && typeof p.y === 'number') return p; }
+  catch { /* ignora */ }
+  return null;
+};
+const saveCardPos = (p) => { try { localStorage.setItem(CARD_POS_KEY, JSON.stringify(p)); } catch { /* ignora */ } };
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
    AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
@@ -68,6 +96,39 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const s = localStorage.getItem('ch_theme') || 'blue'; applyTheme(s); return s;
   });
   const handleTheme = (key) => { applyTheme(key); setActiveTheme(key); localStorage.setItem('ch_theme', key); };
+  const [reorderMode, setReorderMode] = useState(false);
+  const [order, setOrder]   = useState(() => loadModuleOrder(authUser));
+  const [dragModId, setDragModId] = useState(null);
+  // Card de perfil arrastável pra qualquer canto da tela (pega pela alcinha ⋮⋮ no topo).
+  const [cardPos, setCardPos] = useState(() => loadCardPos());
+  const cardPosRef = useRef(cardPos);
+  const cardElRef  = useRef(null);
+  const cardDragRef = useRef(null);
+  const [draggingCard, setDraggingCard] = useState(false);
+  useEffect(() => { cardPosRef.current = cardPos; }, [cardPos]);
+  useEffect(() => {
+    const move = (e) => {
+      const d = cardDragRef.current; if (!d) return;
+      const w = cardElRef.current?.offsetWidth || 116, h = cardElRef.current?.offsetHeight || 116;
+      const x = Math.max(4, Math.min(window.innerWidth - w - 4, e.clientX - d.ox));
+      const y = Math.max(4, Math.min(window.innerHeight - h - 4, e.clientY - d.oy));
+      setCardPos({ x, y });
+    };
+    const up = () => {
+      if (!cardDragRef.current) return;
+      cardDragRef.current = null; setDraggingCard(false);
+      if (cardPosRef.current) saveCardPos(cardPosRef.current);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  }, []);
+  const startCardDrag = (e) => {
+    e.preventDefault();
+    const rect = cardElRef.current.getBoundingClientRect();
+    cardDragRef.current = { ox: e.clientX - rect.left, oy: e.clientY - rect.top };
+    setDraggingCard(true);
+  };
   const isMobile = useIsMobile();
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
@@ -142,7 +203,15 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
   ];
-  const mods = allMods.filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
+  const mods = applyOrder(allMods.filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly)), order);
+  const reorderCard = (fromId, toId) => {
+    if (!fromId || fromId === toId) return;
+    const ids = mods.map(m => m.id);
+    const from = ids.indexOf(fromId), to = ids.indexOf(toId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setOrder(ids); saveModuleOrder(authUser, ids);
+  };
 
   // ─── MOBILE ────────────────────────────────────────────────────────────────
   if (isMobile) {
@@ -301,9 +370,17 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <InstalarAppGuide/>
 
       {authUser&&(
-        <div style={{position:'fixed',top:16,right:20,width:210,display:'flex',flexDirection:'column',
-          gap:9,padding:'12px 12px 10px',borderRadius:20,zIndex:10,
-          background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL}}>
+        <div ref={cardElRef} style={{position:'fixed',
+          ...(cardPos ? {left:cardPos.x, top:cardPos.y} : {top:16, right:20}),
+          width:210,display:'flex',flexDirection:'column',
+          gap:8,padding:'6px 12px 10px',borderRadius:20,zIndex:10,
+          background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL,
+          transition:draggingCard?'none':'box-shadow .15s'}}>
+          {/* Alça de arrastar — pega aqui pra mover o card pra qualquer canto da tela */}
+          <div onPointerDown={startCardDrag} title="Arraste para mover"
+            style={{display:'flex',justifyContent:'center',padding:'5px 0 1px',cursor:draggingCard?'grabbing':'grab',touchAction:'none'}}>
+            <div style={{width:28,height:4,borderRadius:3,background:T.border}}/>
+          </div>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <AvatarCircle name={authUser.name} photo={userPhoto} size={76} fontSize={26} rounded="18px"/>
             <div style={{minWidth:0,flex:1}}>
@@ -314,28 +391,40 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               {isModerador&&<span style={{display:'inline-block',marginTop:4,fontSize:9,color:'#4A78C4',fontWeight:700,padding:'1px 5px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
             </div>
           </div>
-          <div style={{display:'flex',gap:5,width:'100%'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,width:'100%'}}>
             <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:28,borderRadius:9,fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)',
                 border:`1px solid ${T.goldLine}44`,background:T.goldGl,color:T.gold,cursor:'pointer'}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
+              Perfil
+            </button>
+            <button onClick={()=>setReorderMode(r=>!r)} title="Organizar a ordem dos módulos"
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:28,borderRadius:9,fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)',
+                border:`1px solid ${reorderMode?T.goldLine+'44':T.border}`,background:reorderMode?T.goldGl:'transparent',color:reorderMode?T.gold:T.textS,cursor:'pointer'}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+                <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+              </svg>
+              Módulos
             </button>
             <button onClick={()=>setShowSettings(true)} title="Configurações"
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:28,borderRadius:9,fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)',
                 border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer'}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
               </svg>
+              Ajustes
             </button>
             <button onClick={onLogout} title="Sair"
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:28,borderRadius:9,fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)',
                 border:`1px solid ${T.dangerGl||T.border}`,background:'transparent',color:T.danger,cursor:'pointer'}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
+              Sair
             </button>
           </div>
         </div>
@@ -359,22 +448,42 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       </div>
 
+      {reorderMode && (
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,padding:'9px 16px',borderRadius:12,
+          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)'}}>
+          <span>✛ Arraste os cards para reorganizar como eles aparecem na sua tela.</span>
+          <button onClick={()=>setReorderMode(false)}
+            style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
+              color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
+        </div>
+      )}
+
       <div className="fsu2" style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,
         gap:14,width:'100%',maxWidth: mods.length<=3 ? 720 : 940}}>
         {mods.map(m=>(
           <div key={m.id}
-            onClick={m.comingSoon ? undefined : ()=>onSelect(m.id)}
+            draggable={reorderMode}
+            onDragStart={reorderMode ? (e)=>{ setDragModId(m.id); e.dataTransfer.effectAllowed='move'; } : undefined}
+            onDragOver={reorderMode ? (e)=>e.preventDefault() : undefined}
+            onDrop={reorderMode ? (e)=>{ e.preventDefault(); reorderCard(dragModId, m.id); setDragModId(null); } : undefined}
+            onDragEnd={reorderMode ? ()=>setDragModId(null) : undefined}
+            onClick={reorderMode || m.comingSoon ? undefined : ()=>onSelect(m.id)}
             onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
             style={{background:T.surface,
-              border:`1px solid ${hov===m.id && !m.comingSoon ? m.color+'55' : m.comingSoon ? m.color+'33' : T.border}`,
+              border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}` : `1px solid ${hov===m.id && !m.comingSoon ? m.color+'55' : m.comingSoon ? m.color+'33' : T.border}`,
               borderRadius:16,
               boxShadow: m.comingSoon ? T.sh : hov===m.id ? T.shL : T.sh,
               padding:'16px 18px',
-              cursor: m.comingSoon ? 'default' : 'pointer',
-              transform: m.comingSoon ? 'none' : hov===m.id ? 'translateY(-5px)' : 'none',
-              opacity: m.comingSoon ? 0.82 : 1,
+              cursor: reorderMode ? 'grab' : m.comingSoon ? 'default' : 'pointer',
+              transform: m.comingSoon ? 'none' : (!reorderMode && hov===m.id) ? 'translateY(-5px)' : 'none',
+              opacity: dragModId===m.id ? 0.5 : m.comingSoon ? 0.82 : 1,
               transition:'all .25s cubic-bezier(.16,1,.3,1)',
               position:'relative',overflow:'hidden',fontFamily:'var(--font-body)'}}>
+            {reorderMode && (
+              <div title="Arraste para mover" style={{position:'absolute',top:10,right:10,zIndex:2,color:T.textD,display:'flex',gap:2}}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="5" r="1.6"/><circle cx="16" cy="5" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="19" r="1.6"/><circle cx="16" cy="19" r="1.6"/></svg>
+              </div>
+            )}
             <div style={{position:'absolute',top:0,left:'15%',right:'15%',height:2,
               background:`linear-gradient(90deg,transparent,${m.comingSoon?m.color+'66':T.goldV},transparent)`,
               borderRadius:999}}/>
