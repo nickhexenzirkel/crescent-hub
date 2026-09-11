@@ -181,22 +181,79 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const step = COLOR_STEPS.find(s => s.id === colorPrefs[m.id]);
     return step ? { color: step.hex, bg: step.hex + '22' } : { color: m.color, bg: m.bg };
   };
+  /* ── Desfazer/refazer das cores ─────────────────────────────────────────
+     Pintar as 9 bolhas de uma vez e se arrepender era caro: não havia volta,
+     só repintar uma a uma no olho — e a cor "original" de cada módulo nem
+     aparece na paleta pra ser reescolhida. Então toda alteração de cor passa
+     por `mudarCores`, que empilha o estado ANTERIOR antes de aplicar o novo.
+     Ctrl+Z volta, Ctrl+Shift+Z (ou Ctrl+Y) refaz, e o mesmo par está no
+     banner como botão, pra quem não tenta atalho.
+
+     Os estados são objetos pequenos ({id do módulo: id da cor}), então
+     guardar 50 passos não pesa nada.
+
+     Cuidado que vale registrar: nada disso pode acontecer DENTRO de um
+     updater de setState. O React roda updater duas vezes em StrictMode, e a
+     pilha ganharia entradas duplicadas. Por isso o próximo estado é montado
+     a partir de `colorPrefs` aqui fora, e os três setState são irmãos. */
+  const [colorUndo, setColorUndo] = useState([]);
+  const [colorRedo, setColorRedo] = useState([]);
+  const PASSOS_COR = 50;
+
+  const mudarCores = (next) => {
+    setColorUndo(h => [...h, colorPrefs].slice(-PASSOS_COR));
+    setColorRedo([]);                       // ramo novo: o que era "refazer" morreu
+    setColorPrefs(next);
+    saveColorPrefs(authUser, next);
+  };
+  const desfazerCor = () => {
+    if (!colorUndo.length) return;
+    const anterior = colorUndo[colorUndo.length - 1];
+    setColorUndo(colorUndo.slice(0, -1));
+    setColorRedo(r => [...r, colorPrefs].slice(-PASSOS_COR));
+    setColorPrefs(anterior);
+    saveColorPrefs(authUser, anterior);
+  };
+  const refazerCor = () => {
+    if (!colorRedo.length) return;
+    const proximo = colorRedo[colorRedo.length - 1];
+    setColorRedo(colorRedo.slice(0, -1));
+    setColorUndo(h => [...h, colorPrefs].slice(-PASSOS_COR));
+    setColorPrefs(proximo);
+    saveColorPrefs(authUser, proximo);
+  };
+
   const setModuleColor = (id, colorId) => {
-    setColorPrefs(prev => {
-      const next = { ...prev };
-      if (!colorId) delete next[id]; else next[id] = colorId;
-      saveColorPrefs(authUser, next);
-      return next;
-    });
+    const next = { ...colorPrefs };
+    if (!colorId) delete next[id]; else next[id] = colorId;
+    mudarCores(next);
   };
   const setAllColors = (colorId) => {
-    setColorPrefs(() => {
-      const next = {};
-      if (colorId) filteredMods.forEach(m => { next[m.id] = colorId; });
-      saveColorPrefs(authUser, next);
-      return next;
-    });
+    const next = {};
+    if (colorId) filteredMods.forEach(m => { next[m.id] = colorId; });
+    mudarCores(next);
   };
+
+  /* O atalho vale enquanto esta tela estiver aberta, não só no modo cor:
+     quem pintou tudo, fechou o modo e só então se arrependeu continua
+     conseguindo voltar. Campo de texto em foco tem prioridade — lá o Ctrl+Z
+     é do navegador. */
+  useEffect(() => {
+    const tecla = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      const alvo = e.target;
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+      const refazer = k === 'y' || (k === 'z' && e.shiftKey);
+      if (refazer ? !colorRedo.length : !colorUndo.length) return;
+      e.preventDefault();
+      if (refazer) refazerCor(); else desfazerCor();
+    };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colorUndo, colorRedo, colorPrefs, authUser]);
   // Card de perfil arrastável pra qualquer canto da tela (pega pela alcinha ⋮⋮ no topo).
   const [cardPos, setCardPos] = useState(() => loadCardPos());
   const cardPosRef = useRef(cardPos);
@@ -703,6 +760,20 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               <button key={c.id} onClick={()=>setAllColors(c.id)} title={c.label}
                 style={{width:22,height:22,borderRadius:'50%',border:`1.5px solid ${T.goldLine}55`,background:c.hex,cursor:'pointer'}}/>
             ))}
+          </div>
+          {/* Desfazer/refazer também no banner: o atalho existe, mas ninguém
+              descobre atalho que não está escrito em lugar nenhum. */}
+          <div style={{display:'flex',gap:4,marginLeft:2}}>
+            <button onClick={desfazerCor} disabled={!colorUndo.length}
+              title={colorUndo.length ? `Desfazer (Ctrl+Z) — ${colorUndo.length} ${colorUndo.length===1?'passo':'passos'}` : 'Nada pra desfazer'}
+              style={{padding:'5px 10px',borderRadius:9,cursor:colorUndo.length?'pointer':'default',fontWeight:700,fontSize:12.5,
+                border:`1px solid ${T.border}`,background:'transparent',fontFamily:'var(--font-body)',
+                color:colorUndo.length?T.text:T.textD,opacity:colorUndo.length?1:.55}}>↶ Desfazer</button>
+            <button onClick={refazerCor} disabled={!colorRedo.length}
+              title={colorRedo.length ? 'Refazer (Ctrl+Shift+Z)' : 'Nada pra refazer'}
+              style={{padding:'5px 10px',borderRadius:9,cursor:colorRedo.length?'pointer':'default',fontWeight:700,fontSize:12.5,
+                border:`1px solid ${T.border}`,background:'transparent',fontFamily:'var(--font-body)',
+                color:colorRedo.length?T.text:T.textD,opacity:colorRedo.length?1:.55}}>↷</button>
           </div>
           <button onClick={()=>{setColorMode(false); setColoringId(null);}}
             style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
