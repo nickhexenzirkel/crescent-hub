@@ -28,19 +28,27 @@ import logoNicolas from '../assets/LogoTipoNicolas.png';
 ══════════════════════════════════════════════════════════════════════════ */
 const LAVA_ANIMS = ['mlA','mlB','mlC','mlD','mlE','mlF'];
 
-/* Cantos, bordas e miolo. Tamanhos em vw; as dos cantos nascem um pouco pra
-   fora da tela, pra a curva entrar cortada em vez de virar uma bola inteira
-   flutuando. */
+/* DOIS GRUPOS, não nove bolhas soltas. Espalhadas pela tela elas liam como
+   "planetas" — cada uma redondinha e separada da outra. Agrupadas e com
+   sobreposição pesada dentro de cada grupo, as cores se somam nas
+   interseções e o que aparece é uma massa de cor com variação interna, que é
+   o efeito de lava lamp de verdade.
+
+   Composição em diagonal: um grupo no canto superior esquerdo, outro no
+   inferior direito. A faixa do meio fica limpa de propósito — é onde moram o
+   mascote e a órbita dos módulos.
+
+   cx/cy são o CENTRO da bolha (% da tela); a posição sai por calc, porque
+   translate(-50%) não dá: o transform é da animação. */
 const LAVA_BLOBS = [
-  { w:'26vw', h:'26vw', pos:{ top:'-7vw',    left:'-6vw'  }, dur:15 },
-  { w:'23vw', h:'23vw', pos:{ top:'-5vw',    right:'-6vw' }, dur:18 },
-  { w:'25vw', h:'25vw', pos:{ bottom:'-7vw', left:'-5vw'  }, dur:13 },
-  { w:'28vw', h:'28vw', pos:{ bottom:'-8vw', right:'-7vw' }, dur:16 },
-  { w:'20vw', h:'14vw', pos:{ top:'-4vw',    left:'40%'   }, dur:20, forma:'ellipse' },
-  { w:'22vw', h:'15vw', pos:{ bottom:'-5vw', left:'34%'   }, dur:17, forma:'ellipse' },
-  { w:'17vw', h:'17vw', pos:{ top:'34%',     left:'9%'    }, dur:12, reverso:true },
-  { w:'18vw', h:'18vw', pos:{ top:'44%',     right:'11%'  }, dur:19, reverso:true },
-  { w:'15vw', h:'15vw', pos:{ top:'39%',     left:'43%'   }, dur:14 },
+  // grupo 1 — canto superior esquerdo
+  { cx:4,  cy:4,  w:34, dur:17 },
+  { cx:23, cy:13, w:28, dur:21 },
+  { cx:10, cy:27, w:26, dur:14, reverso:true },
+  // grupo 2 — canto inferior direito
+  { cx:96, cy:95, w:32, dur:19 },
+  { cx:78, cy:100, w:28, dur:15, reverso:true },
+  { cx:90, cy:72, w:25, dur:23 },
 ];
 
 const LavaLamp = () => {
@@ -79,8 +87,14 @@ const LavaLamp = () => {
       <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
       {bolhas.map((b,i)=>(
         <div key={i} style={{position:'absolute',
-          width:b.w, height:b.h, borderRadius:'50%', ...b.pos,
-          background:bolhaGradiente(cor(i), b.forma || 'circle'),
+          width:`${b.w}vw`, height:`${b.w}vw`, borderRadius:'50%',
+          left:`calc(${b.cx}% - ${b.w/2}vw)`, top:`calc(${b.cy}% - ${b.w/2}vw)`,
+          background:bolhaGradiente(cor(i)),
+          // `screen` é o que faz as cores se SOMAREM onde duas bolhas se
+          // cruzam, em vez de a de cima simplesmente tapar a de baixo — é daí
+          // que sai a mistura. No tema escuro clareia, no claro o véu por
+          // cima segura; por isso o modo muda com o tema.
+          mixBlendMode: T.dark ? 'screen' : 'multiply',
           willChange:'transform',
           animation:`${b.anim} ${b.dur}s ease-in-out infinite${b.reverso?' reverse':''}`,
           animationDelay:`${b.delay}s`}}/>
