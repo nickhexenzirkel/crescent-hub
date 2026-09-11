@@ -1307,6 +1307,19 @@ const ALEXA_RESPONSES = [
   { pat: /(obrigad)/i, resp: "😊 Por nada! Sempre aqui pra ajudar a equipe da 7SERV!" },
 ];
 
+// Altura da barra de navegação fixa no celular (estilo Apple Music/Spotify) —
+// substitui as pílulas de aba que ficavam lá em cima, exigindo rolar a tela
+// toda de volta pra trocar de seção.
+const MOBILE_NAV_H = 58;
+// Definição das 4 abas — reaproveitada nas pílulas de topo (desktop) e na
+// barra de navegação fixa embaixo (celular).
+const TAB_DEFS = [
+  {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
+  {id:"playlist",  label:"Playlist",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>},
+  {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
+  {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
+];
+
 const CentralAlexa = ({onBack, userPhoto}) => {
   const isMobile = useIsMobile();
   const isDark   = !!T.page;
@@ -2949,28 +2962,26 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",paddingBottom:isMobile&&cur?86:(isMobile?12:24),position:"relative",zIndex:2}}>
-        <div style={{display:"flex",gap:isMobile?4:6,marginBottom:isMobile?14:20,padding:4,
-          width:isMobile?"100%":"fit-content",overflowX:isMobile?"auto":"visible",
+      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",
+        paddingBottom:isMobile?`calc(${MOBILE_NAV_H + (cur?78:14)}px + env(safe-area-inset-bottom,0px))`:24,
+        position:"relative",zIndex:2}}>
+        {!isMobile && (
+        <div style={{display:"flex",gap:6,marginBottom:20,padding:4,
+          width:"fit-content",overflowX:"visible",
           background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),
           backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
-          border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh,
-          scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
-          {[
-            {id:"festival",  label:"Festival",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>},
-            {id:"playlist",  label:"Playlist",          adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>},
-            {id:"maquina",   label:"Máquina do Tempo",  adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-            {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
-          ].filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
+          border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
+          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
             <button key={id} onClick={()=>changeTab(id)} style={{
               display:"flex",alignItems:"center",gap:6,flexShrink:0,
-              padding:isMobile?"8px 14px":"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
-              fontFamily:"var(--font-body)",fontSize:isMobile?12:13,fontWeight:tab===id?700:400,
+              padding:"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
+              fontFamily:"var(--font-body)",fontSize:13,fontWeight:tab===id?700:400,
               background:tab===id?T.goldGl:"transparent",color:tab===id?T.gold:T.textS,
               border:`1.5px solid ${tab===id?T.goldLine+"55":T.border}`,transition:"all .15s"
             }}>{icon}{label}</button>
           ))}
         </div>
+        )}
 
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
@@ -2992,7 +3003,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
 
             {/* Left: UnikoWave + Player */}
-            <div style={{width:isMobile?"100%":360,flexShrink:0,display:"flex",flexDirection:isMobile?"row":"column",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?12:16}}>
+            <div style={{width:isMobile?"100%":360,flexShrink:0,display:"flex",flexDirection:"column",flexWrap:"nowrap",gap:isMobile?12:16,order:isMobile?2:0}}>
               {(() => {
                 const isVampCard = songSkin === 'vampire-robot';
                 const isSeaCard  = songSkin === 'uniko-sereia';
@@ -3271,7 +3282,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   borderRadius:20,
                   overflow:"hidden",
                   position:"relative",
-                  height:620,
+                  height:isMobile?"min(620px, 62vh)":620,
                   boxShadow:`0 8px 40px ${festColors?.[0]||T.gold}44, 0 0 0 1px ${festColors?.[0]||T.gold}33`,
                   border:`1px solid ${festColors?.[0]||T.gold}44`,
                 }}>
@@ -3362,7 +3373,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             </div>
 
             {/* Right: Search bar + Queue */}
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:16,order:isMobile?1:0,width:isMobile?"100%":undefined}}>
 
               {/* Server error message */}
               {serverMsg&&(
@@ -3407,11 +3418,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   {searchResults.length>0&&(
                     <div style={{position:isMobile?"fixed":"absolute",
                       top:isMobile?"auto":"calc(100% + 6px)",
-                      bottom:isMobile?"70px":undefined,
+                      bottom:isMobile?`calc(${MOBILE_NAV_H + (cur?70:8)}px + env(safe-area-inset-bottom,0px))`:undefined,
                       left:isMobile?12:"0",right:isMobile?12:"0",
                       borderRadius:14,background:isDark?T.surface:"white",
                       border:`1px solid ${T.border}`,boxShadow:T.shL,
-                      overflow:"hidden",zIndex:500,
+                      overflow:"hidden",zIndex:495,
                       maxHeight:isMobile?"55vh":"auto",overflowY:isMobile?"auto":"hidden"}}>
                       {searchResults.map(t=>(
                         <div key={t.id} onClick={()=>addToQueue(t)}
@@ -3537,7 +3548,13 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         const isFirst    = idx === 0;
                         const isLast     = idx === pending.length - 1;
                         return (
-                          <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
+                          // No celular a fileira tinha MUITOS ícones fixos (pular, reordenar,
+                          // substituir, remover, duração) disputando espaço numa linha só, e o
+                          // card da fila corta ("overflow:hidden") o que não coubesse — então os
+                          // botões de trocar/pular ficavam literalmente invisíveis e só apareciam
+                          // girando pra paisagem. Com flexWrap eles descem pra 2ª linha em vez de
+                          // sumir cortados.
+                          <div key={s.id} style={{display:"flex",alignItems:"center",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?8:12,padding:isMobile?"10px 12px":"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
                             {/* EQ / número */}
                             <div style={{width:22,textAlign:"center",flexShrink:0}}>
                               {iAmPlaying
@@ -3670,11 +3687,68 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               </div>
             </div>
 
-            {/* Right: Tocando Agora */}
-            <div style={{width:isMobile?"100%":300,flexShrink:0}}>
-              {/* Player controls */}
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh,
-                flex:isMobile?"1 1 0":undefined,minWidth:isMobile?0:undefined}}>
+            {/* Right: Tocando Agora — no celular o play/pause, pular, capa e barra
+                de progresso já vivem no mini-player fixo + na tela cheia "Tocando
+                Agora" (abre tocando no mini-player), então repetir tudo de novo
+                aqui era exatamente o que deixava a tela um "scroll infinito".
+                No celular só sobra o que É exclusivo de admin e não existe em
+                nenhum dos dois: conectar Spotify, autoplay e escolher dispositivo. */}
+            {(!isMobile || isAdmin) && (
+            <div style={{width:isMobile?"100%":300,flexShrink:0,order:isMobile?3:0}}>
+              {isMobile ? (
+                <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
+                  {spotifyChecked&&!spotifyOk&&(
+                    <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:11}}>⚠️</span>
+                      <span style={{fontSize:11,color:"#C04050",flex:1}}>Spotify desconectado</span>
+                      <a href={`${SERVER_URL}/login`} target="_blank" rel="noreferrer"
+                        style={{fontSize:11,fontWeight:700,color:"#1DB954",textDecoration:"none",padding:"3px 9px",borderRadius:6,background:"rgba(29,185,84,0.1)",border:"1px solid rgba(29,185,84,0.3)"}}>
+                        Conectar ↗
+                      </a>
+                    </div>
+                  )}
+                  <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Controles de Admin</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={handleToggleAutoplay}
+                      title={autoplayEnabled ? "Desativar autoplay — hoje ele puxa as mais tocadas da Máquina do Tempo" : "Ativar autoplay — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:38,borderRadius:9,
+                        border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
+                        background:autoplayEnabled ? T.goldGl : "transparent",
+                        color:autoplayEnabled ? T.gold : T.textS,cursor:"pointer",fontSize:12,fontWeight:700,outline:"none"}}>
+                      {autoplayEnabled
+                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/><polyline points="19 3 19 21"/></svg>
+                        : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v6m0-6L5 3m4 6l10 6m0 0l4 3M19 3v5"/></svg>
+                      }
+                      Autoplay
+                    </button>
+                    <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:38,borderRadius:9,
+                        border:`1px solid ${T.border}`,background:"transparent",color:T.textS,
+                        cursor:spotifyOk?"pointer":"not-allowed",opacity:spotifyOk?1:0.4,fontSize:12,fontWeight:700,outline:"none"}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                      Dispositivo
+                    </button>
+                  </div>
+                  {showDevices&&(
+                    <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10,marginTop:10}}>
+                      <div style={{fontSize:10,fontWeight:600,color:T.textD,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Dispositivos</div>
+                      {devices.length===0
+                        ? <div style={{fontSize:11,color:T.textT}}>Nenhum dispositivo ativo no Spotify</div>
+                        : devices.map(d=>(
+                            <div key={d.id} onClick={()=>selectDevice(d.id)}
+                              style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:d.is_active?T.goldGl:"transparent",border:`1px solid ${d.is_active?T.goldLine+"44":T.border}`,marginBottom:4}}>
+                              <span style={{fontSize:13}}>{d.type==='Speaker'?'🔊':d.type==='Computer'?'💻':'📱'}</span>
+                              <span style={{fontSize:12,fontWeight:d.is_active?700:400,color:d.is_active?T.gold:T.text,flex:1}}>{d.name}</span>
+                              {d.is_active&&<span style={{fontSize:9,color:T.gold,fontWeight:700}}>ATIVO</span>}
+                            </div>
+                          ))
+                      }
+                      <button onClick={()=>setShowDevices(false)} style={{width:"100%",marginTop:4,padding:"5px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textD,fontSize:11,outline:"none"}}>Fechar</button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
                 {/* Spotify connect banner — só mostra após verificar */}
                 {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
@@ -3818,7 +3892,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   </div>
                 )}
               </div>
+              )}
             </div>
+            )}
 
           </div>
           </div>
@@ -4228,7 +4304,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
               {/* Conversation — estilo grupo WhatsApp */}
               <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
-                <div ref={chatScrollRef} style={{height:520,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8,scrollbarWidth:"thin"}}>
+                <div ref={chatScrollRef} style={{height:isMobile?"58vh":520,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8,scrollbarWidth:"thin"}}>
                   {alexaConvo.map((m,i)=>{
                     // Gera cor única por nome (estilo WhatsApp grupo)
                     const nameColors = ["#E53935","#8E24AA","#1976D2","#00897B","#F4511E","#6D4C41","#039BE5","#7CB342"];
@@ -4423,11 +4499,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Explosão de estrelas/meteoros (3s) ao trocar para a Destruidora de Mundos ── */}
       {meteorBurst && <MeteorBurstOverlay />}
 
-      {/* ── Mini-player fixo (estilo Spotify/app de música) — só no celular ── */}
+      {/* ── Mini-player fixo (estilo Spotify/app de música) — só no celular.
+          Fica encaixado ACIMA da barra de abas fixa, nunca sobrepondo ela. ── */}
       {isMobile && cur && !nowPlayingOpen && (
         <div onClick={() => setNowPlayingOpen(true)} role="button" aria-label="Abrir tela do que está tocando"
-          style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:500, display:"flex", alignItems:"center", gap:10,
-            padding:"8px 12px", paddingBottom:"calc(8px + env(safe-area-inset-bottom, 0px))",
+          style={{ position:"fixed", left:0, right:0, bottom:MOBILE_NAV_H, zIndex:500, display:"flex", alignItems:"center", gap:10,
+            padding:"8px 12px",
             background: isDark ? "rgba(18,14,10,.94)" : "rgba(255,255,255,.96)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
             borderTop:`1px solid ${T.border}`, boxShadow:"0 -6px 24px rgba(0,0,0,.12)", cursor:"pointer" }}>
           {cur.album_art
@@ -4452,6 +4529,30 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 : <svg width="14" height="14" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Barra de abas fixa embaixo (estilo Apple Music/Spotify) — só no
+          celular. Substitui as pílulas de cima: não precisa mais rolar a tela
+          toda de volta pro topo só pra trocar de seção. ── */}
+      {isMobile && !nowPlayingOpen && (
+        <div style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:490, display:"flex",
+          paddingBottom:"env(safe-area-inset-bottom, 0px)",
+          background: isDark ? "rgba(14,11,8,.97)" : "rgba(255,255,255,.98)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
+          borderTop:`1px solid ${T.border}`, boxShadow:"0 -4px 18px rgba(0,0,0,.10)" }}>
+          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>{
+            const on = tab===id;
+            return (
+              <button key={id} onClick={()=>changeTab(id)} style={{
+                flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3,
+                height:MOBILE_NAV_H, border:"none", background:"transparent", cursor:"pointer", outline:"none",
+                color:on?T.gold:T.textT, WebkitTapHighlightColor:"transparent" }}>
+                {React.cloneElement(icon, {width:19, height:19})}
+                <span style={{ fontSize:9.5, fontWeight:on?700:500, letterSpacing:".01em",
+                  textAlign:"center", lineHeight:1.1 }}>{label==="Máquina do Tempo"?"Máquina":label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
