@@ -86,6 +86,16 @@ const UnikoMascot = ({ size }) => {
   );
 };
 
+/* Estrelas cadentes cruzando o fundo — mesmo efeito da capa/hero da aba
+   Início do Portal do Colaborador. Aqui a tela é bem maior, então espalha
+   mais riscos por toda a área em vez de só 3. */
+const SHOOT_POS = [
+  {x:'8%',  y:'10%', delay:'-1.5s'}, {x:'64%', y:'6%',  delay:'-3.8s'},
+  {x:'30%', y:'20%', delay:'-0.6s'}, {x:'86%', y:'32%', delay:'-2.4s'},
+  {x:'46%', y:'66%', delay:'-4.6s'}, {x:'14%', y:'74%', delay:'-1.1s'},
+  {x:'74%', y:'78%', delay:'-3.1s'},
+];
+
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -279,9 +289,17 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   if (isMobile) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column',
-        background:T.page, fontFamily:'var(--font-body)'}}>
+        background:T.page, fontFamily:'var(--font-body)', position:'relative', zIndex:0}}>
 
-        <style>{`.mob-card { -webkit-tap-highlight-color: transparent; }`}</style>
+        <style>{`.mob-card { -webkit-tap-highlight-color: transparent; }
+          @keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(90px,90px)}72%,100%{opacity:0;transform:translate(115px,115px)}}`}</style>
+        <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
+          {SHOOT_POS.map((s,i)=>(
+            <div key={i} style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
+              <div style={{width:48,height:1.3,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
+            </div>
+          ))}
+        </div>
 
         {/* Top bar: wordmark + chip de perfil (toca pra editar) */}
         <div style={{padding:'calc(16px + env(safe-area-inset-top)) 16px 2px', display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
@@ -420,8 +438,24 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   };
 
   return(
+    // background:T.page precisa estar aqui, e não só no wrapper do App.jsx —
+    // aquele wrapper só repinta quando o PRÓPRIO App re-renderiza, e trocar
+    // de tema aqui dentro (activeTheme é estado local do ModuleSelector) não
+    // causa isso. Resultado: o fundo ficava com a cor do tema ANTERIOR
+    // enquanto textos/bolhas já mostravam a cor nova (baixo contraste, tudo
+    // "sumindo"). Lendo T.page no próprio render do ModuleSelector, ele sai
+    // sempre atualizado junto com o resto.
     <div style={{height:'100vh',overflow:'hidden',display:'flex',flexDirection:'column',
-      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box'}}>
+      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box',background:T.page}}>
+
+      <style>{`@keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(140px,140px)}72%,100%{opacity:0;transform:translate(180px,180px)}}`}</style>
+      <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
+        {SHOOT_POS.map((s,i)=>(
+          <div key={i} style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
+            <div style={{width:76,height:1.5,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
+          </div>
+        ))}
+      </div>
 
       {authUser&&(
         <div ref={cardElRef} style={{position:'fixed',
