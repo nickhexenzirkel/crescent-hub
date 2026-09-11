@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { T, applyTheme } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
+import { calcularOrbita } from './orbita';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
@@ -363,7 +364,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // reproduz exatamente as posições da referência (relógio a partir do topo).
   // Depois que a pessoa arrasta pra reorganizar, os dois (lista mobile e
   // órbita desktop) passam a seguir a MESMA ordem escolhida por ela.
-  const ORBIT_DEFAULT = ['alexa','faturamento','dashboard','mercado-estelar','conexao-setorial','ponto','uniko-fit','colaborador','info-adicional'];
+  // Os TRÊS PRIMEIROS formam o grupo do topo (o do meio fica cravado no alto).
+  const ORBIT_DEFAULT = ['uniko-fit','colaborador','alexa','faturamento','dashboard','mercado-estelar','conexao-setorial','ponto','info-adicional'];
   const orbitMods = order.length ? mods : applyOrder(filteredMods, ORBIT_DEFAULT);
   const reorderCard = (list, fromId, toId) => {
     if (!fromId || fromId === toId) return;
@@ -375,6 +377,45 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   };
 
   // ─── MOBILE — lista vertical ─────────────────────────────────────────────
+  /* ── Geometria da órbita (desktop) ──────────────────────────────────────
+     Fica aqui, acima do `if (isMobile)`, porque usa useMemo: hook não pode
+     nascer depois de um return condicional — a ordem dos hooks mudaria ao
+     alternar entre celular e desktop.
+
+     Ângulos igualmente espaçados NÃO viram distância igual numa elipse, e
+     reservar ARCO não impede o encosto: quem encosta é a CORDA, a linha reta
+     entre dois centros. A conta toda — e o porquê de as bolhas se colarem
+     antes — está em shared/orbita.js; aqui entram só os números desta tela.
+
+     As folgas: apertada dentro do trio do topo, padrão no resto, e toda a
+     sobra do anel vai pros pares de fora — é o que faz o trio ler como um
+     grupo. O trio são os TRÊS PRIMEIROS da ordem, com o segundo cravado no
+     topo; quem quiser outros três lá em cima arrasta no "reorganizar". */
+  const RX = 44, RY = 35;              // raios da elipse, em % da largura/altura
+  const BASE_D = 178, BUBBLE_GAP = 30; // diâmetro e respiro padrão, em px (escala 1x)
+  const GAP_TRIO = 34;                 // folga DENTRO do trio do topo — junto, sem encostar
+  const TRIO_TOPO = 3;                 // quantos módulos formam o grupo principal lá em cima
+  const orbitWpx = 1180 * orbitScale, orbitHpx = 720 * orbitScale;
+  const chaveOrbita = orbitMods.map(m => `${m.id}:${getSizeMult(m.id)}`).join('|') + `@${orbitScale}`;
+  const { orbitAngles, orbitDiams } = useMemo(() => {
+    const diamsPedidos = orbitMods.map(m => BASE_D * orbitScale * getSizeMult(m.id));
+    const gaps = diamsPedidos.map((_, i) =>
+      (i < TRIO_TOPO - 1 ? GAP_TRIO : BUBBLE_GAP) * orbitScale);
+    const { angulos, diams } = calcularOrbita({
+      diamsPedidos,
+      RXpx: RX / 100 * orbitWpx,
+      RYpx: RY / 100 * orbitHpx,
+      gaps,
+      trio: TRIO_TOPO,
+      diamMin: 90 * orbitScale,
+    });
+    return { orbitAngles: angulos, orbitDiams: diams };
+    // chaveOrbita resume o que muda o layout (ordem, tamanhos e escala);
+    // orbitMods/getSizeMult trocam de identidade a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveOrbita, orbitWpx, orbitHpx]);
+
+
   if (isMobile) {
     return (
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column',
@@ -487,56 +528,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
   // ─── DESKTOP — órbita ────────────────────────────────────────────────────
   const N = orbitMods.length || 1;
-  const RX = 44, RY = 35; // raio da elipse, em % da largura/altura do container
-  const BASE_D = 178, BUBBLE_GAP = 30; // diâmetro e respiro mínimo padrão, em px (escala 1x)
-  // Ângulos igualmente espaçados NÃO viram distância igual numa elipse: como
-  // ela é mais "achatada" nos lados (RX > RY), bolhas perto do meio-esquerda/
-  // meio-direita ficavam bem mais coladas que as de cima/baixo (relatado —
-  // "Prisma Store" e "Conexão Setorial" quase se tocando). Em vez do ângulo
-  // bruto, os N ângulos abaixo dividem o PERÍMETRO da elipse — mas agora NÃO
-  // em partes iguais: cada módulo recebe uma fatia do anel PROPORCIONAL ao
-  // tamanho que a pessoa escolheu pra ele (`getSizeMult`), então uma bolha
-  // "GG" ganha mais espaço ao redor dela automaticamente, sem invadir a
-  // vizinha. Se a soma dos tamanhos pedidos não couber no anel inteiro, todo
-  // mundo encolhe PROPORCIONALMENTE junto (nunca uma bolha "come" o espaço
-  // reservado da outra) — é o `fitFactor` abaixo.
-  const orbitWpx = 1180 * orbitScale, orbitHpx = 720 * orbitScale;
-  const pxPerUnit = (orbitWpx / 100 + orbitHpx / 100) / 2;
-  const weights = orbitMods.map(m => (BASE_D * orbitScale * getSizeMult(m.id) + BUBBLE_GAP * orbitScale) / pxPerUnit);
-  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
-  const { orbitAngles, slotArc } = (() => {
-    const SAMPLES = 720, STEP = 360 / SAMPLES;
-    const arcAt = [0];
-    let prevX = RX * Math.cos(-Math.PI / 2), prevY = RY * Math.sin(-Math.PI / 2), total = 0;
-    for (let i = 1; i <= SAMPLES; i++) {
-      const ang = (-90 + i * STEP) * Math.PI / 180;
-      const x = RX * Math.cos(ang), y = RY * Math.sin(ang);
-      total += Math.hypot(x - prevX, y - prevY);
-      arcAt.push(total); prevX = x; prevY = y;
-    }
-    const angAt = (want) => {
-      let i = 0; while (i < arcAt.length - 1 && arcAt[i] < want) i++;
-      return -90 + i * STEP;
-    };
-    let acc = 0; const out = []; const slots = [];
-    for (let k = 0; k < N; k++) {
-      const w = weights[k] ?? (totalWeight / N);
-      slots.push((w / totalWeight) * total);
-      out.push(angAt((acc + w / 2) / totalWeight * total));
-      acc += w;
-    }
-    return { orbitAngles: out, slotArc: slots };
-  })();
-  // Diâmetro final de cada bolha: o que a pessoa pediu, mas nunca maior do
-  // que a fatia do anel que sobrou pra ela (garante que nunca engole a vizinha).
-  const orbitDiam = (i) => {
-    const desired = BASE_D * orbitScale * getSizeMult(orbitMods[i]?.id);
-    const allocatedPx = (slotArc[i] ?? 0) * pxPerUnit;
-    const capped = Math.min(desired, Math.max(0, allocatedPx - BUBBLE_GAP * 0.5 * orbitScale));
-    return Math.max(90 * orbitScale, capped);
-  };
+  // Posições e diâmetros já saíram do useMemo lá em cima; aqui é só ler.
+  const orbitDiam = (i) => orbitDiams[i] ?? BASE_D * orbitScale;
   const orbitPt = (i) => {
-    const ang = orbitAngles[i % N] * Math.PI / 180;
+    const ang = (orbitAngles[i % N] ?? -90) * Math.PI / 180;
     return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
   };
   // Pontinho decorativo entre duas bolhas vizinhas — só o meio ANGULAR entre
