@@ -301,38 +301,41 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <InstalarAppGuide/>
 
       {authUser&&(
-        <div style={{position:'fixed',top:16,right:20,width:148,display:'flex',flexDirection:'column',
-          alignItems:'center',gap:9,padding:'18px 14px 14px',borderRadius:20,zIndex:10,
+        <div style={{position:'fixed',top:16,right:20,width:116,display:'flex',flexDirection:'column',
+          alignItems:'center',gap:7,padding:'12px 10px 10px',borderRadius:20,zIndex:10,
           background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL}}>
-          <AvatarCircle name={authUser.name} photo={userPhoto} size={64} fontSize={22} rounded="18px"/>
+          <AvatarCircle name={authUser.name} photo={userPhoto} size={52} fontSize={18} rounded="16px"/>
           <div style={{textAlign:'center'}}>
-            <div style={{fontSize:14.5,fontWeight:700,color:T.text,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.text,maxWidth:96,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
               {authUser.name.split(' ')[0]}
             </div>
-            {isAdmin&&<span style={{fontSize:10,color:T.gold,fontWeight:700,padding:'1px 6px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
-            {isModerador&&<span style={{fontSize:10,color:'#4A78C4',fontWeight:700,padding:'1px 6px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
+            {isAdmin&&<span style={{fontSize:9,color:T.gold,fontWeight:700,padding:'1px 5px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
+            {isModerador&&<span style={{fontSize:9,color:'#4A78C4',fontWeight:700,padding:'1px 5px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
           </div>
-          <div style={{display:'flex',gap:6,width:'100%'}}>
+          <div style={{display:'flex',gap:5,width:'100%'}}>
             <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:32,borderRadius:10,
+              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
                 border:`1px solid ${T.goldLine}44`,background:T.goldGl,color:T.gold,cursor:'pointer'}}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
             </button>
             <button onClick={()=>setShowSettings(true)} title="Configurações"
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:32,borderRadius:10,
+              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
                 border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer'}}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
               </svg>
             </button>
+            <button onClick={onLogout} title="Sair"
+              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',height:28,borderRadius:9,
+                border:`1px solid ${T.dangerGl||T.border}`,background:'transparent',color:T.danger,cursor:'pointer'}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
           </div>
-          <button onClick={onLogout}
-            style={{fontSize:11.5,color:T.textD,background:'transparent',border:'none',cursor:'pointer',fontFamily:'var(--font-body)',padding:2}}>
-            Sair
-          </button>
         </div>
       )}
 

@@ -48,15 +48,19 @@ export const InstalarAppGuide = () => {
       <style>{`@keyframes iagBtnGlow{0%,100%{box-shadow:0 0 0 0 ${T.gold}55, 0 4px 14px rgba(0,0,0,.12)}50%{box-shadow:0 0 0 6px ${T.gold}00, 0 4px 14px rgba(0,0,0,.12)}}`}</style>
 
       {/* ── Botão fixo (canto inferior direito, empilhado acima do "Quem sou eu?" —
-           os dois ficam juntos no mesmo canto em vez de espalhados nos dois lados) ── */}
+           mesmo estilo/tamanho do botão vizinho: mesmo padding, mesma badge
+           circular do ícone, só troca a cor de destaque (dourado x azul). ── */}
       <button onClick={() => setOpen(true)} title="Como instalar o Portal no celular"
-        style={{ position: 'fixed', bottom: 84, right: 20, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 18px 9px 13px', borderRadius: 28, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+        style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 10, display: 'flex', alignItems: 'center', gap: 9,
+          padding: '9px 20px 9px 10px', borderRadius: 28, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 700,
           border: `2px solid ${T.gold}`, outline: 'none', color: T.text,
           background: isDark ? 'linear-gradient(135deg,#241f14,#1c1710 45%,#161209)' : 'linear-gradient(135deg,#fbf5ea,#f2e8d5 45%,#f5efe4)',
           boxShadow:'0 4px 14px rgba(0,0,0,.10)',
           animation: 'iagBtnGlow 2.6s ease-in-out infinite' }}>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10.5" y1="19" x2="13.5" y2="19"/><path d="M12 7v6M9 10.5l3 3 3-3"/></svg>
+        <span style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
+          background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)` }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="10.5" y1="19" x2="13.5" y2="19"/><path d="M12 7v6M9 10.5l3 3 3-3"/></svg>
+        </span>
         Instalar Aplicativo
       </button>
 
