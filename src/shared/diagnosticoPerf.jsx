@@ -40,7 +40,8 @@ export default function PerfHud() {
       const alvo = e.target;
       if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
       if (e.key === '0') { setFlags({ ...FLAGS_PADRAO }); return; }
-      const mapa = { '1': 'semBackdrop', '2': 'semLava', '3': 'semAnim', '4': 'semSombra' };
+      const mapa = { '1': 'semBackdrop', '2': 'semLava', '3': 'semAnim', '4': 'semSombra',
+                     '5': 'semEstrelas', '6': 'semMistura', '7': 'semOrbita' };
       const chave = mapa[e.key];
       if (chave) setFlags(f => ({ ...f, [chave]: !f[chave] }));
     };
@@ -137,11 +138,14 @@ export default function PerfHud() {
       {m.heap > 0 && <Linha rot="memória" val={m.heap + ' MB'} alerta={m.heap > 700} dica="heap do JavaScript" />}
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.12)', margin: '8px 0 7px' }} />
-      <div style={{ fontSize: 10, opacity: .6, marginBottom: 5 }}>DESLIGUE UM POR VEZ (teclas 1-4)</div>
+      <div style={{ fontSize: 10, opacity: .6, marginBottom: 5 }}>DESLIGUE UM POR VEZ (teclas 1-7)</div>
       <Chave n="1" on={flags.semBackdrop} rot="desfoque de fundo" onClick={() => setFlags(f => ({ ...f, semBackdrop: !f.semBackdrop }))} />
       <Chave n="2" on={flags.semLava}     rot="fundo lava lamp"   onClick={() => setFlags(f => ({ ...f, semLava: !f.semLava }))} />
       <Chave n="3" on={flags.semAnim}     rot="animações"         onClick={() => setFlags(f => ({ ...f, semAnim: !f.semAnim }))} />
       <Chave n="4" on={flags.semSombra}   rot="sombras/filtros"   onClick={() => setFlags(f => ({ ...f, semSombra: !f.semSombra }))} />
+      <Chave n="5" on={flags.semEstrelas} rot="estrelas do fundo"  onClick={() => setFlags(f => ({ ...f, semEstrelas: !f.semEstrelas }))} />
+      <Chave n="6" on={flags.semMistura}  rot="mistura das bolhas" onClick={() => setFlags(f => ({ ...f, semMistura: !f.semMistura }))} />
+      <Chave n="7" on={flags.semOrbita}   rot="estrelas em órbita" onClick={() => setFlags(f => ({ ...f, semOrbita: !f.semOrbita }))} />
       <button onClick={() => setFlags({ ...FLAGS_PADRAO })}
         style={{ marginTop: 6, width: '100%', padding: '5px', borderRadius: 7, border: '1px solid rgba(255,255,255,.16)',
           background: 'transparent', color: '#8b93a7', cursor: 'pointer', font: 'inherit', fontSize: 10.5 }}>

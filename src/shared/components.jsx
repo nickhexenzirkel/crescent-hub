@@ -101,7 +101,7 @@ const CampoDeEstrelas = () => {
   // Clara sobre fundo escuro, dourada sobre fundo claro.
   const cor = T.dark ? '#FFFFFF' : (T.goldV || T.gold);
   return (
-    <div style={{position:'absolute',inset:0,pointerEvents:'none'}} aria-hidden="true">
+    <div className="bg-estrelas" style={{position:'absolute',inset:0,pointerEvents:'none'}} aria-hidden="true">
       <style>{`@keyframes ulPisca{0%,100%{opacity:.12;transform:scale(.8)}50%{opacity:1;transform:scale(1.12)}}`}</style>
       {ESTRELAS.map((e, i) => (
         <svg key={i} width={e.tam} height={e.tam} viewBox="0 0 14 14"
@@ -149,7 +149,7 @@ const LavaLamp = () => {
           tema claro e bem escura no escuro. */}
       <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
       {bolhas.map((b,i)=>(
-        <div key={i} style={{position:'absolute',
+        <div key={i} className="lava-bolha" style={{position:'absolute',
           width:`${b.w}vw`, height:`${b.w}vw`, borderRadius:'50%',
           left:`calc(${b.cx}% - ${b.w/2}vw)`, top:`calc(${b.cy}% - ${b.w/2}vw)`,
           background:bolhaGradiente(cor(i)),

@@ -130,12 +130,38 @@ const UnikoMascot = ({ size }) => {
 /* Estrelas cadentes cruzando o fundo — mesmo efeito da capa/hero da aba
    Início do Portal do Colaborador. Aqui a tela é bem maior, então espalha
    mais riscos por toda a área em vez de só 3. */
+const ESTRELINHAS_ORBITA = [
+  { dur:26, r:3.5, fill:'branco' },
+  { dur:19, r:3,   fill:'gold'   },
+  { dur:13, r:2.6, fill:'branco' },
+];
+
 const SHOOT_POS = [
   {x:'8%',  y:'10%', delay:'-1.5s'}, {x:'64%', y:'6%',  delay:'-3.8s'},
   {x:'30%', y:'20%', delay:'-0.6s'}, {x:'86%', y:'32%', delay:'-2.4s'},
   {x:'46%', y:'66%', delay:'-4.6s'}, {x:'14%', y:'74%', delay:'-1.1s'},
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
+
+/* Trilha elíptica das estrelinhas em órbita, como keyframes de transform.
+
+   Antes isso era <animateMotion> (SMIL), e SMIL é a pior opção possível aqui:
+   o navegador não consegue compor essa animação, então a cada frame ele
+   INVALIDA e repinta o SVG inteiro da órbita — os três anéis, os pontinhos
+   entre as bolhas e as próprias estrelinhas, numa área de 1420x800. Era o
+   maior custo de desenho da tela, por três bolinhas de 3px.
+
+   Com transform em keyframes a bolinha vira uma camada que o compositor só
+   desloca, e o SVG dos anéis passa a ser pintado uma vez e nunca mais. A
+   elipse sai aproximada por 40 passos — o suficiente pra não se ver canto. */
+const trilhaOrbital = (nome, rx, ry, passos = 40) => {
+  let quadros = '';
+  for (let i = 0; i <= passos; i++) {
+    const t = i / passos, a = t * Math.PI * 2 - Math.PI / 2;
+    quadros += `${(t * 100).toFixed(2)}%{transform:translate(${(rx * Math.cos(a)).toFixed(1)}px,${(ry * Math.sin(a)).toFixed(1)}px)}`;
+  }
+  return `@keyframes ${nome}{${quadros}}`;
+};
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
@@ -481,7 +507,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           @keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(90px,90px)}72%,100%{opacity:0;transform:translate(115px,115px)}}`}</style>
         <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
           {SHOOT_POS.map((s,i)=>(
-            <div key={i} style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
+            <div key={i} className="estrela-cadente" style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
               <div style={{width:48,height:1.3,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
             </div>
           ))}
@@ -622,7 +648,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <style>{`@keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(140px,140px)}72%,100%{opacity:0;transform:translate(180px,180px)}}`}</style>
       <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
         {SHOOT_POS.map((s,i)=>(
-          <div key={i} style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
+          <div key={i} className="estrela-cadente" style={{position:'absolute',left:s.x,top:s.y,animation:`msShootStar 6s ${s.delay} linear infinite`}}>
             <div style={{width:76,height:1.5,background:'linear-gradient(to right,transparent,rgba(255,255,255,.88),rgba(255,255,255,.28),transparent)',borderRadius:2,transform:'rotate(45deg)',transformOrigin:'center'}}/>
           </div>
         ))}
@@ -795,19 +821,23 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           {orbitMods.map((_,i)=>{ const p = orbitMidPt(i); return (
             <circle key={i} cx={p.left/100*ORBIT_W} cy={p.top/100*ORBIT_H} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
           );})}
-          {/* estrelinhas/planetinhas viajando pelos anéis — quanto mais interno o
-              anel, mais rápido (como órbitas de verdade: raio menor gira mais rápido) */}
-          {aneis.map((a,oi)=>({ ...a, ...[
-            { dur:'26s', r:3.5, fill:'#ffffff' },
-            { dur:'19s', r:3,   fill:T.goldL||T.gold },
-            { dur:'13s', r:2.6, fill:'#ffffff' },
-          ][oi] })).map((o,oi)=>(
-            <circle key={'orb'+oi} r={o.r} fill={o.fill} opacity=".95" style={{filter:`drop-shadow(0 0 3px ${T.goldL||T.gold})`}}>
-              <animateMotion dur={o.dur} begin={`${-oi*4}s`} repeatCount="indefinite"
-                path={`M ${ORBIT_W/2+o.rx},${ORBIT_H/2} A ${o.rx},${o.ry} 0 1,1 ${ORBIT_W/2-o.rx},${ORBIT_H/2} A ${o.rx},${o.ry} 0 1,1 ${ORBIT_W/2+o.rx},${ORBIT_H/2}`}/>
-            </circle>
-          ))}
         </svg>
+
+        {/* Estrelinhas viajando pelos anéis — quanto mais interno o anel, mais
+            rápido (como órbitas de verdade: raio menor gira mais rápido).
+            Ficam FORA do svg de propósito: ver trilhaOrbital lá em cima. */}
+        <style>{ESTRELINHAS_ORBITA.map((o,i)=>trilhaOrbital(`orbTrilha${i}`, aneis[i].rx*orbitScale, aneis[i].ry*orbitScale)).join('')}</style>
+        {ESTRELINHAS_ORBITA.map((o,i)=>{
+          const d = o.r * 2 * orbitScale;
+          return (
+            <div key={'orb'+i} className="orbita-estrelinha" style={{position:'absolute',
+              left:'50%', top:'50%', width:d, height:d, marginLeft:-d/2, marginTop:-d/2,
+              borderRadius:'50%', background:o.fill==='gold' ? (T.goldL||T.gold) : '#ffffff',
+              boxShadow:`0 0 ${3*orbitScale}px ${T.goldL||T.gold}`, opacity:.95,
+              animation:`orbTrilha${i} ${o.dur}s linear infinite`, animationDelay:`${-i*4}s`,
+              willChange:'transform', pointerEvents:'none', zIndex:1}}/>
+          );
+        })}
 
         <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
           <UnikoMascot size={mascoteTam*orbitScale}/>
