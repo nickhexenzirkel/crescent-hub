@@ -83,18 +83,51 @@ export const misturar = (c1, c2, t = 0.5) => {
   return `rgba(${m(a.r, b.r)},${m(a.g, b.g)},${m(a.b, b.b)},${+al.toFixed(3)})`;
 };
 
-/* 13 tons a partir das cores de bolha do tema: as 7 originais intercaladas
-   com as misturas das vizinhas. A ordem alterna escuro/claro de propósito —
-   bolhas vizinhas no anel não podem cair com o mesmo tom. */
+/* Luminância relativa (0-255) — é o que diz se uma cor vai APARECER sobre o
+   fundo do tema ou sumir nele. */
+const luminancia = (cor) => {
+  const c = paraRgb(cor);
+  return c ? 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b : 128;
+};
+
+/* Tons das bolhas, montados a partir do tema.
+
+   Duas regras:
+
+   1) Só entram cores que CONTRASTAM com o fundo, e no sentido certo: no tema
+      claro as bolhas são mais escuras que o fundo; no escuro, mais claras.
+      Isso importa porque a paleta de um tema escuro traz tanto azuis vivos
+      quanto um azul-quase-preto (b6) — esse último, sobre o fundo #060D18,
+      seria uma bolha invisível. A conta é por luminância, então vale pros dez
+      temas sem lista escrita à mão.
+
+   2) Sobre as que passaram, entram também as misturas entre vizinhas. O tema
+      traz 7 cores de bolha e repetir 7 em 9 bolhas deixa o fundo monótono;
+      misturar dá degraus intermediários da MESMA família, sem inventar cor
+      que não pertence ao tema. */
 export const paletaDeBolhas = (T) => {
-  const b = [T.b1, T.b2, T.b3, T.b4, T.b5, T.b6, T.b7].filter(Boolean);
-  if (!b.length) return ['rgba(120,120,160,0.5)'];
-  const escala = [];
-  for (let i = 0; i < b.length; i++) {
-    escala.push(b[i]);
-    escala.push(misturar(b[i], b[(i + 1) % b.length], 0.5));
+  const fundo = luminancia(T.blobBase || (T.dark ? '#0A0A12' : '#FFFFFF'));
+  const escuro = T.dark ?? fundo < 128;
+  const candidatas = [T.b1, T.b2, T.b3, T.b4, T.b5, T.b6, T.b7, T.sb1, T.sb2, T.sb3].filter(Boolean);
+
+  const MIN_CONTRASTE = 26;
+  let base = candidatas.filter(c => escuro
+    ? luminancia(c) > fundo + MIN_CONTRASTE
+    : luminancia(c) < fundo - MIN_CONTRASTE);
+  // tema de contraste apertado: fica com as mais distantes do fundo em vez de vazio
+  if (base.length < 3) {
+    base = candidatas.slice()
+      .sort((a, b) => Math.abs(luminancia(b) - fundo) - Math.abs(luminancia(a) - fundo))
+      .slice(0, Math.min(5, candidatas.length));
   }
-  // intercala a metade de cima com a de baixo pra não sair em degradê ordenado
+  if (!base.length) return ['rgba(120,120,160,0.5)'];
+
+  const escala = [];
+  for (let i = 0; i < base.length; i++) {
+    escala.push(base[i]);
+    escala.push(misturar(base[i], base[(i + 1) % base.length], 0.5));
+  }
+  // intercala as duas metades pra não sair um degradê ordenado do escuro ao claro
   const meio = Math.ceil(escala.length / 2), fora = [];
   for (let i = 0; i < meio; i++) {
     fora.push(escala[i]);

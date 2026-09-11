@@ -6,96 +6,88 @@ import logoNicolas from '../assets/LogoTipoNicolas.png';
 /* ══════════════════════════════════════════════════════════════════════════
    LAVA LAMP — o fundo animado que aparece em todas as telas
 
-   Foi refeito em set/2026 espelhando o fundo do Festival da Central Alexa,
-   que é o que ficou bonito: mais bolhas (10 contra 8), tamanhos bem
-   diferentes entre si, e não só círculos — entram faixas largas e achatadas
-   e uma coluna alta, que é o que dá a sensação de massa se movendo em vez de
-   sete bolas do mesmo tamanho passeando.
+   A REGRA: o fundo do tema é que manda. No tema claro a tela é
+   predominantemente branca; no escuro, bem escura. As bolhas são um detalhe
+   que passeia pelos cantos e pelo meio — não um banho de cor por cima de
+   tudo. Duas tentativas anteriores erraram justamente nisso:
 
-   Duas coisas que faziam ele quase não aparecer no Seletor de Módulos:
-   • o Seletor pintava `background: T.page` OPACO por cima — o lava lamp
-     ficava lá atrás, rodando pra ninguém (ver ModuleSelector);
-   • o véu de cima (T.blobVeil, alfa .58) lavava o que sobrava. Agora ele
-     entra com metade da força, o suficiente pra manter texto legível.
+   • bolhas de 58-70vw (mais de 1000px cada numa tela de 1920) cobriam a tela
+     inteira. Agora vão de 15 a 26vw, ancoradas nos quatro cantos, nas bordas
+     de cima e de baixo, e três soltas no miolo;
+   • um "banho" em degradê diagonal com as cores do tema pintava o fundo
+     inteiro antes mesmo de qualquer bolha. Saiu: a base é a cor chapada do
+     tema (T.blobBase) e nada mais.
 
-   Sobre cor: o tema traz 7 tons de bolha, e repetir 7 em 10 bolhas deixava o
-   fundo monótono. paletaDeBolhas (shared/bolhas.js) estica isso pra 14,
-   misturando cada cor com a vizinha — mais variedade sem sair do tema.
+   As cores vêm de paletaDeBolhas (shared/bolhas.js), que escolhe só os tons
+   que contrastam com o fundo no sentido certo — mais escuros que a base nos
+   temas claros, mais claros nos escuros — e ainda cria degraus intermediários
+   misturando as cores vizinhas do tema.
 
-   Nada aqui usa `filter: blur()`: a queda suave vem pronta no degradê. Ver
-   o comentário em shared/bolhas.js pro porquê (era o que travava o app).
+   Nada aqui usa `filter: blur()`: a queda suave vem pronta no degradê. Ver o
+   comentário em shared/bolhas.js pro porquê (era o que travava o app).
 ══════════════════════════════════════════════════════════════════════════ */
 const LAVA_ANIMS = ['mlA','mlB','mlC','mlD','mlE','mlF'];
 
-/* Geometria copiada do Festival da Central Alexa. w/h em vw (a coluna usa vh
-   na altura); pos é onde a bolha se ancora. */
+/* Cantos, bordas e miolo. Tamanhos em vw; as dos cantos nascem um pouco pra
+   fora da tela, pra a curva entrar cortada em vez de virar uma bola inteira
+   flutuando. */
 const LAVA_BLOBS = [
-  { w:'58vw', h:'58vw', pos:{ top:'-18vw', left:'-12vw'  }, dur:14 },
-  { w:'50vw', h:'50vw', pos:{ top:'-12vw', right:'-8vw'  }, dur:17 },
-  { w:'48vw', h:'48vw', pos:{ bottom:'-12vw', left:'-8vw' }, dur:12 },
-  { w:'44vw', h:'44vw', pos:{ bottom:'-8vw', right:'-6vw' }, dur:15 },
-  { w:'38vw', h:'38vw', pos:{ top:'30%',   left:'31%'    }, dur:11 },
-  { w:'70vw', h:'30vw', pos:{ top:'-5vw',  left:'10%'    }, dur:19, forma:'ellipse' },
-  { w:'70vw', h:'30vw', pos:{ bottom:'-5vw', left:'5%'   }, dur:16, forma:'ellipse' },
-  { w:'28vw', h:'80vh', pos:{ top:'5%',    left:'38%'    }, dur:22, forma:'ellipse' },
-  { w:'36vw', h:'36vw', pos:{ top:'20%',   right:'5%'    }, dur:13, reverso:true },
-  { w:'32vw', h:'32vw', pos:{ top:'40%',   left:'2%'     }, dur:18, reverso:true },
+  { w:'26vw', h:'26vw', pos:{ top:'-7vw',    left:'-6vw'  }, dur:15 },
+  { w:'23vw', h:'23vw', pos:{ top:'-5vw',    right:'-6vw' }, dur:18 },
+  { w:'25vw', h:'25vw', pos:{ bottom:'-7vw', left:'-5vw'  }, dur:13 },
+  { w:'28vw', h:'28vw', pos:{ bottom:'-8vw', right:'-7vw' }, dur:16 },
+  { w:'20vw', h:'14vw', pos:{ top:'-4vw',    left:'40%'   }, dur:20, forma:'ellipse' },
+  { w:'22vw', h:'15vw', pos:{ bottom:'-5vw', left:'34%'   }, dur:17, forma:'ellipse' },
+  { w:'17vw', h:'17vw', pos:{ top:'34%',     left:'9%'    }, dur:12, reverso:true },
+  { w:'18vw', h:'18vw', pos:{ top:'44%',     right:'11%'  }, dur:19, reverso:true },
+  { w:'15vw', h:'15vw', pos:{ top:'39%',     left:'43%'   }, dur:14 },
 ];
 
 const LavaLamp = () => {
   /* T é um objeto mutável e este componente vive no App, fora da tela que
-     troca o tema — sem ouvir o aviso, ele continuaria com as cores antigas
-     (era por isso que o Seletor de Módulos precisava tapar o fundo). */
+     troca o tema — sem ouvir o aviso, ficaria com as cores antigas (era por
+     isso que o Seletor de Módulos precisava tapar o fundo). */
   const [, redesenha] = useState(0);
   useEffect(() => onThemeChange(() => redesenha(n => n + 1)), []);
 
-  /* Sorteado uma vez por carga: qual tom cada bolha pega, qual animação segue
-     e com que atraso entra. Só as posições/tempos — as cores são lidas a cada
-     render, pra acompanharem a troca de tema. */
-  const bolhas = useMemo(() => {
-    const r = (a,b) => a + Math.random()*(b-a);
-    return LAVA_BLOBS.map((b,i) => ({
-      ...b,
-      tom: i,
-      anim: LAVA_ANIMS[i % LAVA_ANIMS.length],
-      delay: -r(0, b.dur),
-    }));
-  }, []);
+  /* Sorteado uma vez por carga: qual animação cada bolha segue e com que
+     atraso entra — assim duas cargas seguidas nunca ficam idênticas. As
+     cores são lidas a cada render, pra acompanharem a troca de tema. */
+  const bolhas = useMemo(() => LAVA_BLOBS.map((b, i) => ({
+    ...b,
+    anim: LAVA_ANIMS[i % LAVA_ANIMS.length],
+    delay: -Math.random() * b.dur,
+  })), []);
 
   const tons = paletaDeBolhas(T);
   const cor = (i) => tons[(i * 3) % tons.length];   // passo 3: vizinhas nunca repetem o tom
-
-  /* Base: em vez de uma cor chapada, um banho em diagonal com vários tons do
-     tema (é o que a Central Alexa faz). Sozinho ele já dá profundidade
-     mesmo antes de qualquer bolha entrar em quadro. */
-  const banho = `linear-gradient(135deg, ${comAlfa(cor(0),.42)}, ${comAlfa(cor(4),.3)}, `
-              + `${comAlfa(cor(7),.34)}, ${comAlfa(cor(2),.26)}, ${comAlfa(cor(9),.3)})`;
 
   // A classe "lava-lamp" é o que o diagnóstico de performance (Ctrl+Alt+P,
   // tecla 2) usa pra apagar o fundo e medir quanto ele custa.
   return (
     <div className="lava-lamp" style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       <style>{`
-        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(13vw,-10vw) scale(1.28)}66%{transform:translate(-11vw,9vw) scale(.8)}}
-        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-15vw,8vw) scale(1.22)}80%{transform:translate(10vw,-7vw) scale(.84)}}
-        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vw,12vw) scale(1.32)}}
-        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-12vw,-9vw) scale(1.3)}70%{transform:translate(9vw,7vw) scale(.78)}}
-        @keyframes mlE{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(8vw,6vw) scale(1.15)}55%{transform:translate(-9vw,-5vw) scale(.88)}80%{transform:translate(5vw,-8vw) scale(1.1)}}
-        @keyframes mlF{0%,100%{transform:translate(0,0) scale(1.04)}45%{transform:translate(-7vw,10vw) scale(.82)}75%{transform:translate(12vw,-6vw) scale(1.24)}}
+        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vw,-5vw) scale(1.18)}66%{transform:translate(-6vw,5vw) scale(.86)}}
+        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-8vw,4vw) scale(1.14)}80%{transform:translate(5vw,-4vw) scale(.88)}}
+        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vw,6vw) scale(1.22)}}
+        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-6vw,-5vw) scale(1.2)}70%{transform:translate(5vw,4vw) scale(.84)}}
+        @keyframes mlE{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(4vw,4vw) scale(1.12)}55%{transform:translate(-5vw,-3vw) scale(.9)}80%{transform:translate(3vw,-4vw) scale(1.08)}}
+        @keyframes mlF{0%,100%{transform:translate(0,0) scale(1.02)}45%{transform:translate(-4vw,6vw) scale(.88)}75%{transform:translate(7vw,-4vw) scale(1.16)}}
       `}</style>
+      {/* Base: a cor chapada do tema, e só. É ela que faz a tela ser branca no
+          tema claro e bem escura no escuro. */}
       <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
-      <div style={{position:'absolute',inset:0,background:banho}}/>
       {bolhas.map((b,i)=>(
         <div key={i} style={{position:'absolute',
           width:b.w, height:b.h, borderRadius:'50%', ...b.pos,
-          background:bolhaGradiente(cor(b.tom), b.forma || 'circle'),
+          background:bolhaGradiente(cor(i), b.forma || 'circle'),
           willChange:'transform',
           animation:`${b.anim} ${b.dur}s ease-in-out infinite${b.reverso?' reverse':''}`,
           animationDelay:`${b.delay}s`}}/>
       ))}
-      {/* Véu: segura o contraste do texto por cima, mas com metade da força de
-          antes — no ajuste anterior ele apagava as bolhas quase por completo. */}
-      <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.5)}}/>
+      {/* Véu: mantém o fundo do tema predominante e o texto legível por cima.
+          Entra com 3/4 da força do tema — cheio ele apagava as bolhas. */}
+      <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.75)}}/>
     </div>
   );
 };
