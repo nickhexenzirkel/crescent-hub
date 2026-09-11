@@ -234,9 +234,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {/* Top bar: wordmark + chip de perfil (toca pra editar) */}
         <div style={{padding:'16px 16px 2px', display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
           <div>
-            <div style={{fontFamily:'var(--font-brand)', fontSize:19, fontWeight:700,
+            <div style={{fontFamily:'var(--font-brand)', fontSize:27, fontWeight:700,
               color:T.text, letterSpacing:'.07em'}}><UnikoName/></div>
-            <div style={{fontSize:8.5, color:T.textT, letterSpacing:'.11em',
+            <div style={{fontSize:10.5, color:T.textT, letterSpacing:'.11em',
               textTransform:'uppercase', marginTop:2}}>Sistema Corporativo</div>
           </div>
           {authUser && (
@@ -287,25 +287,25 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 onTouchEnd={() => setPressed(null)}
                 onTouchCancel={() => setPressed(null)}
                 style={{
-                  display:'flex', alignItems:'center', gap:14,
+                  display:'flex', alignItems:'center', gap:16,
                   background: isPressed ? T.page : T.surface,
                   border:`1px solid ${isPressed ? m.color+'55' : T.border}`,
-                  borderRadius:16, padding:'12px 14px', cursor:'pointer',
+                  borderRadius:18, padding:'16px 16px', cursor:'pointer',
                   transform: isPressed ? 'scale(0.98)' : 'scale(1)',
                   transition:'transform .12s, background .12s, border-color .12s',
                   WebkitTapHighlightColor:'transparent', userSelect:'none',
                 }}>
-                <div style={{width:44, height:44, borderRadius:13, background:m.bg,
+                <div style={{width:54, height:54, borderRadius:15, background:m.bg,
                   border:`1px solid ${m.color}22`, display:'flex', alignItems:'center',
                   justifyContent:'center', color:m.color, flexShrink:0}}>
-                  {React.cloneElement(m.icon, {width:21, height:21})}
+                  {React.cloneElement(m.icon, {width:26, height:26})}
                 </div>
                 <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:14.5, fontWeight:700, color:T.text}}>{m.label}</div>
-                  <div style={{fontSize:11.5, color:T.textT, marginTop:1,
+                  <div style={{fontSize:17, fontWeight:700, color:T.text}}>{m.label}</div>
+                  <div style={{fontSize:13, color:T.textT, marginTop:2,
                     overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{m.sub}</div>
                 </div>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
                   <path d="M9 6l6 6-6 6"/>
                 </svg>
               </div>
@@ -395,8 +395,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       {/* ── Cabeçalho: wordmark à esquerda · saudação + título ao centro ── */}
       <div className="fsu" style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'start',marginBottom:8}}>
         <div>
-          <div style={{fontFamily:'var(--font-brand)',fontSize:22,fontWeight:700,color:T.text,letterSpacing:'.08em'}}><UnikoName/></div>
-          <div style={{fontSize:10,color:T.textT,letterSpacing:'.14em',textTransform:'uppercase',marginTop:2}}>Sistema Corporativo</div>
+          <div style={{fontFamily:'var(--font-brand)',fontSize:34,fontWeight:700,color:T.text,letterSpacing:'.08em'}}><UnikoName/></div>
+          <div style={{fontSize:13,color:T.textT,letterSpacing:'.14em',textTransform:'uppercase',marginTop:3}}>Sistema Corporativo</div>
         </div>
         <div style={{textAlign:'center'}}>
           {authUser?.name && <div style={{fontSize:11,color:T.textT,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>
@@ -424,19 +424,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       )}
 
       {/* ── Órbita: anéis decorativos + mascote central + bolhas dos módulos ── */}
-      <div className="fsu2" style={{position:'relative',width:'100%',maxWidth:1020,aspectRatio:'1020/620',
+      <div className="fsu2" style={{position:'relative',width:'100%',maxWidth:1180,aspectRatio:'1180/720',
         margin:'10px auto 0',flex:'0 0 auto'}}>
-        <svg viewBox="0 0 1020 620" style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
-          <ellipse cx="510" cy="310" rx="449" ry="217" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".22"/>
-          <ellipse cx="510" cy="310" rx="380" ry="182" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".15"/>
-          <ellipse cx="510" cy="310" rx="311" ry="147" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".1"/>
+        <svg viewBox="0 0 1180 720" style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
+          <ellipse cx="590" cy="360" rx="519" ry="252" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".22"/>
+          <ellipse cx="590" cy="360" rx="440" ry="211" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".15"/>
+          <ellipse cx="590" cy="360" rx="360" ry="170" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".1"/>
           {orbitMods.map((_,i)=>{ const p = orbitPt(i, .5); return (
-            <circle key={i} cx={p.left/100*1020} cy={p.top/100*620} r="3.5" fill={T.goldLine||T.gold} opacity=".55"/>
+            <circle key={i} cx={p.left/100*1180} cy={p.top/100*720} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
           );})}
         </svg>
 
         <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
-          <UnikoMascot size={148}/>
+          <UnikoMascot size={168}/>
         </div>
 
         {orbitMods.map((m,i)=>{
@@ -451,9 +451,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               onClick={reorderMode ? undefined : ()=>onSelect(m.id)}
               onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
               style={{position:'absolute',left:`${p.left}%`,top:`${p.top}%`,transform:'translate(-50%,-50%)',
-                width:148,height:148,borderRadius:'50%',zIndex:3,
-                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,
-                textAlign:'center',padding:'0 14px',boxSizing:'border-box',
+                width:178,height:178,borderRadius:'50%',zIndex:3,
+                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
+                textAlign:'center',padding:'0 16px',boxSizing:'border-box',
                 background:T.surface,
                 border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}` : `1.5px solid ${hov===m.id?m.color+'77':T.border}`,
                 boxShadow:hov===m.id?T.shL:T.sh,
@@ -461,12 +461,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 opacity:dragModId===m.id?0.4:1,
                 transition:'transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .18s',
                 ...(!reorderMode && hov===m.id ? {transform:'translate(-50%,-50%) scale(1.06)'} : null)}}>
-              <div style={{width:38,height:38,borderRadius:11,background:m.bg,border:`1px solid ${m.color}22`,
+              <div style={{width:46,height:46,borderRadius:13,background:m.bg,border:`1px solid ${m.color}22`,
                 display:'flex',alignItems:'center',justifyContent:'center',color:m.color,marginBottom:2}}>
-                {React.cloneElement(m.icon, {width:19,height:19})}
+                {React.cloneElement(m.icon, {width:23,height:23})}
               </div>
-              <div style={{fontSize:13.5,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
-              <div style={{fontSize:9.5,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
+              <div style={{fontSize:16,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
+              <div style={{fontSize:11,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
             </div>
           );
         })}
