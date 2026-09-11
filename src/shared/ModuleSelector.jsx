@@ -538,7 +538,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               </div>
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:5,width:'100%'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:5,width:'100%'}}>
             <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
               style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
                 border:`1px solid ${T.goldLine}44`,background:T.goldGl,color:T.gold,cursor:'pointer'}}>
@@ -554,12 +554,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
               </svg>
             </button>
-            <button onClick={()=>setReorderMode(r=>!r)} title="Organizar a ordem dos módulos"
+            <button onClick={()=>{setReorderMode(r=>!r); setSizeMode(false); setSizingId(null);}} title="Organizar a ordem dos módulos"
               style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
                 border:`1px solid ${reorderMode?T.goldLine+'44':T.border}`,background:reorderMode?T.goldGl:'transparent',color:reorderMode?T.gold:T.textS,cursor:'pointer'}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
                 <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            </button>
+            <button onClick={()=>{setSizeMode(v=>!v); setReorderMode(false); setSizingId(null);}} title="Tamanho dos módulos"
+              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
+                border:`1px solid ${sizeMode?T.goldLine+'44':T.border}`,background:sizeMode?T.goldGl:'transparent',color:sizeMode?T.gold:T.textS,cursor:'pointer'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
               </svg>
             </button>
             <button onClick={onLogout} title="Sair"
@@ -606,6 +613,23 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       )}
 
+      {sizeMode && (
+        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
+          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
+          <span>📐 Toque numa bolha pra escolher o tamanho SÓ dela, ou aplique em todas:</span>
+          <div style={{display:'flex',gap:4}}>
+            {SIZE_STEPS.map(s=>(
+              <button key={s.id} onClick={()=>setAllSizes(s.id)}
+                style={{padding:'4px 11px',borderRadius:7,border:`1px solid ${T.goldLine}55`,background:T.surface,color:T.text,
+                  cursor:'pointer',fontWeight:700,fontSize:11.5,fontFamily:'var(--font-body)'}}>{s.label}</button>
+            ))}
+          </div>
+          <button onClick={()=>{setSizeMode(false); setSizingId(null);}}
+            style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
+              color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
+        </div>
+      )}
+
       {/* ── Órbita: anéis decorativos + mascote central + bolhas dos módulos ──
           A área abaixo ocupa o espaço vertical que sobrar (flex:1) e mede a si
           mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
@@ -639,7 +663,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
         {orbitMods.map((m,i)=>{
           const p = orbitPt(i);
-          const bd = 178*orbitScale;
+          const bd = orbitDiam(i);
+          const bs = bd / BASE_D; // escala individual dessa bolha (ícone/fonte/aura acompanham)
           return (
             <div key={m.id}
               draggable={reorderMode}
@@ -647,31 +672,66 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               onDragOver={reorderMode ? (e)=>e.preventDefault() : undefined}
               onDrop={reorderMode ? (e)=>{ e.preventDefault(); reorderCard(orbitMods, dragModId, m.id); setDragModId(null); } : undefined}
               onDragEnd={reorderMode ? ()=>setDragModId(null) : undefined}
-              onClick={reorderMode ? undefined : ()=>onSelect(m.id)}
+              onClick={reorderMode ? undefined : sizeMode ? ()=>setSizingId(id=>id===m.id?null:m.id) : ()=>onSelect(m.id)}
               onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
               style={{position:'absolute',left:`${p.left}%`,top:`${p.top}%`,transform:'translate(-50%,-50%)',
                 width:bd,height:bd,borderRadius:'50%',zIndex:3,
-                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4*orbitScale,
-                textAlign:'center',padding:`0 ${16*orbitScale}px`,boxSizing:'border-box',
+                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4*bs,
+                textAlign:'center',padding:`0 ${16*bs}px`,boxSizing:'border-box',
                 background:T.surface,
-                border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}` : `1.5px solid ${hov===m.id?m.color+'77':T.border}`,
+                border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}`
+                  : sizingId===m.id ? `2px solid ${T.gold}` : `1.5px solid ${hov===m.id?m.color+'77':T.border}`,
                 // 3 camadas de aura ao redor da bolha (mesma ideia da foto de perfil
                 // no Portal do Colaborador), na cor do próprio módulo — a maioria já
                 // usa o dourado do tema, então a aura acompanha o tema automaticamente.
-                boxShadow:`0 0 0 ${6*orbitScale}px ${m.color}26, 0 0 0 ${13*orbitScale}px ${m.color}12, 0 0 0 ${21*orbitScale}px ${m.color}07, ${hov===m.id?T.shL:T.sh}`,
+                boxShadow:`0 0 0 ${6*bs}px ${m.color}26, 0 0 0 ${13*bs}px ${m.color}12, 0 0 0 ${21*bs}px ${m.color}07, ${hov===m.id?T.shL:T.sh}`,
                 cursor:reorderMode?'grab':'pointer',
                 opacity:dragModId===m.id?0.4:1,
-                transition:'transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .18s',
+                transition:'width .22s ease, height .22s ease, transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .18s',
                 ...(!reorderMode && hov===m.id ? {transform:'translate(-50%,-50%) scale(1.06)'} : null)}}>
-              <div style={{width:46*orbitScale,height:46*orbitScale,borderRadius:13*orbitScale,background:m.bg,border:`1px solid ${m.color}22`,
+              <div style={{width:46*bs,height:46*bs,borderRadius:13*bs,background:m.bg,border:`1px solid ${m.color}22`,
                 display:'flex',alignItems:'center',justifyContent:'center',color:m.color,marginBottom:2}}>
-                {React.cloneElement(m.icon, {width:23*orbitScale,height:23*orbitScale})}
+                {React.cloneElement(m.icon, {width:23*bs,height:23*bs})}
               </div>
-              <div style={{fontSize:16*orbitScale,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
-              <div style={{fontSize:11*orbitScale,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
+              <div style={{fontSize:16*bs,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
+              <div style={{fontSize:11*bs,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
+              {sizeMode && (
+                <div style={{position:'absolute',top:6,right:6,width:16*orbitScale,height:16*orbitScale,borderRadius:'50%',
+                  background:T.goldGl,border:`1px solid ${T.goldLine}66`,display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:9*orbitScale,fontWeight:800,color:T.gold,pointerEvents:'none'}}>
+                  {(SIZE_STEPS.find(s=>s.id===(sizePrefs[m.id]||'m'))?.label)||'M'}
+                </div>
+              )}
             </div>
           );
         })}
+
+        {/* Popover de tamanho — abre ao tocar numa bolha em "modo tamanho".
+            Fica centrado no meio da órbita (não preso à bolha) pra nunca correr
+            risco de nascer fora da tela numa bolha perto da borda. */}
+        {sizeMode && sizingId && (() => {
+          const m = orbitMods.find(x=>x.id===sizingId);
+          if (!m) return null;
+          const curStep = sizePrefs[m.id] || 'm';
+          return (
+            <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:20,
+              background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px 18px',boxShadow:T.shL,
+              display:'flex',flexDirection:'column',alignItems:'center',gap:12,minWidth:210}}>
+              <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Tamanho — {m.label}</div>
+              <div style={{display:'flex',gap:6}}>
+                {SIZE_STEPS.map(s=>(
+                  <button key={s.id} onClick={()=>setModuleSize(m.id, s.id)}
+                    style={{width:40,height:36,borderRadius:9,border:`1.5px solid ${curStep===s.id?T.gold:T.border}`,
+                      background:curStep===s.id?T.goldGl:'transparent',color:curStep===s.id?T.gold:T.textS,
+                      cursor:'pointer',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)'}}>{s.label}</button>
+                ))}
+              </div>
+              <button onClick={()=>setSizingId(null)}
+                style={{fontSize:11.5,color:'#fff',background:T.gold,border:'none',borderRadius:9,padding:'5px 16px',
+                  cursor:'pointer',fontWeight:700,fontFamily:'var(--font-body)'}}>Fechar</button>
+            </div>
+          );
+        })()}
       </div>
       </div>
 
