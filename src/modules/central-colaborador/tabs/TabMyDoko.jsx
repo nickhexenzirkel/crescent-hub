@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { USER, saveUserPhoto, getAuthUser, supabase } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
 import {
@@ -45,6 +46,7 @@ const DEFAULT_UNIKO = {
 const normSearch = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
 
 const TabMyDoko = ({ onPhotoChange }) => {
+  const isMobile = useIsMobile();
   const [captured, setCaptured] = useState(() => getCapturedCollection());
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
   const [photoOk, setPhotoOk] = useState(null); // id com feedback "Salvo!"
@@ -177,32 +179,38 @@ const TabMyDoko = ({ onPhotoChange }) => {
       </div>
       <style>{`@keyframes colRot{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Assistente ativo */}
-      <Card style={{ padding: '14px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: T.surfaceSub || 'rgba(0,0,0,.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.border}` }}>
-          <img src={activeSkin.blink.open} alt={activeSkin.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: T.textT, fontWeight: 600, letterSpacing: '.04em' }}>ASSISTENTE ATUAL</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{activeSkin.name}</div>
-        </div>
-
-        {/* Tamanho do assistente — preferência pessoal (só nesse dispositivo), qualquer usuário pode ajustar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)' }}
-          title="Tamanho do assistente flutuante">
-          <button onClick={() => bumpAssistantScale(-ASSISTANT_SCALE_STEP)} disabled={assistantScale <= ASSISTANT_SCALE_MIN}
-            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale <= ASSISTANT_SCALE_MIN ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale <= ASSISTANT_SCALE_MIN ? .4 : 1 }}>−</button>
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textS, width: 38, textAlign: 'center' }}>{Math.round(assistantScale * 100)}%</span>
-          <button onClick={() => bumpAssistantScale(ASSISTANT_SCALE_STEP)} disabled={assistantScale >= ASSISTANT_SCALE_MAX}
-            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale >= ASSISTANT_SCALE_MAX ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale >= ASSISTANT_SCALE_MAX ? .4 : 1 }}>+</button>
+      {/* Assistente ativo — no celular essa fileira (avatar+nome+controle de
+          tamanho+botão) não cabia numa linha só e os botões −/+ do tamanho
+          ficavam cortados/inalcançáveis; agora empilha em 2 linhas. */}
+      <Card style={{ padding: '14px 18px', marginBottom: 18, display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: isMobile ? 'none' : 1 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: T.surfaceSub || 'rgba(0,0,0,.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.border}` }}>
+            <img src={activeSkin.blink.open} alt={activeSkin.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: T.textT, fontWeight: 600, letterSpacing: '.04em' }}>ASSISTENTE ATUAL</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{activeSkin.name}</div>
+          </div>
         </div>
 
-        {activeAssistant !== 'default' && (
-          <button onClick={() => setActiveAssistantSkin('default')}
-            style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
-            Voltar ao UNIKO padrão
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+          {/* Tamanho do assistente — preferência pessoal (só nesse dispositivo), qualquer usuário pode ajustar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)' }}
+            title="Tamanho do assistente flutuante">
+            <button onClick={() => bumpAssistantScale(-ASSISTANT_SCALE_STEP)} disabled={assistantScale <= ASSISTANT_SCALE_MIN}
+              style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale <= ASSISTANT_SCALE_MIN ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale <= ASSISTANT_SCALE_MIN ? .4 : 1 }}>−</button>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textS, width: 38, textAlign: 'center' }}>{Math.round(assistantScale * 100)}%</span>
+            <button onClick={() => bumpAssistantScale(ASSISTANT_SCALE_STEP)} disabled={assistantScale >= ASSISTANT_SCALE_MAX}
+              style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale >= ASSISTANT_SCALE_MAX ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale >= ASSISTANT_SCALE_MAX ? .4 : 1 }}>+</button>
+          </div>
+
+          {activeAssistant !== 'default' && (
+            <button onClick={() => setActiveAssistantSkin('default')}
+              style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+              Voltar ao UNIKO padrão
+            </button>
+          )}
+        </div>
       </Card>
 
       {/* Busca por nome */}
