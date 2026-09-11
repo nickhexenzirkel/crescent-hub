@@ -1225,6 +1225,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         @keyframes uaBorderSpin{to{--uaAng:360deg}}
         @keyframes uaHeartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1.02)}45%{transform:scale(1.22)}60%{transform:scale(1)}}
         body.uw-active .uniko-assistant{display:none!important}
+        body.up-active .uniko-assistant{display:none!important}
         /* Botões de apagar/editar mensagem do Blog Secreto — cinza neutro (não vermelho o
            tempo todo, senão parece um "X de erro" grudado na mensagem); só ficam vermelho/
            dourado ao passar o mouse NELES. Escondidos até passar o mouse na mensagem —

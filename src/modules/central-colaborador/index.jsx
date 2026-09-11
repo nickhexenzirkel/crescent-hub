@@ -59,7 +59,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     tabRef.current = tab;
     // Marca o body quando está no Uniko Wave (esconde a nav inferior e o botão de confetti)
     document.body.classList.toggle('uw-active', tab === 'unikowave');
-    return () => document.body.classList.remove('uw-active');
+    // Uniko Paint: no iPhone (Safari), o assistente flutuante tampava a área de
+    // desenho e o toolbar — esconde ele enquanto essa aba estiver aberta.
+    document.body.classList.toggle('up-active', tab === 'unikopaint');
+    return () => { document.body.classList.remove('uw-active'); document.body.classList.remove('up-active'); };
   }, [tab]);
 
   // Convite de jogo aceito → abre a aba do jogo (Uniko Paint / Stop). Checa ao montar
