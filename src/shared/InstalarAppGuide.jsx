@@ -54,7 +54,7 @@ export const InstalarAppGuide = () => {
         style={{ position: 'fixed', bottom: 78, right: 20, zIndex: 10, display: 'flex', alignItems: 'center', gap: 9,
           padding: '9px 20px 9px 10px', borderRadius: 28, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 700,
           border: `2px solid ${T.gold}`, outline: 'none', color: T.text,
-          background: isDark ? 'linear-gradient(135deg,#241f14,#1c1710 45%,#161209)' : 'linear-gradient(135deg,#fbf5ea,#f2e8d5 45%,#f5efe4)',
+          background: isDark ? 'linear-gradient(135deg,#1c2733,#141d27 45%,#101820)' : 'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
           boxShadow:'0 4px 14px rgba(0,0,0,.10)',
           animation: 'iagBtnGlow 2.6s ease-in-out infinite' }}>
         <span style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
