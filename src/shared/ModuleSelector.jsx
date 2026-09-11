@@ -301,16 +301,18 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <InstalarAppGuide/>
 
       {authUser&&(
-        <div style={{position:'fixed',top:16,right:20,width:116,display:'flex',flexDirection:'column',
-          alignItems:'center',gap:7,padding:'12px 10px 10px',borderRadius:20,zIndex:10,
+        <div style={{position:'fixed',top:16,right:20,width:210,display:'flex',flexDirection:'column',
+          gap:9,padding:'12px 12px 10px',borderRadius:20,zIndex:10,
           background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL}}>
-          <AvatarCircle name={authUser.name} photo={userPhoto} size={52} fontSize={18} rounded="16px"/>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:13,fontWeight:700,color:T.text,maxWidth:96,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-              {authUser.name.split(' ')[0]}
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <AvatarCircle name={authUser.name} photo={userPhoto} size={76} fontSize={26} rounded="18px"/>
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{fontSize:14.5,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                {authUser.name.split(' ')[0]}
+              </div>
+              {isAdmin&&<span style={{display:'inline-block',marginTop:4,fontSize:9,color:T.gold,fontWeight:700,padding:'1px 5px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
+              {isModerador&&<span style={{display:'inline-block',marginTop:4,fontSize:9,color:'#4A78C4',fontWeight:700,padding:'1px 5px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
             </div>
-            {isAdmin&&<span style={{fontSize:9,color:T.gold,fontWeight:700,padding:'1px 5px',borderRadius:4,background:`${T.gold}18`}}>Admin</span>}
-            {isModerador&&<span style={{fontSize:9,color:'#4A78C4',fontWeight:700,padding:'1px 5px',borderRadius:4,background:'rgba(74,120,196,0.14)'}}>Moderador</span>}
           </div>
           <div style={{display:'flex',gap:5,width:'100%'}}>
             <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
