@@ -3,6 +3,8 @@ import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser, saveUserPhoto } from '../../../contexts/user';
 import { Card, StarDivider } from '../../../shared/components';
 import { loadMissionDefs, loadMissionProgress } from '../../../shared/prismaMissions';
+import { NAV } from '../Sidebar';
+import { loadRecentTabs } from '../recentTabs';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
@@ -99,6 +101,9 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete, captureCfg = null }) => {
+  // Acessos recentes: lido uma vez ao montar (essa aba remonta toda vez que
+  // se volta pra Início, então já pega o histórico atualizado sozinha).
+  const [recentItems] = useState(() => loadRecentTabs().map(id => NAV.find(n => n.id === id)).filter(Boolean));
   const [lembs,     setLembs]     = useState([]);
   const [notas,     setNotas]     = useState([]);
   const [prismas,   setPrismas]   = useState({ comum: 0, premium: 0 });
@@ -492,6 +497,28 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <StarDivider my={0} dim/>
         </div>
       </div>
+
+      {/* ══ ACESSOS RECENTES — últimas abas visitadas (Uniko Paint, Banco de Horas...) ══ */}
+      {recentItems.length > 0 && (
+        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.textT,letterSpacing:'.08em',textTransform:'uppercase',marginBottom:10}}>
+            Acessos recentes
+          </div>
+          <div style={{display:'flex',gap:9,overflowX:'auto',paddingBottom:2}}>
+            {recentItems.map(item => (
+              <button key={item.id} onClick={()=>setTab(item.id)}
+                style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,padding:'8px 14px 8px 10px',borderRadius:12,
+                  border:`1px solid ${T.border}`,background:T.page,cursor:'pointer',fontFamily:'var(--font-body)',
+                  transition:'border-color .14s,background .14s'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.goldLine||T.gold; e.currentTarget.style.background=T.goldGl;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background=T.page;}}>
+                <span style={{color:T.textS,display:'flex'}}>{item.icon}</span>
+                <span style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ══ CONTAGEM DE FÉRIAS — só aparece pra quem está na lista seleta ══ */}
       {myVacation && vacationCountdown && (

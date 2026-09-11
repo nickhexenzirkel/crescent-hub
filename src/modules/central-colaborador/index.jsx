@@ -3,6 +3,7 @@ import { T, applyTheme } from '../../contexts/theme';
 import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete, shrinkPhoto } from '../../contexts/user';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { NAV_FOR } from './Sidebar';
+import { recordRecentTab } from './recentTabs';
 import { SettingsModal } from '../../shared/SettingsModal';
 import { Sidebar, TopBar } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
@@ -62,6 +63,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     // Uniko Paint: no iPhone (Safari), o assistente flutuante tampava a área de
     // desenho e o toolbar — esconde ele enquanto essa aba estiver aberta.
     document.body.classList.toggle('up-active', tab === 'unikopaint');
+    // Widget "Acessos recentes" da Início — grava toda troca de aba.
+    recordRecentTab(tab);
     return () => { document.body.classList.remove('uw-active'); document.body.classList.remove('up-active'); };
   }, [tab]);
 
