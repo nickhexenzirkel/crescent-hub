@@ -102,6 +102,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const cardPosRef = useRef(cardPos);
   const cardElRef  = useRef(null);
   const cardDragRef = useRef(null);
+  // Área da órbita se encolhe (bolhas, mascote e anéis juntos, sem perder as
+  // proporções) até caber na altura disponível da tela — sem isso, em telas
+  // de notebook mais baixas, o rodapé (tagline) só aparecia rolando a página.
+  const orbitAreaRef = useRef(null);
+  const [orbitScale, setOrbitScale] = useState(1);
   const [draggingCard, setDraggingCard] = useState(false);
   useEffect(() => { cardPosRef.current = cardPos; }, [cardPos]);
   // O card só pode DESCANSAR em um dos 4 cantos da tela (não em qualquer
@@ -159,6 +164,20 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     setDraggingCard(true);
   };
   const isMobile = useIsMobile();
+  useEffect(() => {
+    if (isMobile) return;
+    const el = orbitAreaRef.current; if (!el) return;
+    const calc = () => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (!w || !h) return;
+      const s = Math.min(w / 1180, h / 720, 1);
+      setOrbitScale(s > 0 ? s : 1);
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isMobile]);
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
   // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
@@ -401,8 +420,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   };
 
   return(
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
-      position:'relative',zIndex:1,padding:'22px 34px 26px'}}>
+    <div style={{height:'100vh',overflow:'hidden',display:'flex',flexDirection:'column',
+      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box'}}>
 
       {authUser&&(
         <div ref={cardElRef} style={{position:'fixed',
@@ -491,9 +510,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       )}
 
-      {/* ── Órbita: anéis decorativos + mascote central + bolhas dos módulos ── */}
-      <div className="fsu2" style={{position:'relative',width:'100%',maxWidth:1180,aspectRatio:'1180/720',
-        margin:'10px auto 0',flex:'0 0 auto'}}>
+      {/* ── Órbita: anéis decorativos + mascote central + bolhas dos módulos ──
+          A área abaixo ocupa o espaço vertical que sobrar (flex:1) e mede a si
+          mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
+          proporções, até caber sem precisar rolar a página. */}
+      <div ref={orbitAreaRef} style={{flex:'1 1 0',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',width:'100%'}}>
+      <div className="fsu2" style={{position:'relative',width:1180*orbitScale,height:720*orbitScale,flex:'0 0 auto'}}>
         <svg viewBox="0 0 1180 720" style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
           <ellipse cx="590" cy="360" rx="519" ry="252" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".22"/>
           <ellipse cx="590" cy="360" rx="440" ry="211" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".15"/>
@@ -516,11 +538,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </svg>
 
         <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
-          <UnikoMascot size={168}/>
+          <UnikoMascot size={168*orbitScale}/>
         </div>
 
         {orbitMods.map((m,i)=>{
           const p = orbitPt(i);
+          const bd = 178*orbitScale;
           return (
             <div key={m.id}
               draggable={reorderMode}
@@ -531,25 +554,29 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               onClick={reorderMode ? undefined : ()=>onSelect(m.id)}
               onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
               style={{position:'absolute',left:`${p.left}%`,top:`${p.top}%`,transform:'translate(-50%,-50%)',
-                width:178,height:178,borderRadius:'50%',zIndex:3,
-                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,
-                textAlign:'center',padding:'0 16px',boxSizing:'border-box',
+                width:bd,height:bd,borderRadius:'50%',zIndex:3,
+                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4*orbitScale,
+                textAlign:'center',padding:`0 ${16*orbitScale}px`,boxSizing:'border-box',
                 background:T.surface,
                 border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}` : `1.5px solid ${hov===m.id?m.color+'77':T.border}`,
-                boxShadow:hov===m.id?T.shL:T.sh,
+                // 3 camadas de aura ao redor da bolha (mesma ideia da foto de perfil
+                // no Portal do Colaborador), na cor do próprio módulo — a maioria já
+                // usa o dourado do tema, então a aura acompanha o tema automaticamente.
+                boxShadow:`0 0 0 ${6*orbitScale}px ${m.color}26, 0 0 0 ${13*orbitScale}px ${m.color}12, 0 0 0 ${21*orbitScale}px ${m.color}07, ${hov===m.id?T.shL:T.sh}`,
                 cursor:reorderMode?'grab':'pointer',
                 opacity:dragModId===m.id?0.4:1,
                 transition:'transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .18s',
                 ...(!reorderMode && hov===m.id ? {transform:'translate(-50%,-50%) scale(1.06)'} : null)}}>
-              <div style={{width:46,height:46,borderRadius:13,background:m.bg,border:`1px solid ${m.color}22`,
+              <div style={{width:46*orbitScale,height:46*orbitScale,borderRadius:13*orbitScale,background:m.bg,border:`1px solid ${m.color}22`,
                 display:'flex',alignItems:'center',justifyContent:'center',color:m.color,marginBottom:2}}>
-                {React.cloneElement(m.icon, {width:23,height:23})}
+                {React.cloneElement(m.icon, {width:23*orbitScale,height:23*orbitScale})}
               </div>
-              <div style={{fontSize:16,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
-              <div style={{fontSize:11,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
+              <div style={{fontSize:16*orbitScale,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
+              <div style={{fontSize:11*orbitScale,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
             </div>
           );
         })}
+      </div>
       </div>
 
       {/* ── Rodapé: tagline de marca à esquerda · assinatura à direita ── */}
