@@ -1103,6 +1103,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // Re-encaixa na tela quando o tamanho do robô muda (troca de skin: ex. Vampire-Robot é maior)
   // — sempre a partir do dock RELATIVO salvo, não da posição em pixels que já estava na tela.
   useEffect(() => { setPos(dockToPixels(loadDock(), ICON, MARGIN)); }, [ICON, MARGIN]);
+  // Portal do Colaborador tem sidebar fixa à esquerda — se o robô estiver docado
+  // do lado esquerdo, desloca ele pro direito só visualmente (sem chamar saveDock)
+  // pra não cobrir a barra lateral. Some do Portal e ele volta sozinho pro lado
+  // esquerdo que o usuário escolheu, porque a preferência salva nunca muda aqui.
+  useEffect(() => {
+    const dock = loadDock();
+    if (inPortal && dock.side === 'left') setPos(dockToPixels({ ...dock, side: 'right' }, ICON, MARGIN));
+    else setPos(dockToPixels(dock, ICON, MARGIN));
+  }, [inPortal, ICON, MARGIN]);
   // Mantém o robô no canto/altura relativa escolhida quando a janela muda de tamanho (resize
   // OU zoom do navegador) — recalcula do dock salvo em vez de só limitar a posição antiga
   // (isso é o que fazia o robô "flutuar" no meio da tela ao encolher a janela pela metade).
