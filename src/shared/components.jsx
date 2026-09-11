@@ -1,32 +1,78 @@
-import React, { useState, useMemo } from 'react';
-import { T } from '../contexts/theme';
-import { bolhaGradiente } from './bolhas';
+import React, { useState, useMemo, useEffect } from 'react';
+import { T, onThemeChange } from '../contexts/theme';
+import { bolhaGradiente, comAlfa, paletaDeBolhas } from './bolhas';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
 
-/* Fundo estilo "Apple Music": blobs grandes e suaves em posições aleatórias, deslizando e
-   morfando devagar, com as cores da paleta do tema atual (T.b1..T.b7). */
-const LAVA_ANIMS = ['mlA','mlB','mlC','mlD'];
+/* ══════════════════════════════════════════════════════════════════════════
+   LAVA LAMP — o fundo animado que aparece em todas as telas
+
+   Foi refeito em set/2026 espelhando o fundo do Festival da Central Alexa,
+   que é o que ficou bonito: mais bolhas (10 contra 8), tamanhos bem
+   diferentes entre si, e não só círculos — entram faixas largas e achatadas
+   e uma coluna alta, que é o que dá a sensação de massa se movendo em vez de
+   sete bolas do mesmo tamanho passeando.
+
+   Duas coisas que faziam ele quase não aparecer no Seletor de Módulos:
+   • o Seletor pintava `background: T.page` OPACO por cima — o lava lamp
+     ficava lá atrás, rodando pra ninguém (ver ModuleSelector);
+   • o véu de cima (T.blobVeil, alfa .58) lavava o que sobrava. Agora ele
+     entra com metade da força, o suficiente pra manter texto legível.
+
+   Sobre cor: o tema traz 7 tons de bolha, e repetir 7 em 10 bolhas deixava o
+   fundo monótono. paletaDeBolhas (shared/bolhas.js) estica isso pra 14,
+   misturando cada cor com a vizinha — mais variedade sem sair do tema.
+
+   Nada aqui usa `filter: blur()`: a queda suave vem pronta no degradê. Ver
+   o comentário em shared/bolhas.js pro porquê (era o que travava o app).
+══════════════════════════════════════════════════════════════════════════ */
+const LAVA_ANIMS = ['mlA','mlB','mlC','mlD','mlE','mlF'];
+
+/* Geometria copiada do Festival da Central Alexa. w/h em vw (a coluna usa vh
+   na altura); pos é onde a bolha se ancora. */
+const LAVA_BLOBS = [
+  { w:'58vw', h:'58vw', pos:{ top:'-18vw', left:'-12vw'  }, dur:14 },
+  { w:'50vw', h:'50vw', pos:{ top:'-12vw', right:'-8vw'  }, dur:17 },
+  { w:'48vw', h:'48vw', pos:{ bottom:'-12vw', left:'-8vw' }, dur:12 },
+  { w:'44vw', h:'44vw', pos:{ bottom:'-8vw', right:'-6vw' }, dur:15 },
+  { w:'38vw', h:'38vw', pos:{ top:'30%',   left:'31%'    }, dur:11 },
+  { w:'70vw', h:'30vw', pos:{ top:'-5vw',  left:'10%'    }, dur:19, forma:'ellipse' },
+  { w:'70vw', h:'30vw', pos:{ bottom:'-5vw', left:'5%'   }, dur:16, forma:'ellipse' },
+  { w:'28vw', h:'80vh', pos:{ top:'5%',    left:'38%'    }, dur:22, forma:'ellipse' },
+  { w:'36vw', h:'36vw', pos:{ top:'20%',   right:'5%'    }, dur:13, reverso:true },
+  { w:'32vw', h:'32vw', pos:{ top:'40%',   left:'2%'     }, dur:18, reverso:true },
+];
 
 const LavaLamp = () => {
-  // Posições/tempos sorteados uma vez por carga (random); as cores são lidas a cada render
-  // (acompanham a troca de tema). 8 blobs espalhados por âncoras + jitter pra cobrir a tela.
-  const blobs = useMemo(() => {
-    const anchors = [[-16,-16],[42,-20],[78,8],[-20,42],[30,58],[68,52],[8,18],[50,28]];
-    const r = (a,b)=>a+Math.random()*(b-a);
-    return anchors.map((p,i)=>({
-      ci:i % 7,
-      size: r(40,58),                       // vw
-      left: p[0]+r(-8,8),                    // %
-      top:  p[1]+r(-8,8),                    // %
+  /* T é um objeto mutável e este componente vive no App, fora da tela que
+     troca o tema — sem ouvir o aviso, ele continuaria com as cores antigas
+     (era por isso que o Seletor de Módulos precisava tapar o fundo). */
+  const [, redesenha] = useState(0);
+  useEffect(() => onThemeChange(() => redesenha(n => n + 1)), []);
+
+  /* Sorteado uma vez por carga: qual tom cada bolha pega, qual animação segue
+     e com que atraso entra. Só as posições/tempos — as cores são lidas a cada
+     render, pra acompanharem a troca de tema. */
+  const bolhas = useMemo(() => {
+    const r = (a,b) => a + Math.random()*(b-a);
+    return LAVA_BLOBS.map((b,i) => ({
+      ...b,
+      tom: i,
       anim: LAVA_ANIMS[i % LAVA_ANIMS.length],
-      dur:  r(13,22),                        // s
-      delay:-r(0,14),                        // s
+      delay: -r(0, b.dur),
     }));
   }, []);
-  const cols = [T.b1,T.b2,T.b3,T.b4,T.b5,T.b6,T.b7];
+
+  const tons = paletaDeBolhas(T);
+  const cor = (i) => tons[(i * 3) % tons.length];   // passo 3: vizinhas nunca repetem o tom
+
+  /* Base: em vez de uma cor chapada, um banho em diagonal com vários tons do
+     tema (é o que a Central Alexa faz). Sozinho ele já dá profundidade
+     mesmo antes de qualquer bolha entrar em quadro. */
+  const banho = `linear-gradient(135deg, ${comAlfa(cor(0),.42)}, ${comAlfa(cor(4),.3)}, `
+              + `${comAlfa(cor(7),.34)}, ${comAlfa(cor(2),.26)}, ${comAlfa(cor(9),.3)})`;
+
   // A classe "lava-lamp" é o que o diagnóstico de performance (Ctrl+Alt+P,
-  // tecla 2) usa pra apagar o fundo e medir quanto ele custa — ver
-  // shared/diagnosticoPerf.jsx e as regras .pd-* no index.css.
+  // tecla 2) usa pra apagar o fundo e medir quanto ele custa.
   return (
     <div className="lava-lamp" style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       <style>{`
@@ -34,20 +80,26 @@ const LavaLamp = () => {
         @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-15vw,8vw) scale(1.22)}80%{transform:translate(10vw,-7vw) scale(.84)}}
         @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vw,12vw) scale(1.32)}}
         @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-12vw,-9vw) scale(1.3)}70%{transform:translate(9vw,7vw) scale(.78)}}
+        @keyframes mlE{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(8vw,6vw) scale(1.15)}55%{transform:translate(-9vw,-5vw) scale(.88)}80%{transform:translate(5vw,-8vw) scale(1.1)}}
+        @keyframes mlF{0%,100%{transform:translate(0,0) scale(1.04)}45%{transform:translate(-7vw,10vw) scale(.82)}75%{transform:translate(12vw,-6vw) scale(1.24)}}
       `}</style>
       <div style={{position:'absolute',inset:0,background:T.blobBase}}/>
-      {blobs.map((b,i)=>(
+      <div style={{position:'absolute',inset:0,background:banho}}/>
+      {bolhas.map((b,i)=>(
         <div key={i} style={{position:'absolute',
-          width:`${b.size}vw`, height:`${b.size}vw`, borderRadius:'50%',
-          top:`${b.top}%`, left:`${b.left}%`,
-          background:bolhaGradiente(cols[b.ci]),
+          width:b.w, height:b.h, borderRadius:'50%', ...b.pos,
+          background:bolhaGradiente(cor(b.tom), b.forma || 'circle'),
           willChange:'transform',
-          animation:`${b.anim} ${b.dur}s ease-in-out infinite`, animationDelay:`${b.delay}s`}}/>
+          animation:`${b.anim} ${b.dur}s ease-in-out infinite${b.reverso?' reverse':''}`,
+          animationDelay:`${b.delay}s`}}/>
       ))}
-      <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>
+      {/* Véu: segura o contraste do texto por cima, mas com metade da força de
+          antes — no ajuste anterior ele apagava as bolhas quase por completo. */}
+      <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.5)}}/>
     </div>
   );
 };
+
 const Moon = ({size=32, color=T.goldL, opacity=0.45, float=false}) => (
   <svg width={size} height={size} viewBox="0 0 32 32"
     style={{opacity, flexShrink:0, animation:float?'moonFloat 4s ease-in-out infinite':undefined}}>

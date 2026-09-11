@@ -362,6 +362,22 @@ const applyTheme = (key) => {
   document.documentElement.style.setProperty(
     '--scroll-color', THEMES[key].goldLine + '55'
   );
+  /* T é um objeto mutável: quem já renderizou não fica sabendo que as cores
+     mudaram. A maioria das telas resolve isso re-renderizando junto (o tema é
+     trocado de dentro delas), mas quem vive FORA da tela ativa — o lava lamp
+     do fundo, montado lá no App — não re-renderiza e ficava com as cores do
+     tema anterior. Daí este aviso: quem depende de T e não está na árvore de
+     quem trocou o tema escuta THEME_EVENT e se redesenha. */
+  try { window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: key })); } catch { /* SSR/teste */ }
 };
 
-export { FONTS, THEMES, T, applyTheme };
+const THEME_EVENT = 'uniko-tema:mudou';
+
+/* Re-renderiza o componente sempre que o tema mudar, de qualquer lugar do app. */
+const onThemeChange = (cb) => {
+  const h = (e) => cb(e.detail);
+  window.addEventListener(THEME_EVENT, h);
+  return () => window.removeEventListener(THEME_EVENT, h);
+};
+
+export { FONTS, THEMES, T, applyTheme, THEME_EVENT, onThemeChange };

@@ -401,8 +401,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
   if (isMobile) {
     return (
+      // idem desktop: sem fundo opaco, pra o lava lamp do App aparecer aqui também
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column',
-        background:T.page, fontFamily:'var(--font-body)', position:'relative', zIndex:0}}>
+        fontFamily:'var(--font-body)', position:'relative', zIndex:0}}>
 
         <style>{`.mob-card { -webkit-tap-highlight-color: transparent; }
           @keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(90px,90px)}72%,100%{opacity:0;transform:translate(115px,115px)}}`}</style>
@@ -533,15 +534,16 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const aneis = [1, 0.845, 0.69].map(k => ({ rx: RXpx * k, ry: RYpx * k }));
 
   return(
-    // background:T.page precisa estar aqui, e não só no wrapper do App.jsx —
-    // aquele wrapper só repinta quando o PRÓPRIO App re-renderiza, e trocar
-    // de tema aqui dentro (activeTheme é estado local do ModuleSelector) não
-    // causa isso. Resultado: o fundo ficava com a cor do tema ANTERIOR
-    // enquanto textos/bolhas já mostravam a cor nova (baixo contraste, tudo
-    // "sumindo"). Lendo T.page no próprio render do ModuleSelector, ele sai
-    // sempre atualizado junto com o resto.
+    // SEM background aqui. Tinha um `background: T.page` opaco nesta div, e
+    // era ele que escondia o lava lamp do App — o fundo animado rodava atrás,
+    // tapado, e esta tela parecia ter fundo chapado. Ele existia porque o
+    // wrapper do App só repinta quando o PRÓPRIO App re-renderiza, e trocar de
+    // tema aqui dentro (activeTheme é estado local desta tela) não causa isso:
+    // o fundo ficava com a cor do tema anterior. Agora quem resolve isso é o
+    // aviso de troca de tema (onThemeChange, em contexts/theme.js), que o
+    // lava lamp escuta e se redesenha sozinho — e é ele que pinta o fundo.
     <div style={{height:'100vh',overflow:'hidden',display:'flex',flexDirection:'column',
-      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box',background:T.page}}>
+      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box'}}>
 
       <style>{`@keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(140px,140px)}72%,100%{opacity:0;transform:translate(180px,180px)}}`}</style>
       <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
