@@ -61,9 +61,11 @@ const UnikoBrandArt = () => (
     <style>{BRAND_CSS}</style>
     <svg viewBox="0 0 600 230" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
       <defs>
+        {/* Cores do TEMA ativo (T.gold/T.goldL/T.goldV) — não fixas em azul:
+            azul no tema azul, rosa no tema rosa, e assim por diante. */}
         <linearGradient id="ubCometGrad" gradientUnits="userSpaceOnUse" x1="190" y1="84" x2="588" y2="2">
-          <stop offset="0%" stopColor="#2E7BFF" stopOpacity="0"/>
-          <stop offset="55%" stopColor="#4AA6FF" stopOpacity=".9"/>
+          <stop offset="0%" stopColor={T.gold} stopOpacity="0"/>
+          <stop offset="55%" stopColor={T.goldL} stopOpacity=".9"/>
           <stop offset="100%" stopColor="#ffffff"/>
         </linearGradient>
         {/* userSpaceOnUse (não objectBoundingBox): o "I" é uma linha reta pura —
@@ -72,17 +74,17 @@ const UnikoBrandArt = () => (
             não é desenhado (a letra sumia por completo, sem erro nenhum). */}
         <linearGradient id="ubTextGrad" gradientUnits="userSpaceOnUse" x1="0" y1="18" x2="0" y2="112">
           <stop offset="0%" stopColor="#ffffff"/>
-          <stop offset="100%" stopColor="#CFE7FF"/>
+          <stop offset="100%" stopColor={T.goldV}/>
         </linearGradient>
       </defs>
 
-      {/* halo azul atrás do mascote */}
-      <ellipse cx="105" cy="120" rx="115" ry="118" fill="#2E7BFF" opacity=".22" style={{filter:'blur(14px)'}}/>
+      {/* halo atrás do mascote */}
+      <ellipse cx="105" cy="120" rx="115" ry="118" fill={T.gold} opacity=".22" style={{filter:'blur(14px)'}}/>
 
       {/* laço/rastro sob o mascote */}
       <path className="ub-swirl" d="M10,150 C-6,188 26,220 88,216 C138,213 162,188 154,158"
-        fill="none" stroke="#4AA6FF" strokeWidth="3" strokeLinecap="round" opacity=".55"
-        strokeDasharray="10 8" style={{animation:'ubFlow 5s linear infinite',filter:'drop-shadow(0 0 4px #2E7BFF)'}}/>
+        fill="none" stroke={T.goldL} strokeWidth="3" strokeLinecap="round" opacity=".55"
+        strokeDasharray="10 8" style={{animation:'ubFlow 5s linear infinite',filter:`drop-shadow(0 0 4px ${T.gold})`}}/>
 
       {/* cometa em arco por cima (igual à referência) */}
       <path d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
@@ -90,7 +92,7 @@ const UnikoBrandArt = () => (
       <path className="ub-comet-core" d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
         strokeWidth="2.4" strokeLinecap="round" strokeDasharray="6 340" style={{animation:'ubFlow 3.2s linear infinite'}}/>
       <circle cx="585" cy="4" r="4.5" fill="#ffffff"
-        style={{filter:'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px #4AA6FF)'}}/>
+        style={{filter:`drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px ${T.goldL})`}}/>
 
       {/* mascote — 3 quadros empilhados fazem a piscada (mesma técnica do
           UnikoMascot em ModuleSelector.jsx): fechado embaixo sempre visível,
@@ -104,7 +106,7 @@ const UnikoBrandArt = () => (
 
       {/* wordmark UNIKO */}
       <g transform="translate(204,44) scale(0.72)" fill="none" strokeLinecap="round" strokeLinejoin="round"
-        style={{filter:'drop-shadow(0 0 5px #2E7BFF) drop-shadow(0 0 13px #2E7BFF)'}}>
+        style={{filter:`drop-shadow(0 0 5px ${T.gold}) drop-shadow(0 0 13px ${T.gold})`}}>
         <g stroke="url(#ubTextGrad)" strokeWidth="30">
           {UB_LETTERS.map((d,i) => <path key={i} d={d}/>)}
         </g>
@@ -114,15 +116,15 @@ const UnikoBrandArt = () => (
           userSpaceOnUse no espaço LOCAL do <g> da wordmark, não bate aqui fora) */}
       <text x="204" y="170" fontFamily="Poppins, var(--font-brand)" fontWeight="800" fontSize="25"
         letterSpacing="1.2" fill="#EAF2FA"
-        style={{filter:'drop-shadow(0 0 4px #2E7BFF) drop-shadow(0 0 9px #2E7BFF)'}}>
+        style={{filter:`drop-shadow(0 0 4px ${T.gold}) drop-shadow(0 0 9px ${T.gold})`}}>
         PORTAL DO COLABORADOR
       </text>
-      <path d="M204,181 L585,181" stroke="#4AA6FF" strokeWidth="2" opacity=".6" strokeLinecap="round"/>
+      <path d="M204,181 L585,181" stroke={T.goldL} strokeWidth="2" opacity=".6" strokeLinecap="round"/>
 
       {/* poeira de estrelas ✦ */}
       {UB_SPARKLES.map((s,i) => (
         <path key={i} className="ub-spark" d={ubSparkPath(s.cx,s.cy,s.r)} fill="#ffffff"
-          style={{transformOrigin:`${s.cx}px ${s.cy}px`,filter:'drop-shadow(0 0 4px #bfe0ff)',
+          style={{transformOrigin:`${s.cx}px ${s.cy}px`,filter:`drop-shadow(0 0 4px ${T.goldL})`,
             animation:`ubTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`}}/>
       ))}
     </svg>
