@@ -125,7 +125,7 @@ export const UnikoOrigin = () => {
         <span style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
           background:`linear-gradient(135deg,${T.blue},#4AA6FFcc)` }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="#fff" stroke="none"/>
+            <circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.8 2.8 0 015.4 1c0 1.8-2.6 2.3-2.6 3.7"/><circle cx="12" cy="17" r="1" fill="#fff" stroke="none"/>
           </svg>
         </span>
         Sobre o Uniko...
