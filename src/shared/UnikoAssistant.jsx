@@ -11,6 +11,7 @@ import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress, loadMissionDefs, GAME_LABEL } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange } from './assistantSkin';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
 // Sem entrada aqui → cai no `default` (azul clássico).
@@ -528,9 +529,17 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // fixo) ficava em desvantagem/vantagem injusta. Volta pra escala pessoal assim que o
   // Uniko é capturado por alguém (ou o evento esgota) — `captureAlert` já vira null nesse
   // momento (ver onCaptureState abaixo).
+  const isMobile = useIsMobile();
   const effectiveScale = captureAlert ? 1 : scale;
-  const ICON = Math.round((skin.iconSize || 84) * effectiveScale);     // tamanho do robô (skin × preferência pessoal)
-  const MARGIN = Math.round((skin.edgeMargin ?? 12) * effectiveScale); // distância das bordas (escala junto)
+  // No celular a preferência de tamanho (0.6–1.8×) podia gerar um robô de até
+  // ~210px — quase metade da largura da tela, impossibilitando tocar em qualquer
+  // coisa perto dele. Teto de 60px no mobile, sem mexer na preferência salva
+  // (ela continua valendo normal no desktop e volta a valer se abrir num
+  // aparelho maior).
+  const MOBILE_ICON_MAX = 60;
+  const mobileScale = isMobile ? Math.min(effectiveScale, MOBILE_ICON_MAX / (skin.iconSize || 84)) : effectiveScale;
+  const ICON = Math.round((skin.iconSize || 84) * mobileScale);     // tamanho do robô (skin × preferência pessoal, com teto no mobile)
+  const MARGIN = Math.round((skin.edgeMargin ?? 12) * mobileScale); // distância das bordas (escala junto)
   const iconRef = useRef(ICON); iconRef.current = ICON;
   const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
