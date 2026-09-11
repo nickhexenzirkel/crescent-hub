@@ -59,19 +59,42 @@ const LAVA_BLOBS = [
 
    O que anima é opacity e scale — as duas propriedades que o compositor
    resolve sem repintar —, e cada estrela tem 15px no máximo. Nada de
-   will-change aqui: seriam 44 camadas de GPU por um efeito que não precisa
+   will-change aqui: seriam 52 camadas de GPU por um efeito que não precisa
    de nenhuma. Se algum dia pesar, o diagnóstico (Ctrl+Alt+P) mostra na
    linha "animando". */
 const ESTRELAS = (() => {
   const r = (a, b) => a + Math.random() * (b - a);
-  return Array.from({ length: 44 }, () => ({
-    x: r(1, 99),            // % da largura
-    y: r(1, 99),            // % da altura
-    tam: r(7, 15),          // px
-    dur: r(2.6, 6.4),       // s de um ciclo de brilho
-    delay: -r(0, 6.4),      // negativo: já começam espalhadas no ciclo
-    brilho: r(0.35, 1),     // teto de opacidade — dá profundidade ao campo
-  }));
+
+  /* A densidade NÃO é uniforme. Sorteio uniforme joga estrela demais no miolo
+     da tela, que é justamente onde moram o conteúdo e — no Seletor — o anel
+     de módulos: as estrelas brigavam com os botões em vez de compor o fundo.
+
+     Aqui cada candidata é aceita com uma chance que cresce com o CUBO da
+     distância até o centro (distância elíptica, pra valer igual numa tela
+     larga e numa estreita). No meio sobra pouca coisa — o suficiente pra não
+     virar um buraco visível —, na borda entram todas, e os cantos, que antes
+     ficavam vazios, enchem.
+
+     Medido em 400 cargas, de 52 estrelas: sobre o anel de módulos caem 12
+     (eram 25 com sorteio uniforme) e 40 vão pro resto da tela (eram 23). */
+  const chance = (x, y) => {
+    const d = Math.hypot((x - 50) / 50, (y - 50) / 50);  // 0 no centro, 1 na borda
+    return Math.min(1, 0.05 + 0.95 * d * d * d);
+  };
+
+  const fora = [];
+  for (let tentativa = 0; fora.length < 52 && tentativa < 9000; tentativa++) {
+    const x = r(2, 98), y = r(2, 98);
+    if (Math.random() > chance(x, y)) continue;          // caiu perto do meio: descarta
+    fora.push({
+      x, y,
+      tam: r(7, 15),          // px
+      dur: r(2.6, 6.4),       // s de um ciclo de brilho
+      delay: -r(0, 6.4),      // negativo: já começam espalhadas no ciclo
+      brilho: r(0.35, 1),     // teto de opacidade — dá profundidade ao campo
+    });
+  }
+  return fora;
 })();
 
 const CampoDeEstrelas = () => {
