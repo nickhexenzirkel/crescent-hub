@@ -1400,6 +1400,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // Mini-player fixo (estilo Spotify) — só no celular, some/aparece sozinho
   // conforme tem música tocando; toque nele abre a tela cheia "Tocando Agora".
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  // Dentro da tela cheia "Tocando Agora", alterna entre o player (capa/controles)
+  // e a Fila Democrática — sem precisar sair pra aba Festival só pra ver/pular fila.
+  const [queueViewOpen, setQueueViewOpen] = useState(false);
 
   // Lê a skin do DJ da música atual do Supabase para todos os clientes
   useEffect(() => {
@@ -2714,6 +2717,235 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // (2) as 8 blobs animadas `filter: blur(95px)` que ficavam por cima do vídeo.
   const festBgVideo = tab==="festival" ? (unikoDaSkin(songSkin)?.bgVideoUrl || '') : '';
 
+  // Card da "Fila Democrática" (tocando agora + a seguir) — extraído em função
+  // pra poder ser reaproveitado tanto na aba Festival quanto dentro da tela
+  // cheia "Tocando Agora" no celular (botão "Ver fila").
+  const renderQueueCard = () => (
+              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
+                <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                  <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text,flexShrink:0}}>Fila Democrática</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    {/* Contador de limite para colaboradores */}
+                    {!isAdmin && (() => {
+                      const myActive = queue.filter(s => s.requested_by === myName && ['pending','playing'].includes(s.status)).length;
+                      const remaining = 2 - myActive;
+                      return (
+                        <span style={{
+                          fontSize:10, fontWeight:600,
+                          color: remaining===0 ? "#C04050" : remaining===1 ? "#E08030" : T.gold,
+                          background: remaining===0 ? "rgba(192,64,80,0.08)" : remaining===1 ? "rgba(224,128,48,0.08)" : T.goldGl,
+                          border: `1px solid ${remaining===0 ? "rgba(192,64,80,0.3)" : remaining===1 ? "rgba(224,128,48,0.3)" : T.goldLine+"44"}`,
+                          padding:"2px 7px", borderRadius:5,
+                        }}>
+                          {remaining===0 ? "⛔ Limite atingido" : `🎵 ${remaining} vaga${remaining===1?"":"s"}`}
+                        </span>
+                      );
+                    })()}
+                    <span style={{fontSize:11,color:T.textT}}>
+                      {queue.length} {queue.length===1?"música":"músicas"}
+                      {queue.length > 0 && (() => {
+                        const totalMs = queue.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
+                        const totalMin = Math.round(totalMs / 60000);
+                        const h = Math.floor(totalMin / 60);
+                        const m = totalMin % 60;
+                        const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                        return ` · ${dur}`;
+                      })()}
+                    </span>
+                    {/* Botão Limpar Fila — somente admin */}
+                    {isAdmin && queue.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Limpar toda a fila? Esta ação não pode ser desfeita.')) return;
+                          // Tenta via servidor; independente do resultado, limpa direto no Supabase
+                          api('delete', '/api/queue').catch(() => {});
+                          await _supabase.from('queue').update({ status: 'removed' }).in('status', ['pending', 'playing']);
+                          await _supabase.from('player_state').upsert({ id: 1, is_playing: false, current_song_id: null, current_spotify_id: null, updated_at: new Date().toISOString() });
+                          loadQueue();
+                          loadPlayerState();
+                        }}
+                        title="Limpar fila (Admin)"
+                        style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,
+                          border:"1.5px solid rgba(192,64,80,0.4)",background:"rgba(192,64,80,0.06)",
+                          color:"#C04050",cursor:"pointer",fontSize:10,fontWeight:700,outline:"none",
+                          transition:"all .15s",flexShrink:0}}
+                        onMouseEnter={e=>{e.currentTarget.style.background="rgba(192,64,80,0.14)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background="rgba(192,64,80,0.06)";}}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        Limpar Fila
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {festLoading
+                  ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
+                      <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite",margin:"0 auto 8px"}}/>
+                      Carregando fila...
+                    </div>
+                  : queue.length===0
+                    ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        Fila vazia! Pesquise uma música acima.
+                      </div>
+                    : (() => {
+                      const sorted = [...queue].sort((a,b)=>{
+                        if (a.status==='playing' && b.status!=='playing') return -1;
+                        if (a.status!=='playing' && b.status==='playing') return 1;
+                        return (a.position||0) - (b.position||0);
+                      });
+                      const playingSong = sorted.find(s => s.status==='playing');
+                      const pending     = sorted.filter(s => s.status!=='playing');
+
+                      const renderRow = (s, idx, isNowPlaying) => {
+                        const votes     = skipVotes[s.id]||0;
+                        const iAmPlaying = isNowPlaying;
+                        const voted     = myVotedSongs.has(s.id);
+                        const isMyOwn   = s.requested_by === myName;
+                        const canDelete = (isMyOwn || isAdmin) && !iAmPlaying;
+                        // Admin pode reordenar músicas pending (não a que está tocando)
+                        const canReorder = isAdmin && !iAmPlaying && pending.length > 1;
+                        const isFirst    = idx === 0;
+                        const isLast     = idx === pending.length - 1;
+                        return (
+                          // No celular a fileira tinha MUITOS ícones fixos (pular, reordenar,
+                          // substituir, remover, duração) disputando espaço numa linha só, e o
+                          // card da fila corta ("overflow:hidden") o que não coubesse — então os
+                          // botões de trocar/pular ficavam literalmente invisíveis e só apareciam
+                          // girando pra paisagem. Com flexWrap eles descem pra 2ª linha em vez de
+                          // sumir cortados.
+                          <div key={s.id} style={{display:"flex",alignItems:"center",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?8:12,padding:isMobile?"10px 12px":"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
+                            {/* EQ / número */}
+                            <div style={{width:22,textAlign:"center",flexShrink:0}}>
+                              {iAmPlaying
+                                ? <div style={{display:"flex",alignItems:"flex-end",gap:1,height:14,justifyContent:"center"}}>
+                                    {[1,2,3].map(j=><div key={j} style={{width:2,borderRadius:1,background:T.gold,animation:`alexaEq${j} ${0.4+j*0.1}s ease-in-out infinite alternate`,minHeight:3}}/>)}
+                                  </div>
+                                : <span style={{fontSize:11,color:T.textD}}>{idx+1}</span>
+                              }
+                            </div>
+                            {/* Capa */}
+                            {s.album_art
+                              ? <img src={s.album_art} alt="" style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,objectFit:"cover",flexShrink:0,boxShadow:iAmPlaying?`0 4px 16px ${T.goldLine}44`:"none",transition:"all .2s"}}/>
+                              : <div style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🎵</div>
+                            }
+                            {/* Título + artista */}
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:iAmPlaying?14:13,fontWeight:iAmPlaying?700:500,color:iAmPlaying?T.gold:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
+                              <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
+                            </div>
+                            {/* Pedido por */}
+                            {(()=>{
+                              const rb = (s.requested_by||'').trim().toLowerCase();
+                              const isSystem = !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
+                              return (
+                                <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+                                  {isSystem
+                                    ? <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                                    : <QueueAvatar
+                                        name={s.requested_by}
+                                        photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
+                                        onExpand={setExpandedPhoto}
+                                      />
+                                  }
+                                  <span style={{fontSize:11,color:T.textT,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                    {isSystem ? 'Uniko' : s.requested_by}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                            {/* Skip — temporariamente apenas admin */}
+                            {iAmPlaying && isAdmin && (
+                              <button onClick={()=>handleVote(s)} title="Pular (Admin)"
+                                style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${T.gold}55`,background:T.goldGl,color:T.gold,cursor:"pointer",fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                                Pular
+                              </button>
+                            )}
+                            {/* Reordenar fila (Admin) */}
+                            {canReorder && (
+                              <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                                <button onClick={()=>moveSong(s,-1)} disabled={isFirst||!!movingId}
+                                  title="Subir na fila (Admin)"
+                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isFirst||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isFirst||movingId)?0.25:0.7,transition:"opacity .15s"}}
+                                  onMouseEnter={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
+                                  onMouseLeave={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                                </button>
+                                <button onClick={()=>moveSong(s,1)} disabled={isLast||!!movingId}
+                                  title="Descer na fila (Admin)"
+                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isLast||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isLast||movingId)?0.25:0.7,transition:"opacity .15s"}}
+                                  onMouseEnter={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
+                                  onMouseLeave={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                                </button>
+                              </div>
+                            )}
+                            {/* Substituir música — própria, ou de qualquer uma se Admin */}
+                            {canDelete && (
+                              <button onClick={()=>openReplace(s)}
+                                title={isMyOwn ? "Substituir minha música" : "Substituir música (Admin)"}
+                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;}}
+                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                              </button>
+                            )}
+                            {/* Deletar música — própria, ou de qualquer um se Admin */}
+                            {canDelete && (
+                              <button onClick={async()=>{ await api('delete',`/api/queue/${s.id}`); loadQueue(); }}
+                                title={isMyOwn ? "Remover minha música" : "Remover música (Admin)"}
+                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
+                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor="rgba(192,64,80,0.4)";e.currentTarget.style.color="#C04050";}}
+                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            )}
+                            <span style={{fontSize:10,color:T.textD,minWidth:28,textAlign:"right"}}>{s.duration_str||"—"}</span>
+                          </div>
+                        );
+                      };
+
+                      return (
+                        <>
+                          {/* ── Tocando Agora ── */}
+                          {playingSong && (
+                            <>
+                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",gap:6,borderBottom:`1px solid ${T.border}`}}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Tocando Agora</span>
+                              </div>
+                              {renderRow(playingSong, 0, true)}
+                            </>
+                          )}
+
+                          {/* ── A Seguir ── */}
+                          {pending.length > 0 && (
+                            <>
+                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,background:isDark?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.02)"}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                                  <span style={{fontSize:10,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".08em"}}>A Seguir — {pending.length} {pending.length===1?"música":"músicas"}</span>
+                                </div>
+                                <span style={{fontSize:10,color:T.textT}}>{VETO} votos = skip automático</span>
+                              </div>
+                              {pending.map((s,i)=>renderRow(s, i, false))}
+                            </>
+                          )}
+
+                          {/* Fila sem nenhuma música a seguir */}
+                          {!playingSong && pending.length===0 && (
+                            <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                              Fila vazia! Pesquise uma música acima.
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                }
+              </div>
+  );
+
   return (
     <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative",overflowX:"hidden"}}>
       {festBgVideo && <style>{`.ca-bgvid-on [style*="blur"]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}`}</style>}
@@ -3417,13 +3649,18 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   {/* Search results dropdown */}
                   {searchResults.length>0&&(
                     <div style={{position:isMobile?"fixed":"absolute",
-                      top:isMobile?"auto":"calc(100% + 6px)",
-                      bottom:isMobile?`calc(${MOBILE_NAV_H + (cur?70:8)}px + env(safe-area-inset-bottom,0px))`:undefined,
+                      // No celular o topo e a base ficam PRESOS ao espaço livre real
+                      // (abaixo do cabeçalho fixo, acima do mini-player/barra de abas)
+                      // — antes era só "bottom" + maxHeight em vh, e com bastante
+                      // resultado a lista crescia pra cima até ficar embaixo do
+                      // cabeçalho fixo, cortada por ele.
+                      top:isMobile?"calc(56px + env(safe-area-inset-top,0px) + 8px)":"calc(100% + 6px)",
+                      bottom:isMobile?`calc(${MOBILE_NAV_H}px + env(safe-area-inset-bottom,0px) + ${cur?70:8}px)`:undefined,
                       left:isMobile?12:"0",right:isMobile?12:"0",
                       borderRadius:14,background:isDark?T.surface:"white",
                       border:`1px solid ${T.border}`,boxShadow:T.shL,
                       overflow:"hidden",zIndex:495,
-                      maxHeight:isMobile?"55vh":"auto",overflowY:isMobile?"auto":"hidden"}}>
+                      maxHeight:isMobile?undefined:"auto",overflowY:isMobile?"auto":"hidden"}}>
                       {searchResults.map(t=>(
                         <div key={t.id} onClick={()=>addToQueue(t)}
                           style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
@@ -3462,229 +3699,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               </div>
 
               {/* Queue */}
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
-                <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                  <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text,flexShrink:0}}>Fila Democrática</div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                    {/* Contador de limite para colaboradores */}
-                    {!isAdmin && (() => {
-                      const myActive = queue.filter(s => s.requested_by === myName && ['pending','playing'].includes(s.status)).length;
-                      const remaining = 2 - myActive;
-                      return (
-                        <span style={{
-                          fontSize:10, fontWeight:600,
-                          color: remaining===0 ? "#C04050" : remaining===1 ? "#E08030" : T.gold,
-                          background: remaining===0 ? "rgba(192,64,80,0.08)" : remaining===1 ? "rgba(224,128,48,0.08)" : T.goldGl,
-                          border: `1px solid ${remaining===0 ? "rgba(192,64,80,0.3)" : remaining===1 ? "rgba(224,128,48,0.3)" : T.goldLine+"44"}`,
-                          padding:"2px 7px", borderRadius:5,
-                        }}>
-                          {remaining===0 ? "⛔ Limite atingido" : `🎵 ${remaining} vaga${remaining===1?"":"s"}`}
-                        </span>
-                      );
-                    })()}
-                    <span style={{fontSize:11,color:T.textT}}>
-                      {queue.length} {queue.length===1?"música":"músicas"}
-                      {queue.length > 0 && (() => {
-                        const totalMs = queue.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
-                        const totalMin = Math.round(totalMs / 60000);
-                        const h = Math.floor(totalMin / 60);
-                        const m = totalMin % 60;
-                        const dur = h > 0 ? `${h}h ${m}m` : `${m}m`;
-                        return ` · ${dur}`;
-                      })()}
-                    </span>
-                    {/* Botão Limpar Fila — somente admin */}
-                    {isAdmin && queue.length > 0 && (
-                      <button
-                        onClick={async () => {
-                          if (!window.confirm('Limpar toda a fila? Esta ação não pode ser desfeita.')) return;
-                          // Tenta via servidor; independente do resultado, limpa direto no Supabase
-                          api('delete', '/api/queue').catch(() => {});
-                          await _supabase.from('queue').update({ status: 'removed' }).in('status', ['pending', 'playing']);
-                          await _supabase.from('player_state').upsert({ id: 1, is_playing: false, current_song_id: null, current_spotify_id: null, updated_at: new Date().toISOString() });
-                          loadQueue();
-                          loadPlayerState();
-                        }}
-                        title="Limpar fila (Admin)"
-                        style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:6,
-                          border:"1.5px solid rgba(192,64,80,0.4)",background:"rgba(192,64,80,0.06)",
-                          color:"#C04050",cursor:"pointer",fontSize:10,fontWeight:700,outline:"none",
-                          transition:"all .15s",flexShrink:0}}
-                        onMouseEnter={e=>{e.currentTarget.style.background="rgba(192,64,80,0.14)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.background="rgba(192,64,80,0.06)";}}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                        Limpar Fila
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {festLoading
-                  ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
-                      <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite",margin:"0 auto 8px"}}/>
-                      Carregando fila...
-                    </div>
-                  : queue.length===0
-                    ? <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                        Fila vazia! Pesquise uma música acima.
-                      </div>
-                    : (() => {
-                      const sorted = [...queue].sort((a,b)=>{
-                        if (a.status==='playing' && b.status!=='playing') return -1;
-                        if (a.status!=='playing' && b.status==='playing') return 1;
-                        return (a.position||0) - (b.position||0);
-                      });
-                      const playingSong = sorted.find(s => s.status==='playing');
-                      const pending     = sorted.filter(s => s.status!=='playing');
-
-                      const renderRow = (s, idx, isNowPlaying) => {
-                        const votes     = skipVotes[s.id]||0;
-                        const iAmPlaying = isNowPlaying;
-                        const voted     = myVotedSongs.has(s.id);
-                        const isMyOwn   = s.requested_by === myName;
-                        const canDelete = (isMyOwn || isAdmin) && !iAmPlaying;
-                        // Admin pode reordenar músicas pending (não a que está tocando)
-                        const canReorder = isAdmin && !iAmPlaying && pending.length > 1;
-                        const isFirst    = idx === 0;
-                        const isLast     = idx === pending.length - 1;
-                        return (
-                          // No celular a fileira tinha MUITOS ícones fixos (pular, reordenar,
-                          // substituir, remover, duração) disputando espaço numa linha só, e o
-                          // card da fila corta ("overflow:hidden") o que não coubesse — então os
-                          // botões de trocar/pular ficavam literalmente invisíveis e só apareciam
-                          // girando pra paisagem. Com flexWrap eles descem pra 2ª linha em vez de
-                          // sumir cortados.
-                          <div key={s.id} style={{display:"flex",alignItems:"center",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?8:12,padding:isMobile?"10px 12px":"11px 16px",borderTop:idx===0?"none":`1px solid ${T.border}`,background:iAmPlaying?T.goldGl:"transparent",transition:"background .15s"}}>
-                            {/* EQ / número */}
-                            <div style={{width:22,textAlign:"center",flexShrink:0}}>
-                              {iAmPlaying
-                                ? <div style={{display:"flex",alignItems:"flex-end",gap:1,height:14,justifyContent:"center"}}>
-                                    {[1,2,3].map(j=><div key={j} style={{width:2,borderRadius:1,background:T.gold,animation:`alexaEq${j} ${0.4+j*0.1}s ease-in-out infinite alternate`,minHeight:3}}/>)}
-                                  </div>
-                                : <span style={{fontSize:11,color:T.textD}}>{idx+1}</span>
-                              }
-                            </div>
-                            {/* Capa */}
-                            {s.album_art
-                              ? <img src={s.album_art} alt="" style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,objectFit:"cover",flexShrink:0,boxShadow:iAmPlaying?`0 4px 16px ${T.goldLine}44`:"none",transition:"all .2s"}}/>
-                              : <div style={{width:iAmPlaying?44:36,height:iAmPlaying?44:36,borderRadius:iAmPlaying?9:7,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🎵</div>
-                            }
-                            {/* Título + artista */}
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:iAmPlaying?14:13,fontWeight:iAmPlaying?700:500,color:iAmPlaying?T.gold:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
-                              <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.artist}</div>
-                            </div>
-                            {/* Pedido por */}
-                            {(()=>{
-                              const rb = (s.requested_by||'').trim().toLowerCase();
-                              const isSystem = !rb || rb.includes('autoplay') || rb.includes('sistema') || rb.includes('uniko') || rb.includes('alexa');
-                              return (
-                                <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
-                                  {isSystem
-                                    ? <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                                    : <QueueAvatar
-                                        name={s.requested_by}
-                                        photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
-                                        onExpand={setExpandedPhoto}
-                                      />
-                                  }
-                                  <span style={{fontSize:11,color:T.textT,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                    {isSystem ? 'Uniko' : s.requested_by}
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                            {/* Skip — temporariamente apenas admin */}
-                            {iAmPlaying && isAdmin && (
-                              <button onClick={()=>handleVote(s)} title="Pular (Admin)"
-                                style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:6,border:`1.5px solid ${T.gold}55`,background:T.goldGl,color:T.gold,cursor:"pointer",fontSize:11,fontWeight:700,outline:"none",transition:"all .15s"}}>
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-                                Pular
-                              </button>
-                            )}
-                            {/* Reordenar fila (Admin) */}
-                            {canReorder && (
-                              <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
-                                <button onClick={()=>moveSong(s,-1)} disabled={isFirst||!!movingId}
-                                  title="Subir na fila (Admin)"
-                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isFirst||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isFirst||movingId)?0.25:0.7,transition:"opacity .15s"}}
-                                  onMouseEnter={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
-                                  onMouseLeave={e=>{ if(!isFirst&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-                                </button>
-                                <button onClick={()=>moveSong(s,1)} disabled={isLast||!!movingId}
-                                  title="Descer na fila (Admin)"
-                                  style={{display:"flex",alignItems:"center",justifyContent:"center",width:22,height:13,borderRadius:5,border:`1px solid ${T.border}`,background:"transparent",color:T.textD,cursor:(isLast||movingId)?"default":"pointer",outline:"none",padding:0,opacity:(isLast||movingId)?0.25:0.7,transition:"opacity .15s"}}
-                                  onMouseEnter={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;} }}
-                                  onMouseLeave={e=>{ if(!isLast&&!movingId){e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;} }}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                                </button>
-                              </div>
-                            )}
-                            {/* Substituir música — própria, ou de qualquer uma se Admin */}
-                            {canDelete && (
-                              <button onClick={()=>openReplace(s)}
-                                title={isMyOwn ? "Substituir minha música" : "Substituir música (Admin)"}
-                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
-                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=`${T.gold}66`;e.currentTarget.style.color=T.gold;}}
-                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
-                              </button>
-                            )}
-                            {/* Deletar música — própria, ou de qualquer um se Admin */}
-                            {canDelete && (
-                              <button onClick={async()=>{ await api('delete',`/api/queue/${s.id}`); loadQueue(); }}
-                                title={isMyOwn ? "Remover minha música" : "Remover música (Admin)"}
-                                style={{display:"flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:6,border:`1.5px solid ${T.border}`,background:"transparent",color:T.textD,cursor:"pointer",outline:"none",flexShrink:0,opacity:0.7,transition:"opacity .15s"}}
-                                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor="rgba(192,64,80,0.4)";e.currentTarget.style.color="#C04050";}}
-                                onMouseLeave={e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textD;}}>
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                              </button>
-                            )}
-                            <span style={{fontSize:10,color:T.textD,minWidth:28,textAlign:"right"}}>{s.duration_str||"—"}</span>
-                          </div>
-                        );
-                      };
-
-                      return (
-                        <>
-                          {/* ── Tocando Agora ── */}
-                          {playingSong && (
-                            <>
-                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",gap:6,borderBottom:`1px solid ${T.border}`}}>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill={T.gold} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                <span style={{fontSize:10,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".08em"}}>Tocando Agora</span>
-                              </div>
-                              {renderRow(playingSong, 0, true)}
-                            </>
-                          )}
-
-                          {/* ── A Seguir ── */}
-                          {pending.length > 0 && (
-                            <>
-                              <div style={{padding:"8px 16px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,background:isDark?"rgba(255,255,255,0.02)":"rgba(0,0,0,0.02)"}}>
-                                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                                  <span style={{fontSize:10,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".08em"}}>A Seguir — {pending.length} {pending.length===1?"música":"músicas"}</span>
-                                </div>
-                                <span style={{fontSize:10,color:T.textT}}>{VETO} votos = skip automático</span>
-                              </div>
-                              {pending.map((s,i)=>renderRow(s, i, false))}
-                            </>
-                          )}
-
-                          {/* Fila sem nenhuma música a seguir */}
-                          {!playingSong && pending.length===0 && (
-                            <div style={{padding:"32px",textAlign:"center",color:T.textT,fontSize:13}}>
-                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px",display:"block"}}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                              Fila vazia! Pesquise uma música acima.
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
-                }
-              </div>
+              {renderQueueCard()}
             </div>
 
             {/* Right: Tocando Agora — no celular o play/pause, pular, capa e barra
@@ -4502,8 +4517,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Mini-player fixo (estilo Spotify/app de música) — só no celular.
           Fica encaixado ACIMA da barra de abas fixa, nunca sobrepondo ela. ── */}
       {isMobile && cur && !nowPlayingOpen && (
-        <div onClick={() => setNowPlayingOpen(true)} role="button" aria-label="Abrir tela do que está tocando"
-          style={{ position:"fixed", left:0, right:0, bottom:MOBILE_NAV_H, zIndex:500, display:"flex", alignItems:"center", gap:10,
+        <div onClick={() => { setNowPlayingOpen(true); setQueueViewOpen(false); }} role="button" aria-label="Abrir tela do que está tocando"
+          style={{ position:"fixed", left:0, right:0, bottom:`calc(${MOBILE_NAV_H}px + env(safe-area-inset-bottom, 0px))`, zIndex:500, display:"flex", alignItems:"center", gap:10,
             padding:"8px 12px",
             background: isDark ? "rgba(18,14,10,.94)" : "rgba(255,255,255,.96)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
             borderTop:`1px solid ${T.border}`, boxShadow:"0 -6px 24px rgba(0,0,0,.12)", cursor:"pointer" }}>
@@ -4564,13 +4579,23 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           )}
           <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", height:"100%", padding:"0 22px", paddingTop:"max(20px, env(safe-area-inset-top, 20px))", paddingBottom:"calc(20px + env(safe-area-inset-bottom, 0px))" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0 12px" }}>
-              <button onClick={() => setNowPlayingOpen(false)} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
+              <button onClick={() => { setNowPlayingOpen(false); setQueueViewOpen(false); }} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>Uniko Music</span>
-              <div style={{ width:38 }} />
+              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>{queueViewOpen ? "Fila Democrática" : "Uniko Music"}</span>
+              {/* Ver fila — troca pra lista da Fila Democrática (tocando agora + a
+                  seguir) sem sair da tela cheia; não mostra letra nem o assistente. */}
+              <button onClick={() => setQueueViewOpen(v => !v)} aria-label="Ver fila" title="Ver fila"
+                style={{ border:"none", background:queueViewOpen?"rgba(255,255,255,.18)":"none", borderRadius:10, cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>
+              </button>
             </div>
 
+            {queueViewOpen ? (
+              <div style={{ flex:1, minHeight:0, overflowY:"auto", borderRadius:16, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)" }}>
+                {renderQueueCard()}
+              </div>
+            ) : (
             <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", minHeight:0 }}>
               {cur.album_art
                 ? <img src={cur.album_art} alt="" style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, objectFit:"cover", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }} />
@@ -4631,6 +4656,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}

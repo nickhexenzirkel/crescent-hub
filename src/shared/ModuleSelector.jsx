@@ -32,6 +32,25 @@ const loadCardPos = () => {
 };
 const saveCardPos = (p) => { try { localStorage.setItem(CARD_POS_KEY, JSON.stringify(p)); } catch { /* ignora */ } };
 
+/* Tamanho pessoal de cada bolha — por usuário, igual à ordem. Guarda só os
+   módulos que a pessoa mexeu (multiplicador != 1); o resto fica no padrão. */
+const MODULE_SIZE_PREFIX = 'uniko_module_size_';
+const sizeKey = (authUser) => MODULE_SIZE_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+const loadSizePrefs = (authUser) => {
+  try { const r = JSON.parse(localStorage.getItem(sizeKey(authUser)) || '{}'); return (r && typeof r === 'object') ? r : {}; }
+  catch { return {}; }
+};
+const saveSizePrefs = (authUser, prefs) => { try { localStorage.setItem(sizeKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
+// 4 tamanhos discretos (não contínuo) — assim dá pra GARANTIR que o algoritmo
+// de espaçamento da órbita sempre encontra um jeito de encaixar todo mundo
+// sem uma bolha maior comer o espaço da vizinha.
+const SIZE_STEPS = [
+  { id:'p',  label:'P',  mult:0.82 },
+  { id:'m',  label:'M',  mult:1    },
+  { id:'g',  label:'G',  mult:1.18 },
+  { id:'gg', label:'GG', mult:1.35 },
+];
+
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
    AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
    em loop — como se estivesse escrevendo. */
@@ -107,6 +126,28 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [reorderMode, setReorderMode] = useState(false);
   const [order, setOrder]   = useState(() => loadModuleOrder(authUser));
   const [dragModId, setDragModId] = useState(null);
+  // Modo "tamanho dos módulos" — toca numa bolha pra escolher o tamanho SÓ
+  // dela, ou usa "Todos" no banner pra aplicar o mesmo tamanho em todo mundo.
+  const [sizeMode, setSizeMode] = useState(false);
+  const [sizePrefs, setSizePrefs] = useState(() => loadSizePrefs(authUser));
+  const [sizingId, setSizingId] = useState(null);
+  const getSizeMult = (id) => SIZE_STEPS.find(s => s.id === (sizePrefs[id] || 'm'))?.mult || 1;
+  const setModuleSize = (id, stepId) => {
+    setSizePrefs(prev => {
+      const next = { ...prev };
+      if (stepId === 'm') delete next[id]; else next[id] = stepId;
+      saveSizePrefs(authUser, next);
+      return next;
+    });
+  };
+  const setAllSizes = (stepId) => {
+    setSizePrefs(() => {
+      const next = {};
+      if (stepId !== 'm') filteredMods.forEach(m => { next[m.id] = stepId; });
+      saveSizePrefs(authUser, next);
+      return next;
+    });
+  };
   // Card de perfil arrastável pra qualquer canto da tela (pega pela alcinha ⋮⋮ no topo).
   const [cardPos, setCardPos] = useState(() => loadCardPos());
   const cardPosRef = useRef(cardPos);
@@ -398,14 +439,23 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // ─── DESKTOP — órbita ────────────────────────────────────────────────────
   const N = orbitMods.length || 1;
   const RX = 44, RY = 35; // raio da elipse, em % da largura/altura do container
+  const BASE_D = 178, BUBBLE_GAP = 30; // diâmetro e respiro mínimo padrão, em px (escala 1x)
   // Ângulos igualmente espaçados NÃO viram distância igual numa elipse: como
   // ela é mais "achatada" nos lados (RX > RY), bolhas perto do meio-esquerda/
   // meio-direita ficavam bem mais coladas que as de cima/baixo (relatado —
   // "Prisma Store" e "Conexão Setorial" quase se tocando). Em vez do ângulo
-  // bruto, os N ângulos abaixo dividem o PERÍMETRO da elipse em partes iguais
-  // (amostragem fina + comprimento de arco acumulado) — aí toda bolha fica à
-  // mesma distância da vizinha, em qualquer ponto do anel.
-  const orbitAngles = (() => {
+  // bruto, os N ângulos abaixo dividem o PERÍMETRO da elipse — mas agora NÃO
+  // em partes iguais: cada módulo recebe uma fatia do anel PROPORCIONAL ao
+  // tamanho que a pessoa escolheu pra ele (`getSizeMult`), então uma bolha
+  // "GG" ganha mais espaço ao redor dela automaticamente, sem invadir a
+  // vizinha. Se a soma dos tamanhos pedidos não couber no anel inteiro, todo
+  // mundo encolhe PROPORCIONALMENTE junto (nunca uma bolha "come" o espaço
+  // reservado da outra) — é o `fitFactor` abaixo.
+  const orbitWpx = 1180 * orbitScale, orbitHpx = 720 * orbitScale;
+  const pxPerUnit = (orbitWpx / 100 + orbitHpx / 100) / 2;
+  const weights = orbitMods.map(m => (BASE_D * orbitScale * getSizeMult(m.id) + BUBBLE_GAP * orbitScale) / pxPerUnit);
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+  const { orbitAngles, slotArc } = (() => {
     const SAMPLES = 720, STEP = 360 / SAMPLES;
     const arcAt = [0];
     let prevX = RX * Math.cos(-Math.PI / 2), prevY = RY * Math.sin(-Math.PI / 2), total = 0;
@@ -415,15 +465,27 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       total += Math.hypot(x - prevX, y - prevY);
       arcAt.push(total); prevX = x; prevY = y;
     }
-    const per = total / N;
-    const out = [];
-    for (let k = 0; k < N; k++) {
-      const want = k * per;
+    const angAt = (want) => {
       let i = 0; while (i < arcAt.length - 1 && arcAt[i] < want) i++;
-      out.push(-90 + i * STEP);
+      return -90 + i * STEP;
+    };
+    let acc = 0; const out = []; const slots = [];
+    for (let k = 0; k < N; k++) {
+      const w = weights[k] ?? (totalWeight / N);
+      slots.push((w / totalWeight) * total);
+      out.push(angAt((acc + w / 2) / totalWeight * total));
+      acc += w;
     }
-    return out;
+    return { orbitAngles: out, slotArc: slots };
   })();
+  // Diâmetro final de cada bolha: o que a pessoa pediu, mas nunca maior do
+  // que a fatia do anel que sobrou pra ela (garante que nunca engole a vizinha).
+  const orbitDiam = (i) => {
+    const desired = BASE_D * orbitScale * getSizeMult(orbitMods[i]?.id);
+    const allocatedPx = (slotArc[i] ?? 0) * pxPerUnit;
+    const capped = Math.min(desired, Math.max(0, allocatedPx - BUBBLE_GAP * 0.5 * orbitScale));
+    return Math.max(90 * orbitScale, capped);
+  };
   const orbitPt = (i) => {
     const ang = orbitAngles[i % N] * Math.PI / 180;
     return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
