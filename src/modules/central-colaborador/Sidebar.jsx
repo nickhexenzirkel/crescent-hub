@@ -3,7 +3,68 @@ import { T, THEMES } from '../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import unikoPortalHeader from '../../assets/UnikoPortalHeader.png';
+
+/* ── Marca "UNIKO · Portal do Colaborador" animada (subst. a arte estática) ──
+   Mascote + cometa cruzando + estrelas cintilantes + anel de energia, no
+   mesmo espírito da arte de referência, só que viva em vez de um PNG. */
+const BRAND_CSS = `
+@keyframes ubComet {
+  0%, 52%   { transform: translate(-46px,-4px) rotate(20deg); opacity: 0; }
+  58%       { opacity: 1; }
+  76%       { transform: translate(230px,12px) rotate(20deg); opacity: 1; }
+  85%, 100% { transform: translate(268px,16px) rotate(20deg); opacity: 0; }
+}
+@keyframes ubRingSpin { to { transform: rotate(360deg); } }
+@keyframes ubFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes ubShimmer { 0% { background-position: 0% 50%; } 100% { background-position: 260% 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .ub-comet, .ub-ring, .ub-mascote, .ub-word, .ub-star { animation: none !important; }
+}
+`;
+const UB_STARS = [
+  { top: 2,  left: '58%', size: 3,   dur: 2.1, delay: .0  },
+  { top: 14, left: '78%', size: 2,   dur: 1.8, delay: .5  },
+  { top: 26, left: '92%', size: 2.5, dur: 2.4, delay: 1.1 },
+  { top: 4,  left: '88%', size: 2,   dur: 2.0, delay: .8  },
+  { top: 34, left: '68%', size: 2,   dur: 2.6, delay: 1.5 },
+];
+const UnikoBrandArt = () => (
+  <div style={{position:'relative',height:56,overflow:'hidden'}}>
+    <style>{BRAND_CSS}</style>
+    {/* cometa cruzando periodicamente */}
+    <div className="ub-comet" style={{position:'absolute',top:8,left:-46,width:46,height:3,borderRadius:3,
+      background:'linear-gradient(90deg,transparent,#BFE0FFcc 45%,#ffffff)',
+      boxShadow:'0 0 9px 2px rgba(191,224,255,.65)',animation:'ubComet 7s ease-in infinite'}}/>
+    {/* poeira de estrelas cintilantes */}
+    {UB_STARS.map((s,i)=>(
+      <span key={i} className="ub-star" style={{position:'absolute',top:s.top,left:s.left,width:s.size,height:s.size,
+        borderRadius:'50%',background:'#fff',boxShadow:'0 0 5px 1px rgba(191,224,255,.7)',
+        animation:`starPulse ${s.dur}s ease-in-out ${s.delay}s infinite`}}/>
+    ))}
+    {/* mascote + wordmark */}
+    <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:10,height:'100%'}}>
+      <div style={{position:'relative',width:46,height:46,flexShrink:0}}>
+        <div className="ub-ring" style={{position:'absolute',inset:-7,borderRadius:'50%',
+          background:'conic-gradient(from 0deg,#4AA6FF,#A83BFF,#22CFFF,#4AA6FF)',
+          opacity:.32,filter:'blur(3px)',animation:'ubRingSpin 8s linear infinite'}}/>
+        <div style={{position:'absolute',inset:-9,borderRadius:'50%',
+          background:`radial-gradient(circle,${T.lb} 0%,transparent 72%)`,filter:'blur(5px)'}}/>
+        <img src="/UNIKO_NEW.png" alt="Uniko" className="ub-mascote"
+          style={{position:'relative',width:'100%',height:'100%',objectFit:'contain',
+            animation:'ubFloat 4.5s ease-in-out infinite'}}/>
+      </div>
+      <div style={{minWidth:0}}>
+        <div className="ub-word" style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,letterSpacing:'.05em',
+          backgroundImage:`linear-gradient(100deg,${T.text} 42%,#8fd6ff 50%,${T.text} 58%)`,
+          backgroundSize:'260% 100%',WebkitBackgroundClip:'text',backgroundClip:'text',
+          WebkitTextFillColor:'transparent',color:T.text,animation:'ubShimmer 5s linear infinite'}}>UNIKO</div>
+        <div style={{fontSize:9.5,color:T.textT,letterSpacing:'.13em',textTransform:'uppercase',marginTop:2,whiteSpace:'nowrap'}}>
+          Portal do Colaborador
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 const READ_KEY = 'uniko_notif_read';
 const getReadIds = () => { try { return new Set(JSON.parse(localStorage.getItem(READ_KEY)) || []); } catch { return new Set(); } };
@@ -111,8 +172,9 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
               </div>
             </div>
           ) : (
-            <img src={unikoPortalHeader} alt="Uniko — Portal do Colaborador"
-              style={{width:'100%',maxWidth:238,height:'auto',display:'block',objectFit:'contain'}}/>
+            <div style={{width:'100%',maxWidth:238}}>
+              <UnikoBrandArt/>
+            </div>
           )}
         </div>
         {/* star divider under brand */}
