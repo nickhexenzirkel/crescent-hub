@@ -4,65 +4,116 @@ import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
-/* ── Marca "UNIKO · Portal do Colaborador" animada (subst. a arte estática) ──
-   Mascote + cometa cruzando + estrelas cintilantes + anel de energia, no
-   mesmo espírito da arte de referência, só que viva em vez de um PNG. */
+/* ── Marca "UNIKO · Portal do Colaborador" animada — recriação (não fica
+   presa a um PNG) da arte de referência: mascote grande à esquerda, cometa
+   em arco por cima, poeira de estrelas ✦ de 4 pontas nas mesmas posições, e
+   o wordmark UNIKO reaproveitando as MESMAS letras do resto do app (o N é
+   um U invertido — ver `UnikoName` em ModuleSelector.jsx), só que grossas e
+   com brilho azul em vez do traço fino animado. Tudo num único SVG (viewBox
+   600×230, mesma proporção ~2.6:1 da referência) — escala nítido em
+   qualquer tamanho de tela. */
+const ubSparkPath = (cx, cy, r, r2 = r * 0.38) => {
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    const ang = (i * 45) * Math.PI / 180;
+    const rad = i % 2 === 0 ? r : r2;
+    pts.push(`${(cx + rad * Math.sin(ang)).toFixed(1)},${(cy - rad * Math.cos(ang)).toFixed(1)}`);
+  }
+  return `M${pts.join('L')}Z`;
+};
+// Posições calcadas na arte de referência (escaladas pro viewBox 600×230).
+const UB_SPARKLES = [
+  { cx: 30,  cy: 87,  r: 5.5, dur: 2.2, delay: 0   },
+  { cx: 39,  cy: 172, r: 4.5, dur: 2.6, delay: .6  },
+  { cx: 236, cy: 31,  r: 11,  dur: 2.0, delay: .2  },
+  { cx: 266, cy: 46,  r: 5,   dur: 2.4, delay: 1.0 },
+  { cx: 372, cy: 36,  r: 7,   dur: 2.3, delay: .4  },
+  { cx: 391, cy: 44,  r: 4,   dur: 2.7, delay: 1.3 },
+  { cx: 408, cy: 28,  r: 5,   dur: 2.1, delay: .8  },
+  { cx: 572, cy: 134, r: 7,   dur: 2.5, delay: 1.6 },
+  { cx: 512, cy: 181, r: 6,   dur: 2.2, delay: 1.9 },
+];
 const BRAND_CSS = `
-@keyframes ubComet {
-  0%, 52%   { transform: translate(-46px,-4px) rotate(20deg); opacity: 0; }
-  58%       { opacity: 1; }
-  76%       { transform: translate(230px,12px) rotate(20deg); opacity: 1; }
-  85%, 100% { transform: translate(268px,16px) rotate(20deg); opacity: 0; }
-}
-@keyframes ubRingSpin { to { transform: rotate(360deg); } }
-@keyframes ubFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@keyframes ubShimmer { 0% { background-position: 0% 50%; } 100% { background-position: 260% 50%; } }
+@keyframes ubFloat    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes ubTwinkle  { 0%,100% { opacity:.25; transform:scale(.7); } 50% { opacity:1; transform:scale(1); } }
+@keyframes ubFlow     { to { stroke-dashoffset: -260; } }
 @media (prefers-reduced-motion: reduce) {
-  .ub-comet, .ub-ring, .ub-mascote, .ub-word, .ub-star { animation: none !important; }
+  .ub-mascote, .ub-spark, .ub-comet-core, .ub-swirl { animation: none !important; }
 }
 `;
-const UB_STARS = [
-  { top: 2,  left: '58%', size: 3,   dur: 2.1, delay: .0  },
-  { top: 14, left: '78%', size: 2,   dur: 1.8, delay: .5  },
-  { top: 26, left: '92%', size: 2.5, dur: 2.4, delay: 1.1 },
-  { top: 4,  left: '88%', size: 2,   dur: 2.0, delay: .8  },
-  { top: 34, left: '68%', size: 2,   dur: 2.6, delay: 1.5 },
+/* Mesmas 5 letras (U N I K O, com o N = U invertido) usadas em UnikoName —
+   ver ModuleSelector.jsx — só que aqui grossas/com brilho em vez de traço fino. */
+const UB_LETTERS = [
+  'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
+  'M128,112 L128,50 Q128,18 160,18 Q192,18 192,50 L192,112',                    // N
+  'M238,18 L238,112',                                                          // I
+  'M284,18 L284,112 M341,18 L286,65 L345,112',                                 // K
+  'M430,18 Q469,18 469,65 Q469,112 430,112 Q391,112 391,65 Q391,18 430,18 Z',  // O
 ];
 const UnikoBrandArt = () => (
-  <div style={{position:'relative',height:56,overflow:'hidden'}}>
+  <div style={{width:'100%'}}>
     <style>{BRAND_CSS}</style>
-    {/* cometa cruzando periodicamente */}
-    <div className="ub-comet" style={{position:'absolute',top:8,left:-46,width:46,height:3,borderRadius:3,
-      background:'linear-gradient(90deg,transparent,#BFE0FFcc 45%,#ffffff)',
-      boxShadow:'0 0 9px 2px rgba(191,224,255,.65)',animation:'ubComet 7s ease-in infinite'}}/>
-    {/* poeira de estrelas cintilantes */}
-    {UB_STARS.map((s,i)=>(
-      <span key={i} className="ub-star" style={{position:'absolute',top:s.top,left:s.left,width:s.size,height:s.size,
-        borderRadius:'50%',background:'#fff',boxShadow:'0 0 5px 1px rgba(191,224,255,.7)',
-        animation:`starPulse ${s.dur}s ease-in-out ${s.delay}s infinite`}}/>
-    ))}
-    {/* mascote + wordmark */}
-    <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:10,height:'100%'}}>
-      <div style={{position:'relative',width:46,height:46,flexShrink:0}}>
-        <div className="ub-ring" style={{position:'absolute',inset:-7,borderRadius:'50%',
-          background:'conic-gradient(from 0deg,#4AA6FF,#A83BFF,#22CFFF,#4AA6FF)',
-          opacity:.32,filter:'blur(3px)',animation:'ubRingSpin 8s linear infinite'}}/>
-        <div style={{position:'absolute',inset:-9,borderRadius:'50%',
-          background:`radial-gradient(circle,${T.lb} 0%,transparent 72%)`,filter:'blur(5px)'}}/>
-        <img src="/UNIKO_NEW.png" alt="Uniko" className="ub-mascote"
-          style={{position:'relative',width:'100%',height:'100%',objectFit:'contain',
-            animation:'ubFloat 4.5s ease-in-out infinite'}}/>
-      </div>
-      <div style={{minWidth:0}}>
-        <div className="ub-word" style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,letterSpacing:'.05em',
-          backgroundImage:`linear-gradient(100deg,${T.text} 42%,#8fd6ff 50%,${T.text} 58%)`,
-          backgroundSize:'260% 100%',WebkitBackgroundClip:'text',backgroundClip:'text',
-          WebkitTextFillColor:'transparent',color:T.text,animation:'ubShimmer 5s linear infinite'}}>UNIKO</div>
-        <div style={{fontSize:9.5,color:T.textT,letterSpacing:'.13em',textTransform:'uppercase',marginTop:2,whiteSpace:'nowrap'}}>
-          Portal do Colaborador
-        </div>
-      </div>
-    </div>
+    <svg viewBox="0 0 600 230" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
+      <defs>
+        <linearGradient id="ubCometGrad" gradientUnits="userSpaceOnUse" x1="190" y1="84" x2="588" y2="2">
+          <stop offset="0%" stopColor="#2E7BFF" stopOpacity="0"/>
+          <stop offset="55%" stopColor="#4AA6FF" stopOpacity=".9"/>
+          <stop offset="100%" stopColor="#ffffff"/>
+        </linearGradient>
+        {/* userSpaceOnUse (não objectBoundingBox): o "I" é uma linha reta pura —
+            bounding-box de LARGURA ZERO — e por especificação do SVG um gradiente
+            relativo à bounding-box de uma forma com largura/altura zero simplesmente
+            não é desenhado (a letra sumia por completo, sem erro nenhum). */}
+        <linearGradient id="ubTextGrad" gradientUnits="userSpaceOnUse" x1="0" y1="18" x2="0" y2="112">
+          <stop offset="0%" stopColor="#ffffff"/>
+          <stop offset="100%" stopColor="#CFE7FF"/>
+        </linearGradient>
+      </defs>
+
+      {/* halo azul atrás do mascote */}
+      <ellipse cx="105" cy="120" rx="115" ry="118" fill="#2E7BFF" opacity=".22" style={{filter:'blur(14px)'}}/>
+
+      {/* laço/rastro sob o mascote */}
+      <path className="ub-swirl" d="M10,150 C-6,188 26,220 88,216 C138,213 162,188 154,158"
+        fill="none" stroke="#4AA6FF" strokeWidth="3" strokeLinecap="round" opacity=".55"
+        strokeDasharray="10 8" style={{animation:'ubFlow 5s linear infinite',filter:'drop-shadow(0 0 4px #2E7BFF)'}}/>
+
+      {/* cometa em arco por cima (igual à referência) */}
+      <path d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
+        strokeWidth="9" strokeLinecap="round" opacity=".85" style={{filter:'blur(3px)'}}/>
+      <path className="ub-comet-core" d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
+        strokeWidth="2.4" strokeLinecap="round" strokeDasharray="6 340" style={{animation:'ubFlow 3.2s linear infinite'}}/>
+      <circle cx="585" cy="4" r="4.5" fill="#ffffff"
+        style={{filter:'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px #4AA6FF)'}}/>
+
+      {/* mascote */}
+      <image href="/UNIKO_NEW.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
+        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite'}}/>
+
+      {/* wordmark UNIKO */}
+      <g transform="translate(204,44) scale(0.72)" fill="none" strokeLinecap="round" strokeLinejoin="round"
+        style={{filter:'drop-shadow(0 0 5px #2E7BFF) drop-shadow(0 0 13px #2E7BFF)'}}>
+        <g stroke="url(#ubTextGrad)" strokeWidth="30">
+          {UB_LETTERS.map((d,i) => <path key={i} d={d}/>)}
+        </g>
+      </g>
+
+      {/* subtítulo — cor sólida (não o gradiente das letras: aquele é
+          userSpaceOnUse no espaço LOCAL do <g> da wordmark, não bate aqui fora) */}
+      <text x="204" y="190" fontFamily="Poppins, var(--font-brand)" fontWeight="800" fontSize="21"
+        letterSpacing="1.5" fill="#EAF2FA"
+        style={{filter:'drop-shadow(0 0 4px #2E7BFF) drop-shadow(0 0 9px #2E7BFF)'}}>
+        PORTAL DO COLABORADOR
+      </text>
+      <path d="M204,201 L585,201" stroke="#4AA6FF" strokeWidth="2" opacity=".6" strokeLinecap="round"/>
+
+      {/* poeira de estrelas ✦ */}
+      {UB_SPARKLES.map((s,i) => (
+        <path key={i} className="ub-spark" d={ubSparkPath(s.cx,s.cy,s.r)} fill="#ffffff"
+          style={{transformOrigin:`${s.cx}px ${s.cy}px`,filter:'drop-shadow(0 0 4px #bfe0ff)',
+            animation:`ubTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`}}/>
+      ))}
+    </svg>
   </div>
 );
 
