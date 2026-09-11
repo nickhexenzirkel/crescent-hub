@@ -115,16 +115,17 @@ export const UnikoOrigin = () => {
         @keyframes uoBlobC{0%,100%{transform:translate(-2px,3px) scale(1)}50%{transform:translate(3px,-4px) scale(1.2)}}
       `}</style>
 
-      {/* ── Botão fixo (canto inferior direito, longe do badge de usuário e do robô) ── */}
+      {/* ── Botão fixo (canto inferior direito, empilhado com o "Instalar Aplicativo"
+           logo acima — os dois ficam juntos, não mais um em cada lado da tela) ── */}
       <button onClick={openModal}
         title="A verdadeira história do UNiko"
-        style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:10,
-          padding:'11px 22px 11px 12px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:15, fontWeight:700,
-          border:`2px solid ${T.blue}`, outline:'none',
+        style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:9,
+          padding:'9px 20px 9px 10px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:14, fontWeight:700,
+          border:`2px solid ${T.blue}`, outline:'none', boxShadow:'0 4px 14px rgba(0,0,0,.10)',
           background: isDark ? 'linear-gradient(135deg,#1c2733,#141d27 45%,#101820)' : 'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
           animation:'uoBtnGlow 2.6s ease-in-out infinite' }}>
         {/* fundo "lava lamp" — só atrás do ÍCONE (não passa por trás das letras) */}
-        <span style={{ position:'relative', width:34, height:34, borderRadius:'50%', overflow:'hidden', flexShrink:0 }}>
+        <span style={{ position:'relative', width:30, height:30, borderRadius:'50%', overflow:'hidden', flexShrink:0 }}>
           <span aria-hidden="true" style={{ position:'absolute', left:-6, top:-6, width:26, height:26, borderRadius:'50%',
             background:'radial-gradient(circle, #bfe0ff, #bfe0ff00 70%)', filter:'blur(4px)', opacity:.85,
             animation:'uoBlobA 26s ease-in-out infinite' }}/>

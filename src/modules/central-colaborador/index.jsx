@@ -42,9 +42,9 @@ const DesligadoAviso = ({data}) => (
   </div>
 );
 
-const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
   const isMobile = useIsMobile();
-  const [tab,st]=useState('inicio');
+  const [tab,st]=useState(initialTab || 'inicio');
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);

@@ -28,6 +28,7 @@ export default function CrescentHub() {
   const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
+  const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
   const isMobile = useIsMobile();
 
   /* ── Nada de arrastar imagem, em TODO o Portal (ago/2026) ─────────────────
@@ -185,13 +186,14 @@ export default function CrescentHub() {
     return () => clearInterval(id);
   }, [authUser]); // eslint-disable-line
 
-  const handleModuleSelect = (id) => {
+  const handleModuleSelect = (id, initialTab) => {
     // Conexão Setorial é liberada pra todo mundo — não entra na lista abaixo.
     // Moderador tem o mesmo acesso de admin ao ponto e ao dashboard (esse último
     // com abas restritas — ver filtragem de TABS dentro do DashboardRH).
     const adminOnly = ['dashboard','ponto'];
     const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
     if (adminOnly.includes(id) && !podeAdminOnly) return;
+    setPortalInitialTab(initialTab || null);
     navPush(id);
   };
 
@@ -498,7 +500,7 @@ export default function CrescentHub() {
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto}/>}
-          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador') && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador') && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
