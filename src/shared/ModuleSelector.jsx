@@ -2,8 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { T, applyTheme } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
-import { UnikoOrigin } from './UnikoOrigin';
-import { InstalarAppGuide } from './InstalarAppGuide';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
@@ -188,6 +186,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <rect x="2" y="8" width="4" height="8" rx="1.3"/><rect x="18" y="8" width="4" height="8" rx="1.3"/><line x1="6" y1="12" x2="18" y2="12"/>
     </svg>
   );
+  /* Instalar Aplicativo + Sobre o Uniko, agora reunidos num módulo só */
+  const IcoInfo = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+  );
   // Uniko Fit é o ÚNICO módulo com cor FIXA (laranja), independente do tema — exceto
   // quando o tema ativo já É o laranja, aí ela vira azul (senão o card some no fundo
   // do próprio tema). `T.key` é o id do tema aplicado agora (contexts/theme.js).
@@ -202,6 +206,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
+    {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
   ];
   const filteredMods = allMods.filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
   const mods = applyOrder(filteredMods, order);
@@ -209,7 +214,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // reproduz exatamente as posições da referência (relógio a partir do topo).
   // Depois que a pessoa arrasta pra reorganizar, os dois (lista mobile e
   // órbita desktop) passam a seguir a MESMA ordem escolhida por ela.
-  const ORBIT_DEFAULT = ['alexa','faturamento','dashboard','mercado-estelar','conexao-setorial','ponto','uniko-fit','colaborador'];
+  const ORBIT_DEFAULT = ['alexa','faturamento','dashboard','mercado-estelar','conexao-setorial','ponto','uniko-fit','colaborador','info-adicional'];
   const orbitMods = order.length ? mods : applyOrder(filteredMods, ORBIT_DEFAULT);
   const reorderCard = (list, fromId, toId) => {
     if (!fromId || fromId === toId) return;
@@ -227,9 +232,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         background:T.page, fontFamily:'var(--font-body)'}}>
 
         <style>{`.mob-card { -webkit-tap-highlight-color: transparent; }`}</style>
-
-        <UnikoOrigin/>
-        <InstalarAppGuide/>
 
         {/* Top bar: wordmark + chip de perfil (toca pra editar) */}
         <div style={{padding:'16px 16px 2px', display:'flex', alignItems:'flex-start', justifyContent:'space-between'}}>
@@ -336,9 +338,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
       position:'relative',zIndex:1,padding:'22px 34px 26px'}}>
-
-      <UnikoOrigin/>
-      <InstalarAppGuide/>
 
       {authUser&&(
         <div ref={cardElRef} style={{position:'fixed',

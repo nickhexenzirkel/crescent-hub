@@ -13,6 +13,7 @@ import FaturamentoPortal from './modules/faturamento';
 import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
 import UnikoFit from './modules/uniko-fit';
+import InfoAdicional from './modules/info-adicional';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -506,6 +507,7 @@ export default function CrescentHub() {
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
         </div>
