@@ -531,15 +531,32 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // momento (ver onCaptureState abaixo).
   const isMobile = useIsMobile();
   const effectiveScale = captureAlert ? 1 : scale;
-  // No celular a preferência de tamanho (0.6–1.8×) podia gerar um robô de até
-  // ~210px — quase metade da largura da tela, impossibilitando tocar em qualquer
-  // coisa perto dele. Teto de 60px no mobile, sem mexer na preferência salva
-  // (ela continua valendo normal no desktop e volta a valer se abrir num
-  // aparelho maior).
-  const MOBILE_ICON_MAX = 60;
-  const mobileScale = isMobile ? Math.min(effectiveScale, MOBILE_ICON_MAX / (skin.iconSize || 84)) : effectiveScale;
-  const ICON = Math.round((skin.iconSize || 84) * mobileScale);     // tamanho do robô (skin × preferência pessoal, com teto no mobile)
-  const MARGIN = Math.round((skin.edgeMargin ?? 12) * mobileScale); // distância das bordas (escala junto)
+  /* No celular a preferência de tamanho (0.6–1.8×) podia gerar um robô de até
+     ~210px — quase metade da largura da tela, impossibilitando tocar em
+     qualquer coisa perto dele. O teto existe por isso; o jeito como ele era
+     aplicado é que estava errado.
+
+     Antes ele limitava a ESCALA: `min(escala, 60 / iconSize)`. Com a skin
+     padrão (84px) isso dá 0,71× — ou seja, de 0,72× pra cima TUDO virava o
+     mesmo robô de 60px. Saindo do padrão (100%), apertar "+" não fazia nada e
+     "−" só surtia efeito depois de dois toques. Nas skins maiores (116px) o
+     teto dava 0,52×, abaixo do mínimo de 0,6× — o controle ficava morto na
+     faixa inteira: o card mostrava "120%" e o robô não mexia um pixel.
+
+     Agora o celular tem a SUA faixa de tamanho: a mesma preferência percorre
+     de MOBILE_ICON_MIN a MOBILE_ICON_MAX partindo de uma base pensada pra
+     tela pequena, então cada toque muda ~6px e se vê na hora. A skin ainda
+     influencia (as maiores continuam maiores), mas dentro de um limite — no
+     celular quem manda é a tela, não a arte. A preferência salva não é
+     tocada: no desktop continua valendo 0,6–1,8× em cima do tamanho da skin. */
+  const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 104, MOBILE_ICON_BASE = 58;
+  const skinIcon = skin.iconSize || 84;
+  const ICON = isMobile
+    ? Math.round(Math.min(MOBILE_ICON_MAX, Math.max(MOBILE_ICON_MIN,
+        MOBILE_ICON_BASE * Math.min(1.25, Math.max(0.85, skinIcon / 84)) * effectiveScale)))
+    : Math.round(skinIcon * effectiveScale);
+  // A margem das bordas acompanha o tamanho que o robô REALMENTE ficou.
+  const MARGIN = Math.max(8, Math.round((skin.edgeMargin ?? 12) * (ICON / skinIcon)));
   const iconRef = useRef(ICON); iconRef.current = ICON;
   const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
