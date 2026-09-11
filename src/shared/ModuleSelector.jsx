@@ -270,7 +270,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const calc = () => {
       const w = el.clientWidth, h = el.clientHeight;
       if (!w || !h) return;
-      const s = Math.min(w / 1180, h / 720, 1);
+      const s = Math.min(w / 1420, h / 720, 1);   // 1420x720 = caixa de projeto da órbita
       setOrbitScale(s > 0 ? s : 1);
     };
     calc();
@@ -364,8 +364,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // reproduz exatamente as posições da referência (relógio a partir do topo).
   // Depois que a pessoa arrasta pra reorganizar, os dois (lista mobile e
   // órbita desktop) passam a seguir a MESMA ordem escolhida por ela.
-  // Os TRÊS PRIMEIROS formam o grupo do topo (o do meio fica cravado no alto).
-  const ORBIT_DEFAULT = ['uniko-fit','colaborador','alexa','faturamento','dashboard','mercado-estelar','conexao-setorial','ponto','info-adicional'];
+  // O SEGUNDO da lista fica cravado no topo; o primeiro nasce à esquerda dele
+  // e o terceiro à direita. Daí em diante segue no sentido horário.
+  const ORBIT_DEFAULT = ['mercado-estelar','colaborador','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
   const orbitMods = order.length ? mods : applyOrder(filteredMods, ORBIT_DEFAULT);
   const reorderCard = (list, fromId, toId) => {
     if (!fromId || fromId === toId) return;
@@ -382,39 +383,21 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
      nascer depois de um return condicional — a ordem dos hooks mudaria ao
      alternar entre celular e desktop.
 
-     Ângulos igualmente espaçados NÃO viram distância igual numa elipse, e
-     reservar ARCO não impede o encosto: quem encosta é a CORDA, a linha reta
-     entre dois centros. A conta toda — e o porquê de as bolhas se colarem
-     antes — está em shared/orbita.js; aqui entram só os números desta tela.
-
-     As folgas: apertada dentro do trio do topo, padrão no resto, e toda a
-     sobra do anel vai pros pares de fora — é o que faz o trio ler como um
-     grupo. O trio são os TRÊS PRIMEIROS da ordem, com o segundo cravado no
-     topo; quem quiser outros três lá em cima arrasta no "reorganizar". */
-  const RX = 44, RY = 35;              // raios da elipse, em % da largura/altura
-  const BASE_D = 178, BUBBLE_GAP = 30; // diâmetro e respiro padrão, em px (escala 1x)
-  const GAP_TRIO = 34;                 // folga DENTRO do trio do topo — junto, sem encostar
-  const TRIO_TOPO = 3;                 // quantos módulos formam o grupo principal lá em cima
-  const orbitWpx = 1180 * orbitScale, orbitHpx = 720 * orbitScale;
-  const chaveOrbita = orbitMods.map(m => `${m.id}:${getSizeMult(m.id)}`).join('|') + `@${orbitScale}`;
-  const { orbitAngles, orbitDiams } = useMemo(() => {
-    const diamsPedidos = orbitMods.map(m => BASE_D * orbitScale * getSizeMult(m.id));
-    const gaps = diamsPedidos.map((_, i) =>
-      (i < TRIO_TOPO - 1 ? GAP_TRIO : BUBBLE_GAP) * orbitScale);
-    const { angulos, diams } = calcularOrbita({
-      diamsPedidos,
-      RXpx: RX / 100 * orbitWpx,
-      RYpx: RY / 100 * orbitHpx,
-      gaps,
-      trio: TRIO_TOPO,
-      diamMin: 90 * orbitScale,
-    });
-    return { orbitAngles: angulos, orbitDiams: diams };
-    // chaveOrbita resume o que muda o layout (ordem, tamanhos e escala);
-    // orbitMods/getSizeMult trocam de identidade a cada render.
+     A conta toda (e as duas tentativas que deram errado antes) está em
+     shared/orbita.js. Em resumo: folga IGUAL entre todos os pares, medida na
+     distância real entre centros, e as bolhas crescem juntas pra ocupar o
+     anel em vez de deixar vão. Sai em px de projeto (a caixa ORBIT_W×ORBIT_H);
+     quem encolhe tudo pra caber na janela é o orbitScale, na hora de pintar. */
+  const ORBIT_W = 1420, ORBIT_H = 720;   // caixa de projeto da órbita, em px
+  const BASE_D = 178;                    // diâmetro de referência de uma bolha "M"
+  const chaveOrbita = orbitMods.map(m => `${m.id}:${getSizeMult(m.id)}`).join('|');
+  const orbita = useMemo(
+    () => calcularOrbita({ mults: orbitMods.map(m => getSizeMult(m.id)),
+                           W: ORBIT_W, H: ORBIT_H, base: BASE_D }),
+    // chaveOrbita resume o que muda o layout (quais módulos e que tamanhos);
+    // orbitMods e getSizeMult trocam de identidade a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveOrbita, orbitWpx, orbitHpx]);
-
+    [chaveOrbita]);
 
   if (isMobile) {
     return (
@@ -528,20 +511,26 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
   // ─── DESKTOP — órbita ────────────────────────────────────────────────────
   const N = orbitMods.length || 1;
-  // Posições e diâmetros já saíram do useMemo lá em cima; aqui é só ler.
-  const orbitDiam = (i) => orbitDiams[i] ?? BASE_D * orbitScale;
-  const orbitPt = (i) => {
-    const ang = (orbitAngles[i % N] ?? -90) * Math.PI / 180;
-    return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
+  // Posições, diâmetros e raios da elipse já saíram do useMemo; aqui é só ler.
+  // Tudo em px de projeto — o orbitScale entra na hora de pintar.
+  const { angulos: orbitAngles, diams: orbitDiams, RXpx, RYpx } = orbita;
+  const pctDoAngulo = (ang) => {
+    const a = ang * Math.PI / 180;
+    return { left: 50 + RXpx * Math.cos(a) / ORBIT_W * 100,
+             top:  50 + RYpx * Math.sin(a) / ORBIT_H * 100 };
   };
+  const orbitDiam = (i) => (orbitDiams[i] ?? 178) * orbitScale;
+  const orbitPt = (i) => pctDoAngulo(orbitAngles[i % N] ?? -90);
   // Pontinho decorativo entre duas bolhas vizinhas — só o meio ANGULAR entre
   // elas (não precisa ser exato, é decoração).
   const orbitMidPt = (i) => {
-    const a0 = orbitAngles[i], a1raw = orbitAngles[(i + 1) % N];
+    const a0 = orbitAngles[i] ?? -90, a1raw = orbitAngles[(i + 1) % N] ?? -90;
     const a1 = a1raw > a0 ? a1raw : a1raw + 360;
-    const ang = ((a0 + a1) / 2) * Math.PI / 180;
-    return { left: 50 + RX * Math.cos(ang), top: 50 + RY * Math.sin(ang) };
+    return pctDoAngulo((a0 + a1) / 2);
   };
+  // Os anéis decorativos saem dos raios REAIS da elipse, senão deixam de
+  // passar por baixo das bolhas quando elas mudam de tamanho.
+  const aneis = [1, 0.845, 0.69].map(k => ({ rx: RXpx * k, ry: RYpx * k }));
 
   return(
     // background:T.page precisa estar aqui, e não só no wrapper do App.jsx —
@@ -707,24 +696,25 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
           proporções, até caber sem precisar rolar a página. */}
       <div ref={orbitAreaRef} style={{flex:'1 1 0',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',width:'100%'}}>
-      <div className="fsu2" style={{position:'relative',width:1180*orbitScale,height:720*orbitScale,flex:'0 0 auto'}}>
-        <svg viewBox="0 0 1180 720" style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
-          <ellipse cx="590" cy="360" rx="519" ry="252" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".22"/>
-          <ellipse cx="590" cy="360" rx="440" ry="211" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".15"/>
-          <ellipse cx="590" cy="360" rx="360" ry="170" fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity=".1"/>
+      <div className="fsu2" style={{position:'relative',width:ORBIT_W*orbitScale,height:ORBIT_H*orbitScale,flex:'0 0 auto'}}>
+        <svg viewBox={`0 0 ${ORBIT_W} ${ORBIT_H}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
+          {aneis.map((a, i) => (
+            <ellipse key={'anel'+i} cx={ORBIT_W/2} cy={ORBIT_H/2} rx={a.rx} ry={a.ry}
+              fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity={[.22, .15, .1][i]}/>
+          ))}
           {orbitMods.map((_,i)=>{ const p = orbitMidPt(i); return (
-            <circle key={i} cx={p.left/100*1180} cy={p.top/100*720} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
+            <circle key={i} cx={p.left/100*ORBIT_W} cy={p.top/100*ORBIT_H} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
           );})}
           {/* estrelinhas/planetinhas viajando pelos anéis — quanto mais interno o
               anel, mais rápido (como órbitas de verdade: raio menor gira mais rápido) */}
-          {[
-            { rx:519, ry:252, dur:'26s', r:3.5, fill:'#ffffff' },
-            { rx:440, ry:211, dur:'19s', r:3,   fill:T.goldL||T.gold },
-            { rx:360, ry:170, dur:'13s', r:2.6, fill:'#ffffff' },
-          ].map((o,oi)=>(
+          {aneis.map((a,oi)=>({ ...a, ...[
+            { dur:'26s', r:3.5, fill:'#ffffff' },
+            { dur:'19s', r:3,   fill:T.goldL||T.gold },
+            { dur:'13s', r:2.6, fill:'#ffffff' },
+          ][oi] })).map((o,oi)=>(
             <circle key={'orb'+oi} r={o.r} fill={o.fill} opacity=".95" style={{filter:`drop-shadow(0 0 3px ${T.goldL||T.gold})`}}>
               <animateMotion dur={o.dur} begin={`${-oi*4}s`} repeatCount="indefinite"
-                path={`M ${590+o.rx},360 A ${o.rx},${o.ry} 0 1,1 ${590-o.rx},360 A ${o.rx},${o.ry} 0 1,1 ${590+o.rx},360`}/>
+                path={`M ${ORBIT_W/2+o.rx},${ORBIT_H/2} A ${o.rx},${o.ry} 0 1,1 ${ORBIT_W/2-o.rx},${ORBIT_H/2} A ${o.rx},${o.ry} 0 1,1 ${ORBIT_W/2+o.rx},${ORBIT_H/2}`}/>
             </circle>
           ))}
         </svg>
@@ -736,7 +726,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {orbitMods.map((m,i)=>{
           const p = orbitPt(i);
           const bd = orbitDiam(i);
-          const bs = bd / BASE_D; // escala individual dessa bolha (ícone/fonte/aura acompanham)
+          // Ícone, textos e aura acompanham o tamanho final da bolha. Como agora
+          // as bolhas crescem pra ocupar o anel, bs passa de 1 no caso comum — é
+          // proporcional de propósito, pra bolha maior não ficar com texto perdido.
+          const bs = bd / (BASE_D * orbitScale);
           const { color: mColor, bg: mBg } = getModuleColor(m);
           return (
             <div key={m.id}

@@ -1,46 +1,38 @@
 /* ══════════════════════════════════════════════════════════════════════════
    ÓRBITA DO SELETOR DE MÓDULOS — onde cada bolha fica no anel
 
-   O PROBLEMA QUE ISTO RESOLVE (set/2026)
-   As bolhas se encostavam uma na outra, principalmente as de baixo. A conta
-   antiga dividia o PERÍMETRO da elipse entre os módulos, o que parecia certo,
-   mas errava em dois pontos:
+   O QUE JÁ DEU ERRADO AQUI (pra não repetir)
 
-   1) Media o arco num espaço misturado: o x em "% da largura" e o y em "% da
-      altura", somados com Pitágoras como se fossem a mesma unidade. Só que
-      1% da largura são 11,8px e 1% da altura são 7,2px. Depois convertia tudo
-      por uma média única (9,5px). Resultado: nas pontas laterais do anel —
-      onde o caminho é quase todo vertical — a conta achava que havia 32% mais
-      espaço do que havia de verdade, e era exatamente ali que as bolhas se
-      colavam.
+   1) Bolhas se encostando. A conta antiga dividia o perímetro medindo o arco
+      num espaço misturado — o x em "% da largura" e o y em "% da altura",
+      somados com Pitágoras como se fossem a mesma unidade, e convertidos
+      depois por uma média única. Mas 1% da largura são 11,8px e 1% da altura
+      7,2px: nas pontas laterais do anel a conta achava 32% mais espaço do que
+      havia, e era ali que elas colavam. Além disso reservava ARCO, quando
+      quem encosta é a CORDA — a linha reta entre dois centros, até 12% menor
+      que o arco nas pontas de uma elipse achatada.
 
-   2) Reservava ARCO, mas quem encosta é a CORDA — a linha reta entre os dois
-      centros. Numa elipse achatada (519×252px) as pontas curvam muito, e ali
-      a corda chega a ser 12% menor que o arco.
+   2) Trio apertado no topo. A tentativa seguinte agrupou os três primeiros
+      módulos lá em cima e jogou toda a sobra do anel pros outros pares. Ficou
+      pior: três colados no alto e buracos enormes nos lados.
 
-   Medido com 9 módulos do mesmo tamanho: as folgas deveriam ser 30px iguais e
-   iam de 23px a 147px. Agora são exatas.
+   COMO É AGORA
+   Espaçamento UNIFORME — a mesma folga entre todos os pares, medida na
+   distância real entre centros. E em vez de sobrar buraco, as bolhas CRESCEM
+   juntas até a folga chegar no alvo; quando nem crescendo elas dão conta (são
+   poucos módulos), aí sim o anel inteiro encolhe. Assim a órbita fica cheia
+   com 4 ou com 11 módulos, sem vão.
 
-   COMO FUNCIONA AGORA
-   Trabalha na elipse em PIXELS de verdade e mira na distância real entre
-   centros. Como não dá pra resolver isso de forma fechada (a corda depende de
-   onde os pontos caem, e onde eles caem depende da corda), o layout começa
-   proporcional ao arco e se ajusta em algumas voltas até a corda bater com o
-   pedido — converge em menos de 60 iterações, sempre.
+   Como a corda depende de onde os pontos caem e onde eles caem depende da
+   corda, não há fórmula fechada: o layout parte do arco e se ajusta em
+   algumas voltas até bater. Converge sempre em bem menos de 60 iterações.
 
-   O TRIO DO TOPO
-   Os três primeiros módulos da ordem ficam agrupados no alto: o do meio
-   cravado exatamente no topo (-90°) e os outros dois ladeando, com uma folga
-   menor de propósito. Toda a sobra de perímetro vai pros outros pares, então
-   o trio lê como um grupo e o resto respira.
+   O módulo de índice 1 fica cravado no topo (-90°), o de índice 0 à esquerda
+   dele e o de índice 2 à direita — é o que define a ordem padrão da tela.
 ══════════════════════════════════════════════════════════════════════════ */
 
-/* Posiciona os centros. Devolve os ângulos em graus, na mesma convenção do
-   resto do seletor (-90° = topo, crescendo no sentido horário). */
-function posicionar({ diams, RXpx, RYpx, gaps, trio }) {
-  const N = diams.length;
-
-  /* Tabela de comprimento de arco da elipse, em px, começando no topo. */
+/* Tabela de comprimento de arco da elipse, em px, começando no topo. */
+function tabelaDeArco(RXpx, RYpx) {
   const AMOSTRAS = 1440, PASSO = 360 / AMOSTRAS;
   const arco = [0], graus = [-90];
   let px = RXpx * Math.cos(-Math.PI / 2), py = RYpx * Math.sin(-Math.PI / 2), acc = 0;
@@ -50,39 +42,31 @@ function posicionar({ diams, RXpx, RYpx, gaps, trio }) {
     acc += Math.hypot(x - px, y - py);
     arco.push(acc); graus.push(-90 + i * PASSO); px = x; py = y;
   }
-  const P = acc; // perímetro real, em px
-
+  const perimetro = acc;
   const grauDoArco = (t) => {
-    let u = t % P; if (u < 0) u += P;
+    let u = t % perimetro; if (u < 0) u += perimetro;
     let lo = 0, hi = arco.length - 1;
     while (lo < hi - 1) { const meio = (lo + hi) >> 1; if (arco[meio] <= u) lo = meio; else hi = meio; }
     const f = (u - arco[lo]) / Math.max(1e-9, arco[hi] - arco[lo]);
     return graus[lo] + f * (graus[hi] - graus[lo]);
   };
   const ponto = (g) => { const a = g * Math.PI / 180; return { x: RXpx * Math.cos(a), y: RYpx * Math.sin(a) }; };
+  return { perimetro, grauDoArco, ponto };
+}
 
-  /* Distância de centro a centro que cada par PRECISA pra não encostar. */
-  const D = diams.map((d, i) => (d + diams[(i + 1) % N]) / 2 + gaps[i]);
-  const somaD = D.reduce((a, b) => a + b, 0);
+/* Espalha os centros com a MESMA folga entre todos os pares. */
+function posicionar({ diams, RXpx, RYpx, gap }) {
+  const N = diams.length;
+  const { perimetro: P, grauDoArco, ponto } = tabelaDeArco(RXpx, RYpx);
 
-  /* A sobra vai só pros pares de fora do trio — é isso que mantém o trio do
-     topo agrupado e espalha o resto. O que há pra repartir é o perímetro do
-     POLÍGONO (soma das cordas), não o da elipse: a corda sempre corta caminho.
-     Como o polígono depende das posições, começamos pelo perímetro da elipse
-     e corrigimos a cada volta. */
-  const foraDoTrio = D.map((_, i) => i >= trio - 1);
-  const nFora = foraDoTrio.filter(Boolean).length || N;
-  let utilizavel = P;
-  const alvos = () => {
-    const sobra = Math.max(0, utilizavel - somaD);
-    return D.map((d, i) => d + (foraDoTrio[i] ? sobra / nFora : 0));
-  };
-
-  let fatia = (() => { const a = alvos(), s = a.reduce((x, y) => x + y, 0) || 1; return a.map(v => v / s * P); })();
+  const D = diams.map((d, i) => (d + diams[(i + 1) % N]) / 2 + gap);
+  const somaD = D.reduce((a, b) => a + b, 0) || 1;
+  let fatia = D.map(v => v / somaD * P);
   let angulos = [];
+
   for (let volta = 0; volta < 60; volta++) {
-    /* A bolha 1 (a do meio do trio) fica cravada no topo; as outras saem dela
-       pra frente e pra trás. */
+    /* O índice 1 fica cravado no topo; os outros saem dele pra frente, e o
+       índice 0 pra trás (fica à esquerda do topo). */
     const ts = new Array(N);
     ts[1 % N] = 0;
     for (let k = 2; k < N; k++) ts[k] = ts[k - 1] + fatia[k - 1];
@@ -93,12 +77,9 @@ function posicionar({ diams, RXpx, RYpx, gaps, trio }) {
     const cordas = pts.map((p, i) => { const q = pts[(i + 1) % N]; return Math.hypot(p.x - q.x, p.y - q.y); });
     const somaC = cordas.reduce((a, b) => a + b, 0) || 1;
 
-    utilizavel = somaC;
-    const alvo = alvos(), somaAlvo = alvo.reduce((a, b) => a + b, 0) || 1;
     let maiorAjuste = 0;
     fatia = fatia.map((f, i) => {
-      const quer = alvo[i] / somaAlvo, tem = cordas[i] / somaC;
-      const corr = quer / Math.max(1e-9, tem);
+      const corr = (D[i] / somaD) / Math.max(1e-9, cordas[i] / somaC);
       maiorAjuste = Math.max(maiorAjuste, Math.abs(corr - 1));
       return f * corr;
     });
@@ -106,37 +87,89 @@ function posicionar({ diams, RXpx, RYpx, gaps, trio }) {
     fatia = fatia.map(f => f / s * P);
     if (maiorAjuste < 1e-4) break;
   }
-  return { angulos, ponto };
+
+  const pts = angulos.map(ponto);
+  const folga = N > 1
+    ? Math.min(...pts.map((p, i) => {
+      const j = (i + 1) % N, q = pts[j];
+      return Math.hypot(p.x - q.x, p.y - q.y) - (diams[i] + diams[j]) / 2;
+    }))
+    : Infinity;
+  return { angulos, ponto, folga };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Entrada de verdade. Se os tamanhos pedidos não couberem no anel, TODO MUNDO
-   encolhe junto na mesma proporção — uma bolha nunca come o espaço da vizinha.
-   Encolher muda as cordas, então roda 3 voltas (converge bem antes).
+   Entrada de verdade.
 
-   diamsPedidos — diâmetro que cada módulo quer, em px, na ordem do anel
-   RXpx/RYpx    — raios da elipse, em px de tela
-   gaps         — folga mínima desejada entre cada par (i → i+1), em px
-   trio         — quantos módulos formam o grupo do topo (padrão 3)
+   mults   — multiplicador de tamanho de cada módulo (P/M/G/GG), na ordem do anel
+   W, H    — caixa disponível, em px
+   base    — diâmetro de referência de uma bolha "M", em px
+   gapAlvo — folga que se quer entre todas as bolhas
+   gapMax  — passou disso, o anel inteiro encolhe (senão sobra vão com poucos módulos)
+   dMin/dMax — limites de tamanho de bolha
+   margem  — respiro entre a bolha mais externa e a borda da caixa
+
+   Devolve os ângulos, os diâmetros finais e os raios da elipse — os anéis
+   decorativos do seletor são desenhados a partir DESTES raios, senão eles
+   deixam de passar por baixo das bolhas.
    ───────────────────────────────────────────────────────────────────────── */
-export function calcularOrbita({ diamsPedidos, RXpx, RYpx, gaps, trio = 3, diamMin = 90 }) {
-  const N = diamsPedidos.length;
-  if (!N) return { angulos: [], diams: [], ponto: () => ({ x: 0, y: 0 }) };
+export function calcularOrbita({
+  mults, W, H, base = 178, gapAlvo = 46, gapMax = 95,
+  dMin = 120, dMax = 250, margem = 12,
+}) {
+  const N = mults?.length || 0;
+  if (!N) return { angulos: [], diams: [], RXpx: 0, RYpx: 0, ponto: () => ({ x: 0, y: 0 }) };
 
-  let diams = diamsPedidos.slice(), r = null;
-  for (let volta = 0; volta < 3; volta++) {
-    r = posicionar({ diams, RXpx, RYpx, gaps, trio: Math.min(trio, N) });
+  const maiorMult = Math.max(...mults);
+  const somaMults = mults.reduce((a, b) => a + b, 0) || 1;
+  const raios = (d0, encolhe) => {
+    const maior = d0 * maiorMult;
+    return {
+      RXpx: Math.max(40, (W / 2 - maior / 2 - margem) * encolhe),
+      RYpx: Math.max(40, (H / 2 - maior / 2 - margem) * encolhe),
+    };
+  };
+  const rodar = (d0, encolhe) => {
+    const { RXpx, RYpx } = raios(d0, encolhe);
+    const diams = mults.map(m => d0 * m);
+    return { ...posicionar({ diams, RXpx, RYpx, gap: gapAlvo }), diams, RXpx, RYpx };
+  };
+
+  /* 1ª etapa — as bolhas crescem (ou encolhem) até a folga bater no alvo.
+     Crescer muda os raios, que mudam o perímetro: repete até estabilizar. */
+  let d0 = base, r = rodar(d0, 1);
+  for (let volta = 0; volta < 10; volta++) {
     const pts = r.angulos.map(r.ponto);
-    let encolhe = 1;
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      if (i === j) continue;                       // um módulo só: nada a comparar
-      const corda = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
-      const cabe = 2 * (corda - gaps[i]) / (diams[i] + diams[j]);
-      if (cabe < encolhe) encolhe = cabe;
-    }
-    if (encolhe >= 0.999) break;
-    diams = diamsPedidos.map(d => Math.max(diamMin, d * encolhe));
+    const poli = N > 1
+      ? pts.reduce((s, p, i) => { const q = pts[(i + 1) % N]; return s + Math.hypot(p.x - q.x, p.y - q.y); }, 0)
+      : 0;
+    const querido = N > 1 ? (poli - N * gapAlvo) / somaMults : base;
+    const novo = Math.max(dMin, Math.min(dMax / maiorMult, querido));
+    const parou = Math.abs(novo - d0) < 0.5;
+    d0 = novo; r = rodar(d0, 1);
+    if (parou) break;
   }
-  return { angulos: r.angulos, diams, ponto: r.ponto };
+
+  /* 2ª etapa — se mesmo na bolha máxima ainda sobra vão (poucos módulos),
+     encolhe o anel inteiro até a folga chegar no teto. Busca binária: a
+     folga cai junto com o raio, então o intervalo é bem-comportado. */
+  if (r.folga > gapMax && N > 1) {
+    let lo = 0.35, hi = 1;
+    for (let i = 0; i < 22; i++) {
+      const meio = (lo + hi) / 2;
+      const teste = rodar(d0, meio);
+      if (teste.folga > gapMax) hi = meio; else lo = meio;
+    }
+    const final = rodar(d0, hi);
+    if (final.folga >= gapAlvo * 0.9) r = final;   // nunca encolher a ponto de encostar
+  }
+
+  /* 3ª etapa — rede de segurança: se por qualquer motivo ainda houver
+     encosto, todo mundo encolhe JUNTO (nunca uma bolha come a vizinha). */
+  for (let volta = 0; volta < 3 && r.folga < 0; volta++) {
+    d0 *= Math.max(0.5, 1 + r.folga / (d0 * maiorMult));
+    r = rodar(Math.max(dMin * 0.6, d0), 1);
+  }
+
+  return { angulos: r.angulos, diams: r.diams, RXpx: r.RXpx, RYpx: r.RYpx, ponto: r.ponto };
 }
