@@ -492,6 +492,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               <div style={{fontSize:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
               <div style={{fontSize:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em'}}>{USER.short}!</div>
               <div style={{fontSize:12,color:'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
+              {/* Contagem de férias — só pra quem está na lista seleta. Cabia num
+                  card inteiro antes; virou uma pílula discreta aqui embaixo da
+                  data, no mesmo canto que já concentra a info "quando" do dia. */}
+              {myVacation && vacationCountdown && (
+                <div title={`Data-limite: ${new Date(myVacation.date+'T12:00:00').toLocaleDateString('pt-BR')}`}
+                  style={{display:'inline-flex',alignItems:'center',gap:6,marginTop:8,padding:'4px 10px 4px 8px',
+                    borderRadius:999,background:'rgba(255,255,255,.12)',border:'1px solid rgba(255,255,255,.18)',width:'fit-content'}}>
+                  <span style={{fontSize:12.5,lineHeight:1}}>🏖️</span>
+                  <span style={{fontSize:11.5,color:'rgba(255,255,255,.85)',fontWeight:600,whiteSpace:'nowrap'}}>
+                    {vacationCountdown.expired
+                      ? 'Férias: data-limite alcançada'
+                      : <>Férias em <b style={{color:'#FFD98A'}}>{vacationCountdown.months}{vacationCountdown.months===1?' mês':' meses'} e {vacationCountdown.days}{vacationCountdown.days===1?' dia':' dias'}</b></>}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <StarDivider my={0} dim/>
@@ -516,25 +531,6 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                 <span style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{item.label}</span>
               </button>
             ))}
-          </div>
-        </Card>
-      )}
-
-      {/* ══ CONTAGEM DE FÉRIAS — só aparece pra quem está na lista seleta ══ */}
-      {myVacation && vacationCountdown && (
-        <Card className="home-card" style={{padding:'16px 20px',marginBottom:14,display:'flex',alignItems:'center',gap:18,flexWrap:'wrap'}}>
-          <div style={{width:46,height:46,borderRadius:12,background:T.goldGl,border:`1px solid ${T.goldLine}44`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🏖️</div>
-          <div style={{flex:1,minWidth:180}}>
-            <div style={{fontSize:10,color:T.gold,fontWeight:700,letterSpacing:'.08em'}}>CONTAGEM DE FÉRIAS</div>
-            <div style={{fontSize:14,fontWeight:700,color:T.text,marginTop:2}}>
-              {vacationCountdown.expired
-                ? 'Data-limite alcançada'
-                : <>Faltam <b style={{color:T.gold}}>{vacationCountdown.months}</b> {vacationCountdown.months===1?'mês':'meses'} e <b style={{color:T.gold}}>{vacationCountdown.days}</b> {vacationCountdown.days===1?'dia':'dias'}</>}
-            </div>
-            <div style={{fontSize:11,color:T.textT,marginTop:2}}>
-              Data-limite: {new Date(myVacation.date+'T12:00:00').toLocaleDateString('pt-BR')}
-              {!vacationCountdown.expired && ` · ${vacationCountdown.totalDays} dias corridos`}
-            </div>
           </div>
         </Card>
       )}
