@@ -106,7 +106,8 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    base    — diâmetro de referência de uma bolha "M", em px
    gapAlvo — folga que se quer entre todas as bolhas
    gapMax  — passou disso, o anel inteiro encolhe (senão sobra vão com poucos módulos)
-   dMin/dMax — limites de tamanho de bolha
+   dMin/dMax — limites do tamanho BASE (o de uma bolha "M")
+   dTeto   — teto de uma bolha individual, já com o multiplicador aplicado
    margem  — respiro entre a bolha mais externa e a borda da caixa
 
    Devolve os ângulos, os diâmetros finais e os raios da elipse — os anéis
@@ -115,23 +116,25 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    ───────────────────────────────────────────────────────────────────────── */
 export function calcularOrbita({
   mults, W, H, base = 178, gapAlvo = 46, gapMax = 95,
-  dMin = 120, dMax = 250, margem = 12,
+  dMin = 120, dMax = 250, dTeto = 330, margem = 12,
 }) {
   const N = mults?.length || 0;
   if (!N) return { angulos: [], diams: [], RXpx: 0, RYpx: 0, ponto: () => ({ x: 0, y: 0 }) };
 
-  const maiorMult = Math.max(...mults);
   const somaMults = mults.reduce((a, b) => a + b, 0) || 1;
-  const raios = (d0, encolhe) => {
-    const maior = d0 * maiorMult;
-    return {
-      RXpx: Math.max(40, (W / 2 - maior / 2 - margem) * encolhe),
-      RYpx: Math.max(40, (H / 2 - maior / 2 - margem) * encolhe),
-    };
-  };
+
+  /* d0 é o tamanho de uma bolha "M"; o P/G/GG de cada módulo multiplica em
+     cima dele. O teto individual (dTeto) existe só pra uma GG sozinha não
+     virar um terço da tela — repare que ele NÃO pode ser o que limita o
+     tamanho base, senão come a diferença entre os passos (foi o bug: com o
+     teto na bolha maior, G e GG davam os mesmos 250px, e com 7 módulos o M já
+     nascia no teto, então mudar o tamanho não mudava nada na tela). */
+  const tamanhos = (d0) => mults.map(m => Math.min(dTeto, d0 * m));
   const rodar = (d0, encolhe) => {
-    const { RXpx, RYpx } = raios(d0, encolhe);
-    const diams = mults.map(m => d0 * m);
+    const diams = tamanhos(d0);
+    const maior = Math.max(...diams);
+    const RXpx = Math.max(40, (W / 2 - maior / 2 - margem) * encolhe);
+    const RYpx = Math.max(40, (H / 2 - maior / 2 - margem) * encolhe);
     return { ...posicionar({ diams, RXpx, RYpx, gap: gapAlvo }), diams, RXpx, RYpx };
   };
 
@@ -144,7 +147,7 @@ export function calcularOrbita({
       ? pts.reduce((s, p, i) => { const q = pts[(i + 1) % N]; return s + Math.hypot(p.x - q.x, p.y - q.y); }, 0)
       : 0;
     const querido = N > 1 ? (poli - N * gapAlvo) / somaMults : base;
-    const novo = Math.max(dMin, Math.min(dMax / maiorMult, querido));
+    const novo = Math.max(dMin, Math.min(dMax, querido));
     const parou = Math.abs(novo - d0) < 0.5;
     d0 = novo; r = rodar(d0, 1);
     if (parou) break;
@@ -167,8 +170,8 @@ export function calcularOrbita({
   /* 3ª etapa — rede de segurança: se por qualquer motivo ainda houver
      encosto, todo mundo encolhe JUNTO (nunca uma bolha come a vizinha). */
   for (let volta = 0; volta < 3 && r.folga < 0; volta++) {
-    d0 *= Math.max(0.5, 1 + r.folga / (d0 * maiorMult));
-    r = rodar(Math.max(dMin * 0.6, d0), 1);
+    d0 = Math.max(dMin * 0.6, d0 * Math.max(0.5, 1 + r.folga / Math.max(...tamanhos(d0))));
+    r = rodar(d0, 1);
   }
 
   return { angulos: r.angulos, diams: r.diams, RXpx: r.RXpx, RYpx: r.RYpx, ponto: r.ponto };
