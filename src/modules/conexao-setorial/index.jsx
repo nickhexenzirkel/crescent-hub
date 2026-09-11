@@ -705,26 +705,58 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                       return (
                         <React.Fragment key={c.id}>
                           {showLine && <div style={{ height: 3, borderRadius: 3, background: '#A24CE0', margin: '-3px 2px 0' }} />}
+                          {isDoneList ? (
+                            /* Card compacto (uma linha) — coluna Concluído costuma acumular muitos itens;
+                               o layout cheio obrigava a diminuir o zoom do navegador pra caber tudo na tela,
+                               o que cortava/espremia o texto. Essa versão enxuta cabe muito mais por tela
+                               já no zoom normal, sem precisar diminuir nada. */
+                            <div className="cs-card" draggable
+                              onDragStart={() => setDrag({ cardId: c.id, fromList: list.id })}
+                              onDragEnd={() => { setDrag(null); setDragOver(null); }}
+                              onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
+                              onClick={() => setSelectedId(c.id)}
+                              onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ cardId: c.id, x: e.clientX, y: e.clientY, sub: false }); }}
+                              title={c.title}
+                              style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, background: cardBg, borderRadius: 10, border: `1.5px solid #22C55E`, padding: '7px 10px', cursor: 'pointer' }}>
+                              <button
+                                onClick={e => { e.stopPropagation(); completeCard(c.id); }}
+                                title="Concluído"
+                                style={{ flexShrink: 0, width: 17, height: 17, borderRadius: '50%', cursor: 'pointer', display: 'grid', placeItems: 'center', border: 'none', background: '#22C55E', color: '#fff', padding: 0 }}>
+                                <Ic n="checkMark" size={10} sw={3} />
+                              </button>
+                              <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.4, color: T.textS, textDecoration: 'line-through', textDecorationColor: 'rgba(34,197,94,.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.title}</div>
+                              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {imgs.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10.5, fontWeight: 700, color: T.textT }}><Ic n="image" size={11} /></span>}
+                                {(c.assignees || []).length > 0 && (
+                                  <div style={{ display: 'flex' }}>
+                                    {(c.assignees || []).slice(0, 2).map((n, i) => (
+                                      <Avatar key={n} name={n} photo={photos[n]} size={19} ring={cardBg} ml={i ? -7 : 0} />
+                                    ))}
+                                    {(c.assignees || []).length > 2 && <div style={{ width: 19, height: 19, borderRadius: '50%', background: T.textT, color: '#fff', fontSize: 9, fontWeight: 700, display: 'grid', placeItems: 'center', marginLeft: -7, border: `2px solid ${cardBg}` }}>+{(c.assignees || []).length - 2}</div>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
                           <div className="cs-card" draggable
                             onDragStart={() => setDrag({ cardId: c.id, fromList: list.id })}
                             onDragEnd={() => { setDrag(null); setDragOver(null); }}
                             onDragOver={e => { if (drag) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientY < r.top + r.height / 2; const index = before ? idx : idx + 1; if (!dragOver || dragOver.listId !== list.id || dragOver.index !== index) setDragOver({ listId: list.id, index }); } }}
                             onClick={() => setSelectedId(c.id)}
                             onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ cardId: c.id, x: e.clientX, y: e.clientY, sub: false }); }}
-                            style={{ position: 'relative', background: cardBg, borderRadius: 14, border: isDoneList ? '2px solid #22C55E' : `1px solid ${brd}`, padding: isDoneList ? '13px 14px' : '14px 15px', cursor: 'pointer', boxShadow: isDoneList ? '0 2px 12px rgba(34,197,94,.18)' : '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
+                            style={{ position: 'relative', background: cardBg, borderRadius: 14, border: `1px solid ${brd}`, padding: '14px 15px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.06)', overflow: 'hidden' }}>
                             {imgs.length > 0 && (
-                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: isDoneList ? '-13px -14px 11px' : '-14px -15px 11px', background: T.surfaceSub }} />
+                              <img src={imgs[0].url} alt="" style={{ display: 'block', width: 'calc(100% + 30px)', height: 140, objectFit: 'cover', margin: '-14px -15px 11px', background: T.surfaceSub }} />
                             )}
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                               {/* Bolinha de concluir */}
                               <button
                                 onClick={e => { e.stopPropagation(); completeCard(c.id); }}
-                                title={isDoneList ? 'Concluído' : 'Marcar como concluído'}
-                                style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', display: 'grid', placeItems: 'center', border: isDoneList ? 'none' : `2px solid ${T.textT || '#aaa'}`, background: isDoneList ? '#22C55E' : 'transparent', color: '#fff', padding: 0, transition: 'all .15s' }}>
-                                {isDoneList && <Ic n="checkMark" size={12} sw={3} />}
+                                title="Marcar como concluído"
+                                style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', display: 'grid', placeItems: 'center', border: `2px solid ${T.textT || '#aaa'}`, background: 'transparent', color: '#fff', padding: 0, transition: 'all .15s' }}>
                               </button>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: T.text, textDecoration: isDoneList ? 'line-through' : 'none', textDecorationColor: 'rgba(34,197,94,.6)' }}>{c.title}</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, color: T.text }}>{c.title}</div>
                                 {descPrev && (
                                   <div style={{ fontSize: 13, color: T.textS, marginTop: 6, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{descPrev}</div>
                                 )}
@@ -750,6 +782,7 @@ export default function ConexaoSetorial({ onBack, authUser }) {
                               </div>
                             </div>
                           </div>
+                          )}
                         </React.Fragment>
                       );
                     })}
@@ -1104,8 +1137,8 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                 </div>
               </div>
             ) : (stripHtml(card.description) ? (
-              <div onClick={abrirEdicaoDesc} className="cs-desc" dangerouslySetInnerHTML={{ __html: card.description }}
-                style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word' }} />
+              <div onClick={abrirEdicaoDesc} className="cs-desc cs-scroll" dangerouslySetInnerHTML={{ __html: card.description }}
+                style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word', maxHeight: 340, overflowY: 'auto' }} />
             ) : (
               <div onClick={abrirEdicaoDesc} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
             ))}
