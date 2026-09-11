@@ -3,6 +3,7 @@ import { T, THEMES } from '../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import unikoPortalHeader from '../../assets/UnikoPortalHeader.png';
 
 const READ_KEY = 'uniko_notif_read';
 const getReadIds = () => { try { return new Set(JSON.parse(localStorage.getItem(READ_KEY)) || []); } catch { return new Set(); } };
@@ -69,7 +70,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
     /* `portal-sidebar` (ago/2026): classe só pra outros módulos poderem
        ESCONDER a barra por CSS quando o conteúdo pede a tela inteira —
        hoje o Uniko Detetive, ao entrar numa sala (ver SUS_CSS). */
-    <div className="portal-sidebar" style={{width:collapsed?76:252,minHeight:'100vh',
+    <div className="portal-sidebar" style={{width:collapsed?76:280,minHeight:'100vh',
       background:T.sidebarBg,
       borderRight:`1px solid ${T.border}`,
       display:'flex',flexDirection:'column',
@@ -95,26 +96,23 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
             bottom:'-20px',left:'30%',filter:'blur(16px)',
             animation:'brandBlob3 7s ease-in-out infinite'}}/>
         </div>
-        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:13,marginBottom:12,
+        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',marginBottom:12,
           justifyContent:collapsed?'center':'flex-start'}}>
-          {/* Logo com blob #1F6FA9 atrás */}
-          <div style={{position:'relative',flexShrink:0,width:collapsed?42:58,height:collapsed?42:58}}>
-            <div style={{position:'absolute',inset:'-8px',borderRadius:'50%',
-              background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
-              filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',
-              zIndex:0,pointerEvents:'none'}}/>
-            <div style={{position:'absolute',inset:0,zIndex:1,
-              display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <UnikoIcon size={collapsed?36:52} rounded={true}/>
+          {collapsed ? (
+            /* Logo com blob #1F6FA9 atrás — barra recolhida, só cabe o ícone */
+            <div style={{position:'relative',flexShrink:0,width:42,height:42}}>
+              <div style={{position:'absolute',inset:'-8px',borderRadius:'50%',
+                background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
+                filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',
+                zIndex:0,pointerEvents:'none'}}/>
+              <div style={{position:'absolute',inset:0,zIndex:1,
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <UnikoIcon size={36} rounded={true}/>
+              </div>
             </div>
-          </div>
-          {!collapsed && (
-          <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,
-              color:T.text,letterSpacing:'.05em'}}>UNIKO</div>
-            <div style={{fontSize:12,color:T.textT,letterSpacing:'.06em',
-              textTransform:'uppercase',marginTop:3}}>Portal do Colaborador</div>
-          </div>
+          ) : (
+            <img src={unikoPortalHeader} alt="Uniko — Portal do Colaborador"
+              style={{width:'100%',maxWidth:238,height:'auto',display:'block',objectFit:'contain'}}/>
           )}
         </div>
         {/* star divider under brand */}

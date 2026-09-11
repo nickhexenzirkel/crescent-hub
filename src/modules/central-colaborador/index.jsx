@@ -198,7 +198,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange}) => {
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
       <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?76:252),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?76:280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
             `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
