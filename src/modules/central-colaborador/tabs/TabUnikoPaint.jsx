@@ -114,20 +114,30 @@ const useTela = () => {
   return t;
 };
 
-/* Altura real da área visível no celular. Quando o teclado abre, o iOS NÃO
-   encolhe a janela (innerHeight continua o mesmo): ele só encolhe a
-   visualViewport e empurra a página. Sem isso a barra de palpite — o único
-   jeito de jogar pra quem adivinha — ficava embaixo do teclado. */
+/* Altura (e deslocamento) real da área visível no celular. Quando o teclado
+   abre, o iOS NÃO encolhe a janela (innerHeight continua o mesmo): ele só
+   encolhe a visualViewport. Sem `h` a barra de palpite ficava embaixo do
+   teclado.
+   `top` cobre um bug à parte do Safari: ao focar o campo de palpite, ele
+   ainda tenta ROLAR O DOCUMENTO (mesmo esse card sendo position:fixed) pra
+   "trazer o campo pra vista" — isso desalinha o card (que fica preso no topo
+   da LAYOUT viewport) da área que está de fato visível na tela (a VISUAL
+   viewport, que passa a começar mais abaixo), cortando o topo do jogo ou
+   deixando tudo com aparência quebrada/deslocada. `visualViewport.offsetTop`
+   é exatamente essa diferença — aplicando ela como `top` o card acompanha
+   pra onde a tela visível realmente foi. */
 const useAlturaVisivel = (ativo) => {
-  const [h, setH] = useState(() => window.visualViewport?.height ?? null);
+  const ler = () => { const vv = window.visualViewport; return vv ? { h: vv.height, top: vv.offsetTop } : { h: null, top: 0 }; };
+  const [v, setV] = useState(ler);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!ativo || !vv) return undefined;
-    const fn = () => setH(vv.height);
+    const fn = () => setV(ler());
     vv.addEventListener('resize', fn);
-    return () => vv.removeEventListener('resize', fn);
+    vv.addEventListener('scroll', fn);
+    return () => { vv.removeEventListener('resize', fn); vv.removeEventListener('scroll', fn); };
   }, [ativo]);
-  return ativo ? h : null;
+  return ativo ? v : { h: null, top: 0 };
 };
 
 /* ── PALETA ─────────────────────────────────────────────────────────────────
@@ -1461,7 +1471,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      viram gavetas — não cabem três colunas em 390px sem espremer o desenho,
      que é o que a pessoa veio fazer. */
   const { compacto, empilhado, pequeno, paisagem } = useTela();
-  const alturaVis = useAlturaVisivel(compacto);
+  const { h: alturaVis, top: topoVis } = useAlturaVisivel(compacto);
   const [chatAberto, setChatAberto]   = useState(true);
   const [sheetJog, setSheetJog]       = useState(false);   // gaveta "Jogadores"
   const [menuMob, setMenuMob]         = useState(false);   // gaveta "⋯"
@@ -2817,7 +2827,11 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
         display: 'flex', flexDirection: 'column',
         /* `alturaVis` = visualViewport: com o teclado aberto o iOS não encolhe a
            janela, só a área visível — sem isso o campo de palpite ficava atrás
-           do teclado. Fallback em dvh (a barra do Chrome do Android some/volta). */
+           do teclado. Fallback em dvh (a barra do Chrome do Android some/volta).
+           `top: topoVis` reposiciona o card se o Safari rolar o documento ao
+           focar o campo (ver comentário em useAlturaVisivel) — sem isso a tela
+           "cortava"/desalinhava ao abrir o teclado pra digitar o palpite. */
+        top: topoVis || 0,
         height: alturaVis || '100dvh',
         paddingBottom: 'env(safe-area-inset-bottom)',
         paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
