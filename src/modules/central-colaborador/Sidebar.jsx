@@ -31,12 +31,18 @@ const UB_SPARKLES = [
   { cx: 391, cy: 44,  r: 4,   dur: 2.7, delay: 1.3 },
   { cx: 408, cy: 28,  r: 5,   dur: 2.1, delay: .8  },
   { cx: 572, cy: 134, r: 7,   dur: 2.5, delay: 1.6 },
-  { cx: 512, cy: 181, r: 6,   dur: 2.2, delay: 1.9 },
+  { cx: 512, cy: 202, r: 6,   dur: 2.2, delay: 1.9 },
 ];
 const BRAND_CSS = `
 @keyframes ubFloat    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes ubTwinkle  { 0%,100% { opacity:.25; transform:scale(.7); } 50% { opacity:1; transform:scale(1); } }
 @keyframes ubFlow     { to { stroke-dashoffset: -260; } }
+/* Piscada — mesmo esquema de 3 quadros do UnikoMascot em ModuleSelector.jsx:
+   base sempre de olho FECHADO; o quadro do MEIO some (revelando o fechado)
+   só no instante de fechar/abrir; o de CIMA (normal) some no resto da
+   piscada, revelando os dois de baixo em sequência. */
+@keyframes ubBlinkTop { 0%,90% { opacity:1; } 90.6%,99% { opacity:0; } 99.4%,100% { opacity:1; } }
+@keyframes ubBlinkMid { 0%,93.8% { opacity:1; } 94.2%,96% { opacity:0; } 96.4%,100% { opacity:1; } }
 @media (prefers-reduced-motion: reduce) {
   .ub-mascote, .ub-spark, .ub-comet-core, .ub-swirl { animation: none !important; }
 }
@@ -86,9 +92,15 @@ const UnikoBrandArt = () => (
       <circle cx="585" cy="4" r="4.5" fill="#ffffff"
         style={{filter:'drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px #4AA6FF)'}}/>
 
-      {/* mascote */}
-      <image href="/UNIKO_NEW.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
+      {/* mascote — 3 quadros empilhados fazem a piscada (mesma técnica do
+          UnikoMascot em ModuleSelector.jsx): fechado embaixo sempre visível,
+          meio-fechado e normal por cima somem em sequência pra simular o piscar. */}
+      <image href="/UNIKO_PISCA.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
         className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite'}}/>
+      <image href="/UNIKO_PISCA_FRAME_2.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
+        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite, ubBlinkMid 3s linear infinite'}}/>
+      <image href="/UNIKO_NEW.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
+        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite, ubBlinkTop 3s linear infinite'}}/>
 
       {/* wordmark UNIKO */}
       <g transform="translate(204,44) scale(0.72)" fill="none" strokeLinecap="round" strokeLinejoin="round"
@@ -100,12 +112,12 @@ const UnikoBrandArt = () => (
 
       {/* subtítulo — cor sólida (não o gradiente das letras: aquele é
           userSpaceOnUse no espaço LOCAL do <g> da wordmark, não bate aqui fora) */}
-      <text x="204" y="190" fontFamily="Poppins, var(--font-brand)" fontWeight="800" fontSize="21"
-        letterSpacing="1.5" fill="#EAF2FA"
+      <text x="204" y="170" fontFamily="Poppins, var(--font-brand)" fontWeight="800" fontSize="25"
+        letterSpacing="1.2" fill="#EAF2FA"
         style={{filter:'drop-shadow(0 0 4px #2E7BFF) drop-shadow(0 0 9px #2E7BFF)'}}>
         PORTAL DO COLABORADOR
       </text>
-      <path d="M204,201 L585,201" stroke="#4AA6FF" strokeWidth="2" opacity=".6" strokeLinecap="round"/>
+      <path d="M204,181 L585,181" stroke="#4AA6FF" strokeWidth="2" opacity=".6" strokeLinecap="round"/>
 
       {/* poeira de estrelas ✦ */}
       {UB_SPARKLES.map((s,i) => (
