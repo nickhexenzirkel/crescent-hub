@@ -43,13 +43,27 @@ export const comAlfa = (cor, f) => {
   return cor; // formato inesperado — devolve como veio, sem quebrar o tema
 };
 
-/* Curva de sino (gaussiana com σ≈0,35) amostrada em 9 paradas. As posições
-   param em 82% pra a bolha ocupar o mesmo tamanho aparente que ocupava com
-   o degradê de 62% + os ~78px que o blur espalhava pra fora.
+/* Curva de sino (gaussiana) amostrada em 13 paradas — é o perfil que um
+   desfoque de verdade produz, só que calculado uma vez na hora de pintar em
+   vez de a cada frame (ver o bloco acima pro histórico).
+
+   Duas escolhas que decidem se a bolha lê como MANCHA ou como CÍRCULO:
+
+   • o pico vai a 0,6 do alfa da cor, não a 1. Um blur real não só espalha a
+     mancha, ele REBAIXA o centro (a média puxa o miolo brilhante pra baixo
+     junto com a vizinhança transparente). Mantendo o alfa cheio no centro, a
+     bolha ganhava um miolo sólido e o olho fechava o contorno em volta dele
+     — foi o que fez as formas ficarem visíveis demais;
+   • a cauda vai até 92% em 13 degraus. Terminar cedo (ou em poucos degraus)
+     deixa a borda perceptível e faz aparecer faixa.
+
    A última parada é a própria cor com alfa 0, e não a palavra `transparent`:
    `transparent` é preto transparente, e degradê até ele suja a borda de
    cinza nos temas claros. */
-const QUEDA_BOLHA = [[0,1],[10,.94],[20,.78],[31,.55],[41,.36],[51,.21],[61,.10],[72,.04],[82,0]];
+const QUEDA_BOLHA = [
+  [0, 0.600], [8, 0.586], [15, 0.545], [23, 0.483], [31, 0.408], [38, 0.329],
+  [46, 0.252], [54, 0.185], [61, 0.129], [69, 0.086], [77, 0.054], [84, 0.033], [92, 0],
+];
 export const bolhaGradiente = (cor, forma = 'circle') =>
   `radial-gradient(${forma} at 50% 50%, ${QUEDA_BOLHA.map(([pos, a]) => `${comAlfa(cor, a)} ${pos}%`).join(', ')})`;
 

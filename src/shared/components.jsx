@@ -163,8 +163,9 @@ const LavaLamp = () => {
           animationDelay:`${b.delay}s`}}/>
       ))}
       {/* Véu: mantém o fundo do tema predominante e o texto legível por cima.
-          Entra com 3/4 da força do tema — cheio ele apagava as bolhas. */}
-      <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.75)}}/>
+          Baixou de 3/4 pra 3/5 junto com o pico das bolhas: elas ficaram mais
+          difusas, e sem aliviar o véu na mesma medida sumiriam de novo. */}
+      <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.6)}}/>
       {/* Estrelas por último: brilham por cima do véu, senão ele as apagaria. */}
       <CampoDeEstrelas/>
     </div>
