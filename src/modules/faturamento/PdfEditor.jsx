@@ -332,6 +332,8 @@ export const PdfEditor = ({ onDoc }) => {
   const [scroller, setScroller] = useState(null);     // container que rola as páginas
   const [railEl, setRailEl] = useState(null);         // container das miniaturas laterais
   const [poolId, setPoolId] = useState(0);           // identidade do pool (pro cache de miniaturas)
+  const [pdfDropHover, setPdfDropHover] = useState(false); // arrastando um arquivo PDF por cima da área de páginas
+  const dragDepthRef = useRef(0); // conta dragenter/dragleave — dragleave dispara ao passar por cima de filhos
 
   const srcRef    = useRef(null);
   const scaleRef  = useRef(scale);
@@ -972,8 +974,26 @@ export const PdfEditor = ({ onDoc }) => {
           </div>
         </div>
 
-        {/* Páginas */}
-        <div ref={setScroller} style={{flex:1,maxHeight:'72vh',overflow:'auto',background:T.page,borderRadius:12,padding:'16px',border:`1px solid ${T.border}`}}>
+        {/* Páginas — arrastar um arquivo PDF por cima anexa ele como novas páginas
+            no fim do documento (mesma ação do botão "Adicionar PDF" da barra). */}
+        <div ref={setScroller} style={{flex:1,maxHeight:'72vh',overflow:'auto',background:T.page,borderRadius:12,padding:'16px',border:`1px solid ${pdfDropHover?T.gold:T.border}`,position:'relative',transition:'border-color .12s'}}
+          onDragEnter={e=>{ if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); dragDepthRef.current++; setPdfDropHover(true); } }}
+          onDragOver={e=>{ if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+          onDragLeave={()=>{ dragDepthRef.current = Math.max(0, dragDepthRef.current-1); if (dragDepthRef.current===0) setPdfDropHover(false); }}
+          onDrop={e=>{
+            if (!e.dataTransfer.types.includes('Files')) return;
+            e.preventDefault();
+            dragDepthRef.current = 0; setPdfDropHover(false);
+            const f = [...e.dataTransfer.files].find(x => /pdf/i.test(x.type) || /\.pdf$/i.test(x.name));
+            if (f) addPdf(f);
+          }}>
+          {pdfDropHover && (
+            <div style={{position:'absolute',inset:8,zIndex:20,borderRadius:10,background:`${T.gold}14`,border:`2px dashed ${T.gold}`,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'12px 20px',fontSize:13.5,fontWeight:600,color:T.text,boxShadow:'0 8px 24px rgba(0,0,0,.18)'}}>
+                📄 Solte para adicionar como novas páginas
+              </div>
+            </div>
+          )}
           {pages.map((pg,i)=>(
             <PageSlot key={pg.id} pg={pg} scale={scale} root={scroller} onSeen={garantirTexto} render={()=>(
               <div style={{position:'relative',width:pg.w*scale,height:pg.h*scale}}>
