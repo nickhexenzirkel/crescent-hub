@@ -110,7 +110,14 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    base    — diâmetro de referência de uma bolha "M", em px
    gapAlvo — folga que se quer entre todas as bolhas
    gapMax  — passou disso, o anel inteiro encolhe (senão sobra vão com poucos módulos)
-   vaoMin  — raio que precisa ficar LIVRE no meio do anel (o mascote mora ali)
+   vaoMin  — raio livre no meio do anel que o layout PADRÃO respeita (o mascote
+             mora ali). Ele limita o tamanho "M"; um módulo marcado G/GG pode
+             avançar sobre essa reserva...
+   vaoDuro — ...mas nunca além deste, que é intransponível
+
+   Devolve também `vaoCentral`: o raio livre que de fato sobrou no meio. Quem
+   desenha o mascote usa esse número pra caber no espaço que restou, em vez de
+   ter um tamanho fixo que o layout precisa respeitar a todo custo.
    dMin/dMax — limites do tamanho BASE (o de uma bolha "M")
    dTeto   — teto de uma bolha individual, já com o multiplicador aplicado
    margem  — respiro entre a bolha mais externa e a borda da caixa
@@ -120,7 +127,7 @@ function posicionar({ diams, RXpx, RYpx, gap }) {
    deixam de passar por baixo das bolhas.
    ───────────────────────────────────────────────────────────────────────── */
 export function calcularOrbita({
-  mults, W, H, base = 178, gapAlvo = 46, gapMax = 95, vaoMin = 0,
+  mults, W, H, base = 178, gapAlvo = 46, gapMax = 95, vaoMin = 0, vaoDuro = 0,
   dMin = 120, dMax = 250, dTeto = 330, margem = 12,
 }) {
   const N = mults?.length || 0;
@@ -147,21 +154,19 @@ export function calcularOrbita({
     return { ...posicionar({ diams, RXpx, RYpx, gap: gapAlvo }), diams, RXpx, RYpx };
   };
 
-  /* Teto do tamanho base imposto pelo vão do meio: é o maior d0 que ainda
-     deixa o mascote respirar. Entra ANTES de tudo, senão as bolhas crescem
-     pra ocupar o anel e só depois são obrigadas a encolher — o que reabriria
-     os buracos que o crescimento tinha fechado. */
-  let capVao = Infinity;
-  if (vaoMin > 0 && N > 0) {
-    let lo = dMin * 0.5, hi = dTeto;
-    if (rodar(hi, 1).vaoCentral < vaoMin) {
-      for (let i = 0; i < 24; i++) {
-        const meio = (lo + hi) / 2;
-        if (rodar(meio, 1).vaoCentral >= vaoMin) lo = meio; else hi = meio;
-      }
-      capVao = lo;
-    }
-  }
+  /* Teto do tamanho BASE imposto pelo vão do meio.
+
+     Repare que ele é calculado como se TODOS os módulos fossem "M" — e isso
+     é o ponto. Antes o teto olhava a maior bolha real, então o "M" já nascia
+     encostado nele e não sobrava para onde crescer: marcar o módulo do topo
+     como G ou GG dava exatamente o mesmo tamanho do M (só as vizinhas
+     encolhiam), e o controle parecia quebrado.
+
+     Agora o vão ideal reserva o tamanho do "M", e quem for marcado G/GG
+     avança sobre essa reserva — até `vaoDuro`, que é intransponível. Numa
+     elipse achatada o ponto mais apertado é em cima, e ali a conta fecha em
+     H/2 - margem - diâmetro, daí a forma direta. */
+  const capVao = vaoMin > 0 ? Math.max(dMin, H / 2 - margem - vaoMin) : Infinity;
 
   /* 1ª etapa — as bolhas crescem (ou encolhem) até a folga bater no alvo.
      Crescer muda os raios, que mudam o perímetro: repete até estabilizar. */
@@ -186,7 +191,7 @@ export function calcularOrbita({
     /* Aperta na horizontal até a folga chegar no teto. Os dois limites —
        folga e vão do meio — crescem junto com o anel, então "cabe" vale pra
        anel grande e falha pra anel pequeno: basta procurar o menor que cabe. */
-    const cabe = (t) => t.folga >= gapMax && t.vaoCentral >= vaoMin;
+    const cabe = (t) => t.folga >= gapMax && t.vaoCentral >= Math.max(vaoDuro, vaoMin * 0.9);
     let lo = 0.3, hi = 1;
     for (let i = 0; i < 24; i++) {
       const meio = (lo + hi) / 2;
@@ -196,12 +201,25 @@ export function calcularOrbita({
     if (final.folga >= gapAlvo * 0.9) { estreita = hi; r = final; }  // nunca apertar a ponto de encostar
   }
 
-  /* 3ª etapa — rede de segurança: se por qualquer motivo ainda houver
+  /* 3ª etapa — o piso do vão central. Uma bolha GG pode avançar sobre a
+     reserva do mascote, mas não atravessá-la: se passar do `vaoDuro`, todo
+     mundo encolhe JUNTO (o que preserva o P/M/G/GG de cada um). */
+  if (vaoDuro > 0 && r.vaoCentral < vaoDuro && N > 0) {
+    let lo = dMin * 0.5, hi = d0;
+    for (let i = 0; i < 24; i++) {
+      const meio = (lo + hi) / 2;
+      if (rodar(meio, estreita).vaoCentral >= vaoDuro) lo = meio; else hi = meio;
+    }
+    d0 = lo; r = rodar(d0, estreita);
+  }
+
+  /* 4ª etapa — rede de segurança: se por qualquer motivo ainda houver
      encosto, todo mundo encolhe JUNTO (nunca uma bolha come a vizinha). */
   for (let volta = 0; volta < 3 && r.folga < 0; volta++) {
     d0 = Math.max(dMin * 0.6, d0 * Math.max(0.5, 1 + r.folga / Math.max(...tamanhos(d0))));
     r = rodar(d0, estreita);
   }
 
-  return { angulos: r.angulos, diams: r.diams, RXpx: r.RXpx, RYpx: r.RYpx, ponto: r.ponto };
+  return { angulos: r.angulos, diams: r.diams, RXpx: r.RXpx, RYpx: r.RYpx,
+           vaoCentral: r.vaoCentral, ponto: r.ponto };
 }

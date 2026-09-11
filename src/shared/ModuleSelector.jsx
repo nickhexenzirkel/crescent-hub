@@ -270,7 +270,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const calc = () => {
       const w = el.clientWidth, h = el.clientHeight;
       if (!w || !h) return;
-      const s = Math.min(w / 1420, h / 760, 1);   // 1420x760 = caixa de projeto da órbita
+      const s = Math.min(w / 1420, h / 800, 1);   // 1420x800 = caixa de projeto da órbita
       setOrbitScale(s > 0 ? s : 1);
     };
     calc();
@@ -388,16 +388,27 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
      distância real entre centros, e as bolhas crescem juntas pra ocupar o
      anel em vez de deixar vão. Sai em px de projeto (a caixa ORBIT_W×ORBIT_H);
      quem encolhe tudo pra caber na janela é o orbitScale, na hora de pintar. */
-  const ORBIT_W = 1420, ORBIT_H = 760;   // caixa de projeto da órbita, em px
+  const ORBIT_W = 1420, ORBIT_H = 800;   // caixa de projeto da órbita, em px
   const BASE_D = 178;                    // diâmetro de referência de uma bolha "M"
-  const MASCOTE = 148;                   // diâmetro do Uniko no centro do anel
-  // Raio que fica LIVRE no meio: o mascote mais um respiro em volta dele. Sem
-  // isso as bolhas de cima e de baixo encostavam nele (sobravam 14px).
-  const VAO_CENTRAL = MASCOTE / 2 + 58;
+  /* O Uniko do meio e o espaço dele.
+
+     No layout padrão o anel reserva VAO_CENTRAL de raio livre — o mascote
+     inteiro (MASCOTE_MAX) mais um respiro. Sem essa reserva as bolhas de cima
+     e de baixo encostavam nele (sobravam 14px).
+
+     Mas a reserva não pode virar uma camisa de força: era ela que fazia o
+     G/GG do módulo do TOPO não surtir efeito nenhum (o "M" já nascia no teto).
+     Então quem for marcado G/GG avança sobre a reserva, e o MASCOTE É QUE
+     ENCOLHE pra caber no que sobrou — a escolha da pessoa ganha do meu
+     respiro automático. VAO_DURO é o limite de tudo: nem a maior bolha pode
+     apagar o mascote. */
+  const MASCOTE_MAX = 148, MASCOTE_MIN = 92;
+  const VAO_CENTRAL = MASCOTE_MAX / 2 + 58;
+  const VAO_DURO    = MASCOTE_MIN / 2 + 14;
   const chaveOrbita = orbitMods.map(m => `${m.id}:${getSizeMult(m.id)}`).join('|');
   const orbita = useMemo(
     () => calcularOrbita({ mults: orbitMods.map(m => getSizeMult(m.id)),
-                           W: ORBIT_W, H: ORBIT_H, base: BASE_D, vaoMin: VAO_CENTRAL }),
+                           W: ORBIT_W, H: ORBIT_H, base: BASE_D, vaoMin: VAO_CENTRAL, vaoDuro: VAO_DURO }),
     // chaveOrbita resume o que muda o layout (quais módulos e que tamanhos);
     // orbitMods e getSizeMult trocam de identidade a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -519,6 +530,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // Posições, diâmetros e raios da elipse já saíram do useMemo; aqui é só ler.
   // Tudo em px de projeto — o orbitScale entra na hora de pintar.
   const { angulos: orbitAngles, diams: orbitDiams, RXpx, RYpx } = orbita;
+  // O mascote ocupa o vão que sobrou, nunca mais que isso.
+  const mascoteTam = Math.max(MASCOTE_MIN, Math.min(MASCOTE_MAX, (orbita.vaoCentral - 14) * 2));
   const pctDoAngulo = (ang) => {
     const a = ang * Math.PI / 180;
     return { left: 50 + RXpx * Math.cos(a) / ORBIT_W * 100,
@@ -726,7 +739,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </svg>
 
         <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
-          <UnikoMascot size={MASCOTE*orbitScale}/>
+          <UnikoMascot size={mascoteTam*orbitScale}/>
         </div>
 
         {orbitMods.map((m,i)=>{

@@ -51,6 +51,46 @@ const LAVA_BLOBS = [
   { cx:90, cy:72, w:25, dur:23 },
 ];
 
+/* ── Estrelas do fundo ─────────────────────────────────────────────────────
+   Mesma estrela de quatro pontas do StarDivider (✦), espalhadas pela página
+   e piscando paradas, cada uma no seu ritmo. Posições, tamanhos e tempos são
+   sorteados uma vez por carga — nenhuma carga fica igual à outra, mas elas
+   não se mexem depois, só acendem e apagam.
+
+   O que anima é opacity e scale — as duas propriedades que o compositor
+   resolve sem repintar —, e cada estrela tem 15px no máximo. Nada de
+   will-change aqui: seriam 44 camadas de GPU por um efeito que não precisa
+   de nenhuma. Se algum dia pesar, o diagnóstico (Ctrl+Alt+P) mostra na
+   linha "animando". */
+const ESTRELAS = (() => {
+  const r = (a, b) => a + Math.random() * (b - a);
+  return Array.from({ length: 44 }, () => ({
+    x: r(1, 99),            // % da largura
+    y: r(1, 99),            // % da altura
+    tam: r(7, 15),          // px
+    dur: r(2.6, 6.4),       // s de um ciclo de brilho
+    delay: -r(0, 6.4),      // negativo: já começam espalhadas no ciclo
+    brilho: r(0.35, 1),     // teto de opacidade — dá profundidade ao campo
+  }));
+})();
+
+const CampoDeEstrelas = () => {
+  // Clara sobre fundo escuro, dourada sobre fundo claro.
+  const cor = T.dark ? '#FFFFFF' : (T.goldV || T.gold);
+  return (
+    <div style={{position:'absolute',inset:0,pointerEvents:'none'}} aria-hidden="true">
+      <style>{`@keyframes ulPisca{0%,100%{opacity:.12;transform:scale(.8)}50%{opacity:1;transform:scale(1.12)}}`}</style>
+      {ESTRELAS.map((e, i) => (
+        <svg key={i} width={e.tam} height={e.tam} viewBox="0 0 14 14"
+          style={{position:'absolute', left:`${e.x}%`, top:`${e.y}%`, opacity:e.brilho,
+            animation:`ulPisca ${e.dur}s ease-in-out infinite`, animationDelay:`${e.delay}s`}}>
+          <path d="M7 1 L7.8 5.4 L12 7 L7.8 8.6 L7 13 L6.2 8.6 L2 7 L6.2 5.4 Z" fill={cor}/>
+        </svg>
+      ))}
+    </div>
+  );
+};
+
 const LavaLamp = () => {
   /* T é um objeto mutável e este componente vive no App, fora da tela que
      troca o tema — sem ouvir o aviso, ficaria com as cores antigas (era por
@@ -102,6 +142,8 @@ const LavaLamp = () => {
       {/* Véu: mantém o fundo do tema predominante e o texto legível por cima.
           Entra com 3/4 da força do tema — cheio ele apagava as bolhas. */}
       <div style={{position:'absolute',inset:0,background:comAlfa(T.blobVeil, 0.75)}}/>
+      {/* Estrelas por último: brilham por cima do véu, senão ele as apagaria. */}
+      <CampoDeEstrelas/>
     </div>
   );
 };
