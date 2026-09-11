@@ -22,8 +22,11 @@ const LavaLamp = () => {
     }));
   }, []);
   const cols = [T.b1,T.b2,T.b3,T.b4,T.b5,T.b6,T.b7];
+  // A classe "lava-lamp" é o que o diagnóstico de performance (Ctrl+Alt+P,
+  // tecla 2) usa pra apagar o fundo e medir quanto ele custa — ver
+  // shared/diagnosticoPerf.jsx e as regras .pd-* no index.css.
   return (
-    <div style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
+    <div className="lava-lamp" style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       <style>{`
         @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(13vw,-10vw) scale(1.28)}66%{transform:translate(-11vw,9vw) scale(.8)}}
         @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-15vw,8vw) scale(1.22)}80%{transform:translate(10vw,-7vw) scale(.84)}}

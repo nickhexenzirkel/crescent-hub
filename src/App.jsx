@@ -22,6 +22,7 @@ import { AtualizacaoOverlay } from './shared/atualizacao';
 import { subscribeGameInvites, setPendingJoin, GAME_JOIN_EVENT, GAME_LABEL } from './shared/gameInvites';
 import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
 import { initAssistantSkinSync } from './shared/assistantSkin';
+import PerfHud from './shared/diagnosticoPerf';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -583,6 +584,11 @@ export default function CrescentHub() {
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
+
+        {/* ── Diagnóstico de performance — invisível até alguém teclar Ctrl+Alt+P
+            (ou abrir com ?perf=1). Mede FPS/travadas e desliga os suspeitos um
+            a um pra achar o que está engasgando. Ver shared/diagnosticoPerf.jsx. */}
+        <PerfHud />
       </div>
     </>
   );

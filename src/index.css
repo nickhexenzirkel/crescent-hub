@@ -30,3 +30,45 @@ img, svg, canvas, picture, video {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DIAGNÓSTICO DE PERFORMANCE — interruptores do HUD (Ctrl+Alt+P)
+   Ver src/shared/diagnosticoPerf.jsx. Cada classe abaixo desliga UM suspeito
+   no app inteiro, pra dar pra isolar quem está comendo os frames. Fora do
+   diagnóstico nenhuma delas fica no <body>, então nada disso pesa em uso
+   normal — é regra CSS parada, só aplicada quando a classe existe.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* [1] Desfoque de fundo. O mais caro da lista: cada elemento com
+   backdrop-filter obriga o navegador a copiar e desfocar o que está ATRÁS
+   dele a cada frame — e atrás tem o lava lamp, que nunca para de se mexer. */
+body.pd-sem-backdrop *,
+body.pd-sem-backdrop *::before,
+body.pd-sem-backdrop *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* [2] Fundo lava lamp (8 bolhas de 40-58vw com blur(78px), animadas em laço
+   infinito, fixas em TODAS as telas). */
+body.pd-sem-lava .lava-lamp { display: none !important; }
+
+/* [3] Animações e transições CSS. (SMIL — as <animateMotion> das estrelinhas
+   em órbita — não obedece a CSS e continua rodando; se o FPS só melhorar de
+   verdade com o interruptor 2 ligado junto, olhe pro ModuleSelector.) */
+body.pd-sem-anim *,
+body.pd-sem-anim *::before,
+body.pd-sem-anim *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* [4] Sombras e filtros. O lava lamp fica de fora de propósito: ele tem
+   interruptor próprio (2), e misturar os dois tornaria o teste inconclusivo. */
+body.pd-sem-sombra *:not(.lava-lamp):not(.lava-lamp *),
+body.pd-sem-sombra *::before,
+body.pd-sem-sombra *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
