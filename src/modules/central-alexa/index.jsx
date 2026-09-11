@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
+import { bolhaGradiente } from '../../shared/bolhas';
 import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
 import CosmosScene from '../../shared/cosmosScene';
@@ -3081,32 +3082,36 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         </div>
       )}
 
-      {/* ── Festival ambient background — Apple Music style (some quando há vídeo de fundo) ── */}
+      {/* ── Festival ambient background — Apple Music style (some quando há vídeo de fundo) ──
+          As 10 bolhas usavam `filter: blur(65-95px)` animado, EM CIMA do lava lamp
+          global que já fazia o mesmo: 18 desfoques de tela cheia refeitos a cada
+          frame. Agora a queda suave vem pronta no próprio degradê (bolhaGradiente,
+          em shared/components.jsx) — mesmo visual, sem custo por frame. */}
       {tab==="festival"&&festColors&&!festBgVideo&&(
         <div style={{position:"fixed",inset:0,zIndex:1,pointerEvents:"none",opacity:blobsVisible?1:0,transition:"opacity 0.9s ease"}}>
           {/* Base gradient wash usando todas as cores */}
           <div style={{position:"absolute",inset:0,background:`linear-gradient(135deg,${festColors[0]}55,${festColors[5]}40,${festColors[1]}45,${festColors[6]}35,${festColors[2]}40)`,transition:"background 2s ease"}}/>
 
           {/* Blob 1 — top-left, grande, lento */}
-          <div style={{position:"absolute",width:"58vw",height:"58vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[0]}99 0%,transparent 65%)`,top:"-18vw",left:"-12vw",filter:"blur(88px)",animation:"festBlob1 14s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"58vw",height:"58vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[0]}99`, "circle"),top:"-18vw",left:"-12vw",animation:"festBlob1 14s ease-in-out infinite"}}/>
           {/* Blob 2 — top-right */}
-          <div style={{position:"absolute",width:"50vw",height:"50vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[1]}90 0%,transparent 65%)`,top:"-12vw",right:"-8vw",filter:"blur(82px)",animation:"festBlob2 17s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"50vw",height:"50vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[1]}90`, "circle"),top:"-12vw",right:"-8vw",animation:"festBlob2 17s ease-in-out infinite"}}/>
           {/* Blob 3 — bottom-left */}
-          <div style={{position:"absolute",width:"48vw",height:"48vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[2]}88 0%,transparent 62%)`,bottom:"-12vw",left:"-8vw",filter:"blur(78px)",animation:"festBlob3 12s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"48vw",height:"48vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[2]}88`, "circle"),bottom:"-12vw",left:"-8vw",animation:"festBlob3 12s ease-in-out infinite"}}/>
           {/* Blob 4 — bottom-right */}
-          <div style={{position:"absolute",width:"44vw",height:"44vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[3]}88 0%,transparent 65%)`,bottom:"-8vw",right:"-6vw",filter:"blur(75px)",animation:"festBlob4 15s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"44vw",height:"44vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[3]}88`, "circle"),bottom:"-8vw",right:"-6vw",animation:"festBlob4 15s ease-in-out infinite"}}/>
           {/* Blob 5 — centro */}
-          <div style={{position:"absolute",width:"38vw",height:"38vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[4]}77 0%,transparent 65%)`,top:"30%",left:"31%",filter:"blur(72px)",animation:"festBlob5 11s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"38vw",height:"38vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[4]}77`, "circle"),top:"30%",left:"31%",animation:"festBlob5 11s ease-in-out infinite"}}/>
           {/* Blob 6 — topo faixa larga */}
-          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[5]}60 0%,transparent 65%)`,top:"-5vw",left:"10%",filter:"blur(95px)",animation:"festBlob6 19s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[5]}60`, "ellipse"),top:"-5vw",left:"10%",animation:"festBlob6 19s ease-in-out infinite"}}/>
           {/* Blob 7 — base faixa larga */}
-          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[6]}60 0%,transparent 65%)`,bottom:"-5vw",left:"5%",filter:"blur(95px)",animation:"festBlob7 16s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"70vw",height:"30vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[6]}60`, "ellipse"),bottom:"-5vw",left:"5%",animation:"festBlob7 16s ease-in-out infinite"}}/>
           {/* Blob 8 — faixa vertical centro */}
-          <div style={{position:"absolute",width:"28vw",height:"80vh",borderRadius:"50%",background:`radial-gradient(ellipse,${festColors[7]}55 0%,transparent 65%)`,top:"5%",left:"38%",filter:"blur(80px)",animation:"festBlob8 22s ease-in-out infinite"}}/>
+          <div style={{position:"absolute",width:"28vw",height:"80vh",borderRadius:"50%",background:bolhaGradiente(`${festColors[7]}55`, "ellipse"),top:"5%",left:"38%",animation:"festBlob8 22s ease-in-out infinite"}}/>
           {/* Blob 9 — médio direita */}
-          <div style={{position:"absolute",width:"36vw",height:"36vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[8]}70 0%,transparent 60%)`,top:"20%",right:"5%",filter:"blur(70px)",animation:"festBlob2 13s ease-in-out infinite reverse"}}/>
+          <div style={{position:"absolute",width:"36vw",height:"36vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[8]}70`, "circle"),top:"20%",right:"5%",animation:"festBlob2 13s ease-in-out infinite reverse"}}/>
           {/* Blob 10 — médio esquerda */}
-          <div style={{position:"absolute",width:"32vw",height:"32vw",borderRadius:"50%",background:`radial-gradient(circle,${festColors[9]}75 0%,transparent 60%)`,top:"40%",left:"2%",filter:"blur(65px)",animation:"festBlob5 18s ease-in-out infinite reverse"}}/>
+          <div style={{position:"absolute",width:"32vw",height:"32vw",borderRadius:"50%",background:bolhaGradiente(`${festColors[9]}75`, "circle"),top:"40%",left:"2%",animation:"festBlob5 18s ease-in-out infinite reverse"}}/>
         </div>
       )}
 

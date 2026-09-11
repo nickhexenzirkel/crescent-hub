@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { T } from '../contexts/theme';
+import { bolhaGradiente } from './bolhas';
 import logoNicolas from '../assets/LogoTipoNicolas.png';
 
 /* Fundo estilo "Apple Music": blobs grandes e suaves em posições aleatórias, deslizando e
    morfando devagar, com as cores da paleta do tema atual (T.b1..T.b7). */
 const LAVA_ANIMS = ['mlA','mlB','mlC','mlD'];
+
 const LavaLamp = () => {
   // Posições/tempos sorteados uma vez por carga (random); as cores são lidas a cada render
   // (acompanham a troca de tema). 8 blobs espalhados por âncoras + jitter pra cobrir a tela.
@@ -38,8 +40,8 @@ const LavaLamp = () => {
         <div key={i} style={{position:'absolute',
           width:`${b.size}vw`, height:`${b.size}vw`, borderRadius:'50%',
           top:`${b.top}%`, left:`${b.left}%`,
-          background:`radial-gradient(circle at 50% 50%, ${cols[b.ci]} 0%, transparent 62%)`,
-          filter:'blur(78px)', willChange:'transform',
+          background:bolhaGradiente(cols[b.ci]),
+          willChange:'transform',
           animation:`${b.anim} ${b.dur}s ease-in-out infinite`, animationDelay:`${b.delay}s`}}/>
       ))}
       <div style={{position:'absolute',inset:0,background:T.blobVeil}}/>

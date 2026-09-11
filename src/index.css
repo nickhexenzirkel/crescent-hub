@@ -72,3 +72,9 @@ body.pd-sem-sombra *::after {
   text-shadow: none !important;
   filter: none !important;
 }
+
+/* Quem pediu "menos movimento" no sistema operacional não deve levar um fundo
+   se mexendo sem parar — e de quebra o app fica mais leve nessas máquinas. */
+@media (prefers-reduced-motion: reduce) {
+  .lava-lamp > div { animation: none !important; }
+}
