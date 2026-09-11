@@ -24,12 +24,13 @@ const sha256 = async (txt) => {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 };
-// Salas já destravadas nesta sessão (fecha a aba, pede senha de novo).
+// Salas já destravadas neste navegador — fica salvo (localStorage), não pede
+// a senha de novo nem depois de fechar a aba ou reiniciar a página.
 const UNLOCKED_KEY = 'cs_salas_abertas';
-const lidasNaSessao = () => { try { return JSON.parse(sessionStorage.getItem(UNLOCKED_KEY) || '[]'); } catch { return []; } };
+const lidasNaSessao = () => { try { return JSON.parse(localStorage.getItem(UNLOCKED_KEY) || '[]'); } catch { return []; } };
 const marcarAberta = (id) => {
   const at = [...new Set([...lidasNaSessao(), id])];
-  try { sessionStorage.setItem(UNLOCKED_KEY, JSON.stringify(at)); } catch {}
+  try { localStorage.setItem(UNLOCKED_KEY, JSON.stringify(at)); } catch {}
 };
 const nowIso = () => new Date().toISOString();
 // Texto puro a partir do HTML da descrição (pra prévia no card e no filtro).
