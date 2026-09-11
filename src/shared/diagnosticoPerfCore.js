@@ -14,8 +14,7 @@
         [3] animações e transições               — 386 usos
         [4] sombras e filtros (box-shadow / drop-shadow)
         [5] estrelas piscando no fundo           — 52 delas
-        [6] mistura de cor das bolhas (mix-blend-mode)
-        [7] estrelinhas em órbita e estrelas cadentes
+        [6] estrelinhas em órbita e estrelas cadentes
 
    COMO ABRIR
      • tecle  Ctrl + Alt + P  em qualquer tela, ou
@@ -60,7 +59,7 @@ function envolverTimers() {
 
 /* ── Estado dos interruptores ──────────────────────────────────────────── */
 const FLAGS_PADRAO = { semBackdrop: false, semLava: false, semAnim: false, semSombra: false,
-                       semEstrelas: false, semMistura: false, semOrbita: false };
+                       semEstrelas: false, semOrbita: false };
 
 function lerFlags() {
   try { return { ...FLAGS_PADRAO, ...JSON.parse(localStorage.getItem(CHAVE_FLAGS) || '{}') }; }
@@ -76,7 +75,6 @@ function aplicarFlags(f) {
   b.classList.toggle('pd-sem-anim',     !!f.semAnim);
   b.classList.toggle('pd-sem-sombra',   !!f.semSombra);
   b.classList.toggle('pd-sem-estrelas', !!f.semEstrelas);
-  b.classList.toggle('pd-sem-mistura',  !!f.semMistura);
   b.classList.toggle('pd-sem-orbita',   !!f.semOrbita);
   try { localStorage.setItem(CHAVE_FLAGS, JSON.stringify(f)); } catch {}
 }

@@ -76,12 +76,7 @@ body.pd-sem-sombra *::after {
 /* [5] Estrelas piscando no fundo (52 delas). */
 body.pd-sem-estrelas .bg-estrelas { display: none !important; }
 
-/* [6] Mistura de cor das bolhas do lava lamp. O mix-blend-mode é o que faz
-   as cores se somarem onde duas bolhas se cruzam, mas obriga o compositor a
-   reler o que está atrás — este interruptor mede quanto isso custa. */
-body.pd-sem-mistura .lava-bolha { mix-blend-mode: normal !important; }
-
-/* [7] Estrelinhas em órbita e estrelas cadentes do Seletor de Módulos. */
+/* [6] Estrelinhas em órbita e estrelas cadentes do Seletor de Módulos. */
 body.pd-sem-orbita .orbita-estrelinha,
 body.pd-sem-orbita .estrela-cadente { display: none !important; }
 

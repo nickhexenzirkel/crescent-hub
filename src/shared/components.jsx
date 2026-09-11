@@ -153,11 +153,16 @@ const LavaLamp = () => {
           width:`${b.w}vw`, height:`${b.w}vw`, borderRadius:'50%',
           left:`calc(${b.cx}% - ${b.w/2}vw)`, top:`calc(${b.cy}% - ${b.w/2}vw)`,
           background:bolhaGradiente(cor(i)),
-          // `screen` é o que faz as cores se SOMAREM onde duas bolhas se
-          // cruzam, em vez de a de cima simplesmente tapar a de baixo — é daí
-          // que sai a mistura. No tema escuro clareia, no claro o véu por
-          // cima segura; por isso o modo muda com o tema.
-          mixBlendMode: T.dark ? 'screen' : 'multiply',
+          /* Sem mix-blend-mode aqui, de propósito. Ele deixava a mistura mais
+             intensa, mas foi medido como o maior custo de desenho que sobrou
+             (Ctrl+Alt+P): blend obriga o compositor a reler o que está atrás
+             de cada camada, e eram 6 delas cobrindo ~28% da tela.
+
+             A mistura continua acontecendo por transparência pura. Sobre um
+             fundo escuro ela até CLAREIA sozinha: com as cores do Azul
+             Nebula, o cruzamento de duas bolhas dá luminância 55 contra 32 e
+             44 das bolhas isoladas. Nos temas claros vale o inverso — as duas
+             camadas somam opacidade e o cruzamento escurece. */
           willChange:'transform',
           animation:`${b.anim} ${b.dur}s ease-in-out infinite${b.reverso?' reverse':''}`,
           animationDelay:`${b.delay}s`}}/>

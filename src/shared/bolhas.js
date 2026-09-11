@@ -49,7 +49,7 @@ export const comAlfa = (cor, f) => {
 
    Duas escolhas que decidem se a bolha lê como MANCHA ou como CÍRCULO:
 
-   • o pico vai a 0,6 do alfa da cor, não a 1. Um blur real não só espalha a
+   • o pico vai a 0,66 do alfa da cor, não a 1. Um blur real não só espalha a
      mancha, ele REBAIXA o centro (a média puxa o miolo brilhante pra baixo
      junto com a vizinhança transparente). Mantendo o alfa cheio no centro, a
      bolha ganhava um miolo sólido e o olho fechava o contorno em volta dele
@@ -61,8 +61,8 @@ export const comAlfa = (cor, f) => {
    `transparent` é preto transparente, e degradê até ele suja a borda de
    cinza nos temas claros. */
 const QUEDA_BOLHA = [
-  [0, 0.600], [8, 0.586], [15, 0.545], [23, 0.483], [31, 0.408], [38, 0.329],
-  [46, 0.252], [54, 0.185], [61, 0.129], [69, 0.086], [77, 0.054], [84, 0.033], [92, 0],
+  [0, 0.660], [8, 0.645], [15, 0.600], [23, 0.531], [31, 0.449], [38, 0.362],
+  [46, 0.277], [54, 0.204], [61, 0.142], [69, 0.095], [77, 0.059], [84, 0.036], [92, 0],
 ];
 export const bolhaGradiente = (cor, forma = 'circle') =>
   `radial-gradient(${forma} at 50% 50%, ${QUEDA_BOLHA.map(([pos, a]) => `${comAlfa(cor, a)} ${pos}%`).join(', ')})`;
