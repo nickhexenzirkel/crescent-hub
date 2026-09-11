@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
@@ -2720,8 +2721,14 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   // Card da "Fila Democrática" (tocando agora + a seguir) — extraído em função
   // pra poder ser reaproveitado tanto na aba Festival quanto dentro da tela
   // cheia "Tocando Agora" no celular (botão "Ver fila").
-  const renderQueueCard = () => (
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
+  const renderQueueCard = (opts = {}) => (
+              // `noBlur` é usado dentro da tela cheia "Tocando Agora": ali o card já
+              // fica em cima de outro fundo borrado (a capa do álbum, blur(26px)) —
+              // empilhar mais um backdropFilter por cima era o outro grande motivo do
+              // travamento ao abrir a fila (blur sobre blur, recalculado a cada scroll).
+              <div style={{borderRadius:16,background:opts.noBlur?'rgba(255,255,255,.05)':cardBg,
+                backdropFilter:opts.noBlur?'none':"blur(16px)",WebkitBackdropFilter:opts.noBlur?'none':"blur(16px)",
+                border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:opts.noBlur?'none':T.sh}}>
                 <div style={{padding:"13px 20px",borderBottom:`1px solid ${T.border}`,background:`linear-gradient(135deg,${T.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:T.text,flexShrink:0}}>Fila Democrática</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
@@ -3646,47 +3653,62 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     )}
                   </div>
 
-                  {/* Search results dropdown */}
-                  {searchResults.length>0&&(
-                    <div style={{position:isMobile?"fixed":"absolute",
-                      // No celular o topo e a base ficam PRESOS ao espaço livre real
-                      // (abaixo do cabeçalho fixo, acima do mini-player/barra de abas)
-                      // — antes era só "bottom" + maxHeight em vh, e com bastante
-                      // resultado a lista crescia pra cima até ficar embaixo do
-                      // cabeçalho fixo, cortada por ele.
-                      top:isMobile?"calc(56px + env(safe-area-inset-top,0px) + 8px)":"calc(100% + 6px)",
-                      bottom:isMobile?`calc(${MOBILE_NAV_H}px + env(safe-area-inset-bottom,0px) + ${cur?70:8}px)`:undefined,
-                      left:isMobile?12:"0",right:isMobile?12:"0",
-                      borderRadius:14,background:isDark?T.surface:"white",
-                      border:`1px solid ${T.border}`,boxShadow:T.shL,
-                      overflow:"hidden",zIndex:495,
-                      maxHeight:isMobile?undefined:"auto",overflowY:isMobile?"auto":"hidden"}}>
-                      {searchResults.map(t=>(
-                        <div key={t.id} onClick={()=>addToQueue(t)}
-                          style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
-                          onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
-                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          {t.album_art
-                            ? <img src={t.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                            : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>
-                          }
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
-                            <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
-                          </div>
-                          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
-                            <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
-                            {isAdding===t.id
-                              ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
-                              : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                </div>
-                            }
-                          </div>
+                  {/* Search results dropdown — no celular sai por PORTAL direto pro
+                      <body>. O card de busca aqui em volta tem backdropFilter
+                      (blur), e no Safari/iOS isso faz um ancestral com blur virar
+                      o "containing block" de um filho position:fixed — o dropdown
+                      ficava encolhido/mal posicionado dentro do cardzinho de busca
+                      em vez de cobrir a tela, dando a impressão de "busca não
+                      funciona" (parecia não mostrar nada ao digitar). Renderizando
+                      fora da árvore com createPortal, ele escapa desse ancestral. */}
+                  {searchResults.length>0 && (() => {
+                    const list = searchResults.map(t=>(
+                      <div key={t.id} onClick={()=>addToQueue(t)}
+                        style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${T.divider}`,transition:"background .12s"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.goldGl}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        {t.album_art
+                          ? <img src={t.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                          : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎵</div>
+                        }
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
+                          <div style={{fontSize:11,color:T.textT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.artist}</div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:10,color:T.textD}}>{t.duration_str}</span>
+                          {isAdding===t.id
+                            ? <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${T.gold}`,borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+                            : <div style={{width:24,height:24,borderRadius:6,background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                              </div>
+                          }
+                        </div>
+                      </div>
+                    ));
+                    if (isMobile) {
+                      return createPortal(
+                        <div style={{position:"fixed",
+                          top:"calc(56px + env(safe-area-inset-top,0px) + 8px)",
+                          bottom:`calc(${MOBILE_NAV_H}px + env(safe-area-inset-bottom,0px) + ${cur?70:8}px)`,
+                          left:12,right:12,
+                          borderRadius:14,background:isDark?T.surface:"white",
+                          border:`1px solid ${T.border}`,boxShadow:T.shL,
+                          overflow:"hidden",overflowY:"auto",zIndex:1500}}>
+                          {list}
+                        </div>,
+                        document.body
+                      );
+                    }
+                    return (
+                      <div style={{position:"absolute",top:"calc(100% + 6px)",left:"0",right:"0",
+                        borderRadius:14,background:isDark?T.surface:"white",
+                        border:`1px solid ${T.border}`,boxShadow:T.shL,
+                        overflow:"hidden",zIndex:495}}>
+                        {list}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Name display — usa nome real do usuário logado */}
@@ -4574,8 +4596,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Tela cheia "Tocando Agora" (estilo Spotify) — abre ao tocar no mini-player ── */}
       {isMobile && nowPlayingOpen && cur && (
         <div style={{ position:"fixed", inset:0, zIndex:2000, background: isDark ? "#0b0b12" : "#181022", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          {/* blur mais leve (26px, era 44px) — blur pesado numa imagem full-screen é
+              uma das coisas mais caras de repintar no Safari/iOS, e era a maior causa
+              do travamento ao abrir o player. */}
           {cur.album_art && (
-            <div style={{ position:"absolute", inset:0, backgroundImage:`url(${cur.album_art})`, backgroundSize:"cover", backgroundPosition:"center", filter:"blur(44px) brightness(.45)", transform:"scale(1.2)" }} />
+            <div style={{ position:"absolute", inset:0, backgroundImage:`url(${cur.album_art})`, backgroundSize:"cover", backgroundPosition:"center", filter:"blur(26px) brightness(.45)", transform:"scale(1.15)" }} />
           )}
           <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", height:"100%", padding:"0 22px", paddingTop:"max(20px, env(safe-area-inset-top, 20px))", paddingBottom:"calc(20px + env(safe-area-inset-bottom, 0px))" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0 12px" }}>
@@ -4592,8 +4617,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             </div>
 
             {queueViewOpen ? (
-              <div style={{ flex:1, minHeight:0, overflowY:"auto", borderRadius:16, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)" }}>
-                {renderQueueCard()}
+              <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>
+                {renderQueueCard({ noBlur:true })}
               </div>
             ) : (
             <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", minHeight:0 }}>
