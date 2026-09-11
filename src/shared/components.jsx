@@ -23,8 +23,11 @@ import logoNicolas from '../assets/LogoTipoNicolas.png';
    temas claros, mais claros nos escuros — e ainda cria degraus intermediários
    misturando as cores vizinhas do tema.
 
-   Nada aqui usa `filter: blur()`: a queda suave vem pronta no degradê. Ver o
-   comentário em shared/bolhas.js pro porquê (era o que travava o app).
+   As bolhas levam `filter: blur()` pra o contorno sumir de vez — mas as
+   animações são SÓ de translação, nunca de escala. É essa a diferença entre
+   o blur barato e o que travou o app: escala muda o tamanho da camada e
+   obriga a refazer o desfoque a cada frame; translação não. Ver o comentário
+   no `filter` lá embaixo e o histórico em shared/bolhas.js.
 ══════════════════════════════════════════════════════════════════════════ */
 const LAVA_ANIMS = ['mlA','mlB','mlC','mlD','mlE','mlF'];
 
@@ -138,12 +141,18 @@ const LavaLamp = () => {
   return (
     <div className="lava-lamp" style={{position:'fixed',inset:0,overflow:'hidden',pointerEvents:'none',zIndex:0}}>
       <style>{`
-        @keyframes mlA{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vw,-5vw) scale(1.18)}66%{transform:translate(-6vw,5vw) scale(.86)}}
-        @keyframes mlB{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-8vw,4vw) scale(1.14)}80%{transform:translate(5vw,-4vw) scale(.88)}}
-        @keyframes mlC{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vw,6vw) scale(1.22)}}
-        @keyframes mlD{0%,100%{transform:translate(0,0) scale(1)}35%{transform:translate(-6vw,-5vw) scale(1.2)}70%{transform:translate(5vw,4vw) scale(.84)}}
-        @keyframes mlE{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(4vw,4vw) scale(1.12)}55%{transform:translate(-5vw,-3vw) scale(.9)}80%{transform:translate(3vw,-4vw) scale(1.08)}}
-        @keyframes mlF{0%,100%{transform:translate(0,0) scale(1.02)}45%{transform:translate(-4vw,6vw) scale(.88)}75%{transform:translate(7vw,-4vw) scale(1.16)}}
+        /* SÓ translate, nunca scale. Ver o comentário do filter: blur() nas
+           bolhas — é o scale que obriga o navegador a refazer o desfoque a
+           cada frame. Com translate puro ele guarda a textura borrada uma vez
+           e só a desloca, que é trabalho de compositor e sai de graça.
+           A variação de forma vem das bolhas se cruzando uma com a outra, não
+           de cada uma pulsando. */
+        @keyframes mlA{0%,100%{transform:translate(0,0)}33%{transform:translate(7vw,-5vw)}66%{transform:translate(-6vw,5vw)}}
+        @keyframes mlB{0%,100%{transform:translate(0,0)}40%{transform:translate(-8vw,4vw)}80%{transform:translate(5vw,-5vw)}}
+        @keyframes mlC{0%,100%{transform:translate(0,0)}30%{transform:translate(6vw,6vw)}65%{transform:translate(-4vw,-6vw)}}
+        @keyframes mlD{0%,100%{transform:translate(0,0)}35%{transform:translate(-6vw,-5vw)}70%{transform:translate(5vw,4vw)}}
+        @keyframes mlE{0%,100%{transform:translate(0,0)}25%{transform:translate(4vw,5vw)}55%{transform:translate(-5vw,-3vw)}80%{transform:translate(3vw,-5vw)}}
+        @keyframes mlF{0%,100%{transform:translate(0,0)}45%{transform:translate(-5vw,6vw)}75%{transform:translate(7vw,-4vw)}}
       `}</style>
       {/* Base: a cor chapada do tema, e só. É ela que faz a tela ser branca no
           tema claro e bem escura no escuro. */}
@@ -153,6 +162,15 @@ const LavaLamp = () => {
           width:`${b.w}vw`, height:`${b.w}vw`, borderRadius:'50%',
           left:`calc(${b.cx}% - ${b.w/2}vw)`, top:`calc(${b.cy}% - ${b.w/2}vw)`,
           background:bolhaGradiente(cor(i)),
+          /* O desfoque que apaga o contorno. Sim, é o mesmo `filter: blur()`
+             que derrubou o app pra 6fps — mas o que custava caro ali não era
+             o blur em si: era o `scale()` das animações, que muda o tamanho
+             da camada e obriga o navegador a REFAZER o desfoque a cada frame,
+             em 8 elementos de mais de 1000px. Aqui as animações só transladam,
+             então a textura borrada é calculada uma vez e depois só passeia.
+             Se algum dia isto aparecer no diagnóstico (Ctrl+Alt+P), a tecla 2
+             isola o fundo e confirma na hora. */
+          filter:'blur(56px)',
           // `screen` é o que faz as cores se SOMAREM onde duas bolhas se
           // cruzam, em vez de a de cima simplesmente tapar a de baixo — é daí
           // que sai a mistura. No tema escuro clareia, no claro o véu por
