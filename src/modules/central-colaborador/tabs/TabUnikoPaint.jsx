@@ -3013,7 +3013,6 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
    RAIZ — mantém a presence global (quem está em qual sala) e alterna
    lobby ⇄ sala.
    ═══════════════════════════════════════════════════════════════════════════ */
-const PROFILE_SEEN_KEY = 'up_profile_seen';
 const TabUnikoPaint = () => {
   const { compacto, pequeno } = useTela();
   const [name, setName]   = useState(() => myName());
@@ -3021,8 +3020,12 @@ const TabUnikoPaint = () => {
   const [room, setRoom]   = useState(null);       // null = lobby
   const [todos, setTodos] = useState([]);         // [{name, photo, room}]
   const [sqlMissing, setSqlMissing] = useState(false);
-  // Abre o editor de perfil automaticamente na 1ª vez (pede pra escolher o Uniko).
-  const [picker, setPicker] = useState(() => { try { return !localStorage.getItem(PROFILE_SEEN_KEY); } catch { return false; } });
+  // NÃO abre sozinho: `up_name`/`up_photo_src` (e o "já vi") são por APARELHO
+  // (ver comentário acima de `idDaConta`), então um celular novo achava que era
+  // a primeira vez — mesmo a CONTA já tendo tudo editado noutro aparelho. O
+  // apelido/foto do jogo já caem de volta pro nome da conta sozinhos (`myName`);
+  // quem quiser personalizar abre pelo botão "Editar perfil" quando quiser.
+  const [picker, setPicker] = useState(false);
   const [busca, setBusca]     = useState('');     // filtro do editor de perfil
   const [nomeEdit, setNomeEdit] = useState(name); // nome sendo editado no editor
   const lobbyChan = useRef(null);
@@ -3057,15 +3060,6 @@ const TabUnikoPaint = () => {
     const h = (e) => { if (!e?.detail || e.detail.game === 'paint') entrar(); };
     window.addEventListener(GAME_JOIN_EVENT, h);
     return () => window.removeEventListener(GAME_JOIN_EVENT, h);
-  }, []);
-
-  // O editor de perfil só abre sozinho UMA vez: assim que ele abre na 1ª visita,
-  // já marca como visto — sem isso reaparecia a cada refresh. A pessoa continua
-  // podendo reabrir pelo botão "Editar perfil".
-  useEffect(() => {
-    if (picker) { try { localStorage.setItem(PROFILE_SEEN_KEY, '1'); } catch { /* sem localStorage */ } }
-    // só na montagem
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Presence ÚNICA pra todo o jogo ──────────────────────────────────────
@@ -3164,9 +3158,9 @@ const TabUnikoPaint = () => {
   };
 
   const abrirPicker = () => { setNomeEdit(name); setBusca(''); setPicker(true); };
-  // Fecha o editor: grava o nome do jogo (se preenchido) e marca que já viu (não
-  // reabre sozinho nas próximas vezes). Só altera o nome fora de uma sala, pra não
-  // trocar a identidade no meio de uma partida (placar/host são por nome).
+  // Fecha o editor: grava o nome do jogo (se preenchido). Só altera o nome fora
+  // de uma sala, pra não trocar a identidade no meio de uma partida (placar/host
+  // são por nome).
   const fecharPerfil = () => {
     if (!room) {
       const novo = (nomeEdit || '').trim();
@@ -3176,7 +3170,6 @@ const TabUnikoPaint = () => {
       } catch { /* sem localStorage */ }
       setName(novo || authName());
     }
-    try { localStorage.setItem(PROFILE_SEEN_KEY, '1'); } catch { /* sem localStorage */ }
     setPicker(false);
   };
 
