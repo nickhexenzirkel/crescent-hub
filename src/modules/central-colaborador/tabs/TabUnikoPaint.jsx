@@ -2381,9 +2381,19 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
          Antes o canvas era esticado pra preencher (width/height 100%): como as
          ações são normalizadas 0..1, cada tela deformava o desenho de um jeito
          — no celular em pé um círculo virava ovo pra todo mundo menos pra quem
-         desenhou. */
+         desenhou.
+         `display:flex` em vez de `grid`: com grid + placeItems:center, o
+         `max-width/max-height:100%` do canvas (replaced element, width/height
+         auto) resolve contra o tamanho da CÉLULA do grid — que é 'auto'
+         (definida pelo próprio conteúdo) e não o tamanho real da caixa. No
+         Safari isso fazia o canvas encolher pra um tamanho pequeno/errado
+         (ficava um retângulo minúsculo encostado embaixo em vez de ocupar a
+         moldura). Flex com align/justify-content:center não tem essa
+         circularidade — os percentuais resolvem contra o tamanho real do
+         flex container, que já é definido (`flex:1, minHeight:0` seguro pelo
+         pai) — e mantém a mesma centralização sem esticar/deformar. */
       background: T.surfaceSub || 'rgba(0,0,0,.05)',
-      display: 'grid', placeItems: 'center', ...extra }}>
+      display: 'flex', alignItems: 'center', justifyContent: 'center', ...extra }}>
       <canvas ref={attachCanvas}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}
         /* Largura E altura em `auto` de propósito: aí valem as dimensões
