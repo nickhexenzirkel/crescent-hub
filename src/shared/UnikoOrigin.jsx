@@ -109,39 +109,26 @@ export const UnikoOrigin = () => {
     <>
       <style>{`
         @keyframes uoBtnGlow{0%,100%{box-shadow:0 0 0 0 ${T.blue}55, 0 4px 14px rgba(0,0,0,.12)}50%{box-shadow:0 0 0 6px ${T.blue}00, 0 4px 14px rgba(0,0,0,.12)}}
-        @keyframes uoBtnTextHue{0%{background-position:0% 50%}100%{background-position:300% 50%}}
-        @keyframes uoBlobA{0%,100%{transform:translate(-3px,-2px) scale(1)}50%{transform:translate(5px,4px) scale(1.15)}}
-        @keyframes uoBlobB{0%,100%{transform:translate(4px,3px) scale(1)}50%{transform:translate(-4px,-3px) scale(.88)}}
-        @keyframes uoBlobC{0%,100%{transform:translate(-2px,3px) scale(1)}50%{transform:translate(3px,-4px) scale(1.2)}}
       `}</style>
 
       {/* ── Botão fixo (canto inferior direito, empilhado com o "Instalar Aplicativo"
-           logo acima — os dois ficam juntos, não mais um em cada lado da tela) ── */}
+           logo abaixo — mesmo estilo/tamanho do botão vizinho (padding, badge
+           circular do ícone, fonte), só que sempre azul — não usa o fundo
+           dourado/marrom do Instalar no modo escuro. ── */}
       <button onClick={openModal}
         title="A verdadeira história do UNiko"
         style={{ position:'fixed', bottom:20, right:20, zIndex:10, display:'flex', alignItems:'center', gap:9,
           padding:'9px 20px 9px 10px', borderRadius:28, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:14, fontWeight:700,
-          border:`2px solid ${T.blue}`, outline:'none', boxShadow:'0 4px 14px rgba(0,0,0,.10)',
+          border:`2px solid ${T.blue}`, outline:'none', color:T.text, boxShadow:'0 4px 14px rgba(0,0,0,.10)',
           background: isDark ? 'linear-gradient(135deg,#1c2733,#141d27 45%,#101820)' : 'linear-gradient(135deg,#eef4fb,#dde8f2 45%,#eef2f5)',
           animation:'uoBtnGlow 2.6s ease-in-out infinite' }}>
-        {/* fundo "lava lamp" — só atrás do ÍCONE (não passa por trás das letras) */}
-        <span style={{ position:'relative', width:30, height:30, borderRadius:'50%', overflow:'hidden', flexShrink:0 }}>
-          <span aria-hidden="true" style={{ position:'absolute', left:-6, top:-6, width:26, height:26, borderRadius:'50%',
-            background:'radial-gradient(circle, #bfe0ff, #bfe0ff00 70%)', filter:'blur(4px)', opacity:.85,
-            animation:'uoBlobA 26s ease-in-out infinite' }}/>
-          <span aria-hidden="true" style={{ position:'absolute', right:-6, bottom:-6, width:22, height:22, borderRadius:'50%',
-            background:'radial-gradient(circle, #4AA6FF, #4AA6FF00 70%)', filter:'blur(4px)', opacity:.75,
-            animation:'uoBlobB 32s ease-in-out infinite' }}/>
-          <span aria-hidden="true" style={{ position:'absolute', left:6, bottom:-8, width:20, height:20, borderRadius:'50%',
-            background:'radial-gradient(circle, #8fd6ff, #8fd6ff00 70%)', filter:'blur(4px)', opacity:.8,
-            animation:'uoBlobC 38s ease-in-out infinite' }}/>
-          <img src="/UNIKO_NEW.png" alt="" aria-hidden="true" style={{ position:'relative', zIndex:1, width:'100%', height:'100%', objectFit:'contain' }}/>
+        <span style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
+          background:`linear-gradient(135deg,${T.blue},#4AA6FFcc)` }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="#fff" stroke="none"/>
+          </svg>
         </span>
-        <span style={{
-          backgroundImage: isDark ? 'linear-gradient(90deg,#fff,#ccc,#eee,#999,#fff)' : 'linear-gradient(90deg,#000,#333,#111,#4d4d4d,#000)',
-          backgroundSize:'300% 100%',
-          WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
-          animation:'uoBtnTextHue 4s linear infinite' }}>Quem sou eu?</span>
+        Sobre o Uniko...
       </button>
 
       {/* ── Minissérie ── */}
