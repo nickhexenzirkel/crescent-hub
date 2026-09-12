@@ -37,7 +37,7 @@ import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo }
 ══════════════════════════════════════════════════════════════════════════ */
 
 const RAIO = 24;             // canto dos widgets e tiles
-const ESPACO = 16;           // vão entre os tiles de módulo
+const ESPACO = 26;           // vão entre os tiles de módulo (as auras precisam de ar)
 const LINHA = 64;            // altura de uma linha da grade de widgets
 const VAO_W = 10;            // vão entre widgets
 
@@ -90,15 +90,14 @@ const clarear = (hex, k) => {
   return `rgb(${canal(16)},${canal(8)},${canal(0)})`;
 };
 
-/* Texto por cima de uma cor cheia: branco na maioria, escuro nas cores claras
-   da paleta (amarelo, limão), onde branco some. Luminância relativa do sRGB. */
-const textoSobre = (hex) => {
+/* Um tom da cor com transparência: k mistura com branco (>0) ou preto (<0),
+   a é o alfa. Serve pras camadas da aura dos tiles de módulo. */
+const tom = (hex, k, a) => {
   const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
-  if (!m) return { forte:'#fff', fraco:'rgba(255,255,255,.8)' };
+  if (!m) return hex;
   const n = parseInt(m[1], 16);
-  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
-  return L > 0.42 ? { forte:'#16181D', fraco:'rgba(22,24,29,.68)' } : { forte:'#fff', fraco:'rgba(255,255,255,.8)' };
+  const canal = (sh) => { const c = (n >> sh) & 255; return Math.round(k >= 0 ? c + (255 - c) * k : c * (1 + k)); };
+  return `rgba(${canal(16)},${canal(8)},${canal(0)},${a})`;
 };
 
 /* O quadradinho de ícone no estilo "app": degradê suave da cor e ícone branco. */
@@ -148,17 +147,24 @@ const SeletorTamanho = ({ tam, onTam }) => (
 
 /* Moldura comum de widget e tile: tamanho na grade, hover, tremida no modo
    de edição e o seletor de tamanho. O conteúdo é de quem usa. */
-/* `cheio`: o card inteiro pinta na cor (tiles de módulo); sem ele, fundo neutro
-   do tema (widgets). */
-const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, cheio, i, onHover, style, children, ...resto }) => {
+/* `aura` (uma cor): em vez de borda, o card ganha três anéis finos em volta,
+   em três tons dessa cor — do mais forte, colado no card, ao mais claro e
+   transparente por fora. É a mesma ideia da aura das bolhas da órbita, só que
+   fina. Os anéis são sombras com spread (nada de blur), então não custam nada
+   por frame; no hover eles abrem um pouco. Sem `aura`: borda neutra (widgets). */
+const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, aura, i, onHover, style, children, ...resto }) => {
   const [aceso, setAceso] = useState(false);
   const levanta = aceso && !editando && onAbrir;
-  const pintura = cheio ? {
-    background:`linear-gradient(150deg, ${clarear(cheio, 0.14)} 0%, ${cheio} 55%, ${clarear(cheio, -0.12)} 100%)`,
-    border:'1px solid transparent',
-    boxShadow: levanta
-      ? `inset 0 1px 0 rgba(255,255,255,.22), 0 16px 34px ${cheio}59`
-      : `inset 0 1px 0 rgba(255,255,255,.18), 0 2px 4px rgba(0,0,0,.06), 0 8px 20px ${cheio}33`,
+  const [a1, a2, a3] = levanta ? [2.5, 6, 10] : [2, 5, 8.5];
+  const pintura = aura ? {
+    background:T.surface,
+    border:'none',
+    // No tema escuro clarear a cor puxa pro cinza sobre o fundo escuro; lá os
+    // três tons saem da própria cor, só perdendo opacidade.
+    boxShadow: (T.dark
+      ? `0 0 0 ${a1}px ${tom(aura, 0, .7)}, 0 0 0 ${a2}px ${tom(aura, 0, .32)}, 0 0 0 ${a3}px ${tom(aura, 0, .14)}, `
+      : `0 0 0 ${a1}px ${tom(aura, -0.05, .62)}, 0 0 0 ${a2}px ${tom(aura, 0.3, .34)}, 0 0 0 ${a3}px ${tom(aura, 0.58, .2)}, `)
+      + (levanta ? T.shL : T.sh),
   } : {
     background:T.surface,
     border:`1px solid ${levanta && cor ? cor + '55' : T.border}`,
@@ -189,13 +195,12 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   const { reorderMode, colorMode, sizeMode, dragModId, coloringId } = modo;
   const largo = tam === 'g';
   const arrastando = dragModId === m.id;
-  const { forte, fraco } = textoSobre(cor);
-  // Sobre a cor cheia a marcação tem de ser na cor do texto, não na do tema.
-  const borda = reorderMode ? `1.5px dashed ${arrastando ? forte : fraco}` : undefined;
-  const escolhido = coloringId === m.id ? { outline:`2.5px solid ${T.text}`, outlineOffset:3 } : null;
+  const borda = reorderMode ? `1.5px dashed ${arrastando ? cor : tom(cor, 0.2, .6)}` : undefined;
+  // Selecionado no modo Cor: um contorno por fora da aura, pra não brigar com ela.
+  const escolhido = coloringId === m.id ? { outline:`2px solid ${T.text}`, outlineOffset:12 } : null;
 
   return (
-    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} cheio={cor} i={i}
+    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} aura={cor} i={i}
       onAbrir={reorderMode ? null : onAbrir}
       draggable={reorderMode}
       onDragStart={reorderMode ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
@@ -205,29 +210,29 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
       style={{ minHeight:132, display:'flex', flexDirection: largo ? 'row' : 'column',
         alignItems: largo ? 'center' : 'stretch', justifyContent:'space-between', gap: largo ? 18 : 12,
         padding: largo ? '20px 22px' : '16px 16px 15px', cursor: reorderMode ? 'grab' : undefined,
-        opacity: arrastando ? .4 : 1, color:forte, ...(borda ? { border:borda } : null), ...escolhido }}>
+        opacity: arrastando ? .4 : 1, ...(borda ? { border:borda } : null), ...escolhido }}>
 
-      {/* Ícone solto, sem quadradinho: a cor já é o card inteiro. */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', color:forte }}>
-        {React.cloneElement(m.icon, { width: largo ? 54 : 34, height: largo ? 54 : 34, style:{ flexShrink:0, display:'block' } })}
-        {!largo && !sizeMode && <span className="mln-seta" style={{ color:fraco, marginTop:2 }}><Seta/></span>}
+      {/* Ícone solto na cor do módulo — sem quadradinho nem borda em volta. */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', color:cor }}>
+        {React.cloneElement(m.icon, { width: largo ? 52 : 34, height: largo ? 52 : 34, style:{ flexShrink:0, display:'block' } })}
+        {!largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT, marginTop:2 }}><Seta/></span>}
       </div>
 
       <div style={{ minWidth:0, flex: largo ? 1 : undefined }}>
         {largo && m.tag && (
-          <div style={{ fontSize:11, fontWeight:700, color:fraco, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:4 }}>{m.tag}</div>
+          <div style={{ fontSize:11, fontWeight:700, color:cor, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:4 }}>{m.tag}</div>
         )}
-        <div style={{ fontSize: largo ? 21 : 15, fontWeight:700, color:forte, letterSpacing:'-.015em', lineHeight:1.2,
+        <div style={{ fontSize: largo ? 21 : 15, fontWeight:700, color:T.text, letterSpacing:'-.015em', lineHeight:1.2,
           display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{m.label}</div>
-        <div style={{ fontSize: largo ? 13 : 12, color:fraco, marginTop:3, lineHeight:1.35,
+        <div style={{ fontSize: largo ? 13 : 12, color:T.textT, marginTop:3, lineHeight:1.35,
           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.sub}</div>
       </div>
 
-      {largo && !sizeMode && <span className="mln-seta" style={{ color:fraco }}><Seta tam={18}/></span>}
+      {largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT }}><Seta tam={18}/></span>}
 
       {colorMode && (
         <span style={{ position:'absolute', top:12, right:12, width:14, height:14, borderRadius:'50%',
-          background:forte, boxShadow:`0 0 0 2px ${cor}, 0 0 0 3.5px ${forte}` }}/>
+          background:cor, border:`2px solid ${T.surface}`, boxShadow:`0 0 0 1px ${T.border}` }}/>
       )}
     </Moldura>
   );
@@ -685,7 +690,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
         paddingBottom:24, boxSizing:'border-box' }}>
 
         {/* Esquerda — módulos */}
-        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 4px 12px' }}>
+        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 12px 14px' }}>
           <Rotulo direita={
             <span style={{ fontSize:12, color:T.textT }}>
               {modo.reorderMode ? 'Arraste pra reorganizar'
