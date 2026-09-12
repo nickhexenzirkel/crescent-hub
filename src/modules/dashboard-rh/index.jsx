@@ -355,6 +355,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     const [h2,m2] = f.hora_fim.split(':').map(Number);
     const total = Math.max(0, ((h2*60+m2) - (h1*60+m1)) / 60);
     if (total <= 0) { setBancoMsg('Hora fim deve ser maior que hora início'); return; }
+    // Sem isto, salvar antes do salário chegar gravava o registro sem valor.
+    if (bancoSalDet.carregando) { setBancoMsg('Aguarde — buscando o salário do colaborador'); return; }
     setBancoSaving(true); setBancoMsg('');
     const mult = f.feriado_domingo ? 2.0 : 1.5;
     const vH   = bancoValorHora > 0 ? bancoValorHora : null;
@@ -571,7 +573,28 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
   // Lançamento manual — valor/hora sugerido = (salário base + 1K Service) ÷ 240
   const bancoEmp        = empList.find(e => e.name === bancoForm.colaborador);
-  const bancoSalario    = Number(bancoEmp?.salary || 0) + Number(bancoEmp?.salary_1k || 0);
+  /* O salário NÃO vem na lista de funcionários: GET /api/employees devolve só
+     id/nome/CPF/cargo/status (de propósito — é a lista que abre em várias
+     telas). Ler `salary` dela dava sempre zero, e o modal dizia "Sem salário
+     cadastrado" pra todo mundo, embora o perfil (que busca GET
+     /api/employees/:id, o registro completo) mostrasse o salário certinho.
+     Então, ao escolher o colaborador, busca o registro completo dele.
+     O 1K Service fica na coluna `vt` (é o campo que o Editar Perfil grava e o
+     que o Portal lê como salary_1k) — `salary_1k` não existe na tabela. */
+  // Guarda o último registro buscado; "carregando" = ainda não chegou o do escolhido.
+  const [bancoSalBusca, setBancoSalBusca] = useState({ id:null, salary:0, vt:0 });
+  const bancoEmpId = bancoEmp?.id;
+  useEffect(() => {
+    if (!bancoModal || !bancoEmpId) return;
+    let vivo = true;
+    fetch(`${SERVER_URL}/api/employees/${bancoEmpId}`, { headers: authHeader() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (vivo) setBancoSalBusca({ id:bancoEmpId, salary:Number(d?.employee?.salary)||0, vt:Number(d?.employee?.vt)||0 }); })
+      .catch(() => { if (vivo) setBancoSalBusca({ id:bancoEmpId, salary:0, vt:0 }); });
+    return () => { vivo = false; };
+  }, [bancoModal, bancoEmpId]);
+  const bancoSalDet     = { carregando: !!bancoEmpId && bancoSalBusca.id !== bancoEmpId };
+  const bancoSalario    = bancoEmpId && bancoSalBusca.id === bancoEmpId ? bancoSalBusca.salary + bancoSalBusca.vt : 0;
   const bancoValorHoraS = bancoSalario > 0 ? bancoSalario / 240 : 0;
   const bancoValorHora  = bancoForm.valor_hora !== '' ? (Number(String(bancoForm.valor_hora).replace(',', '.')) || 0) : bancoValorHoraS;
   // Trofeus e Capture o Uniko tambem precisam da lista de colaboradores (empList),
@@ -3080,9 +3103,11 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                           <div>
                             <div style={labelSt}>Valor da hora (R$)</div>
                             <input value={f.valor_hora} onChange={e=>set('valor_hora',e.target.value)}
-                              placeholder={bancoValorHoraS>0?bancoValorHoraS.toFixed(2).replace('.',','):'Sem salário cadastrado'} style={inputSt}/>
+                              placeholder={bancoSalDet.carregando?'Buscando salário…':bancoValorHoraS>0?bancoValorHoraS.toFixed(2).replace('.',','):f.colaborador?'Sem salário cadastrado':'Escolha o colaborador'} style={inputSt}/>
                             <div style={{fontSize:10.5,color:T.textD,marginTop:3}}>
-                              {bancoValorHoraS>0
+                              {bancoSalDet.carregando ? 'Buscando o salário no perfil do colaborador…'
+                                : !f.colaborador ? 'Calculado pelo salário do colaborador'
+                                : bancoValorHoraS>0
                                 ? `Sugerido pelo salário: ${BRL(bancoValorHoraS)} — edite para sobrescrever`
                                 : 'Salário não configurado — informe o valor manualmente'}
                             </div>
