@@ -377,8 +377,23 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     setDraggingCard(true);
   };
   const isMobile = useIsMobile();
+  /* A órbita precisa de altura: ela é uma elipse com o mascote no meio e nove
+     bolhas em volta. Num celular DEITADO (iPhone 14: 844x390) a largura passa
+     do corte de "mobile", então caía na órbita — que encolhia pra cerca de 30%
+     e virava um amontoado ilegível. Abaixo de 520px de altura a lista é
+     simplesmente a forma certa, não importa a largura. */
+  const [alturaCurta, setAlturaCurta] = useState(() => window.innerHeight < 520);
   useEffect(() => {
-    if (isMobile) return;
+    const medir = () => setAlturaCurta(window.innerHeight < 520);
+    window.addEventListener('resize', medir);
+    window.addEventListener('orientationchange', medir);
+    return () => { window.removeEventListener('resize', medir); window.removeEventListener('orientationchange', medir); };
+  }, []);
+  const emLista = isMobile || alturaCurta;
+  useEffect(() => {
+    // `emLista` e não `isMobile`: numa janela baixa a órbita nem é renderizada,
+    // e sem isto o observer não voltaria a se prender ao esticar a janela.
+    if (emLista) return;
     const el = orbitAreaRef.current; if (!el) return;
     const calc = () => {
       const w = el.clientWidth, h = el.clientHeight;
@@ -390,7 +405,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isMobile]);
+  }, [emLista]);
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
   // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
@@ -539,7 +554,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [chaveOrbita]);
 
-  if (isMobile) {
+  if (emLista) {
     return (
       // idem desktop: sem fundo opaco, pra o lava lamp do App aparecer aqui também
       <div style={{minHeight:'100vh', display:'flex', flexDirection:'column',
@@ -928,10 +943,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         {orbitMods.map((m,i)=>{
           const p = orbitPt(i);
           const bd = orbitDiam(i);
-          // Ícone, textos e aura acompanham o tamanho final da bolha. Como agora
-          // as bolhas crescem pra ocupar o anel, bs passa de 1 no caso comum — é
-          // proporcional de propósito, pra bolha maior não ficar com texto perdido.
-          const bs = bd / (BASE_D * orbitScale);
+          /* Ícone, textos e aura acompanham o tamanho final da bolha — e `bd`
+             JÁ inclui o orbitScale. Dividir aqui por (BASE_D * orbitScale)
+             cancelava a escala: num iPhone deitado a órbita encolhia pra ~30%
+             e os textos continuavam em tamanho cheio, atropelando as bolhas. */
+          const bs = bd / BASE_D;
           const { color: mColor, bg: mBg } = getModuleColor(m);
           return (
             <div key={m.id}
