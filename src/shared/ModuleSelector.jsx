@@ -650,6 +650,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             "Sair" no menu, escrito. */}
         <div style={{padding:'20px 16px 2px', display:'flex', alignItems:'center', gap:10}}>
           <div style={{fontFamily:'var(--font-brand)', fontSize:26, fontWeight:800, color:T.text, flex:1}}>Módulos</div>
+          {/* O menu precisa nascer DENTRO deste invólucro posicionado. Solto,
+              o `position:absolute` dele resolvia contra a raiz da página e ele
+              aparecia grudado no topo da tela — por baixo da status bar do
+              iPhone, com "Tema" escondido atrás do relógio e da bateria. */}
+          <div style={{position:'relative', flexShrink:0}}>
           <button onClick={()=>setMenuMobile(v=>!v)} title="Menu"
             style={{width:32, height:32, borderRadius:10, border:`1px solid ${T.border}`, background:T.surface,
               color:T.textS, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
@@ -659,17 +664,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
             </svg>
           </button>
-        </div>
 
         {/* Menu do ⚙ — no celular ele é o único ponto de entrada pra tudo que
-            no desktop mora no card de perfil. */}
+            no desktop mora no card de perfil. Pende do próprio botão
+            (top:100%), então acompanha o cabeçalho e nunca sobe pra cima da
+            status bar. */}
         {menuMobile && (
           <>
             <div onClick={()=>setMenuMobile(false)}
               style={{position:'fixed', inset:0, zIndex:60, background:'transparent'}}/>
-            <div style={{position:'absolute', right:16, zIndex:61, marginTop:-4,
+            <div style={{position:'absolute', top:'100%', right:0, marginTop:8, zIndex:61,
               background:T.surface, border:`1px solid ${T.border}`, borderRadius:14,
-              boxShadow:T.shL, overflow:'hidden', minWidth:210}}>
+              boxShadow:T.shL, overflow:'hidden', minWidth:210,
+              maxHeight:'calc(100vh - 140px)', overflowY:'auto'}}>
               {[
                 { rot:'Tema',              dica:'Cor do sistema',        onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
                   icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
@@ -698,6 +705,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             </div>
           </>
         )}
+          </div>
+        </div>
 
         <div style={{padding:'2px 16px 18px', fontSize:12.5, color:T.textT}}>
           {reorderMode ? 'Use as setas pra mudar a ordem dos módulos'
