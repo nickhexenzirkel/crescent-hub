@@ -90,6 +90,17 @@ const clarear = (hex, k) => {
   return `rgb(${canal(16)},${canal(8)},${canal(0)})`;
 };
 
+/* Texto por cima de uma cor cheia: branco na maioria, escuro nas cores claras
+   da paleta (amarelo, limão), onde branco some. Luminância relativa do sRGB. */
+const textoSobre = (hex) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return { forte:'#fff', fraco:'rgba(255,255,255,.8)' };
+  const n = parseInt(m[1], 16);
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.42 ? { forte:'#16181D', fraco:'rgba(22,24,29,.68)' } : { forte:'#fff', fraco:'rgba(255,255,255,.8)' };
+};
+
 /* O quadradinho de ícone no estilo "app": degradê suave da cor e ícone branco. */
 const IconeApp = ({ cor, tam = 44, children }) => (
   <div style={{ width:tam, height:tam, borderRadius:tam * 0.3, flexShrink:0, color:'#fff',
@@ -137,9 +148,22 @@ const SeletorTamanho = ({ tam, onTam }) => (
 
 /* Moldura comum de widget e tile: tamanho na grade, hover, tremida no modo
    de edição e o seletor de tamanho. O conteúdo é de quem usa. */
-const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, i, onHover, style, children, ...resto }) => {
+/* `cheio`: o card inteiro pinta na cor (tiles de módulo); sem ele, fundo neutro
+   do tema (widgets). */
+const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, cheio, i, onHover, style, children, ...resto }) => {
   const [aceso, setAceso] = useState(false);
   const levanta = aceso && !editando && onAbrir;
+  const pintura = cheio ? {
+    background:`linear-gradient(150deg, ${clarear(cheio, 0.14)} 0%, ${cheio} 55%, ${clarear(cheio, -0.12)} 100%)`,
+    border:'1px solid transparent',
+    boxShadow: levanta
+      ? `inset 0 1px 0 rgba(255,255,255,.22), 0 16px 34px ${cheio}59`
+      : `inset 0 1px 0 rgba(255,255,255,.18), 0 2px 4px rgba(0,0,0,.06), 0 8px 20px ${cheio}33`,
+  } : {
+    background:T.surface,
+    border:`1px solid ${levanta && cor ? cor + '55' : T.border}`,
+    boxShadow: levanta ? T.shL : T.sh,
+  };
   return (
     <div className="mln-tile" role={onAbrir ? 'button' : undefined} tabIndex={onAbrir ? 0 : undefined}
       onClick={editando || !onAbrir ? undefined : onAbrir}
@@ -147,9 +171,8 @@ const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, i, onHov
       onMouseEnter={() => { setAceso(true); onHover?.(true); }} onMouseLeave={() => { setAceso(false); onHover?.(false); }}
       {...resto}
       style={{ gridColumn:`span ${colunas}`, gridRow: linhas ? `span ${linhas}` : undefined, position:'relative',
-        minWidth:0, boxSizing:'border-box', background:T.surface, borderRadius:RAIO, outline:'none', userSelect:'none',
-        border:`1px solid ${levanta && cor ? cor + '55' : T.border}`,
-        boxShadow: levanta ? T.shL : T.sh, cursor: editando ? 'default' : onAbrir ? 'pointer' : 'default',
+        minWidth:0, boxSizing:'border-box', borderRadius:RAIO, outline:'none', userSelect:'none',
+        ...pintura, cursor: editando ? 'default' : onAbrir ? 'pointer' : 'default',
         transform: levanta ? 'translateY(-2px)' : 'none',
         animation: editando
           ? `mlnTreme .3s ${i % 2 ? -0.15 : 0}s ease-in-out infinite alternate`
@@ -166,11 +189,13 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   const { reorderMode, colorMode, sizeMode, dragModId, coloringId } = modo;
   const largo = tam === 'g';
   const arrastando = dragModId === m.id;
-  const borda = reorderMode ? `1.5px dashed ${arrastando ? T.gold : T.goldLine + '88'}`
-    : coloringId === m.id ? `1.5px solid ${T.gold}` : undefined;
+  const { forte, fraco } = textoSobre(cor);
+  // Sobre a cor cheia a marcação tem de ser na cor do texto, não na do tema.
+  const borda = reorderMode ? `1.5px dashed ${arrastando ? forte : fraco}` : undefined;
+  const escolhido = coloringId === m.id ? { outline:`2.5px solid ${T.text}`, outlineOffset:3 } : null;
 
   return (
-    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} i={i}
+    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} cheio={cor} i={i}
       onAbrir={reorderMode ? null : onAbrir}
       draggable={reorderMode}
       onDragStart={reorderMode ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
@@ -180,28 +205,29 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
       style={{ minHeight:132, display:'flex', flexDirection: largo ? 'row' : 'column',
         alignItems: largo ? 'center' : 'stretch', justifyContent:'space-between', gap: largo ? 18 : 12,
         padding: largo ? '20px 22px' : '16px 16px 15px', cursor: reorderMode ? 'grab' : undefined,
-        opacity: arrastando ? .4 : 1, ...(borda ? { border:borda } : null) }}>
+        opacity: arrastando ? .4 : 1, color:forte, ...(borda ? { border:borda } : null), ...escolhido }}>
 
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
-        <IconeApp cor={cor} tam={largo ? 58 : 44}>{m.icon}</IconeApp>
-        {!largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT, marginTop:2 }}><Seta/></span>}
+      {/* Ícone solto, sem quadradinho: a cor já é o card inteiro. */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', color:forte }}>
+        {React.cloneElement(m.icon, { width: largo ? 54 : 34, height: largo ? 54 : 34, style:{ flexShrink:0, display:'block' } })}
+        {!largo && !sizeMode && <span className="mln-seta" style={{ color:fraco, marginTop:2 }}><Seta/></span>}
       </div>
 
       <div style={{ minWidth:0, flex: largo ? 1 : undefined }}>
         {largo && m.tag && (
-          <div style={{ fontSize:11, fontWeight:700, color:cor, letterSpacing:'.02em', marginBottom:3 }}>{m.tag}</div>
+          <div style={{ fontSize:11, fontWeight:700, color:fraco, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:4 }}>{m.tag}</div>
         )}
-        <div style={{ fontSize: largo ? 20 : 15, fontWeight:700, color:T.text, letterSpacing:'-.015em', lineHeight:1.2,
+        <div style={{ fontSize: largo ? 21 : 15, fontWeight:700, color:forte, letterSpacing:'-.015em', lineHeight:1.2,
           display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{m.label}</div>
-        <div style={{ fontSize: largo ? 13 : 12, color:T.textT, marginTop:3, lineHeight:1.35,
+        <div style={{ fontSize: largo ? 13 : 12, color:fraco, marginTop:3, lineHeight:1.35,
           overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.sub}</div>
       </div>
 
-      {largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT }}><Seta tam={18}/></span>}
+      {largo && !sizeMode && <span className="mln-seta" style={{ color:fraco }}><Seta tam={18}/></span>}
 
       {colorMode && (
         <span style={{ position:'absolute', top:12, right:12, width:14, height:14, borderRadius:'50%',
-          background:cor, border:`2px solid ${T.surface}`, boxShadow:`0 0 0 1px ${T.border}` }}/>
+          background:forte, boxShadow:`0 0 0 2px ${cor}, 0 0 0 3.5px ${forte}` }}/>
       )}
     </Moldura>
   );
