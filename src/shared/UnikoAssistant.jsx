@@ -557,6 +557,24 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     : Math.round(skinIcon * effectiveScale);
   // A margem das bordas acompanha o tamanho que o robô REALMENTE ficou.
   const MARGIN = Math.max(8, Math.round((skin.edgeMargin ?? 12) * (ICON / skinIcon)));
+
+  /* O balão de fala acompanha o tamanho do robô. Ele era fixo — 300px de
+     largura, 13,5px de texto — então com o assistente no mínimo (38px no
+     celular) a caixa ficava enorme ao lado de um bonequinho minúsculo, como se
+     não fossem a mesma coisa.
+
+     A referência é o tamanho PADRÃO de cada plataforma (58px no celular, o
+     iconSize da skin no desktop), e o fator é limitado: encolher demais a
+     caixa deixaria o texto ilegível, que é o oposto do objetivo. Largura,
+     padding e cantos seguem o fator; as fontes seguem com um piso, porque
+     abaixo de ~11px ninguém lê um aviso no celular. */
+  const balao = Math.min(1.2, Math.max(0.62, ICON / (isMobile ? MOBILE_ICON_BASE : skinIcon)));
+  const balaoLargura = Math.round(300 * balao);
+  const balaoPadV = Math.max(9, Math.round(13 * balao));
+  const balaoPadH = Math.max(11, Math.round(17 * balao));
+  const balaoFonte = Math.max(11.5, +(13.5 * balao).toFixed(1));
+  const balaoRotulo = Math.max(9, +(10 * balao).toFixed(1));
+  const balaoRaio = Math.round(16 * balao);
   const iconRef = useRef(ICON); iconRef.current = ICON;
   const marginRef = useRef(MARGIN); marginRef.current = MARGIN;
   const [bubble, setBubble] = useState(null);       // { text, dismissable } | null
@@ -1284,13 +1302,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
       {/* ── Balão de fala (dicas/avisos/respostas com painel fechado) — DIGITANDO ── */}
       {bubble && !open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: ICON + 30 } : { right: ICON + 30 }), ...(onTop ? { top: 16 } : { bottom: 16 }), width: `min(300px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
-          <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: onLeft ? '16px 16px 16px 5px' : '16px 16px 5px 16px', padding: '13px 17px', boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
-            <div style={{ fontSize: 10, color: bubbleLabelColor, fontWeight: 800, letterSpacing: '.07em', marginBottom: 6 }}>UNIKO</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: ICON + 30 } : { right: ICON + 30 }), ...(onTop ? { top: 16 } : { bottom: 16 }), width: `min(${balaoLargura}px, calc(100vw - ${ICON + 78}px))`, animation: 'uaPop .3s ease' }}>
+          <div className="ua-bubble" style={{ background: panelBg, color: T.text || '#222', borderRadius: onLeft ? `${balaoRaio}px ${balaoRaio}px ${balaoRaio}px 5px` : `${balaoRaio}px ${balaoRaio}px 5px ${balaoRaio}px`, padding: `${balaoPadV}px ${balaoPadH}px`, boxShadow: T.shL || '0 10px 30px rgba(0,0,0,0.20)' }}>
+            <div style={{ fontSize: balaoRotulo, color: bubbleLabelColor, fontWeight: 800, letterSpacing: '.07em', marginBottom: Math.max(4, Math.round(6 * balao)) }}>UNIKO</div>
+            <div style={{ fontSize: balaoFonte, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
               <button onClick={() => { const ok = bubble.onOk; setBubble(null); setSprite(null); ok && ok(); }}
-                style={{ marginTop: 9, padding: '5px 16px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                style={{ marginTop: Math.max(6, Math.round(9 * balao)), padding: `${Math.max(4, Math.round(5 * balao))}px ${Math.max(11, Math.round(16 * balao))}px`, borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: Math.max(11, +(12 * balao).toFixed(1)), fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                 Ok
               </button>
             )}
