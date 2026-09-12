@@ -364,8 +364,10 @@ const PrismIcon = ({ type = 'comum', size = 22 }) => {
 };
 
 // ─── Ícones SVG (herdam a cor via currentColor) ────────────────────────────
-const Svg = ({ size = 16, children, fill = 'none', style }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>{children}</svg>
+// width/height explícitos ganham do size: é o que React.cloneElement passa
+// quando o ícone é reaproveitado fora daqui (atalhos do seletor de módulos).
+const Svg = ({ size = 16, width, height, children, fill = 'none', style }) => (
+  <svg width={width ?? size} height={height ?? size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>{children}</svg>
 );
 const IcoCart    = (p) => <Svg {...p}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" /></Svg>;
 const IcoTrophy  = (p) => <Svg {...p}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z" /><path d="M7 5H4v2a3 3 0 003 3M17 5h3v2a3 3 0 01-3 3" /></Svg>;
@@ -414,10 +416,19 @@ const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || ''
 const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [], unikoId: r.uniko_id || null });
 const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
 
-/* Abas que dá pra pedir de fora (os atalhos do seletor de módulos levam direto
-   pro Check-in, por exemplo). 'admin' fica de fora: aquela aba tem a própria
-   checagem de papel e não é destino de atalho. */
-const ABAS_EXTERNAS = ['loja', 'colecao', 'missoes', 'carteira', 'checkin', 'historico'];
+/* Abas que dá pra pedir de fora — os atalhos do seletor de módulos levam direto
+   pro Check-in, pra Carteira etc. 'admin' fica de fora: aquela aba tem a própria
+   checagem de papel e não é destino de atalho. Exportada: é também o catálogo
+   de atalhos da Prisma Store (shared/atalhos.jsx). */
+const ABAS_PRISMA = [
+  { id: 'loja',      label: 'Loja',      icon: <IcoCart /> },
+  { id: 'colecao',   label: 'Coleção',   icon: <IcoTrophy /> },
+  { id: 'missoes',   label: 'Missões',   icon: <IcoTarget /> },
+  { id: 'carteira',  label: 'Carteira',  icon: <IcoGem /> },
+  { id: 'checkin',   label: 'Check-in',  icon: <IcoCalendar /> },
+  { id: 'historico', label: 'Histórico', icon: <IcoReceipt /> },
+];
+const ABAS_EXTERNAS = ABAS_PRISMA.map(a => a.id);
 
 const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const isMobile = useIsMobile();
@@ -3282,5 +3293,5 @@ const SectionHead = ({ title, sub }) => (
 
 /* A regra de "hoje tem check-in?" também é lida pelo widget do seletor de
    módulos. Sai daqui em vez de copiada lá, pra um feriado novo valer nos dois. */
-export { isNonCheckinDay, localDateStr };
+export { isNonCheckinDay, localDateStr, ABAS_PRISMA };
 export default MercadoEstelar;

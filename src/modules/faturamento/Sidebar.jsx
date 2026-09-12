@@ -3,8 +3,9 @@ import { T } from '../../contexts/theme';
 import { StarDivider } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
+// width/height opcionais: os atalhos do seletor de módulos redimensionam o ícone.
 const I = (p) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+  <svg width={p.width || 18} height={p.height || 18} viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
     style={{flexShrink:0}}>{p.children}</svg>
 );

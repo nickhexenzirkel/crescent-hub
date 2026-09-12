@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { Sidebar, TopBar, canSeeTab } from './Sidebar';
+import { Sidebar, TopBar, canSeeTab, NAV } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
 import { TabLeitorXML } from './tabs/TabLeitorXML';
 import { TabRelatorioConsumo } from './tabs/TabRelatorioConsumo';
@@ -16,10 +16,18 @@ import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 const GATED_TABS = new Set(['xml', 'carta', 'assinatura']);
 const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficio', 'historico-assinatura']);
 
-const FaturamentoPortal = ({ onBack, authUser }) => {
+const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
   const isMobile = useIsMobile();
   const isAdmin = authUser?.role === 'admin';
-  const [tab, setTab] = useState('inicio');
+  /* initialTab: atalho do seletor de módulos. Passa pelas mesmas travas do
+     safeSetTab — um atalho guardado não abre aba que a pessoa não pode ver. */
+  const [tab, setTab] = useState(() => {
+    const t = initialTab;
+    if (!t || !NAV.some(n => n.id === t)) return 'inicio';
+    if (GATED_TABS.has(t)) return canSeeTab(t, authUser, isAdmin) ? t : 'inicio';
+    if (ADMIN_TABS.has(t) && !isAdmin) return 'inicio';
+    return t;
+  });
 
   useState(() => {
     const saved = localStorage.getItem('ch_theme') || 'blue';

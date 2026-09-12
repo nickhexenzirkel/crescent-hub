@@ -1336,7 +1336,7 @@ const BOTAO_PLAYER = {
   color: "#fff", fontSize: 13, fontWeight: 700, letterSpacing: ".01em",
 };
 
-const CentralAlexa = ({onBack, userPhoto}) => {
+const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   const isMobile = useIsMobile();
   const isDark   = !!T.page;
   /* Fundo dos painéis. Repare que ele é OPACO no tema escuro (T.surface é
@@ -1355,7 +1355,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||"rgba(255,255,255,0.82)");
 
   // ── UI state ─────────────────────────────────────────────
-  const [tab, setTab]             = useState("festival");
+  // initialTab: atalho do seletor de módulos pedindo uma aba específica.
+  const [tab, setTab]             = useState(() => TAB_DEFS.some(t => t.id === initialTab) ? initialTab : "festival");
   // As sub-abas (Festival/Máquina/Alexa) NÃO viram link próprio na URL — a
   // Central Alexa inteira é uma tela só (`#alexa`). Trocar de aba só muda o
   // estado local; a URL fica sempre `#alexa` e o "voltar" sai direto pra tela
@@ -4906,4 +4907,6 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
 
 
+// TAB_DEFS também é o catálogo de atalhos da Central Alexa (shared/atalhos.jsx).
+export { TAB_DEFS };
 export default CentralAlexa;
