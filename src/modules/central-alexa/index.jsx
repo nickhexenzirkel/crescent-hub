@@ -1339,7 +1339,19 @@ const BOTAO_PLAYER = {
 const CentralAlexa = ({onBack, userPhoto}) => {
   const isMobile = useIsMobile();
   const isDark   = !!T.page;
+  /* Fundo dos painéis. Repare que ele é OPACO no tema escuro (T.surface é
+     #111B2E) e 97% opaco no claro (T.surfaceW) — por isso os 15 painéis que
+     usam este fundo não levam mais `backdrop-filter`. O desfoque atrás deles
+     era invisível (3% de translucidez no melhor caso), mas obrigava o
+     navegador a reborrar a área do painel A CADA FRAME, porque o fundo do
+     Festival é animado. Era o maior custo de desenho da tela.
+     Os poucos backdrop-filter que sobraram estão sobre fundos de verdade
+     translúcidos (0,55 a 0,82), onde o efeito realmente aparece. */
   const cardBg   = isDark ? T.surface : (T.surfaceW||"rgba(255,255,255,0.78)");
+  /* Idem cardBg: T.topbarBg é 94% opaco em todos os temas, então o
+     backdrop-filter que havia aqui era invisível — e, num cabeçalho fixo, ele
+     é o pior caso possível: o que está atrás muda a cada frame de ROLAGEM,
+     obrigando a reborrar a faixa inteira do topo enquanto a pessoa rola. */
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||"rgba(255,255,255,0.82)");
 
   // ── UI state ─────────────────────────────────────────────
@@ -2071,7 +2083,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       { i:2, medal:'🥉', ring:'#CD9B6A', pedH:52,  photo:98 },  // 3º à direita
     ];
     return (
-      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
+      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Pódio dos Artistas</span>
@@ -2143,7 +2155,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       )}
       <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
-      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Músicas Mais Tocadas</span>
@@ -2172,7 +2184,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         ))}
       </div>
       {/* Top Artistas */}
-      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Artistas Mais Pedidos</span>
@@ -2198,7 +2210,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         ))}
       </div>
       {/* Quem Mais Coloca Música (DJs) */}
-      <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Quem Mais Coloca Música</span>
@@ -3009,7 +3021,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           que fazer aqui, então evitamos que as pessoas tentem (e falhem em) pedir música. */}
       {spotifyChecked && !spotifyOk && (
         <div style={{position:"fixed",inset:0,zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.72)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",padding:16}}>
-          <div style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
+          <div style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
             <div style={{fontSize:44,marginBottom:14,animation:"caPulse 1.6s ease-in-out infinite"}}>🎧</div>
             <div style={{fontWeight:800,fontSize:19,color:T.text,marginBottom:12}}>
               Spotify temporariamente bloqueado
@@ -3037,7 +3049,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Modal: confirmação de música longa (≥15 min) ── */}
       {confirmTrack&&(
         <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)"}}>
-          <div style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:20,padding:"28px 28px 24px",maxWidth:360,width:"90%",boxShadow:T.shL}}>
+          <div style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:20,padding:"28px 28px 24px",maxWidth:360,width:"90%",boxShadow:T.shL}}>
             <div style={{fontSize:28,textAlign:"center",marginBottom:12}}>⏱️</div>
             <div style={{fontWeight:700,fontSize:15,color:T.text,textAlign:"center",marginBottom:8}}>
               Música longa detectada
@@ -3067,7 +3079,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Modal: substituir música da fila ── */}
       {replaceTarget&&(
         <div onClick={closeReplace} style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)",padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,borderRadius:20,padding:"22px 22px 20px",maxWidth:440,width:"100%",boxShadow:T.shL}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:20,padding:"22px 22px 20px",maxWidth:440,width:"100%",boxShadow:T.shL}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
               <div style={{fontWeight:700,fontSize:15,color:T.text}}>Substituir música</div>
               <button onClick={closeReplace} style={{background:"rgba(0,0,0,0.06)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,color:T.textS,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
@@ -3212,8 +3224,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         @keyframes alexaOrb{0%,100%{box-shadow:0 0 20px ${T.gold}44,0 0 40px ${T.gold}22}50%{box-shadow:0 0 40px ${T.gold}88,0 0 80px ${T.gold}33}}
         @keyframes alexaFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-8px)}}
-        @keyframes hdrBlob1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(28px,-8px) scale(1.15)}66%{transform:translate(-12px,10px) scale(0.92)}}
-        @keyframes hdrBlob2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-18px,14px) scale(1.08)}}
+        @keyframes hdrBlob1{0%,100%{transform:translate(0,0)}33%{transform:translate(28px,-8px)}66%{transform:translate(-12px,10px)}}
+        @keyframes hdrBlob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-18px,14px)}}
         @keyframes typingDot{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
         @keyframes festBlob1{0%,100%{transform:translate(0,0) scale(1) rotate(0deg)}33%{transform:translate(60px,-40px) scale(1.2) rotate(120deg)}66%{transform:translate(-30px,50px) scale(0.85) rotate(240deg)}}
         @keyframes festBlob2{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-70px,30px) scale(1.15)}80%{transform:translate(40px,-20px) scale(0.9)}}
@@ -3228,7 +3240,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* Topbar — `paddingTop` com a safe-area evita nascer embaixo do
           relógio/notch quando o Portal roda "instalado" (mesmo fix já feito
           no Uniko FIT). */}
-      <div style={{height:56,boxSizing:"content-box",background:T.topbarBg||headerBg,backdropFilter:"blur(28px)",WebkitBackdropFilter:"blur(28px)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",padding:"0 24px",paddingTop:"env(safe-area-inset-top, 0px)",gap:12,position:"sticky",top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
+      <div style={{height:56,boxSizing:"content-box",background:T.topbarBg||headerBg,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",padding:"0 24px",paddingTop:"env(safe-area-inset-top, 0px)",gap:12,position:"sticky",top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
         <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",color:T.textS,fontSize:13,fontFamily:"var(--font-body)",padding:"4px 8px",borderRadius:7}}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||"rgba(0,0,0,0.04)"}
           onMouseLeave={e=>e.currentTarget.style.background="none"}>
@@ -3382,12 +3394,12 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
                     {/* Normal blob */}
                     {!isThemedCard && (
-                      <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:festColors?.[0]||T.gold,filter:"blur(30px)",opacity:0.12,top:0,left:"20%",transition:"background 1.5s ease"}}/>
+                      <div style={{position:"absolute",width:80,height:80,borderRadius:"50%",background:bolhaGradiente(festColors?.[0]||T.gold),opacity:0.28,top:0,left:"20%",transition:"background 1.5s ease"}}/>
                     )}
 
                     {/* Glow na cor do Uniko personalizado (Oficina/Comum) — sem cenário artesanal próprio */}
                     {isCustomCard && (
-                      <div style={{position:"absolute",width:110,height:110,borderRadius:"50%",background:customAccent,filter:"blur(40px)",opacity:0.18,top:-10,left:"18%"}}/>
+                      <div style={{position:"absolute",width:110,height:110,borderRadius:"50%",background:bolhaGradiente(customAccent),opacity:0.4,top:-10,left:"18%"}}/>
                     )}
 
                     {/* Cenário cósmico artesanal — Unikos da Oficina com theme.sceneType='cosmos' (ex.: Destruidora de Mundos) */}
@@ -3537,10 +3549,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     ? `linear-gradient(160deg,${festColors?.[0]||"#1a0533"}cc,${festColors?.[1]||"#0a1a40"}cc,${festColors?.[2]||"#001a20"}cc)`
                     : `linear-gradient(160deg,${festColors?.[0]||"#6600cc"}33,${festColors?.[1]||"#003399"}22,${festColors?.[2]||"#003322"}22)`}}/>
                   <div style={{position:"absolute",width:160,height:160,borderRadius:"50%",
-                    background:festColors?.[0]||"#ff6b6b",filter:"blur(50px)",opacity:0.6,
+                    background:bolhaGradiente(festColors?.[0]||"#ff6b6b"),opacity:0.85,
                     top:"-40px",left:"-30px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
                   <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",
-                    background:festColors?.[1]||"#4ecdc4",filter:"blur(45px)",opacity:0.55,
+                    background:bolhaGradiente(festColors?.[1]||"#4ecdc4"),opacity:0.8,
                     bottom:"-30px",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
                   <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.3) 0%,transparent 40%,transparent 60%,rgba(0,0,0,0.35) 100%)"}}/>
                 </div>
@@ -3621,19 +3633,19 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       backdropFilter:"blur(0px)"}}/>
                     {/* Blob 1 */}
                     <div style={{position:"absolute",width:200,height:200,borderRadius:"50%",
-                      background:festColors?.[0]||"#ff6b6b",filter:"blur(60px)",opacity:0.7,
+                      background:bolhaGradiente(festColors?.[0]||"#ff6b6b"),opacity:0.95,
                       top:"-30px",left:"-40px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
                     {/* Blob 2 */}
                     <div style={{position:"absolute",width:180,height:180,borderRadius:"50%",
-                      background:festColors?.[1]||"#4ecdc4",filter:"blur(55px)",opacity:0.65,
+                      background:bolhaGradiente(festColors?.[1]||"#4ecdc4"),opacity:0.9,
                       bottom:"10%",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
                     {/* Blob 3 */}
                     <div style={{position:"absolute",width:150,height:150,borderRadius:"50%",
-                      background:festColors?.[2]||"#45b7d1",filter:"blur(50px)",opacity:0.6,
+                      background:bolhaGradiente(festColors?.[2]||"#45b7d1"),opacity:0.85,
                       top:"40%",left:"30%",animation:"lyricsBlob3 11s ease-in-out infinite alternate"}}/>
                     {/* Blob 4 — extra intensidade */}
                     <div style={{position:"absolute",width:120,height:120,borderRadius:"50%",
-                      background:festColors?.[0]||"#f093fb",filter:"blur(45px)",opacity:0.5,
+                      background:bolhaGradiente(festColors?.[0]||"#f093fb"),opacity:0.75,
                       bottom:"30%",left:"-10px",animation:"lyricsBlob1 8s ease-in-out infinite alternate-reverse"}}/>
                     {/* Overlay escuro no topo e base para legibilidade */}
                     <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.25) 0%,transparent 20%,transparent 80%,rgba(0,0,0,0.35) 100%)"}}/>
@@ -3710,8 +3722,8 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               )}
 
               {/* Search Bar */}
-              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
-                <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.gold,filter:"blur(35px)",opacity:0.07,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
+              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
+                <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.16,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12,position:"relative",zIndex:1}}>Pesquisar música</div>
                 <div style={{position:"relative",zIndex:2}}>
                   <div style={{
@@ -3823,7 +3835,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {(!isMobile || isAdmin) && (
             <div style={{width:isMobile?"100%":300,flexShrink:0,order:isMobile?3:0}}>
               {isMobile ? (
-                <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
+                <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
                   {spotifyChecked&&!spotifyOk&&(
                     <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontSize:11}}>⚠️</span>
@@ -3875,7 +3887,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   )}
                 </div>
               ) : (
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
+              <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
                 {/* Spotify connect banner — só mostra após verificar */}
                 {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
@@ -4038,7 +4050,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
             {/* ── Visão de biblioteca (lista de cards + busca) ── */}
             {!plOpenId&&(<>
-              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12}}>Adicionar à biblioteca</div>
                 <div style={{display:"flex",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
                   <input
@@ -4061,7 +4073,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 )}
               </div>
 
-              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",flex:1}}>Biblioteca de Playlists ({plLibrary.length})</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:10,border:`1.5px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",minWidth:isMobile?"100%":240}}>
@@ -4110,7 +4122,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
             {/* ── Visão de faixas de uma playlist aberta ── */}
             {plOpenId&&(
-              <div style={{borderRadius:18,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <button onClick={()=>{setPlOpenId(null);setPlData(null);setPlError("");}}
                   style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,fontSize:12,fontFamily:"var(--font-body)",marginBottom:16,outline:"none"}}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -4414,9 +4426,9 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {/* Chat interface */}
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:16}}>
               {/* Alexa orb header */}
-              <div style={{borderRadius:20,background:cardBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${T.border}`,padding:"28px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:16,position:"relative",overflow:"hidden",boxShadow:T.shM}}>
-                <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:T.gold,filter:"blur(40px)",opacity:0.08,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
-                <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:T.goldL||T.gold,filter:"blur(30px)",opacity:0.06,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
+              <div style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"28px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:16,position:"relative",overflow:"hidden",boxShadow:T.shM}}>
+                <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.18,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
+                <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.goldL||T.gold),opacity:0.14,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
                 <img src={T.unikoSrc || '/UNIKO_NEW.png'} alt="Uniko" onError={e=>{e.target.onerror=null;e.target.src='/UNIKO_NEW.png';}} style={{width:90,height:90,objectFit:"contain",position:"relative",zIndex:1,animation:"alexaFloat 6s ease-in-out infinite"}}/>
                 <div style={{textAlign:"center",position:"relative",zIndex:1}}>
@@ -4430,7 +4442,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               </div>
 
               {/* Conversation — estilo grupo WhatsApp */}
-              <div style={{borderRadius:16,background:cardBg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
+              <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
                 <div ref={chatScrollRef} style={{height:isMobile?"58vh":520,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8,scrollbarWidth:"thin"}}>
                   {alexaConvo.map((m,i)=>{
                     // Gera cor única por nome (estilo WhatsApp grupo)
