@@ -187,8 +187,10 @@ const AccountPanel = () => {
   );
 };
 
-const SettingsModal = ({activeTheme,onTheme,onClose}) => {
-  const [pane, setPane] = useState('theme'); // 'theme' (principal) | 'account'
+const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
+  // `painelInicial` existe porque o card de perfil tem um botão pra Tema e
+  // outro pra Conta: cada um abre este mesmo modal já na aba certa.
+  const [pane, setPane] = useState(painelInicial); // 'theme' (principal) | 'account'
 
   const Tab = ({id,label,icon}) => {
     const active = pane===id;

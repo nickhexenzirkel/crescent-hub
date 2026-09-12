@@ -187,6 +187,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
   const [pressed, setPressed] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  // Em qual aba o modal de configurações abre: 'theme' (cor do sistema) ou
+  // 'account' (senha/dados). Cada uma tem o seu botão no card.
+  const [painelConfig, setPainelConfig] = useState('theme');
   const [activeTheme, setActiveTheme] = useState(() => {
     const s = localStorage.getItem('ch_theme') || 'blue'; applyTheme(s); return s;
   });
@@ -229,6 +232,17 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     });
   };
   const [colorMode, setColorMode] = useState(false);
+  /* Os quatro modos de personalizar a órbita são mutuamente exclusivos, e cada
+     botão repetia os cinco setStates pra desligar os outros. Um lugar só:
+     liga o pedido, desliga o resto, e limpa a bolha que estava selecionada. */
+  const abrirModo = (qual) => {
+    setReorderMode(m => qual === 'ordem'   ? !m : false);
+    setSizeMode(   m => qual === 'tamanho' ? !m : false);
+    setColorMode(  m => qual === 'cor'     ? !m : false);
+    setAtalhoMode( m => qual === 'atalhos' ? !m : false);
+    setSizingId(null);
+    setColoringId(null);
+  };
   const [colorPrefs, setColorPrefs] = useState(() => loadColorPrefs(authUser));
   const [coloringId, setColoringId] = useState(null);
   // Sem cor escolhida, mantém a cor ORIGINAL do módulo (a do tema, ou a fixa
@@ -653,7 +667,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           })}
         </div>
 
-        {showSettings && <SettingsModal activeTheme={activeTheme} onTheme={handleTheme} onClose={()=>setShowSettings(false)}/>}
+        {showSettings && <SettingsModal activeTheme={activeTheme} onTheme={handleTheme} painelInicial={painelConfig} onClose={()=>setShowSettings(false)}/>}
 
         {/* Rodapé */}
         <div style={{marginTop:'auto', padding:'0 16px 26px', textAlign:'center'}}>
@@ -730,71 +744,58 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               </div>
             </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,width:'100%'}}>
-            <button onClick={()=>onSelect('colaborador','dados')} title="Editar perfil"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${T.goldLine}44`,background:T.goldGl,color:T.gold,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
-            </button>
-            <button onClick={()=>setShowSettings(true)} title="Configurações"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-              </svg>
-            </button>
-            <button onClick={()=>{setReorderMode(r=>!r); setSizeMode(false); setSizingId(null); setColorMode(false); setColoringId(null);}} title="Organizar a ordem dos módulos"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${reorderMode?T.goldLine+'44':T.border}`,background:reorderMode?T.goldGl:'transparent',color:reorderMode?T.gold:T.textS,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
-              </svg>
-            </button>
-            <button onClick={()=>{setSizeMode(v=>!v); setReorderMode(false); setSizingId(null); setColorMode(false); setColoringId(null);}} title="Tamanho dos módulos"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${sizeMode?T.goldLine+'44':T.border}`,background:sizeMode?T.goldGl:'transparent',color:sizeMode?T.gold:T.textS,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-              </svg>
-            </button>
-            <button onClick={()=>{setColorMode(v=>!v); setReorderMode(false); setSizeMode(false); setSizingId(null); setColoringId(null);}} title="Cor dos módulos"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${colorMode?T.goldLine+'44':T.border}`,background:colorMode?T.goldGl:'transparent',color:colorMode?T.gold:T.textS,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="13.5" cy="6.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>
-                <circle cx="7" cy="12.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="1.6" fill="currentColor" stroke="none"/>
-                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.9 0 3.6-1.6 3.6-3.6C21 6.4 16.9 2 12 2z"/>
-              </svg>
-            </button>
-            {/* Ocupa a linha inteira: com sete botões, um sozinho no fim da
-                grade de três ficaria torto. E com rótulo, porque "atalho" não
-                tem ícone que se explique sozinho. */}
-            <button onClick={()=>{setAtalhoMode(v=>!v); setReorderMode(false); setSizeMode(false); setSizingId(null); setColorMode(false); setColoringId(null);}}
-              title="Adicionar atalhos de abas do Portal na órbita"
-              style={{gridColumn:'1 / -1',display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:30,borderRadius:9,
-                border:`1px solid ${atalhoMode?T.goldLine+'44':T.border}`,background:atalhoMode?T.goldGl:'transparent',
-                color:atalhoMode?T.gold:T.textS,cursor:'pointer',fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)'}}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Atalhos
-            </button>
-            <button onClick={onLogout} title="Sair"
-              style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
-                border:`1px solid ${T.dangerGl||T.border}`,background:'transparent',color:T.danger,cursor:'pointer'}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-            </button>
+          {/* Ações do card. Antes eram seis ícones sem rótulo numa grade de
+              três, e ninguém adivinhava qual era qual: a paleta trocava a cor
+              das BOLHAS, mas parecia o tema do sistema; a engrenagem abria um
+              modal que tinha tema E conta juntos. Agora cada ação tem o seu
+              botão, com ícone próprio e nome escrito — inclusive Tema e Conta,
+              que viraram entradas separadas do mesmo modal. */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,width:'100%'}}>
+            {[
+              { id:'perfil', rot:'Perfil', dica:'Editar seus dados',
+                onClick:()=>onSelect('colaborador','dados'), destaque:true,
+                icone:<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></> },
+              { id:'conta', rot:'Conta', dica:'Senha e dados da conta',
+                onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
+                icone:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },
+              { id:'tema', rot:'Tema', dica:'Cor do sistema (claro/escuro)',
+                onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
+                icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
+              { id:'ordem', rot:'Ordem', dica:'Arrastar pra reorganizar a órbita',
+                ativo:reorderMode, onClick:()=>abrirModo('ordem'),
+                icone:<><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></> },
+              { id:'tamanho', rot:'Tamanho', dica:'Tamanho das bolhas (P/M/G/GG)',
+                ativo:sizeMode, onClick:()=>abrirModo('tamanho'),
+                icone:<><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></> },
+              { id:'cor', rot:'Cor', dica:'Cor das bolhas dos módulos',
+                ativo:colorMode, onClick:()=>abrirModo('cor'),
+                icone:<><circle cx="13.5" cy="6.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="12.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.9 0 3.6-1.6 3.6-3.6C21 6.4 16.9 2 12 2z"/></> },
+              { id:'atalhos', rot:'Atalhos', dica:'Pôr abas do Portal na órbita',
+                ativo:atalhoMode, onClick:()=>abrirModo('atalhos'),
+                icone:<><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></> },
+              { id:'sair', rot:'Sair', dica:'Encerrar a sessão', perigo:true, onClick:onLogout,
+                icone:<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></> },
+            ].map(b => {
+              const aceso = b.ativo || b.destaque;
+              return (
+                <button key={b.id} onClick={b.onClick} title={b.dica}
+                  style={{display:'flex',alignItems:'center',gap:6,height:30,padding:'0 8px',borderRadius:9,
+                    border:`1px solid ${b.perigo ? (T.dangerGl||T.border) : aceso ? T.goldLine+'44' : T.border}`,
+                    background: aceso && !b.perigo ? T.goldGl : 'transparent',
+                    color: b.perigo ? T.danger : aceso ? T.gold : T.textS,
+                    cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:'var(--font-body)',
+                    textAlign:'left',overflow:'hidden'}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                    strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{b.icone}</svg>
+                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.rot}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {showSettings && <SettingsModal activeTheme={activeTheme} onTheme={handleTheme} onClose={()=>setShowSettings(false)}/>}
+      {showSettings && <SettingsModal activeTheme={activeTheme} onTheme={handleTheme} painelInicial={painelConfig} onClose={()=>setShowSettings(false)}/>}
 
       {/* ── Cabeçalho: wordmark à esquerda · saudação + título ao centro ── */}
       <div className="fsu" style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'start',marginBottom:8}}>
