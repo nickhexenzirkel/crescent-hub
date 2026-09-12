@@ -82,15 +82,32 @@ const loadColorPrefs = (authUser) => {
   catch { return {}; }
 };
 const saveColorPrefs = (authUser, prefs) => { try { localStorage.setItem(colorKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
+/* Paleta das bolhas. Vai em volta do círculo cromático — azul, roxo, rosa,
+   vermelho, laranja, amarelo, verde, ciano — e só depois os neutros, pra a
+   lista de escolha ler como um degradê contínuo em vez de cores jogadas.
+   Todos os tons são de saturação média-alta: precisam se sustentar tanto no
+   tema claro quanto no escuro, já que a mesma cor pinta ícone, aura e borda. */
 const COLOR_STEPS = [
-  { id:'blue',   label:'Azul',    hex:'#3B82F6' },
-  { id:'purple', label:'Roxo',    hex:'#8B5CF6' },
-  { id:'pink',   label:'Rosa',    hex:'#EC4899' },
-  { id:'red',    label:'Vermelho',hex:'#EF4444' },
-  { id:'orange', label:'Laranja', hex:'#F97316' },
-  { id:'yellow', label:'Amarelo', hex:'#EAB308' },
-  { id:'green',  label:'Verde',   hex:'#22C55E' },
-  { id:'teal',   label:'Turquesa',hex:'#14B8A6' },
+  { id:'blue',    label:'Azul',      hex:'#3B82F6' },
+  { id:'sky',     label:'Celeste',   hex:'#0EA5E9' },
+  { id:'indigo',  label:'Índigo',    hex:'#6366F1' },
+  { id:'purple',  label:'Roxo',      hex:'#8B5CF6' },
+  { id:'violet',  label:'Violeta',   hex:'#A855F7' },
+  { id:'fuchsia', label:'Magenta',   hex:'#D946EF' },
+  { id:'pink',    label:'Rosa',      hex:'#EC4899' },
+  { id:'rose',    label:'Cereja',    hex:'#F43F5E' },
+  { id:'red',     label:'Vermelho',  hex:'#EF4444' },
+  { id:'orange',  label:'Laranja',   hex:'#F97316' },
+  { id:'amber',   label:'Âmbar',     hex:'#F59E0B' },
+  { id:'yellow',  label:'Amarelo',   hex:'#EAB308' },
+  { id:'lime',    label:'Limão',     hex:'#84CC16' },
+  { id:'green',   label:'Verde',     hex:'#22C55E' },
+  { id:'emerald', label:'Esmeralda', hex:'#10B981' },
+  { id:'teal',    label:'Turquesa',  hex:'#14B8A6' },
+  { id:'cyan',    label:'Ciano',     hex:'#06B6D4' },
+  { id:'brown',   label:'Terra',     hex:'#B45309' },
+  { id:'slate',   label:'Ardósia',   hex:'#64748B' },
+  { id:'graphite',label:'Grafite',   hex:'#334155' },
 ];
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
@@ -432,9 +449,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
     </svg>
   );
+  // Nota musical dupla. Era uma lua — bonita, mas não dizia "música" nenhuma
+  // pra quem bate o olho na órbita procurando a Central Alexa.
   const IcoAlexa = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      <path d="M9 18V5l12-2v13"/>
+      <circle cx="6" cy="18" r="3"/>
+      <circle cx="18" cy="16" r="3"/>
     </svg>
   );
   const IcoDash = (
@@ -874,9 +895,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
 
       {colorMode && (
         <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
-          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
+          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',
+          width:'fit-content',maxWidth:'min(94vw, 780px)'}}>
           <span>🎨 Toque numa bolha pra escolher a cor SÓ dela, ou aplique em todas:</span>
-          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {/* maxWidth obriga a paleta a quebrar em linhas: com 20 cores, sem
+              isto o banner esticava numa faixa única atravessando a tela. */}
+          <div style={{display:'flex',gap:4,flexWrap:'wrap',maxWidth:312}}>
             <button onClick={()=>setAllColors(null)} title="Padrão"
               style={{width:22,height:22,borderRadius:'50%',border:`1.5px solid ${T.border}`,background:T.surface,cursor:'pointer',
                 display:'flex',alignItems:'center',justifyContent:'center',color:T.textD,fontSize:10}}>✕</button>

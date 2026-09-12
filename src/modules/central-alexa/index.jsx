@@ -2083,7 +2083,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       { i:2, medal:'🥉', ring:'#CD9B6A', pedH:52,  photo:98 },  // 3º à direita
     ];
     return (
-      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
+      <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 18px 22px",boxShadow:T.sh,width:"100%",display:"flex",flexDirection:"column"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Pódio dos Artistas</span>
@@ -2155,7 +2155,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       )}
       <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
       {/* Top Músicas */}
-      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Músicas Mais Tocadas</span>
@@ -2184,7 +2184,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         ))}
       </div>
       {/* Top Artistas */}
-      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Artistas Mais Pedidos</span>
@@ -2210,7 +2210,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
         ))}
       </div>
       {/* Quem Mais Coloca Música (DJs) */}
-      <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
+      <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
           <span style={{fontSize:15,fontWeight:700,color:T.text}}>Quem Mais Coloca Música</span>
@@ -2877,7 +2877,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                           // botões de trocar/pular ficavam literalmente invisíveis e só apareciam
                           // girando pra paisagem. Com flexWrap eles descem pra 2ª linha em vez de
                           // sumir cortados.
-                          <div key={s.id} style={{display:"flex",alignItems:"center",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?8:12,padding:isMobile?"10px 12px":"11px 16px",borderTop:idx===0?"none":`1px solid ${C.border}`,background:iAmPlaying?C.goldGl:"transparent",transition:"background .15s"}}>
+                          <div key={s.id} className="ca-row" style={{display:"flex",alignItems:"center",flexWrap:isMobile?"wrap":"nowrap",gap:isMobile?8:12,padding:isMobile?"10px 12px":"11px 16px",borderTop:idx===0?"none":`1px solid ${C.border}`,background:iAmPlaying?C.goldGl:"transparent",transition:"background .15s"}}>
                             {/* EQ / número */}
                             <div style={{width:22,textAlign:"center",flexShrink:0}}>
                               {iAmPlaying
@@ -3012,7 +3012,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   };
 
   return (
-    <div className={festBgVideo ? 'ca-bgvid-on' : undefined} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative",overflowX:"hidden"}}>
+    <div className={`ca-root${festBgVideo ? ' ca-bgvid-on' : ''}`} style={{minHeight:"100vh",background:"transparent",fontFamily:"var(--font-body)",position:"relative",overflowX:"hidden"}}>
       {festBgVideo && <style>{`.ca-bgvid-on [style*="blur"]{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}`}</style>}
 
       {/* ── Bloqueio FIXO: Spotify indisponível (rate limit / ban / desconectado) ──
@@ -3021,7 +3021,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           que fazer aqui, então evitamos que as pessoas tentem (e falhem em) pedir música. */}
       {spotifyChecked && !spotifyOk && (
         <div style={{position:"fixed",inset:0,zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.72)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",padding:16}}>
-          <div style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
+          <div className="ca-card" style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:22,padding:"32px 30px 26px",maxWidth:420,width:"100%",boxShadow:T.shL,textAlign:"center"}}>
             <div style={{fontSize:44,marginBottom:14,animation:"caPulse 1.6s ease-in-out infinite"}}>🎧</div>
             <div style={{fontWeight:800,fontSize:19,color:T.text,marginBottom:12}}>
               Spotify temporariamente bloqueado
@@ -3049,7 +3049,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {/* ── Modal: confirmação de música longa (≥15 min) ── */}
       {confirmTrack&&(
         <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)"}}>
-          <div style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:20,padding:"28px 28px 24px",maxWidth:360,width:"90%",boxShadow:T.shL}}>
+          <div className="ca-card" style={{background:cardBg,border:`1px solid ${T.border}`,borderRadius:20,padding:"28px 28px 24px",maxWidth:360,width:"90%",boxShadow:T.shL}}>
             <div style={{fontSize:28,textAlign:"center",marginBottom:12}}>⏱️</div>
             <div style={{fontWeight:700,fontSize:15,color:T.text,textAlign:"center",marginBottom:8}}>
               Música longa detectada
@@ -3210,6 +3210,59 @@ const CentralAlexa = ({onBack, userPhoto}) => {
       {tab==="festival" && !unikoDaSkin(songSkin)?.bgVideoUrl && unikoDaSkin(songSkin)?.theme?.sceneType === 'olivia' && <CentralOlivia />}
 
       <style>{`
+        /* ── Interações ──────────────────────────────────────────────────
+           Tudo aqui usa 'scale' e 'translate' como PROPRIEDADES INDEPENDENTES,
+           não dentro de 'transform'. É o que torna isto seguro num arquivo com
+           centenas de estilos inline: 'transform' numa regra CSS seria
+           sobrescrito pelo transform inline do elemento (ou, pior, apagaria um
+           translate(-50%,-50%) e jogaria a coisa pra fora do lugar). 'scale' e
+           'translate' se COMPÕEM com o transform existente.
+
+           O easing com overshoot (cubic-bezier .34,1.56,.64,1) é o que dá a
+           sensação de app nativo: o elemento passa um pouco do ponto e volta,
+           em vez de deslizar linear. No clique a duração cai pra 70ms — resposta
+           tem que ser instantânea; é a volta que pode ser macia. */
+        .ca-root button:not(:disabled),
+        .ca-root [role="button"]:not([aria-disabled="true"]){
+          transition: scale .16s cubic-bezier(.34,1.56,.64,1), translate .16s ease,
+                      box-shadow .22s ease, filter .18s ease, background .18s ease, border-color .18s ease;
+        }
+        .ca-root button:not(:disabled):hover,
+        .ca-root [role="button"]:not([aria-disabled="true"]):hover{ scale:1.045; filter:brightness(1.07); }
+        .ca-root button:not(:disabled):active,
+        .ca-root [role="button"]:not([aria-disabled="true"]):active{ scale:.955; filter:brightness(.95); transition-duration:.07s; }
+        .ca-root button:disabled{ filter:saturate(.45) opacity(.85); }
+        .ca-root button:focus-visible,
+        .ca-root input:focus-visible{ outline:2px solid ${T.gold}; outline-offset:2px; }
+
+        /* Painéis: sobem de leve e ganham sombra ao passar o mouse. */
+        .ca-card{ transition: translate .24s cubic-bezier(.34,1.4,.64,1), box-shadow .24s ease, border-color .24s ease; }
+        .ca-card:hover{ translate:0 -3px; box-shadow:0 16px 44px rgba(0,0,0,.16); }
+
+        /* Linhas de lista (fila, resultados da busca): deslizam pro lado. */
+        .ca-row{ transition: translate .18s cubic-bezier(.34,1.4,.64,1), background .18s ease; }
+        .ca-row:hover{ translate:5px 0; }
+
+        /* Capa do álbum: respira junto com o painel. */
+        .ca-capa{ transition: scale .3s cubic-bezier(.34,1.4,.64,1), box-shadow .3s ease; }
+        .ca-card:hover .ca-capa, .ca-capa:hover{ scale:1.04; }
+
+        /* Entrada do conteúdo ao trocar de aba. */
+        @keyframes caEntra{ from{ opacity:0; translate:0 12px } to{ opacity:1; translate:0 0 } }
+        .ca-entra{ animation: caEntra .34s cubic-bezier(.22,1,.36,1) both; }
+
+        /* Arrastar: o cursor e o próprio elemento dizem que está sendo pego. */
+        .ca-root [draggable="true"]{ cursor:grab; }
+        .ca-root [draggable="true"]:active{ cursor:grabbing; scale:1.03; }
+
+        /* Quem pediu menos movimento no sistema não leva nada disso. */
+        @media (prefers-reduced-motion: reduce){
+          .ca-root button, .ca-root [role="button"], .ca-card, .ca-row, .ca-capa{
+            transition:none !important; scale:none !important; translate:none !important;
+          }
+          .ca-entra{ animation:none !important; }
+        }
+
         @keyframes alexaEq1{0%{height:5px}100%{height:18px}}
         @keyframes alexaEq2{0%{height:14px}100%{height:6px}}
         @keyframes alexaEq3{0%{height:4px}100%{height:20px}}
@@ -3722,7 +3775,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               )}
 
               {/* Search Bar */}
-              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
+              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.16,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12,position:"relative",zIndex:1}}>Pesquisar música</div>
                 <div style={{position:"relative",zIndex:2}}>
@@ -3835,7 +3888,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {(!isMobile || isAdmin) && (
             <div style={{width:isMobile?"100%":300,flexShrink:0,order:isMobile?3:0}}>
               {isMobile ? (
-                <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
+                <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
                   {spotifyChecked&&!spotifyOk&&(
                     <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontSize:11}}>⚠️</span>
@@ -3887,7 +3940,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                   )}
                 </div>
               ) : (
-              <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
+              <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
                 {/* Spotify connect banner — só mostra após verificar */}
                 {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
@@ -4050,7 +4103,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
             {/* ── Visão de biblioteca (lista de cards + busca) ── */}
             {!plOpenId&&(<>
-              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12}}>Adicionar à biblioteca</div>
                 <div style={{display:"flex",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
                   <input
@@ -4073,7 +4126,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 )}
               </div>
 
-              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
                   <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",flex:1}}>Biblioteca de Playlists ({plLibrary.length})</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:10,border:`1.5px solid ${T.border}`,background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",minWidth:isMobile?"100%":240}}>
@@ -4122,7 +4175,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
 
             {/* ── Visão de faixas de uma playlist aberta ── */}
             {plOpenId&&(
-              <div style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
+              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM}}>
                 <button onClick={()=>{setPlOpenId(null);setPlData(null);setPlError("");}}
                   style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,fontSize:12,fontFamily:"var(--font-body)",marginBottom:16,outline:"none"}}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -4426,7 +4479,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             {/* Chat interface */}
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:16}}>
               {/* Alexa orb header */}
-              <div style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"28px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:16,position:"relative",overflow:"hidden",boxShadow:T.shM}}>
+              <div className="ca-card" style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"28px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:16,position:"relative",overflow:"hidden",boxShadow:T.shM}}>
                 <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.18,top:"-30px",left:"20%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.goldL||T.gold),opacity:0.14,bottom:"-10px",right:"15%",animation:"hdrBlob2 7s ease-in-out infinite"}}/>
                 {/* Orb */}
@@ -4442,7 +4495,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               </div>
 
               {/* Conversation — estilo grupo WhatsApp */}
-              <div style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
+              <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.sh}}>
                 <div ref={chatScrollRef} style={{height:isMobile?"58vh":520,overflowY:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:8,scrollbarWidth:"thin"}}>
                   {alexaConvo.map((m,i)=>{
                     // Gera cor única por nome (estilo WhatsApp grupo)
@@ -4766,7 +4819,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
             ) : (
             <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", minHeight:0 }}>
               {cur.album_art
-                ? <img src={cur.album_art} alt="" style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, objectFit:"cover", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }} />
+                ? <img src={cur.album_art} alt="" className="ca-capa" style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, objectFit:"cover", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }} />
                 : <div style={{ width:"min(78vw, 320px)", aspectRatio:"1/1", borderRadius:16, background:"rgba(255,255,255,.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:60 }}>🎵</div>}
 
               <div style={{ marginTop:26, textAlign:"center", width:"100%", maxWidth:340 }}>
