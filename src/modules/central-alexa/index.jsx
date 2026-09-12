@@ -1322,6 +1322,14 @@ const TAB_DEFS = [
   {id:"alexa",     label:"Alexa",             adminOnly:false, icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>},
 ];
 
+/* Os dois botoes embaixo dos controles da tela cheia (Ver letra / Ver fila). */
+const BOTAO_PLAYER = {
+  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  padding: "12px 0", borderRadius: 13, cursor: "pointer", fontFamily: "var(--font-body)",
+  border: "1px solid rgba(255,255,255,.18)", background: "rgba(255,255,255,.10)",
+  color: "#fff", fontSize: 13, fontWeight: 700, letterSpacing: ".01em",
+};
+
 const CentralAlexa = ({onBack, userPhoto}) => {
   const isMobile = useIsMobile();
   const isDark   = !!T.page;
@@ -1404,7 +1412,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   // Dentro da tela cheia "Tocando Agora", alterna entre o player (capa/controles)
   // e a Fila Democrática — sem precisar sair pra aba Festival só pra ver/pular fila.
-  const [queueViewOpen, setQueueViewOpen] = useState(false);
+  /* Tela cheia do player no celular: alem do player em si, ela pode mostrar
+     a Fila Democratica ou a letra sincronizada. Um estado so, com tres
+     valores, em vez de um booleano por tela — assim e impossivel abrir as
+     duas ao mesmo tempo. */
+  const [telaPlayer, setTelaPlayer] = useState("player");   // "player" | "fila" | "letra"
 
   // Lê a skin do DJ da música atual do Supabase para todos os clientes
   useEffect(() => {
@@ -2401,7 +2413,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
     const el = cont.querySelector(`[data-pline="${activeLine}"]`);
     if (!el) return;
     cont.scrollTo({ top: el.offsetTop - cont.clientHeight / 2 + el.offsetHeight / 2, behavior: 'smooth' });
-  }, [activeLine, lyrics, lyricsLoading, lyricsError]);
+    // `telaPlayer` entra na lista porque este mesmo container é o da letra em
+    // tela cheia no celular: sem ele, ao abrir a letra no meio de uma linha
+    // longa a tela ficaria no topo até a linha seguinte trocar.
+  }, [activeLine, lyrics, lyricsLoading, lyricsError, telaPlayer]);
 
   // ── Ações do Festival ────────────────────────────────────
   const handleSearch = (val) => {
@@ -3379,11 +3394,26 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                       <UnikoMascot
                         track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
                         colors={festColors}
-                        size={isMobile?110:160}
+                        size={isMobile?150:160}
                         songSkin={songSkin}
                       />
                     </div>
                   </div>
+
+                  {/* Tocando agora, no celular — é o que fecha o cenário. O card
+                      mostra o Uniko e o balão de fala, mas sem isto não dizia de
+                      qual música ele está falando. No desktop essa informação já
+                      está no painel "Tocando Agora" ao lado. */}
+                  {isMobile && currentSong && (
+                    <div style={{marginTop:12,textAlign:"center",padding:"0 10px"}}>
+                      <div style={{fontSize:10,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",
+                        color:T.textD,marginBottom:4}}>Tocando agora</div>
+                      <div style={{fontSize:16,fontWeight:800,color:T.text,lineHeight:1.25,
+                        overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{currentSong.title}</div>
+                      <div style={{fontSize:12.5,color:T.textS,marginTop:3,
+                        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.artist}</div>
+                    </div>
+                  )}
 
                   {/* Descrição do Uniko especial abaixo do card */}
                   {isVampCard && currentSong?.requested_by && (() => {
@@ -3442,7 +3472,11 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>);
               })()}
 
-              {/* Ver Letra */}
+              {/* Ver Letra — SÓ no desktop. No celular a letra passou a morar
+                  dentro da tela cheia do player (botão "Ver letra"), que é onde
+                  a pessoa está quando quer acompanhar; aqui embaixo do cenário
+                  ela só empurrava o resto da tela pra baixo. */}
+              {!isMobile && (
               <div style={{width:"100%",display:"flex",flexDirection:"column",gap:10}}>
               {/* Prévia da letra — linha sincronizada, sempre visível */}
               <div style={{
@@ -3614,6 +3648,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
               )}
             </div>
+            )}
             </div>
 
             {/* Right: Search bar + Queue */}
@@ -3725,8 +3760,10 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                 </div>
               </div>
 
-              {/* Queue */}
-              {renderQueueCard()}
+              {/* Fila — só no desktop. No celular ela vive dentro da tela cheia
+                  do player, no botão "Ver fila" embaixo dos controles; repetida
+                  aqui, era o que fazia a tela virar rolagem sem fim. */}
+              {!isMobile && renderQueueCard()}
             </div>
 
             {/* Right: Tocando Agora — no celular o play/pause, pular, capa e barra
@@ -4609,21 +4646,62 @@ const CentralAlexa = ({onBack, userPhoto}) => {
           )}
           <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", height:"100%", padding:"0 22px", paddingTop:"max(20px, env(safe-area-inset-top, 20px))", paddingBottom:"calc(20px + env(safe-area-inset-bottom, 0px))" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 0 12px" }}>
-              <button onClick={() => { setNowPlayingOpen(false); setQueueViewOpen(false); }} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
+              <button onClick={() => { if (telaPlayer !== "player") { setTelaPlayer("player"); return; } setNowPlayingOpen(false); }} aria-label="Fechar" style={{ border:"none", background:"none", cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>{queueViewOpen ? "Fila Democrática" : "Uniko Music"}</span>
-              {/* Ver fila — troca pra lista da Fila Democrática (tocando agora + a
-                  seguir) sem sair da tela cheia; não mostra letra nem o assistente. */}
-              <button onClick={() => setQueueViewOpen(v => !v)} aria-label="Ver fila" title="Ver fila"
-                style={{ border:"none", background:queueViewOpen?"rgba(255,255,255,.18)":"none", borderRadius:10, cursor:"pointer", color:"#fff", display:"flex", padding:8 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg>
-              </button>
+              <span style={{ fontSize:11.5, fontWeight:700, color:"rgba(255,255,255,.75)", letterSpacing:".06em", textTransform:"uppercase" }}>
+                {telaPlayer === "fila" ? "Fila Democrática" : telaPlayer === "letra" ? "Letra" : "Uniko Music"}
+              </span>
+              {/* O botão de fila morava aqui no canto e desceu pra baixo dos
+                  controles, junto com o "Ver letra". Este vão mantém o título
+                  centralizado entre os dois lados do cabeçalho. */}
+              <span style={{ width:38 }}/>
             </div>
 
-            {queueViewOpen ? (
+            {telaPlayer === "fila" ? (
               <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>
                 {renderQueueCard({ noBlur:true })}
+              </div>
+            ) : telaPlayer === "letra" ? (
+              /* Só a letra, acompanhando a música em tempo real. Sem capa, sem
+                 controle, sem assistente competindo por atenção: quem abriu
+                 isto quer cantar junto. A linha ativa cresce e acende, e o
+                 container rola sozinho (mesmo efeito da letra do desktop —
+                 quem move o scroll é o efeito que observa `activeLine`). */
+              <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column" }}>
+                <div style={{ textAlign:"center", padding:"0 0 12px" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.title}</div>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,.6)", marginTop:2 }}>{cur.artist}</div>
+                </div>
+                <div style={{ flex:1, minHeight:0, position:"relative", overflow:"hidden",
+                  WebkitMaskImage:"linear-gradient(to bottom,transparent,#000 14%,#000 86%,transparent)",
+                  maskImage:"linear-gradient(to bottom,transparent,#000 14%,#000 86%,transparent)" }}>
+                  {lyricsLoading ? (
+                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <span style={{ fontSize:13, color:"rgba(255,255,255,.6)" }}>Buscando letra...</span>
+                    </div>
+                  ) : lyricsError || !lyrics.length ? (
+                    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <span style={{ fontSize:13, color:"rgba(255,255,255,.5)" }}>Letra não encontrada</span>
+                    </div>
+                  ) : (
+                    <div ref={lyricsPreviewRef} style={{ position:"absolute", inset:0, overflowY:"auto", scrollbarWidth:"none" }}>
+                      <div style={{ height:"45%" }}/>
+                      {lyrics.map((line,i)=>(
+                        <div key={i} data-pline={i} style={{
+                          padding:"9px 18px", textAlign:"center",
+                          fontSize:i===activeLine?23:16,
+                          fontWeight:i===activeLine?800:500,
+                          color:i===activeLine?"#fff":(i<activeLine?"rgba(255,255,255,.28)":"rgba(255,255,255,.5)"),
+                          lineHeight:1.32,
+                          textShadow:i===activeLine?`0 0 26px rgba(255,255,255,.8), 0 0 12px ${festColors?.[0]||"#fff"}cc`:"none",
+                          transition:"all .35s ease",
+                        }}>{line.text||"\u266a"}</div>
+                      ))}
+                      <div style={{ height:"45%" }}/>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
             <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", minHeight:0 }}>
@@ -4685,6 +4763,25 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                     style={{ flex:1, accentColor:T.gold, height:3, cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.4 }}/>
                 </div>
               )}
+
+              {/* Ver letra / Ver fila — embaixo dos controles. A fila morava no
+                  canto superior direito, longe do polegar; a letra vivia solta
+                  na tela do Festival. As duas respondem "o que fazer com a
+                  música que está tocando", então o lugar delas é aqui. */}
+              <div style={{ display:"flex", gap:10, width:"100%", maxWidth:340, marginTop:22 }}>
+                <button onClick={() => setTelaPlayer("letra")} style={BOTAO_PLAYER}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                  </svg>
+                  Ver letra
+                </button>
+                <button onClick={() => setTelaPlayer("fila")} style={BOTAO_PLAYER}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/>
+                  </svg>
+                  Ver fila
+                </button>
+              </div>
             </div>
             )}
           </div>
