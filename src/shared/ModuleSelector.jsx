@@ -3,6 +3,11 @@ import { T, applyTheme } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
 import { calcularOrbita } from './orbita';
+/* Qual palco a tela de módulos usa (órbita, que é o de hoje, ou o layout
+   novo). O interruptor é temporário e mora no Dashboard RH → Configurações;
+   ver shared/menuLayout.js. */
+import { useMenuLayout } from './menuLayout';
+import { MenuLayoutNovo } from './MenuLayoutNovo';
 /* O catálogo de atalhos são as próprias abas do Portal do Colaborador. Vem da
    lista NAV em vez de uma cópia local de propósito: assim uma aba nova nasce
    disponível como atalho sem ninguém lembrar de duplicar rótulo e ícone aqui.
@@ -409,6 +414,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     setDraggingCard(true);
   };
   const isMobile = useIsMobile();
+  const layoutMenu = useMenuLayout();   // 'orbita' (padrão) ou 'novo'
   /* A órbita precisa de altura: ela é uma elipse com o mascote no meio e nove
      bolhas em volta. Num celular DEITADO (iPhone 14: 844x390) a largura passa
      do corte de "mobile", então caía na órbita — que encolhia pra cerca de 30%
@@ -425,7 +431,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   useEffect(() => {
     // `emLista` e não `isMobile`: numa janela baixa a órbita nem é renderizada,
     // e sem isto o observer não voltaria a se prender ao esticar a janela.
-    if (emLista) return;
+    // Mesma razão pra olhar o layout: no layout novo não existe caixa de
+    // órbita pra medir, e ao voltar pra órbita o observer precisa renascer
+    // grudado no elemento NOVO (o antigo foi desmontado junto com o palco).
+    if (emLista || layoutMenu !== 'orbita') return;
     const el = orbitAreaRef.current; if (!el) return;
     const calc = () => {
       const w = el.clientWidth, h = el.clientHeight;
@@ -437,7 +446,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const ro = new ResizeObserver(calc);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [emLista]);
+  }, [emLista, layoutMenu]);
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
   // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
@@ -1035,10 +1044,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       )}
 
-      {/* ── Órbita: anéis decorativos + mascote central + bolhas dos módulos ──
+      {/* ── O PALCO: órbita (padrão) ou o layout novo ────────────────────
+          Só o miolo da tela troca. Cabeçalho, card de perfil, banners de
+          personalizar e rodapé são os mesmos nos dois — e a lista de módulos
+          entregue ao layout novo é a MESMA `orbitMods`, já ordenada, com os
+          atalhos do Portal dentro e com as cores escolhidas pela pessoa.
+
+          Órbita: anéis decorativos + mascote central + bolhas dos módulos.
           A área abaixo ocupa o espaço vertical que sobrar (flex:1) e mede a si
           mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
           proporções, até caber sem precisar rolar a página. */}
+      {layoutMenu !== 'orbita' ? (
+        <MenuLayoutNovo mods={orbitMods} onSelect={onSelect} getModuleColor={getModuleColor}/>
+      ) : (
       <div ref={orbitAreaRef} style={{flex:'1 1 0',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',width:'100%'}}>
       <div className="fsu2" style={{position:'relative',width:ORBIT_W*orbitScale,height:ORBIT_H*orbitScale,flex:'0 0 auto'}}>
         <svg viewBox={`0 0 ${ORBIT_W} ${ORBIT_H}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
@@ -1181,6 +1199,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         })()}
       </div>
       </div>
+      )}
 
       {/* ── Rodapé: tagline de marca à esquerda · assinatura à direita ── */}
       <div className="fsu3" style={{marginTop:'auto',paddingTop:20,display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:20}}>

@@ -15,6 +15,9 @@ import {
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { AtualizacaoFrame } from '../../shared/atualizacao';
+/* Interruptor TEMPORÁRIO do layout do menu de módulos (aba Configurações) —
+   ver shared/menuLayout.js. */
+import { MENU_LAYOUTS, getMenuLayout, setMenuLayout } from '../../shared/menuLayout';
 
 // Gera um trecho seguro para chave de storage do Supabase (sem acentos/ç nem
 // caracteres especiais — só [a-zA-Z0-9_-]). Sem isso, meses como "Março" geram
@@ -267,6 +270,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // exclusivas do Administrador.
   const MODERADOR_TABS = ['funcionarios','gerenciar','infopessoal','atualizacoes','contracheques','maquina','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
+  // Layout do menu de módulos — chave de teste por navegador, não vai pro banco.
+  const [menuLayout, setMenuLayoutSel] = useState(getMenuLayout);
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser]         = useState({name:'',email:'',role:'colaborador',dept:'',pw:'',pw2:''});
@@ -4699,6 +4704,50 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 </div>
                 <Moon size={24} color={T.goldL} opacity={0.35} float/>
               </div>
+              {/* ── Layout do menu de módulos (TEMPORÁRIO) ──────────────────
+                  Cartão de teste: troca o desenho da tela de escolher módulo
+                  entre a órbita (o de hoje) e o layout novo, que ainda está
+                  sendo desenhado. Vale só PARA ESTE NAVEGADOR — não é
+                  configuração da empresa, é pra comparar os dois lado a lado.
+                  Sai daqui quando um dos dois virar o padrão. */}
+              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px dashed ${T.goldLine}66`}} elevated>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text}}>Layout do Menu de Módulos</div>
+                  <span style={{fontSize:9.5,fontWeight:800,letterSpacing:'.09em',textTransform:'uppercase',
+                    padding:'3px 8px',borderRadius:7,background:T.goldGl,color:T.gold,border:`1px solid ${T.goldLine}55`}}>Temporário</span>
+                </div>
+                <div style={{fontSize:12,color:T.textT,marginBottom:16,lineHeight:1.6}}>
+                  Escolhe o desenho da tela de escolher módulo. Vale só neste navegador — serve pra testar o layout
+                  novo sem tirar a órbita do ar. Volta a valer assim que você recarregar a tela de módulos.
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12}}>
+                  {MENU_LAYOUTS.map(l => {
+                    const ativo = menuLayout === l.id;
+                    return (
+                      <button key={l.id} onClick={()=>{ setMenuLayout(l.id); setMenuLayoutSel(l.id); }}
+                        style={{textAlign:'left',padding:'14px 16px',borderRadius:12,cursor:'pointer',
+                          background: ativo ? T.goldGl : 'transparent',
+                          border:`1.5px solid ${ativo ? T.gold : T.border}`,
+                          fontFamily:'var(--font-body)',transition:'background .15s, border-color .15s'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                          <div style={{width:14,height:14,borderRadius:'50%',flexShrink:0,
+                            border:`1.5px solid ${ativo ? T.gold : T.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            {ativo && <div style={{width:7,height:7,borderRadius:'50%',background:T.gold}}/>}
+                          </div>
+                          <span style={{fontSize:13.5,fontWeight:700,color: ativo ? T.gold : T.text}}>{l.label}</span>
+                          {ativo && <span style={{fontSize:10,fontWeight:700,color:T.gold,marginLeft:'auto'}}>EM USO</span>}
+                        </div>
+                        <div style={{fontSize:11.5,color:T.textT,lineHeight:1.55}}>{l.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
               {/* Alterar senha */}
               <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px solid ${T.border}`}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:4,display:'flex',alignItems:'center',gap:8}}>
