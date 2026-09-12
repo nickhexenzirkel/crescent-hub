@@ -3,6 +3,12 @@ import { T, applyTheme } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
 import { calcularOrbita } from './orbita';
+/* O catálogo de atalhos são as próprias abas do Portal do Colaborador. Vem da
+   lista NAV em vez de uma cópia local de propósito: assim uma aba nova nasce
+   disponível como atalho sem ninguém lembrar de duplicar rótulo e ícone aqui.
+   (É o único ponto em que shared/ importa de modules/ — o preço de ter uma
+   fonte de verdade só.) */
+import { NAV } from '../modules/central-colaborador/Sidebar';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
@@ -42,6 +48,20 @@ const loadSizePrefs = (authUser) => {
   catch { return {}; }
 };
 const saveSizePrefs = (authUser, prefs) => { try { localStorage.setItem(sizeKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
+/* Atalhos na órbita — bolhas que levam direto a uma ABA do Portal (Uniko
+   Paint, Uniko Wave, Colegas...) em vez de a um módulo. Guardados por usuário,
+   igual à ordem/tamanho/cor: é uma preferência de tela, não um dado do RH. */
+const ATALHOS_PREFIX = 'uniko_module_atalhos_';
+const atalhosKey = (authUser) => ATALHOS_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+const loadAtalhos = (authUser) => {
+  try { const r = JSON.parse(localStorage.getItem(atalhosKey(authUser)) || '[]'); return Array.isArray(r) ? r : []; }
+  catch { return []; }
+};
+const saveAtalhos = (authUser, ids) => { try { localStorage.setItem(atalhosKey(authUser), JSON.stringify(ids)); } catch { /* ignora */ } };
+/* Prefixo no id da bolha pra o atalho nunca colidir com o id de um módulo —
+   os dois convivem na mesma lista de ordem, tamanho e cor. */
+const ATALHO_ID = (tab) => `atalho:${tab}`;
+
 // 4 tamanhos discretos (não contínuo) — assim dá pra GARANTIR que o algoritmo
 // de espaçamento da órbita sempre encontra um jeito de encaixar todo mundo
 // sem uma bolha maior comer o espaço da vizinha.
@@ -198,6 +218,16 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   };
   // Modo "cor dos módulos" — mesmo esquema do tamanho: toca numa bolha pra
   // escolher a cor SÓ dela, ou usa "Todos" no banner pra aplicar em todo mundo.
+  // Modo "atalhos" — escolhe quais abas do Portal ganham bolha na órbita.
+  const [atalhoMode, setAtalhoMode] = useState(false);
+  const [atalhos, setAtalhos] = useState(() => loadAtalhos(authUser));
+  const toggleAtalho = (tab) => {
+    setAtalhos(prev => {
+      const next = prev.includes(tab) ? prev.filter(t => t !== tab) : [...prev, tab];
+      saveAtalhos(authUser, next);
+      return next;
+    });
+  };
   const [colorMode, setColorMode] = useState(false);
   const [colorPrefs, setColorPrefs] = useState(() => loadColorPrefs(authUser));
   const [coloringId, setColoringId] = useState(null);
@@ -441,7 +471,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
   ];
-  const filteredMods = allMods.filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
+  /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a órbita já
+     sabe fazer (ordenar, redimensionar, colorir, espaçar) vale pra eles de
+     graça. O que muda é só o clique, que leva pro Portal já na aba certa. */
+  const atalhoMods = atalhos
+    .map(tab => NAV.find(n => n.id === tab))
+    .filter(Boolean)
+    .map(n => ({
+      id: ATALHO_ID(n.id), label: n.label, sub: 'Atalho · Portal do Colaborador',
+      icon: n.icon, color: T.blue || T.gold, bg: T.blueGl || T.goldGl,
+      tag: 'Atalho', adminOnly: false, atalho: true, tab: n.id,
+    }));
+  const filteredMods = [...allMods, ...atalhoMods]
+    .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
   const mods = applyOrder(filteredMods, order);
   // Desktop em órbita: 1ª vez (sem ordem salva) usa esta sequência — é o que
   // reproduz exatamente as posições da referência (relógio a partir do topo).
@@ -565,7 +607,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             return (
               <div key={m.id}
                 className="mob-card"
-                onClick={() => onSelect(m.id)}
+                onClick={() => onSelect(m.atalho ? 'colaborador' : m.id, m.tab)}
                 onTouchStart={() => setPressed(m.id)}
                 onTouchEnd={() => setPressed(null)}
                 onTouchCancel={() => setPressed(null)}
@@ -713,6 +755,19 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.9 0 3.6-1.6 3.6-3.6C21 6.4 16.9 2 12 2z"/>
               </svg>
             </button>
+            {/* Ocupa a linha inteira: com sete botões, um sozinho no fim da
+                grade de três ficaria torto. E com rótulo, porque "atalho" não
+                tem ícone que se explique sozinho. */}
+            <button onClick={()=>{setAtalhoMode(v=>!v); setReorderMode(false); setSizeMode(false); setSizingId(null); setColorMode(false); setColoringId(null);}}
+              title="Adicionar atalhos de abas do Portal na órbita"
+              style={{gridColumn:'1 / -1',display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:30,borderRadius:9,
+                border:`1px solid ${atalhoMode?T.goldLine+'44':T.border}`,background:atalhoMode?T.goldGl:'transparent',
+                color:atalhoMode?T.gold:T.textS,cursor:'pointer',fontSize:11.5,fontWeight:600,fontFamily:'var(--font-body)'}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Atalhos
+            </button>
             <button onClick={onLogout} title="Sair"
               style={{display:'flex',alignItems:'center',justifyContent:'center',height:30,borderRadius:9,
                 border:`1px solid ${T.dangerGl||T.border}`,background:'transparent',color:T.danger,cursor:'pointer'}}>
@@ -769,6 +824,33 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             ))}
           </div>
           <button onClick={()=>{setSizeMode(false); setSizingId(null);}}
+            style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
+              color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
+        </div>
+      )}
+
+      {atalhoMode && (
+        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:8,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
+          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',
+          width:'fit-content',maxWidth:'min(94vw, 900px)'}}>
+          <span style={{flexBasis:'100%',textAlign:'center'}}>
+            🧭 Escolha as abas do Portal que você quer como bolha na órbita:
+          </span>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
+            {NAV.map(n => {
+              const ligado = atalhos.includes(n.id);
+              return (
+                <button key={n.id} onClick={()=>toggleAtalho(n.id)} title={ligado?'Remover da órbita':'Adicionar à órbita'}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'6px 11px',borderRadius:9,cursor:'pointer',
+                    border:`1px solid ${ligado?T.gold:T.border}`,background:ligado?T.gold:'transparent',
+                    color:ligado?'#fff':T.textS,fontSize:12,fontWeight:600,fontFamily:'var(--font-body)'}}>
+                  {React.cloneElement(n.icon, {width:13,height:13})}
+                  {n.label}
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={()=>setAtalhoMode(false)}
             style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
               color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
         </div>
@@ -858,7 +940,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               onDragOver={reorderMode ? (e)=>e.preventDefault() : undefined}
               onDrop={reorderMode ? (e)=>{ e.preventDefault(); reorderCard(orbitMods, dragModId, m.id); setDragModId(null); } : undefined}
               onDragEnd={reorderMode ? ()=>setDragModId(null) : undefined}
-              onClick={reorderMode ? undefined : sizeMode ? ()=>setSizingId(id=>id===m.id?null:m.id) : colorMode ? ()=>setColoringId(id=>id===m.id?null:m.id) : ()=>onSelect(m.id)}
+              onClick={reorderMode ? undefined : sizeMode ? ()=>setSizingId(id=>id===m.id?null:m.id) : colorMode ? ()=>setColoringId(id=>id===m.id?null:m.id) : ()=>onSelect(m.atalho ? 'colaborador' : m.id, m.tab)}
               onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
               style={{position:'absolute',left:`${p.left}%`,top:`${p.top}%`,transform:'translate(-50%,-50%)',
                 width:bd,height:bd,borderRadius:'50%',zIndex:3,
