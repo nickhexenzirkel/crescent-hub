@@ -22,7 +22,10 @@ import { useIsMobile } from '../../hooks/useIsMobile';
    Enquanto o dedo/mouse está na barra, o preenchimento e o relógio da
    esquerda mostram o ALVO, não o progresso real — senão a barra brigaria com
    o dedo, voltando sozinha a cada tick do polling de progresso. */
-const BarraProgresso = ({ progressMs, durationMs, cores, onSeek, escuro = false }) => {
+/* `grossa` é a versão da tela cheia do celular: lá a barra é o principal
+   ponto de toque da tela e 4px de trilho é fino demais pro dedo acertar (e
+   pra enxergar o quanto já tocou). No desktop ela continua discreta. */
+const BarraProgresso = ({ progressMs, durationMs, cores, onSeek, escuro = false, grossa = false }) => {
   const trilhoRef = useRef(null);
   const [arrastando, setArrastando] = useState(null);   // ms do alvo enquanto arrasta (null = parado)
   const [hover, setHover] = useState(false);
@@ -66,20 +69,23 @@ const BarraProgresso = ({ progressMs, durationMs, cores, onSeek, escuro = false 
         title={podeArrastar ? 'Arraste pra pular pro ponto da música' : undefined}
         style={{ position: 'relative', padding: '9px 0', cursor: podeArrastar ? 'pointer' : 'default',
           touchAction: podeArrastar ? 'none' : 'auto' }}>
-        <div ref={trilhoRef} style={{ position: 'relative', height: podeArrastar && ativo ? 6 : 4,
+        <div ref={trilhoRef} style={{ position: 'relative',
+          height: grossa ? (podeArrastar && ativo ? 12 : 9) : (podeArrastar && ativo ? 6 : 4),
           borderRadius: 99, background: trilhoBg, transition: 'height .12s ease' }}>
           <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: preenche,
             transition: arrastando === null ? 'width .9s linear' : 'none' }} />
           {podeArrastar && (
             <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%,-50%)',
-              width: ativo ? 14 : 10, height: ativo ? 14 : 10, borderRadius: '50%', background: '#fff',
+              width: grossa ? (ativo ? 20 : 16) : (ativo ? 14 : 10),
+              height: grossa ? (ativo ? 20 : 16) : (ativo ? 14 : 10), borderRadius: '50%', background: '#fff',
               border: `2px solid ${cores?.[0] || T.gold}`, boxShadow: '0 2px 6px rgba(0,0,0,.35)',
               transition: arrastando === null ? 'width .12s ease, height .12s ease, left .9s linear' : 'width .12s ease, height .12s ease',
               pointerEvents: 'none' }} />
           )}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: escuro ? 11 : 10, color: textoCor }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: grossa ? 2 : 0,
+        fontSize: grossa ? 12.5 : escuro ? 11 : 10, color: textoCor }}>
         <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: arrastando !== null ? 800 : 400 }}>{fmt(mostrado)}</span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(durationMs)}</span>
       </div>
@@ -3436,6 +3442,24 @@ const CentralAlexa = ({onBack, userPhoto}) => {
                         overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{currentSong.title}</div>
                       <div style={{fontSize:12.5,color:T.textS,marginTop:3,
                         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.artist}</div>
+
+                      {/* Quem pediu. A Fila Democrática é de todo mundo, então
+                          saber de quem é a música que está tocando faz parte da
+                          graça — e no celular a fila saiu desta tela, que era o
+                          único lugar onde esse crédito aparecia. */}
+                      {currentSong.requested_by && (
+                        <div style={{display:"inline-flex",alignItems:"center",gap:8,marginTop:10,
+                          padding:"6px 12px 6px 6px",borderRadius:999,
+                          background:T.goldGl,border:`1px solid ${T.goldLine}33`,maxWidth:"100%"}}>
+                          <AvatarCircle name={currentSong.requested_by}
+                            photo={currentSong.requested_by===myName ? myPhoto : photoCache[currentSong.requested_by]}
+                            size={24} fontSize={10} rounded="50%" />
+                          <span style={{fontSize:11.5,color:T.textS,minWidth:0,
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            Música adicionada por <b style={{color:T.gold,fontWeight:700}}>{currentSong.requested_by}</b>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -4741,7 +4765,7 @@ const CentralAlexa = ({onBack, userPhoto}) => {
               {cur.duration_ms > 0 && (
                 <div style={{ width:"100%", maxWidth:340, marginTop:16 }}>
                   <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
-                    cores={festColors} onSeek={isAdmin ? seekTo : undefined} escuro />
+                    cores={festColors} onSeek={isAdmin ? seekTo : undefined} escuro grossa />
                 </div>
               )}
 
