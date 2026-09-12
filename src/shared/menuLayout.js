@@ -27,7 +27,7 @@ export const MENU_LAYOUTS = [
   { id:'orbita', label:'Órbita',
     desc:'O anel de bolhas com o Uniko no centro — o layout que está no ar hoje.' },
   { id:'novo',   label:'Layout novo',
-    desc:'Em construção — desenho ainda por definir.' },
+    desc:'Módulos à esquerda e widgets à direita: acesso rápido, check-in e novidades.' },
 ];
 
 export const LAYOUT_PADRAO = 'orbita';

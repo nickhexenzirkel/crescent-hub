@@ -840,6 +840,66 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // passar por baixo das bolhas quando elas mudam de tamanho.
   const aneis = [1, 0.845, 0.69].map(k => ({ rx: RXpx * k, ry: RYpx * k }));
 
+  /* Ações do card de perfil. Moram aqui, fora do JSX, porque as duas telas
+     usam: na órbita elas ficam no card flutuante; no layout novo, no widget de
+     perfil (onde "Tamanho" não existe — tile não tem P/M/G/GG). */
+  const acoesCard = [
+    { id:'perfil', rot:'Perfil', dica:'Editar seus dados',
+      onClick:()=>onSelect('colaborador','dados'), destaque:true,
+      icone:<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></> },
+    { id:'conta', rot:'Conta', dica:'Senha e dados da conta',
+      onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
+      icone:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },
+    { id:'tema', rot:'Tema', dica:'Cor do sistema (claro/escuro)',
+      onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
+      icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
+    { id:'ordem', rot:'Ordem', dica:'Arrastar pra reorganizar os módulos',
+      ativo:reorderMode, onClick:()=>abrirModo('ordem'),
+      icone:<><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></> },
+    { id:'tamanho', rot:'Tamanho', dica:'Tamanho das bolhas (P/M/G/GG)',
+      ativo:sizeMode, onClick:()=>abrirModo('tamanho'),
+      icone:<><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></> },
+    { id:'cor', rot:'Cor', dica:'Cor de cada módulo',
+      ativo:colorMode, onClick:()=>abrirModo('cor'),
+      icone:<><circle cx="13.5" cy="6.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="12.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.9 0 3.6-1.6 3.6-3.6C21 6.4 16.9 2 12 2z"/></> },
+    { id:'atalhos', rot:'Atalhos', dica:'Pôr abas do Portal junto dos módulos',
+      ativo:atalhoMode, onClick:()=>abrirModo('atalhos'),
+      icone:<><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></> },
+    { id:'sair', rot:'Sair', dica:'Encerrar a sessão', perigo:true, onClick:onLogout,
+      icone:<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></> },
+  ];
+
+  /* Popover de cor — abre ao tocar num módulo em "modo cor". Nasce centrado no
+     palco (não preso ao módulo) pra nunca correr risco de sair da tela. A
+     órbita pinta ele dentro da própria caixa; o layout novo, sobre a tela. */
+  const popoverCor = () => {
+    if (!colorMode || !coloringId) return null;
+    const m = orbitMods.find(x=>x.id===coloringId);
+    if (!m) return null;
+    const curColor = colorPrefs[m.id] || null;
+    return (
+      <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:20,
+        background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px 18px',boxShadow:T.shL,
+        display:'flex',flexDirection:'column',alignItems:'center',gap:12,minWidth:220}}>
+        <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Cor — {m.label}</div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap',justifyContent:'center',maxWidth:200}}>
+          <button onClick={()=>setModuleColor(m.id, null)} title="Padrão"
+            style={{width:28,height:28,borderRadius:'50%',border:`2px solid ${!curColor?T.gold:T.border}`,
+              background:T.surface,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+              color:T.textD,fontSize:12}}>✕</button>
+          {COLOR_STEPS.map(c=>(
+            <button key={c.id} onClick={()=>setModuleColor(m.id, c.id)} title={c.label}
+              style={{width:28,height:28,borderRadius:'50%',border:`2px solid ${curColor===c.id?T.gold:'transparent'}`,
+                background:c.hex,cursor:'pointer',boxShadow:curColor===c.id?`0 0 0 2px ${T.surface}`:'none'}}/>
+          ))}
+        </div>
+        <button onClick={()=>setColoringId(null)}
+          style={{fontSize:11.5,color:'#fff',background:T.gold,border:'none',borderRadius:9,padding:'5px 16px',
+            cursor:'pointer',fontWeight:700,fontFamily:'var(--font-body)'}}>Fechar</button>
+      </div>
+    );
+  };
+
   return(
     // SEM background aqui. Tinha um `background: T.page` opaco nesta div, e
     // era ele que escondia o lava lamp do App — o fundo animado rodava atrás,
@@ -861,7 +921,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         ))}
       </div>
 
-      {authUser&&(
+      {/* No layout novo o card vira o widget de perfil, dentro da coluna da direita. */}
+      {authUser&&layoutMenu==='orbita'&&(
         <div ref={cardElRef} style={{position:'fixed',
           ...(cardPos ? {left:cardPos.x, top:cardPos.y} : {top:18, right:26}),
           width:200,display:'flex',flexDirection:'column',
@@ -887,31 +948,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               botão, com ícone próprio e nome escrito — inclusive Tema e Conta,
               que viraram entradas separadas do mesmo modal. */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,width:'100%'}}>
-            {[
-              { id:'perfil', rot:'Perfil', dica:'Editar seus dados',
-                onClick:()=>onSelect('colaborador','dados'), destaque:true,
-                icone:<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></> },
-              { id:'conta', rot:'Conta', dica:'Senha e dados da conta',
-                onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
-                icone:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },
-              { id:'tema', rot:'Tema', dica:'Cor do sistema (claro/escuro)',
-                onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
-                icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
-              { id:'ordem', rot:'Ordem', dica:'Arrastar pra reorganizar a órbita',
-                ativo:reorderMode, onClick:()=>abrirModo('ordem'),
-                icone:<><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></> },
-              { id:'tamanho', rot:'Tamanho', dica:'Tamanho das bolhas (P/M/G/GG)',
-                ativo:sizeMode, onClick:()=>abrirModo('tamanho'),
-                icone:<><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></> },
-              { id:'cor', rot:'Cor', dica:'Cor das bolhas dos módulos',
-                ativo:colorMode, onClick:()=>abrirModo('cor'),
-                icone:<><circle cx="13.5" cy="6.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="7" cy="12.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4c1.9 0 3.6-1.6 3.6-3.6C21 6.4 16.9 2 12 2z"/></> },
-              { id:'atalhos', rot:'Atalhos', dica:'Pôr abas do Portal na órbita',
-                ativo:atalhoMode, onClick:()=>abrirModo('atalhos'),
-                icone:<><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></> },
-              { id:'sair', rot:'Sair', dica:'Encerrar a sessão', perigo:true, onClick:onLogout,
-                icone:<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></> },
-            ].map(b => {
+            {acoesCard.map(b => {
               const aceso = b.ativo || b.destaque;
               return (
                 <button key={b.id} onClick={b.onClick} title={b.dica}
@@ -957,7 +994,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       {reorderMode && (
         <div style={{display:'flex',alignItems:'center',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
-          <span>✛ Arraste as bolhas pra reorganizar como elas aparecem na sua tela.</span>
+          <span>✛ Arraste {layoutMenu==='orbita' ? 'as bolhas' : 'os módulos'} pra reorganizar como eles aparecem na sua tela.</span>
           <button onClick={()=>setReorderMode(false)}
             style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
               color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
@@ -986,7 +1023,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',
           width:'fit-content',maxWidth:'min(94vw, 900px)'}}>
           <span style={{flexBasis:'100%',textAlign:'center'}}>
-            🧭 Escolha as abas do Portal que você quer como bolha na órbita:
+            🧭 Escolha as abas do Portal que você quer junto dos módulos:
           </span>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
             {NAV.map(n => {
@@ -1012,7 +1049,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',
           width:'fit-content',maxWidth:'min(94vw, 780px)'}}>
-          <span>🎨 Toque numa bolha pra escolher a cor SÓ dela, ou aplique em todas:</span>
+          <span>🎨 Toque {layoutMenu==='orbita' ? 'numa bolha' : 'num módulo'} pra escolher a cor só dele, ou aplique em todos:</span>
           {/* maxWidth obriga a paleta a quebrar em linhas: com 20 cores, sem
               isto o banner esticava numa faixa única atravessando a tela. */}
           <div style={{display:'flex',gap:4,flexWrap:'wrap',maxWidth:312}}>
@@ -1055,7 +1092,17 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
           proporções, até caber sem precisar rolar a página. */}
       {layoutMenu !== 'orbita' ? (
-        <MenuLayoutNovo mods={orbitMods} onSelect={onSelect} getModuleColor={getModuleColor}/>
+        <MenuLayoutNovo mods={orbitMods} onSelect={onSelect} getModuleColor={getModuleColor}
+          authUser={authUser} userPhoto={userPhoto}
+          acoes={acoesCard.filter(b => b.id !== 'tamanho')}
+          modo={{ reorderMode, colorMode, dragModId, coloringId, setDragModId,
+            onSoltar: (paraId) => { reorderCard(orbitMods, dragModId, paraId); setDragModId(null); },
+            onEscolherCor: (id) => setColoringId(atual => atual === id ? null : id) }}
+          sobreposicao={colorMode && coloringId ? (
+            <div style={{position:'fixed',inset:0,zIndex:30,pointerEvents:'none'}}>
+              <div style={{pointerEvents:'auto'}}>{popoverCor()}</div>
+            </div>
+          ) : null}/>
       ) : (
       <div ref={orbitAreaRef} style={{flex:'1 1 0',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',width:'100%'}}>
       <div className="fsu2" style={{position:'relative',width:ORBIT_W*orbitScale,height:ORBIT_H*orbitScale,flex:'0 0 auto'}}>
@@ -1170,39 +1217,15 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           );
         })()}
 
-        {/* Popover de cor — mesmo esquema do tamanho: centrado na órbita. */}
-        {colorMode && coloringId && (() => {
-          const m = orbitMods.find(x=>x.id===coloringId);
-          if (!m) return null;
-          const curColor = colorPrefs[m.id] || null;
-          return (
-            <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:20,
-              background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px 18px',boxShadow:T.shL,
-              display:'flex',flexDirection:'column',alignItems:'center',gap:12,minWidth:220}}>
-              <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Cor — {m.label}</div>
-              <div style={{display:'flex',gap:7,flexWrap:'wrap',justifyContent:'center',maxWidth:200}}>
-                <button onClick={()=>setModuleColor(m.id, null)} title="Padrão"
-                  style={{width:28,height:28,borderRadius:'50%',border:`2px solid ${!curColor?T.gold:T.border}`,
-                    background:T.surface,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-                    color:T.textD,fontSize:12}}>✕</button>
-                {COLOR_STEPS.map(c=>(
-                  <button key={c.id} onClick={()=>setModuleColor(m.id, c.id)} title={c.label}
-                    style={{width:28,height:28,borderRadius:'50%',border:`2px solid ${curColor===c.id?T.gold:'transparent'}`,
-                      background:c.hex,cursor:'pointer',boxShadow:curColor===c.id?`0 0 0 2px ${T.surface}`:'none'}}/>
-                ))}
-              </div>
-              <button onClick={()=>setColoringId(null)}
-                style={{fontSize:11.5,color:'#fff',background:T.gold,border:'none',borderRadius:9,padding:'5px 16px',
-                  cursor:'pointer',fontWeight:700,fontFamily:'var(--font-body)'}}>Fechar</button>
-            </div>
-          );
-        })()}
+        {/* Popover de cor — centrado na órbita. */}
+        {popoverCor()}
       </div>
       </div>
       )}
 
-      {/* ── Rodapé: tagline de marca à esquerda · assinatura à direita ── */}
-      <div className="fsu3" style={{marginTop:'auto',paddingTop:20,display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:20}}>
+      {/* ── Rodapé: tagline de marca à esquerda · assinatura à direita ──
+          Só na órbita: "Em órbita" é dela, e no layout novo a altura vai pros widgets. */}
+      {layoutMenu==='orbita' && <div className="fsu3" style={{marginTop:'auto',paddingTop:20,display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:20}}>
         <div>
           <div style={{width:36,height:2,background:T.border,marginBottom:8,borderRadius:2}}/>
           {['Pessoas','Ideias','Resultados','Em órbita'].map(w=>(
@@ -1212,7 +1235,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         <div style={{fontSize:11.5,color:T.textT,letterSpacing:'.1em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
           <span style={{color:T.gold}}>✦</span> Conectar · Colaborar · Evoluir
         </div>
-      </div>
+      </div>}
     </div>
   );
 };

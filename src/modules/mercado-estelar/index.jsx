@@ -414,9 +414,14 @@ const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || ''
 const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [], unikoId: r.uniko_id || null });
 const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
 
-const MercadoEstelar = ({ onBack, authUser, userPhoto }) => {
+/* Abas que dá pra pedir de fora (os atalhos do seletor de módulos levam direto
+   pro Check-in, por exemplo). 'admin' fica de fora: aquela aba tem a própria
+   checagem de papel e não é destino de atalho. */
+const ABAS_EXTERNAS = ['loja', 'colecao', 'missoes', 'carteira', 'checkin', 'historico'];
+
+const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const isMobile = useIsMobile();
-  const [tab, setTab] = useState('loja');
+  const [tab, setTab] = useState(() => ABAS_EXTERNAS.includes(initialTab) ? initialTab : 'loja');
   const [state, setState] = useState(loadState);
   const [toast, setToast] = useState('');
   const [loaded, setLoaded] = useState(false); // já hidratou do Supabase?
@@ -3275,4 +3280,7 @@ const SectionHead = ({ title, sub }) => (
   </div>
 );
 
+/* A regra de "hoje tem check-in?" também é lida pelo widget do seletor de
+   módulos. Sai daqui em vez de copiada lá, pra um feriado novo valer nos dois. */
+export { isNonCheckinDay, localDateStr };
 export default MercadoEstelar;

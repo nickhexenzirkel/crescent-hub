@@ -509,7 +509,7 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
-          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
         </div>
 
