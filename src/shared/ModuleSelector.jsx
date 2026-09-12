@@ -204,6 +204,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [hov, sh]     = useState(null);
   const [pressed, setPressed] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [menuMobile, setMenuMobile] = useState(false);   // menu do ⚙ no celular
   // Em qual aba o modal de configurações abre: 'theme' (cor do sistema) ou
   // 'account' (senha/dados). Cada uma tem o seu botão no card.
   const [painelConfig, setPainelConfig] = useState('theme');
@@ -543,6 +544,20 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // e o terceiro à direita. Daí em diante segue no sentido horário.
   const ORBIT_DEFAULT = ['mercado-estelar','colaborador','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
   const orbitMods = order.length ? mods : applyOrder(filteredMods, ORBIT_DEFAULT);
+  /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
+     drag-and-drop HTML5 (o mesmo que a órbita usa no desktop) simplesmente não
+     existe no Safari do iOS — arrastar ali nunca funcionaria. Subir/descer um
+     item é o gesto que funciona em qualquer toque. */
+  const moverModulo = (id, direcao) => {
+    const ids = mods.map(m => m.id);
+    const de = ids.indexOf(id);
+    const para = de + direcao;
+    if (de < 0 || para < 0 || para >= ids.length) return;
+    ids.splice(para, 0, ids.splice(de, 1)[0]);
+    setOrder(ids);
+    saveModuleOrder(authUser, ids);
+  };
+
   const reorderCard = (list, fromId, toId) => {
     if (!fromId || fromId === toId) return;
     const ids = list.map(m => m.id);
@@ -628,16 +643,14 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
           )}
         </div>
 
-        {/* Título: "<" volta pro login (sair) · "⚙" abre ajustes */}
+        {/* Título · "⚙" abre o menu.
+            A seta "<" que ficava à esquerda saiu: ela DESLOGAVA. Um chevron
+            apontando pra trás promete "voltar uma tela", e esta é a primeira
+            tela depois do login — não há pra onde voltar. Quem quer sair usa
+            "Sair" no menu, escrito. */}
         <div style={{padding:'20px 16px 2px', display:'flex', alignItems:'center', gap:10}}>
-          <button onClick={onLogout} title="Sair"
-            style={{width:32, height:32, borderRadius:10, border:`1px solid ${T.border}`, background:T.surface,
-              color:T.textS, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
-              WebkitTapHighlightColor:'transparent'}}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
           <div style={{fontFamily:'var(--font-brand)', fontSize:26, fontWeight:800, color:T.text, flex:1}}>Módulos</div>
-          <button onClick={()=>setShowSettings(true)} title="Configurações"
+          <button onClick={()=>setMenuMobile(v=>!v)} title="Menu"
             style={{width:32, height:32, borderRadius:10, border:`1px solid ${T.border}`, background:T.surface,
               color:T.textS, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0,
               WebkitTapHighlightColor:'transparent'}}>
@@ -647,7 +660,70 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             </svg>
           </button>
         </div>
-        <div style={{padding:'2px 16px 18px 58px', fontSize:12.5, color:T.textT}}>Escolha um módulo para continuar</div>
+
+        {/* Menu do ⚙ — no celular ele é o único ponto de entrada pra tudo que
+            no desktop mora no card de perfil. */}
+        {menuMobile && (
+          <>
+            <div onClick={()=>setMenuMobile(false)}
+              style={{position:'fixed', inset:0, zIndex:60, background:'transparent'}}/>
+            <div style={{position:'absolute', right:16, zIndex:61, marginTop:-4,
+              background:T.surface, border:`1px solid ${T.border}`, borderRadius:14,
+              boxShadow:T.shL, overflow:'hidden', minWidth:210}}>
+              {[
+                { rot:'Tema',              dica:'Cor do sistema',        onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
+                  icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
+                { rot:'Conta',             dica:'Senha e dados',          onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
+                  icone:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },
+                { rot:'Atalhos',           dica:'Abas do Portal na lista', ativo:atalhoMode, onClick:()=>{ setAtalhoMode(v=>!v); setReorderMode(false); },
+                  icone:<><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></> },
+                { rot:'Organizar módulos', dica:'Mudar a ordem da lista',  ativo:reorderMode, onClick:()=>{ setReorderMode(v=>!v); setAtalhoMode(false); },
+                  icone:<><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></> },
+                { rot:'Sair',              dica:'Encerrar a sessão',       perigo:true, onClick:onLogout,
+                  icone:<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></> },
+              ].map((it,i,arr) => (
+                <button key={it.rot} onClick={()=>{ it.onClick(); setMenuMobile(false); }}
+                  style={{display:'flex', alignItems:'center', gap:11, width:'100%', padding:'13px 15px',
+                    border:'none', borderBottom: i<arr.length-1 ? `1px solid ${T.divider||T.border}` : 'none',
+                    background: it.ativo ? T.goldGl : 'transparent', cursor:'pointer', textAlign:'left',
+                    color: it.perigo ? T.danger : it.ativo ? T.gold : T.text,
+                    fontSize:14.5, fontWeight:600, fontFamily:'var(--font-body)',
+                    WebkitTapHighlightColor:'transparent'}}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+                    strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{it.icone}</svg>
+                  <span style={{flex:1}}>{it.rot}</span>
+                  {it.ativo && <span style={{fontSize:10.5, fontWeight:700, color:T.gold}}>ON</span>}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div style={{padding:'2px 16px 18px', fontSize:12.5, color:T.textT}}>
+          {reorderMode ? 'Use as setas pra mudar a ordem dos módulos'
+            : atalhoMode ? 'Toque numa aba pra pôr ou tirar da lista'
+            : 'Escolha um módulo para continuar'}
+        </div>
+
+        {/* Escolha de atalhos — mesma lista do desktop, em pílulas que quebram
+            linha (no celular não há espaço pra uma faixa só). */}
+        {atalhoMode && (
+          <div style={{padding:'0 16px 14px', display:'flex', flexWrap:'wrap', gap:7}}>
+            {NAV.map(n => {
+              const ligado = atalhos.includes(n.id);
+              return (
+                <button key={n.id} onClick={()=>toggleAtalho(n.id)}
+                  style={{display:'flex', alignItems:'center', gap:6, padding:'8px 12px', borderRadius:10, cursor:'pointer',
+                    border:`1px solid ${ligado?T.gold:T.border}`, background:ligado?T.gold:T.surface,
+                    color:ligado?'#fff':T.textS, fontSize:12.5, fontWeight:600, fontFamily:'var(--font-body)',
+                    WebkitTapHighlightColor:'transparent'}}>
+                  {React.cloneElement(n.icon, {width:14, height:14})}
+                  {n.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Lista vertical dos módulos */}
         <div style={{padding:'0 16px 24px', display:'flex', flexDirection:'column', gap:10}}>
@@ -657,7 +733,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             return (
               <div key={m.id}
                 className="mob-card"
-                onClick={() => onSelect(m.atalho ? 'colaborador' : m.id, m.tab)}
+                onClick={reorderMode ? undefined : () => onSelect(m.atalho ? 'colaborador' : m.id, m.tab)}
                 onTouchStart={() => setPressed(m.id)}
                 onTouchEnd={() => setPressed(null)}
                 onTouchCancel={() => setPressed(null)}
@@ -680,9 +756,30 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                   <div style={{fontSize:13, color:T.textT, marginTop:2,
                     overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{m.sub}</div>
                 </div>
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
-                  <path d="M9 6l6 6-6 6"/>
-                </svg>
+                {reorderMode ? (
+                  <div style={{display:'flex', flexDirection:'column', gap:4, flexShrink:0}}>
+                    {[[-1,'M18 15l-6-6-6 6'],[1,'M6 9l6 6 6-6']].map(([dir,d],k) => {
+                      const i = mods.findIndex(x => x.id === m.id);
+                      const bloqueado = dir === -1 ? i === 0 : i === mods.length - 1;
+                      return (
+                        <button key={k} disabled={bloqueado}
+                          onClick={(e)=>{ e.stopPropagation(); moverModulo(m.id, dir); }}
+                          aria-label={dir === -1 ? 'Subir' : 'Descer'}
+                          style={{width:34, height:26, borderRadius:8, border:`1px solid ${T.border}`,
+                            background: bloqueado ? 'transparent' : T.goldGl, color: bloqueado ? T.textD : T.gold,
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            cursor: bloqueado ? 'default' : 'pointer', opacity: bloqueado ? .4 : 1,
+                            WebkitTapHighlightColor:'transparent'}}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                    <path d="M9 6l6 6-6 6"/>
+                  </svg>
+                )}
               </div>
             );
           })}
