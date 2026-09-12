@@ -81,7 +81,7 @@ const UnikoQATab = ({ cardBg }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Cabeçalho */}
-      <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: '.04em' }}>Perguntas do UNIKO</div>
           <div style={{ fontSize: 13, color: T.textS, marginTop: 2 }}>O que o assistente aprendeu com a IA. Quanto mais vira FAQ, menos requisições ele gasta.</div>
@@ -90,7 +90,7 @@ const UnikoQATab = ({ cardBg }) => {
       </div>
 
       {/* Adicionar manualmente */}
-      <Card style={{ padding: '22px 26px', background: bg, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }} elevated>
+      <Card style={{ padding: '22px 26px', background: bg }} elevated>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>Adicionar pergunta e resposta</div>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: T.textS, marginBottom: 4 }}>Pergunta (como a pessoa perguntaria)</div>
@@ -108,7 +108,7 @@ const UnikoQATab = ({ cardBg }) => {
       </Card>
 
       {/* Lista de aprendidas */}
-      <Card style={{ padding: 0, overflow: 'hidden', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }} elevated>
+      <Card style={{ padding: 0, overflow: 'hidden', background: bg }} elevated>
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>Aprendidas ({rows.length})</div>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." style={{ ...inputStyle, padding: '6px 10px', flex: 1, maxWidth: 280 }} />

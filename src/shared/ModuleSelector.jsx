@@ -127,33 +127,82 @@ const COLOR_STEPS = [
 
 /* Wordmark "UNIKO" desenhado em traços (monoline). O "N" é um "U" invertido. Um ponto de luz
    AZUL PERCORRE o traço de cada letra (do início ao fim, dando a volta) e pula pra próxima,
-   em loop — como se estivesse escrevendo. */
+   em loop — como se estivesse escrevendo.
+
+   DESEMPENHO (set/2026): o ponto era um pedaço do próprio traço, animado com
+   stroke-dashoffset e dois drop-shadow por cima. Isso obriga o navegador a
+   REPINTAR o SVG (e o filtro) a cada frame, sem trégua — medido com tracing,
+   era ~600 pinturas a cada 2s na tela de módulos, e pausar só esta animação
+   derrubava pra zero. Era o que o interruptor 3 (animações) "consertava".
+
+   Agora o ponto é um <div> com brilho fixo (box-shadow pintado uma vez) que
+   só se DESLOCA por transform — trabalho do compositor, zero repintura. A
+   trilha de cada letra é amostrada uma vez do próprio path (getPointAtLength)
+   e vira keyframes de translate, a mesma ideia da `trilhaOrbital` lá embaixo.
+   O translate é em % do tamanho do wordmark, então acompanha qualquer escala
+   sem medir nada. */
+const UNIKO_W = 487, UNIKO_H = 130;
+const UNIKO_TRACOS = [
+  'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
+  'M128,112 L128,50 Q128,18 160,18 Q192,18 192,50 L192,112',                    // N (U invertido)
+  'M238,18 L238,112',                                                           // I
+  'M284,18 L284,112 M341,18 L286,65 L345,112',                                  // K
+  'M430,18 Q469,18 469,65 Q469,112 430,112 Q391,112 391,65 Q391,18 430,18 Z',   // O
+];
+const UNIKO_DUR = 3.2;
+let uTraceCSS = null;                     // calculado uma vez por carga
+const keyframesUniko = () => {
+  if (uTraceCSS !== null) return uTraceCSS;
+  try {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('style', 'position:absolute;width:0;height:0;visibility:hidden');
+    document.body.appendChild(svg);
+    uTraceCSS = UNIKO_TRACOS.map((d, i) => {
+      const el = document.createElementNS(NS, 'path');
+      el.setAttribute('d', d); svg.appendChild(el);
+      const L = el.getTotalLength(), PASSOS = 36;
+      let q = '';
+      let ult = '';
+      for (let k = 0; k <= PASSOS; k++) {
+        const pt = el.getPointAtLength(L * k / PASSOS);
+        ult = `translate(${(pt.x / UNIKO_W * 100).toFixed(2)}%,${(pt.y / UNIKO_H * 100).toFixed(2)}%)`;
+        // Anda nos primeiros 20% do ciclo; o resto do tempo fica apagado,
+        // esperando a vez das outras letras.
+        q += `${(20 * k / PASSOS).toFixed(3)}%{transform:${ult};opacity:1}`;
+      }
+      q += `20.01%,100%{transform:${ult};opacity:0}`;
+      return `@keyframes uTrace${i}{${q}}`;
+    }).join('');
+    svg.remove();
+  } catch { uTraceCSS = ''; }             // sem DOM de SVG: fica só o wordmark
+  return uTraceCSS;
+};
+
 const UnikoName = () => {
-  const W = 11, DUR = 3.2, N = 5;
-  const paths = [
-    'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
-    'M128,112 L128,50 Q128,18 160,18 Q192,18 192,50 L192,112',                    // N (U invertido)
-    'M238,18 L238,112',                                                           // I
-    'M284,18 L284,112 M341,18 L286,65 L345,112',                                  // K
-    'M430,18 Q469,18 469,65 Q469,112 430,112 Q391,112 391,65 Q391,18 430,18 Z',   // O
-  ];
+  const W = 11;
+  const css = keyframesUniko();
   return (
-    <svg viewBox="0 0 487 130" role="img" aria-label="UNIKO"
-      style={{ height:'0.82em', width:'auto', display:'inline-block', verticalAlign:'middle', overflow:'visible', color:'inherit' }}>
-      <style>{`@keyframes uTrace{0%{stroke-dashoffset:0;opacity:1}20%{stroke-dashoffset:-1;opacity:1}20.01%,100%{opacity:0}}`}</style>
-      {paths.map((d, i) => (
-        <g key={i}>
-          {/* letra (cor do texto) */}
-          <path d={d} fill="none" stroke="currentColor" strokeWidth={W} strokeLinecap="round" strokeLinejoin="round"/>
-          {/* ponto de luz azul percorrendo o traço */}
-          <path d={d} fill="none" stroke="#4AA6FF" strokeWidth={W + 1} strokeLinecap="round" strokeLinejoin="round"
-            pathLength="1"
-            style={{ strokeDasharray:'0.05 1', strokeDashoffset:0, opacity:0,
-              filter:'drop-shadow(0 0 4px #4AA6FF) drop-shadow(0 0 9px #4AA6FF)',
-              animation:`uTrace ${DUR}s linear infinite`, animationDelay:`${(i / N) * DUR}s` }}/>
-        </g>
+    <span style={{ position:'relative', display:'inline-block', height:'0.82em', aspectRatio:`${UNIKO_W} / ${UNIKO_H}`,
+      verticalAlign:'middle', color:'inherit' }}>
+      <svg viewBox={`0 0 ${UNIKO_W} ${UNIKO_H}`} role="img" aria-label="UNIKO"
+        style={{ position:'absolute', inset:0, width:'100%', height:'100%', overflow:'visible' }}>
+        {UNIKO_TRACOS.map((d, i) => (
+          <path key={i} d={d} fill="none" stroke="currentColor" strokeWidth={W} strokeLinecap="round" strokeLinejoin="round"/>
+        ))}
+      </svg>
+      {css && <style>{css}</style>}
+      {css && UNIKO_TRACOS.map((_, i) => (
+        <span key={i} aria-hidden="true" style={{ position:'absolute', inset:0, pointerEvents:'none', opacity:0,
+          willChange:'transform, opacity',
+          animation:`uTrace${i} ${UNIKO_DUR}s linear infinite`, animationDelay:`${(i / UNIKO_TRACOS.length) * UNIKO_DUR}s` }}>
+          {/* margens em % valem sobre a LARGURA do pai nos dois eixos — daí o
+              mesmo -1.23% centralizando o ponto (12 de 487 unidades de largo). */}
+          <span style={{ position:'absolute', left:0, top:0, width:'2.46%', aspectRatio:'1', marginLeft:'-1.23%', marginTop:'-1.23%',
+            borderRadius:'50%', background:'#4AA6FF', boxShadow:'0 0 4px #4AA6FF, 0 0 9px #4AA6FF' }}/>
+        </span>
       ))}
-    </svg>
+    </span>
   );
 };
 

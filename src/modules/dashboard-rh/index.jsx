@@ -14,6 +14,7 @@ import {
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
+import { bolhaGradiente } from '../../shared/bolhas';
 import { AtualizacaoFrame } from '../../shared/atualizacao';
 /* Interruptor TEMPORÁRIO do layout do menu de módulos (aba Configurações) —
    ver shared/menuLayout.js. */
@@ -263,7 +264,17 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
   const inputBg  = isDark ? (T.surfaceSub||'rgba(255,255,255,0.06)') : (T.surface||'white');
   const headerBg = isDark ? `${T.surface}ee` : (T.surfaceW||'rgba(255,255,255,0.82)');
-  const tabsBg   = isDark ? `${T.surface}cc` : (T.surfaceW||'rgba(255,255,255,0.75)');
+  const tabsBg   = isDark ? `${T.surface}f2` : (T.surfaceW||'rgba(255,255,255,0.75)');
+  /* DESEMPENHO — sem backdrop-filter nesta tela (set/2026). Havia 49: topo,
+     barra lateral e praticamente todo card pediam blur(12–28px) do que estava
+     ATRÁS. Só que atrás é o lava lamp, que anima sem parar, então a GPU
+     refazia cada um desses desfoques a cada frame — e à toa: `isDark` acima é
+     sempre verdadeiro (T.page existe em todo tema), logo os cards usam
+     T.surface opaco e o topo tem 94–95% de opacidade. O desfoque não aparecia.
+     A barra lateral subiu de cc (80%) pra f2 (95%): sem o blur, a transparência
+     antiga deixava o fundo animado "passar" nítido por trás dos itens.
+     Os dois modais de senha do admin mantêm o desfoque — lá ele é visível e
+     só existe enquanto o modal está aberto. */
   const isModerador = role === 'moderador';
   // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
   // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
@@ -1890,12 +1901,11 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   return(
     <div style={{minHeight:'100vh',background:'transparent',fontFamily:'var(--font-body)',display:'flex',flexDirection:'column',position:'relative'}}>
       <style>{`
-        @keyframes hdrBlob1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(28px,-8px) scale(1.15)} 66%{transform:translate(-12px,10px) scale(0.92)} }
-        @keyframes hdrBlob2 { 0%,100%{transform:translate(0,0) scale(1)} 40%{transform:translate(-22px,12px) scale(1.08)} 80%{transform:translate(16px,-6px) scale(0.9)} }
-        @keyframes hdrBlob3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(18px,14px) scale(1.12)} }
+        @keyframes hdrBlob1 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(28px,-8px)} 66%{transform:translate(-12px,10px)} }
+        @keyframes hdrBlob2 { 0%,100%{transform:translate(0,0)} 40%{transform:translate(-22px,12px)} 80%{transform:translate(16px,-6px)} }
       `}</style>
       {/* Topbar */}
-      <div style={{height:56,background:T.topbarBg||cardBg,backdropFilter:'blur(28px)',WebkitBackdropFilter:'blur(28px)',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 24px',gap:12,position:'sticky',top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
+      <div style={{height:56,background:T.topbarBg||cardBg,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 24px',gap:12,position:'sticky',top:0,zIndex:200,boxShadow:`0 1px 20px ${T.goldLine}22`}}>
         <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:T.textS,fontSize:13,fontFamily:'var(--font-body)',padding:'4px 8px',borderRadius:7,transition:'background .1s'}}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
           onMouseLeave={e=>e.currentTarget.style.background='none'}>
@@ -1923,8 +1933,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
       <div style={{display:'flex',flex:1,maxWidth:1400,margin:'0 auto',width:'100%',padding:'24px 24px',gap:20,alignItems:'flex-start'}}>
               {/* Sidebar com identidade visual Uniko */}
         <div style={{width:220,flexShrink:0,display:'flex',flexDirection:'column',gap:0,
-          background:tabsBg,backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-          border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden',
+          background:tabsBg,border:`1px solid ${T.border}`,borderRadius:16,overflow:'hidden',
           boxShadow:`0 4px 24px rgba(0,0,0,0.08)`,position:'relative',alignSelf:'flex-start',
           minHeight:500}}>
 
@@ -1932,8 +1941,13 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           <div style={{position:'relative',overflow:'hidden',padding:'18px 16px 14px',
             borderBottom:`1px solid ${T.border}`,
             background:`linear-gradient(135deg,${T.goldGl},transparent)`}}>
-            <div style={{position:'absolute',width:70,height:70,borderRadius:'50%',background:T.gold,filter:'blur(22px)',opacity:0.18,top:'-15px',left:'10%',animation:'hdrBlob1 6s ease-in-out infinite'}}/>
-            <div style={{position:'absolute',width:50,height:50,borderRadius:'50%',background:T.goldL||T.gold,filter:'blur(16px)',opacity:0.15,top:'5px',left:'65%',animation:'hdrBlob2 8s ease-in-out infinite'}}/>
+            {/* Manchas de luz: degradê radial em vez de filter:blur, e só translate
+                nas animações. blur + scale animados obrigam o navegador a refazer
+                o desfoque a cada frame — é o mesmo erro que já derrubou o lava
+                lamp pra 6 fps (ver shared/bolhas.js). O tamanho cresceu pra
+                compensar a borda que o blur espalhava. */}
+            <div style={{position:'absolute',width:130,height:130,borderRadius:'50%',background:bolhaGradiente(T.gold),opacity:0.3,top:'-45px',left:'-10%',willChange:'transform',animation:'hdrBlob1 6s ease-in-out infinite'}}/>
+            <div style={{position:'absolute',width:96,height:96,borderRadius:'50%',background:bolhaGradiente(T.goldL||T.gold),opacity:0.26,top:'-18px',left:'52%',willChange:'transform',animation:'hdrBlob2 8s ease-in-out infinite'}}/>
             {/* Logo + nome */}
             <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:10}}>
               <UnikoIcon size={30}/>
@@ -1994,7 +2008,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {tab==='funcionarios'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Funcionários</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>{empList.length} cadastrados · {empList.filter(e=>e.role==='admin').length} admins · {empList.filter(e=>e.role==='moderador').length} moderadores · {empList.filter(e=>!e.active).length} inativos</div>
@@ -2016,7 +2030,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* Table */}
-              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+              <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 {/* Head */}
                 <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 80px 80px 120px',gap:0,padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
                   {['Nome','CPF','Cargo','Status','Ações'].map(h=>(
@@ -2202,7 +2216,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: GERENCIAR USUÁRIOS — perfil completo ── */}
           {tab==='gerenciar'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Gerenciar Usuários</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Clique em um colaborador para editar o perfil completo</div>
@@ -2219,7 +2233,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   style={{width:'100%',padding:'10px 14px 10px 36px',borderRadius:11,border:`1.5px solid ${T.border}`,background:cardBg,fontSize:13,color:T.text,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box'}}/>
               </div>
 
-              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+              <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 <div style={{display:'grid',gridTemplateColumns:GER_COLS,padding:'10px 20px',borderBottom:`1px solid ${T.border}`,background:`${T.gold}08`}}>
                   {['Nome','CPF','Cargo','Status','Editar','Desligamento'].map(h=>(
                     <div key={h} style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.08em'}}>{h}</div>
@@ -2492,7 +2506,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Informações Pessoais</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Visualize e edite os dados de qualquer colaborador — inclui contato de familiares e saúde</div>
@@ -2592,7 +2606,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {tab==='atualizacoes'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Atualizações</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Escreva no painel branco e clique em <b>Emitir</b> — aparece na tela de todos, com som e notificação.</div>
@@ -2693,7 +2707,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: CALENDÁRIO ── */}
           {tab==='calendario'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Calendário de Eventos</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Eventos criados aqui aparecem para todos os colaboradores</div>
@@ -2703,7 +2717,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   + Novo Evento
                 </button>
               </div>
-              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+              <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 {calLoading
                   ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
                       <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
@@ -2828,7 +2842,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             const totalValorPend  = pendentes.reduce((a,b)=>a+Number(b.valor_total||0),0);
             return (
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div>
                     <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Banco de Horas</div>
                     <div style={{fontSize:13,color:T.textS,marginTop:2}}>Registros enviados pelos colaboradores · {bancoHoras.length} no total</div>
@@ -2903,7 +2917,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   const inSt = {padding:'7px 10px',borderRadius:8,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:12.5,color:T.text,outline:'none',boxSizing:'border-box',fontFamily:'var(--font-body)',width:'100%'};
                   const lbSt = {fontSize:10.5,fontWeight:600,color:T.textD,letterSpacing:'.05em',textTransform:'uppercase',marginBottom:4};
                   return (
-                    <Card style={{padding:'16px 20px',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+                    <Card style={{padding:'16px 20px',background:cardBg}} elevated>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
@@ -2947,7 +2961,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 })()}
 
                 {/* tabela */}
-                <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+                <Card style={{padding:0,overflow:'hidden',background:cardBg}} elevated>
                   {bancoLoading
                     ? <div style={{textAlign:'center',padding:48,color:T.textT}}>Carregando...</div>
                     : lista.length===0
@@ -3185,14 +3199,14 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: COMUNICADOS ── */}
           {tab==='comunicados'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Comunicados</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Publique avisos que aparecem no portal do colaborador em tempo real</div>
                 </div>
                 <Moon size={24} color={T.goldL} opacity={0.35} float/>
               </div>
-              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)'}} elevated>
+              <Card style={{padding:'22px 26px',background:cardBg}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Novo Comunicado</div>
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:12,fontWeight:600,color:T.textS,marginBottom:4}}>Título</div>
@@ -3223,7 +3237,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   {comSaving?'Publicando...':'Publicar agora'}
                 </button>
               </Card>
-              <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+              <Card style={{padding:0,overflow:'hidden',background:cardBg}} elevated>
                 <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:14,fontWeight:700,color:T.text}}>Comunicados publicados</div>
                   <button onClick={loadComunicados} style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',cursor:'pointer',fontSize:12,color:T.textS,fontFamily:'var(--font-body)',outline:'none'}}>↻</button>
@@ -3262,7 +3276,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             const pend = solics.filter(s => (s.status||'pendente')==='pendente').length;
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Justificativas de Ponto</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Solicitações dos colaboradores · {pend} pendente{pend===1?'':'s'}</div>
@@ -3369,7 +3383,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: MÁQUINA DO TEMPO (mensagem especial da Central Alexa) ── */}
           {tab==='maquina'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14,maxWidth:720}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>Mensagem Especial</div>
                 <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
                   A capa e o vídeo que aparecem no card <b>“Mensagem Especial!”</b> da Máquina do Tempo (Central Alexa). O vídeo toca automático quando alguém abre o card; ao terminar, mostra a capa.
@@ -3707,7 +3721,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Uniko</div>
                 <div style={{fontSize:13,color:T.textS,marginTop:2}}>
                   {captureSubTab==='evento'
@@ -3740,7 +3754,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
               {captureSubTab==='evento' && (<>
               {/* ── Fila de spawns agendados ─────────────────────────────── */}
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📅 Fila de spawns agendados</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:3}}>
@@ -3874,7 +3888,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
               {/* Oficina de Uniko — CARD 1: criar/editar um Uniko */}
               {captureSubTab==='oficina' && (<>
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                   <div>
                     <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🛠️ Criar um Uniko</div>
@@ -4028,7 +4042,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* Oficina de Uniko — CARD 2: Biblioteca (vitrine estilo Prisma Store) */}
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
                 <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:14,flexWrap:'wrap'}}>
                   <div style={{flex:'1 1 320px'}}>
                     <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📚 Biblioteca de Unikos ({rosterUnikos.length})</div>
@@ -4139,7 +4153,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               {captureSubTab==='enviar' && (()=>{
                 const gu = getUniko(giftUnikoId);
                 return (
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🎁 Enviar Uniko</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:3}}>Escolha o Uniko e o colaborador digitando o nome, ajuste os prismas e envie. Cai na Coleção e na carteira dele na hora.</div>
@@ -4187,7 +4201,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
               {/* Resetar coleção */}
               {captureSubTab==='evento' && (<>
-              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text,marginBottom:3}}>Resetar coleção</div>
                 <div style={{fontSize:12,color:T.textS,marginBottom:16}}>Apaga os Unikos capturados e libera o evento para nova captura. Use para começar um novo Capture o Uniko.</div>
 
@@ -4222,7 +4236,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {tab==='lembretes'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Lembretes & Alexa Programada</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Programe o que a Alexa vai falar e quando — aparece para todos os colaboradores</div>
@@ -4265,7 +4279,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* List */}
-              <div style={{borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
+              <div style={{borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.sh,overflow:'hidden'}}>
                 {lembLoading
                   ? <div style={{padding:32,textAlign:'center',color:T.textT,fontSize:13}}>
                       <div style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${T.gold}`,borderTopColor:'transparent',animation:'spin .7s linear infinite',margin:'0 auto 8px'}}/>Carregando...
@@ -4464,7 +4478,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: PERFIS ── */}
           {tab==='perfis'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Dados Pessoais</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Somente administradores podem editar informações dos colaboradores</div>
@@ -4493,7 +4507,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 ))}
               </div>
               {editProfile&&(
-                <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px solid ${T.goldLine}44`}} elevated>
+                <Card style={{padding:'22px 26px',background:cardBg,border:`1.5px solid ${T.goldLine}44`}} elevated>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:18}}>Editando: {editProfile.name}</div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:16}}>
                     {[['name','Nome completo'],['email','E-mail'],['dept','Departamento'],['cargo','Cargo'],['admissao','Data de Admissão'],['telefone','Telefone']].map(([k,l])=>(
@@ -4536,7 +4550,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             return(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Central Alexa</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Anuncie comunicados para os colaboradores via alto-falante</div>
@@ -4551,7 +4565,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* Compose */}
-              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)'}} elevated>
+              <Card style={{padding:'22px 26px',background:cardBg}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                   Novo Comunicado
@@ -4611,7 +4625,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
 
               {/* Histórico */}
-              <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+              <Card style={{padding:0,overflow:'hidden',background:cardBg}} elevated>
                 <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',background:`linear-gradient(135deg,${T.goldGl},transparent)`}}>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:14,fontWeight:700,color:T.text}}>Histórico de Comunicados</div>
                   <span style={{fontSize:11,color:T.textT}}>{alexaMsgs.length} anúncio{alexaMsgs.length!==1?'s':''}</span>
@@ -4647,7 +4661,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           })()}
           {tab==='trofeus'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Troféus & Reconhecimento</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Envie troféus de Ouro e Platina para reconhecer colaboradores destacados</div>
@@ -4655,7 +4669,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 <Moon size={24} color={T.goldL} opacity={0.35} float/>
               </div>
               {/* Enviar troféu */}
-              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)'}} elevated>
+              <Card style={{padding:'22px 26px',background:cardBg}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Enviar Troféu</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
                   <div>
@@ -4690,7 +4704,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 </button>
               </Card>
               {/* Histórico */}
-              <Card style={{padding:0,overflow:'hidden',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+              <Card style={{padding:0,overflow:'hidden',background:cardBg}} elevated>
                 <div style={{padding:'14px 20px',borderBottom:`1px solid ${T.border}`,fontFamily:'var(--font-brand)',fontSize:14,fontWeight:700,color:T.text}}>Histórico de Troféus</div>
                 {trophyHistory.length===0
                   ? <div style={{padding:'40px',textAlign:'center',color:T.textT}}>Nenhum troféu enviado ainda</div>
@@ -4722,7 +4736,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* ── TAB: CONFIGURAÇÕES ── */}
           {tab==='config'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Configurações do Sistema</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Gerencie as configurações administrativas</div>
@@ -4735,7 +4749,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   sendo desenhado. Vale só PARA ESTE NAVEGADOR — não é
                   configuração da empresa, é pra comparar os dois lado a lado.
                   Sai daqui quando um dos dois virar o padrão. */}
-              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px dashed ${T.goldLine}66`}} elevated>
+              <Card style={{padding:'22px 26px',background:cardBg,border:`1.5px dashed ${T.goldLine}66`}} elevated>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -4774,7 +4788,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
 
               {/* Alterar senha */}
-              <Card style={{padding:'22px 26px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px solid ${T.border}`}} elevated>
+              <Card style={{padding:'22px 26px',background:cardBg,border:`1.5px solid ${T.border}`}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:4,display:'flex',alignItems:'center',gap:8}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   Alterar Senha do Dashboard RH
@@ -4796,7 +4810,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 </button>
               </Card>
               {/* Info */}
-              <Card style={{padding:'20px 24px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)'}} elevated>
+              <Card style={{padding:'20px 24px',background:cardBg}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Sobre o Sistema</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
                   {[['Sistema','Uniko'],['Versão','1.0 — Visual Preview'],['Empresa','7SERV GESTÃO BENEFÍCIOS'],['Módulos','Portal Colaborador · Ponto Eletrônico · Dashboard RH'],['Backend','Previsto — em desenvolvimento'],['Desenvolvido por','Nicolas Andrade']].map(([l,v])=>(
@@ -4814,7 +4828,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {tab==='spotify'&&(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>API do Spotify</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Credenciais OAuth para reprodução de música na Central Alexa</div>
@@ -4838,7 +4852,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* Form */}
-              <Card style={{padding:'26px 28px',background:cardBg,backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',border:`1.5px solid ${T.border}`}} elevated>
+              <Card style={{padding:'26px 28px',background:cardBg,border:`1.5px solid ${T.border}`}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:15,fontWeight:700,color:T.text,marginBottom:20,display:'flex',alignItems:'center',gap:9}}>
                   <div style={{width:28,height:28,borderRadius:8,background:'linear-gradient(135deg,#1DB954,#158a3e)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -4928,7 +4942,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
 
               {/* Dica de uso */}
-              <Card style={{padding:'18px 22px',background:cardBg,backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)'}} elevated>
+              <Card style={{padding:'18px 22px',background:cardBg}} elevated>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Como criar um app no Spotify for Developers</div>
                 <div style={{display:'flex',flexDirection:'column',gap:9}}>
                   {[
@@ -4960,7 +4974,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                 <div>
                   <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text,letterSpacing:'.04em'}}>Logs do Servidor</div>
                   <div style={{fontSize:13,color:T.textS,marginTop:2}}>Saída do PM2 na VPS (crescent-hub-server)</div>
@@ -5052,7 +5066,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
                 {/* Header */}
-                <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+                <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
                   <div>
                     <div style={{ fontFamily:'var(--font-brand)', fontSize:18, fontWeight:700, color:T.text, letterSpacing:'.04em', display:'flex', alignItems:'center', gap:10 }}>
                       Feedback dos Colaboradores
@@ -5176,7 +5190,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
               {/* Header */}
-              <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+              <div style={{ padding:'14px 20px', borderRadius:13, background:cardBg, border:`1px solid ${T.border}`, boxShadow:T.shM, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
                 <div>
                   <div style={{ fontFamily:'var(--font-brand)', fontSize:18, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>Contracheques</div>
                   <div style={{ fontSize:13, color:T.textS, marginTop:2 }}>
@@ -5190,7 +5204,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </div>
 
               {/* Form: anexar novo */}
-              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+              <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
                 <div style={{ fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>Anexar Novo Contracheque</div>
                 <div style={{ fontSize:13, color:T.textT, marginBottom:18 }}>Selecione o funcionário, informe a competência e faça upload do PDF.</div>
 
@@ -5277,7 +5291,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
 
               {/* ── Importação automática em lote ── */}
-              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+              <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
                   <span style={{ fontSize:16, fontWeight:700, color:T.text }}>Importação Automática em Lote</span>
                   <span style={{ fontSize:10, fontWeight:700, color:T.gold, background:T.goldGl, border:`1px solid ${T.goldLine}44`, padding:'2px 7px', borderRadius:6, letterSpacing:'.04em' }}>NOVO</span>
@@ -5390,7 +5404,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
 
               {/* Lista de contracheques */}
-              <Card style={{ padding:'24px 26px', background:cardBg, backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)' }} elevated>
+              <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
                   <div>
                     <div style={{ fontSize:16, fontWeight:700, color:T.text }}>Contracheques Enviados</div>

@@ -199,7 +199,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Cabeçalho */}
-      <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: '.04em' }}>Uniko FIT — Poses dos Desafios</div>
           <div style={{ fontSize: 13, color: T.textS, marginTop: 2 }}>Poses fixas ({POSES_FIXAS.length}) + as que você cadastrar aqui entram na rotação diária de todo mundo.</div>
@@ -208,7 +208,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
       </div>
 
       {/* Adicionar pose nova */}
-      <Card style={{ padding: '22px 26px', background: bg, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }} elevated>
+      <Card style={{ padding: '22px 26px', background: bg }} elevated>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>Adicionar pose nova</div>
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
           <div style={{ flexShrink: 0 }}>
@@ -239,7 +239,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
       </Card>
 
       {/* Poses extras cadastradas */}
-      <Card style={{ padding: 0, overflow: 'hidden', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }} elevated>
+      <Card style={{ padding: 0, overflow: 'hidden', background: bg }} elevated>
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>Poses extras ({extras.length})</div>
           <div style={{ flex: 1 }} />
@@ -268,7 +268,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
       </Card>
 
       {/* Poses fixas (vêm com o app — dá pra trocar a foto de qualquer uma) */}
-      <Card style={{ padding: '18px 20px', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }} elevated>
+      <Card style={{ padding: '18px 20px', background: bg }} elevated>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>Poses fixas ({POSES_FIXAS.length})</div>
         <div style={{ fontSize: 12, color: T.textT, marginBottom: 14 }}>Vêm prontas com o app (arte do próprio Uniko). Passe o mouse numa foto pra trocar por uma sua.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
@@ -298,7 +298,7 @@ const UnikoFitPosesTab = ({ cardBg, adminName }) => {
       </Card>
 
       {/* Zona de perigo — cada coisa se apaga por conta própria */}
-      <Card style={{ padding: 0, overflow: 'hidden', background: bg, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(192,64,80,0.28)' }} elevated>
+      <Card style={{ padding: 0, overflow: 'hidden', background: bg, border: '1px solid rgba(192,64,80,0.28)' }} elevated>
         <div style={{ padding: '16px 22px 12px' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: '#C04050' }}>Zona de perigo</div>
           <div style={{ fontSize: 12.5, color: T.textS, marginTop: 3 }}>
