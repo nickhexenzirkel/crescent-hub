@@ -11,6 +11,7 @@ import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
 import { TabOficinaEstelar, TabCartaCorrecao, TabOficioEmissao } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
+import { ferramentaDaUrl, voltarDaFerramenta } from './rotaFerramenta';
 
 // 'xml'/'carta'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx
 const GATED_TABS = new Set(['xml', 'carta', 'assinatura']);
@@ -34,9 +35,20 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
     applyTheme(saved);
   });
 
+  /* "Sair" normalmente é só o onBack do App (que é o Voltar do navegador). A
+     exceção é ter uma ferramenta de PDF aberta: ela tem entrada própria no
+     histórico (ver rotaFerramenta.js), então um Voltar só cairia na escolha de
+     ferramenta em vez de sair do módulo — aí são dois de uma vez. */
+  const sair = () => { if (ferramentaDaUrl()) window.history.go(-2); else onBack(); };
+
   const safeSetTab = (id) => {
     if (GATED_TABS.has(id)) { if (!canSeeTab(id, authUser, isAdmin)) return; }
     else if (ADMIN_TABS.has(id) && !isAdmin) return;
+    /* Sair da Ferramenta de Edição pela sidebar tem que desfazer a entrada da
+       ferramenta aberta, senão ela fica órfã no histórico: a URL anunciaria uma
+       ferramenta que não está mais na tela, e o "Sair" gastaria um clique
+       voltando pra ela. */
+    if (id !== 'oficina' && ferramentaDaUrl()) voltarDaFerramenta();
     setTab(id);
   };
 
@@ -64,7 +76,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
 
   return (
     <div style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={safeSetTab} onBack={onBack} isAdmin={isAdmin} authUser={authUser}/>
+      <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser}/>
       <div style={{
         flex:1,
         marginLeft: isMobile ? 0 : 252,

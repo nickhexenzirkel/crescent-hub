@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { T } from '../../../contexts/theme';
@@ -9,6 +9,7 @@ import { PdfEditor } from '../PdfEditor';
 import { PdfOrganizer } from '../PdfOrganizer';
 import { PdfMerge } from '../PdfMerge';
 import { logAssinatura } from '../assinaturaDb';
+import { ferramentaDaUrl, irParaFerramenta, voltarDaFerramenta } from '../rotaFerramenta';
 import rubricaUrl from '../../../assets/assinatura-evando.png';
 import logo7ServUrl from '../../../assets/logo-7beneficios.png';
 
@@ -684,8 +685,24 @@ const BackLink = ({ onClick }) => (
 );
 
 export const TabOficinaEstelar = () => {
-  const [tool, setTool]     = useState(null); // null (escolha) | 'editor' | 'organizar' | 'mesclar'
+  /* Cada ferramenta tem endereço próprio (#faturamento/oficina/editor e
+     companhia) — ver rotaFerramenta.js. A URL é a fonte da verdade: o estado
+     nasce dela e o popstate a relê, então Voltar/Avançar do navegador andam
+     entre as ferramentas sem lógica de histórico espalhada aqui. */
+  const [tool, setTool]     = useState(ferramentaDaUrl); // null (escolha) | 'editor' | 'organizar' | 'mesclar'
   const [hasDoc, setHasDoc] = useState(false);
+
+  const abrir = (f) => { setHasDoc(false); setTool(f); irParaFerramenta(f); };
+  /* "Trocar ferramenta" é o Voltar: a ferramenta entrou como entrada nova no
+     histórico, então desfazer é voltar uma — assim o botão e o Voltar do
+     navegador não acumulam entradas um contra o outro. */
+  const trocar = voltarDaFerramenta;
+
+  useEffect(() => {
+    const onPop = () => { setHasDoc(false); setTool(ferramentaDaUrl()); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   if (!tool) {
     return (
@@ -695,15 +712,15 @@ export const TabOficinaEstelar = () => {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16}}>
           <ToolCard title="Editor de PDF"
             desc="Edite o texto existente do PDF, adicione textos, imagens e assinaturas."
-            onClick={()=>{ setHasDoc(false); setTool('editor'); }}
+            onClick={()=>abrir('editor')}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}/>
           <ToolCard title="Organizar PDF"
             desc="Mova e exclua páginas vendo cada uma em miniatura, e salve o PDF na nova ordem."
-            onClick={()=>{ setHasDoc(false); setTool('organizar'); }}
+            onClick={()=>abrir('organizar')}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>}/>
           <ToolCard title="Mesclar PDF"
             desc="Junte vários PDFs num único arquivo, na ordem que você definir."
-            onClick={()=>setTool('mesclar')}
+            onClick={()=>abrir('mesclar')}
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/><path d="M10 8h4M10 12h4M10 16h4"/></svg>}/>
         </div>
       </div>
@@ -713,7 +730,7 @@ export const TabOficinaEstelar = () => {
   if (tool === 'organizar') {
     return (
       <div style={{fontFamily:'var(--font-body)'}}>
-        {!hasDoc && <BackLink onClick={()=>setTool(null)}/>}
+        {!hasDoc && <BackLink onClick={trocar}/>}
         {!hasDoc && <StellarHero compact eyebrow="Ferramenta de Edição" title="Organizar PDF"
           subtitle="Mova e exclua páginas vendo cada uma antes de salvar." icon={HERO_ICON}/>}
         <PdfOrganizer onDoc={setHasDoc}/>
@@ -724,7 +741,7 @@ export const TabOficinaEstelar = () => {
   if (tool === 'mesclar') {
     return (
       <div style={{fontFamily:'var(--font-body)'}}>
-        <BackLink onClick={()=>setTool(null)}/>
+        <BackLink onClick={trocar}/>
         <StellarHero compact eyebrow="Ferramenta de Edição" title="Mesclar PDF"
           subtitle="Organize a ordem das páginas e junte tudo num único arquivo." icon={HERO_ICON}/>
         <PdfMerge/>
@@ -734,7 +751,7 @@ export const TabOficinaEstelar = () => {
 
   return (
     <div style={{fontFamily:'var(--font-body)'}}>
-      {!hasDoc && <BackLink onClick={()=>setTool(null)}/>}
+      {!hasDoc && <BackLink onClick={trocar}/>}
       {!hasDoc&&<StellarHero compact eyebrow="Ferramenta de Edição" title="Editor de PDF"
         subtitle="Edite o texto existente do PDF, adicione textos, imagens e assinaturas." icon={HERO_ICON}/>}
       <PdfEditor onDoc={setHasDoc}/>
