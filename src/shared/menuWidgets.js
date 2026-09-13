@@ -133,7 +133,13 @@ export const usePrismaResumo = () => {
      • prismas recebidos: envio de colega, presente ou crédito do RH
        (check-in e missão ela mesma fez, então ficam de fora);
      • convite pra jogar Uniko Paint / Uniko Stop;
-     • evento novo na agenda.
+     • evento novo na agenda;
+     • justificativa do ponto: a solicitação dela em análise, aprovada (o RH
+       aceitou e abonou o dia) ou resolvida, e dias que o RH abonou direto;
+     • atualização do sistema publicada pelo RH;
+     • avisos do RH: urgentes, lembretes e comunicados.
+   Justificativa RECUSADA não tem aviso: recusar, no Dashboard RH, apaga a
+   solicitação — não sobra registro pra dizer que foi recusada.
    Tempo real por postgres_changes (filtrado no cliente — nome com espaço e
    acento quebra o filtro do realtime, ver gameInvites.js) e uma consulta a
    cada 45s de rede de segurança, porque nem toda tabela está garantida na
@@ -154,10 +160,26 @@ export const usePrismaResumo = () => {
    vez e junta no resto — sem pôr meses de histórico no polling de todo mundo. */
 const CAIXA_DIAS = 60, CAIXA_MAX = 200, CAIXA_LOTE_ANTIGO = 500, CAIXA_POLL_MS = 45000;
 const caixaKey = (authUser) => 'uniko_caixa_entrada_' + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+/* Versão do "lido": sobe quando a caixa passa a trazer um tipo novo de aviso.
+   Numa conta nova ou que ainda não viu esta versão, tudo que chegou há mais de
+   3 dias entra como lido UMA vez — senão quem abre a caixa pela primeira vez
+   (ou logo depois de ganhar justificativas/avisos/atualizações) encontraria o
+   selo com dezenas de "não lidas" antigas. Daí pra frente só o novo acende. */
+const LIDOS_VERSAO = 2, LIDOS_JANELA_DIAS = 3;
 const lerLidos = (k) => {
   const lista = (v) => (Array.isArray(v) ? v : []);
-  try { const r = JSON.parse(localStorage.getItem(k) || '{}'); return { ids: lista(r.ids), ate: r.ate || '', naoLido: lista(r.naoLido), excluidos: lista(r.excluidos) }; }
-  catch { return { ids: [], ate: '', naoLido: [], excluidos: [] }; }
+  try {
+    const r = JSON.parse(localStorage.getItem(k) || '{}');
+    const lidos = { ids: lista(r.ids), ate: r.ate || '', naoLido: lista(r.naoLido), excluidos: lista(r.excluidos), v: r.v || 0 };
+    if (lidos.v < LIDOS_VERSAO) {
+      const corte = new Date(Date.now() - LIDOS_JANELA_DIAS * 864e5).toISOString();
+      if (corte > lidos.ate) lidos.ate = corte;
+      lidos.v = LIDOS_VERSAO;
+      localStorage.setItem(k, JSON.stringify(lidos));
+    }
+    return lidos;
+  }
+  catch { return { ids: [], ate: '', naoLido: [], excluidos: [], v: LIDOS_VERSAO }; }
 };
 
 const JOGO = { paint: { nome: 'Uniko Paint', aba: 'unikopaint' }, stop: { nome: 'Uniko Stop!', aba: 'unikostop' } };
@@ -191,33 +213,101 @@ const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', subtipo: r.game
 const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', subtipo: r.type || 'Evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
   sub: [diaTxt(r.event_date), r.event_time, r.type].filter(Boolean).join(' · '), destino: ['colaborador', 'eventos'] });
 
+const soDigitos = (v) => String(v || '').replace(/\D/g, '');
+
+/* Solicitação de justificativa do ponto. `abonos` = { 'AAAA-MM-DD': justificativa }
+   do colaborador, pra saber se o "resolvido" foi um aceite (abonou o dia). */
+const itemSolicitacao = (r, abonos) => {
+  const dia = diaTxt(r.data_ref);
+  if (r.status === 'pendente')
+    return { id: `ps:${r.id}:pendente`, tipo: 'justificativa', subtipo: 'andamento', quando: r.created_at,
+      titulo: `Justificativa em análise: ${r.titulo || 'ponto'}`, sub: `${dia ? dia + ' · ' : ''}aguardando o RH`, destino: ['colaborador', 'ponto'] };
+  const abono = r.data_ref && abonos[r.data_ref];
+  return { id: `ps:${r.id}:resolvido`, tipo: 'justificativa', subtipo: abono ? 'aprovada' : 'resolvida',
+    quando: abono?.updated_at || r.created_at,
+    titulo: abono ? `Justificativa de ${dia} aprovada` : `Justificativa${dia ? ' de ' + dia : ''} resolvida pelo RH`,
+    sub: abono ? `${r.titulo || 'Ponto'} · dia abonado no seu ponto` : (r.titulo || 'Ponto'), destino: ['colaborador', 'ponto'] };
+};
+const itemAbono = (j) => (j.texto && j.abonado !== false ? {
+  id: `pj:${j.cpf}:${j.data}`, tipo: 'justificativa', subtipo: 'abonada', quando: j.updated_at,
+  titulo: `RH abonou seu ponto de ${diaTxt(j.data)}`, sub: j.texto, destino: ['colaborador', 'ponto'],
+} : null);
+const itemAtualizacao = (r) => (r.active === false ? null : {
+  id: `at:${r.id}`, tipo: 'atualizacao', subtipo: 'sistema', quando: r.created_at,
+  titulo: r.titulo || 'Atualização do Uniko', sub: r.descricao || (r.imagem_url ? 'Toque pra ver a novidade' : 'Novidade no sistema'),
+  corpo: r.descricao || '', imagem: r.imagem_url || null,
+});
+const itemAviso = (r) => (r.active === false ? null : {
+  id: `nt:${r.id}`, tipo: 'aviso', subtipo: r.type === 'aviso_urgente' ? 'urgente' : 'lembrete', quando: r.created_at,
+  titulo: r.type === 'aviso_urgente' ? `Aviso urgente: ${r.title || ''}` : (r.title || 'Aviso do RH'),
+  sub: r.message || 'Aviso do RH', corpo: r.message || '', ruim: r.type === 'aviso_urgente',
+});
+const itemComunicado = (r) => (r.active === false ? null : {
+  id: `cm:${r.id}`, tipo: 'aviso', subtipo: 'comunicado', quando: r.created_at,
+  titulo: `Comunicado: ${r.title || ''}`, sub: r.body || r.cat || 'Comunicado do RH', destino: ['colaborador', 'comunicados'],
+});
+
 export const useCaixaEntrada = (authUser) => {
   const nome = authUser?.name;
+  const cpf = soDigitos(authUser?.cpf);
   const chave = caixaKey(authUser);
   const [mapa, setMapa] = useState({});         // id → item
   const [lidos, setLidos] = useState(() => lerLidos(chave));
 
   const vivoRef = useRef(true);
   useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
-  const juntar = useCallback((itens) => {
+  /* `sair(item)` opcional: tira do mapa o que ficou velho (a solicitação que
+     estava "em análise" e agora voltou "resolvida", ou foi apagada). */
+  const juntar = useCallback((itens, sair) => {
     const bons = itens.filter(Boolean);
-    if (!vivoRef.current || !bons.length) return;
-    setMapa(m => { const n = { ...m }; for (const it of bons) n[it.id] = it; return n; });
+    if (!vivoRef.current || (!bons.length && !sair)) return;
+    setMapa(m => {
+      const n = { ...m };
+      if (sair) for (const id of Object.keys(n)) if (sair(n[id])) delete n[id];
+      for (const it of bons) n[it.id] = it;
+      return n;
+    });
   }, []);
 
   /* Uma consulta às quatro fontes entre `de` e `ate` (ISO; `ate` opcional). */
   const consultar = useCallback(async (de, ate, limite) => {
     if (!nome) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
-    const [bh, ph, gi, ev] = await Promise.all([
+    const [bh, ph, gi, ev, ps, at, nt, cm] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
       faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
       faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
       faixa(supabase.from('calendar_events').select('id,title,event_date,event_time,type,created_by,created_at'), 'created_at'),
+      faixa(cpf ? supabase.from('ponto_solicitacoes').select('id,cpf,ponto_cpf,titulo,data_ref,status,created_at').eq('cpf', cpf)
+                : supabase.from('ponto_solicitacoes').select('id,cpf,ponto_cpf,titulo,data_ref,status,created_at').eq('nome', nome), 'created_at'),
+      faixa(supabase.from('atualizacoes').select('id,titulo,descricao,imagem_url,active,created_at').eq('active', true), 'created_at'),
+      faixa(supabase.from('notifications').select('id,type,title,message,active,created_at').eq('active', true), 'created_at'),
+      faixa(supabase.from('comunicados').select('id,title,body,cat,active,created_at').eq('active', true), 'created_at'),
     ].map(q => q.then(r => r.data || [], () => [])));
+
+    /* Abonos do ponto: pelo id de ponto que as solicitações usam (PIS) e pelo
+       CPF. Um só pedido, que ainda liga "resolvido" a "aprovado". */
+    const idsPonto = [...new Set([cpf, ...ps.map(x => x.ponto_cpf), ...ps.map(x => x.cpf)].filter(Boolean))];
+    const pj = idsPonto.length
+      ? await faixa(supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,updated_at').in('cpf', idsPonto), 'updated_at')
+          .then(r => r.data || [], () => [])
+      : [];
+    const abonos = {};
+    for (const j of pj) if (j.abonado !== false) abonos[j.data] = j;
+    const diasDeSolicitacao = new Set(ps.filter(x => x.status !== 'pendente').map(x => x.data_ref));
+    const idsAtuais = new Set(ps.map(x => itemSolicitacao(x, abonos).id));
+
     juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
-      ...ev.filter(e => e.created_by !== nome).map(itemEvento)]);
-  }, [nome, juntar]);
+      ...ev.filter(e => e.created_by !== nome).map(itemEvento),
+      ...ps.map(x => itemSolicitacao(x, abonos)),
+      // abono que veio de uma solicitação já aparece como "aprovada" — não repete
+      ...pj.filter(j => !diasDeSolicitacao.has(j.data)).map(itemAbono),
+      ...at.map(itemAtualizacao), ...nt.map(itemAviso), ...cm.map(itemComunicado)],
+    // Solicitação desta faixa que mudou de estado ou sumiu (recusada = apagada):
+    // a versão velha sai do mapa.
+    (it) => it.id.startsWith('ps:') && !idsAtuais.has(it.id)
+      && String(it.quando) >= de && (!ate || String(it.quando) < ate));
+  }, [nome, cpf, juntar]);
 
   // Até onde já foi carregado pra trás (ISO). Começa nos 60 dias automáticos.
   const [desde, setDesde] = useState(() => new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString());
@@ -246,6 +336,17 @@ export const useCaixaEntrada = (authUser) => {
         ({ new: r }) => { if (r?.to_name === nome) juntar([itemConvite(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_events' },
         ({ new: r }) => { if (r && r.created_by !== nome) juntar([itemEvento(r)]); })
+      // Justificativa depende de duas tabelas (solicitação + abono) e o aceite
+      // mexe nas duas quase juntas: em vez de montar o item pela metade, refaz a
+      // consulta. É barato e só roda quando alguém mexe no ponto.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ponto_solicitacoes' }, () => buscar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ponto_justificativas' }, () => buscar())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'atualizacoes' },
+        ({ new: r }) => { if (r) juntar([itemAtualizacao(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
+        ({ new: r }) => { if (r) juntar([itemAviso(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comunicados' },
+        ({ new: r }) => { if (r) juntar([itemComunicado(r)]); })
       .subscribe();
 
     return () => { clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };

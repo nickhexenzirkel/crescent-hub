@@ -547,6 +547,9 @@ const TIPO_CAIXA = {
   prisma:  { cor:'#A855F7', icone:<><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/></> },
   convite: { cor:'#FF9F0A', icone:<><rect x="2.5" y="7" width="19" height="11" rx="5.5"/><line x1="7.5" y1="10.5" x2="7.5" y2="14.5"/><line x1="5.5" y1="12.5" x2="9.5" y2="12.5"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".9" fill="currentColor"/></> },
   evento:  { cor:'#FF375F', icone:<><rect x="3" y="4" width="18" height="17" rx="2.5"/><line x1="16" y1="2.5" x2="16" y2="6"/><line x1="8" y1="2.5" x2="8" y2="6"/><line x1="3" y1="9.5" x2="21" y2="9.5"/></> },
+  justificativa: { cor:'#30B0C7', icone:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></> },
+  atualizacao:   { cor:'#5E5CE6', icone:<><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 3 21 9 15 9"/></> },
+  aviso:         { cor:'#FF9500', icone:<><path d="M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 6"/><path d="M19 6a8 8 0 010 12"/></> },
 };
 const IcoCaixa = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -589,6 +592,9 @@ const CATEGORIAS_CAIXA = [
   { id:'prisma',  rot:'Prismas',        subs:[{ id:'colega', rot:'De colegas' }, { id:'presente', rot:'Presentes' }, { id:'rh', rot:'Crédito do RH' }] },
   { id:'convite', rot:'Convites',       subs:[{ id:'paint', rot:'Uniko Paint' }, { id:'stop', rot:'Uniko Stop!' }] },
   { id:'evento',  rot:'Agenda',         subs:null },   // subcategorias = os tipos de evento que existirem
+  { id:'justificativa', rot:'Justificativas', subs:[{ id:'andamento', rot:'Em análise' }, { id:'aprovada', rot:'Aprovadas' }, { id:'resolvida', rot:'Resolvidas' }, { id:'abonada', rot:'Abonadas pelo RH' }] },
+  { id:'atualizacao',   rot:'Atualizações',   subs:[] },   // sem subcategoria
+  { id:'aviso',         rot:'Avisos do RH',   subs:[{ id:'urgente', rot:'Urgentes' }, { id:'lembrete', rot:'Lembretes' }, { id:'comunicado', rot:'Comunicados' }] },
 ];
 const STATUS_CAIXA = [{ id:'todas', rot:'Todas' }, { id:'nao', rot:'Não lidas' }, { id:'lidas', rot:'Lidas' }];
 const PERIODOS_CAIXA = [
@@ -663,7 +669,7 @@ const RotuloFiltro = ({ children }) => (
    Sem backdrop-filter no fundo escuro de propósito: atrás está o lava lamp
    animado, e o desfoque seria refeito a cada frame enquanto a janela estiver
    aberta (ver shared/bolhas.js). */
-const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
+const CaixaJanela = ({ caixa, onFechar, onAbrirItem, expandidoInicial }) => {
   const { itens, naoLidos, marcarLido, marcarNaoLido, marcarTodos, excluir, restaurar, desde, carregarDesde, carregandoAntigas } = caixa;
   const [busca, setBusca] = useState('');
   const [status, setStatus] = useState('todas');
@@ -673,6 +679,13 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
   const [saindo, setSaindo] = useState([]);           // ids animando a saída
+  // Aviso e atualização não levam a outra tela: o texto (e a imagem) abrem aqui.
+  const [expandido, setExpandido] = useState(expandidoInicial || null);
+  const clicarLinha = (it) => {
+    if (it.destino) { onAbrirItem(it); return; }
+    marcarLido(it.id);
+    setExpandido(e => (e === it.id ? null : it.id));
+  };
   const [desfazer, setDesfazer] = useState(null);     // { ids, texto }
 
   useEffect(() => {
@@ -884,9 +897,10 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
                 const cor = it.ruim ? T.danger : tp.cor;
                 const sai = saindo.includes(it.id);
                 return (
-                  <div key={it.id} className="mln-cx-linha" role="button" tabIndex={0}
-                    onClick={() => onAbrirItem(it)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') onAbrirItem(it); if (e.key === 'Delete') tirar([it.id], 'Mensagem excluída'); }}
+                  <React.Fragment key={it.id}>
+                  <div className="mln-cx-linha" role="button" tabIndex={0} aria-expanded={it.destino ? undefined : expandido === it.id}
+                    onClick={() => clicarLinha(it)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') clicarLinha(it); if (e.key === 'Delete') tirar([it.id], 'Mensagem excluída'); }}
                     style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 10px', borderRadius:14, cursor:'pointer', outline:'none',
                       opacity: sai ? 0 : 1, transform: sai ? 'translateX(28px)' : 'none',
                       transition:'opacity .19s ease, transform .19s ease, background .15s' }}>
@@ -915,6 +929,19 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
                       </span>
                     </span>
                   </div>
+                  {expandido === it.id && !it.destino && (it.corpo || it.imagem) && (
+                    <div style={{ margin:'0 10px 10px 68px', padding:'12px 14px', borderRadius:14, background:T.surfaceSub || 'rgba(0,0,0,.04)',
+                      animation:'mlnEntra .25s cubic-bezier(.16,1,.3,1) backwards' }}>
+                      {it.corpo && (
+                        <div style={{ fontSize:13, color:T.text, lineHeight:1.55, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>{it.corpo}</div>
+                      )}
+                      {it.imagem && (
+                        <img src={it.imagem} alt={it.titulo} loading="lazy"
+                          style={{ display:'block', maxWidth:'100%', maxHeight:320, marginTop: it.corpo ? 10 : 0, borderRadius:10, objectFit:'contain' }}/>
+                      )}
+                    </div>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -961,16 +988,19 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
   const [c, l] = WIDGETS.caixa[tam];
   const editando = moldura.editando;
 
+  const [expandir, setExpandir] = useState(null);
   const abrirItem = (it) => {
     if (editando) return;
     marcarLido(it.id);
+    if (!it.destino) { setExpandir(it.id); setAberta(true); return; }
     // Convite recente: deixa a sala "pendente" pra o jogo entrar direto nela
     // (mesma ponte que o popup de convite do App usa). Convite velho só abre o jogo.
     if (it.tipo === 'convite' && conviteRecente(it)) setPendingJoin(it.jogo, it.sala);
     setAberta(false);
     onSelect(it.destino[0], it.destino[1]);
   };
-  const janela = aberta && <CaixaJanela caixa={caixa} onFechar={() => setAberta(false)} onAbrirItem={abrirItem}/>;
+  const janela = aberta && <CaixaJanela caixa={caixa} expandidoInicial={expandir}
+    onFechar={() => { setAberta(false); setExpandir(null); }} onAbrirItem={abrirItem}/>;
 
   const selo = naoLidos > 0 && (
     <span key={naoLidos} style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, boxSizing:'border-box',
