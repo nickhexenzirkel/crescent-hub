@@ -1180,7 +1180,7 @@ const ArteGrade = ({ cor, larg = 112 }) => (
 const ARTES = { pincel:ArtePincel, presente:ArtePresente, ondas:ArteOndas, paleta:ArtePaleta, grade:ArteGrade };
 
 /* ── Widget: novidades (cartões que giram) ────────────────────────────────── */
-const GIRO_MS = 6000;
+const GIRO_MS = 9000;   // 9s por slide (era 6s e passava rápido demais pra ler)
 
 const WidgetNovidades = ({ tam, onSelect, acoes = [], ...moldura }) => {
   const prisma = usePrismaResumo();
