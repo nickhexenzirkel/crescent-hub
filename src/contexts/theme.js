@@ -219,6 +219,25 @@ const THEMES = {
     sidebarBg:'rgba(255,245,245,0.97)', topbarBg:'rgba(255,245,245,0.94)',
     text:'#2E0B0B', textS:'#683030', textT:'#A87878', textD:'#D4BABA',
   },
+  /* Lilás (set/2026) — foco na cor #9BA0FA. No claro ela aparece na bolinha,
+     nas linhas e nos brilhos (goldV/goldLine/dot); texto e botões usam um tom
+     mais fechado da mesma família (#5B60D0), porque #9BA0FA sobre fundo claro
+     não tem contraste pra leitura. No escuro (Lilás Lunar) ela é o destaque. */
+  lilac: {
+    name:'Lilás Estelar', surfaceSub:'rgba(0,0,0,0.025)', itemHover:'rgba(0,0,0,0.04)', dot:'#9BA0FA', dark:false,
+    page:'#F3F3FE', gold:'#5B60D0', goldL:'#7C81EE', goldV:'#9BA0FA',
+    goldGl:'rgba(91,96,208,0.09)', goldLine:'#8A8EF5',
+    blue:'#5B60D0', blueL:'#7C81EE', blueGl:'rgba(91,96,208,0.08)',
+    blobBase:'#EDEEFD', blobVeil:'rgba(240,240,255,0.58)',
+    b1:'rgba(35,38,120,0.78)',  b2:'rgba(80,86,200,0.66)',
+    b3:'rgba(155,160,250,0.55)',b4:'rgba(95,100,215,0.60)',
+    b5:'rgba(190,194,255,0.48)',b6:'rgba(25,26,90,0.50)',
+    b7:'rgba(125,130,235,0.44)',
+    sb1:'rgba(90,96,210,0.38)',sb2:'rgba(130,136,240,0.30)',sb3:'rgba(190,194,255,0.22)',
+    lb:'rgba(155,160,250,0.32)', lb2:'rgba(155,160,250,0.14)',
+    sidebarBg:'rgba(246,246,255,0.97)', topbarBg:'rgba(246,246,255,0.94)',
+    text:'#141638', textS:'#40446E', textT:'#8286AC', textD:'#BFC1DA',
+  },
   /* ─────────── MODO ESCURO — NEBULA ─────────── */
   blueDark: {
     name:'Azul Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#4A9FE8', dark:true,
@@ -321,6 +340,23 @@ const THEMES = {
     lb:'rgba(232,136,32,0.42)', lb2:'rgba(232,136,32,0.18)',
     sidebarBg:'rgba(20,10,4,0.98)', topbarBg:'rgba(20,10,4,0.95)',
     text:'#FFF0D8', textS:'#C09060', textT:'#806040', textD:'#503020',
+  },
+  lilacDark: {
+    name:'Lilás Lunar', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#9BA0FA', dark:true,
+    page:'#0A0A1C', surface:'#14152E', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#9BA0FA', goldL:'#B6BAFF', goldV:'#D4D6FF',
+    goldGl:'rgba(155,160,250,0.20)', goldLine:'#9BA0FA',
+    blue:'#9BA0FA', blueL:'#B6BAFF', blueGl:'rgba(155,160,250,0.16)',
+    blobBase:'#070714', blobVeil:'rgba(7,7,20,0.50)',
+    b1:'rgba(40,44,140,0.90)', b2:'rgba(80,86,200,0.85)',
+    b3:'rgba(155,160,250,0.62)',b4:'rgba(60,64,170,0.82)',
+    b5:'rgba(190,194,255,0.48)',b6:'rgba(20,22,80,0.90)',
+    b7:'rgba(120,126,230,0.62)',
+    sb1:'rgba(80,86,200,0.60)',sb2:'rgba(130,136,240,0.50)',sb3:'rgba(190,194,255,0.35)',
+    lb:'rgba(155,160,250,0.45)', lb2:'rgba(155,160,250,0.20)',
+    sidebarBg:'rgba(12,12,30,0.98)', topbarBg:'rgba(12,12,30,0.95)',
+    text:'#E6E7FF', textS:'#A2A6D8', textT:'#6A6E9C', textD:'#3A3C66',
   },
 };
 
