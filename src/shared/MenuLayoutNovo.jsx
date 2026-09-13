@@ -209,7 +209,7 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
       onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
       onDrop={reorderMode ? (e) => { e.preventDefault(); modo.onSoltar(m.id); } : undefined}
       onDragEnd={reorderMode ? () => modo.setDragModId(null) : undefined}
-      style={{ minHeight:132, display:'flex', flexDirection: largo ? 'row' : 'column',
+      style={{ display:'flex', flexDirection: largo ? 'row' : 'column',
         alignItems: largo ? 'center' : 'stretch', justifyContent:'space-between', gap: largo ? 18 : 12,
         padding: largo ? '20px 22px' : '16px 16px 15px', cursor: reorderMode ? 'grab' : undefined,
         opacity: arrastando ? .4 : 1, ...(borda ? { border:borda } : null), ...escolhido }}>
@@ -396,7 +396,7 @@ const WidgetCheckin = ({ tam, authUser, ...moldura }) => {
   const feitos = semana.filter(d => d.feito).length;
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_CHECKIN} {...moldura}
-      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'space-between' }}>
       <Cabeca cor={COR_CHECKIN} icone={IcoCheckin} titulo="Check-in" sub={st.txt} pontoCor={st.cor} pulso={st.pulso}
         direita={tam === 'g' && !moldura.editando && <span style={{ fontSize:11.5, fontWeight:600, color:T.textT }}>{feitos}/5 na semana</span>}/>
       {tam === 'g' && (
@@ -431,7 +431,7 @@ const WidgetHoras = ({ tam, ponto, ...moldura }) => {
   const positivo = pronto && ponto.saldoMin >= 0;
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_HORAS} {...moldura}
-      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'space-between' }}>
       <Cabeca cor={COR_HORAS} icone={navIcone('horas')} titulo="Banco de Horas"
         sub={tam === 'p' ? 'Extras e saldo' : 'Saldo líquido'}/>
       {tam === 'g' && (
@@ -459,7 +459,7 @@ const WidgetPonto = ({ tam, ponto, ...moldura }) => {
   const dia = ponto && !ponto.erro ? ponto.ultimoDia : null;
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_PONTO} {...moldura}
-      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'space-between' }}>
       <Cabeca cor={COR_PONTO} icone={navIcone('ponto')} titulo="Ponto Eletrônico"
         sub={tam === 'p' ? 'Suas marcações' : dia ? `Última batida · ${fmtDia(dia.data)}` : 'Suas marcações'}/>
       {tam === 'g' && (
@@ -488,7 +488,7 @@ const WidgetAvisos = ({ tam, ...moldura }) => {
   const sub = n ? `${n} não ${n === 1 ? 'lido' : 'lidos'}` : 'Avisos do RH';
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_AVISOS} {...moldura}
-      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'space-between' }}>
       <Cabeca cor={COR_AVISOS} icone={navIcone('comunicados')} titulo="Comunicados" sub={sub} pontoCor={n ? COR_AVISOS : null}/>
       {tam === 'g' && (
         resumo?.ultimo ? (
@@ -816,11 +816,17 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
     <div className="mln-rolagem" style={{ flex:'1 1 0', minHeight:0, width:'100%', overflowY:'auto',
       display:'flex', flexDirection:'column', paddingTop:14, boxSizing:'border-box', fontFamily:'var(--font-body)' }}>
       <style>{CSS}</style>
-      <div style={{ margin:'auto', width:'100%', maxWidth:1380, display:'flex', alignItems:'flex-start', gap:28,
+      {/* BASES ALINHADAS — as duas colunas terminam sempre na mesma linha.
+          A linha as estica pra altura da mais alta (align-items: stretch), e
+          dentro de cada uma a grade distribui a sobra igualmente entre as
+          próprias linhas (auto-rows com 1fr). Assim a coluna mais curta
+          alonga os cards em vez de deixar um vão embaixo — e continua certo
+          quando a pessoa muda tamanho, adiciona atalho ou perde um módulo. */}
+      <div style={{ margin:'auto', width:'100%', maxWidth:1380, display:'flex', alignItems:'stretch', gap:28,
         paddingBottom:24, boxSizing:'border-box' }}>
 
         {/* Esquerda — módulos */}
-        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 12px 14px' }}>
+        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 12px 14px', display:'flex', flexDirection:'column' }}>
           <Rotulo direita={
             <span style={{ fontSize:12, color:T.textT }}>
               {modo.reorderMode ? 'Arraste pra reorganizar'
@@ -830,6 +836,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
             </span>
           }>Módulos</Rotulo>
           <div style={{ display:'grid', gap:ESPACO, gridAutoFlow:'row dense',
+            flex:1, gridAutoRows:'minmax(132px, 1fr)',
             gridTemplateColumns:'repeat(auto-fill, minmax(170px, 1fr))' }}>
             {mods.map((m, i) => (
               <TileModulo key={m.id} m={m} i={i} tam={tamModulo(m, i)} cor={getModuleColor(m).color} modo={modo}
@@ -841,9 +848,9 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
 
         {/* Direita — widgets, numa grade de duas colunas. `dense` deixa um
             widget pequeno subir pro buraco que um grande deixou, como no iPhone. */}
-        <div style={{ flex:'0 0 clamp(320px, 29vw, 400px)', minWidth:0, padding:'4px 4px 12px' }}>
+        <div style={{ flex:'0 0 clamp(320px, 29vw, 400px)', minWidth:0, padding:'4px 4px 14px', display:'flex', flexDirection:'column' }}>
           <DataHoje/>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows:LINHA,
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows:`minmax(${LINHA}px, 1fr)`, flex:1,
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
             <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
