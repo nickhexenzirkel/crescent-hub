@@ -65,8 +65,9 @@ const WIDGETS = {
    módulos, pelo id deles) — pra um widget nunca colidir com um módulo. */
 const chaveWidget = (id) => `w:${id}`;
 /* Tamanho padrão de módulo: o principal (Portal do Colaborador, `fixo`) nasce
-   grande; o resto, pequeno. A pessoa muda depois no modo Tamanho. */
-const tamModuloPadrao = (m) => (m.fixo ? 'g' : 'p');
+   grande; quem traz `tamPadrao` (ex.: atalho Seus Dados) usa o dele; o resto,
+   pequeno. A pessoa muda depois no modo Tamanho. */
+const tamModuloPadrao = (m) => m.tamPadrao || (m.fixo ? 'g' : 'p');
 
 const CSS = `
 @keyframes mlnEntra { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }

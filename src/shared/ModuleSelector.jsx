@@ -35,9 +35,29 @@ const applyOrder = (list, order) => {
    Guarda { idDoItem: 'p' | 'g' }; o que não está aqui usa o padrão do layout. */
 const TAM_NOVO_PREFIX = 'uniko_menu_novo_tamanho_';
 const tamNovoKey = (authUser) => TAM_NOVO_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+/* Ajustes de tamanho que valem uma vez pra todo mundo, mesmo pra quem já
+   tinha escolhido tamanhos (quem mexe em UM módulo grava o de todos, então sem
+   isto o novo padrão nunca chegaria nessas contas). Depois disso a pessoa muda
+   à vontade e não é sobrescrita de novo. */
+const TAM_NOVO_LEVAS = [
+  { flag: 'uniko_tam_padrao_v1_', tamanhos: { 'atalho:dados': 'g' } },   // Seus Dados grande (set/2026)
+];
 const loadTamNovo = (authUser) => {
-  try { const r = JSON.parse(localStorage.getItem(tamNovoKey(authUser)) || '{}'); return (r && typeof r === 'object') ? r : {}; }
-  catch { return {}; }
+  let r = {};
+  try { const j = JSON.parse(localStorage.getItem(tamNovoKey(authUser)) || '{}'); r = (j && typeof j === 'object') ? j : {}; }
+  catch { /* ignora */ }
+  const conta = (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+  try {
+    let mudou = false;
+    for (const leva of TAM_NOVO_LEVAS) {
+      if (localStorage.getItem(leva.flag + conta)) continue;
+      r = { ...r, ...leva.tamanhos };
+      localStorage.setItem(leva.flag + conta, '1');
+      mudou = true;
+    }
+    if (mudou) localStorage.setItem(tamNovoKey(authUser), JSON.stringify(r));
+  } catch { /* sem localStorage: fica com o padrão do layout */ }
+  return r;
 };
 const saveTamNovo = (authUser, prefs) => { try { localStorage.setItem(tamNovoKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
 
@@ -54,6 +74,11 @@ const atalhosKey = (authUser) => ATALHOS_PREFIX + (authUser?.cpf || authUser?.na
    (não mexa numa que já rodou — as contas que passaram por ela não veriam). */
 const ATALHOS_PADRAO_LEVAS = [
   { flag: 'uniko_atalhos_padrao_v1_', abas: ['unikopaint', 'financeiro', 'dados'] },
+];
+/* Levas DESFEITAS: foram pro ar e depois saíram dos padrões. Quem chegou a
+   receber (tem a flag da leva) perde aqueles atalhos uma vez; quem nunca
+   recebeu não é afetado. Eventos foi padrão por poucos minutos em set/2026. */
+const ATALHOS_PADRAO_DESFEITAS = [
   { flag: 'uniko_atalhos_padrao_v2_', abas: ['eventos'] },
 ];
 const loadAtalhos = (authUser) => {
@@ -67,6 +92,13 @@ const loadAtalhos = (authUser) => {
       if (localStorage.getItem(leva.flag + conta)) continue;
       salvos = [...new Set([...salvos, ...leva.abas])];
       localStorage.setItem(leva.flag + conta, '1');
+      mudou = true;
+    }
+    for (const leva of ATALHOS_PADRAO_DESFEITAS) {
+      const recebeu = localStorage.getItem(leva.flag + conta);
+      if (!recebeu || recebeu === 'desfeita') continue;
+      salvos = salvos.filter(a => !leva.abas.includes(a));
+      localStorage.setItem(leva.flag + conta, 'desfeita');
       mudou = true;
     }
     if (mudou) localStorage.setItem(atalhosKey(authUser), JSON.stringify(salvos));
@@ -444,6 +476,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       id: ATALHO_ID(chave), label: a.label, sub: `Atalho · ${a.nomeModulo}`,
       icon: a.icon, color: T.blue || T.gold, bg: T.blueGl || T.goldGl,
       tag: 'Atalho', adminOnly: false, atalho: true, modulo: a.modulo, tab: a.aba,
+      // Seus Dados nasce grande (widget deitado); os outros atalhos, pequenos.
+      tamPadrao: chave === 'dados' ? 'g' : undefined,
     }));
   const filteredMods = [...allMods, ...atalhoMods]
     .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
