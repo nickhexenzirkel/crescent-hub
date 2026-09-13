@@ -19,8 +19,30 @@ const LoginScreen = ({ onLogin }) => {
   const [err,      setErr]      = useState('');
 
   const isDark  = !!T.dark;
-  const panelL  = isDark ? 'rgba(0,0,0,0.38)' : 'rgba(255,255,255,0.30)';
-  const panelR  = isDark ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.18)';
+
+  /* ── Por que esta tela não usa mais backdrop-filter (set/2026) ─────────────
+     O login estava em ~16 fps enquanto a landing, com o mesmo lava lamp atrás,
+     rodava lisa. A diferença eram estes painéis: dois `backdrop-filter: blur()`
+     de raio 20 e 14 cobrindo, juntos, a TELA INTEIRA (mais blur(8) em cada um
+     dos dois campos). backdrop-filter obriga o navegador a copiar o que está
+     atrás do elemento e refazer a gaussiana a cada frame — e atrás tem o lava
+     lamp, que nunca para de se mexer, então nada disso dá pra guardar em cache.
+     Era a tela mais cara do projeto justamente por isso: a área a desfocar
+     é a maior de todas, a tela inteira.
+
+     A saída é a mesma que resolveu as bolhas do fundo (ver shared/bolhas.js):
+     o desfoque aqui nunca foi necessário. O que está atrás já é degradê suave,
+     sem detalhe fino nenhum pra borrar — borrar um degradê devolve o próprio
+     degradê. Então o vidro virou um véu em degradê — com o alfa subido pra
+     devolver o contraste que o desfoque dava. Mesmo visual, custo de desenho
+     por frame perto de zero. */
+  const veu = (topo, base) => `linear-gradient(135deg, ${topo}, ${base})`;
+  const panelL  = isDark
+    ? veu('rgba(0,0,0,0.62)',        'rgba(0,0,0,0.50)')
+    : veu('rgba(255,255,255,0.58)',  'rgba(255,255,255,0.44)');
+  const panelR  = isDark
+    ? veu('rgba(0,0,0,0.44)',        'rgba(0,0,0,0.34)')
+    : veu('rgba(255,255,255,0.40)',  'rgba(255,255,255,0.28)');
 
   const maskCpf = (v) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -74,8 +96,10 @@ const LoginScreen = ({ onLogin }) => {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '12px 16px', borderRadius: 11,
     border: `1.5px solid ${T.border}`,
-    background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.55)',
-    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+    /* Sem blur aqui também: são dois campos, mas cada um abre seu próprio passe
+       de backdrop-filter sobre o fundo animado. O alfa mais alto dá a mesma
+       separação do painel atrás. */
+    background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.72)',
   };
 
   return (
@@ -88,7 +112,6 @@ const LoginScreen = ({ onLogin }) => {
         display: isMobile ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', padding: 64,
         background: panelL,
-        backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         borderRight: `1px solid ${T.border}`,
       }}>
 
@@ -119,7 +142,6 @@ const LoginScreen = ({ onLogin }) => {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: isMobile ? '32px 24px' : 64,
         background: panelR,
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
       }}>
         <div style={{ width: '100%', maxWidth: isMobile ? '100%' : 400 }}>
           {/* Logo mini no mobile (painel esquerdo está oculto) */}
