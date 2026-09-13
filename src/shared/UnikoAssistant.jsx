@@ -10,7 +10,7 @@ import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress, loadMissionDefs, GAME_LABEL } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
-import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange } from './assistantSkin';
+import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange, getFalasAutomaticas, onFalasAutomaticasChange } from './assistantSkin';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
@@ -734,10 +734,17 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     return () => clearInterval(id);
   }, [captureAlert, say]);
 
+  // Falas automáticas (dicas, evento novo, progresso de missão) podem ser caladas
+  // pela pessoa na Coleção. Ref: os intervalos abaixo leem o valor ATUAL sem
+  // precisar ser recriados quando a preferência muda.
+  const falasRef = useRef(getFalasAutomaticas());
+  useEffect(() => onFalasAutomaticasChange((v) => { falasRef.current = v; }), []);
+
   // DICAS rotativas a cada 30s (só com o painel fechado e sem aviso pendente esperando "Ok").
   useEffect(() => {
     if (!authUser) return;
     const id = setInterval(() => {
+      if (!falasRef.current) return;   // falas automáticas desligadas na Coleção
       if (openRef.current) return;
       if (bubbleRef.current?.dismissable) return;
       if (captureRef.current) return; // não interrompe o alerta de captura
@@ -795,7 +802,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         if (seen.has(r.id)) continue;
         seen.add(r.id);
         const when = r.event_date ? ` (${String(r.event_date).split('-').reverse().join('/')})` : '';
-        say(`Novo evento na agenda: ${r.title}${when}! 📅`, { sprite: imgRef.current.ATENCAO });
+        if (falasRef.current) say(`Novo evento na agenda: ${r.title}${when}! 📅`, { sprite: imgRef.current.ATENCAO });
       }
     };
     poll();
@@ -811,6 +818,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (!authUser?.name) return;
     let alive = true; let last = '';
     const check = async () => {
+      if (!falasRef.current) return;                    // falas automáticas desligadas na Coleção
       if (openRef.current || bubbleRef.current) return; // não interrompe chat/balão ativo
       let baseline = {};
       try {

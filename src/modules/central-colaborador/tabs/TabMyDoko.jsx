@@ -11,6 +11,7 @@ import { USER, saveUserPhoto, getAuthUser, supabase } from '../../../contexts/us
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
 import {
   hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations,
+  getFalasAutomaticas, setFalasAutomaticas, onFalasAutomaticasChange,
   getAssistantScale, setAssistantScale, ASSISTANT_SCALE_MIN, ASSISTANT_SCALE_MAX, ASSISTANT_SCALE_STEP,
 } from '../../../shared/assistantSkin';
 
@@ -56,6 +57,10 @@ const TabMyDoko = ({ onPhotoChange }) => {
   const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
   const [ordenar, setOrdenar] = useState('nome'); // nome | recentes | antigos (por data de obtenção)
   const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
+  // Falas automáticas do assistente (dicas etc.) — liga/desliga por conta; ouve a
+  // troca feita em outro dispositivo (chega pelo sync da skin).
+  const [falas, setFalasState] = useState(getFalasAutomaticas);
+  useEffect(() => onFalasAutomaticasChange(setFalasState), []);
   // Atualização funcional — clique duplo/rápido não deve usar um `assistantScale` da
   // closure já desatualizado (senão dois cliques em sequência "empatam" no mesmo valor).
   const bumpAssistantScale = (delta) => setAssistantScaleState(prev => setAssistantScale(prev + delta));
@@ -203,6 +208,26 @@ const TabMyDoko = ({ onPhotoChange }) => {
             <button onClick={() => bumpAssistantScale(ASSISTANT_SCALE_STEP)} disabled={assistantScale >= ASSISTANT_SCALE_MAX}
               style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: T.surface, color: T.text, cursor: assistantScale >= ASSISTANT_SCALE_MAX ? 'default' : 'pointer', fontSize: 15, fontWeight: 800, lineHeight: 1, opacity: assistantScale >= ASSISTANT_SCALE_MAX ? .4 : 1 }}>+</button>
           </div>
+
+          {/* Falas automáticas: interruptor estilo iOS. Desligado, o Uniko para de
+              dar dicas e comentários sozinho — avisos do RH, lembretes pedidos,
+              Capture o Uniko e prismas recebidos continuam chegando. */}
+          <button onClick={() => { setFalasAutomaticas(!falas); setFalasState(!falas); }}
+            role="switch" aria-checked={falas}
+            title={falas ? 'Desligar dicas e falas automáticas do Uniko' : 'Ligar dicas e falas automáticas do Uniko'}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px 6px 12px', borderRadius: 10,
+              border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', textAlign: 'left' }}>
+            <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Falas automáticas</span>
+              <span style={{ fontSize: 10.5, color: T.textT }}>{falas ? 'Dicas e comentários ligados' : 'Só avisos importantes'}</span>
+            </span>
+            <span aria-hidden="true" style={{ position: 'relative', width: 38, height: 22, borderRadius: 11, flexShrink: 0,
+              background: falas ? '#34C759' : 'rgba(120,120,128,.36)', transition: 'background .2s' }}>
+              <span style={{ position: 'absolute', top: 2, left: falas ? 18 : 2, width: 18, height: 18, borderRadius: '50%',
+                background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .2s cubic-bezier(.16,1,.3,1)' }}/>
+            </span>
+          </button>
 
           {activeAssistant !== 'default' && (
             <button onClick={() => setActiveAssistantSkin('default')}

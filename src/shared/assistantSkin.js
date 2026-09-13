@@ -152,6 +152,40 @@ export function setActiveAssistantSkin(id) {
   } catch {}
 }
 
+/* ── Falas automáticas do assistente ──────────────────────────────────────
+   A pessoa pode calar o que o Uniko fala POR CONTA PRÓPRIA: as dicas a cada
+   30s, o aviso de evento novo na agenda e o lembrete de progresso das missões
+   de jogo. O que é aviso de verdade continua sempre: avisos/lembretes do RH,
+   lembretes que a própria pessoa pediu, Capture o Uniko e prismas recebidos.
+   Ligado por padrão. Salvo por conta e sincronizado entre os dispositivos
+   pela mesma tabela `settings` da skin (ver initAssistantSkinSync). */
+export const falasRemoteKey = (name) =>
+  `user_falas_${(name || '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`;
+const FALAS_KEY = () => `uniko_assistant_falas_${userTag()}`;
+const FALAS_EV  = 'uniko-assistant-falas:changed';
+
+export function getFalasAutomaticas() {
+  try { return localStorage.getItem(FALAS_KEY()) !== '0'; } catch { return true; }
+}
+function applyLocalFalas(ligadas) {
+  const val = ligadas ? '1' : '0';
+  try { if (localStorage.getItem(FALAS_KEY()) === val) return; } catch { /* sem localStorage/rede: segue com o que tem */ }
+  try { localStorage.setItem(FALAS_KEY(), val); } catch { /* sem localStorage/rede: segue com o que tem */ }
+  try { window.dispatchEvent(new CustomEvent(FALAS_EV, { detail: ligadas })); } catch { /* sem localStorage/rede: segue com o que tem */ }
+}
+export function setFalasAutomaticas(ligadas) {
+  applyLocalFalas(!!ligadas);
+  try {
+    const name = getAuthUser()?.name;
+    if (name) supabase.from('settings').upsert({ key: falasRemoteKey(name), value: ligadas ? '1' : '0' }, { onConflict: 'key' }).then(() => {}, () => {});
+  } catch { /* sem localStorage/rede: segue com o que tem */ }
+}
+export function onFalasAutomaticasChange(cb) {
+  const h = (e) => cb(e.detail);
+  window.addEventListener(FALAS_EV, h);
+  return () => window.removeEventListener(FALAS_EV, h);
+}
+
 export function onAssistantSkinChange(cb) {
   const h = (e) => cb(e.detail);
   window.addEventListener(EV, h);
@@ -165,11 +199,15 @@ export function initAssistantSkinSync() {
   const name = getAuthUser()?.name;
   if (!name) return () => {};
   const key = skinRemoteKey(name);
+  const keyFalas = falasRemoteKey(name);
 
   (async () => {
     try {
-      const { data } = await supabase.from('settings').select('value').eq('key', key).maybeSingle();
-      if (data?.value) applyLocalSkin(data.value);
+      const { data } = await supabase.from('settings').select('key,value').in('key', [key, keyFalas]);
+      for (const r of (data || [])) {
+        if (r.key === key && r.value) applyLocalSkin(r.value);
+        if (r.key === keyFalas && r.value) applyLocalFalas(r.value !== '0');
+      }
     } catch {}
   })();
 
@@ -177,6 +215,10 @@ export function initAssistantSkinSync() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${key}` }, (payload) => {
       const val = payload.new?.value;
       if (val) applyLocalSkin(val);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${keyFalas}` }, (payload) => {
+      const val = payload.new?.value;
+      if (val) applyLocalFalas(val !== '0');
     })
     .subscribe();
 
