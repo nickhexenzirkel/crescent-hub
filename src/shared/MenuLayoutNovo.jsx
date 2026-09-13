@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
@@ -41,6 +41,13 @@ import { setPendingJoin } from './gameInvites';
 const RAIO = 24;             // canto dos widgets e tiles
 const ESPACO = 26;           // vão entre os tiles de módulo (as auras precisam de ar)
 const LINHA = 64;            // altura de uma linha da grade de widgets
+const LINHA_MAX = 88;        // ...e até onde ela pode esticar pra alinhar as bases
+const LINHA_MOD = 132;       // altura de uma fileira de módulos
+const LINHA_MOD_MAX = 180;   // ...e até onde ela pode esticar
+/* Os tetos saíram de medida (set/2026): um admin com 10 módulos em 3 fileiras
+   precisa de +45px por fileira pra alinhar com os widgets; 17 itens precisam
+   de +23px por linha de widget. Com 7 módulos em 2 fileiras seriam +146px —
+   aí não estica e os cards ficam no tamanho normal. */
 const VAO_W = 10;            // vão entre widgets
 
 /* Formato [colunas, linhas] de cada widget em cada tamanho, na grade de duas
@@ -1222,6 +1229,51 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
   // Os dois widgets de ponto dividem a mesma leitura, e só se algum está grande.
   const ponto = usePontoResumo(authUser, tamWidget('horas') === 'g' || tamWidget('ponto') === 'g');
 
+  /* BASES ALINHADAS, COM LIMITE.
+     O ideal é as duas colunas terminarem na mesma linha, mas esticar sem
+     limite deixava os cards gigantes pra quem tem poucos módulos (7 módulos =
+     2 fileiras contra uma coluna de widgets bem mais alta). Então:
+       1. mede as duas grades como se as linhas estivessem no tamanho normal;
+       2. a mais curta ganha `folga` por linha pra fechar a diferença;
+       3. mas só se der pra alinhar sem passar do teto (LINHA_MOD_MAX /
+          LINHA_MAX). Diferença que cabe no teto fecha certinho; diferença
+          grande não estica nada — a coluna mais curta termina antes, com os
+          cards no tamanho normal.
+     Feito em JS porque CSS não resolve: com minmax(normal, teto) o navegador
+     calcula a altura "natural" da grade já com as linhas no teto e todo mundo
+     crescia até o máximo. */
+  const gradeModRef = useRef(null), gradeWidRef = useRef(null);
+  const [folga, setFolga] = useState({ mod:0, wid:0 });
+  useLayoutEffect(() => {
+    const gm = gradeModRef.current, gw = gradeWidRef.current;
+    if (!gm || !gw || typeof ResizeObserver === 'undefined') return;
+    // Calcula a partir da folga ATUAL (vem no updater), e devolve o mesmo
+    // objeto quando nada muda — aí o React nem re-renderiza e o observer sossega.
+    const medir = () => setFolga(f => {
+      // linhas = (altura + vão) / (linha + vão); altura natural = sem a folga.
+      const natural = (el, linha, extra, vao) => {
+        const h = el.getBoundingClientRect().height;
+        const n = Math.max(1, Math.round((h + vao) / (linha + extra + vao)));
+        return { n, h: h - n * extra };
+      };
+      const m = natural(gm, LINHA_MOD, f.mod, ESPACO);
+      const w = natural(gw, LINHA, f.wid, VAO_W);
+      const topo = (el) => el.getBoundingClientRect().top;   // as grades podem não começar na mesma altura
+      const dif = (topo(gw) + w.h) - (topo(gm) + m.h);
+      // Só estica se der pra ALINHAR dentro do teto. Esticar até o teto sem
+      // alcançar a outra coluna só deixava os cards maiores e o vão continuava.
+      const porLinhaMod = dif / m.n, porLinhaWid = -dif / w.n;
+      const next = dif > 0
+        ? { mod: porLinhaMod <= LINHA_MOD_MAX - LINHA_MOD ? Math.round(porLinhaMod) : 0, wid: 0 }
+        : { mod: 0, wid: porLinhaWid <= LINHA_MAX - LINHA ? Math.round(porLinhaWid) : 0 };
+      return next.mod === f.mod && next.wid === f.wid ? f : next;
+    });
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(gm); ro.observe(gw);
+    return () => ro.disconnect();
+  }, []);
+
   const widget = (id, i) => ({ tam:tamWidget(id), i, editando, onTam:(v) => mudarWidget(id, v) });
   const abrir = (mod, aba) => () => onSelect(mod, aba);
 
@@ -1229,17 +1281,12 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
     <div className="mln-rolagem" style={{ flex:'1 1 0', minHeight:0, width:'100%', overflowY:'auto',
       display:'flex', flexDirection:'column', paddingTop:14, boxSizing:'border-box', fontFamily:'var(--font-body)' }}>
       <style>{CSS}</style>
-      {/* BASES ALINHADAS — as duas colunas terminam sempre na mesma linha.
-          A linha as estica pra altura da mais alta (align-items: stretch), e
-          dentro de cada uma a grade distribui a sobra igualmente entre as
-          próprias linhas (auto-rows com 1fr). Assim a coluna mais curta
-          alonga os cards em vez de deixar um vão embaixo — e continua certo
-          quando a pessoa muda tamanho, adiciona atalho ou perde um módulo. */}
-      <div style={{ margin:'auto', width:'100%', maxWidth:1380, display:'flex', alignItems:'stretch', gap:28,
+      {/* BASES ALINHADAS, COM LIMITE — ver `folga` acima. */}
+      <div style={{ margin:'auto', width:'100%', maxWidth:1380, display:'flex', alignItems:'flex-start', gap:28,
         paddingBottom:24, boxSizing:'border-box' }}>
 
         {/* Esquerda — módulos */}
-        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 12px 14px', display:'flex', flexDirection:'column' }}>
+        <div style={{ flex:'1 1 0', minWidth:0, padding:'4px 12px 14px' }}>
           <Rotulo direita={
             <span style={{ fontSize:12, color:T.textT }}>
               {modo.reorderMode ? 'Arraste pra reorganizar'
@@ -1248,8 +1295,8 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
                 : `${mods.length} disponíveis`}
             </span>
           }>Módulos</Rotulo>
-          <div style={{ display:'grid', gap:ESPACO, gridAutoFlow:'row dense',
-            flex:1, gridAutoRows:'minmax(132px, 1fr)',
+          <div ref={gradeModRef} style={{ display:'grid', gap:ESPACO, gridAutoFlow:'row dense',
+            gridAutoRows: LINHA_MOD + folga.mod,
             gridTemplateColumns:'repeat(auto-fill, minmax(170px, 1fr))' }}>
             {mods.map((m, i) => (
               <TileModulo key={m.id} m={m} i={i} tam={tamModulo(m, i)} cor={getModuleColor(m).color} modo={modo}
@@ -1261,9 +1308,9 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
 
         {/* Direita — widgets, numa grade de duas colunas. `dense` deixa um
             widget pequeno subir pro buraco que um grande deixou, como no iPhone. */}
-        <div style={{ flex:'0 0 clamp(320px, 29vw, 400px)', minWidth:0, padding:'4px 4px 14px', display:'flex', flexDirection:'column' }}>
+        <div style={{ flex:'0 0 clamp(320px, 29vw, 400px)', minWidth:0, padding:'4px 4px 14px' }}>
           <DataHoje/>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows:`minmax(${LINHA}px, 1fr)`, flex:1,
+          <div ref={gradeWidRef} style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows: LINHA + folga.wid,
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
             <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
