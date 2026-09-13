@@ -137,14 +137,22 @@ export const usePrismaResumo = () => {
    Tempo real por postgres_changes (filtrado no cliente — nome com espaço e
    acento quebra o filtro do realtime, ver gameInvites.js) e uma consulta a
    cada 45s de rede de segurança, porque nem toda tabela está garantida na
-   publicação do realtime. Janela de 14 dias, 40 itens no máximo.
-   "Lido" fica no navegador, por conta: cada item aberto + um "visto até"
-   pro "marcar todas". */
-const CAIXA_DIAS = 14, CAIXA_MAX = 40, CAIXA_POLL_MS = 45000;
+   publicação do realtime. Janela de 60 dias, 200 itens no máximo.
+
+   Tudo que é da CAIXA fica no navegador, por conta:
+     ids       — itens abertos (lidos);
+     ate       — "visto até": o "marcar todas" lê tudo que chegou antes disso;
+     naoLido   — itens que a pessoa marcou de volta como não lidos (ganha do `ate`);
+     excluidos — itens tirados da caixa.
+   EXCLUIR SÓ TIRA O AVISO DA CAIXA. O registro de origem (as horas no banco, o
+   histórico de prismas, o evento) continua intacto — apagar isso por aqui
+   seria apagar dado de RH a partir de uma notificação. */
+const CAIXA_DIAS = 60, CAIXA_MAX = 200, CAIXA_POLL_MS = 45000;
 const caixaKey = (authUser) => 'uniko_caixa_entrada_' + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
 const lerLidos = (k) => {
-  try { const r = JSON.parse(localStorage.getItem(k) || '{}'); return { ids: Array.isArray(r.ids) ? r.ids : [], ate: r.ate || '' }; }
-  catch { return { ids: [], ate: '' }; }
+  const lista = (v) => (Array.isArray(v) ? v : []);
+  try { const r = JSON.parse(localStorage.getItem(k) || '{}'); return { ids: lista(r.ids), ate: r.ate || '', naoLido: lista(r.naoLido), excluidos: lista(r.excluidos) }; }
+  catch { return { ids: [], ate: '', naoLido: [], excluidos: [] }; }
 };
 
 const JOGO = { paint: { nome: 'Uniko Paint', aba: 'unikopaint' }, stop: { nome: 'Uniko Stop!', aba: 'unikostop' } };
@@ -196,13 +204,13 @@ export const useCaixaEntrada = (authUser) => {
       const d = new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString();
       const [bh, ph, gi, ev] = await Promise.all([
         supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at')
-          .eq('created_by', nome).gte('updated_at', d).limit(CAIXA_MAX),
+          .eq('created_by', nome).gte('updated_at', d).order('updated_at', { ascending: false }).limit(CAIXA_MAX),
         supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at')
-          .eq('player', nome).in('kind', ['envio', 'presente', 'admin']).gte('created_at', d).limit(CAIXA_MAX),
+          .eq('player', nome).in('kind', ['envio', 'presente', 'admin']).gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
         supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at')
-          .eq('to_name', nome).gte('created_at', d).limit(CAIXA_MAX),
+          .eq('to_name', nome).gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
         supabase.from('calendar_events').select('id,title,event_date,event_time,type,created_by,created_at')
-          .gte('created_at', d).limit(CAIXA_MAX),
+          .gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
       ].map(q => q.then(r => r.data || [], () => [])));
       juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
         ...ev.filter(e => e.created_by !== nome).map(itemEvento)]);
@@ -227,15 +235,22 @@ export const useCaixaEntrada = (authUser) => {
   }, [nome]);
 
   const salvar = (next) => { setLidos(next); try { localStorage.setItem(chave, JSON.stringify(next)); } catch { /* ignora */ } };
+  const excluidos = new Set(lidos.excluidos);
   const itens = Object.values(mapa)
+    .filter(it => !excluidos.has(it.id))
     .sort((a, b) => String(b.quando).localeCompare(String(a.quando)))
     .slice(0, CAIXA_MAX)
-    .map(it => ({ ...it, lido: lidos.ids.includes(it.id) || (!!lidos.ate && String(it.quando) <= lidos.ate) }));
+    .map(it => ({ ...it, lido: !lidos.naoLido.includes(it.id)
+      && (lidos.ids.includes(it.id) || (!!lidos.ate && String(it.quando) <= lidos.ate)) }));
 
+  const semRepetir = (arr) => [...new Set(arr)];
   return {
     itens,
     naoLidos: itens.filter(i => !i.lido).length,
-    marcarLido: (id) => { if (!lidos.ids.includes(id)) salvar({ ...lidos, ids: [...lidos.ids, id].slice(-300) }); },
-    marcarTodos: () => salvar({ ids: [], ate: new Date().toISOString() }),
+    marcarLido: (id) => salvar({ ...lidos, ids: semRepetir([...lidos.ids, id]).slice(-500), naoLido: lidos.naoLido.filter(x => x !== id) }),
+    marcarNaoLido: (id) => salvar({ ...lidos, ids: lidos.ids.filter(x => x !== id), naoLido: semRepetir([...lidos.naoLido, id]).slice(-500) }),
+    marcarTodos: () => salvar({ ...lidos, ids: [], naoLido: [], ate: new Date().toISOString() }),
+    excluir: (ids) => salvar({ ...lidos, excluidos: semRepetir([...lidos.excluidos, ...ids]).slice(-1000) }),
+    restaurar: (ids) => salvar({ ...lidos, excluidos: lidos.excluidos.filter(x => !ids.includes(x)) }),
   };
 };

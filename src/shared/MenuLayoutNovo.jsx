@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
@@ -70,6 +71,13 @@ const CSS = `
 @keyframes mlnBarra { 0%,100% { transform:scaleY(.3) } 50% { transform:scaleY(1) } }
 @keyframes mlnNota { 0% { transform:translate(0,6px); opacity:0 } 30% { opacity:1 } 100% { transform:translate(10px,-26px); opacity:0 } }
 @keyframes mlnTreme { from { transform:rotate(-.55deg) } to { transform:rotate(.55deg) } }
+@keyframes mlnFade { from { opacity:0 } to { opacity:1 } }
+@keyframes mlnJanela { from { opacity:0; transform:translateY(12px) scale(.97) } to { opacity:1; transform:none } }
+.mln-cx-linha:hover, .mln-cx-linha:focus-visible { background:var(--mln-cx-hover); }
+.mln-cx-acoes { opacity:0; pointer-events:none; transition:opacity .15s; }
+.mln-cx-linha:hover .mln-cx-acoes, .mln-cx-linha:focus-within .mln-cx-acoes { opacity:1; pointer-events:auto; }
+.mln-cx-linha:hover .mln-cx-hora, .mln-cx-linha:focus-within .mln-cx-hora { opacity:0; }
+@media (hover: none) { .mln-cx-acoes { opacity:1; pointer-events:auto; } .mln-cx-hora { opacity:0; } }
 @keyframes mlnMenu { from { opacity:0; transform:translateY(-4px) scale(.97) } to { opacity:1; transform:none } }
 .mln-tile { transition: transform .28s cubic-bezier(.16,1,.3,1), box-shadow .28s, border-color .2s; }
 .mln-tile:active { transform: scale(.97) !important; }
@@ -537,9 +545,235 @@ const quandoTxt = (iso) => {
 
 const conviteRecente = (it) => Date.now() - new Date(it.quando).getTime() < 30 * 60000;
 
+/* Agrupa por "quando chegou", como a lista de notificações do iPhone. */
+const grupoDia = (iso) => {
+  const d = new Date(iso); if (!d.getTime()) return 'Mais antigas';
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dia = new Date(d); dia.setHours(0, 0, 0, 0);
+  const dias = Math.round((hoje - dia) / 864e5);
+  return dias <= 0 ? 'Hoje' : dias === 1 ? 'Ontem' : dias < 7 ? 'Esta semana' : dias < 30 ? 'Este mês' : 'Mais antigas';
+};
+const dataHora = (iso) => {
+  const d = new Date(iso); if (!d.getTime()) return '';
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }).replace('.', '') + ' · '
+    + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+};
+
+const FILTROS_CAIXA = [
+  { id:'todas',   rot:'Todas',        passa:() => true },
+  { id:'nao',     rot:'Não lidas',    passa:(it) => !it.lido },
+  { id:'banco',   rot:'Banco de horas', passa:(it) => it.tipo === 'banco' },
+  { id:'prisma',  rot:'Prismas',      passa:(it) => it.tipo === 'prisma' },
+  { id:'convite', rot:'Convites',     passa:(it) => it.tipo === 'convite' },
+  { id:'evento',  rot:'Agenda',       passa:(it) => it.tipo === 'evento' },
+];
+
+const IcoLixeira = <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></>;
+const IcoEnvelope = <><rect x="3" y="5" width="18" height="14" rx="2.5"/><polyline points="3 7 12 13 21 7"/></>;
+const IcoEnvelopeAberto = <><path d="M3 10l9-6 9 6v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="3 10 12 15 21 10"/></>;
+
+const BotaoIcone = ({ titulo, onClick, perigo, children }) => (
+  <button onClick={(e) => { e.stopPropagation(); onClick(); }} title={titulo} aria-label={titulo}
+    style={{ width:30, height:30, borderRadius:9, border:'none', cursor:'pointer', display:'flex', alignItems:'center',
+      justifyContent:'center', background:T.surfaceSub || 'rgba(0,0,0,.05)', color: perigo ? T.danger : T.textS }}>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+  </button>
+);
+
+/* ── Janela da caixa de entrada ───────────────────────────────────────────────
+   Abre ao clicar no widget: a lista inteira, filtros por tipo, marcar como
+   lida/não lida e excluir (com "Desfazer" por alguns segundos).
+   Vai num portal no <body>: o widget fica dentro de uma moldura que ganha
+   transform (hover, tremida do modo Tamanho), e position:fixed dentro de um
+   ancestral com transform passa a se prender a ELE, não à tela.
+   Sem backdrop-filter no fundo escuro de propósito: atrás está o lava lamp
+   animado, e o desfoque seria refeito a cada frame enquanto a janela estiver
+   aberta (ver shared/bolhas.js). */
+const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
+  const { itens, naoLidos, marcarLido, marcarNaoLido, marcarTodos, excluir, restaurar } = caixa;
+  const [filtro, setFiltro] = useState('todas');
+  const [saindo, setSaindo] = useState([]);           // ids animando a saída
+  const [desfazer, setDesfazer] = useState(null);     // { ids, texto }
+
+  useEffect(() => {
+    const tecla = (e) => { if (e.key === 'Escape') onFechar(); };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [onFechar]);
+  useEffect(() => {
+    if (!desfazer) return;
+    const id = setTimeout(() => setDesfazer(null), 6000);
+    return () => clearTimeout(id);
+  }, [desfazer]);
+
+  const tirar = (ids, texto) => {
+    if (!ids.length) return;
+    setSaindo(s => [...s, ...ids]);
+    // Deixa a linha deslizar pra fora antes de sumir da lista.
+    setTimeout(() => {
+      excluir(ids);
+      setSaindo(s => s.filter(x => !ids.includes(x)));
+      setDesfazer({ ids, texto });
+    }, 190);
+  };
+
+  const filtroAtual = FILTROS_CAIXA.find(f => f.id === filtro) || FILTROS_CAIXA[0];
+  const visiveis = itens.filter(filtroAtual.passa);
+  const lidasVisiveis = visiveis.filter(i => i.lido).map(i => i.id);
+  const grupos = [];
+  for (const it of visiveis) {
+    const g = grupoDia(it.quando);
+    if (!grupos.length || grupos[grupos.length - 1].nome !== g) grupos.push({ nome:g, itens:[] });
+    grupos[grupos.length - 1].itens.push(it);
+  }
+
+  const acaoTexto = { border:'none', background:'none', padding:'6px 4px', cursor:'pointer', fontSize:12.5,
+    fontWeight:600, fontFamily:'var(--font-body)' };
+
+  return createPortal(
+    <div onClick={onFechar} role="presentation"
+      style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(8,12,24,.45)', display:'flex',
+        alignItems:'center', justifyContent:'center', padding:16, boxSizing:'border-box',
+        fontFamily:'var(--font-body)', animation:'mlnFade .2s ease-out' }}>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Caixa de entrada"
+        style={{ width:'min(640px, 100%)', height:'min(700px, 88vh)', display:'flex', flexDirection:'column',
+          background:T.surface, border:`1px solid ${T.border}`, borderRadius:26, boxShadow:'0 30px 80px rgba(0,0,0,.35)',
+          overflow:'hidden', position:'relative', animation:'mlnJanela .32s cubic-bezier(.16,1,.3,1)',
+          // Cor do hover das linhas via variável: o CSS da tela é montado uma vez só,
+          // e o tema pode trocar com a janela aberta.
+          '--mln-cx-hover': T.surfaceSub || 'rgba(0,0,0,.04)' }}>
+
+        {/* Cabeçalho */}
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'20px 22px 12px' }}>
+          <IconeApp cor={COR_CAIXA} tam={38}>{IcoCaixa}</IconeApp>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:19, fontWeight:700, color:T.text, letterSpacing:'-.02em' }}>Caixa de entrada</div>
+            <div style={{ fontSize:12.5, color:T.textT, marginTop:1 }}>
+              {itens.length === 0 ? 'Nenhuma mensagem' : naoLidos ? `${naoLidos} não ${naoLidos === 1 ? 'lida' : 'lidas'} de ${itens.length}` : `${itens.length} ${itens.length === 1 ? 'mensagem' : 'mensagens'}, todas lidas`}
+            </div>
+          </div>
+          <button onClick={onFechar} title="Fechar (Esc)" aria-label="Fechar"
+            style={{ width:34, height:34, borderRadius:'50%', border:'none', cursor:'pointer', background:T.surfaceSub || 'rgba(0,0,0,.05)',
+              color:T.textS, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        {/* Filtros + ações em massa */}
+        <div style={{ padding:'0 22px 10px', borderBottom:`1px solid ${T.divider || T.border}` }}>
+          <div className="mln-rolagem" style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:8 }}>
+            {FILTROS_CAIXA.map(f => {
+              const n = itens.filter(f.passa).length;
+              const on = filtro === f.id;
+              if (f.id !== 'todas' && f.id !== 'nao' && !n) return null;
+              return (
+                <button key={f.id} onClick={() => setFiltro(f.id)}
+                  style={{ flexShrink:0, display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:999, cursor:'pointer',
+                    border:`1px solid ${on ? 'transparent' : T.border}`, background: on ? T.text : 'transparent',
+                    color: on ? T.surface : T.textS, fontSize:12.5, fontWeight:600, fontFamily:'var(--font-body)', transition:'background .15s, color .15s' }}>
+                  {f.rot}
+                  <span style={{ fontSize:11, opacity:.7, fontVariantNumeric:'tabular-nums' }}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display:'flex', gap:14, justifyContent:'flex-end', minHeight:30 }}>
+            {naoLidos > 0 && <button onClick={marcarTodos} style={{ ...acaoTexto, color:T.gold }}>Marcar todas como lidas</button>}
+            {lidasVisiveis.length > 0 && (
+              <button onClick={() => tirar(lidasVisiveis, `${lidasVisiveis.length} ${lidasVisiveis.length === 1 ? 'mensagem lida excluída' : 'mensagens lidas excluídas'}`)}
+                style={{ ...acaoTexto, color:T.danger }}>Excluir lidas</button>
+            )}
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="mln-rolagem" style={{ flex:1, minHeight:0, overflowY:'auto', padding:'6px 12px 70px' }}>
+          {visiveis.length === 0 ? (
+            <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10, color:T.textT, textAlign:'center' }}>
+              <div style={{ width:56, height:56, borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center',
+                background:T.surfaceSub || 'rgba(0,0,0,.04)', color:T.textT }}>
+                {React.cloneElement(IcoCaixa, { width:26, height:26 })}
+              </div>
+              <div style={{ fontSize:15, fontWeight:700, color:T.text }}>
+                {filtro === 'nao' ? 'Nada pra ler' : filtro === 'todas' ? 'Caixa vazia' : 'Nenhuma mensagem deste tipo'}
+              </div>
+              <div style={{ fontSize:12.5, maxWidth:280, lineHeight:1.5 }}>
+                Horas lançadas, prismas recebidos, convites pra jogar e eventos novos aparecem aqui assim que chegam.
+              </div>
+            </div>
+          ) : grupos.map(g => (
+            <div key={g.nome} style={{ marginBottom:6 }}>
+              <div style={{ position:'sticky', top:0, zIndex:1, background:T.surface, padding:'10px 10px 6px',
+                fontSize:12, fontWeight:700, color:T.textT, letterSpacing:'.01em' }}>{g.nome}</div>
+              {g.itens.map(it => {
+                const tp = TIPO_CAIXA[it.tipo] || TIPO_CAIXA.evento;
+                const cor = it.ruim ? T.danger : tp.cor;
+                const sai = saindo.includes(it.id);
+                return (
+                  <div key={it.id} className="mln-cx-linha" role="button" tabIndex={0}
+                    onClick={() => onAbrirItem(it)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') onAbrirItem(it); if (e.key === 'Delete') tirar([it.id], 'Mensagem excluída'); }}
+                    style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 10px', borderRadius:14, cursor:'pointer', outline:'none',
+                      opacity: sai ? 0 : 1, transform: sai ? 'translateX(28px)' : 'none',
+                      transition:'opacity .19s ease, transform .19s ease, background .15s' }}>
+                    <span style={{ width:8, flexShrink:0, display:'flex', justifyContent:'center' }}>
+                      {!it.lido && <span style={{ width:8, height:8, borderRadius:'50%', background:T.gold }}/>}
+                    </span>
+                    <span style={{ width:38, height:38, borderRadius:12, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
+                      color:cor, background:`${cor}1f` }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{tp.icone}</svg>
+                    </span>
+                    <span style={{ flex:1, minWidth:0 }}>
+                      <span style={{ fontSize:13.5, fontWeight: it.lido ? 500 : 700, color: it.lido ? T.textS : T.text,
+                        lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{it.titulo}</span>
+                      <span style={{ display:'block', fontSize:12, color:T.textT, marginTop:2, ...umaLinha }}>{it.sub}</span>
+                    </span>
+                    <span style={{ flexShrink:0, position:'relative', minWidth:78, display:'flex', justifyContent:'flex-end' }}>
+                      <span className="mln-cx-hora" style={{ fontSize:11.5, color:T.textT, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap' }}>
+                        {grupoDia(it.quando) === 'Hoje' ? quandoTxt(it.quando) : dataHora(it.quando)}
+                      </span>
+                      <span className="mln-cx-acoes" style={{ position:'absolute', right:0, top:'50%', transform:'translateY(-50%)', display:'flex', gap:6 }}>
+                        <BotaoIcone titulo={it.lido ? 'Marcar como não lida' : 'Marcar como lida'}
+                          onClick={() => (it.lido ? marcarNaoLido(it.id) : marcarLido(it.id))}>
+                          {it.lido ? IcoEnvelope : IcoEnvelopeAberto}
+                        </BotaoIcone>
+                        <BotaoIcone titulo="Excluir" perigo onClick={() => tirar([it.id], 'Mensagem excluída')}>{IcoLixeira}</BotaoIcone>
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Rodapé: aviso honesto sobre o que "excluir" faz + desfazer */}
+        <div style={{ position:'absolute', left:0, right:0, bottom:0, padding:'10px 22px 14px', display:'flex', alignItems:'center',
+          justifyContent:'center', background:`linear-gradient(to top, ${T.surface} 60%, transparent)`, pointerEvents:'none' }}>
+          {desfazer ? (
+            <div key={desfazer.ids.join()} style={{ pointerEvents:'auto', display:'flex', alignItems:'center', gap:14, padding:'9px 10px 9px 16px',
+              borderRadius:14, background:T.text, color:T.surface, fontSize:13, fontWeight:600, boxShadow:T.shL,
+              animation:'mlnEntra .3s cubic-bezier(.16,1,.3,1) backwards' }}>
+              {desfazer.texto}
+              <button onClick={() => { restaurar(desfazer.ids); setDesfazer(null); }}
+                style={{ border:'none', borderRadius:9, padding:'5px 11px', cursor:'pointer', fontWeight:700, fontSize:12.5,
+                  background:'rgba(255,255,255,.16)', color:'inherit', fontFamily:'var(--font-body)' }}>Desfazer</button>
+            </div>
+          ) : (
+            <span style={{ fontSize:11.5, color:T.textT }}>Excluir tira a mensagem só da sua caixa — o registro original continua.</span>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
-  const { itens, naoLidos, marcarLido, marcarTodos } = useCaixaEntrada(authUser);
+  const caixa = useCaixaEntrada(authUser);
+  const { itens, naoLidos, marcarLido, marcarTodos } = caixa;
   useAgora();                                   // re-render a cada minuto: "5 min" vira "6 min"
+  const [aberta, setAberta] = useState(false);
   const [c, l] = WIDGETS.caixa[tam];
   const editando = moldura.editando;
 
@@ -549,8 +783,10 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
     // Convite recente: deixa a sala "pendente" pra o jogo entrar direto nela
     // (mesma ponte que o popup de convite do App usa). Convite velho só abre o jogo.
     if (it.tipo === 'convite' && conviteRecente(it)) setPendingJoin(it.jogo, it.sala);
+    setAberta(false);
     onSelect(it.destino[0], it.destino[1]);
   };
+  const janela = aberta && <CaixaJanela caixa={caixa} onFechar={() => setAberta(false)} onAbrirItem={abrirItem}/>;
 
   const selo = naoLidos > 0 && (
     <span key={naoLidos} style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, boxSizing:'border-box',
@@ -564,7 +800,7 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
     const ult = itens.find(i => !i.lido) || itens[0];
     return (
       <Moldura tam={tam} colunas={c} linhas={l} cor={COR_CAIXA} {...moldura}
-        onAbrir={ult ? () => abrirItem(ult) : null}
+        onAbrir={() => setAberta(true)}
         style={{ padding:'12px 13px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
           <IconeApp cor={COR_CAIXA} tam={30}>{IcoCaixa}</IconeApp>
@@ -577,6 +813,7 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
             {ult ? ult.titulo : 'Tudo em dia por aqui'}
           </div>
         </div>
+        {janela}
       </Moldura>
     );
   }
@@ -584,20 +821,33 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_CAIXA} {...moldura}
       style={{ display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:9, padding:'11px 14px 7px' }}>
+      {/* O cabeçalho inteiro abre a janela com a lista completa. */}
+      <div role="button" tabIndex={0} title="Abrir a caixa de entrada"
+        onClick={() => { if (!editando) setAberta(true); }}
+        onKeyDown={(e) => { if (!editando && e.key === 'Enter') setAberta(true); }}
+        style={{ display:'flex', alignItems:'center', gap:9, padding:'11px 14px 7px', cursor: editando ? 'default' : 'pointer', outline:'none' }}>
         <IconeApp cor={COR_CAIXA} tam={26}>{IcoCaixa}</IconeApp>
         <span style={{ fontSize:13, fontWeight:700, color:T.text, letterSpacing:'-.01em' }}>Caixa de entrada</span>
         {selo}
         <span style={{ flex:1 }}/>
         {naoLidos > 0 && !editando && (
-          <button onClick={marcarTodos} style={{ border:'none', background:'none', padding:0, cursor:'pointer',
+          <button onClick={(e) => { e.stopPropagation(); marcarTodos(); }} style={{ border:'none', background:'none', padding:0, cursor:'pointer',
             fontSize:11.5, fontWeight:600, color:T.gold, fontFamily:'var(--font-body)' }}>Marcar lidas</button>
+        )}
+        {!editando && (
+          <span style={{ display:'flex', alignItems:'center', gap:2, fontSize:11.5, fontWeight:600, color:T.textT, marginLeft:4 }}>
+            Ver tudo <Seta tam={12}/>
+          </span>
         )}
       </div>
 
-      {/* Esmaece a borda de baixo quando há mais linhas do que cabem: sem barra
-          de rolagem visível, é o que avisa que a lista continua. */}
-      <div className="mln-rolagem" style={{ flex:1, minHeight:0, overflowY:'auto', padding:'0 6px 6px',
+      {/* A lista rola DENTRO do card e não conta pra altura dele: fica
+          absoluta num invólucro flex. Sem isso, com 60 dias de avisos a grade
+          media o conteúdo inteiro, o widget crescia e — com as bases das
+          colunas alinhadas — esticava a tela toda junto.
+          O esmaecido embaixo avisa que a lista continua (não há barra visível). */}
+      <div style={{ flex:1, minHeight:0, position:'relative' }}>
+      <div className="mln-rolagem" style={{ position:'absolute', inset:0, overflowY:'auto', padding:'0 6px 6px',
         ...(itens.length > 2 ? { WebkitMaskImage:'linear-gradient(to bottom, #000 72%, transparent)', maskImage:'linear-gradient(to bottom, #000 72%, transparent)' } : null) }}>
         {itens.length === 0 ? (
           <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:7, fontSize:12.5, color:T.textT }}>
@@ -630,6 +880,8 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
           );
         })}
       </div>
+      </div>
+      {janela}
     </Moldura>
   );
 };
