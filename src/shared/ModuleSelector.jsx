@@ -448,17 +448,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>
     </svg>
   );
-  // Uniko Fit é o ÚNICO módulo com cor FIXA (laranja), independente do tema — exceto
-  // quando o tema ativo já É o laranja, aí ela vira azul (senão o card some no fundo
-  // do próprio tema). `T.key` é o id do tema aplicado agora (contexts/theme.js).
-  const isOrangeTheme = T.key === 'orange' || T.key === 'orangeDark';
-  const fitColor = isOrangeTheme ? '#2A82D2' : '#FF6B35';
   const allMods = [
     // `fixo`: o Portal é o módulo principal — sempre o primeiro, e nasce grande.
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false, fixo:true},
     {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
-    {id:'uniko-fit',        label:'Uniko FIT',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:fitColor, bg:fitColor+'18', tag:'Fitness',    adminOnly:false},
+    // Uniko FIT acompanha o tema como os outros (era laranja fixo até set/2026).
+    {id:'uniko-fit',        label:'Uniko FIT',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:T.gold, bg:T.goldGl, tag:'Fitness',    adminOnly:false},
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
