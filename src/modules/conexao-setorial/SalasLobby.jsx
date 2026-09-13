@@ -23,10 +23,12 @@ const IcoKey = <><circle cx="8" cy="15" r="4" /><path d="M10.8 12.2L20 3" /><pat
 const IcoTrash = <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></>;
 
 export default function SalasLobby({
-  rooms, loading, isAdmin, brd, onBack, jaAberta,
+  rooms, loading, isAdmin, brd, onBack, jaAberta, salaPedida,
   onEntrar, onCriar, onSenha, onExcluir,
 }) {
-  const [senhaDe, setSenhaDe] = useState(null);   // sala com o prompt de senha aberto
+  // Sala com o prompt de senha aberto. Vindo de um atalho de sala com senha, o
+  // pedido dela já nasce aberto (o módulo recria o lobby quando isso muda).
+  const [senhaDe, setSenhaDe] = useState(salaPedida || null);
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [entrando, setEntrando] = useState(false);

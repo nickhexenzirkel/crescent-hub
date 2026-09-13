@@ -507,7 +507,7 @@ export default function CrescentHub() {
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador') && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
-          {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}

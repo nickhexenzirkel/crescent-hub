@@ -10,7 +10,7 @@ import { MenuLayoutNovo, WIDGETS_NOVO } from './MenuLayoutNovo';
 /* O catálogo de atalhos são as próprias abas internas dos módulos (Portal,
    Prisma Store, Central Alexa, Oficina Estelar) — reunidas em shared/atalhos.jsx
    a partir das listas que cada módulo exporta, sem cópia local. */
-import { catalogoAtalhos, resolverAtalho } from './atalhos';
+import { catalogoAtalhos, resolverAtalho, useSalasConexao } from './atalhos';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
@@ -428,13 +428,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
     </svg>
   );
-  /* quadro Kanban — colunas com cartões, que é o que a Conexão Setorial virou */
-  const IcoChat = (
+  /* Rede: um nó no centro ligado a outros três — setores conectados. (Era um
+     quadro Kanban, que dizia "tarefas" e não "conexão".) */
+  const IcoConexao = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2.5" y="3.5" width="19" height="17" rx="2.5"/>
-      <line x1="2.5" y1="7.5" x2="21.5" y2="7.5"/>
-      <rect x="5.5" y="10.5" width="4.5" height="7" rx="1"/>
-      <rect x="14" y="10.5" width="4.5" height="4" rx="1"/>
+      <circle cx="12" cy="12.5" r="2.8"/>
+      <circle cx="5" cy="5.5" r="2.2"/><circle cx="19" cy="5.5" r="2.2"/><circle cx="12" cy="20.5" r="1.9"/>
+      <path d="M10.1 10.6L6.6 7.1M13.9 10.6l3.5-3.5M12 15.3v3.3"/>
     </svg>
   );
   const IcoFit = (
@@ -462,19 +462,21 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'ponto',            label:'Ponto Eletrônico',      sub:'Leitor de arquivo AFD',            icon:IcoPonto,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
-    {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
+    {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
      muda é só o clique, que leva pro módulo já na aba certa. */
-  const catalogo = catalogoAtalhos(authUser);
+  const salasConexao = useSalasConexao();
+  const catalogo = catalogoAtalhos(authUser, salasConexao);
   const atalhoMods = atalhos
     .map(chave => ({ chave, a: resolverAtalho(chave, catalogo) }))
     .filter(x => x.a)
     .map(({ chave, a }) => ({
       id: ATALHO_ID(chave), label: a.label, sub: `Atalho · ${a.nomeModulo}`,
-      icon: a.icon, color: T.blue || T.gold, bg: T.blueGl || T.goldGl,
+      // Sala da Conexão Setorial usa a cor da própria sala; o resto, o azul do tema.
+      icon: a.icon, color: a.cor || T.blue || T.gold, bg: a.cor ? a.cor + '22' : (T.blueGl || T.goldGl),
       tag: 'Atalho', adminOnly: false, atalho: true, modulo: a.modulo, tab: a.aba,
       // Seus Dados nasce grande (widget deitado); os outros atalhos, pequenos.
       tamPadrao: chave === 'dados' ? 'g' : undefined,

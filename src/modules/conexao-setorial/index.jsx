@@ -153,7 +153,7 @@ const Ic = ({ n, size = 16, sw = 2, style }) => (
 );
 
 // ─── Componente ───────────────────────────────────────────────────────────────
-export default function ConexaoSetorial({ onBack, authUser }) {
+export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   const isMobile = useIsMobile();
   const me = authUser?.name || getAuthUser()?.name || 'Colaborador';
 
@@ -165,10 +165,23 @@ export default function ConexaoSetorial({ onBack, authUser }) {
   const [roomsLoading, setRoomsLoading] = useState(true);
   const room = rooms.find(r => r.id === roomId) || null;
 
+  /* Atalho de sala (initialTab = id da sala), aplicado na PRIMEIRA vez que as
+     salas chegam: entra direto se ela for aberta ou já destravada neste
+     navegador; se tiver senha, fica no lobby com o pedido de senha dela já
+     aberto. Depois disso vale o fluxo normal (sair da sala leva ao lobby). */
+  const pedidoRef = useRef(initialTab || null);
+  const [salaPedida, setSalaPedida] = useState(null);
   const loadRooms = useCallback(async () => {
     const { data } = await sb.from('conexao_rooms').select('*').order('position', { ascending: true });
     setRooms(data || []);
     setRoomsLoading(false);
+    const pedido = pedidoRef.current;
+    if (pedido) {
+      pedidoRef.current = null;
+      const sala = (data || []).find(r => r.id === pedido);
+      if (sala && (!sala.pass_hash || lidasNaSessao().includes(sala.id))) { marcarAberta(sala.id); setRoomId(sala.id); }
+      else if (sala) setSalaPedida(sala);
+    }
   }, []);
 
   const [lists, setLists] = useState([]);
@@ -613,9 +626,9 @@ export default function ConexaoSetorial({ onBack, authUser }) {
       <div style={shellStyle}>
         <style>{CS_CSS}</style>
         {Blobs}
-        <SalasLobby
+        <SalasLobby key={salaPedida?.id || 'lobby'}
           rooms={rooms} loading={roomsLoading} isAdmin={isAdmin} brd={brd} onBack={onBack}
-          jaAberta={(id) => lidasNaSessao().includes(id)}
+          jaAberta={(id) => lidasNaSessao().includes(id)} salaPedida={salaPedida}
           onEntrar={abrirSala} onCriar={criarSala} onSenha={definirSenhaSala} onExcluir={excluirSala} />
       </div>
     );
