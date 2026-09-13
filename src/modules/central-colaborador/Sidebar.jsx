@@ -3,52 +3,19 @@ import { T, THEMES } from '../../contexts/theme';
 import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { bolhaGradiente } from '../../shared/bolhas';
 
-/* ── Marca "UNIKO · Portal do Colaborador" animada — recriação (não fica
-   presa a um PNG) da arte de referência: mascote grande à esquerda, cometa
-   em arco por cima, poeira de estrelas ✦ de 4 pontas nas mesmas posições, e
-   o wordmark UNIKO reaproveitando as MESMAS letras do resto do app (o N é
-   um U invertido — ver `UnikoName` em ModuleSelector.jsx), só que grossas e
-   com brilho azul em vez do traço fino animado. Tudo num único SVG (viewBox
-   600×230, mesma proporção ~2.6:1 da referência) — escala nítido em
-   qualquer tamanho de tela. */
-const ubSparkPath = (cx, cy, r, r2 = r * 0.38) => {
-  const pts = [];
-  for (let i = 0; i < 8; i++) {
-    const ang = (i * 45) * Math.PI / 180;
-    const rad = i % 2 === 0 ? r : r2;
-    pts.push(`${(cx + rad * Math.sin(ang)).toFixed(1)},${(cy - rad * Math.cos(ang)).toFixed(1)}`);
-  }
-  return `M${pts.join('L')}Z`;
-};
-// Posições calcadas na arte de referência (escaladas pro viewBox 600×230).
-const UB_SPARKLES = [
-  { cx: 30,  cy: 87,  r: 5.5, dur: 2.2, delay: 0   },
-  { cx: 39,  cy: 172, r: 4.5, dur: 2.6, delay: .6  },
-  { cx: 236, cy: 31,  r: 11,  dur: 2.0, delay: .2  },
-  { cx: 266, cy: 46,  r: 5,   dur: 2.4, delay: 1.0 },
-  { cx: 372, cy: 36,  r: 7,   dur: 2.3, delay: .4  },
-  { cx: 391, cy: 44,  r: 4,   dur: 2.7, delay: 1.3 },
-  { cx: 408, cy: 28,  r: 5,   dur: 2.1, delay: .8  },
-  { cx: 572, cy: 134, r: 7,   dur: 2.5, delay: 1.6 },
-  { cx: 512, cy: 202, r: 6,   dur: 2.2, delay: 1.9 },
-];
-const BRAND_CSS = `
-@keyframes ubFloat    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-@keyframes ubTwinkle  { 0%,100% { opacity:.25; transform:scale(.7); } 50% { opacity:1; transform:scale(1); } }
-@keyframes ubFlow     { to { stroke-dashoffset: -260; } }
-/* Piscada — mesmo esquema de 3 quadros do UnikoMascot em ModuleSelector.jsx:
-   base sempre de olho FECHADO; o quadro do MEIO some (revelando o fechado)
-   só no instante de fechar/abrir; o de CIMA (normal) some no resto da
-   piscada, revelando os dois de baixo em sequência. */
-@keyframes ubBlinkTop { 0%,90% { opacity:1; } 90.6%,99% { opacity:0; } 99.4%,100% { opacity:1; } }
-@keyframes ubBlinkMid { 0%,93.8% { opacity:1; } 94.2%,96% { opacity:0; } 96.4%,100% { opacity:1; } }
-@media (prefers-reduced-motion: reduce) {
-  .ub-mascote, .ub-spark, .ub-comet-core, .ub-swirl { animation: none !important; }
-}
-`;
-/* Mesmas 5 letras (U N I K O, com o N = U invertido) usadas em UnikoName —
-   ver ModuleSelector.jsx — só que aqui grossas/com brilho em vez de traço fino. */
+/* ── Marca "UNIKO · Portal do Colaborador" ──────────────────────────────────
+   Refeita em set/2026 com a logo nova (a cabeça de gato-robô) e tipografia
+   LIMPA: nome e subtítulo em cor sólida do tema — sem degradê, sem brilho
+   externo, sem desfoque nas bordas. Sai também o que era enfeite caro: o
+   cometa com blur, o laço tracejado animado e as sombras drop-shadow em cada
+   letra e estrela (drop-shadow animado repinta a cada frame).
+
+   O nome UNIKO continua desenhado com as MESMAS letras do resto do app (o N
+   é um U invertido — ver `UnikoName` em ModuleSelector.jsx), agora em traço
+   sólido com currentColor. SVG só pro wordmark; o resto é HTML, que o
+   navegador rasteriza nítido em qualquer zoom. */
 const UB_LETTERS = [
   'M18,18 L18,80 Q18,112 50,112 Q82,112 82,80 L82,18',                          // U
   'M128,112 L128,50 Q128,18 160,18 Q192,18 192,50 L192,112',                    // N
@@ -56,78 +23,31 @@ const UB_LETTERS = [
   'M284,18 L284,112 M341,18 L286,65 L345,112',                                 // K
   'M430,18 Q469,18 469,65 Q469,112 430,112 Q391,112 391,65 Q391,18 430,18 Z',  // O
 ];
+const BRAND_CSS = `
+@keyframes ubFlutua { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .ub-logo { animation: none !important; } }
+`;
 const UnikoBrandArt = () => (
-  <div style={{width:'100%'}}>
+  <div style={{ width:'100%', display:'flex', alignItems:'center', gap:12 }}>
     <style>{BRAND_CSS}</style>
-    <svg viewBox="0 0 600 230" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
-      <defs>
-        {/* Cores do TEMA ativo (T.gold/T.goldL/T.goldV) — não fixas em azul:
-            azul no tema azul, rosa no tema rosa, e assim por diante. */}
-        <linearGradient id="ubCometGrad" gradientUnits="userSpaceOnUse" x1="190" y1="84" x2="588" y2="2">
-          <stop offset="0%" stopColor={T.gold} stopOpacity="0"/>
-          <stop offset="55%" stopColor={T.goldL} stopOpacity=".9"/>
-          <stop offset="100%" stopColor="#ffffff"/>
-        </linearGradient>
-        {/* userSpaceOnUse (não objectBoundingBox): o "I" é uma linha reta pura —
-            bounding-box de LARGURA ZERO — e por especificação do SVG um gradiente
-            relativo à bounding-box de uma forma com largura/altura zero simplesmente
-            não é desenhado (a letra sumia por completo, sem erro nenhum). */}
-        <linearGradient id="ubTextGrad" gradientUnits="userSpaceOnUse" x1="0" y1="18" x2="0" y2="112">
-          <stop offset="0%" stopColor="#ffffff"/>
-          <stop offset="100%" stopColor={T.goldV}/>
-        </linearGradient>
-      </defs>
-
-      {/* halo atrás do mascote */}
-      <ellipse cx="105" cy="120" rx="115" ry="118" fill={T.gold} opacity=".22" style={{filter:'blur(14px)'}}/>
-
-      {/* laço/rastro sob o mascote */}
-      <path className="ub-swirl" d="M10,150 C-6,188 26,220 88,216 C138,213 162,188 154,158"
-        fill="none" stroke={T.goldL} strokeWidth="3" strokeLinecap="round" opacity=".55"
-        strokeDasharray="10 8" style={{animation:'ubFlow 5s linear infinite',filter:`drop-shadow(0 0 4px ${T.gold})`}}/>
-
-      {/* cometa em arco por cima (igual à referência) */}
-      <path d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
-        strokeWidth="9" strokeLinecap="round" opacity=".85" style={{filter:'blur(3px)'}}/>
-      <path className="ub-comet-core" d="M195,82 C300,18 420,8 585,4" fill="none" stroke="url(#ubCometGrad)"
-        strokeWidth="2.4" strokeLinecap="round" strokeDasharray="6 340" style={{animation:'ubFlow 3.2s linear infinite'}}/>
-      <circle cx="585" cy="4" r="4.5" fill="#ffffff"
-        style={{filter:`drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 16px ${T.goldL})`}}/>
-
-      {/* mascote — 3 quadros empilhados fazem a piscada (mesma técnica do
-          UnikoMascot em ModuleSelector.jsx): fechado embaixo sempre visível,
-          meio-fechado e normal por cima somem em sequência pra simular o piscar. */}
-      <image href="/UNIKO_PISCA.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
-        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite'}}/>
-      <image href="/UNIKO_PISCA_FRAME_2.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
-        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite, ubBlinkMid 3s linear infinite'}}/>
-      <image href="/UNIKO_NEW.png" x="8" y="22" width="196" height="196" preserveAspectRatio="xMidYMid meet"
-        className="ub-mascote" style={{animation:'ubFloat 4.5s ease-in-out infinite, ubBlinkTop 3s linear infinite'}}/>
-
-      {/* wordmark UNIKO */}
-      <g transform="translate(204,44) scale(0.72)" fill="none" strokeLinecap="round" strokeLinejoin="round"
-        style={{filter:`drop-shadow(0 0 5px ${T.gold}) drop-shadow(0 0 13px ${T.gold})`}}>
-        <g stroke="url(#ubTextGrad)" strokeWidth="30">
-          {UB_LETTERS.map((d,i) => <path key={i} d={d}/>)}
+    {/* Logo recortada rente (UNIKO_LOGO.png) — o mascote enche o quadrado. Só
+        flutua de leve por transform; nada de sombra ou brilho em volta. */}
+    <img src="/UNIKO_LOGO.png" alt="Uniko" className="ub-logo" draggable={false}
+      style={{ width:62, height:62, flexShrink:0, objectFit:'contain', display:'block',
+        animation:'ubFlutua 4.5s ease-in-out infinite' }}/>
+    <div style={{ minWidth:0, display:'flex', flexDirection:'column', alignItems:'flex-start', gap:6 }}>
+      {/* alignSelf/alignItems no início: esticado na coluna, o SVG centralizava o nome. */}
+      <svg viewBox="7 7 473 116" role="img" aria-label="UNIKO"
+        style={{ height:30, width:'auto', display:'block', overflow:'visible', color:T.text }}>
+        <g fill="none" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round">
+          {UB_LETTERS.map((d, i) => <path key={i} d={d}/>)}
         </g>
-      </g>
-
-      {/* subtítulo — cor sólida (não o gradiente das letras: aquele é
-          userSpaceOnUse no espaço LOCAL do <g> da wordmark, não bate aqui fora) */}
-      <text x="204" y="170" fontFamily="Poppins, var(--font-brand)" fontWeight="800" fontSize="25"
-        letterSpacing="1.2" fill="#EAF2FA"
-        style={{filter:`drop-shadow(0 0 4px ${T.gold}) drop-shadow(0 0 9px ${T.gold})`}}>
-        PORTAL DO COLABORADOR
-      </text>
-      <path d="M204,181 L585,181" stroke={T.goldL} strokeWidth="2" opacity=".6" strokeLinecap="round"/>
-
-      {/* poeira de estrelas ✦ */}
-      {UB_SPARKLES.map((s,i) => (
-        <path key={i} className="ub-spark" d={ubSparkPath(s.cx,s.cy,s.r)} fill="#ffffff"
-          style={{transformOrigin:`${s.cx}px ${s.cy}px`,filter:`drop-shadow(0 0 4px ${T.goldL})`,
-            animation:`ubTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`}}/>
-      ))}
-    </svg>
+      </svg>
+      <div style={{ fontFamily:'var(--font-brand)', fontSize:10, fontWeight:800, letterSpacing:'.06em',
+        textTransform:'uppercase', color:T.gold, lineHeight:1.2, whiteSpace:'nowrap' }}>
+        Portal do Colaborador
+      </div>
+    </div>
   </div>
 );
 
@@ -205,32 +125,26 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
       transition:'width .22s ease',overflowX:'hidden',
       fontFamily:'var(--font-body)'}}>
 
-      {/* Brand — mini lava lamp azul animado */}
+      {/* Brand */}
       <div style={{padding:'18px 16px 12px',position:'relative',overflow:'hidden',
         borderBottom:`1px solid rgba(42,130,210,0.10)`}}>
-        {/* blobs animados de fundo */}
+        {/* Manchas de luz de fundo: degradê radial, SEM filter:blur — blur com
+            scale animado é refeito a cada frame (ver shared/bolhas.js). */}
         <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
-          <div style={{position:'absolute',width:110,height:110,borderRadius:'50%',
-            background:`radial-gradient(circle,${T.sb1} 0%,transparent 70%)`,
-            top:'-30px',left:'-20px',filter:'blur(22px)',
+          <div style={{position:'absolute',width:190,height:190,borderRadius:'50%',
+            background:bolhaGradiente(T.sb1),top:'-70px',left:'-60px',
             animation:'brandBlob1 6s ease-in-out infinite'}}/>
-          <div style={{position:'absolute',width:95,height:95,borderRadius:'50%',
-            background:`radial-gradient(circle,${T.sb2} 0%,transparent 70%)`,
-            top:'-10px',right:'-10px',filter:'blur(18px)',
+          <div style={{position:'absolute',width:160,height:160,borderRadius:'50%',
+            background:bolhaGradiente(T.sb2),top:'-45px',right:'-45px',
             animation:'brandBlob2 8s ease-in-out infinite'}}/>
-          <div style={{position:'absolute',width:80,height:80,borderRadius:'50%',
-            background:`radial-gradient(circle,${T.sb3} 0%,transparent 70%)`,
-            bottom:'-20px',left:'30%',filter:'blur(16px)',
-            animation:'brandBlob3 7s ease-in-out infinite'}}/>
         </div>
         <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',marginBottom:12,
           justifyContent:collapsed?'center':'flex-start'}}>
           {collapsed ? (
             /* Logo com blob #1F6FA9 atrás — barra recolhida, só cabe o ícone */
             <div style={{position:'relative',flexShrink:0,width:42,height:42}}>
-              <div style={{position:'absolute',inset:'-8px',borderRadius:'50%',
-                background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
-                filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',
+              <div style={{position:'absolute',inset:'-14px',borderRadius:'50%',
+                background:bolhaGradiente(T.lb),animation:'brandBlob1 12s ease-in-out infinite',
                 zIndex:0,pointerEvents:'none'}}/>
               <div style={{position:'absolute',inset:0,zIndex:1,
                 display:'flex',alignItems:'center',justifyContent:'center'}}>
