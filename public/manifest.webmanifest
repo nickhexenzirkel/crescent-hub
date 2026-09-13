@@ -7,7 +7,7 @@
   "background_color": "#0b0b12",
   "theme_color": "#0b0b12",
   "icons": [
-    { "src": "/UNIKO_LOGO_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/UNIKO_LOGO.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    { "src": "/UNIKO_ICONE_APP_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/UNIKO_ICONE_APP_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

@@ -14,7 +14,7 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Uniko FIT';
   const options = {
     body: data.body || '',
-    icon: data.icon || '/UNIKO_LOGO_192.png',
+    icon: data.icon || '/UNIKO_ICONE_APP_192.png',
     badge: '/UNIKO_LOGO_192.png',
     data: { url: data.url || '/' },
     tag: data.tag || undefined, // notificações do mesmo `tag` se substituem em vez de empilhar
