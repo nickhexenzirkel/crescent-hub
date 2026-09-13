@@ -71,6 +71,10 @@ const tamModuloPadrao = (m) => m.tamPadrao || (m.fixo ? 'g' : 'p');
 
 const CSS = `
 @keyframes mlnEntra { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }
+@keyframes mlnGradeA { 0%,40%,100% { transform:none } 50%,90% { transform:translate(28px,30px) } }
+@keyframes mlnGradeB { 0%,40%,100% { transform:none } 50%,90% { transform:translate(-46px,30px) } }
+@keyframes mlnGradeC { 0%,40%,100% { transform:none } 50%,90% { transform:translate(46px,-30px) } }
+@keyframes mlnGradeD { 0%,40%,100% { transform:none } 50%,90% { transform:translate(-28px,-30px) } }
 @keyframes mlnSlide { from { opacity:0; transform:translateX(22px) } to { opacity:1; transform:none } }
 @keyframes mlnPulso { 0%,100% { transform:scale(1); opacity:1 } 50% { transform:scale(1.9); opacity:0 } }
 @keyframes mlnTampa { 0%,55%,100% { transform:translateY(0) rotate(0) } 65% { transform:translateY(-9px) rotate(-7deg) } 78% { transform:translateY(-3px) rotate(3deg) } }
@@ -1151,12 +1155,34 @@ const ArteOndas = ({ cor, larg = 112 }) => (
   </svg>
 );
 
-const ARTES = { pincel:ArtePincel, presente:ArtePresente, ondas:ArteOndas };
+/* Paleta: cinco bolinhas de cor que se revezam em destaque — os temas novos. */
+const ArtePaleta = ({ cor, larg = 112 }) => (
+  <svg className="mln-anim" width={larg} height={larg * 96 / 112} viewBox="0 0 112 96" fill="none" aria-hidden="true">
+    <rect x="6" y="8" width="100" height="80" rx="16" fill={cor} opacity=".08"/>
+    {[['#9BA0FA', 36, 36], ['#F4C8E2', 64, 30], ['#E6D5BE', 84, 52], ['#48484A', 58, 64], ['#2E8DD4', 30, 62]].map(([c, x, y], i) => (
+      <circle key={i} cx={x} cy={y} r="11" fill={c}
+        style={{ transformOrigin:`${x}px ${y}px`, transformBox:'view-box', animation:`mlnPingo 3.2s ${i * 0.45}s ease-in-out infinite` }}/>
+    ))}
+  </svg>
+);
+
+/* Grade: quatro blocos que trocam de lugar e de tamanho — módulos personalizáveis. */
+const ArteGrade = ({ cor, larg = 112 }) => (
+  <svg className="mln-anim" width={larg} height={larg * 96 / 112} viewBox="0 0 112 96" fill="none" aria-hidden="true">
+    <rect x="6" y="8" width="100" height="80" rx="16" fill={cor} opacity=".08"/>
+    <rect x="22" y="22" width="40" height="24" rx="6" fill={cor} style={{ animation:'mlnGradeA 4s ease-in-out infinite' }}/>
+    <rect x="68" y="22" width="22" height="24" rx="6" fill="#9BA0FA" style={{ animation:'mlnGradeB 4s ease-in-out infinite' }}/>
+    <rect x="22" y="52" width="22" height="24" rx="6" fill="#FF9F0A" style={{ animation:'mlnGradeC 4s ease-in-out infinite' }}/>
+    <rect x="50" y="52" width="40" height="24" rx="6" fill="#FF375F" style={{ animation:'mlnGradeD 4s ease-in-out infinite' }}/>
+  </svg>
+);
+
+const ARTES = { pincel:ArtePincel, presente:ArtePresente, ondas:ArteOndas, paleta:ArtePaleta, grade:ArteGrade };
 
 /* ── Widget: novidades (cartões que giram) ────────────────────────────────── */
 const GIRO_MS = 6000;
 
-const WidgetNovidades = ({ tam, onSelect, ...moldura }) => {
+const WidgetNovidades = ({ tam, onSelect, acoes = [], ...moldura }) => {
   const prisma = usePrismaResumo();
   const [idx, setIdx] = useState(0);
   const [parado, setParado] = useState(false);
@@ -1204,7 +1230,11 @@ const WidgetNovidades = ({ tam, onSelect, ...moldura }) => {
 
   return (
     <Moldura tam={tam} colunas={c} linhas={l} {...moldura} onHover={setParado}
-      onAbrir={() => onSelect(atual.destino[0], atual.destino[1])}>
+      onAbrir={() => {
+        // Novidade com `acao` abre um botão da própria tela (Tema, Tamanho...).
+        if (atual.acao) { acoes.find(a => a.id === atual.acao)?.onClick(); return; }
+        if (atual.destino) onSelect(atual.destino[0], atual.destino[1]);
+      }}>
       {/* O recorte fica num miolo, não na moldura: a moldura precisa deixar o
           seletor de tamanho sair pelo canto. */}
       <div style={{ position:'absolute', inset:0, overflow:'hidden', borderRadius:RAIO }}>
@@ -1364,7 +1394,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
             <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>
             <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>
             <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>
-            <WidgetNovidades {...widget('novidades', 6)} onSelect={onSelect}/>
+            <WidgetNovidades {...widget('novidades', 6)} onSelect={onSelect} acoes={acoes}/>
           </div>
         </div>
       </div>

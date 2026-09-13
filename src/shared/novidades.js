@@ -11,7 +11,11 @@
      detalhe  — (opcional) uma linha menor embaixo
      destino  — pra onde o clique leva: [módulo, aba?]. Abas do Portal usam
                 o módulo 'colaborador'; a Prisma Store aceita 'checkin' etc.
-     arte     — qual animação acompanha: 'pincel' | 'presente' | 'ondas'
+     acao     — (no lugar de destino) abre uma ação da própria tela de
+                módulos, pelo id do botão do card de perfil: 'tema',
+                'ordem', 'tamanho', 'cor', 'atalhos'
+     arte     — qual animação acompanha: 'pincel' | 'presente' | 'ondas' |
+                'paleta' | 'grade'
      cor      — cor da arte (o texto continua na cor do tema)
      ate      — (opcional) AAAA-MM-DD; depois disso o cartão some sozinho
 
@@ -20,6 +24,10 @@
    catálogo mudou nos últimos dias).
 ══════════════════════════════════════════════════════════════════════════ */
 export const NOVIDADES = [
+  { id:'temas-novos-2026-09', titulo:'Temas novos', texto:'Novas cores pra deixar o Uniko com a sua cara.',
+    detalhe:'Lilás, Sakura, Bege, Preto e Cinza', acao:'tema', arte:'paleta', cor:'#9BA0FA', ate:'2026-10-31' },
+  { id:'modulos-personalizaveis-2026-09', titulo:'Seus módulos', texto:'Ordem, tamanho e cor, do seu jeito.',
+    detalhe:'Ajuste pelo seu card de perfil', acao:'tamanho', arte:'grade', cor:'#34C759', ate:'2026-10-31' },
   { id:'paint-temas-2026-09', titulo:'Uniko Paint', texto:'Temas novos adicionados.',
     detalhe:'Chame a equipe pra desenhar', destino:['colaborador','unikopaint'], arte:'pincel', cor:'#EC4899', ate:'2026-10-15' },
   { id:'wave-descubra-2026-09', titulo:'Uniko Wave', texto:'Descubra novas músicas.',
