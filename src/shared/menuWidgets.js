@@ -10,7 +10,7 @@
    Falhou a leitura (sem rede, tabela fora do ar)? O widget fica no estado
    neutro — nunca inventa um número.
 ══════════════════════════════════════════════════════════════════════════ */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../contexts/user';
 import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
@@ -146,8 +146,13 @@ export const usePrismaResumo = () => {
      excluidos — itens tirados da caixa.
    EXCLUIR SÓ TIRA O AVISO DA CAIXA. O registro de origem (as horas no banco, o
    histórico de prismas, o evento) continua intacto — apagar isso por aqui
-   seria apagar dado de RH a partir de uma notificação. */
-const CAIXA_DIAS = 60, CAIXA_MAX = 200, CAIXA_POLL_MS = 45000;
+   seria apagar dado de RH a partir de uma notificação.
+
+   PERÍODO: o automático (tempo real + consulta a cada 45s) cobre só os
+   últimos 60 dias, que é o que a caixa mostra de cara. Filtrar um mês mais
+   antigo na janela chama `carregarDesde(data)`, que busca aquele trecho uma
+   vez e junta no resto — sem pôr meses de histórico no polling de todo mundo. */
+const CAIXA_DIAS = 60, CAIXA_MAX = 200, CAIXA_LOTE_ANTIGO = 500, CAIXA_POLL_MS = 45000;
 const caixaKey = (authUser) => 'uniko_caixa_entrada_' + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
 const lerLidos = (k) => {
   const lista = (v) => (Array.isArray(v) ? v : []);
@@ -165,10 +170,10 @@ const prismasTxt = (r) => [r.premium > 0 && `${r.premium} Premium`, r.comum > 0 
 const itemBanco = (r) => {
   const decididoDepois = r.updated_at && r.created_at && (new Date(r.updated_at) - new Date(r.created_at)) > 60000;
   if (r.status === 'aprovado' && !decididoDepois)
-    return { id: `bh:${r.id}`, tipo: 'banco', quando: r.created_at, titulo: `RH lançou ${horasTxt(r.horas_calculadas)} no seu banco`,
+    return { id: `bh:${r.id}`, tipo: 'banco', subtipo: 'rh', quando: r.created_at, titulo: `RH lançou ${horasTxt(r.horas_calculadas)} no seu banco`,
       sub: `${diaTxt(r.data)} · ${r.descricao || 'Horas extras'}`, destino: ['colaborador', 'horas'] };
   if ((r.status === 'aprovado' || r.status === 'rejeitado') && decididoDepois)
-    return { id: `bh:${r.id}:${r.status}`, tipo: 'banco', quando: r.updated_at, ruim: r.status === 'rejeitado',
+    return { id: `bh:${r.id}:${r.status}`, tipo: 'banco', subtipo: r.status === 'aprovado' ? 'aprovada' : 'recusada', quando: r.updated_at, ruim: r.status === 'rejeitado',
       titulo: r.status === 'aprovado' ? `Horas de ${diaTxt(r.data)} aprovadas` : `Horas de ${diaTxt(r.data)} recusadas`,
       sub: `${horasTxt(r.horas_calculadas)} · ${r.descricao || 'Horas extras'}`, destino: ['colaborador', 'horas'] };
   return null;                                  // pendente: foi a própria pessoa que registrou
@@ -177,13 +182,13 @@ const itemPrisma = (r) => {
   if (!['envio', 'presente', 'admin'].includes(r.kind)) return null;
   const txt = prismasTxt(r);
   if (!txt) return null;                        // retirada, ou envio que ELA fez (valor negativo)
-  return { id: `ph:${r.id}`, tipo: 'prisma', quando: r.created_at, titulo: `Você recebeu ${txt}`,
+  return { id: `ph:${r.id}`, tipo: 'prisma', subtipo: { envio: 'colega', presente: 'presente', admin: 'rh' }[r.kind], quando: r.created_at, titulo: `Você recebeu ${txt}`,
     sub: r.descr || 'Prisma Store', destino: ['mercado-estelar', 'historico'] };
 };
-const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', quando: r.created_at, jogo: r.game, sala: r.room_id,
+const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', subtipo: r.game, quando: r.created_at, jogo: r.game, sala: r.room_id,
   titulo: `${(r.from_name || 'Alguém').split(' ')[0]} te chamou pra jogar ${JOGO[r.game]?.nome || 'um jogo'}`,
   sub: r.room_name ? `Sala ${r.room_name}` : 'Toque pra entrar', destino: ['colaborador', JOGO[r.game]?.aba || 'inicio'] });
-const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
+const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', subtipo: r.type || 'Evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
   sub: [diaTxt(r.event_date), r.event_time, r.type].filter(Boolean).join(' · '), destino: ['colaborador', 'eventos'] });
 
 export const useCaixaEntrada = (authUser) => {
@@ -192,29 +197,41 @@ export const useCaixaEntrada = (authUser) => {
   const [mapa, setMapa] = useState({});         // id → item
   const [lidos, setLidos] = useState(() => lerLidos(chave));
 
+  const vivoRef = useRef(true);
+  useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
+  const juntar = useCallback((itens) => {
+    const bons = itens.filter(Boolean);
+    if (!vivoRef.current || !bons.length) return;
+    setMapa(m => { const n = { ...m }; for (const it of bons) n[it.id] = it; return n; });
+  }, []);
+
+  /* Uma consulta às quatro fontes entre `de` e `ate` (ISO; `ate` opcional). */
+  const consultar = useCallback(async (de, ate, limite) => {
+    if (!nome) return;
+    const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
+    const [bh, ph, gi, ev] = await Promise.all([
+      faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
+      faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
+      faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
+      faixa(supabase.from('calendar_events').select('id,title,event_date,event_time,type,created_by,created_at'), 'created_at'),
+    ].map(q => q.then(r => r.data || [], () => [])));
+    juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
+      ...ev.filter(e => e.created_by !== nome).map(itemEvento)]);
+  }, [nome, juntar]);
+
+  // Até onde já foi carregado pra trás (ISO). Começa nos 60 dias automáticos.
+  const [desde, setDesde] = useState(() => new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString());
+  const [carregandoAntigas, setCarregandoAntigas] = useState(false);
+  const carregarDesde = useCallback(async (de) => {
+    if (!de || de >= desde) return;
+    setCarregandoAntigas(true);
+    await consultar(de, desde, CAIXA_LOTE_ANTIGO);
+    if (vivoRef.current) { setDesde(de); setCarregandoAntigas(false); }
+  }, [desde, consultar]);
+
   useEffect(() => {
     if (!nome) return;
-    let vivo = true;
-    const juntar = (itens) => {
-      const bons = itens.filter(Boolean);
-      if (!vivo || !bons.length) return;
-      setMapa(m => { const n = { ...m }; for (const it of bons) n[it.id] = it; return n; });
-    };
-    const buscar = async () => {
-      const d = new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString();
-      const [bh, ph, gi, ev] = await Promise.all([
-        supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at')
-          .eq('created_by', nome).gte('updated_at', d).order('updated_at', { ascending: false }).limit(CAIXA_MAX),
-        supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at')
-          .eq('player', nome).in('kind', ['envio', 'presente', 'admin']).gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
-        supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at')
-          .eq('to_name', nome).gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
-        supabase.from('calendar_events').select('id,title,event_date,event_time,type,created_by,created_at')
-          .gte('created_at', d).order('created_at', { ascending: false }).limit(CAIXA_MAX),
-      ].map(q => q.then(r => r.data || [], () => [])));
-      juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
-        ...ev.filter(e => e.created_by !== nome).map(itemEvento)]);
-    };
+    const buscar = () => consultar(new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString(), null, CAIXA_MAX);
     buscar();
     const poll = setInterval(buscar, CAIXA_POLL_MS);
 
@@ -231,22 +248,25 @@ export const useCaixaEntrada = (authUser) => {
         ({ new: r }) => { if (r && r.created_by !== nome) juntar([itemEvento(r)]); })
       .subscribe();
 
-    return () => { vivo = false; clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
-  }, [nome]);
+    return () => { clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
+  }, [nome, consultar, juntar]);
 
   const salvar = (next) => { setLidos(next); try { localStorage.setItem(chave, JSON.stringify(next)); } catch { /* ignora */ } };
   const excluidos = new Set(lidos.excluidos);
   const itens = Object.values(mapa)
     .filter(it => !excluidos.has(it.id))
     .sort((a, b) => String(b.quando).localeCompare(String(a.quando)))
-    .slice(0, CAIXA_MAX)
     .map(it => ({ ...it, lido: !lidos.naoLido.includes(it.id)
       && (lidos.ids.includes(it.id) || (!!lidos.ate && String(it.quando) <= lidos.ate)) }));
 
   const semRepetir = (arr) => [...new Set(arr)];
+  const [janelaAuto] = useState(() => new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString());
   return {
     itens,
-    naoLidos: itens.filter(i => !i.lido).length,
+    desde, carregarDesde, carregandoAntigas,
+    // O selo só conta a janela automática: consultar um mês antigo na janela
+    // não pode fazer o número vermelho do widget pular de 3 pra 30.
+    naoLidos: itens.filter(i => !i.lido && String(i.quando) >= janelaAuto).length,
     marcarLido: (id) => salvar({ ...lidos, ids: semRepetir([...lidos.ids, id]).slice(-500), naoLido: lidos.naoLido.filter(x => x !== id) }),
     marcarNaoLido: (id) => salvar({ ...lidos, ids: lidos.ids.filter(x => x !== id), naoLido: semRepetir([...lidos.naoLido, id]).slice(-500) }),
     marcarTodos: () => salvar({ ...lidos, ids: [], naoLido: [], ate: new Date().toISOString() }),

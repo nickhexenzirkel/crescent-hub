@@ -559,14 +559,47 @@ const dataHora = (iso) => {
     + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
 };
 
-const FILTROS_CAIXA = [
-  { id:'todas',   rot:'Todas',        passa:() => true },
-  { id:'nao',     rot:'Não lidas',    passa:(it) => !it.lido },
-  { id:'banco',   rot:'Banco de horas', passa:(it) => it.tipo === 'banco' },
-  { id:'prisma',  rot:'Prismas',      passa:(it) => it.tipo === 'prisma' },
-  { id:'convite', rot:'Convites',     passa:(it) => it.tipo === 'convite' },
-  { id:'evento',  rot:'Agenda',       passa:(it) => it.tipo === 'evento' },
+/* ── Filtros da caixa ─────────────────────────────────────────────────────────
+   Combinam entre si: busca + status + categoria (com subcategoria) + período. */
+const CATEGORIAS_CAIXA = [
+  { id:'banco',   rot:'Banco de horas', subs:[{ id:'rh', rot:'Lançadas pelo RH' }, { id:'aprovada', rot:'Aprovadas' }, { id:'recusada', rot:'Recusadas' }] },
+  { id:'prisma',  rot:'Prismas',        subs:[{ id:'colega', rot:'De colegas' }, { id:'presente', rot:'Presentes' }, { id:'rh', rot:'Crédito do RH' }] },
+  { id:'convite', rot:'Convites',       subs:[{ id:'paint', rot:'Uniko Paint' }, { id:'stop', rot:'Uniko Stop!' }] },
+  { id:'evento',  rot:'Agenda',         subs:null },   // subcategorias = os tipos de evento que existirem
 ];
+const STATUS_CAIXA = [{ id:'todas', rot:'Todas' }, { id:'nao', rot:'Não lidas' }, { id:'lidas', rot:'Lidas' }];
+const PERIODOS_CAIXA = [
+  { id:'tudo', rot:'Tudo' }, { id:'hoje', rot:'Hoje' }, { id:'7', rot:'7 dias' }, { id:'30', rot:'30 dias' },
+  { id:'mes', rot:'Este mês' }, { id:'mespassado', rot:'Mês passado' },
+];
+const MESES_NOME = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+/* Período → [início, fim) em Date (fim null = até agora). */
+const faixaDoPeriodo = (periodo, de, ate) => {
+  const agora = new Date();
+  const hoje0 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const dia = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+  if (periodo === 'hoje') return [hoje0, null];
+  if (periodo === '7')  return [new Date(hoje0.getTime() - 6 * 864e5), null];
+  if (periodo === '30') return [new Date(hoje0.getTime() - 29 * 864e5), null];
+  if (periodo === 'mes') return [new Date(agora.getFullYear(), agora.getMonth(), 1), null];
+  if (periodo === 'mespassado') return [new Date(agora.getFullYear(), agora.getMonth() - 1, 1), new Date(agora.getFullYear(), agora.getMonth(), 1)];
+  if (periodo.startsWith('mes:')) { const [y, m] = periodo.slice(4).split('-').map(Number); return [new Date(y, m - 1, 1), new Date(y, m, 1)]; }
+  if (periodo === 'custom') {
+    const ini = de ? dia(de) : null;
+    const fim = ate ? new Date(dia(ate).getTime() + 864e5) : null;
+    return [ini, fim];
+  }
+  return [null, null];
+};
+const ultimos12Meses = () => {
+  const agora = new Date();
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    return { id:`mes:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, rot:`${MESES_NOME[d.getMonth()]} de ${d.getFullYear()}` };
+  });
+};
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const IcoLixeira = <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></>;
 const IcoEnvelope = <><rect x="3" y="5" width="18" height="14" rx="2.5"/><polyline points="3 7 12 13 21 7"/></>;
@@ -580,9 +613,27 @@ const BotaoIcone = ({ titulo, onClick, perigo, children }) => (
   </button>
 );
 
+/* Pílula de filtro. `cor` pinta um pontinho (categorias); `pequena` pras subcategorias. */
+const Pilula = ({ ativa, onClick, children, n, cor, pequena }) => (
+  <button onClick={onClick} aria-pressed={ativa}
+    style={{ flexShrink:0, display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontFamily:'var(--font-body)',
+      padding: pequena ? '4px 10px' : '6px 12px', borderRadius:999, fontSize: pequena ? 11.5 : 12.5, fontWeight:600,
+      border:`1px solid ${ativa ? 'transparent' : T.border}`, background: ativa ? T.text : 'transparent',
+      color: ativa ? T.surface : T.textS, transition:'background .15s, color .15s' }}>
+    {cor && <span style={{ width:7, height:7, borderRadius:'50%', background:cor }}/>}
+    {children}
+    {n !== undefined && <span style={{ fontSize:11, opacity:.65, fontVariantNumeric:'tabular-nums' }}>{n}</span>}
+  </button>
+);
+
+const RotuloFiltro = ({ children }) => (
+  <span style={{ flex:'0 0 74px', fontSize:11.5, fontWeight:700, color:T.textT, paddingTop:7 }}>{children}</span>
+);
+
 /* ── Janela da caixa de entrada ───────────────────────────────────────────────
-   Abre ao clicar no widget: a lista inteira, filtros por tipo, marcar como
-   lida/não lida e excluir (com "Desfazer" por alguns segundos).
+   Abre ao clicar no widget: a lista inteira, filtros (busca, status,
+   categoria/subcategoria e período), marcar como lida/não lida e excluir
+   (com "Desfazer" por alguns segundos).
    Vai num portal no <body>: o widget fica dentro de uma moldura que ganha
    transform (hover, tremida do modo Tamanho), e position:fixed dentro de um
    ancestral com transform passa a se prender a ELE, não à tela.
@@ -590,8 +641,14 @@ const BotaoIcone = ({ titulo, onClick, perigo, children }) => (
    animado, e o desfoque seria refeito a cada frame enquanto a janela estiver
    aberta (ver shared/bolhas.js). */
 const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
-  const { itens, naoLidos, marcarLido, marcarNaoLido, marcarTodos, excluir, restaurar } = caixa;
-  const [filtro, setFiltro] = useState('todas');
+  const { itens, naoLidos, marcarLido, marcarNaoLido, marcarTodos, excluir, restaurar, desde, carregarDesde, carregandoAntigas } = caixa;
+  const [busca, setBusca] = useState('');
+  const [status, setStatus] = useState('todas');
+  const [cats, setCats] = useState([]);               // vazio = todas as categorias
+  const [subs, setSubs] = useState([]);               // só vale com UMA categoria escolhida
+  const [periodo, setPeriodo] = useState('tudo');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
   const [saindo, setSaindo] = useState([]);           // ids animando a saída
   const [desfazer, setDesfazer] = useState(null);     // { ids, texto }
 
@@ -606,6 +663,11 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
     return () => clearTimeout(id);
   }, [desfazer]);
 
+  const [ini, fim] = faixaDoPeriodo(periodo, de, ate);
+  const iniISO = ini ? ini.toISOString() : '';
+  // Período mais antigo do que já está carregado: busca aquele trecho.
+  useEffect(() => { if (iniISO && iniISO < desde) carregarDesde(iniISO); }, [iniISO, desde, carregarDesde]);
+
   const tirar = (ids, texto) => {
     if (!ids.length) return;
     setSaindo(s => [...s, ...ids]);
@@ -617,8 +679,26 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
     }, 190);
   };
 
-  const filtroAtual = FILTROS_CAIXA.find(f => f.id === filtro) || FILTROS_CAIXA[0];
-  const visiveis = itens.filter(filtroAtual.passa);
+  // Cada filtro é aplicado em camadas, pra os contadores de uma dimensão
+  // refletirem as OUTRAS já escolhidas (ex.: "Prismas 3" dentro de "Este mês").
+  const q = semAcento(busca.trim());
+  const passaBusca   = (it) => !q || semAcento(`${it.titulo} ${it.sub}`).includes(q);
+  const passaStatus  = (it) => status === 'todas' || (status === 'nao' ? !it.lido : it.lido);
+  const passaPeriodo = (it) => { const t = new Date(it.quando); return (!ini || t >= ini) && (!fim || t < fim); };
+  const passaCat     = (it) => !cats.length || cats.includes(it.tipo);
+  const passaSub     = (it) => cats.length !== 1 || !subs.length || subs.includes(it.subtipo);
+  const base = itens.filter(it => passaBusca(it) && passaStatus(it) && passaPeriodo(it));
+  const visiveis = base.filter(it => passaCat(it) && passaSub(it));
+
+  const catUnica = cats.length === 1 ? CATEGORIAS_CAIXA.find(c => c.id === cats[0]) : null;
+  const subsDaCat = catUnica
+    ? (catUnica.subs || [...new Set(base.filter(i => i.tipo === catUnica.id).map(i => i.subtipo))].map(v => ({ id:v, rot:v })))
+    : [];
+  const alternarCat = (id) => { setSubs([]); setCats(c => c.includes(id) ? c.filter(x => x !== id) : [...c, id]); };
+  const alternarSub = (id) => setSubs(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const filtrando = !!q || status !== 'todas' || cats.length > 0 || periodo !== 'tudo';
+  const limpar = () => { setBusca(''); setStatus('todas'); setCats([]); setSubs([]); setPeriodo('tudo'); setDe(''); setAte(''); };
+
   const lidasVisiveis = visiveis.filter(i => i.lido).map(i => i.id);
   const grupos = [];
   for (const it of visiveis) {
@@ -626,9 +706,14 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
     if (!grupos.length || grupos[grupos.length - 1].nome !== g) grupos.push({ nome:g, itens:[] });
     grupos[grupos.length - 1].itens.push(it);
   }
+  const meses = ultimos12Meses();
+  const mesEscolhido = periodo.startsWith('mes:') ? periodo : '';
+  const carregadoAte = new Date(desde).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }).replace('.', '');
 
   const acaoTexto = { border:'none', background:'none', padding:'6px 4px', cursor:'pointer', fontSize:12.5,
     fontWeight:600, fontFamily:'var(--font-body)' };
+  const campo = { height:32, boxSizing:'border-box', borderRadius:10, border:`1px solid ${T.border}`, background:T.surfaceInput || 'transparent',
+    color:T.text, fontSize:12.5, fontFamily:'var(--font-body)', padding:'0 10px', outline:'none', colorScheme: T.dark ? 'dark' : 'light' };
 
   return createPortal(
     <div onClick={onFechar} role="presentation"
@@ -636,7 +721,7 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
         alignItems:'center', justifyContent:'center', padding:16, boxSizing:'border-box',
         fontFamily:'var(--font-body)', animation:'mlnFade .2s ease-out' }}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Caixa de entrada"
-        style={{ width:'min(640px, 100%)', height:'min(700px, 88vh)', display:'flex', flexDirection:'column',
+        style={{ width:'min(720px, 100%)', height:'min(780px, 92vh)', display:'flex', flexDirection:'column',
           background:T.surface, border:`1px solid ${T.border}`, borderRadius:26, boxShadow:'0 30px 80px rgba(0,0,0,.35)',
           overflow:'hidden', position:'relative', animation:'mlnJanela .32s cubic-bezier(.16,1,.3,1)',
           // Cor do hover das linhas via variável: o CSS da tela é montado uma vez só,
@@ -659,25 +744,87 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
           </button>
         </div>
 
-        {/* Filtros + ações em massa */}
-        <div style={{ padding:'0 22px 10px', borderBottom:`1px solid ${T.divider || T.border}` }}>
-          <div className="mln-rolagem" style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:8 }}>
-            {FILTROS_CAIXA.map(f => {
-              const n = itens.filter(f.passa).length;
-              const on = filtro === f.id;
-              if (f.id !== 'todas' && f.id !== 'nao' && !n) return null;
-              return (
-                <button key={f.id} onClick={() => setFiltro(f.id)}
-                  style={{ flexShrink:0, display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:999, cursor:'pointer',
-                    border:`1px solid ${on ? 'transparent' : T.border}`, background: on ? T.text : 'transparent',
-                    color: on ? T.surface : T.textS, fontSize:12.5, fontWeight:600, fontFamily:'var(--font-body)', transition:'background .15s, color .15s' }}>
-                  {f.rot}
-                  <span style={{ fontSize:11, opacity:.7, fontVariantNumeric:'tabular-nums' }}>{n}</span>
-                </button>
-              );
-            })}
+        {/* Filtros */}
+        <div style={{ padding:'0 22px 8px', borderBottom:`1px solid ${T.divider || T.border}`, display:'flex', flexDirection:'column', gap:8 }}>
+          {/* Busca + status */}
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            <label style={{ flex:'1 1 220px', position:'relative', display:'flex', alignItems:'center' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textT} strokeWidth="2" strokeLinecap="round"
+                style={{ position:'absolute', left:11, pointerEvents:'none' }}><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar mensagem, colega, sala…"
+                aria-label="Buscar nas mensagens"
+                style={{ ...campo, width:'100%', height:36, paddingLeft:34, borderRadius:12, fontSize:13 }}/>
+            </label>
+            <div role="group" aria-label="Status" style={{ display:'flex', padding:3, borderRadius:12, background:T.surfaceSub || 'rgba(0,0,0,.05)' }}>
+              {STATUS_CAIXA.map(st => {
+                const on = status === st.id;
+                return (
+                  <button key={st.id} onClick={() => setStatus(st.id)} aria-pressed={on}
+                    style={{ border:'none', borderRadius:9, padding:'6px 12px', cursor:'pointer', fontSize:12.5, fontWeight:600,
+                      fontFamily:'var(--font-body)', background: on ? T.surface : 'transparent', color: on ? T.text : T.textS,
+                      boxShadow: on ? '0 1px 3px rgba(0,0,0,.12)' : 'none', transition:'background .15s' }}>{st.rot}</button>
+                );
+              })}
+            </div>
           </div>
-          <div style={{ display:'flex', gap:14, justifyContent:'flex-end', minHeight:30 }}>
+
+          {/* Categoria (+ subcategoria quando só uma está escolhida) */}
+          <div style={{ display:'flex', gap:8 }}>
+            <RotuloFiltro>Categoria</RotuloFiltro>
+            <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <Pilula ativa={!cats.length} onClick={() => { setCats([]); setSubs([]); }} n={base.length}>Todas</Pilula>
+                {CATEGORIAS_CAIXA.map(c => (
+                  <Pilula key={c.id} ativa={cats.includes(c.id)} onClick={() => alternarCat(c.id)}
+                    cor={(TIPO_CAIXA[c.id] || TIPO_CAIXA.evento).cor} n={base.filter(i => i.tipo === c.id).length}>{c.rot}</Pilula>
+                ))}
+              </div>
+              {catUnica && subsDaCat.length > 0 && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingLeft:2, animation:'mlnEntra .25s cubic-bezier(.16,1,.3,1) backwards' }}>
+                  {subsDaCat.map(sc => (
+                    <Pilula key={sc.id} pequena ativa={subs.includes(sc.id)} onClick={() => alternarSub(sc.id)}
+                      n={base.filter(i => i.tipo === catUnica.id && i.subtipo === sc.id).length}>{sc.rot}</Pilula>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Período */}
+          <div style={{ display:'flex', gap:8 }}>
+            <RotuloFiltro>Período</RotuloFiltro>
+            <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                {PERIODOS_CAIXA.map(pd => (
+                  <Pilula key={pd.id} ativa={periodo === pd.id} onClick={() => setPeriodo(pd.id)}>{pd.rot}</Pilula>
+                ))}
+                <select value={mesEscolhido} onChange={(e) => setPeriodo(e.target.value || 'tudo')} aria-label="Escolher mês"
+                  style={{ ...campo, borderRadius:999, fontWeight:600, cursor:'pointer',
+                    background: mesEscolhido ? T.text : 'transparent', color: mesEscolhido ? T.surface : T.textS,
+                    border:`1px solid ${mesEscolhido ? 'transparent' : T.border}` }}>
+                  <option value="">Mês…</option>
+                  {meses.map(m => <option key={m.id} value={m.id}>{m.rot}</option>)}
+                </select>
+                <Pilula ativa={periodo === 'custom'} onClick={() => setPeriodo('custom')}>Personalizado</Pilula>
+              </div>
+              {periodo === 'custom' && (
+                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', fontSize:12.5, color:T.textT,
+                  animation:'mlnEntra .25s cubic-bezier(.16,1,.3,1) backwards' }}>
+                  de <input type="date" value={de} max={ate || undefined} onChange={(e) => setDe(e.target.value)} style={campo}/>
+                  até <input type="date" value={ate} min={de || undefined} onChange={(e) => setAte(e.target.value)} style={campo}/>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Resultado + ações em massa */}
+          <div style={{ display:'flex', alignItems:'center', gap:14, minHeight:30 }}>
+            <span style={{ fontSize:12, color:T.textT }}>
+              {carregandoAntigas ? 'Buscando mensagens mais antigas…'
+                : `${visiveis.length} ${visiveis.length === 1 ? 'mensagem' : 'mensagens'}`}
+            </span>
+            {filtrando && <button onClick={limpar} style={{ ...acaoTexto, color:T.textS }}>Limpar filtros</button>}
+            <span style={{ flex:1 }}/>
             {naoLidos > 0 && <button onClick={marcarTodos} style={{ ...acaoTexto, color:T.gold }}>Marcar todas como lidas</button>}
             {lidasVisiveis.length > 0 && (
               <button onClick={() => tirar(lidasVisiveis, `${lidasVisiveis.length} ${lidasVisiveis.length === 1 ? 'mensagem lida excluída' : 'mensagens lidas excluídas'}`)}
@@ -695,11 +842,15 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
                 {React.cloneElement(IcoCaixa, { width:26, height:26 })}
               </div>
               <div style={{ fontSize:15, fontWeight:700, color:T.text }}>
-                {filtro === 'nao' ? 'Nada pra ler' : filtro === 'todas' ? 'Caixa vazia' : 'Nenhuma mensagem deste tipo'}
+                {carregandoAntigas ? 'Buscando…' : filtrando ? 'Nenhuma mensagem com esses filtros' : 'Caixa vazia'}
               </div>
-              <div style={{ fontSize:12.5, maxWidth:280, lineHeight:1.5 }}>
-                Horas lançadas, prismas recebidos, convites pra jogar e eventos novos aparecem aqui assim que chegam.
-              </div>
+              {filtrando && !carregandoAntigas ? (
+                <button onClick={limpar} style={{ ...acaoTexto, color:T.gold }}>Limpar filtros</button>
+              ) : (
+                <div style={{ fontSize:12.5, maxWidth:280, lineHeight:1.5 }}>
+                  Horas lançadas, prismas recebidos, convites pra jogar e eventos novos aparecem aqui assim que chegam.
+                </div>
+              )}
             </div>
           ) : grupos.map(g => (
             <div key={g.nome} style={{ marginBottom:6 }}>
@@ -745,6 +896,16 @@ const CaixaJanela = ({ caixa, onFechar, onAbrirItem }) => {
               })}
             </div>
           ))}
+          {/* Em "Tudo", a lista vai até onde está carregado — dá pra puxar mais 60 dias. */}
+          {periodo === 'tudo' && visiveis.length > 0 && (
+            <div style={{ display:'flex', justifyContent:'center', padding:'8px 0 4px' }}>
+              <button disabled={carregandoAntigas}
+                onClick={() => carregarDesde(new Date(new Date(desde).getTime() - 60 * 864e5).toISOString())}
+                style={{ ...acaoTexto, color:T.textS, opacity: carregandoAntigas ? .6 : 1 }}>
+                {carregandoAntigas ? 'Buscando…' : `Mostrando desde ${carregadoAte} · carregar mais antigas`}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Rodapé: aviso honesto sobre o que "excluir" faz + desfazer */}
