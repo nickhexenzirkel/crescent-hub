@@ -378,7 +378,7 @@ const WidgetPerfil = ({ tam, authUser, userPhoto, acoes, ...moldura }) => {
           )}
         </div>
         <div>
-          <div style={{ fontSize:34, fontWeight:300, color:T.text, letterSpacing:'-.035em', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{hora}</div>
+          <div style={{ fontSize:34, fontWeight:400, color:T.text, letterSpacing:'-.035em', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{hora}</div>
           <div style={{ fontSize:12, color:T.textT, marginTop:5, ...umaLinha }}>{saudacao(agora.getHours())}, <b style={{ color:T.text, fontWeight:600 }}>{nome}</b></div>
         </div>
         {menu && (
@@ -404,7 +404,7 @@ const WidgetPerfil = ({ tam, authUser, userPhoto, acoes, ...moldura }) => {
           <div style={{ fontSize:17, fontWeight:700, color:T.text, letterSpacing:'-.02em', lineHeight:1.15, ...umaLinha }}>{nome}</div>
           <div style={{ fontSize:11, fontWeight:600, color:T.gold }}>{papel}</div>
         </div>
-        <div style={{ fontSize:36, fontWeight:300, color:T.text, letterSpacing:'-.035em', lineHeight:1,
+        <div style={{ fontSize:36, fontWeight:400, color:T.text, letterSpacing:'-.035em', lineHeight:1,
           fontVariantNumeric:'tabular-nums', paddingRight: moldura.editando ? 64 : 0 }}>{hora}</div>
       </div>
       {/* Ações — as mesmas do card flutuante da órbita, cada uma com nome escrito. */}
