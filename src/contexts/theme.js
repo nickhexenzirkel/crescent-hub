@@ -238,6 +238,26 @@ const THEMES = {
     sidebarBg:'rgba(246,246,255,0.97)', topbarBg:'rgba(246,246,255,0.94)',
     text:'#141638', textS:'#40446E', textT:'#8286AC', textD:'#BFC1DA',
   },
+  /* Sakura (set/2026) — foco na cor #F4C8E2, rosa de flor de cerejeira. É clara
+     demais pra texto ou botão sobre fundo claro, então no Sakura Estelar ela
+     pinta o fundo, as manchas, as linhas e a bolinha do tema, e o texto/botões
+     usam um rosa-cereja fechado da mesma família (#B8527F). No escuro (Sakura
+     Espiritual) ela é o destaque das linhas e brilhos, sobre um ameixa bem escuro. */
+  sakura: {
+    name:'Sakura Estelar', surfaceSub:'rgba(0,0,0,0.025)', itemHover:'rgba(0,0,0,0.04)', dot:'#F4C8E2', dark:false,
+    page:'#FDF5FA', gold:'#B8527F', goldL:'#D77BA6', goldV:'#F4C8E2',
+    goldGl:'rgba(184,82,127,0.09)', goldLine:'#E7A3C6',
+    blue:'#B8527F', blueL:'#D77BA6', blueGl:'rgba(184,82,127,0.08)',
+    blobBase:'#FCEFF6', blobVeil:'rgba(255,243,250,0.58)',
+    b1:'rgba(150,60,105,0.62)', b2:'rgba(220,130,175,0.58)',
+    b3:'rgba(244,200,226,0.70)',b4:'rgba(200,100,150,0.52)',
+    b5:'rgba(250,220,238,0.62)',b6:'rgba(120,45,85,0.42)',
+    b7:'rgba(235,165,205,0.50)',
+    sb1:'rgba(215,123,166,0.36)',sb2:'rgba(244,200,226,0.45)',sb3:'rgba(250,225,240,0.35)',
+    lb:'rgba(231,163,198,0.38)', lb2:'rgba(244,200,226,0.22)',
+    sidebarBg:'rgba(255,247,252,0.97)', topbarBg:'rgba(255,247,252,0.94)',
+    text:'#35142A', textS:'#6E4460', textT:'#A7859A', textD:'#D8C3CF',
+  },
   /* ─────────── MODO ESCURO — NEBULA ─────────── */
   blueDark: {
     name:'Azul Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#4A9FE8', dark:true,
@@ -340,6 +360,26 @@ const THEMES = {
     lb:'rgba(232,136,32,0.42)', lb2:'rgba(232,136,32,0.18)',
     sidebarBg:'rgba(20,10,4,0.98)', topbarBg:'rgba(20,10,4,0.95)',
     text:'#FFF0D8', textS:'#C09060', textT:'#806040', textD:'#503020',
+  },
+  sakuraDark: {
+    name:'Sakura Espiritual', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#F4C8E2', dark:true,
+    page:'#150A12', surface:'#24121E', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    // gold (botões, avatar, texto de destaque sobre cor) é um tom mais fundo:
+    // texto branco sobre #F4C8E2 tem contraste 1,5 e sumia. #F4C8E2 fica nas
+    // linhas, aura dos cards, bolinha, brilhos e manchas.
+    gold:'#D77BA6', goldL:'#F4C8E2', goldV:'#FDEEF6',
+    goldGl:'rgba(244,200,226,0.18)', goldLine:'#F4C8E2',
+    blue:'#D77BA6', blueL:'#F4C8E2', blueGl:'rgba(244,200,226,0.14)',
+    blobBase:'#0E060C', blobVeil:'rgba(14,6,12,0.50)',
+    b1:'rgba(120,40,85,0.88)', b2:'rgba(185,85,135,0.78)',
+    b3:'rgba(244,200,226,0.52)',b4:'rgba(150,60,110,0.80)',
+    b5:'rgba(250,220,238,0.40)',b6:'rgba(70,20,50,0.90)',
+    b7:'rgba(215,123,166,0.60)',
+    sb1:'rgba(185,85,135,0.55)',sb2:'rgba(231,163,198,0.42)',sb3:'rgba(244,200,226,0.30)',
+    lb:'rgba(244,200,226,0.40)', lb2:'rgba(244,200,226,0.18)',
+    sidebarBg:'rgba(20,10,17,0.98)', topbarBg:'rgba(20,10,17,0.95)',
+    text:'#FCEAF4', textS:'#D2A3BF', textT:'#94708A', textD:'#5A3B50',
   },
   lilacDark: {
     name:'Lilás Lunar', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#9BA0FA', dark:true,
