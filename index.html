@@ -2,13 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <!-- Logo do Uniko (cabeça de gato-robô). favicon.ico = 16/32/48/64px pra aba;
+         o PNG serve de ícone nítido pros navegadores que aceitam. -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/UNIKO_LOGO_192.png" sizes="192x192" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>U∩IKO</title>
     <!-- "Adicionar à Tela de Início" no iPhone + notificação push no celular
          (Uniko FIT) precisam disso — ver src/utils/pushNotify.js. -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/UNIKO_FRENTE_FRONTAL.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="U∩IKO" />

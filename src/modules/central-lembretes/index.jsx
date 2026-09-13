@@ -172,7 +172,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
         <button onClick={onBack} style={{ width:36, height:36, borderRadius:10, border:`1px solid ${T.border}`, background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:T.textS, outline:'none' }}>
           <Ico d={<polyline points="15 18 9 12 15 6"/>}/>
         </button>
-        <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'cover' }}/>
+        <img src="/UNIKO_LOGO.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'contain' }}/>
         <div>
           <div style={{ fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>
             {activeTab === 'lembretes' ? 'Meus Lembretes' : 'Minhas Anotações'}

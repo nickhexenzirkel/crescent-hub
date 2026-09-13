@@ -253,12 +253,13 @@ const BrandLogo = ({size=120}) => (
     }}/>
 );
 
-/* Ícone quadrado — UNIKO_FRENTE_FRONTAL.png em /public (topbars, sidebars, favicon) */
+/* Ícone quadrado — a logo do Uniko, UNIKO_LOGO.png em /public (topbars, sidebars).
+   A logo tem fundo transparente, então `contain`: `cover` cortaria as orelhas. */
 const UnikoIcon = ({size=32, rounded=true}) => (
-  <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko"
+  <img src="/UNIKO_LOGO.png" alt="Uniko"
     style={{
       width:size, height:size,
-      objectFit:'cover',
+      objectFit:'contain',
       display:'block',
       flexShrink:0,
       borderRadius: rounded ? Math.round(size * 0.22) : 0,

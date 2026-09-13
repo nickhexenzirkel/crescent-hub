@@ -2905,7 +2905,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                               return (
                                 <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
                                   {isSystem
-                                    ? <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+                                    ? <img src="/UNIKO_LOGO.png" alt="Uniko" style={{width:30,height:30,borderRadius:8,objectFit:"contain",flexShrink:0}}/>
                                     : <QueueAvatar
                                         name={s.requested_by}
                                         photo={s.requested_by===myName ? myPhoto : photoCache[s.requested_by]}
@@ -4510,7 +4510,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         {/* Avatar Alexa */}
                         {m.role==="alexa"&&(
                           <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,overflow:"hidden",marginBottom:2,flexShrink:0}}>
-                            <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                            <img src="/UNIKO_LOGO.png" alt="Alexa" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
                           </div>
                         )}
 
@@ -4533,7 +4533,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                             )}
                             {m.role==="alexa"&&(
                               <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                                <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:14,height:14,borderRadius:3,objectFit:"cover"}}/>
+                                <img src="/UNIKO_LOGO.png" alt="Uniko" style={{width:14,height:14,borderRadius:3,objectFit:"contain"}}/>
                                 <span style={{fontSize:11,fontWeight:700,color:T.gold}}>Uniko</span>
                               </div>
                             )}
@@ -4579,7 +4579,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   {alexaTyping&&(
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,overflow:"hidden"}}>
-                        <img src="/UNIKO_FRENTE_FRONTAL.png" alt="Uniko" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                        <img src="/UNIKO_LOGO.png" alt="Uniko" style={{width:"100%",height:"100%",objectFit:"contain"}}/>
                       </div>
                       <div style={{padding:"12px 16px",borderRadius:"4px 14px 14px 14px",background:T.goldGl,border:`1px solid ${T.goldLine}44`,display:"flex",gap:4,alignItems:"center"}}>
                         {[0,0.15,0.3].map((d,i)=>(
