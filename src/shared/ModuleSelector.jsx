@@ -46,24 +46,30 @@ const saveTamNovo = (authUser, prefs) => { try { localStorage.setItem(tamNovoKey
    igual à ordem/tamanho/cor: é uma preferência de tela, não um dado do RH. */
 const ATALHOS_PREFIX = 'uniko_module_atalhos_';
 const atalhosKey = (authUser) => ATALHOS_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
-/* Atalhos que TODO MUNDO ganha: Uniko Paint, Financeiro e Seus Dados (set/2026 —
-   preenchem a grade de módulos, que pra quem tem poucos módulos ficava com um
-   vão ao lado dos widgets). Entram uma vez só por conta, marcada por uma flag:
-   quem já tinha atalhos salvos ganha os três somados aos dele, e quem tirar
-   algum depois não vê ele voltar. */
-const ATALHOS_PADRAO = ['unikopaint', 'financeiro', 'dados'];
-const ATALHOS_PADRAO_FLAG = 'uniko_atalhos_padrao_v1_';
+/* Atalhos que TODO MUNDO ganha (set/2026 — preenchem a grade de módulos, que
+   pra quem tem poucos módulos ficava com um vão ao lado dos widgets).
+   Cada LEVA entra uma vez só por conta, marcada pela própria flag: quem já
+   tinha atalhos salvos ganha os da leva somados aos dele, e quem tirar algum
+   depois não vê ele voltar. Pra dar um atalho novo a todos, crie uma leva nova
+   (não mexa numa que já rodou — as contas que passaram por ela não veriam). */
+const ATALHOS_PADRAO_LEVAS = [
+  { flag: 'uniko_atalhos_padrao_v1_', abas: ['unikopaint', 'financeiro', 'dados'] },
+  { flag: 'uniko_atalhos_padrao_v2_', abas: ['eventos'] },
+];
 const loadAtalhos = (authUser) => {
   let salvos = [];
   try { const r = JSON.parse(localStorage.getItem(atalhosKey(authUser)) || '[]'); salvos = Array.isArray(r) ? r : []; }
   catch { /* ignora */ }
-  const flag = ATALHOS_PADRAO_FLAG + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+  const conta = (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
   try {
-    if (!localStorage.getItem(flag)) {
-      salvos = [...new Set([...ATALHOS_PADRAO, ...salvos])];
-      localStorage.setItem(atalhosKey(authUser), JSON.stringify(salvos));
-      localStorage.setItem(flag, '1');
+    let mudou = false;
+    for (const leva of ATALHOS_PADRAO_LEVAS) {
+      if (localStorage.getItem(leva.flag + conta)) continue;
+      salvos = [...new Set([...salvos, ...leva.abas])];
+      localStorage.setItem(leva.flag + conta, '1');
+      mudou = true;
     }
+    if (mudou) localStorage.setItem(atalhosKey(authUser), JSON.stringify(salvos));
   } catch { /* sem localStorage: fica só com o que veio */ }
   return salvos;
 };
