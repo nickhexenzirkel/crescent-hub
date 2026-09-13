@@ -3,7 +3,8 @@ import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
-import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo } from './menuWidgets';
+import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada } from './menuWidgets';
+import { setPendingJoin } from './gameInvites';
 
 /* ══════════════════════════════════════════════════════════════════════════
    LAYOUT NOVO DO MENU DE MÓDULOS — módulos à esquerda, widgets à direita
@@ -14,7 +15,7 @@ import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo }
 
      Esquerda — os módulos (e os atalhos pra abas internas), em tiles.
      Direita  — widgets: perfil com relógio (substitui o card flutuante da
-                órbita), Check-in, Banco de Horas, Ponto, Comunicados e as
+                órbita), caixa de entrada em tempo real, Check-in, Banco de Horas, Ponto, Comunicados e as
                 novidades girando.
 
    TAMANHOS — como os widgets do iPhone, cada item tem uma versão pequena (um
@@ -45,6 +46,7 @@ const VAO_W = 10;            // vão entre widgets
    colunas da direita. Pequeno ocupa UM espaço; grande, a largura toda. */
 const WIDGETS = {
   perfil:     { p:[1, 2], g:[2, 2], padrao:'g' },
+  caixa:      { p:[1, 2], g:[2, 2], padrao:'g' },
   checkin:    { p:[1, 1], g:[2, 2], padrao:'p' },
   horas:      { p:[1, 1], g:[2, 2], padrao:'p' },
   ponto:      { p:[1, 1], g:[2, 2], padrao:'p' },
@@ -504,6 +506,134 @@ const WidgetAvisos = ({ tam, ...moldura }) => {
   );
 };
 
+/* ── Widget: caixa de entrada ─────────────────────────────────────────────────
+   Notificações em tempo real do que chegou pra pessoa (dados e regras em
+   useCaixaEntrada, shared/menuWidgets.js). Cada linha leva pro lugar do aviso;
+   abrir marca como lido. */
+const COR_CAIXA = '#5E5CE6';
+const TIPO_CAIXA = {
+  banco:   { cor:'#0A84FF', icone:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></> },
+  prisma:  { cor:'#A855F7', icone:<><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20"/></> },
+  convite: { cor:'#FF9F0A', icone:<><rect x="2.5" y="7" width="19" height="11" rx="5.5"/><line x1="7.5" y1="10.5" x2="7.5" y2="14.5"/><line x1="5.5" y1="12.5" x2="9.5" y2="12.5"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".9" fill="currentColor"/></> },
+  evento:  { cor:'#FF375F', icone:<><rect x="3" y="4" width="18" height="17" rx="2.5"/><line x1="16" y1="2.5" x2="16" y2="6"/><line x1="8" y1="2.5" x2="8" y2="6"/><line x1="3" y1="9.5" x2="21" y2="9.5"/></> },
+};
+const IcoCaixa = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+    <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/>
+  </svg>
+);
+const quandoTxt = (iso) => {
+  const t = new Date(iso).getTime();
+  if (!t) return '';
+  const min = Math.floor((Date.now() - t) / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `${min} min`;
+  if (min < 1440) return `${Math.floor(min / 60)} h`;
+  if (min < 2880) return 'ontem';
+  const d = new Date(t);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const conviteRecente = (it) => Date.now() - new Date(it.quando).getTime() < 30 * 60000;
+
+const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
+  const { itens, naoLidos, marcarLido, marcarTodos } = useCaixaEntrada(authUser);
+  useAgora();                                   // re-render a cada minuto: "5 min" vira "6 min"
+  const [c, l] = WIDGETS.caixa[tam];
+  const editando = moldura.editando;
+
+  const abrirItem = (it) => {
+    if (editando) return;
+    marcarLido(it.id);
+    // Convite recente: deixa a sala "pendente" pra o jogo entrar direto nela
+    // (mesma ponte que o popup de convite do App usa). Convite velho só abre o jogo.
+    if (it.tipo === 'convite' && conviteRecente(it)) setPendingJoin(it.jogo, it.sala);
+    onSelect(it.destino[0], it.destino[1]);
+  };
+
+  const selo = naoLidos > 0 && (
+    <span key={naoLidos} style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, boxSizing:'border-box',
+      background:'#FF3B30', color:'#fff', fontSize:10.5, fontWeight:700, display:'inline-flex', alignItems:'center',
+      justifyContent:'center', fontVariantNumeric:'tabular-nums', animation:'mlnEntra .35s cubic-bezier(.16,1,.3,1) backwards' }}>
+      {naoLidos > 99 ? '99+' : naoLidos}
+    </span>
+  );
+
+  if (tam === 'p') {
+    const ult = itens.find(i => !i.lido) || itens[0];
+    return (
+      <Moldura tam={tam} colunas={c} linhas={l} cor={COR_CAIXA} {...moldura}
+        onAbrir={ult ? () => abrirItem(ult) : null}
+        style={{ padding:'12px 13px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+          <IconeApp cor={COR_CAIXA} tam={30}>{IcoCaixa}</IconeApp>
+          {!editando && selo}
+        </div>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:T.text }}>Caixa de entrada</div>
+          <div style={{ fontSize:11.5, color:T.textT, marginTop:2, lineHeight:1.3,
+            display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+            {ult ? ult.titulo : 'Tudo em dia por aqui'}
+          </div>
+        </div>
+      </Moldura>
+    );
+  }
+
+  return (
+    <Moldura tam={tam} colunas={c} linhas={l} cor={COR_CAIXA} {...moldura}
+      style={{ display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:9, padding:'11px 14px 7px' }}>
+        <IconeApp cor={COR_CAIXA} tam={26}>{IcoCaixa}</IconeApp>
+        <span style={{ fontSize:13, fontWeight:700, color:T.text, letterSpacing:'-.01em' }}>Caixa de entrada</span>
+        {selo}
+        <span style={{ flex:1 }}/>
+        {naoLidos > 0 && !editando && (
+          <button onClick={marcarTodos} style={{ border:'none', background:'none', padding:0, cursor:'pointer',
+            fontSize:11.5, fontWeight:600, color:T.gold, fontFamily:'var(--font-body)' }}>Marcar lidas</button>
+        )}
+      </div>
+
+      {/* Esmaece a borda de baixo quando há mais linhas do que cabem: sem barra
+          de rolagem visível, é o que avisa que a lista continua. */}
+      <div className="mln-rolagem" style={{ flex:1, minHeight:0, overflowY:'auto', padding:'0 6px 6px',
+        ...(itens.length > 2 ? { WebkitMaskImage:'linear-gradient(to bottom, #000 72%, transparent)', maskImage:'linear-gradient(to bottom, #000 72%, transparent)' } : null) }}>
+        {itens.length === 0 ? (
+          <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:7, fontSize:12.5, color:T.textT }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            Tudo em dia por aqui
+          </div>
+        ) : itens.map(it => {
+          const tp = TIPO_CAIXA[it.tipo] || TIPO_CAIXA.evento;
+          const cor = it.ruim ? T.danger : tp.cor;
+          return (
+            <button key={it.id} onClick={() => abrirItem(it)} title={it.titulo}
+              style={{ display:'flex', alignItems:'center', gap:9, width:'100%', padding:'5px 8px', border:'none', borderRadius:11,
+                background:'transparent', cursor: editando ? 'default' : 'pointer', textAlign:'left', fontFamily:'var(--font-body)',
+                animation:'mlnSlide .4s cubic-bezier(.16,1,.3,1) backwards' }}
+              onMouseEnter={e => { if (!editando) e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,.04)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              <span style={{ width:24, height:24, borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
+                color:cor, background:`${cor}1f` }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{tp.icone}</svg>
+              </span>
+              <span style={{ minWidth:0, flex:1 }}>
+                <span style={{ display:'block', fontSize:12, fontWeight: it.lido ? 500 : 700, color: it.lido ? T.textS : T.text, ...umaLinha }}>{it.titulo}</span>
+                <span style={{ display:'block', fontSize:10.5, color:T.textT, marginTop:1, ...umaLinha }}>{it.sub}</span>
+              </span>
+              <span style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4, flexShrink:0 }}>
+                <span style={{ fontSize:10, color:T.textT, fontVariantNumeric:'tabular-nums' }}>{quandoTxt(it.quando)}</span>
+                <span style={{ width:6, height:6, borderRadius:'50%', background: it.lido ? 'transparent' : T.gold }}/>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </Moldura>
+  );
+};
+
 /* ── Artes animadas das novidades ─────────────────────────────────────────── */
 const ArtePincel = ({ cor, larg = 112 }) => (
   <svg className="mln-anim" width={larg} height={larg * 96 / 112} viewBox="0 0 112 96" fill="none" aria-hidden="true">
@@ -716,11 +846,12 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows:LINHA,
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
-            <WidgetCheckin {...widget('checkin', 1)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>
-            <WidgetHoras {...widget('horas', 2)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>
-            <WidgetPonto {...widget('ponto', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>
-            <WidgetAvisos {...widget('avisos', 4)} onAbrir={abrir('colaborador', 'comunicados')}/>
-            <WidgetNovidades {...widget('novidades', 5)} onSelect={onSelect}/>
+            <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
+            <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>
+            <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>
+            <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>
+            <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>
+            <WidgetNovidades {...widget('novidades', 6)} onSelect={onSelect}/>
           </div>
         </div>
       </div>

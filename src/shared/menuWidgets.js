@@ -125,3 +125,117 @@ export const usePrismaResumo = () => {
   }, []);
   return resumo;
 };
+
+/* ══ CAIXA DE ENTRADA ══════════════════════════════════════════════════════
+   Avisos do que ACONTECEU COM a pessoa — não do que ela mesma fez:
+     • banco de horas: o RH lançou horas pra ela (registro que já nasce
+       aprovado) ou decidiu um pedido dela (aprovou/recusou depois);
+     • prismas recebidos: envio de colega, presente ou crédito do RH
+       (check-in e missão ela mesma fez, então ficam de fora);
+     • convite pra jogar Uniko Paint / Uniko Stop;
+     • evento novo na agenda.
+   Tempo real por postgres_changes (filtrado no cliente — nome com espaço e
+   acento quebra o filtro do realtime, ver gameInvites.js) e uma consulta a
+   cada 45s de rede de segurança, porque nem toda tabela está garantida na
+   publicação do realtime. Janela de 14 dias, 40 itens no máximo.
+   "Lido" fica no navegador, por conta: cada item aberto + um "visto até"
+   pro "marcar todas". */
+const CAIXA_DIAS = 14, CAIXA_MAX = 40, CAIXA_POLL_MS = 45000;
+const caixaKey = (authUser) => 'uniko_caixa_entrada_' + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+const lerLidos = (k) => {
+  try { const r = JSON.parse(localStorage.getItem(k) || '{}'); return { ids: Array.isArray(r.ids) ? r.ids : [], ate: r.ate || '' }; }
+  catch { return { ids: [], ate: '' }; }
+};
+
+const JOGO = { paint: { nome: 'Uniko Paint', aba: 'unikopaint' }, stop: { nome: 'Uniko Stop!', aba: 'unikostop' } };
+const horasTxt = (h) => { const m = Math.round(Number(h || 0) * 60); return `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`; };
+const diaTxt = (iso) => { if (!iso) return ''; const [, mo, d] = String(iso).slice(0, 10).split('-'); return `${d}/${mo}`; };
+const prismasTxt = (r) => [r.premium > 0 && `${r.premium} Premium`, r.comum > 0 && `${r.comum} Comuns`].filter(Boolean).join(' + ');
+
+/* Linha do banco → item da caixa. O id carrega o status: um registro que o
+   RH aprova depois vira um aviso NOVO, em vez de reaproveitar um já lido. */
+const itemBanco = (r) => {
+  const decididoDepois = r.updated_at && r.created_at && (new Date(r.updated_at) - new Date(r.created_at)) > 60000;
+  if (r.status === 'aprovado' && !decididoDepois)
+    return { id: `bh:${r.id}`, tipo: 'banco', quando: r.created_at, titulo: `RH lançou ${horasTxt(r.horas_calculadas)} no seu banco`,
+      sub: `${diaTxt(r.data)} · ${r.descricao || 'Horas extras'}`, destino: ['colaborador', 'horas'] };
+  if ((r.status === 'aprovado' || r.status === 'rejeitado') && decididoDepois)
+    return { id: `bh:${r.id}:${r.status}`, tipo: 'banco', quando: r.updated_at, ruim: r.status === 'rejeitado',
+      titulo: r.status === 'aprovado' ? `Horas de ${diaTxt(r.data)} aprovadas` : `Horas de ${diaTxt(r.data)} recusadas`,
+      sub: `${horasTxt(r.horas_calculadas)} · ${r.descricao || 'Horas extras'}`, destino: ['colaborador', 'horas'] };
+  return null;                                  // pendente: foi a própria pessoa que registrou
+};
+const itemPrisma = (r) => {
+  if (!['envio', 'presente', 'admin'].includes(r.kind)) return null;
+  const txt = prismasTxt(r);
+  if (!txt) return null;                        // retirada, ou envio que ELA fez (valor negativo)
+  return { id: `ph:${r.id}`, tipo: 'prisma', quando: r.created_at, titulo: `Você recebeu ${txt}`,
+    sub: r.descr || 'Prisma Store', destino: ['mercado-estelar', 'historico'] };
+};
+const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', quando: r.created_at, jogo: r.game, sala: r.room_id,
+  titulo: `${(r.from_name || 'Alguém').split(' ')[0]} te chamou pra jogar ${JOGO[r.game]?.nome || 'um jogo'}`,
+  sub: r.room_name ? `Sala ${r.room_name}` : 'Toque pra entrar', destino: ['colaborador', JOGO[r.game]?.aba || 'inicio'] });
+const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
+  sub: [diaTxt(r.event_date), r.event_time, r.type].filter(Boolean).join(' · '), destino: ['colaborador', 'eventos'] });
+
+export const useCaixaEntrada = (authUser) => {
+  const nome = authUser?.name;
+  const chave = caixaKey(authUser);
+  const [mapa, setMapa] = useState({});         // id → item
+  const [lidos, setLidos] = useState(() => lerLidos(chave));
+
+  useEffect(() => {
+    if (!nome) return;
+    let vivo = true;
+    const juntar = (itens) => {
+      const bons = itens.filter(Boolean);
+      if (!vivo || !bons.length) return;
+      setMapa(m => { const n = { ...m }; for (const it of bons) n[it.id] = it; return n; });
+    };
+    const buscar = async () => {
+      const d = new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString();
+      const [bh, ph, gi, ev] = await Promise.all([
+        supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at')
+          .eq('created_by', nome).gte('updated_at', d).limit(CAIXA_MAX),
+        supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at')
+          .eq('player', nome).in('kind', ['envio', 'presente', 'admin']).gte('created_at', d).limit(CAIXA_MAX),
+        supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at')
+          .eq('to_name', nome).gte('created_at', d).limit(CAIXA_MAX),
+        supabase.from('calendar_events').select('id,title,event_date,event_time,type,created_by,created_at')
+          .gte('created_at', d).limit(CAIXA_MAX),
+      ].map(q => q.then(r => r.data || [], () => [])));
+      juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
+        ...ev.filter(e => e.created_by !== nome).map(itemEvento)]);
+    };
+    buscar();
+    const poll = setInterval(buscar, CAIXA_POLL_MS);
+
+    // Nome único: o App já tem um canal de convites, e dois canais com o mesmo
+    // nome no mesmo cliente se atropelam.
+    const ch = supabase.channel('caixa-entrada-' + Math.random().toString(36).slice(2, 8))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banco_horas' },
+        ({ new: r }) => { if (r?.created_by === nome) juntar([itemBanco(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mercado_history' },
+        ({ new: r }) => { if (r?.player === nome) juntar([itemPrisma(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_invites' },
+        ({ new: r }) => { if (r?.to_name === nome) juntar([itemConvite(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calendar_events' },
+        ({ new: r }) => { if (r && r.created_by !== nome) juntar([itemEvento(r)]); })
+      .subscribe();
+
+    return () => { vivo = false; clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
+  }, [nome]);
+
+  const salvar = (next) => { setLidos(next); try { localStorage.setItem(chave, JSON.stringify(next)); } catch { /* ignora */ } };
+  const itens = Object.values(mapa)
+    .sort((a, b) => String(b.quando).localeCompare(String(a.quando)))
+    .slice(0, CAIXA_MAX)
+    .map(it => ({ ...it, lido: lidos.ids.includes(it.id) || (!!lidos.ate && String(it.quando) <= lidos.ate) }));
+
+  return {
+    itens,
+    naoLidos: itens.filter(i => !i.lido).length,
+    marcarLido: (id) => { if (!lidos.ids.includes(id)) salvar({ ...lidos, ids: [...lidos.ids, id].slice(-300) }); },
+    marcarTodos: () => salvar({ ids: [], ate: new Date().toISOString() }),
+  };
+};
