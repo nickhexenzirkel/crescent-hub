@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { T, applyTheme } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { SettingsModal } from './SettingsModal';
-import { calcularOrbita } from './orbita';
-/* Qual palco a tela de módulos usa (órbita, que é o de hoje, ou o layout
-   novo). O interruptor é temporário e mora no Dashboard RH → Configurações;
-   ver shared/menuLayout.js. */
-import { useMenuLayout } from './menuLayout';
+/* A tela de módulos no computador é o MenuLayoutNovo (módulos + widgets).
+   A órbita — o anel de bolhas com o Uniko no meio — saiu em set/2026; o
+   código dela está no histórico do git (antes do commit que tirou o
+   interruptor do Dashboard RH). No celular continua a lista vertical daqui. */
 import { MenuLayoutNovo, WIDGETS_NOVO } from './MenuLayoutNovo';
 /* O catálogo de atalhos são as próprias abas internas dos módulos (Portal,
    Prisma Store, Central Alexa, Oficina Estelar) — reunidas em shared/atalhos.jsx
@@ -31,29 +30,8 @@ const applyOrder = (list, order) => {
   return [...list].sort((a, b) => (idx.has(a.id) ? idx.get(a.id) : 999) - (idx.has(b.id) ? idx.get(b.id) : 999));
 };
 
-/* Posição livre do card de perfil (avatar/editar perfil/config/sair) — o usuário
-   pode arrastá-lo pra qualquer lugar da tela; fica salvo por navegador. Sem
-   posição salva, usa o canto padrão (top:16, right:20). */
-const CARD_POS_KEY = 'uniko_profile_card_pos';
-const loadCardPos = () => {
-  try { const p = JSON.parse(localStorage.getItem(CARD_POS_KEY) || 'null'); if (p && typeof p.x === 'number' && typeof p.y === 'number') return p; }
-  catch { /* ignora */ }
-  return null;
-};
-const saveCardPos = (p) => { try { localStorage.setItem(CARD_POS_KEY, JSON.stringify(p)); } catch { /* ignora */ } };
-
-/* Tamanho pessoal de cada bolha — por usuário, igual à ordem. Guarda só os
-   módulos que a pessoa mexeu (multiplicador != 1); o resto fica no padrão. */
-const MODULE_SIZE_PREFIX = 'uniko_module_size_';
-const sizeKey = (authUser) => MODULE_SIZE_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
-const loadSizePrefs = (authUser) => {
-  try { const r = JSON.parse(localStorage.getItem(sizeKey(authUser)) || '{}'); return (r && typeof r === 'object') ? r : {}; }
-  catch { return {}; }
-};
-const saveSizePrefs = (authUser, prefs) => { try { localStorage.setItem(sizeKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
-/* Tamanho pequeno/grande de cada item no LAYOUT NOVO (módulos e widgets),
-   como nos widgets do iPhone. Separado do tamanho das bolhas da órbita de
-   propósito: lá são quatro passos (P/M/G/GG) e a conta de espaço é outra.
+/* Tamanho pequeno/grande de cada item da tela de módulos (módulos e widgets),
+   como nos widgets do iPhone.
    Guarda { idDoItem: 'p' | 'g' }; o que não está aqui usa o padrão do layout. */
 const TAM_NOVO_PREFIX = 'uniko_menu_novo_tamanho_';
 const tamNovoKey = (authUser) => TAM_NOVO_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
@@ -63,8 +41,8 @@ const loadTamNovo = (authUser) => {
 };
 const saveTamNovo = (authUser, prefs) => { try { localStorage.setItem(tamNovoKey(authUser), JSON.stringify(prefs)); } catch { /* ignora */ } };
 
-/* Atalhos na órbita — bolhas que levam direto a uma ABA do Portal (Uniko
-   Paint, Uniko Wave, Colegas...) em vez de a um módulo. Guardados por usuário,
+/* Atalhos — itens que levam direto a uma ABA de dentro de um módulo (Uniko
+   Paint, Carteira da Prisma Store, Playlist da Alexa...) em vez de ao módulo. Guardados por usuário,
    igual à ordem/tamanho/cor: é uma preferência de tela, não um dado do RH. */
 const ATALHOS_PREFIX = 'uniko_module_atalhos_';
 const atalhosKey = (authUser) => ATALHOS_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
@@ -77,17 +55,7 @@ const saveAtalhos = (authUser, ids) => { try { localStorage.setItem(atalhosKey(a
    os dois convivem na mesma lista de ordem, tamanho e cor. */
 const ATALHO_ID = (chave) => `atalho:${chave}`;
 
-// 4 tamanhos discretos (não contínuo) — assim dá pra GARANTIR que o algoritmo
-// de espaçamento da órbita sempre encontra um jeito de encaixar todo mundo
-// sem uma bolha maior comer o espaço da vizinha.
-const SIZE_STEPS = [
-  { id:'p',  label:'P',  mult:0.82 },
-  { id:'m',  label:'M',  mult:1    },
-  { id:'g',  label:'G',  mult:1.18 },
-  { id:'gg', label:'GG', mult:1.35 },
-];
-
-/* Cor pessoal de cada bolha — mesmo padrão de tamanho/ordem: só guarda quem
+/* Cor pessoal de cada módulo — mesmo padrão de tamanho/ordem: só guarda quem
    a pessoa mudou (id de uma cor da paleta); o resto usa a cor padrão do
    próprio módulo (a do tema, ou a fixa de módulos como Uniko FIT). */
 const MODULE_COLOR_PREFIX = 'uniko_module_color_';
@@ -138,7 +106,7 @@ const COLOR_STEPS = [
    Agora o ponto é um <div> com brilho fixo (box-shadow pintado uma vez) que
    só se DESLOCA por transform — trabalho do compositor, zero repintura. A
    trilha de cada letra é amostrada uma vez do próprio path (getPointAtLength)
-   e vira keyframes de translate, a mesma ideia da `trilhaOrbital` lá embaixo.
+   e vira keyframes de translate.
    O translate é em % do tamanho do wordmark, então acompanha qualquer escala
    sem medir nada. */
 const UNIKO_W = 487, UNIKO_H = 130;
@@ -206,37 +174,9 @@ const UnikoName = () => {
   );
 };
 
-/* Ícone do Uniko na home: flutua de leve (lento) e PISCA a cada 3s com 3 frames —
-   normal (UNIKO_NEW) → meio fechado (UNIKO_PISCA_FRAME_2) → fechado (UNIKO_PISCA) → meio → normal. */
-const UnikoMascot = ({ size }) => {
-  const img = { position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain' };
-  return (
-    <div style={{ position:'relative', width:size, height:size, animation:'unikoFloat 5s ease-in-out infinite',
-      filter:`drop-shadow(0 8px 26px ${T.goldLine}44)` }}>
-      <style>{`
-        @keyframes unikoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-        @keyframes unikoBlinkTop{0%,90%{opacity:1}90.6%,99%{opacity:0}99.4%,100%{opacity:1}}
-        @keyframes unikoBlinkMid{0%,93.8%{opacity:1}94.2%,96%{opacity:0}96.4%,100%{opacity:1}}
-      `}</style>
-      {/* base: olho FECHADO */}
-      <img src="/UNIKO_PISCA.png" alt="" aria-hidden="true" style={img}/>
-      {/* meio: olho MEIO FECHADO (aparece no fechar e no abrir) */}
-      <img src="/UNIKO_PISCA_FRAME_2.png" alt="" aria-hidden="true" style={{ ...img, animation:'unikoBlinkMid 3s linear infinite' }}/>
-      {/* topo: NORMAL — some durante a piscada revelando os frames abaixo */}
-      <img src="/UNIKO_NEW.png" alt="Uniko" style={{ ...img, animation:'unikoBlinkTop 3s linear infinite' }}/>
-    </div>
-  );
-};
-
 /* Estrelas cadentes cruzando o fundo — mesmo efeito da capa/hero da aba
    Início do Portal do Colaborador. Aqui a tela é bem maior, então espalha
    mais riscos por toda a área em vez de só 3. */
-const ESTRELINHAS_ORBITA = [
-  { dur:26, r:3.5, fill:'branco' },
-  { dur:19, r:3,   fill:'gold'   },
-  { dur:13, r:2.6, fill:'branco' },
-];
-
 const SHOOT_POS = [
   {x:'8%',  y:'10%', delay:'-1.5s'}, {x:'64%', y:'6%',  delay:'-3.8s'},
   {x:'30%', y:'20%', delay:'-0.6s'}, {x:'86%', y:'32%', delay:'-2.4s'},
@@ -244,28 +184,7 @@ const SHOOT_POS = [
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
 
-/* Trilha elíptica das estrelinhas em órbita, como keyframes de transform.
-
-   Antes isso era <animateMotion> (SMIL), e SMIL é a pior opção possível aqui:
-   o navegador não consegue compor essa animação, então a cada frame ele
-   INVALIDA e repinta o SVG inteiro da órbita — os três anéis, os pontinhos
-   entre as bolhas e as próprias estrelinhas, numa área de 1420x800. Era o
-   maior custo de desenho da tela, por três bolinhas de 3px.
-
-   Com transform em keyframes a bolinha vira uma camada que o compositor só
-   desloca, e o SVG dos anéis passa a ser pintado uma vez e nunca mais. A
-   elipse sai aproximada por 40 passos — o suficiente pra não se ver canto. */
-const trilhaOrbital = (nome, rx, ry, passos = 40) => {
-  let quadros = '';
-  for (let i = 0; i <= passos; i++) {
-    const t = i / passos, a = t * Math.PI * 2 - Math.PI / 2;
-    quadros += `${(t * 100).toFixed(2)}%{transform:translate(${(rx * Math.cos(a)).toFixed(1)}px,${(ry * Math.sin(a)).toFixed(1)}px)}`;
-  }
-  return `@keyframes ${nome}{${quadros}}`;
-};
-
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
-  const [hov, sh]     = useState(null);
   const [pressed, setPressed] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [menuMobile, setMenuMobile] = useState(false);   // menu do ⚙ no celular
@@ -279,31 +198,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const [reorderMode, setReorderMode] = useState(false);
   const [order, setOrder]   = useState(() => loadModuleOrder(authUser));
   const [dragModId, setDragModId] = useState(null);
-  // Modo "tamanho dos módulos" — toca numa bolha pra escolher o tamanho SÓ
-  // dela, ou usa "Todos" no banner pra aplicar o mesmo tamanho em todo mundo.
+  // Modo "tamanho" — cada módulo e widget ganha um seletor pequeno/grande.
   const [sizeMode, setSizeMode] = useState(false);
-  const [sizePrefs, setSizePrefs] = useState(() => loadSizePrefs(authUser));
-  const [sizingId, setSizingId] = useState(null);
-  const getSizeMult = (id) => SIZE_STEPS.find(s => s.id === (sizePrefs[id] || 'm'))?.mult || 1;
-  const setModuleSize = (id, stepId) => {
-    setSizePrefs(prev => {
-      const next = { ...prev };
-      if (stepId === 'm') delete next[id]; else next[id] = stepId;
-      saveSizePrefs(authUser, next);
-      return next;
-    });
-  };
-  const setAllSizes = (stepId) => {
-    setSizePrefs(() => {
-      const next = {};
-      if (stepId !== 'm') filteredMods.forEach(m => { next[m.id] = stepId; });
-      saveSizePrefs(authUser, next);
-      return next;
-    });
-  };
-  // Modo "cor dos módulos" — mesmo esquema do tamanho: toca numa bolha pra
-  // escolher a cor SÓ dela, ou usa "Todos" no banner pra aplicar em todo mundo.
-  // Modo "atalhos" — escolhe quais abas do Portal ganham bolha na órbita.
+  // Modo "cor dos módulos" — toca num módulo pra escolher a cor SÓ dele, ou
+  // usa "Todos" no banner pra aplicar em todo mundo.
+  // Modo "atalhos" — escolhe quais abas internas dos módulos viram atalho.
   const [atalhoMode, setAtalhoMode] = useState(false);
   const [atalhos, setAtalhos] = useState(() => loadAtalhos(authUser));
   const toggleAtalho = (tab) => {
@@ -323,7 +222,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     if (v) [...filteredMods.map(m => m.id), ...WIDGETS_NOVO].forEach(id => { next[id] = v; });
     setTamNovo(next); saveTamNovo(authUser, next);
   };
-  /* Os quatro modos de personalizar a órbita são mutuamente exclusivos, e cada
+  /* Os quatro modos de personalizar a tela são mutuamente exclusivos, e cada
      botão repetia os cinco setStates pra desligar os outros. Um lugar só:
      liga o pedido, desliga o resto, e limpa a bolha que estava selecionada. */
   const abrirModo = (qual) => {
@@ -331,7 +230,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     setSizeMode(   m => qual === 'tamanho' ? !m : false);
     setColorMode(  m => qual === 'cor'     ? !m : false);
     setAtalhoMode( m => qual === 'atalhos' ? !m : false);
-    setSizingId(null);
     setColoringId(null);
   };
   const [colorPrefs, setColorPrefs] = useState(() => loadColorPrefs(authUser));
@@ -415,79 +313,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     return () => window.removeEventListener('keydown', tecla);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorUndo, colorRedo, colorPrefs, authUser]);
-  // Card de perfil arrastável pra qualquer canto da tela (pega pela alcinha ⋮⋮ no topo).
-  const [cardPos, setCardPos] = useState(() => loadCardPos());
-  const cardPosRef = useRef(cardPos);
-  const cardElRef  = useRef(null);
-  const cardDragRef = useRef(null);
-  // Área da órbita se encolhe (bolhas, mascote e anéis juntos, sem perder as
-  // proporções) até caber na altura disponível da tela — sem isso, em telas
-  // de notebook mais baixas, o rodapé (tagline) só aparecia rolando a página.
-  const orbitAreaRef = useRef(null);
-  const [orbitScale, setOrbitScale] = useState(1);
-  const [draggingCard, setDraggingCard] = useState(false);
-  useEffect(() => { cardPosRef.current = cardPos; }, [cardPos]);
-  // O card só pode DESCANSAR em um dos 4 cantos da tela (não em qualquer
-  // lugar) — arrastar ainda segue o cursor livremente pra dar feedback, mas
-  // ao soltar ele sempre encaixa no canto mais próximo de onde foi solto.
-  const CARD_MARGIN = 18;
-  const cornerFromPoint = (cx, cy, w, h) => ({
-    x: cx > window.innerWidth / 2 ? window.innerWidth - w - CARD_MARGIN : CARD_MARGIN,
-    y: cy > window.innerHeight / 2 ? window.innerHeight - h - CARD_MARGIN : CARD_MARGIN,
-  });
-  // Posição salva pode ter ficado FORA da tela — foi arrastada com outro nível
-  // de zoom/tamanho de janela, e sem isso o card simplesmente sumia (relatado:
-  // "com o zoom de 100% o card some da tela"). Reencaixa no canto mais
-  // próximo assim que monta e sempre que a janela muda de tamanho/zoom.
-  useEffect(() => {
-    const reencaixar = () => {
-      setCardPos(p => {
-        if (!p) return p;
-        const w = cardElRef.current?.offsetWidth || 200, h = cardElRef.current?.offsetHeight || 140;
-        const next = cornerFromPoint(p.x + w / 2, p.y + h / 2, w, h);
-        if (next.x === p.x && next.y === p.y) return p;
-        saveCardPos(next); return next;
-      });
-    };
-    reencaixar();
-    window.addEventListener('resize', reencaixar);
-    return () => window.removeEventListener('resize', reencaixar);
-  }, []);
-  useEffect(() => {
-    const move = (e) => {
-      const d = cardDragRef.current; if (!d) return;
-      const w = cardElRef.current?.offsetWidth || 116, h = cardElRef.current?.offsetHeight || 116;
-      const x = Math.max(4, Math.min(window.innerWidth - w - 4, e.clientX - d.ox));
-      const y = Math.max(4, Math.min(window.innerHeight - h - 4, e.clientY - d.oy));
-      setCardPos({ x, y });
-    };
-    const up = () => {
-      if (!cardDragRef.current) return;
-      cardDragRef.current = null; setDraggingCard(false);
-      setCardPos(p => {
-        if (!p) return p;
-        const w = cardElRef.current?.offsetWidth || 200, h = cardElRef.current?.offsetHeight || 140;
-        const next = cornerFromPoint(p.x + w / 2, p.y + h / 2, w, h);
-        saveCardPos(next); return next;
-      });
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, []);
-  const startCardDrag = (e) => {
-    e.preventDefault();
-    const rect = cardElRef.current.getBoundingClientRect();
-    cardDragRef.current = { ox: e.clientX - rect.left, oy: e.clientY - rect.top };
-    setDraggingCard(true);
-  };
   const isMobile = useIsMobile();
-  const layoutMenu = useMenuLayout();   // 'orbita' (padrão) ou 'novo'
-  /* A órbita precisa de altura: ela é uma elipse com o mascote no meio e nove
-     bolhas em volta. Num celular DEITADO (iPhone 14: 844x390) a largura passa
-     do corte de "mobile", então caía na órbita — que encolhia pra cerca de 30%
-     e virava um amontoado ilegível. Abaixo de 520px de altura a lista é
-     simplesmente a forma certa, não importa a largura. */
+  /* Num celular DEITADO (iPhone 14: 844x390) a largura passa do corte de
+     "mobile", mas não há altura pra módulos + widgets lado a lado. Abaixo de
+     520px de altura a lista é simplesmente a forma certa, não importa a largura. */
   const [alturaCurta, setAlturaCurta] = useState(() => window.innerHeight < 520);
   useEffect(() => {
     const medir = () => setAlturaCurta(window.innerHeight < 520);
@@ -496,25 +325,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     return () => { window.removeEventListener('resize', medir); window.removeEventListener('orientationchange', medir); };
   }, []);
   const emLista = isMobile || alturaCurta;
-  useEffect(() => {
-    // `emLista` e não `isMobile`: numa janela baixa a órbita nem é renderizada,
-    // e sem isto o observer não voltaria a se prender ao esticar a janela.
-    // Mesma razão pra olhar o layout: no layout novo não existe caixa de
-    // órbita pra medir, e ao voltar pra órbita o observer precisa renascer
-    // grudado no elemento NOVO (o antigo foi desmontado junto com o palco).
-    if (emLista || layoutMenu !== 'orbita') return;
-    const el = orbitAreaRef.current; if (!el) return;
-    const calc = () => {
-      const w = el.clientWidth, h = el.clientHeight;
-      if (!w || !h) return;
-      const s = Math.min(w / 1420, h / 800, 1);   // 1420x800 = caixa de projeto da órbita
-      setOrbitScale(s > 0 ? s : 1);
-    };
-    calc();
-    const ro = new ResizeObserver(calc);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [emLista, layoutMenu]);
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
   // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
@@ -528,7 +338,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     </svg>
   );
   // Nota musical dupla. Era uma lua — bonita, mas não dizia "música" nenhuma
-  // pra quem bate o olho na órbita procurando a Central Alexa.
+  // pra quem bate o olho na tela procurando a Central Alexa.
   const IcoAlexa = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 18V5l12-2v13"/>
@@ -599,9 +409,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'conexao-setorial', label:'Conexão Setorial',      sub:'Quadro Kanban · Salas por assunto',  icon:IcoChat,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
   ];
-  /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a órbita já
-     sabe fazer (ordenar, redimensionar, colorir, espaçar) vale pra eles de
-     graça. O que muda é só o clique, que leva pro Portal já na aba certa. */
+  /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
+     sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
+     muda é só o clique, que leva pro módulo já na aba certa. */
   const catalogo = catalogoAtalhos(authUser);
   const atalhoMods = atalhos
     .map(chave => ({ chave, a: resolverAtalho(chave, catalogo) }))
@@ -614,16 +424,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const filteredMods = [...allMods, ...atalhoMods]
     .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
   const mods = applyOrder(filteredMods, order);
-  // Desktop em órbita: 1ª vez (sem ordem salva) usa esta sequência — é o que
-  // reproduz exatamente as posições da referência (relógio a partir do topo).
-  // Depois que a pessoa arrasta pra reorganizar, os dois (lista mobile e
-  // órbita desktop) passam a seguir a MESMA ordem escolhida por ela.
-  // O SEGUNDO da lista fica cravado no topo; o primeiro nasce à esquerda dele
-  // e o terceiro à direita. Daí em diante segue no sentido horário.
-  const ORBIT_DEFAULT = ['mercado-estelar','colaborador','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
-  const orbitMods = order.length ? mods : applyOrder(filteredMods, ORBIT_DEFAULT);
+  // Computador: 1ª vez (sem ordem salva) usa esta sequência — o primeiro nasce
+  // grande na grade. Depois que a pessoa reorganiza, lista do celular e grade
+  // do computador seguem a MESMA ordem escolhida por ela.
+  const ORDEM_PADRAO = ['mercado-estelar','colaborador','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
+  const modsTela = order.length ? mods : applyOrder(filteredMods, ORDEM_PADRAO);
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
-     drag-and-drop HTML5 (o mesmo que a órbita usa no desktop) simplesmente não
+     drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não
      existe no Safari do iOS — arrastar ali nunca funcionaria. Subir/descer um
      item é o gesto que funciona em qualquer toque. */
   const moverModulo = (id, direcao) => {
@@ -646,42 +453,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   };
 
   // ─── MOBILE — lista vertical ─────────────────────────────────────────────
-  /* ── Geometria da órbita (desktop) ──────────────────────────────────────
-     Fica aqui, acima do `if (isMobile)`, porque usa useMemo: hook não pode
-     nascer depois de um return condicional — a ordem dos hooks mudaria ao
-     alternar entre celular e desktop.
-
-     A conta toda (e as duas tentativas que deram errado antes) está em
-     shared/orbita.js. Em resumo: folga IGUAL entre todos os pares, medida na
-     distância real entre centros, e as bolhas crescem juntas pra ocupar o
-     anel em vez de deixar vão. Sai em px de projeto (a caixa ORBIT_W×ORBIT_H);
-     quem encolhe tudo pra caber na janela é o orbitScale, na hora de pintar. */
-  const ORBIT_W = 1420, ORBIT_H = 800;   // caixa de projeto da órbita, em px
-  const BASE_D = 178;                    // diâmetro de referência de uma bolha "M"
-  /* O Uniko do meio e o espaço dele.
-
-     No layout padrão o anel reserva VAO_CENTRAL de raio livre — o mascote
-     inteiro (MASCOTE_MAX) mais um respiro. Sem essa reserva as bolhas de cima
-     e de baixo encostavam nele (sobravam 14px).
-
-     Mas a reserva não pode virar uma camisa de força: era ela que fazia o
-     G/GG do módulo do TOPO não surtir efeito nenhum (o "M" já nascia no teto).
-     Então quem for marcado G/GG avança sobre a reserva, e o MASCOTE É QUE
-     ENCOLHE pra caber no que sobrou — a escolha da pessoa ganha do meu
-     respiro automático. VAO_DURO é o limite de tudo: nem a maior bolha pode
-     apagar o mascote. */
-  const MASCOTE_MAX = 148, MASCOTE_MIN = 92;
-  const VAO_CENTRAL = MASCOTE_MAX / 2 + 58;
-  const VAO_DURO    = MASCOTE_MIN / 2 + 14;
-  const chaveOrbita = orbitMods.map(m => `${m.id}:${getSizeMult(m.id)}`).join('|');
-  const orbita = useMemo(
-    () => calcularOrbita({ mults: orbitMods.map(m => getSizeMult(m.id)),
-                           W: ORBIT_W, H: ORBIT_H, base: BASE_D, vaoMin: VAO_CENTRAL, vaoDuro: VAO_DURO }),
-    // chaveOrbita resume o que muda o layout (quais módulos e que tamanhos);
-    // orbitMods e getSizeMult trocam de identidade a cada render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chaveOrbita]);
-
   if (emLista) {
     return (
       // idem desktop: sem fundo opaco, pra o lava lamp do App aparecer aqui também
@@ -891,34 +662,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     );
   }
 
-  // ─── DESKTOP — órbita ────────────────────────────────────────────────────
-  const N = orbitMods.length || 1;
-  // Posições, diâmetros e raios da elipse já saíram do useMemo; aqui é só ler.
-  // Tudo em px de projeto — o orbitScale entra na hora de pintar.
-  const { angulos: orbitAngles, diams: orbitDiams, RXpx, RYpx } = orbita;
-  // O mascote ocupa o vão que sobrou, nunca mais que isso.
-  const mascoteTam = Math.max(MASCOTE_MIN, Math.min(MASCOTE_MAX, (orbita.vaoCentral - 14) * 2));
-  const pctDoAngulo = (ang) => {
-    const a = ang * Math.PI / 180;
-    return { left: 50 + RXpx * Math.cos(a) / ORBIT_W * 100,
-             top:  50 + RYpx * Math.sin(a) / ORBIT_H * 100 };
-  };
-  const orbitDiam = (i) => (orbitDiams[i] ?? 178) * orbitScale;
-  const orbitPt = (i) => pctDoAngulo(orbitAngles[i % N] ?? -90);
-  // Pontinho decorativo entre duas bolhas vizinhas — só o meio ANGULAR entre
-  // elas (não precisa ser exato, é decoração).
-  const orbitMidPt = (i) => {
-    const a0 = orbitAngles[i] ?? -90, a1raw = orbitAngles[(i + 1) % N] ?? -90;
-    const a1 = a1raw > a0 ? a1raw : a1raw + 360;
-    return pctDoAngulo((a0 + a1) / 2);
-  };
-  // Os anéis decorativos saem dos raios REAIS da elipse, senão deixam de
-  // passar por baixo das bolhas quando elas mudam de tamanho.
-  const aneis = [1, 0.845, 0.69].map(k => ({ rx: RXpx * k, ry: RYpx * k }));
-
-  /* Ações do card de perfil. Moram aqui, fora do JSX, porque as duas telas
-     usam: na órbita elas ficam no card flutuante; no layout novo, no widget de
-     perfil (onde "Tamanho" não existe — tile não tem P/M/G/GG). */
+  // ─── COMPUTADOR — módulos + widgets ──────────────────────────────────────
+  /* Ações do widget de perfil (Perfil, Conta, Tema, os modos de personalizar
+     e Sair). */
   const acoesCard = [
     { id:'perfil', rot:'Perfil', dica:'Editar seus dados',
       onClick:()=>onSelect('colaborador','dados'), destaque:true,
@@ -932,7 +678,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     { id:'ordem', rot:'Ordem', dica:'Arrastar pra reorganizar os módulos',
       ativo:reorderMode, onClick:()=>abrirModo('ordem'),
       icone:<><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></> },
-    { id:'tamanho', rot:'Tamanho', dica: layoutMenu==='orbita' ? 'Tamanho das bolhas (P/M/G/GG)' : 'Pequeno ou grande, como os widgets do iPhone',
+    { id:'tamanho', rot:'Tamanho', dica:'Pequeno ou grande, como os widgets do iPhone',
       ativo:sizeMode, onClick:()=>abrirModo('tamanho'),
       icone:<><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></> },
     { id:'cor', rot:'Cor', dica:'Cor de cada módulo',
@@ -945,12 +691,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       icone:<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></> },
   ];
 
-  /* Popover de cor — abre ao tocar num módulo em "modo cor". Nasce centrado no
-     palco (não preso ao módulo) pra nunca correr risco de sair da tela. A
-     órbita pinta ele dentro da própria caixa; o layout novo, sobre a tela. */
+  /* Popover de cor — abre ao tocar num módulo em "modo cor". Nasce centrado na
+     tela (não preso ao módulo) pra nunca correr risco de sair dela. */
   const popoverCor = () => {
     if (!colorMode || !coloringId) return null;
-    const m = orbitMods.find(x=>x.id===coloringId);
+    const m = modsTela.find(x=>x.id===coloringId);
     if (!m) return null;
     const curColor = colorPrefs[m.id] || null;
     return (
@@ -997,53 +742,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         ))}
       </div>
 
-      {/* No layout novo o card vira o widget de perfil, dentro da coluna da direita. */}
-      {authUser&&layoutMenu==='orbita'&&(
-        <div ref={cardElRef} style={{position:'fixed',
-          ...(cardPos ? {left:cardPos.x, top:cardPos.y} : {top:18, right:26}),
-          width:200,display:'flex',flexDirection:'column',
-          gap:8,padding:'10px 12px',borderRadius:16,zIndex:10,
-          background:T.surface,border:`1px solid ${T.border}`,boxShadow:T.shL,
-          transition:draggingCard?'none':'box-shadow .15s'}}>
-          <div onPointerDown={startCardDrag} title="Arraste para mover"
-            style={{display:'flex',alignItems:'center',gap:10,cursor:draggingCard?'grabbing':'grab',touchAction:'none'}}>
-            <AvatarCircle name={authUser.name} photo={userPhoto} size={38} fontSize={13} rounded="11px"/>
-            <div style={{minWidth:0,flex:1}}>
-              <div style={{fontSize:13.5,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                {authUser.name.split(' ')[0]}
-              </div>
-              <div style={{fontSize:10.5,fontWeight:600,color:isModerador?'#4A78C4':T.gold}}>
-                {isAdmin?'Admin':isModerador?'Moderador':'Colaborador'}
-              </div>
-            </div>
-          </div>
-          {/* Ações do card. Antes eram seis ícones sem rótulo numa grade de
-              três, e ninguém adivinhava qual era qual: a paleta trocava a cor
-              das BOLHAS, mas parecia o tema do sistema; a engrenagem abria um
-              modal que tinha tema E conta juntos. Agora cada ação tem o seu
-              botão, com ícone próprio e nome escrito — inclusive Tema e Conta,
-              que viraram entradas separadas do mesmo modal. */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5,width:'100%'}}>
-            {acoesCard.map(b => {
-              const aceso = b.ativo || b.destaque;
-              return (
-                <button key={b.id} onClick={b.onClick} title={b.dica}
-                  style={{display:'flex',alignItems:'center',gap:6,height:30,padding:'0 8px',borderRadius:9,
-                    border:`1px solid ${b.perigo ? (T.dangerGl||T.border) : aceso ? T.goldLine+'44' : T.border}`,
-                    background: aceso && !b.perigo ? T.goldGl : 'transparent',
-                    color: b.perigo ? T.danger : aceso ? T.gold : T.textS,
-                    cursor:'pointer',fontSize:11,fontWeight:600,fontFamily:'var(--font-body)',
-                    textAlign:'left',overflow:'hidden'}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-                    strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{b.icone}</svg>
-                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{b.rot}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {showSettings && <SettingsModal activeTheme={activeTheme} onTheme={handleTheme} painelInicial={painelConfig} onClose={()=>setShowSettings(false)}/>}
 
       {/* ── Cabeçalho: wordmark à esquerda · saudação + título ao centro ── */}
@@ -1070,14 +768,14 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       {reorderMode && (
         <div style={{display:'flex',alignItems:'center',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
-          <span>✛ Arraste {layoutMenu==='orbita' ? 'as bolhas' : 'os módulos'} pra reorganizar como eles aparecem na sua tela.</span>
+          <span>✛ Arraste os módulos pra reorganizar como eles aparecem na sua tela.</span>
           <button onClick={()=>setReorderMode(false)}
             style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
               color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
         </div>
       )}
 
-      {sizeMode && layoutMenu !== 'orbita' && (
+      {sizeMode && (
         <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
           <span>📐 Escolha pequeno ou grande em cada módulo e widget, ou aplique em tudo:</span>
@@ -1089,23 +787,6 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
             ))}
           </div>
           <button onClick={()=>setSizeMode(false)}
-            style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
-              color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
-        </div>
-      )}
-
-      {sizeMode && layoutMenu === 'orbita' && (
-        <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
-          background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',width:'fit-content'}}>
-          <span>📐 Toque numa bolha pra escolher o tamanho SÓ dela, ou aplique em todas:</span>
-          <div style={{display:'flex',gap:4}}>
-            {SIZE_STEPS.map(s=>(
-              <button key={s.id} onClick={()=>setAllSizes(s.id)}
-                style={{padding:'4px 11px',borderRadius:7,border:`1px solid ${T.goldLine}55`,background:T.surface,color:T.text,
-                  cursor:'pointer',fontWeight:700,fontSize:11.5,fontFamily:'var(--font-body)'}}>{s.label}</button>
-            ))}
-          </div>
-          <button onClick={()=>{setSizeMode(false); setSizingId(null);}}
             style={{marginLeft:6,padding:'5px 14px',borderRadius:9,border:'none',cursor:'pointer',fontWeight:700,fontSize:12.5,
               color:'#fff',background:T.gold,fontFamily:'var(--font-body)'}}>Concluir</button>
         </div>
@@ -1151,7 +832,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:10,margin:'6px auto 0',padding:'9px 16px',borderRadius:12,
           background:T.goldGl,border:`1px solid ${T.goldLine}44`,fontSize:13,color:T.text,fontFamily:'var(--font-body)',
           width:'fit-content',maxWidth:'min(94vw, 780px)'}}>
-          <span>🎨 Toque {layoutMenu==='orbita' ? 'numa bolha' : 'num módulo'} pra escolher a cor só dele, ou aplique em todos:</span>
+          <span>🎨 Toque num módulo pra escolher a cor só dele, ou aplique em todos:</span>
           {/* maxWidth obriga a paleta a quebrar em linhas: com 20 cores, sem
               isto o banner esticava numa faixa única atravessando a tela. */}
           <div style={{display:'flex',gap:4,flexWrap:'wrap',maxWidth:312}}>
@@ -1183,162 +864,21 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
       )}
 
-      {/* ── O PALCO: órbita (padrão) ou o layout novo ────────────────────
-          Só o miolo da tela troca. Cabeçalho, card de perfil, banners de
-          personalizar e rodapé são os mesmos nos dois — e a lista de módulos
-          entregue ao layout novo é a MESMA `orbitMods`, já ordenada, com os
-          atalhos do Portal dentro e com as cores escolhidas pela pessoa.
-
-          Órbita: anéis decorativos + mascote central + bolhas dos módulos.
-          A área abaixo ocupa o espaço vertical que sobrar (flex:1) e mede a si
-          mesma; a órbita (anéis+mascote+bolhas) encolhe junto, mantendo as
-          proporções, até caber sem precisar rolar a página. */}
-      {layoutMenu !== 'orbita' ? (
-        <MenuLayoutNovo mods={orbitMods} onSelect={onSelect} getModuleColor={getModuleColor}
-          authUser={authUser} userPhoto={userPhoto}
-          acoes={acoesCard}
-          tamanhos={tamNovo} onTamanhos={mudarTamNovo}
-          modo={{ reorderMode, colorMode, sizeMode, dragModId, coloringId, setDragModId,
-            onSoltar: (paraId) => { reorderCard(orbitMods, dragModId, paraId); setDragModId(null); },
-            onEscolherCor: (id) => setColoringId(atual => atual === id ? null : id) }}
-          sobreposicao={colorMode && coloringId ? (
-            <div style={{position:'fixed',inset:0,zIndex:30,pointerEvents:'none'}}>
-              <div style={{pointerEvents:'auto'}}>{popoverCor()}</div>
-            </div>
-          ) : null}/>
-      ) : (
-      <div ref={orbitAreaRef} style={{flex:'1 1 0',minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',width:'100%'}}>
-      <div className="fsu2" style={{position:'relative',width:ORBIT_W*orbitScale,height:ORBIT_H*orbitScale,flex:'0 0 auto'}}>
-        <svg viewBox={`0 0 ${ORBIT_W} ${ORBIT_H}`} style={{position:'absolute',inset:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}>
-          {aneis.map((a, i) => (
-            <ellipse key={'anel'+i} cx={ORBIT_W/2} cy={ORBIT_H/2} rx={a.rx} ry={a.ry}
-              fill="none" stroke={T.goldLine||T.gold} strokeWidth="1" opacity={[.22, .15, .1][i]}/>
-          ))}
-          {orbitMods.map((_,i)=>{ const p = orbitMidPt(i); return (
-            <circle key={i} cx={p.left/100*ORBIT_W} cy={p.top/100*ORBIT_H} r="4" fill={T.goldLine||T.gold} opacity=".55"/>
-          );})}
-        </svg>
-
-        {/* Estrelinhas viajando pelos anéis — quanto mais interno o anel, mais
-            rápido (como órbitas de verdade: raio menor gira mais rápido).
-            Ficam FORA do svg de propósito: ver trilhaOrbital lá em cima. */}
-        <style>{ESTRELINHAS_ORBITA.map((o,i)=>trilhaOrbital(`orbTrilha${i}`, aneis[i].rx*orbitScale, aneis[i].ry*orbitScale)).join('')}</style>
-        {ESTRELINHAS_ORBITA.map((o,i)=>{
-          const d = o.r * 2 * orbitScale;
-          return (
-            <div key={'orb'+i} className="orbita-estrelinha" style={{position:'absolute',
-              left:'50%', top:'50%', width:d, height:d, marginLeft:-d/2, marginTop:-d/2,
-              borderRadius:'50%', background:o.fill==='gold' ? (T.goldL||T.gold) : '#ffffff',
-              boxShadow:`0 0 ${3*orbitScale}px ${T.goldL||T.gold}`, opacity:.95,
-              animation:`orbTrilha${i} ${o.dur}s linear infinite`, animationDelay:`${-i*4}s`,
-              willChange:'transform', pointerEvents:'none', zIndex:1}}/>
-          );
-        })}
-
-        <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:2,pointerEvents:'none'}}>
-          <UnikoMascot size={mascoteTam*orbitScale}/>
-        </div>
-
-        {orbitMods.map((m,i)=>{
-          const p = orbitPt(i);
-          const bd = orbitDiam(i);
-          /* Ícone, textos e aura acompanham o tamanho final da bolha — e `bd`
-             JÁ inclui o orbitScale. Dividir aqui por (BASE_D * orbitScale)
-             cancelava a escala: num iPhone deitado a órbita encolhia pra ~30%
-             e os textos continuavam em tamanho cheio, atropelando as bolhas. */
-          const bs = bd / BASE_D;
-          const { color: mColor, bg: mBg } = getModuleColor(m);
-          return (
-            <div key={m.id}
-              draggable={reorderMode}
-              onDragStart={reorderMode ? (e)=>{ setDragModId(m.id); e.dataTransfer.effectAllowed='move'; } : undefined}
-              onDragOver={reorderMode ? (e)=>e.preventDefault() : undefined}
-              onDrop={reorderMode ? (e)=>{ e.preventDefault(); reorderCard(orbitMods, dragModId, m.id); setDragModId(null); } : undefined}
-              onDragEnd={reorderMode ? ()=>setDragModId(null) : undefined}
-              onClick={reorderMode ? undefined : sizeMode ? ()=>setSizingId(id=>id===m.id?null:m.id) : colorMode ? ()=>setColoringId(id=>id===m.id?null:m.id) : ()=>onSelect(m.atalho ? m.modulo : m.id, m.tab)}
-              onMouseEnter={()=>sh(m.id)} onMouseLeave={()=>sh(null)}
-              style={{position:'absolute',left:`${p.left}%`,top:`${p.top}%`,transform:'translate(-50%,-50%)',
-                width:bd,height:bd,borderRadius:'50%',zIndex:3,
-                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4*bs,
-                textAlign:'center',padding:`0 ${16*bs}px`,boxSizing:'border-box',
-                background:T.surface,
-                border:reorderMode ? `2px dashed ${dragModId===m.id?T.gold:T.goldLine+'88'}`
-                  : sizingId===m.id||coloringId===m.id ? `2px solid ${T.gold}` : `1.5px solid ${hov===m.id?mColor+'77':T.border}`,
-                // 3 camadas de aura ao redor da bolha (mesma ideia da foto de perfil
-                // no Portal do Colaborador), na cor do próprio módulo (ou na cor
-                // escolhida pela pessoa, se ela tiver mudado).
-                boxShadow:`0 0 0 ${6*bs}px ${mColor}26, 0 0 0 ${13*bs}px ${mColor}12, 0 0 0 ${21*bs}px ${mColor}07, ${hov===m.id?T.shL:T.sh}`,
-                cursor:reorderMode?'grab':'pointer',
-                opacity:dragModId===m.id?0.4:1,
-                transition:'width .22s ease, height .22s ease, transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s, border-color .18s, background .22s, color .22s',
-                ...(!reorderMode && hov===m.id ? {transform:'translate(-50%,-50%) scale(1.06)'} : null)}}>
-              <div style={{width:46*bs,height:46*bs,borderRadius:13*bs,background:mBg,border:`1px solid ${mColor}22`,
-                display:'flex',alignItems:'center',justifyContent:'center',color:mColor,marginBottom:2,transition:'background .22s, color .22s, border-color .22s'}}>
-                {React.cloneElement(m.icon, {width:23*bs,height:23*bs})}
-              </div>
-              <div style={{fontSize:16*bs,fontWeight:700,color:T.text,lineHeight:1.2}}>{m.label}</div>
-              <div style={{fontSize:11*bs,color:T.textT,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{m.sub}</div>
-              {sizeMode && (
-                <div style={{position:'absolute',top:6,right:6,width:16*orbitScale,height:16*orbitScale,borderRadius:'50%',
-                  background:T.goldGl,border:`1px solid ${T.goldLine}66`,display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:9*orbitScale,fontWeight:800,color:T.gold,pointerEvents:'none'}}>
-                  {(SIZE_STEPS.find(s=>s.id===(sizePrefs[m.id]||'m'))?.label)||'M'}
-                </div>
-              )}
-              {colorMode && (
-                <div style={{position:'absolute',top:6,right:6,width:16*orbitScale,height:16*orbitScale,borderRadius:'50%',
-                  background:mColor,border:`1.5px solid ${T.surface}`,pointerEvents:'none'}}/>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Popover de tamanho — abre ao tocar numa bolha em "modo tamanho".
-            Fica centrado no meio da órbita (não preso à bolha) pra nunca correr
-            risco de nascer fora da tela numa bolha perto da borda. */}
-        {sizeMode && sizingId && (() => {
-          const m = orbitMods.find(x=>x.id===sizingId);
-          if (!m) return null;
-          const curStep = sizePrefs[m.id] || 'm';
-          return (
-            <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)',zIndex:20,
-              background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'16px 18px',boxShadow:T.shL,
-              display:'flex',flexDirection:'column',alignItems:'center',gap:12,minWidth:210}}>
-              <div style={{fontSize:13.5,fontWeight:700,color:T.text}}>Tamanho — {m.label}</div>
-              <div style={{display:'flex',gap:6}}>
-                {SIZE_STEPS.map(s=>(
-                  <button key={s.id} onClick={()=>setModuleSize(m.id, s.id)}
-                    style={{width:40,height:36,borderRadius:9,border:`1.5px solid ${curStep===s.id?T.gold:T.border}`,
-                      background:curStep===s.id?T.goldGl:'transparent',color:curStep===s.id?T.gold:T.textS,
-                      cursor:'pointer',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)'}}>{s.label}</button>
-                ))}
-              </div>
-              <button onClick={()=>setSizingId(null)}
-                style={{fontSize:11.5,color:'#fff',background:T.gold,border:'none',borderRadius:9,padding:'5px 16px',
-                  cursor:'pointer',fontWeight:700,fontFamily:'var(--font-body)'}}>Fechar</button>
-            </div>
-          );
-        })()}
-
-        {/* Popover de cor — centrado na órbita. */}
-        {popoverCor()}
-      </div>
-      </div>
-      )}
-
-      {/* ── Rodapé: tagline de marca à esquerda · assinatura à direita ──
-          Só na órbita: "Em órbita" é dela, e no layout novo a altura vai pros widgets. */}
-      {layoutMenu==='orbita' && <div className="fsu3" style={{marginTop:'auto',paddingTop:20,display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:20}}>
-        <div>
-          <div style={{width:36,height:2,background:T.border,marginBottom:8,borderRadius:2}}/>
-          {['Pessoas','Ideias','Resultados','Em órbita'].map(w=>(
-            <div key={w} style={{fontSize:10,color:T.textD,letterSpacing:'.16em',textTransform:'uppercase',lineHeight:1.7}}>{w}</div>
-          ))}
-        </div>
-        <div style={{fontSize:11.5,color:T.textT,letterSpacing:'.1em',textTransform:'uppercase',whiteSpace:'nowrap'}}>
-          <span style={{color:T.gold}}>✦</span> Conectar · Colaborar · Evoluir
-        </div>
-      </div>}
+      {/* ── O palco: módulos à esquerda, widgets à direita ──────────────────
+          A lista chega pronta daqui (ordenada, com os atalhos dentro e com as
+          cores escolhidas pela pessoa); o MenuLayoutNovo só desenha. */}
+      <MenuLayoutNovo mods={modsTela} onSelect={onSelect} getModuleColor={getModuleColor}
+        authUser={authUser} userPhoto={userPhoto}
+        acoes={acoesCard}
+        tamanhos={tamNovo} onTamanhos={mudarTamNovo}
+        modo={{ reorderMode, colorMode, sizeMode, dragModId, coloringId, setDragModId,
+          onSoltar: (paraId) => { reorderCard(modsTela, dragModId, paraId); setDragModId(null); },
+          onEscolherCor: (id) => setColoringId(atual => atual === id ? null : id) }}
+        sobreposicao={colorMode && coloringId ? (
+          <div style={{position:'fixed',inset:0,zIndex:30,pointerEvents:'none'}}>
+            <div style={{pointerEvents:'auto'}}>{popoverCor()}</div>
+          </div>
+        ) : null}/>
     </div>
   );
 };
