@@ -394,14 +394,24 @@ export const RANDOM_UNIKO_ID    = '__random__';
 export const RANDOM_PER_SLOT_ID = '__random_slot__';
 export const isRandomUnikoChoice = (id) => id === RANDOM_UNIKO_ID || id === RANDOM_PER_SLOT_ID;
 
+// Unikos que NUNCA saem no sorteio (pedido do admin) — só aparecem escolhidos a dedo.
+// Os da Oficina têm sufixo aleatório no id, então esses vão pelo NOME.
+const RANDOM_EXCLUDED_IDS = new Set(['vampire-robot', 'uniko-sereia', 'destruidora-de-mundos-dh0x']);
+const RANDOM_EXCLUDED_NAME_RX = /destruidora de mundos|kitsune|rainha das fadas/i;
+const _excludedFromRandom = (u) => {
+  if (RANDOM_EXCLUDED_IDS.has(u.id)) return true;
+  const name = (u.name || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[-_]+/g, ' ');
+  return RANDOM_EXCLUDED_NAME_RX.test(name);
+};
+
 // Ordenado por id: com RNG semeado, todos os navegadores sorteiam o MESMO Uniko.
-const _unikoPool = () => getAllUnikos().map(u => u.id).sort();
+const _unikoPool = () => getAllUnikos().filter(u => !_excludedFromRandom(u)).map(u => u.id).sort();
 
 // Resolve a escolha do admin → { unikoId, slotUnikoIds? }. Escolha fixa passa direto.
 export function resolveUnikoChoice(choice, maxWinners, rnd = Math.random) {
   if (!isRandomUnikoChoice(choice)) return { unikoId: choice };
   const pool = _unikoPool();
-  if (!pool.length) return { unikoId: DEFAULT_UNIKO_ID };
+  if (!pool.length) return { unikoId: 'uniko-comum' }; // tudo excluído: cai no Comum (o padrão é o Vampire-Robot, que está fora)
   if (choice === RANDOM_UNIKO_ID) return { unikoId: pool[Math.floor(rnd() * pool.length)] };
   // Por vaga: embaralha e distribui sem repetir enquanto houver Uniko diferente sobrando.
   const ids = [];

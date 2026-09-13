@@ -3781,8 +3781,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                     {isRandomUnikoChoice(schedForm.unikoId) && (
                       <div style={{fontSize:11,color:T.textT,marginTop:5}}>
                         {schedForm.unikoId===RANDOM_UNIKO_ID
-                          ? 'Ninguém sabe qual vai ser: o Uniko é sorteado entre todos (fixos + Oficina) no momento em que o evento entra no ar.'
-                          : 'Cada vaga ganha um Uniko sorteado, sem repetir enquanto houver Unikos diferentes. Quando alguém captura, o Uniko da próxima vaga surge pra quem ainda não pegou.'}
+                          ? 'Ninguém sabe qual vai ser: o Uniko é sorteado (fixos + Oficina) no momento em que o evento entra no ar. Vampire-Robot, Sereia, Destruidora de Mundos, Kitsune e Rainha das Fadas ficam fora do sorteio.'
+                          : 'Cada vaga ganha um Uniko sorteado, sem repetir enquanto houver Unikos diferentes. Quando alguém captura, o Uniko da próxima vaga surge pra quem ainda não pegou. Vampire-Robot, Sereia, Destruidora de Mundos, Kitsune e Rainha das Fadas ficam fora do sorteio.'}
                       </div>
                     )}
                   </div>
