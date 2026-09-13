@@ -18,7 +18,7 @@ const ThemeGrid = ({activeTheme,onTheme}) => (
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO CLARO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blue','purple','lilac','pink','sakura','red','green','orange'].map(key=>{
+        {['blue','purple','lilac','pink','sakura','red','green','orange','black','gray'].map(key=>{
           const th=THEMES[key]; const isActive=activeTheme===key;
           return(<div key={key} onClick={()=>onTheme(key)}
             style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
@@ -51,7 +51,7 @@ const ThemeGrid = ({activeTheme,onTheme}) => (
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO ESCURO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','redDark','greenDark','orangeDark'].map(key=>{
+        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','redDark','greenDark','orangeDark','blackDark','grayDark'].map(key=>{
           const th=THEMES[key]; const isActive=activeTheme===key;
           return(<div key={key} onClick={()=>onTheme(key)}
             style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
@@ -216,6 +216,8 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
         background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',
         border:'1px solid rgba(255,255,255,0.85)',borderRadius:22,
         padding:'28px',width:660,maxWidth:'90vw',
+        // com 10 temas por coluna a janela passa de 700px: em tela de notebook baixa rola por dentro
+        maxHeight:'92vh',overflowY:'auto',boxSizing:'border-box',
         boxShadow:'0 24px 64px rgba(0,0,0,0.20)',position:'relative'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
           <div>
