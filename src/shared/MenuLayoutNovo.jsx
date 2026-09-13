@@ -64,8 +64,9 @@ const WIDGETS = {
 /* Prefixo das chaves de widget no mapa de tamanhos (o mesmo mapa guarda os
    módulos, pelo id deles) — pra um widget nunca colidir com um módulo. */
 const chaveWidget = (id) => `w:${id}`;
-/* Tamanho padrão de módulo: o primeiro da ordem nasce grande. */
-const tamModuloPadrao = (i) => (i === 0 ? 'g' : 'p');
+/* Tamanho padrão de módulo: o principal (Portal do Colaborador, `fixo`) nasce
+   grande; o resto, pequeno. A pessoa muda depois no modo Tamanho. */
+const tamModuloPadrao = (m) => (m.fixo ? 'g' : 'p');
 
 const CSS = `
 @keyframes mlnEntra { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }
@@ -212,21 +213,24 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   const { reorderMode, colorMode, sizeMode, dragModId, coloringId } = modo;
   const largo = tam === 'g';
   const arrastando = dragModId === m.id;
-  const borda = reorderMode ? `1.5px dashed ${arrastando ? cor : tom(cor, 0.2, .6)}` : undefined;
+  // O principal fica fixo em 1º: no modo Ordem ele não arrasta (mas aceita que
+  // soltem em cima — o solto vai pra logo depois dele).
+  const arrastavel = reorderMode && !m.fixo;
+  const borda = arrastavel ? `1.5px dashed ${arrastando ? cor : tom(cor, 0.2, .6)}` : undefined;
   // Selecionado no modo Cor: um contorno por fora da aura, pra não brigar com ela.
   const escolhido = coloringId === m.id ? { outline:`2px solid ${T.text}`, outlineOffset:12 } : null;
 
   return (
     <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} aura={cor} i={i}
       onAbrir={reorderMode ? null : onAbrir}
-      draggable={reorderMode}
-      onDragStart={reorderMode ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+      draggable={arrastavel}
+      onDragStart={arrastavel ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
       onDragOver={reorderMode ? (e) => e.preventDefault() : undefined}
       onDrop={reorderMode ? (e) => { e.preventDefault(); modo.onSoltar(m.id); } : undefined}
-      onDragEnd={reorderMode ? () => modo.setDragModId(null) : undefined}
+      onDragEnd={arrastavel ? () => modo.setDragModId(null) : undefined}
       style={{ display:'flex', flexDirection: largo ? 'row' : 'column',
         alignItems: largo ? 'center' : 'stretch', justifyContent:'space-between', gap: largo ? 18 : 12,
-        padding: largo ? '20px 22px' : '16px 16px 15px', cursor: reorderMode ? 'grab' : undefined,
+        padding: largo ? '20px 22px' : '16px 16px 15px', cursor: arrastavel ? 'grab' : undefined,
         opacity: arrastando ? .4 : 1, ...(borda ? { border:borda } : null), ...escolhido }}>
 
       {/* Ícone solto na cor do módulo — sem quadradinho nem borda em volta. */}
@@ -246,6 +250,17 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
       </div>
 
       {largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT }}><Seta tam={18}/></span>}
+
+      {reorderMode && m.fixo && (
+        <span title="O módulo principal fica sempre em primeiro"
+          style={{ position:'absolute', top:12, right:14, display:'flex', alignItems:'center', gap:5,
+            fontSize:11, fontWeight:600, color:T.textT }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>
+          </svg>
+          Fixo em 1º
+        </span>
+      )}
 
       {colorMode && (
         <span style={{ position:'absolute', top:12, right:12, width:14, height:14, borderRadius:'50%',
@@ -1213,7 +1228,7 @@ const DataHoje = () => {
 const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, acoes, modo, tamanhos = {}, onTamanhos, sobreposicao }) => {
   const editando = !!modo.sizeMode;
   const tamWidget = (id) => tamanhos[chaveWidget(id)] || WIDGETS[id].padrao;
-  const tamModulo = (m, i) => tamanhos[m.id] || tamModuloPadrao(i);
+  const tamModulo = (m) => tamanhos[m.id] || tamModuloPadrao(m);
 
   /* Mexeu no tamanho de UM módulo? Grava o de todos como está na tela. Sem
      isso o padrão "o primeiro da ordem é grande" continuaria valendo pros
@@ -1221,7 +1236,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
      tocou. */
   const mudarModulo = (id, v) => {
     const todos = {};
-    mods.forEach((m, i) => { todos[m.id] = tamModulo(m, i); });
+    mods.forEach((m) => { todos[m.id] = tamModulo(m); });
     onTamanhos({ ...todos, [id]: v });
   };
   const mudarWidget = (id, v) => onTamanhos({ [chaveWidget(id)]: v });
@@ -1299,7 +1314,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
             gridAutoRows: LINHA_MOD + folga.mod,
             gridTemplateColumns:'repeat(auto-fill, minmax(170px, 1fr))' }}>
             {mods.map((m, i) => (
-              <TileModulo key={m.id} m={m} i={i} tam={tamModulo(m, i)} cor={getModuleColor(m).color} modo={modo}
+              <TileModulo key={m.id} m={m} i={i} tam={tamModulo(m)} cor={getModuleColor(m).color} modo={modo}
                 onTam={(v) => mudarModulo(m.id, v)}
                 onAbrir={modo.colorMode ? () => modo.onEscolherCor(m.id) : () => onSelect(m.atalho ? m.modulo : m.id, m.tab)}/>
             ))}

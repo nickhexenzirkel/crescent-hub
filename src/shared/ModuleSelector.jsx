@@ -46,9 +46,26 @@ const saveTamNovo = (authUser, prefs) => { try { localStorage.setItem(tamNovoKey
    igual à ordem/tamanho/cor: é uma preferência de tela, não um dado do RH. */
 const ATALHOS_PREFIX = 'uniko_module_atalhos_';
 const atalhosKey = (authUser) => ATALHOS_PREFIX + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+/* Atalhos que TODO MUNDO ganha: Uniko Paint, Financeiro e Seus Dados (set/2026 —
+   preenchem a grade de módulos, que pra quem tem poucos módulos ficava com um
+   vão ao lado dos widgets). Entram uma vez só por conta, marcada por uma flag:
+   quem já tinha atalhos salvos ganha os três somados aos dele, e quem tirar
+   algum depois não vê ele voltar. */
+const ATALHOS_PADRAO = ['unikopaint', 'financeiro', 'dados'];
+const ATALHOS_PADRAO_FLAG = 'uniko_atalhos_padrao_v1_';
 const loadAtalhos = (authUser) => {
-  try { const r = JSON.parse(localStorage.getItem(atalhosKey(authUser)) || '[]'); return Array.isArray(r) ? r : []; }
-  catch { return []; }
+  let salvos = [];
+  try { const r = JSON.parse(localStorage.getItem(atalhosKey(authUser)) || '[]'); salvos = Array.isArray(r) ? r : []; }
+  catch { /* ignora */ }
+  const flag = ATALHOS_PADRAO_FLAG + (authUser?.cpf || authUser?.name || 'anon').toLowerCase();
+  try {
+    if (!localStorage.getItem(flag)) {
+      salvos = [...new Set([...ATALHOS_PADRAO, ...salvos])];
+      localStorage.setItem(atalhosKey(authUser), JSON.stringify(salvos));
+      localStorage.setItem(flag, '1');
+    }
+  } catch { /* sem localStorage: fica só com o que veio */ }
+  return salvos;
 };
 const saveAtalhos = (authUser, ids) => { try { localStorage.setItem(atalhosKey(authUser), JSON.stringify(ids)); } catch { /* ignora */ } };
 /* Prefixo no id da bolha pra o atalho nunca colidir com o id de um módulo —
@@ -399,7 +416,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   const isOrangeTheme = T.key === 'orange' || T.key === 'orangeDark';
   const fitColor = isOrangeTheme ? '#2A82D2' : '#FF6B35';
   const allMods = [
-    {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false},
+    // `fixo`: o Portal é o módulo principal — sempre o primeiro, e nasce grande.
+    {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false, fixo:true},
     {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
     {id:'uniko-fit',        label:'Uniko FIT',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:fitColor, bg:fitColor+'18', tag:'Fitness',    adminOnly:false},
@@ -423,12 +441,18 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     }));
   const filteredMods = [...allMods, ...atalhoMods]
     .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
-  const mods = applyOrder(filteredMods, order);
-  // Computador: 1ª vez (sem ordem salva) usa esta sequência — o primeiro nasce
-  // grande na grade. Depois que a pessoa reorganiza, lista do celular e grade
-  // do computador seguem a MESMA ordem escolhida por ela.
-  const ORDEM_PADRAO = ['mercado-estelar','colaborador','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
-  const modsTela = order.length ? mods : applyOrder(filteredMods, ORDEM_PADRAO);
+  /* O Portal do Colaborador fica SEMPRE em primeiro — em qualquer ordem salva,
+     no computador e no celular. Reordenar mexe só nos outros. */
+  const fixarPrincipal = (lista) => {
+    const i = lista.findIndex(x => (x.id || x) === 'colaborador');
+    return i > 0 ? [lista[i], ...lista.slice(0, i), ...lista.slice(i + 1)] : lista;
+  };
+  const mods = fixarPrincipal(applyOrder(filteredMods, order));
+  // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
+  // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
+  // ordem escolhida por ela.
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
+  const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não
      existe no Safari do iOS — arrastar ali nunca funcionaria. Subir/descer um
@@ -438,6 +462,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const de = ids.indexOf(id);
     const para = de + direcao;
     if (de < 0 || para < 0 || para >= ids.length) return;
+    if (ids[de] === 'colaborador' || ids[para] === 'colaborador') return;   // o principal não sai do 1º lugar
     ids.splice(para, 0, ids.splice(de, 1)[0]);
     setOrder(ids);
     saveModuleOrder(authUser, ids);
@@ -449,7 +474,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     const from = ids.indexOf(fromId), to = ids.indexOf(toId);
     if (from < 0 || to < 0) return;
     ids.splice(to, 0, ids.splice(from, 1)[0]);
-    setOrder(ids); saveModuleOrder(authUser, ids);
+    const final = fixarPrincipal(ids);   // soltar em cima do Portal põe logo depois dele
+    setOrder(final); saveModuleOrder(authUser, final);
   };
 
   // ─── MOBILE — lista vertical ─────────────────────────────────────────────
@@ -625,7 +651,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                   <div style={{display:'flex', flexDirection:'column', gap:4, flexShrink:0}}>
                     {[[-1,'M18 15l-6-6-6 6'],[1,'M6 9l6 6 6-6']].map(([dir,d],k) => {
                       const i = mods.findIndex(x => x.id === m.id);
-                      const bloqueado = dir === -1 ? i === 0 : i === mods.length - 1;
+                      const fixo = m.id === 'colaborador';
+                      const bloqueado = fixo || (dir === -1 ? i === 0 || mods[i - 1]?.id === 'colaborador' : i === mods.length - 1);
                       return (
                         <button key={k} disabled={bloqueado}
                           onClick={(e)=>{ e.stopPropagation(); moverModulo(m.id, dir); }}
