@@ -262,6 +262,26 @@ const THEMES = {
      preto/cinza e as manchas do fundo são tons de grafite. Nos escuros, a cor de
      botão/avatar (gold) é um cinza médio — branco puro ali deixaria o texto
      branco dos botões invisível; o prata claro fica nas linhas e brilhos. */
+  /* Bege (set/2026) — foco na cor #E6D5BE, areia. Clara demais pra texto ou
+     botão: no Bege Estelar ela pinta fundo, manchas, linhas e bolinha, e o
+     texto/botões usam um caramelo fechado da mesma família (#8A6740). No
+     escuro (Bege Nebula) ela fica nas linhas e brilhos sobre um café escuro, e
+     botão/avatar usam #A8845A pra o texto branco continuar legível. */
+  beige: {
+    name:'Bege Estelar', surfaceSub:'rgba(0,0,0,0.025)', itemHover:'rgba(0,0,0,0.04)', dot:'#E6D5BE', dark:false,
+    page:'#FAF6F0', gold:'#8A6740', goldL:'#B08D63', goldV:'#E6D5BE',
+    goldGl:'rgba(138,103,64,0.09)', goldLine:'#CDB692',
+    blue:'#8A6740', blueL:'#B08D63', blueGl:'rgba(138,103,64,0.08)',
+    blobBase:'#F5EEE3', blobVeil:'rgba(250,246,240,0.58)',
+    b1:'rgba(110,80,45,0.55)',  b2:'rgba(176,141,99,0.52)',
+    b3:'rgba(230,213,190,0.72)',b4:'rgba(150,115,75,0.48)',
+    b5:'rgba(240,228,210,0.62)',b6:'rgba(80,58,32,0.40)',
+    b7:'rgba(205,182,146,0.52)',
+    sb1:'rgba(176,141,99,0.34)',sb2:'rgba(230,213,190,0.50)',sb3:'rgba(242,232,218,0.40)',
+    lb:'rgba(205,182,146,0.36)', lb2:'rgba(230,213,190,0.22)',
+    sidebarBg:'rgba(252,249,244,0.97)', topbarBg:'rgba(252,249,244,0.94)',
+    text:'#2A1E12', textS:'#5E4A34', textT:'#A08B72', textD:'#D6C8B6',
+  },
   black: {
     name:'Preto Vulcânico', surfaceSub:'rgba(0,0,0,0.03)', itemHover:'rgba(0,0,0,0.05)', dot:'#1C1C1E', dark:false,
     page:'#F4F4F6', gold:'#1C1C1E', goldL:'#3A3A3C', goldV:'#8E8E93',
@@ -414,6 +434,23 @@ const THEMES = {
     lb:'rgba(244,200,226,0.40)', lb2:'rgba(244,200,226,0.18)',
     sidebarBg:'rgba(20,10,17,0.98)', topbarBg:'rgba(20,10,17,0.95)',
     text:'#FCEAF4', textS:'#D2A3BF', textT:'#94708A', textD:'#5A3B50',
+  },
+  beigeDark: {
+    name:'Bege Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#E6D5BE', dark:true,
+    page:'#13100C', surface:'#211B14', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#A8845A', goldL:'#E6D5BE', goldV:'#F4EBDD',
+    goldGl:'rgba(230,213,190,0.16)', goldLine:'#E6D5BE',
+    blue:'#A8845A', blueL:'#E6D5BE', blueGl:'rgba(230,213,190,0.13)',
+    blobBase:'#0D0A07', blobVeil:'rgba(13,10,7,0.50)',
+    b1:'rgba(90,64,36,0.90)', b2:'rgba(140,105,66,0.78)',
+    b3:'rgba(230,213,190,0.42)',b4:'rgba(110,82,50,0.82)',
+    b5:'rgba(240,228,210,0.32)',b6:'rgba(50,36,20,0.90)',
+    b7:'rgba(176,141,99,0.58)',
+    sb1:'rgba(140,105,66,0.55)',sb2:'rgba(205,182,146,0.42)',sb3:'rgba(230,213,190,0.28)',
+    lb:'rgba(230,213,190,0.38)', lb2:'rgba(230,213,190,0.16)',
+    sidebarBg:'rgba(18,14,10,0.98)', topbarBg:'rgba(18,14,10,0.95)',
+    text:'#F6EFE5', textS:'#C9B597', textT:'#8C7A63', textD:'#4E4234',
   },
   blackDark: {
     name:'Preto Cósmico', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#C7C7CE', dark:true,
