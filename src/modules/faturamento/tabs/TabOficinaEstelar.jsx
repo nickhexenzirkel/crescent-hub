@@ -3,7 +3,6 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { T } from '../../../contexts/theme';
 import { supabase } from '../../../contexts/user';
-import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { PdfEditor } from '../PdfEditor';
 import { PdfOrganizer } from '../PdfOrganizer';
@@ -543,116 +542,6 @@ const TabCarta = () => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   OFÍCIO DE EMISSÃO (inalterado)
-════════════════════════════════════════════════════════════════ */
-const Censored = ({ children }) => (
-  <div style={{position:'relative'}}>
-    <div style={{filter:'blur(7px)',pointerEvents:'none',userSelect:'none',opacity:.85}} aria-hidden="true">{children}</div>
-    <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 22px',background:T.surface,
-        border:`1px solid ${T.border}`,borderRadius:999,boxShadow:T.sh,fontSize:14,fontWeight:600,color:T.textS}}>
-        <span style={{color:T.gold}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-          </svg>
-        </span>
-        Em desenvolvimento
-      </div>
-    </div>
-  </div>
-);
-
-const OFICIO_MODELS = [{ id:'eusebio', label:'Ofício de Eusébio' }];
-const inputStyle = { width:'100%',background:T.surface,border:`1px solid ${T.border}`,borderRadius:9,padding:'10px 13px',fontSize:14,color:T.text,fontFamily:'var(--font-body)',outline:'none',boxSizing:'border-box' };
-const textareaStyle = { ...inputStyle, minHeight:110, resize:'vertical', lineHeight:1.6 };
-const btnPrimary = { display:'inline-flex',alignItems:'center',gap:8,background:T.gold,color:'#fff',border:'none',borderRadius:10,padding:'10px 22px',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)',boxShadow:`0 2px 10px ${T.gold}44` };
-const MONTH_NAMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-
-const FldO = ({label,children,hint}) => (
-  <div style={{marginBottom:20}}>
-    {label&&<div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6}}>{label}</div>}
-    {children}
-    {hint&&<div style={{fontSize:11.5,color:T.textD,marginTop:5}}>{hint}</div>}
-  </div>
-);
-const IOf = (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>{p.children}</svg>;
-
-const OficioEusebio = () => {
-  const hoje = new Date();
-  const [form, setForm] = useState({ numero:'',ano:String(hoje.getFullYear()),dia:String(hoje.getDate()),mes:String(hoje.getMonth()),destinatarioCargo:'',destinatarioNome:'',assunto:'',corpo:'',remetentNome:'',remetenteCargo:'',remetenteSec:'' });
-  const set = (k,v)=>setForm(p=>({...p,[k]:v}));
-  const dataFmt = `Eusébio, ${form.dia} de ${MONTH_NAMES[Number(form.mes)]} de ${form.ano}`;
-  return (
-    <div style={{maxWidth:760,display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
-      <div>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Identificação</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-          <FldO label="Nº do Ofício"><input style={inputStyle} placeholder="001" value={form.numero} onChange={e=>set('numero',e.target.value)}/></FldO>
-          <FldO label="Ano"><input style={inputStyle} placeholder="2026" value={form.ano} onChange={e=>set('ano',e.target.value)}/></FldO>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:12,marginBottom:16}}>
-          <FldO label="Dia"><input style={inputStyle} type="number" min="1" max="31" value={form.dia} onChange={e=>set('dia',e.target.value)}/></FldO>
-          <FldO label="Mês"><select style={{...inputStyle,appearance:'none'}} value={form.mes} onChange={e=>set('mes',e.target.value)}>{MONTH_NAMES.map((m,i)=><option key={i} value={i}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></FldO>
-        </div>
-        <StarDivider my={16}/>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Destinatário</div>
-        <FldO label="Cargo / Título"><input style={inputStyle} placeholder="Ex: Ilmo. Sr. Secretário Municipal de Saúde" value={form.destinatarioCargo} onChange={e=>set('destinatarioCargo',e.target.value)}/></FldO>
-        <FldO label="Nome"><input style={inputStyle} placeholder="Nome do destinatário" value={form.destinatarioNome} onChange={e=>set('destinatarioNome',e.target.value)}/></FldO>
-        <StarDivider my={16}/>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Conteúdo</div>
-        <FldO label="Assunto"><input style={inputStyle} placeholder="Assunto do ofício" value={form.assunto} onChange={e=>set('assunto',e.target.value)}/></FldO>
-        <FldO label="Corpo do Texto"><textarea style={{...textareaStyle,minHeight:130}} placeholder="Texto principal do ofício..." value={form.corpo} onChange={e=>set('corpo',e.target.value)}/></FldO>
-        <StarDivider my={16}/>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:16}}>Remetente</div>
-        <FldO label="Nome do Assinante"><input style={inputStyle} placeholder="Nome completo" value={form.remetentNome} onChange={e=>set('remetentNome',e.target.value)}/></FldO>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-          <FldO label="Cargo"><input style={inputStyle} placeholder="Ex: Coordenador" value={form.remetenteCargo} onChange={e=>set('remetenteCargo',e.target.value)}/></FldO>
-          <FldO label="Secretaria"><input style={inputStyle} placeholder="Ex: SEMUS" value={form.remetenteSec} onChange={e=>set('remetenteSec',e.target.value)}/></FldO>
-        </div>
-        <StarDivider my={20}/>
-        <button style={btnPrimary} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-          <IOf><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IOf>
-          Gerar Ofício (PDF)
-        </button>
-      </div>
-      <div style={{position:'sticky',top:0,alignSelf:'start'}}>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:12}}>Pré-visualização</div>
-        <div style={{background:'#fff',borderRadius:12,border:`1px solid ${T.border}`,padding:'32px 28px',fontSize:12,color:'#111',fontFamily:'Times New Roman, serif',lineHeight:1.75,minHeight:540,boxShadow:'0 4px 18px rgba(0,0,0,.08)'}}>
-          <div style={{textAlign:'center',marginBottom:20,fontSize:13,fontWeight:'bold'}}>PREFEITURA MUNICIPAL DE EUSÉBIO</div>
-          <div style={{textAlign:'right',marginBottom:16,fontSize:11.5,color:'#444'}}>{dataFmt}</div>
-          <div style={{marginBottom:16,fontSize:11.5}}><strong>Ofício nº {form.numero||'___'}/{form.ano}</strong></div>
-          {(form.destinatarioCargo||form.destinatarioNome)&&<div style={{marginBottom:16,fontSize:11.5}}><div>{form.destinatarioCargo||'Cargo'}</div><div><strong>{form.destinatarioNome||'Nome'}</strong></div></div>}
-          {form.assunto&&<div style={{marginBottom:16,fontSize:11.5}}><strong>Assunto:</strong> {form.assunto}</div>}
-          <div style={{marginBottom:24,fontSize:11.5,textAlign:'justify',whiteSpace:'pre-wrap'}}>{form.corpo||'O corpo do ofício será exibido aqui.'}</div>
-          <div style={{marginTop:40,fontSize:11.5}}>
-            <div style={{borderTop:'1px solid #999',width:180,marginBottom:4}}/>
-            <div><strong>{form.remetentNome||'Nome do Assinante'}</strong></div>
-            {form.remetenteCargo&&<div>{form.remetenteCargo}</div>}
-            {form.remetenteSec&&<div>{form.remetenteSec}</div>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const TabOficio = () => {
-  const [modelo, setModelo] = useState('eusebio');
-  return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:28}}>
-        <div style={{fontSize:12,fontWeight:600,color:T.textT,letterSpacing:'.06em',textTransform:'uppercase',flexShrink:0}}>Modelo</div>
-        <select value={modelo} onChange={e=>setModelo(e.target.value)}
-          style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:9,padding:'9px 14px',fontSize:14,color:T.text,fontFamily:'var(--font-body)',outline:'none',cursor:'pointer',minWidth:220}}>
-          {OFICIO_MODELS.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-      </div>
-      {modelo==='eusebio'&&<OficioEusebio/>}
-    </div>
-  );
-};
-
-/* ════════════════════════════════════════════════════════════════
    EXPORTS
 ════════════════════════════════════════════════════════════════ */
 const ToolCard = ({ title, desc, icon, onClick }) => (
@@ -767,10 +656,3 @@ export const TabCartaCorrecao = () => (
   </div>
 );
 
-export const TabOficioEmissao = () => (
-  <div style={{fontFamily:'var(--font-body)'}}>
-    <StellarHero compact eyebrow="Ferramentas Estelares" title="Ofício de Emissão"
-      subtitle="Gere ofícios a partir de modelos prontos." icon={HERO_ICON}/>
-    <Censored><TabOficio/></Censored>
-  </div>
-);

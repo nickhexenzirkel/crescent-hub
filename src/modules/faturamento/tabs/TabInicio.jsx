@@ -52,53 +52,6 @@ const FEATURES = [
     ),
   },
   {
-    id: 'consumo',
-    color: '#1A9C70',
-    bg: 'rgba(26,156,112,0.10)',
-    adminOnly: true,
-    title: 'Relatório de Consumo',
-    desc: 'Acessa o 7Benefícios pela extensão e baixa os PDFs de Relatório de Consumo de cada secretaria, organizados na pasta que você escolher.',
-    steps: ['Envie o relatório de retenção XLSX', 'Selecione secretarias e período', 'Baixe os PDFs automaticamente'],
-    icon: (c) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'ordens',
-    color: '#8B5FE8',
-    bg: 'rgba(139,95,232,0.10)',
-    adminOnly: true,
-    title: 'Ordens de Serviço',
-    desc: 'Baixa os PDFs de cada Ordem de Serviço do 7Benefícios, organizados em uma subpasta por secretaria. Sem precisar informar período.',
-    steps: ['Envie o relatório de retenção XLSX', 'Confira a pré-visualização das pastas', 'Baixe as OS automaticamente'],
-    icon: (c) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4"/>
-        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'uniko-pdf',
-    color: '#C4872A',
-    bg: 'rgba(196,135,42,0.10)',
-    adminOnly: true,
-    title: 'Compilador',
-    desc: 'Compilador: mescla os PDFs de cada pasta em um único arquivo por secretaria. Organizador: cria uma pasta para cada PDF do ZIP.',
-    steps: ['Envie um arquivo ZIP', 'Confira a pré-visualização', 'Baixe o ZIP processado'],
-    icon: (c) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <path d="M9 13h6M9 17h4"/>
-      </svg>
-    ),
-  },
-  {
     id: 'oficina',
     color: '#8B5FE8',
     bg: 'rgba(139,95,232,0.10)',
@@ -122,20 +75,6 @@ const FEATURES = [
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'oficio',
-    color: '#C4872A',
-    bg: 'rgba(196,135,42,0.10)',
-    adminOnly: true,
-    title: 'Ofício de Emissão',
-    desc: 'Gere ofícios a partir de modelos prontos. (Em desenvolvimento.)',
-    steps: ['Escolha o modelo', 'Preencha os campos', 'Gere o ofício (PDF)'],
-    icon: (c) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
       </svg>
     ),
   },

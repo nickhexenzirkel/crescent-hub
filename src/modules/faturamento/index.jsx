@@ -4,18 +4,14 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { Sidebar, TopBar, canSeeTab, NAV } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
 import { TabLeitorXML } from './tabs/TabLeitorXML';
-import { TabRelatorioConsumo } from './tabs/TabRelatorioConsumo';
-import { TabOrdensServico } from './tabs/TabOrdensServico';
-import { TabUnikoPDF } from './tabs/TabUnikoPDF';
-import { TabLaboratorioEstelar } from './tabs/TabLaboratorioEstelar';
-import { TabOficinaEstelar, TabCartaCorrecao, TabOficioEmissao } from './tabs/TabOficinaEstelar';
+import { TabOficinaEstelar, TabCartaCorrecao } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 import { ferramentaDaUrl, voltarDaFerramenta } from './rotaFerramenta';
 
 // 'xml'/'carta'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx
 const GATED_TABS = new Set(['xml', 'carta', 'assinatura']);
-const ADMIN_TABS = new Set(['consumo', 'ordens', 'uniko-pdf', 'laboratorio', 'oficio', 'historico-assinatura']);
+const ADMIN_TABS = new Set(['historico-assinatura']);
 
 const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
   const isMobile = useIsMobile();
@@ -60,13 +56,8 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
       case 'xml':     return <TabLeitorXML/>;
       case 'assinatura': return <TabAssinatura/>;
       case 'historico-assinatura': return <TabHistoricoAssinatura/>;
-      case 'consumo': return <TabRelatorioConsumo/>;
-      case 'ordens':    return <TabOrdensServico/>;
-      case 'uniko-pdf':   return <TabUnikoPDF/>;
-      case 'laboratorio': return <TabLaboratorioEstelar/>;
       case 'oficina':     return <TabOficinaEstelar/>;
       case 'carta':       return <TabCartaCorrecao/>;
-      case 'oficio':      return <TabOficioEmissao/>;
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
     }
   };

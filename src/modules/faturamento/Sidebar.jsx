@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { bolhaGradiente } from '../../shared/bolhas';
+/* Cabeçalho da barra — o MESMO componente que o Portal do Colaborador usa. */
+import { UnikoBrandArt } from '../../shared/UnikoBrand';
 
 // width/height opcionais: os atalhos do seletor de módulos redimensionam o ícone.
 const I = (p) => (
@@ -48,30 +51,6 @@ const NAV = [
     icon: <I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></I>,
   },
   {
-    id: 'consumo',
-    label: 'Relatório de Consumo',
-    adminOnly: true,
-    icon: <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>,
-  },
-  {
-    id: 'ordens',
-    label: 'Ordens de Serviço',
-    adminOnly: true,
-    icon: <I><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></I>,
-  },
-  {
-    id: 'uniko-pdf',
-    label: 'Compilador',
-    adminOnly: true,
-    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></I>,
-  },
-  {
-    id: 'laboratorio',
-    label: 'Laboratório Estelar',
-    adminOnly: true,
-    icon: <I><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></I>,
-  },
-  {
     id: 'oficina',
     label: 'Ferramenta de Edição',
     icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
@@ -81,12 +60,6 @@ const NAV = [
     label: 'Carta de Correção',
     tabGate: true,
     icon: <I><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></I>,
-  },
-  {
-    id: 'oficio',
-    label: 'Ofício de Emissão',
-    adminOnly: true,
-    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></I>,
   },
 ];
 
@@ -104,29 +77,30 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser }) => {
       position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 200,
       fontFamily: 'var(--font-body)',
     }}>
-      {/* Brand */}
-      <div style={{padding:'18px 16px 12px',position:'relative',overflow:'hidden',borderBottom:`1px solid rgba(42,130,210,0.10)`}}>
+      {/* Brand — mesmo cabeçalho do Portal do Colaborador (pedido em 13/09/2026):
+          a marca vem do componente compartilhado shared/UnikoBrand.jsx, e as
+          manchas de luz seguem a mesma receita de lá. */}
+      <div style={{padding:'18px 16px 12px',position:'relative',overflow:'hidden',
+        borderBottom:`1px solid rgba(42,130,210,0.10)`}}>
+        {/* Manchas de luz de fundo: degradê radial, SEM filter:blur — blur com
+            scale animado é refeito a cada frame (ver shared/bolhas.js). */}
         <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
-          <div style={{position:'absolute',width:110,height:110,borderRadius:'50%',
-            background:`radial-gradient(circle,${T.sb1} 0%,transparent 70%)`,
-            top:'-30px',left:'-20px',filter:'blur(22px)',animation:'brandBlob1 6s ease-in-out infinite'}}/>
-          <div style={{position:'absolute',width:95,height:95,borderRadius:'50%',
-            background:`radial-gradient(circle,${T.sb2} 0%,transparent 70%)`,
-            top:'-10px',right:'-10px',filter:'blur(18px)',animation:'brandBlob2 8s ease-in-out infinite'}}/>
+          <div style={{position:'absolute',width:190,height:190,borderRadius:'50%',
+            background:bolhaGradiente(T.sb1),top:'-70px',left:'-60px',
+            animation:'brandBlob1 6s ease-in-out infinite'}}/>
+          <div style={{position:'absolute',width:160,height:160,borderRadius:'50%',
+            background:bolhaGradiente(T.sb2),top:'-45px',right:'-45px',
+            animation:'brandBlob2 8s ease-in-out infinite'}}/>
         </div>
-        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:13,marginBottom:12}}>
-          <div style={{position:'relative',flexShrink:0,width:58,height:58}}>
-            <div style={{position:'absolute',inset:'-8px',borderRadius:'50%',
-              background:`radial-gradient(circle,${T.lb} 0%,${T.lb2} 55%,transparent 80%)`,
-              filter:'blur(10px)',animation:'brandBlob1 12s ease-in-out infinite',zIndex:0,pointerEvents:'none'}}/>
-            <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <img src="/UNIKO_NEW.png" alt="Uniko" style={{width:52,height:52,objectFit:'contain',display:'block'}}/>
-            </div>
-          </div>
-          <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:15.5,fontWeight:700,color:T.text,letterSpacing:'.05em'}}>Oficina Estelar</div>
+        <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',marginBottom:12}}>
+          {/* A barra da Oficina é mais estreita que a do Portal (252 contra 280),
+              então aqui a marca ocupa a largura disponível em vez do teto fixo
+              de 238 de lá. */}
+          <div style={{width:'100%'}}>
+            <UnikoBrandArt legenda="Oficina Estelar"/>
           </div>
         </div>
+        {/* star divider under brand */}
         <StarDivider my={0}/>
       </div>
 
@@ -175,7 +149,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', consumo:'Relatório de Consumo', ordens:'Ordens de Serviço', 'uniko-pdf':'Compilador', laboratorio:'Laboratório Estelar', oficina:'Ferramenta de Edição', carta:'Carta de Correção', oficio:'Ofício de Emissão' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', oficina:'Ferramenta de Edição', carta:'Carta de Correção' };
   if (tab === 'inicio') return null;
   return (
     <div style={{
