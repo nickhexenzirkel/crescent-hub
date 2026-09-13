@@ -12,6 +12,7 @@ import {
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
   loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
+  RANDOM_UNIKO_ID, RANDOM_PER_SLOT_ID, isRandomUnikoChoice, resolveUnikoChoice,
 } from '../../shared/captureUniko';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { bolhaGradiente } from '../../shared/bolhas';
@@ -957,6 +958,12 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     await persistSched([...capSched, entry]);
     flashSched('✅ Evento adicionado à fila!');
   };
+  // Como um item da fila aparece na lista: Uniko fixo mostra ele; aleatório mostra o "?".
+  const schedUnikoView = (unikoId) => {
+    if (unikoId === RANDOM_UNIKO_ID)    return { name: 'Uniko aleatório', img: '/UNIKO_NEW.png', theme: { accent: T.gold }, random: true };
+    if (unikoId === RANDOM_PER_SLOT_ID) return { name: 'Uniko aleatório por vaga', img: '/UNIKO_NEW.png', theme: { accent: T.gold }, random: true };
+    return getUniko(unikoId);
+  };
   const toggleSchedEntry = (id) => persistSched(capSched.map(e => e.id===id ? {...e, enabled: e.enabled===false} : e));
   const removeSchedEntry = (id) => { if (window.confirm('Remover este evento da fila?')) persistSched(capSched.filter(e=>e.id!==id)); };
   // "hoje às 10:00" / "amanhã às 10:00" / "22/07 às 10:00"
@@ -974,18 +981,20 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // (agora → +30min) com aquele Uniko. O widget faz o Uniko surgir em segundos pra quem
   // está no Portal — e o servidor (checkCaptureUnikoSpawn) faz a Alexa anunciar.
   const spawnEntryNow = async (entry) => {
-    const u = getUniko(entry.unikoId);
-    if (!window.confirm(`Soltar o ${u.name} AGORA (janela de 30 min), sem esperar o horário agendado?`)) return;
+    const u = schedUnikoView(entry.unikoId);
+    if (!window.confirm(`Soltar ${isRandomUnikoChoice(entry.unikoId) ? 'um' : 'o'} ${u.name} AGORA (janela de 30 min), sem esperar o horário agendado?`)) return;
     setSchedBusy(true);
     try {
       const now = new Date();
+      const maxWinners = Number(entry.maxWinners) || 3;
+      if (isRandomUnikoChoice(entry.unikoId)) await loadCustomUnikos(); // sorteia no roster completo
       await saveCaptureConfig({
         enabled: true,
         startAt: now.toISOString(),
         endAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(), // janela de 30 min
         spawnAt: new Date(now.getTime() + 6 * 1000).toISOString(),     // +6s: todos recebem e revelam juntos
-        unikoId: entry.unikoId,
-        maxWinners: Number(entry.maxWinners) || 3,
+        ...resolveUnikoChoice(entry.unikoId, maxWinners),
+        maxWinners,
         alexaMessage: entry.alexaMessage || DEFAULT_CAPTURE_ALEXA_MSG,
       });
       flashSched('✅ Uniko liberado! Surge em segundos pra quem estiver no Portal (e a Alexa avisa).');
@@ -3763,8 +3772,19 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                     <label style={lblSt}>Uniko que vai aparecer (digite o nome)</label>
                     <div style={{display:'flex'}}>
                       <SearchPicker value={schedForm.unikoId} onPick={id=>setSchedForm(f=>({...f,unikoId:id}))}
-                        options={unikoOpts} placeholder="Ex.: Sereia, Vampire-Robot…" isDark={isDark}/>
+                        options={[
+                          { id:RANDOM_UNIKO_ID,    label:'🎲 Aleatório na hora', sub:'Sorteia 1 Uniko quando o evento começar', accent:T.gold },
+                          { id:RANDOM_PER_SLOT_ID, label:'🎲 Aleatório por vaga', sub:'Cada vaga sorteia o seu Uniko (3 vagas = 3 Unikos)', accent:T.gold },
+                          ...unikoOpts,
+                        ]} placeholder="Ex.: Sereia, Aleatório…" isDark={isDark}/>
                     </div>
+                    {isRandomUnikoChoice(schedForm.unikoId) && (
+                      <div style={{fontSize:11,color:T.textT,marginTop:5}}>
+                        {schedForm.unikoId===RANDOM_UNIKO_ID
+                          ? 'Ninguém sabe qual vai ser: o Uniko é sorteado entre todos (fixos + Oficina) no momento em que o evento entra no ar.'
+                          : 'Cada vaga ganha um Uniko sorteado, sem repetir enquanto houver Unikos diferentes. Quando alguém captura, o Uniko da próxima vaga surge pra quem ainda não pegou.'}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -3829,14 +3849,16 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   {[...capSched]
                     .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''))
                     .map(e=>{
-                      const u   = getUniko(e.unikoId);
+                      const u   = schedUnikoView(e.unikoId);
                       const off = e.enabled===false;
                       const occ = nextOccurrence(e);
                       const ativo = !off && !!activeOccurrence(e);
                       return (
                         <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'12px 14px',borderRadius:12,
                           border:`1.5px solid ${ativo?u.theme.accent:T.border}`,background:ativo?`${u.theme.accent}14`:(isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)'),opacity:off?.5:1}}>
-                          <img src={u.img} alt="" style={{width:40,height:40,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>
+                          {u.random
+                            ? <div style={{width:40,height:40,flexShrink:0,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,background:`${T.gold}1e`,border:`1.5px dashed ${T.gold}88`}}>🎲</div>
+                            : <img src={u.img} alt="" style={{width:40,height:40,objectFit:'contain',flexShrink:0,filter:`drop-shadow(0 2px 8px ${u.theme.accent}88)`}}/>}
                           <div style={{flex:1,minWidth:180}}>
                             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                               <span style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:'var(--font-body)'}}>{e.startTime} → {e.endTime}</span>
@@ -3855,7 +3877,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                             )}
                           </div>
                           <button onClick={()=>spawnEntryNow(e)} disabled={schedBusy}
-                            title={`Solta o ${u.name} agora (janela de 30 min), sem esperar o horário`}
+                            title={`Solta ${u.random ? 'um' : 'o'} ${u.name} agora (janela de 30 min), sem esperar o horário`}
                             style={{padding:'7px 13px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'var(--font-body)',
                               border:`1.5px solid ${u.theme.accent}`,background:`${u.theme.accent}22`,color:u.theme.accent}}>
                             ⚡ Agora

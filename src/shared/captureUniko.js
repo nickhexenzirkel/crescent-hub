@@ -380,6 +380,50 @@ function _mulberry32(seed) {
 export const pickSpawnAtSeeded = (startIso, endIso, seed) =>
   pickSpawnAt(startIso, endIso, _mulberry32(_hashStr(String(seed))));
 
+/* ── UNIKO ALEATÓRIO ────────────────────────────────────────────────────────
+   Em vez de um Uniko fixo, o item da fila pode guardar um destes ids especiais:
+   • RANDOM_UNIKO_ID   → sorteia UM Uniko na hora em que o evento entra no ar
+                          (ninguém sabe qual vai ser até ele surgir);
+   • RANDOM_PER_SLOT_ID → sorteia um Uniko pra CADA vaga: com 3 vagas saem 3
+                          Unikos — quem pega a 1ª vaga leva o 1º, e o próximo
+                          surge pra quem ainda não capturou.
+   O sorteio acontece na promoção pro config (nunca no widget): o config continua
+   com um `unikoId` concreto (o da 1ª vaga), então Alexa/assistente/notificação
+   seguem funcionando sem saber de nada; no modo por vaga vem junto `slotUnikoIds`. */
+export const RANDOM_UNIKO_ID    = '__random__';
+export const RANDOM_PER_SLOT_ID = '__random_slot__';
+export const isRandomUnikoChoice = (id) => id === RANDOM_UNIKO_ID || id === RANDOM_PER_SLOT_ID;
+
+// Ordenado por id: com RNG semeado, todos os navegadores sorteiam o MESMO Uniko.
+const _unikoPool = () => getAllUnikos().map(u => u.id).sort();
+
+// Resolve a escolha do admin → { unikoId, slotUnikoIds? }. Escolha fixa passa direto.
+export function resolveUnikoChoice(choice, maxWinners, rnd = Math.random) {
+  if (!isRandomUnikoChoice(choice)) return { unikoId: choice };
+  const pool = _unikoPool();
+  if (!pool.length) return { unikoId: DEFAULT_UNIKO_ID };
+  if (choice === RANDOM_UNIKO_ID) return { unikoId: pool[Math.floor(rnd() * pool.length)] };
+  // Por vaga: embaralha e distribui sem repetir enquanto houver Uniko diferente sobrando.
+  const ids = [];
+  while (ids.length < maxWinners) {
+    const deck = [...pool];
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    ids.push(...deck);
+  }
+  const slotUnikoIds = ids.slice(0, maxWinners);
+  return { unikoId: slotUnikoIds[0], slotUnikoIds };
+}
+
+// Uniko da PRÓXIMA vaga livre (`taken` = quantas já foram capturadas).
+export function unikoIdForSlot(cfg, taken = 0) {
+  const list = cfg?.slotUnikoIds;
+  if (Array.isArray(list) && list.length) return list[Math.min(Math.max(0, taken), list.length - 1)];
+  return cfg?.unikoId;
+}
+
 export function isWithinWindow(cfg, now = nowMs()) {
   if (!cfg?.enabled) return false;
   const s = cfg.startAt ? Date.parse(cfg.startAt) : null;
@@ -501,13 +545,15 @@ export function nextOccurrence(entry, now = nowMs()) {
 
 // Item da fila → config do evento (formato de sempre do capture_uniko_config).
 export function cfgFromScheduleEntry(entry, occ) {
+  const maxWinners = maxWinnersFor(entry);
   return {
     enabled: true,
     startAt: occ.startIso,
     endAt: occ.endIso,
     spawnAt: pickSpawnAtSeeded(occ.startIso, occ.endIso, occ.key),
-    unikoId: entry.unikoId,
-    maxWinners: maxWinnersFor(entry),
+    // semeado pela ocorrência (igual ao spawnAt) → gravação idempotente entre navegadores
+    ...resolveUnikoChoice(entry.unikoId, maxWinners, _mulberry32(_hashStr(`${occ.key}#uniko`))),
+    maxWinners,
     ...(entry.alexaMessage ? { alexaMessage: entry.alexaMessage } : {}),
     agendaKey: occ.key, // rastro de qual item da fila gerou este evento
   };
@@ -553,6 +599,8 @@ export async function runCaptureScheduler(currentCfg, now = nowMs()) {
     if (currentCfg?.enabled && !Number.isNaN(curStart) && curStart > best.occ.startMs
         && (Number.isNaN(curEnd) || now <= curEnd)) return null;
 
+    // Sorteio precisa do roster completo (Oficina incluída) — senão os Unikos criados lá nunca saem.
+    if (isRandomUnikoChoice(best.entry.unikoId)) await loadCustomUnikos();
     const cfg = cfgFromScheduleEntry(best.entry, best.occ);
     await saveCaptureConfig(cfg);
     await markAgendaDone(best.occ.key);

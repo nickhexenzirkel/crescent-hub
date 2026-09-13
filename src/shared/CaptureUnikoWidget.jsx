@@ -23,7 +23,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId,
+  loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId, unikoIdForSlot,
 } from './captureUniko';
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
@@ -55,11 +55,13 @@ function playCaptureAlert() {
 
 
 const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
-  const uniko = getUniko(cfg?.unikoId);
-  const th = uniko.theme;
-
   const [available, setAvailable] = useState(false);
   const [winners, setWinners]     = useState([]); // até maxWinners: [{player, at, comum, premium, unikoId, unikoName}]
+  // Modo "aleatório por vaga" (cfg.slotUnikoIds): cada vaga tem o seu Uniko — o que está
+  // na tela é o da PRÓXIMA vaga livre. Nos outros modos é sempre cfg.unikoId.
+  const perSlot = Array.isArray(cfg?.slotUnikoIds) && cfg.slotUnikoIds.length > 1;
+  const uniko = getUniko(unikoIdForSlot(cfg, winners.length));
+  const th = uniko.theme;
   const [phase, setPhase]         = useState('idle'); // idle | thrown | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
@@ -353,7 +355,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     // na Dashboard: quem já estava com o Portal aberto desde antes da edição
     // ainda creditou 100/100 em vez do valor novo).
     await Promise.all([loadCustomUnikos(), loadRewardOverrides()]);
-    const freshUniko = getUniko(cfg?.unikoId);
+    const freshUniko = getUniko(unikoIdForSlot(cfg, winners.length)); // o mesmo que está na tela
     const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
     if (networkError || rejected) {
       // erro de verdade, ou recusa com vaga ainda sobrando (ver claimCapture)
@@ -405,19 +407,22 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
 
   // Painel "Você resgatou!" — só pra quem capturou (fica 30 min)
   if (winnerActive && myWin && !available) {
+    // No modo por vaga, o Uniko que EU peguei pode não ser o que está "na vez" agora.
+    const mu = myWin.unikoId ? getUniko(myWin.unikoId) : uniko;
+    const mth = mu.theme;
     return wrap(
-        <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
+        <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${mth.border.join(',')})`, boxShadow: `0 18px 50px ${mth.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-          <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
-            <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 16px ${th.accent})` }}/>
+          <div style={{ borderRadius: 15, background: mth.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
+            <img src={mu.img} alt={mu.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 16px ${mth.accent})` }}/>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>★ UNIKO RESGATADO ★</div>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: mth.glow, textShadow: `0 0 10px ${mth.accent}` }}>★ UNIKO RESGATADO ★</div>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Você resgatou!
+                {perSlot ? `Você resgatou o ${mu.shortName || mu.name}!` : 'Você resgatou!'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
-                <span style={{ fontSize: 11.5, color: th.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={th.ink} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
+                <span style={{ fontSize: 11.5, color: mth.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={mth.ink} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
                   {fmtWhen(myWin.at)}
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{myWin.comum || 0}</span>
@@ -500,6 +505,11 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
           <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none' }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.18em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cuPulse 1.6s ease-in-out infinite' }}>★ CAPTURE O UNIKO ★</div>
             <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2, fontFamily: 'var(--font-brand)', letterSpacing: '.03em', textShadow: `0 2px 12px ${th.accent2}` }}>{uniko.shortName || uniko.name}</div>
+            {perSlot && (
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: th.ink, marginTop: 2, textShadow: `0 1px 8px ${th.accent2}` }}>
+                Vaga {Math.min(winners.length + 1, maxWinners)} de {maxWinners} · cada vaga traz um Uniko diferente
+              </div>
+            )}
           </div>
 
           {/* Cenário (igual ao card da Central Alexa) — escolhido pelo tema do Uniko */}
