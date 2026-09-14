@@ -9477,19 +9477,19 @@ function wgDrawBelt(gy,h){
   }
   // Fallback procedural (caso as imagens ainda não tenham carregado)
   const bg=ctx.createLinearGradient(0,gy,0,gy+h);
-  bg.addColorStop(0,'#3a2456'); bg.addColorStop(0.5,'#241338'); bg.addColorStop(1,'#0d0820');
+  bg.addColorStop(0,'#4a4e55'); bg.addColorStop(0.5,'#2c2f34'); bg.addColorStop(1,'#0c0d0f'); // cinza → preto
   ctx.fillStyle=bg; ctx.fillRect(0,gy,CW,h);
   ctx.save(); ctx.beginPath(); ctx.rect(0,gy,CW,h); ctx.clip();
   // sombra interna no topo (a esteira "afunda" sob o chão)
   const sh=ctx.createLinearGradient(0,gy,0,gy+h*0.55);
   sh.addColorStop(0,'rgba(0,0,0,.5)'); sh.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=sh; ctx.fillRect(0,gy,CW,h*0.55);
-  // treads diagonais com RELEVO: sombra escura deslocada + faixa rosa + brilho fino
+  // treads diagonais com RELEVO: sombra escura deslocada + faixa cinza clara + brilho fino
   const seg=34, scroll=(animT*340)%seg;
   for(let x=CW - scroll; x>-seg; x-=seg){
     ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(x+3,gy+4); ctx.lineTo(x-12,gy+h-1); ctx.stroke();      // sombra
-    ctx.strokeStyle='rgba(255,46,154,.5)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,gy+3);   ctx.lineTo(x-15,gy+h-3); ctx.stroke();   // corpo
-    ctx.strokeStyle='rgba(255,150,215,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x-1,gy+3); ctx.lineTo(x-16,gy+h-3); ctx.stroke();  // brilho
+    ctx.strokeStyle='rgba(170,176,184,.5)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,gy+3);   ctx.lineTo(x-15,gy+h-3); ctx.stroke();   // corpo
+    ctx.strokeStyle='rgba(225,230,236,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x-1,gy+3); ctx.lineTo(x-16,gy+h-3); ctx.stroke();  // brilho
   }
   // sombra interna na base também (escurece o pé da esteira)
   const sh2=ctx.createLinearGradient(0,gy+h*0.5,0,gy+h);
@@ -9497,12 +9497,12 @@ function wgDrawBelt(gy,h){
   ctx.fillStyle=sh2; ctx.fillRect(0,gy+h*0.5,CW,h*0.5);
   ctx.restore();
   // bordas neon + linha de highlight logo abaixo do topo
-  ctx.shadowColor='rgba(0,240,255,.7)'; ctx.shadowBlur=glow?14:0;
-  ctx.strokeStyle='rgba(0,240,255,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
+  ctx.shadowColor='rgba(40,130,255,.7)'; ctx.shadowBlur=glow?14:0;
+  ctx.strokeStyle='rgba(40,130,255,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke();
   ctx.shadowBlur=0;
-  ctx.strokeStyle='rgba(190,245,255,.35)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,gy+2); ctx.lineTo(CW,gy+2); ctx.stroke();
-  ctx.shadowColor='rgba(255,46,154,.7)'; ctx.shadowBlur=glow?12:0;
-  ctx.strokeStyle='rgba(255,46,154,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy+h); ctx.lineTo(CW,gy+h); ctx.stroke();
+  ctx.strokeStyle='rgba(200,205,212,.35)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,gy+2); ctx.lineTo(CW,gy+2); ctx.stroke();
+  ctx.shadowColor='rgba(46,255,133,.7)'; ctx.shadowBlur=glow?12:0;
+  ctx.strokeStyle='rgba(46,255,133,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,gy+h); ctx.lineTo(CW,gy+h); ctx.stroke();
   ctx.shadowBlur=0;
 }
 
