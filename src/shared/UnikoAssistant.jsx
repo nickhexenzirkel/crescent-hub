@@ -338,7 +338,7 @@ function resizeImageFile(file, maxSide = 640, quality = 0.82) {
   });
 }
 
-/* ── Título da aba com contador de não lidas do Blog Secreto — "U∩IKO (2 Mensagens Não
+/* ── Título da aba com contador de não lidas do Blog Secreto — "UNIKO (2 Mensagens Não
    Lidas)". Guarda o título ORIGINAL só na 1ª vez (nunca mais mexe nele) e sempre
    reconstrói a partir dele — não mexe/hardcoda o título do site, só acrescenta o sufixo
    quando tem não lida e tira quando não tem. ── */
@@ -951,7 +951,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (open && chatMode === 'blog') { blogNearBottomRef.current = true; setBlogUnread(0); }
   }, [open, chatMode]);
 
-  // Título da aba: "U∩IKO (N Mensagens Não Lidas)" enquanto tiver não lida, some sozinho
+  // Título da aba: "UNIKO (N Mensagens Não Lidas)" enquanto tiver não lida, some sozinho
   // quando zera. Nunca mexe/hardcoda o título de verdade, só acrescenta/tira o sufixo.
   useEffect(() => { setDocTitleUnread(blogUnread); }, [blogUnread]);
   useEffect(() => () => setDocTitleUnread(0), []); // restaura ao desmontar (fecha a aba/recarrega)

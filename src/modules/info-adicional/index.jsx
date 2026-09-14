@@ -21,7 +21,7 @@ const PASSOS_INSTALAR = [
 const PASSOS_NOTIF = [
   { texto: 'Abra os Ajustes do iPhone.', img: null },
   { texto: 'Vá até "Notificações".', img: '/tutorial-app/notif-2-ajustes-notificacoes.jpg' },
-  { texto: 'Procure pelo U∩IKO na lista de aplicativos (ordem alfabética).', img: '/tutorial-app/notif-3-lista-apps.jpg' },
+  { texto: 'Procure pelo UNIKO na lista de aplicativos (ordem alfabética).', img: '/tutorial-app/notif-3-lista-apps.jpg' },
   { texto: 'Se não quiser o aviso aparecendo NA TELA (só receber sem popup), desmarque a opção "Banners".', img: '/tutorial-app/notif-4-banners.jpg' },
 ];
 
