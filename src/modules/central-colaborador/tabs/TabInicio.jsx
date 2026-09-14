@@ -583,7 +583,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                   return (
                     <div key={m.id}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3,gap:8}}>
-                        <span style={{fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.title}</span>
+                        <span style={{flex:1,minWidth:0,fontSize:11.5,fontWeight:500,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.title}</span>
                         <span style={{fontSize:10.5,fontWeight:700,color:col,flexShrink:0}}>{m.progress}/{m.goal}</span>
                       </div>
                       <div style={{height:5,background:'rgba(0,0,0,.07)',borderRadius:999,overflow:'hidden'}}>

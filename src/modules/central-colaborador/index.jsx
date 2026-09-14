@@ -232,6 +232,13 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
         <div className="portal-area" style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? '1 1 auto' : 1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
           overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? 'hidden' : 'auto',
+          // Trava de segurança: nenhuma aba deve exigir rolagem PARA OS LADOS pra
+          // ver informação ou alcançar um botão — se algum card/linha (ellipsis
+          // sem minWidth:0 num flex, texto sem quebra, etc.) forçar mais largura
+          // do que cabe na tela, ele é cortado aqui em vez de empurrar a página
+          // inteira pro lado (o que escondia botões sem dar nenhuma pista visual
+          // de que dava pra arrastar).
+          overflowX: 'hidden',
           minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? 0 : undefined,
           paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
           height: tab==='unikowave' ? '100vh' : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined))}}>
