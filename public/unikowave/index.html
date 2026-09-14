@@ -6182,7 +6182,7 @@ function guardPress(btn, hit){
       return;
     }
     guardJudge(`⚠ UM BOTÃO POR VEZ! (${inputGuard.strikes}/${G.CHORD_STRIKES})`,'#ffb020');
-    guardDamage(Math.max(15, baseDmg*2));
+    guardDamage(Math.max(12, Math.round(baseDmg*1.6)));
     return;
   }
 
@@ -6190,7 +6190,7 @@ function guardPress(btn, hit){
   if(now-inputGuard.lastWhiffAt>G.WHIFF_RESET) inputGuard.whiffs=0;
   inputGuard.whiffs++; inputGuard.lastWhiffAt=now;
   if(inputGuard.whiffs<=G.WHIFF_FREE) return;
-  const dmg=Math.max(12, Math.round(baseDmg*1.8));
+  const dmg=Math.max(10, Math.round(baseDmg*1.5));
   guardJudge(`SPAM! −${dmg} ❤`,'#ff4466');
   guardDamage(dmg);
 }
