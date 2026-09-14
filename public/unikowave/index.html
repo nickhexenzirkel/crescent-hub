@@ -3230,8 +3230,11 @@ function syncMusicUI(){
    quantidade de partículas e desliga blurs/fundos pesados (classes gfx-*).
    Persistido em localStorage 'dw_gfx'. */
 const GFX_PRESETS = {
-  ultra:  { dprCap:1,   particleMul:0,    glow:false },  // máximo de otimização
-  baixo:  { dprCap:1,   particleMul:0.25, glow:false },
+  // dprCap < 1 = o canvas desenha em resolução MENOR e o navegador amplia. Quando a
+  // pintura não vai pra placa de vídeo (aceleração desligada/driver bloqueado), o custo
+  // é proporcional aos pixels: medido 33 fps a 1920x1080 com pintura por CPU.
+  ultra:  { dprCap:0.6, particleMul:0,    glow:false },  // máximo de otimização (36% dos pixels)
+  baixo:  { dprCap:0.8, particleMul:0.25, glow:false },
   medio:  { dprCap:1.5, particleMul:0.55, glow:true  },
   normal: { dprCap:3,   particleMul:1,    glow:true  },
 };
@@ -3276,7 +3279,7 @@ let _gfxVideoOverrideActive=false, _gfxSavedForVideo=null;
 function _applyVideoModeGfxOverride(){
   if(_gfxVideoOverrideActive) return;
   _gfxSavedForVideo=GFX; _gfxVideoOverrideActive=true;
-  GFX={ ...GFX, glow:false, dprCap:1, particleMul:Math.min(GFX.particleMul!=null?GFX.particleMul:1,0.25) };
+  GFX={ ...GFX, glow:false, dprCap:Math.min(GFX.dprCap||1,1), particleMul:Math.min(GFX.particleMul!=null?GFX.particleMul:1,0.25) };
   if(typeof resize==='function') resize();
 }
 function _restoreGfxAfterVideoMode(){
@@ -9564,7 +9567,7 @@ const WG_SPACE = { key:'', layer:null, stars:[], shoot:[], nextShoot:0, lastT:0,
 
 function wgSpaceBuild(){
   const S = WG_SPACE, dpr = DPR || 1;
-  S.key = CW+'x'+CH+'@'+dpr;
+  S.key = wgSpaceKey();
   const R = (a,b) => a + Math.random()*(b-a);
   const u = Math.min(CW, CH*1.6); // escala base dos planetas (não explode em tela ultra-larga)
   S.planets = [
@@ -9577,6 +9580,7 @@ function wgSpaceBuild(){
   const c = layer.getContext('2d');
   c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,CW,CH);
   const floor = WG.floorFeet || CH*0.82;
+  wgPaintVeils(c, floor);   // véus do céu e de baixo, assados junto (antes eram 2 pinturas de tela cheia por quadro)
   const insidePlanet = (x,y,pad) => S.planets.some(p => Math.hypot(x-p.x, y-p.y) < p.r*(p.kind==='ring'?1.9:1)+pad);
 
   // pó de estrelas (pontinhos fixos)
@@ -9589,6 +9593,7 @@ function wgSpaceBuild(){
   }
   S.planets.forEach(p => wgDrawPlanet(c, p));
   S.layer = layer;
+  S.veil = null; // o véu avulso (mapa com fundo próprio) é refeito se precisar
 
   // sprites da ✦ (branca e azulada), 32px de base
   if(!S.sprites){
@@ -9671,12 +9676,34 @@ function wgPlanetBody(c, x, y, r, cols, halo, detail){
   c.beginPath(); c.arc(x,y,r-0.5,Math.PI*0.95,Math.PI*1.75); c.stroke();
 }
 
+function wgSpaceKey(){ return CW+'x'+CH+'@'+(DPR||1)+'f'+Math.round(WG.floorFeet||0); }
+// Véu escuro semitransparente: céu (deixa o vídeo aparecer) e faixa de baixo da esteira.
+function wgPaintVeils(c, gy){
+  const sky=c.createLinearGradient(0,0,0,gy);
+  sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
+  c.fillStyle=sky; c.fillRect(0,0,CW,gy);
+  const under=c.createLinearGradient(0,gy,0,CH);
+  under.addColorStop(0,'rgba(10,2,24,0.35)'); under.addColorStop(1,'rgba(10,2,24,0.75)');
+  c.fillStyle=under; c.fillRect(0,gy,CW,CH-gy);
+}
+// Só os véus (mapa da Oficina com fundo próprio, sem espaço), também numa camada pronta.
+function drawWgVeilOnly(){
+  const S = WG_SPACE, key = wgSpaceKey();
+  if(!S.veil || S.veilKey !== key){
+    const v = S.veil || document.createElement('canvas'), dpr = DPR || 1;
+    v.width = Math.max(1, Math.round(CW*dpr)); v.height = Math.max(1, Math.round(CH*dpr));
+    const c = v.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,CW,CH);
+    wgPaintVeils(c, WG.floorFeet || CH*0.82);
+    S.veil = v; S.veilKey = key;
+  }
+  ctx.drawImage(S.veil, 0, 0, CW, CH);
+}
+
 function drawWgSpace(t){
-  const S = WG_SPACE, dpr = DPR || 1;
-  if(S.key !== CW+'x'+CH+'@'+dpr || !S.layer) wgSpaceBuild();
+  const S = WG_SPACE;
+  if(S.key !== wgSpaceKey() || !S.layer) wgSpaceBuild();
   const dt = Math.max(0, Math.min(0.1, animT - S.lastT)); S.lastT = animT;
-  // leve deriva dos planetas (parallax lento, só visual)
-  ctx.drawImage(S.layer, Math.sin(animT*0.05)*6, 0, CW, CH);
+  ctx.drawImage(S.layer, 0, 0, CW, CH);   // véus + pó de estrelas + planetas numa cópia só
 
   // ✦ piscando (sprites)
   const spr = S.sprites;
@@ -9724,16 +9751,10 @@ function drawWgBackground(t){
     drawWgSpace(t);
     return;
   }
-  // Céu semitransparente (deixa o vídeo aparecer acima da esteira)
-  const sky=ctx.createLinearGradient(0,0,0,gy);
-  sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
-  // Espaço (planetas, ✦ e cadentes) — só no cenário original; mapa com fundo próprio fica limpo
+  // Véus + espaço (planetas, ✦ e cadentes) — tudo numa camada pronta. Mapa com fundo
+  // próprio fica sem o espaço, só com os véus.
   const _sc=(typeof CURRENT_SCENE!=='undefined')?CURRENT_SCENE:null;
-  if(!(_sc && _sc.bgUrl && _sc.bgKind!=='none')) drawWgSpace(t);
-  const under=ctx.createLinearGradient(0,gy,0,CH);
-  under.addColorStop(0,'rgba(10,2,24,0.35)'); under.addColorStop(1,'rgba(10,2,24,0.75)');
-  ctx.fillStyle=under; ctx.fillRect(0,gy,CW,CH-gy);
+  if(!(_sc && _sc.bgUrl && _sc.bgKind!=='none')) drawWgSpace(t); else drawWgVeilOnly();
   // Esteira
   wgDrawBelt(gy, WG.beltH);
   // Abaixo da esteira: sem fogo (removido) — só um véu escuro por trás da plataforma,
@@ -10050,7 +10071,7 @@ function drawWargame(t){
     const w=Math.min(CW*0.6,680), h=64, bx=(CW-w)/2, by=14;
     const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
     const col = WG.bossHitFx>0 ? '#FF8FA0' : '#FF4D6D';      // clareia no golpe, sem brilho
-    wgFlatBar(bx,by,w,h,hpPct,col,{ left:WG.bossDefeated?'BOSS DERROTADO':'BOSS · DarkCatBot', right:Math.round(hpPct*100)+'%' });
+    wgFlatBar(bx,by,w,h,hpPct,col,{ left:WG.bossDefeated?'BOSS - REI MORCEGO ROBÓTICO - DERROTADO':'BOSS - REI MORCEGO ROBÓTICO - O DESTRUIDOR', right:Math.round(hpPct*100)+'%' });
   }
 
   // ── Notas / minions (incl. notas de segurar com linha roxa) ──
