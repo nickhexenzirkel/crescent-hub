@@ -364,12 +364,15 @@ export function pickSpawnAt(startIso, endIso, rnd = Math.random) {
    sorteado com Math.random(), cada um calcularia um horário diferente e o último
    a gravar mudaria o evento pra todo mundo. Semeando pelo id da ocorrência,
    TODOS chegam exatamente no mesmo spawnAt → a gravação vira idempotente. ── */
-function _hashStr(str) {
+// Exportadas (sem underscore) porque o Capture o Número reaproveita as duas pra
+// semear o próprio spawnAt/sorteio de número da fila dele — são só hash+PRNG
+// genéricos, nada aqui depende do conceito de "Uniko".
+export function hashStr(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
   return h >>> 0;
 }
-function _mulberry32(seed) {
+export function mulberry32(seed) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6D2B79F5) | 0;
@@ -378,6 +381,7 @@ function _mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+const _hashStr = hashStr, _mulberry32 = mulberry32;
 export const pickSpawnAtSeeded = (startIso, endIso, seed) =>
   pickSpawnAt(startIso, endIso, _mulberry32(_hashStr(String(seed))));
 

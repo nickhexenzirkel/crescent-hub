@@ -25,7 +25,7 @@ import CaptureNumeroWidget from './shared/CaptureNumeroWidget';
 import { AtualizacaoOverlay } from './shared/atualizacao';
 import { subscribeGameInvites, setPendingJoin, GAME_JOIN_EVENT, GAME_LABEL } from './shared/gameInvites';
 import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
-import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY } from './shared/captureNumero';
+import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY, runCaptureScheduler as runCaptureNumeroScheduler } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
 
@@ -86,13 +86,14 @@ export default function CrescentHub() {
   }, [authUser]);
 
   // Config do "Capture o Número" — sistema PARALELO ao Capture o Uniko acima, mesmo
-  // padrão (config load + realtime + poll fallback). SEM fila de agendamento (v1: o
-  // admin liga/desliga um evento de cada vez pelo Dashboard RH, sem recorrência).
+  // padrão (config load + realtime + poll fallback + fila de agendamento abaixo).
+  const rawCaptureNumeroCfgRef = useRef(null); // config CRU (mesmo desligado) — o agendador compara com ele
   useEffect(() => {
     if (!authUser) return;
     let alive = true;
     const refresh = () => loadCaptureNumeroConfig().then(c => {
       if (!alive) return;
+      rawCaptureNumeroCfgRef.current = c || null;
       const next = c?.enabled ? c : null;
       setCaptureNumeroCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(next) ? prev : next));
     });
@@ -102,6 +103,21 @@ export default function CrescentHub() {
       .subscribe();
     const poll = setInterval(refresh, 5000);
     return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
+  }, [authUser]);
+  // ── Fila de spawns agendados do "Capture o Número" — mesmo mecanismo do Uniko
+  // (ver comentário detalhado abaixo, no efeito da fila do Uniko). ──
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true;
+    const tick = async () => {
+      const cfg = await runCaptureNumeroScheduler(rawCaptureNumeroCfgRef.current);
+      if (!alive || !cfg) return;
+      rawCaptureNumeroCfgRef.current = cfg;
+      setCaptureNumeroCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(cfg) ? prev : cfg));
+    };
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => { alive = false; clearInterval(id); };
   }, [authUser]);
   // ── Fila de spawns agendados do "Capture o Uniko" ────────────────────────────
   // Não existe cron no cliente, então quem "acorda" a fila é o próprio navegador de

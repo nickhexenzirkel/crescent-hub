@@ -1,22 +1,26 @@
 // src/shared/captureNumero.js
 // "Capture o Número" — sorteio de números da sorte (1 a 100), mesma mecânica do
-// "Capture o Uniko" (arremesso do assistente, até 5 vagas por evento), só que:
+// "Capture o Uniko" (arremesso do assistente, até 5 vagas por evento, FILA de
+// spawns agendados), só que:
 //   • SEM recompensa em Prismas por enquanto — só grava a captura na coleção
 //     (o sorteio/prêmio de verdade fica pra depois, é decisão explícita).
 //   • SEM tema/cenário por número — visual é um cartão dourado fixo (ver
 //     CaptureNumeroWidget.jsx), não precisa de Oficina pra criar números novos.
-//   • SEM agenda recorrente — o admin liga/desliga um evento de cada vez
-//     (ver Dashboard RH → Capture o Número).
 // Reaproveita do captureUniko.js tudo que já é GENÉRICO (relógio sincronizado com
-// o servidor, sorteio do instante de spawn, checagem de janela) em vez de duplicar
-// — nada nessas funções depende do conceito de "Uniko".
+// o servidor, sorteio do instante de spawn, checagem de janela, cálculo de
+// ocorrência da fila, hash+PRNG semeado) em vez de duplicar — nada nessas
+// funções depende do conceito de "Uniko".
 import { supabase as _supabase, getAuthUser } from '../contexts/user';
 import {
   nowMs, ensureServerClock, pickSpawnAt, pickSpawnAtSeeded,
   isWithinWindow, spawnMoment, isSpawned, WINNER_PANEL_MS,
+  activeOccurrence, nextOccurrence, hashStr, mulberry32,
 } from './captureUniko';
 
-export { nowMs, ensureServerClock, pickSpawnAt, pickSpawnAtSeeded, isWithinWindow, spawnMoment, isSpawned, WINNER_PANEL_MS };
+export {
+  nowMs, ensureServerClock, pickSpawnAt, pickSpawnAtSeeded, isWithinWindow, spawnMoment, isSpawned, WINNER_PANEL_MS,
+  activeOccurrence, nextOccurrence,
+};
 
 const userTag = () => { try { return getAuthUser()?.cpf || getAuthUser()?.name || 'anon'; } catch { return 'anon'; } };
 
@@ -293,4 +297,115 @@ export async function resetNumeroCaptures({ player } = {}) {
   };
   await wipe('capture_numero_captures');
   await wipe('capture_numero_event');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FILA DE SPAWNS AGENDADOS (agenda do Capture o Número) — mesmo mecanismo do
+   Capture o Uniko (ver bloco equivalente em captureUniko.js): o admin monta
+   uma LISTA de eventos ("das 10:00 às 11:30 sorteia entre 7/13/42, todo dia"),
+   cada item guarda só o MOLDE — a janela concreta ("ocorrência") é calculada
+   na hora, no fuso local (`activeOccurrence`/`nextOccurrence`, reaproveitados
+   de captureUniko.js — são cálculo puro de janela, nada de "Uniko" neles).
+
+   Quando a hora de uma ocorrência chega, ela é PROMOVIDA: vira o
+   `capture_numero_config` normal (mesmo formato de sempre). Nada mais no
+   sistema precisa saber que veio da fila — widget e assistente continuam
+   lendo só o config.
+
+   Item da fila:
+     { id, pool:[1,7,42], numeroMode: number|RANDOM_NUMERO_ID|RANDOM_PER_SLOT_ID,
+       maxWinners, mode:'daily'|'once', date:'2026-09-14' (só no 'once'),
+       startTime:'10:00', endTime:'11:30', enabled }
+   (campo `mode` aqui é a REPETIÇÃO diário/único — não confundir com o
+   `numeroMode` de sorteio, nome deliberadamente diferente.)
+   ══════════════════════════════════════════════════════════════════════════ */
+export const SCHEDULE_KEY     = 'capture_numero_schedule';
+export const AGENDA_STATE_KEY = 'capture_numero_agenda_state';
+
+async function _loadSetting(key) {
+  try {
+    const { data } = await _supabase.from('settings').select('value').eq('key', key).maybeSingle();
+    if (data?.value) return typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+  } catch {}
+  return null;
+}
+const _saveSetting = (key, value) =>
+  _supabase.from('settings').upsert({ key, value: JSON.stringify(value) }, { onConflict: 'key' });
+
+export async function loadCaptureSchedule() {
+  const v = await _loadSetting(SCHEDULE_KEY);
+  return Array.isArray(v?.entries) ? v.entries : [];
+}
+export async function saveCaptureSchedule(entries) {
+  const { error } = await _saveSetting(SCHEDULE_KEY, { entries });
+  if (error) throw error;
+}
+
+// Item da fila → config do evento (formato de sempre do capture_numero_config).
+// Sorteio semeado pela ocorrência (igual o spawnAt) → gravação idempotente entre
+// navegadores (dois clientes promovendo a MESMA ocorrência calculam o MESMO config).
+export function cfgFromScheduleEntry(entry, occ) {
+  const maxWinners = maxWinnersFor(entry);
+  const choice = isRandomNumeroChoice(entry.numeroMode) ? entry.numeroMode : Number(entry.numeroMode);
+  return {
+    enabled: true,
+    startAt: occ.startIso,
+    endAt: occ.endIso,
+    spawnAt: pickSpawnAtSeeded(occ.startIso, occ.endIso, occ.key),
+    pool: entry.pool,
+    ...resolveNumeroChoice(choice, entry.pool, maxWinners, mulberry32(hashStr(`${occ.key}#numero`))),
+    maxWinners,
+    agendaKey: occ.key, // rastro de qual item da fila gerou este evento
+  };
+}
+
+/* Ocorrências já disparadas — mesma lógica do Uniko: guardadas no settings pra
+   NENHUM cliente repetir um evento que já rolou. Mantém só as últimas 60. */
+async function loadAgendaDone() {
+  const v = await _loadSetting(AGENDA_STATE_KEY);
+  return Array.isArray(v?.done) ? v.done : [];
+}
+async function markAgendaDone(key) {
+  const done = await loadAgendaDone();
+  if (done.includes(key)) return;
+  await _saveSetting(AGENDA_STATE_KEY, { done: [...done, key].slice(-60) });
+}
+
+/* Roda a fila: se alguma ocorrência está na hora e ainda não foi disparada,
+   grava o config dela. Devolve o config promovido (ou null se não havia nada).
+   `currentCfg` é o config que está no ar agora (pode ser null). */
+export async function runCaptureScheduler(currentCfg, now = nowMs()) {
+  try {
+    const entries = await loadCaptureSchedule();
+    if (!entries.length) return null;
+    const done = new Set(await loadAgendaDone());
+
+    let best = null;
+    for (const entry of entries) {
+      if (entry.enabled === false) continue;
+      const occ = activeOccurrence(entry, now);
+      if (!occ || done.has(occ.key)) continue;
+      if (!best || occ.startMs > best.occ.startMs) best = { entry, occ };
+    }
+    if (!best) return null;
+
+    // Não atropela um evento que ainda está VIVO e começou DEPOIS desta ocorrência
+    // (ex.: um "Spawnar agora" manual no meio de uma janela agendada).
+    const curStart = currentCfg?.startAt ? Date.parse(currentCfg.startAt) : NaN;
+    const curEnd   = currentCfg?.endAt   ? Date.parse(currentCfg.endAt)   : NaN;
+    if (currentCfg?.enabled && !Number.isNaN(curStart) && curStart > best.occ.startMs
+        && (Number.isNaN(curEnd) || now <= curEnd)) return null;
+
+    const cfg = cfgFromScheduleEntry(best.entry, best.occ);
+    await saveCaptureConfig(cfg);
+    await markAgendaDone(best.occ.key);
+    // 'Única vez' já cumpriu seu papel: sai da fila sozinho pra não poluir a lista.
+    if (best.entry.mode === 'once') {
+      try { await saveCaptureSchedule((await loadCaptureSchedule()).filter(e => e.id !== best.entry.id)); } catch {}
+    }
+    return cfg;
+  } catch (e) {
+    console.error('[capture-numero] runCaptureScheduler falhou:', e);
+    return null;
+  }
 }

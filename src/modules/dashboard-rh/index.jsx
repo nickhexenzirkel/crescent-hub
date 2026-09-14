@@ -15,10 +15,11 @@ import {
   RANDOM_UNIKO_ID, RANDOM_PER_SLOT_ID, isRandomUnikoChoice, resolveUnikoChoice,
 } from '../../shared/captureUniko';
 import {
-  loadCaptureConfig as loadCaptureNumeroConfig, saveCaptureConfig as saveCaptureNumeroConfig,
-  resetNumeroCaptures, maxWinnersFor as maxWinnersForNumero,
-  RANDOM_NUMERO_ID, RANDOM_PER_SLOT_ID as NUMERO_RANDOM_PER_SLOT_ID,
+  saveCaptureConfig as saveCaptureNumeroConfig,
+  resetNumeroCaptures,
+  RANDOM_NUMERO_ID, RANDOM_PER_SLOT_ID as NUMERO_RANDOM_PER_SLOT_ID, isRandomNumeroChoice,
   resolveNumeroChoice,
+  loadCaptureSchedule as loadCaptureNumeroSchedule, saveCaptureSchedule as saveCaptureNumeroSchedule,
 } from '../../shared/captureNumero';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { bolhaGradiente } from '../../shared/bolhas';
@@ -1484,67 +1485,75 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     setTimeout(() => setResetMsg(''), 6000);
   };
 
-  // ── Capture o Número (evento simples — sem agenda recorrente) ──
-  const [numCfg, setNumCfg]           = useState(null);
-  const [numLoaded, setNumLoaded]     = useState(false);
-  const [numPool, setNumPool]         = useState([]);      // números marcados como elegíveis (1-100)
+  // ── Capture o Número — fila de spawns agendados (mesmo mecanismo do Uniko) ──
+  const [numSched, setNumSched]             = useState([]);
+  const [numSchedLoaded, setNumSchedLoaded] = useState(false);
+  const [numSchedMsg, setNumSchedMsg]       = useState('');
+  const [numSchedBusy, setNumSchedBusy]     = useState(false);
   // Default é "1 diferente por vaga" — é o comportamento que o RH pediu (cada
   // captura ganha um número aleatório DIFERENTE do pool). "1 número só pra
   // todo mundo" existe como opção, mas deixado como padrão gerava a confusão
   // de "selecionei 3 números e todo mundo tá ganhando o mesmo" (ver histórico).
-  const [numMode, setNumMode]         = useState(NUMERO_RANDOM_PER_SLOT_ID); // fixo | RANDOM_NUMERO_ID | NUMERO_RANDOM_PER_SLOT_ID
-  const [numMaxWinners, setNumMaxWinners] = useState(3);
-  const [numStart, setNumStart]       = useState('');
-  const [numEnd, setNumEnd]           = useState('');
-  const [numEnabled, setNumEnabled]   = useState(false);
-  const [numSaving, setNumSaving]     = useState(false);
-  const [numMsg, setNumMsg]           = useState('');
-  const [numSearch, setNumSearch]     = useState('');
-  useEffect(() => {
-    if (tab !== 'capture-numero' || numLoaded) return;
-    (async () => {
-      const cfg = await loadCaptureNumeroConfig();
-      setNumLoaded(true);
-      if (!cfg) return;
-      setNumCfg(cfg);
-      setNumEnabled(!!cfg.enabled);
-      setNumPool(Array.isArray(cfg.pool) ? cfg.pool : (cfg.numeroValue ? [cfg.numeroValue] : []));
-      setNumMode(Array.isArray(cfg.slotNumeroValues) ? NUMERO_RANDOM_PER_SLOT_ID
-        : (Array.isArray(cfg.pool) && cfg.pool.length > 1 ? RANDOM_NUMERO_ID : String(cfg.numeroValue || '')));
-      setNumMaxWinners(maxWinnersForNumero(cfg));
-      setNumStart(cfg.startAt ? cfg.startAt.slice(0, 16) : '');
-      setNumEnd(cfg.endAt ? cfg.endAt.slice(0, 16) : '');
-    })();
-  }, [tab, numLoaded]);
-  const toggleNumPoolValue = (n) => setNumPool(p => p.includes(n) ? p.filter(x => x !== n) : [...p, n].sort((a, b) => a - b));
-  const saveNumConfig = async (spawnNow) => {
-    if (!numPool.length) { setNumMsg('⚠️ Marque pelo menos 1 número elegível.'); return; }
-    setNumSaving(true); setNumMsg('');
-    try {
-      const startAt = spawnNow ? new Date().toISOString() : (numStart ? new Date(numStart).toISOString() : new Date().toISOString());
-      const endAt = numEnd ? new Date(numEnd).toISOString() : new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      const choice = numMode === RANDOM_NUMERO_ID || numMode === NUMERO_RANDOM_PER_SLOT_ID ? numMode : Number(numMode || numPool[0]);
-      const resolved = resolveNumeroChoice(choice, numPool, numMaxWinners);
-      const cfg = { enabled: true, startAt, endAt, pool: numPool, maxWinners: numMaxWinners, ...resolved };
-      await saveCaptureNumeroConfig(cfg);
-      setNumCfg(cfg); setNumEnabled(true);
-      setNumStart(startAt.slice(0, 16)); setNumEnd(endAt.slice(0, 16));
-      setNumMsg(spawnNow ? '✅ Número spawnado agora!' : '✅ Evento salvo!');
-    } catch (e) { setNumMsg('❌ ' + (e.message || 'Erro ao salvar')); }
-    setNumSaving(false);
-    setTimeout(() => setNumMsg(''), 6000);
+  const [numSchedForm, setNumSchedForm] = useState({
+    pool: [], numeroMode: NUMERO_RANDOM_PER_SLOT_ID, maxWinners: 3,
+    mode: 'daily', date: todayStr(), startTime: '10:00', endTime: '11:30',
+  });
+  const [numSearch, setNumSearch] = useState(''); // busca na grade 1-100 do formulário
+  const [, setNumSchedTick] = useState(0); // re-render de minuto em minuto (o "próximo: ..." envelhece)
+  useEffect(() => { if (tab !== 'capture-numero') return; const id = setInterval(() => setNumSchedTick(t => t + 1), 60000); return () => clearInterval(id); }, [tab]);
+  const loadNumSched = async () => { try { setNumSched(await loadCaptureNumeroSchedule()); } catch {} setNumSchedLoaded(true); };
+  useEffect(() => { if (tab === 'capture-numero') loadNumSched(); }, [tab]);
+
+  const flashNumSched = (m) => { setNumSchedMsg(m); setTimeout(() => setNumSchedMsg(''), 4000); };
+  const persistNumSched = async (entries) => {
+    setNumSchedBusy(true);
+    const before = numSched;
+    setNumSched(entries); // otimista — volta atrás se o Supabase recusar
+    try { await saveCaptureNumeroSchedule(entries); }
+    catch (e) { setNumSched(before); flashNumSched('❌ ' + (e.message || 'Erro ao salvar a fila')); }
+    setNumSchedBusy(false);
   };
-  const disableNumConfig = async () => {
-    setNumSaving(true); setNumMsg('');
-    try {
-      const cfg = { ...(numCfg || {}), enabled: false };
-      await saveCaptureNumeroConfig(cfg);
-      setNumCfg(cfg); setNumEnabled(false);
-      setNumMsg('✅ Evento desligado.');
-    } catch (e) { setNumMsg('❌ ' + (e.message || 'Erro ao desligar')); }
-    setNumSaving(false);
-    setTimeout(() => setNumMsg(''), 6000);
+  const toggleNumFormPoolValue = (n) => setNumSchedForm(f => ({ ...f, pool: f.pool.includes(n) ? f.pool.filter(x => x !== n) : [...f.pool, n].sort((a, b) => a - b) }));
+  const addNumSchedEntry = async () => {
+    const f = numSchedForm;
+    if (!f.pool.length) { flashNumSched('⚠️ Marque pelo menos 1 número elegível'); return; }
+    if (!f.startTime || !f.endTime) { flashNumSched('⚠️ Preencha o horário de início e de fim'); return; }
+    if (f.mode === 'once' && !f.date) { flashNumSched('⚠️ Escolha a data do evento'); return; }
+    if (f.startTime === f.endTime) { flashNumSched('⚠️ O fim tem que ser diferente do início'); return; }
+    const entry = {
+      id: `sch_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      pool: [...f.pool], numeroMode: f.numeroMode, maxWinners: Number(f.maxWinners) || 3,
+      mode: f.mode, date: f.mode === 'once' ? f.date : null,
+      startTime: f.startTime, endTime: f.endTime,
+      enabled: true,
+    };
+    await persistNumSched([...numSched, entry]);
+    flashNumSched('✅ Evento adicionado à fila!');
   };
+  const toggleNumSchedEntry = (id) => persistNumSched(numSched.map(e => e.id === id ? { ...e, enabled: e.enabled === false } : e));
+  const removeNumSchedEntry = (id) => { if (window.confirm('Remover este evento da fila?')) persistNumSched(numSched.filter(e => e.id !== id)); };
+  // Solta um item da fila AGORA, sem esperar o horário dele — mesma lógica do "⚡ Agora" do Uniko.
+  const spawnNumEntryNow = async (entry) => {
+    if (!window.confirm('Soltar esse sorteio de número AGORA (janela de 30 min), sem esperar o horário agendado?')) return;
+    setNumSchedBusy(true);
+    try {
+      const now = new Date();
+      const maxWinners = Number(entry.maxWinners) || 3;
+      const choice = isRandomNumeroChoice(entry.numeroMode) ? entry.numeroMode : Number(entry.numeroMode);
+      await saveCaptureNumeroConfig({
+        enabled: true,
+        startAt: now.toISOString(),
+        endAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(), // janela de 30 min
+        spawnAt: new Date(now.getTime() + 6 * 1000).toISOString(),     // +6s: todos recebem e revelam juntos
+        pool: entry.pool,
+        ...resolveNumeroChoice(choice, entry.pool, maxWinners),
+        maxWinners,
+      });
+      flashNumSched('✅ Número liberado! Surge em segundos pra quem estiver no Portal.');
+    } catch (e) { flashNumSched('❌ ' + (e.message || 'Erro ao spawnar')); }
+    setNumSchedBusy(false);
+  };
+
   const [numResetPlayer, setNumResetPlayer] = useState('');
   const [numResetMsg, setNumResetMsg]       = useState('');
   const [numResetting, setNumResetting]     = useState(false);
@@ -4335,108 +4344,178 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
             </div>
           );})()}
 
-          {/* ── TAB: CAPTURE O NÚMERO (evento único, sem agenda) ── */}
+          {/* ── TAB: CAPTURE O NÚMERO (fila de spawns agendados) ── */}
           {tab==='capture-numero'&&(()=>{
             const inpSt = {width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'};
             const lblSt = {fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6};
             const numFiltrados = numSearch.trim()
               ? Array.from({length:100},(_,i)=>i+1).filter(n=>String(n).includes(numSearch.trim()))
               : Array.from({length:100},(_,i)=>i+1);
+            // Como um item da fila descreve o sorteio: fixo mostra o número, aleatório mostra "🎲".
+            const numSchedView = (entry) => {
+              const pool = (entry.pool||[]).join(', ');
+              if (entry.numeroMode===RANDOM_NUMERO_ID)       return { label:'🎲 Sorteia 1 do pool', sub:pool, random:true };
+              if (entry.numeroMode===NUMERO_RANDOM_PER_SLOT_ID) return { label:'🎲 1 diferente por vaga', sub:pool, random:true };
+              return { label:`🔒 Número fixo: ${entry.numeroMode}`, sub:pool, random:false };
+            };
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}
               <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
                 <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Número</div>
                 <div style={{fontSize:13,color:T.textS,marginTop:2}}>
-                  Sorteio de números da sorte (1 a 100). Escolha quais números entram no evento, quantas vagas ele tem e a janela em que ele fica disponível pra captura no Portal — mesmo lugar e mecânica do Capture o Uniko. Por enquanto é só captura/coleção — o prêmio do sorteio fica pra depois.
+                  Sorteio de números da sorte (1 a 100), mesmo lugar e mecânica do Capture o Uniko. Monte a fila de horários abaixo — por enquanto é só captura/coleção, o prêmio do sorteio fica pra depois.
                 </div>
               </div>
 
-              {/* Status atual */}
-              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
-                <div style={{width:10,height:10,borderRadius:999,background:numEnabled?(T.success||'#3a9'):T.textT,flexShrink:0}}/>
-                <div style={{fontSize:13,color:T.text,fontWeight:600}}>
-                  {numEnabled ? 'Evento ATIVO' : 'Nenhum evento ativo no momento'}
-                </div>
-                {numEnabled && numCfg && (
-                  <div style={{fontSize:12,color:T.textS}}>
-                    {Array.isArray(numCfg.slotNumeroValues)
-                      ? `Números: ${numCfg.slotNumeroValues.join(', ')}`
-                      : `Número: ${numCfg.numeroValue}`} · {maxWinnersForNumero(numCfg)} vaga(s)
-                  </div>
-                )}
-                {numEnabled && (
-                  <button onClick={disableNumConfig} disabled={numSaving}
-                    style={{marginLeft:'auto',padding:'8px 16px',borderRadius:9,border:`1px solid ${T.danger||'#C04050'}55`,cursor:numSaving?'default':'pointer',background:'transparent',color:T.danger||'#C04050',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
-                    Desligar evento
-                  </button>
-                )}
-              </div>
-
-              {/* Formulário do evento */}
+              {/* ── Fila de spawns agendados ─────────────────────────────── */}
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div>
-                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🎟️ Números elegíveis</div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📅 Fila de spawns agendados</div>
                   <div style={{fontSize:12,color:T.textS,marginTop:3}}>
-                    Clique pra marcar quais números (1 a 100) entram no sorteio desse evento. {numPool.length>0 && <b>{numPool.length} selecionado(s)</b>}
+                    Monte vários horários de uma vez: <b>das 10:00 às 11:30 sorteia entre 7, 13 e 42</b>, <b>das 15:00 às 15:40 sai o número 21</b>… Cada evento pode se repetir <b>todo dia</b> ou acontecer <b>só uma vez</b>. Quando a hora chega, o evento entra no ar sozinho.
                   </div>
-                </div>
-                <input value={numSearch} onChange={e=>setNumSearch(e.target.value.replace(/[^\d]/g,''))} placeholder="Buscar número..." style={{...inpSt,maxWidth:220}}/>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(44px,1fr))',gap:6,maxHeight:260,overflowY:'auto',padding:4}}>
-                  {numFiltrados.map(n=>{
-                    const on = numPool.includes(n);
-                    return (
-                      <button key={n} onClick={()=>toggleNumPoolValue(n)}
-                        style={{padding:'8px 0',borderRadius:8,cursor:'pointer',fontFamily:'var(--font-body)',
-                          fontSize:12.5,fontWeight:700,textAlign:'center',transition:'all .12s',
-                          border:`1.5px solid ${on?T.gold:T.border}`,
-                          background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS}}>
-                        {n}
-                      </button>
-                    );
-                  })}
                 </div>
 
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,alignItems:'end'}}>
-                  <div>
+                {/* Números elegíveis do novo item */}
+                <div>
+                  <label style={lblSt}>Números elegíveis {numSchedForm.pool.length>0 && <b>({numSchedForm.pool.length} selecionado{numSchedForm.pool.length>1?'s':''})</b>}</label>
+                  <input value={numSearch} onChange={e=>setNumSearch(e.target.value.replace(/[^\d]/g,''))} placeholder="Buscar número..." style={{...inpSt,maxWidth:220,marginBottom:8}}/>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(44px,1fr))',gap:6,maxHeight:220,overflowY:'auto',padding:4}}>
+                    {numFiltrados.map(n=>{
+                      const on = numSchedForm.pool.includes(n);
+                      return (
+                        <button key={n} onClick={()=>toggleNumFormPoolValue(n)}
+                          style={{padding:'8px 0',borderRadius:8,cursor:'pointer',fontFamily:'var(--font-body)',
+                            fontSize:12.5,fontWeight:700,textAlign:'center',transition:'all .12s',
+                            border:`1.5px solid ${on?T.gold:T.border}`,
+                            background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS}}>
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Formulário do novo evento */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,alignItems:'end'}}>
+                  <div style={{gridColumn:'span 2',minWidth:200}}>
                     <label style={lblSt}>Modo de sorteio</label>
-                    <select value={numMode} onChange={e=>setNumMode(e.target.value)} style={{...inpSt,cursor:'pointer'}}>
+                    <select value={numSchedForm.numeroMode} onChange={e=>setNumSchedForm(f=>({...f,numeroMode:e.target.value}))} style={{...inpSt,cursor:'pointer'}}>
                       <option value={NUMERO_RANDOM_PER_SLOT_ID}>🎲 Cada vaga ganha um número diferente (recomendado)</option>
                       <option value={RANDOM_NUMERO_ID}>🎯 1 número só, o MESMO pra todo mundo que capturar</option>
-                      {numPool.length===1 && <option value={String(numPool[0])}>🔒 Número fixo ({numPool[0]})</option>}
+                      {numSchedForm.pool.length===1 && <option value={String(numSchedForm.pool[0])}>🔒 Número fixo ({numSchedForm.pool[0]})</option>}
                     </select>
                     <div style={{fontSize:11,color:T.textT,marginTop:5,lineHeight:1.4}}>
-                      {numMode===RANDOM_NUMERO_ID
-                        ? <>⚠️ Nesse modo, as {numMaxWinners} vaga(s) sorteiam pessoas diferentes, mas todo mundo leva o <b>mesmo</b> número.</>
-                        : <>Com {numPool.length} número(s) marcado(s) e {numMaxWinners} vaga(s), cada captura sorteia um número diferente do pool (se sobrar mais vaga que número, algum se repete).</>}
+                      {numSchedForm.numeroMode===RANDOM_NUMERO_ID
+                        ? <>⚠️ Nesse modo, as vagas sorteiam pessoas diferentes, mas todo mundo leva o <b>mesmo</b> número.</>
+                        : <>Cada captura sorteia um número diferente do pool marcado acima (se sobrar mais vaga que número, algum se repete).</>}
                     </div>
                   </div>
+
                   <div>
-                    <label style={lblSt}>Vagas (quantas pessoas podem ganhar)</label>
-                    <select value={numMaxWinners} onChange={e=>setNumMaxWinners(Number(e.target.value))} style={{...inpSt,cursor:'pointer'}}>
-                      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} vaga{n>1?'s':''}</option>)}
+                    <label style={lblSt}>Repetição</label>
+                    <div style={{display:'flex',gap:6}}>
+                      {[{id:'daily',label:'🔁 Diário'},{id:'once',label:'📌 Única vez'}].map(m=>{
+                        const on = numSchedForm.mode===m.id;
+                        return (
+                          <button key={m.id} onClick={()=>setNumSchedForm(f=>({...f,mode:m.id}))}
+                            style={{flex:1,padding:'10px 4px',borderRadius:9,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:11.5,fontWeight:700,whiteSpace:'nowrap',
+                              border:`1.5px solid ${on?T.gold:T.border}`,background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS,transition:'all .15s'}}>
+                            {m.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {numSchedForm.mode==='once' && (
+                    <div>
+                      <label style={lblSt}>Data</label>
+                      <input type="date" value={numSchedForm.date} onChange={e=>setNumSchedForm(f=>({...f,date:e.target.value}))} style={inpSt}/>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={lblSt}>Começa às</label>
+                    <input type="time" value={numSchedForm.startTime} onChange={e=>setNumSchedForm(f=>({...f,startTime:e.target.value}))} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Termina às</label>
+                    <input type="time" value={numSchedForm.endTime} onChange={e=>setNumSchedForm(f=>({...f,endTime:e.target.value}))} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Vagas</label>
+                    <select value={numSchedForm.maxWinners} onChange={e=>setNumSchedForm(f=>({...f,maxWinners:Number(e.target.value)}))} style={{...inpSt,cursor:'pointer'}}>
+                      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} {n===1?'pessoa':'pessoas'}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label style={lblSt}>Início</label>
-                    <input type="datetime-local" value={numStart} onChange={e=>setNumStart(e.target.value)} style={inpSt}/>
-                  </div>
-                  <div>
-                    <label style={lblSt}>Fim</label>
-                    <input type="datetime-local" value={numEnd} onChange={e=>setNumEnd(e.target.value)} style={inpSt}/>
                   </div>
                 </div>
 
                 <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-                  <button onClick={()=>saveNumConfig(false)} disabled={numSaving}
-                    style={{padding:'10px 20px',borderRadius:10,border:'none',cursor:numSaving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},#c9902a)`,color:'#221604',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
-                    {numSaving?'Salvando...':'💾 Salvar evento'}
+                  <button onClick={addNumSchedEntry} disabled={numSchedBusy}
+                    style={{padding:'11px 24px',borderRadius:10,border:'none',cursor:numSchedBusy?'default':'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:14,fontFamily:'var(--font-body)',opacity:numSchedBusy?.6:1,boxShadow:`0 3px 12px ${T.goldLine}44`}}>
+                    + Adicionar à fila
                   </button>
-                  <button onClick={()=>saveNumConfig(true)} disabled={numSaving}
-                    style={{padding:'10px 20px',borderRadius:10,border:`1px solid ${T.gold}`,cursor:numSaving?'default':'pointer',background:'transparent',color:T.gold,fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
-                    ⚡ Spawnar agora
-                  </button>
-                  {numMsg&&<span style={{fontSize:13,color:numMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{numMsg}</span>}
+                  {numSchedMsg&&<span style={{fontSize:13,color:numSchedMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{numSchedMsg}</span>}
+                </div>
+
+                {/* Lista da fila */}
+                <div style={{display:'flex',flexDirection:'column',gap:10,borderTop:`1px solid ${T.border}`,paddingTop:14}}>
+                  {!numSchedLoaded && <div style={{fontSize:12,color:T.textT}}>Carregando a fila…</div>}
+                  {numSchedLoaded && numSched.length===0 && (
+                    <div style={{fontSize:12,color:T.textT}}>Nenhum spawn agendado ainda — adicione o primeiro acima. 🎰</div>
+                  )}
+                  {[...numSched]
+                    .sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''))
+                    .map(e=>{
+                      const v   = numSchedView(e);
+                      const off = e.enabled===false;
+                      const occ = nextOccurrence(e);
+                      const ativo = !off && !!activeOccurrence(e);
+                      return (
+                        <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'12px 14px',borderRadius:12,
+                          border:`1.5px solid ${ativo?T.gold:T.border}`,background:ativo?`${T.gold}14`:(isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)'),opacity:off?.5:1}}>
+                          <div style={{width:40,height:40,flexShrink:0,borderRadius:12,display:'flex',alignItems:'center',justifyContent:'center',fontSize:v.random?20:14,fontWeight:800,background:`${T.gold}1e`,border:`1.5px dashed ${T.gold}88`,color:T.gold}}>
+                            {v.random ? '🎲' : e.numeroMode}
+                          </div>
+                          <div style={{flex:1,minWidth:180}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                              <span style={{fontSize:14,fontWeight:800,color:T.text,fontFamily:'var(--font-body)'}}>{e.startTime} → {e.endTime}</span>
+                              <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:999,background:`${T.gold}1e`,color:T.gold}}>
+                                {e.mode==='once' ? `📌 única vez${e.date?` · ${e.date.split('-').reverse().slice(0,2).join('/')}`:''}` : '🔁 diário'}
+                              </span>
+                              {ativo && <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:999,background:`${T.gold}22`,color:T.gold}}>● no ar agora</span>}
+                            </div>
+                            <div style={{fontSize:12,color:T.textS,marginTop:3}}>
+                              {v.label} ({v.sub}) · {e.maxWinners||3} {(e.maxWinners||3)===1?'vaga':'vagas'}
+                              {' · '}
+                              {off ? 'pausado' : occ ? `próximo: ${fmtOcc(occ.startMs)}` : 'já aconteceu'}
+                            </div>
+                          </div>
+                          <button onClick={()=>spawnNumEntryNow(e)} disabled={numSchedBusy}
+                            title="Solta esse sorteio agora (janela de 30 min), sem esperar o horário"
+                            style={{padding:'7px 13px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:800,fontFamily:'var(--font-body)',
+                              border:`1.5px solid ${T.gold}`,background:`${T.gold}22`,color:T.gold}}>
+                            ⚡ Agora
+                          </button>
+                          <button onClick={()=>toggleNumSchedEntry(e.id)} disabled={numSchedBusy}
+                            style={{padding:'7px 14px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
+                              border:`1px solid ${T.border}`,background:'transparent',color:T.textS}}>
+                            {off?'Ativar':'Pausar'}
+                          </button>
+                          <button onClick={()=>removeNumSchedEntry(e.id)} disabled={numSchedBusy}
+                            style={{padding:'7px 12px',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',
+                              border:`1px solid ${(T.danger||'#C04050')}55`,background:'transparent',color:T.danger||'#C04050'}}>
+                            Remover
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div style={{fontSize:11,color:T.textT,lineHeight:1.6,borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+                  ℹ️ O horário é o do computador (fuso local). Dentro de cada janela o número surge num instante sorteado; a captura é na 1ª tentativa e vale pelas vagas do evento. O botão <b>⚡ Agora</b> solta o sorteio na hora, numa janela de 30 min, sem mexer no agendamento. Eventos de <b>única vez</b> saem da fila sozinhos depois que acontecem. A fila só dispara com pelo menos alguém logado no Hub; se dois eventos se sobrepuserem, vale o que começou por último.
                 </div>
               </div>
 
