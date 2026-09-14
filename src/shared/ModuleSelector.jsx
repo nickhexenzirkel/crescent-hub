@@ -551,7 +551,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
                 <div style={{fontSize:12.5, fontWeight:700, color:T.text, lineHeight:1.25, maxWidth:90,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{nomeChamado(authUser.name)}</div>
                 <div style={{fontSize:9.5, color:T.gold, fontWeight:700}}>
-                  {isAdmin?'Admin':isModerador?'Moderador':'Colaborador'}
+                  {isAdmin?'Admin':isModerador?'Moderador':authUser?.role==='dj'?'DJ Uniko':'Colaborador'}
                 </div>
               </div>
             </div>

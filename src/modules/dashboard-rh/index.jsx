@@ -2066,9 +2066,9 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3}}>
                             {emp.cargo&&<span style={{fontSize:11,color:T.textS,maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{emp.cargo}</span>}
                             <span style={{fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
-                              background:emp.role==='admin'?`${T.gold}18`:emp.role==='moderador'?'rgba(74,120,196,0.14)':'rgba(0,0,0,0.04)',
-                              color:emp.role==='admin'?T.gold:emp.role==='moderador'?'#4A78C4':T.textD}}>
-                              {emp.role==='admin'?'Admin':emp.role==='moderador'?'Moderador':'Colaborador'}
+                              background:emp.role==='admin'?`${T.gold}18`:emp.role==='moderador'?'rgba(74,120,196,0.14)':emp.role==='dj'?'rgba(29,185,84,0.14)':'rgba(0,0,0,0.04)',
+                              color:emp.role==='admin'?T.gold:emp.role==='moderador'?'#4A78C4':emp.role==='dj'?'#1DB954':T.textD}}>
+                              {emp.role==='admin'?'Admin':emp.role==='moderador'?'Moderador':emp.role==='dj'?'DJ Uniko':'Colaborador'}
                             </span>
                           </div>
                           {/* Status */}
@@ -2171,6 +2171,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                         style={{width:'100%',padding:'10px 14px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',fontFamily:'var(--font-body)'}}>
                         <option value="employee">Colaborador (acesso ao portal)</option>
                         <option value="moderador">Moderador (dashboard RH parcial + ponto)</option>
+                        <option value="dj">DJ Uniko (portal + controla volume, pausa e dispositivo da Central Alexa)</option>
                         <option value="admin">Administrador (dashboard RH + ponto)</option>
                       </select>
                       <div style={{fontSize:11,color:T.textD,marginTop:4}}>⚠️ Administrador e Moderador acessam o ponto eletrônico; Moderador vê só parte do dashboard RH.</div>
@@ -2308,7 +2309,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                         {label:'Categoria',key:'category',type:'text',placeholder:'CLT, PJ...'},
                         {label:'Data de Admissão',key:'admission',type:'text',placeholder:'DD/MM/AAAA'},
                         {label:'Nº de Dependentes',key:'dependents',type:'number'},
-                        {label:'Cargo / Perfil',key:'role',type:'select',options:[{v:'employee',l:'Funcionário'},{v:'moderador',l:'Moderador'},{v:'admin',l:'Administrador'}]},
+                        {label:'Cargo / Perfil',key:'role',type:'select',options:[{v:'employee',l:'Funcionário'},{v:'dj',l:'DJ Uniko'},{v:'moderador',l:'Moderador'},{v:'admin',l:'Administrador'}]},
                       ]},
                       { title:'Remuneração', fields:[
                         {label:'Salário Base (R$)',key:'salary',type:'number'},
@@ -2506,7 +2507,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   || (e.cargo||'').toLowerCase().includes(q)
                   || (!!qd && onlyDigits(e.cpf||'').includes(qd));
             }).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-            const roleBadge = (r) => r==='admin' ? {l:'Admin',c:T.gold,bg:`${T.gold}18`} : r==='moderador' ? {l:'Moderador',c:'#4A78C4',bg:'rgba(74,120,196,0.14)'} : {l:'Colaborador',c:T.textD,bg:'rgba(0,0,0,0.05)'};
+            const roleBadge = (r) => r==='admin' ? {l:'Admin',c:T.gold,bg:`${T.gold}18`} : r==='moderador' ? {l:'Moderador',c:'#4A78C4',bg:'rgba(74,120,196,0.14)'} : r==='dj' ? {l:'DJ Uniko',c:'#1DB954',bg:'rgba(29,185,84,0.14)'} : {l:'Colaborador',c:T.textD,bg:'rgba(0,0,0,0.05)'};
             return (
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
               {/* Header */}

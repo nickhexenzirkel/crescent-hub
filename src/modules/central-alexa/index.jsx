@@ -1799,6 +1799,10 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   // Moderador também controla o player (volume + pular) — mas não o resto (autoplay,
   // dispositivo, reordenar/excluir fila, zerar contador etc., que seguem só admin).
   const canControl = isAdmin || auth?.role === 'moderador';
+  // DJ Uniko: pausar/tocar, volume e escolher dispositivo — PULAR não (canControl).
+  const isDJ = auth?.role === 'dj';
+  const canPlayer = isAdmin || isDJ;           // play/pause + dispositivo
+  const canVolume = canControl || isDJ;        // volume
   const ALEXA_LIMIT  = 2;
   const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {
@@ -3886,7 +3890,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 aqui era exatamente o que deixava a tela um "scroll infinito".
                 No celular só sobra o que É exclusivo de admin e não existe em
                 nenhum dos dois: conectar Spotify, autoplay e escolher dispositivo. */}
-            {(!isMobile || isAdmin) && (
+            {(!isMobile || isAdmin || isDJ) && (
             <div style={{width:isMobile?"100%":300,flexShrink:0,order:isMobile?3:0}}>
               {isMobile ? (
                 <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
@@ -3900,9 +3904,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                       </a>
                     </div>
                   )}
-                  <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>Controles de Admin</div>
+                  <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>{isAdmin ? 'Controles de Admin' : 'Controles do DJ Uniko'}</div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <button onClick={handleToggleAutoplay}
+                    {isAdmin && <button onClick={handleToggleAutoplay}
                       title={autoplayEnabled ? "Desativar autoplay — hoje ele puxa as mais tocadas da Máquina do Tempo" : "Ativar autoplay — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
                       style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:38,borderRadius:9,
                         border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
@@ -3913,7 +3917,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v6m0-6L5 3m4 6l10 6m0 0l4 3M19 3v5"/></svg>
                       }
                       Autoplay
-                    </button>
+                    </button>}
                     <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
                       style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:38,borderRadius:9,
                         border:`1px solid ${T.border}`,background:"transparent",color:T.textS,
@@ -3979,9 +3983,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                       Nenhuma música tocando
                     </div>
                 }
-                {/* Controls — play/pause somente admin */}
+                {/* Controls — play/pause: admin e DJ Uniko */}
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:10}}>
-                  {isAdmin
+                  {canPlayer
                     ? <button onClick={handlePlayPause} disabled={!spotifyOk}
                         style={{width:46,height:46,borderRadius:12,border:"none",
                           background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
@@ -4037,15 +4041,15 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     }
                   </button>
                   )}
-                  {isAdmin && (
-                  <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo (Admin)"
+                  {canPlayer && (
+                  <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
                     style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:spotifyOk?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:spotifyOk?1:0.4}}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                   </button>
                   )}
                 </div>
-                {/* Volume — admin e moderador */}
-                {canControl && (
+                {/* Volume — admin, moderador e DJ Uniko */}
+                {canVolume && (
                   <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:`1px solid ${T.border}22`}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={volume===0?"#C04050":T.textD} strokeWidth="2" strokeLinecap="round"
                       onClick={()=>handleVolume(volume===0?50:0)} style={{cursor:"pointer",flexShrink:0}}>
@@ -4707,7 +4711,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
             <div style={{ fontSize:13, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.title}</div>
             <div style={{ fontSize:11.5, color:T.textS, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{cur.artist}</div>
           </div>
-          {isAdmin ? (
+          {canPlayer ? (
             <button onClick={e => { e.stopPropagation(); handlePlayPause(); }} disabled={!spotifyOk}
               style={{ width:38, height:38, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:"#fff",
                 display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.5 }}>
@@ -4843,7 +4847,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
                   </button>
                 )}
-                {isAdmin ? (
+                {canPlayer ? (
                   <button onClick={handlePlayPause} disabled={!spotifyOk}
                     style={{ width:68, height:68, borderRadius:"50%", border:"none", background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:"#fff",
                       display:"flex", alignItems:"center", justifyContent:"center", cursor:spotifyOk?"pointer":"not-allowed", opacity:spotifyOk?1:.5, boxShadow:"0 8px 24px rgba(0,0,0,.4)" }}>
@@ -4865,7 +4869,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 </button>
               </div>
 
-              {canControl && (
+              {canVolume && (
                 <div style={{ display:"flex", alignItems:"center", gap:10, width:"100%", maxWidth:340, marginTop:24 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round"
                     onClick={() => handleVolume(volume===0?50:0)} style={{ cursor:"pointer", flexShrink:0 }}>
