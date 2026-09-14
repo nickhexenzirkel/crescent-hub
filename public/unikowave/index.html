@@ -1849,17 +1849,16 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
 
   <!-- MAIN AREA -->
   <div id="menuMain">
-    <!-- HOME PANEL — tela inicial (em breve: vídeo em looping) -->
+    <!-- HOME PANEL — tela inicial (arte do Uniko Wave + botão COMEÇAR) -->
     <div class="menu-panel" id="panelHome" style="padding:0;overflow:hidden">
-      <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#0a0118">
-        <!-- Vídeo em looping, MUDO (áudio cortado). No Ultra Leve mostra só a foto. -->
-        <img id="homeHeroPhoto" src="/telaunikowave.png" alt="Uniko Wave"
-          style="width:100%;height:100%;object-fit:contain;object-position:center;display:none">
-        <video id="homeHeroMedia" src="/TelaInicialUnikoWave.mp4" poster="/telaunikowave.png"
-          autoplay loop muted playsinline preload="auto"
-          style="width:100%;height:100%;object-fit:contain;object-position:center;display:block"></video>
-        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(5,1,24,.9),rgba(5,1,24,.15) 42%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 24px 38px;gap:14px">
-          <div style="font-family:var(--font-pixel);font-size:clamp(9px,1.4vw,13px);color:rgba(255,255,255,.82);letter-spacing:2px;text-align:center;text-shadow:0 2px 12px rgba(0,0,0,.9)">SINTA O RITMO</div>
+      <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;background:#0a0118">
+        <!-- Tela inicial: só a arte do Uniko Wave (o vídeo em looping saiu). A arte fica INTEIRA
+             (contain) e o botão ganha uma faixa própria embaixo — por cima ele tampava o "WAVE". -->
+        <div style="position:relative;flex:1;min-height:0">
+          <img id="homeHeroPhoto" src="images/tela_inicio_uniko_wave.jpg" alt="Uniko Wave"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;display:block">
+        </div>
+        <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:14px 24px 18px">
           <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlayChoice',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>
         </div>
       </div>
@@ -2234,8 +2233,7 @@ html.gfx-med .menu-orb{filter:blur(46px)!important}
 /* Ultra Leve: sem sombras/brilhos pesados; tela inicial = foto. (Animações da
    cinemática do desejo continuam, pois são leves — desligá-las travava o gacha.) */
 html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:none!important;text-shadow:none!important}
-html.gfx-ultra #homeHeroMedia{display:none!important}
-html.gfx-ultra #homeHeroPhoto{display:block!important}
+
 /* Ultra Leve na partida: filtros CSS (drop-shadow/brightness/grayscale animados) no HUD e no
    mascote obrigam o navegador a repintar a cada quadro — fora, dentro da tela de jogo. */
 html.gfx-ultra #gameWrap,html.gfx-ultra #gameWrap *{filter:none!important}
@@ -3471,20 +3469,12 @@ function _applyGfxClass(){
   r.classList.toggle('gfx-low', gfxQuality==='baixo' || gfxQuality==='ultra'); // ultra herda as regras do baixo
   r.classList.toggle('gfx-med', gfxQuality==='medio');
 }
-// Tela inicial: vídeo no normal/médio/baixo; no ultra mostra só a foto (vídeo pausado).
-function _applyHomeMedia(){
-  const v=document.getElementById('homeHeroMedia');
-  if(!v) return;
-  if(gfxQuality==='ultra'){ try{ v.pause(); }catch(_){} }
-  else { try{ const ph=v.play(); if(ph&&ph.catch) ph.catch(()=>{}); }catch(_){} }
-}
 _applyGfxClass();
 function setGfx(q){
   if(!GFX_PRESETS[q]) return;
   gfxQuality=q; GFX=GFX_PRESETS[q];
   try{ localStorage.setItem('dw_gfx', q); }catch(_){}
   _applyGfxClass();
-  _applyHomeMedia();
   if(typeof initMenuBg==='function') initMenuBg();   // recria/limpa o starfield conforme a qualidade
   if(typeof resize==='function') resize();           // re-aplica o DPR no canvas
   syncGfxUI();
@@ -12068,7 +12058,7 @@ function applyPxIcons(root){
 }
 
 buildKeyLegend(); resize(); initMenuBg(); showScreen('menuScr'); updatePlayCharBadge(); applyPxIcons();
-gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI(); _applyHomeMedia();
+gpHighlightMenu(); updateGpContextHint(); syncMusicUI(); syncGfxUI();
 try { renderCustomWgCards(); } catch(e){}  // cards das personagens da Oficina no grid da Guerra Estelar
 
 // ─── PROFILE INIT ───
