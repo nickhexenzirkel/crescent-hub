@@ -349,15 +349,18 @@ export const DateField = ({ value, onChange, min, max, width }) => (
 );
 
 // ── Linha expansível: faixa de cor à esquerda, bloco/ícone, textos, coluna do meio, status e seta ──
+// Sem onToggle a linha é estática (sem seta, sem cursor de clique).
 export const ListRow = ({ isMobile, accent, tile, title, meta, middle, status, open, onToggle, children, rowRef }) => (
   <div ref={rowRef} className="pk-row" style={{
     borderRadius: 16, border: `1px solid ${T.border}`, background: T.surfaceSub,
     boxShadow: `inset 4px 0 0 ${accent}`, overflow: 'hidden', boxSizing: 'border-box', scrollMarginTop: 80,
   }}>
-    <div role="button" tabIndex={0} aria-expanded={!!open} onClick={onToggle}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
+    <div {...(onToggle ? {
+        role: 'button', tabIndex: 0, 'aria-expanded': !!open, onClick: onToggle,
+        onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } },
+      } : null)}
       style={{
-        display: 'grid', cursor: 'pointer', outline: 'none', alignItems: 'center',
+        display: 'grid', cursor: onToggle ? 'pointer' : 'default', outline: 'none', alignItems: 'center',
         gridTemplateColumns: isMobile ? 'auto minmax(0,1fr) auto' : 'auto minmax(0,1.1fr) 1px minmax(0,1fr) 118px auto',
         columnGap: isMobile ? 12 : 26, rowGap: 12,
         padding: isMobile ? '14px 12px 14px 16px' : '16px 22px 16px 28px',
@@ -368,13 +371,13 @@ export const ListRow = ({ isMobile, accent, tile, title, meta, middle, status, o
         {meta}
       </div>
       {isMobile
-        ? <Ico d={G.chevR} size={18} stroke={T.textS} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} />
+        ? (onToggle ? <Ico d={G.chevR} size={18} stroke={T.textS} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} /> : <span />)
         : <>
             <div style={{ width: 1, height: 62, background: T.border }} />
             <div style={{ minWidth: 0 }}>{middle}</div>
             {status}
-            <span className="pk-chev" style={{ color: T.textS, display: 'flex', transition: 'color .16s' }}>
-              <Ico d={G.chevR} size={20} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} />
+            <span className="pk-chev" style={{ color: T.textS, display: 'flex', transition: 'color .16s', width: 20 }}>
+              {onToggle && <Ico d={G.chevR} size={20} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} />}
             </span>
           </>}
       {isMobile && (
