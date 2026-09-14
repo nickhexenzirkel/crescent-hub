@@ -282,12 +282,15 @@ export async function syncNumeroCollectionFromServer() {
 // ADMIN: reseta a coleção "Capture o Número" — de TODOS ou de um jogador específico.
 // Apaga as capturas (coleção) e o lock do evento (libera nova captura).
 export async function resetNumeroCaptures({ player } = {}) {
-  const wipe = async (table, col) => {
+  // Sempre filtra por `player` (texto, presente nas duas tabelas) — `numero_value`/
+  // `event_id` não servem de coluna "apaga tudo" aqui: numero_value é integer (um
+  // neq('__none__') nele vira erro 400 de cast) e nada garante event_id não-nulo.
+  const wipe = async (table) => {
     let q = _supabase.from(table).delete();
-    q = player ? q.eq('player', player) : q.neq(col, '__none__'); // sem player → apaga tudo
+    q = player ? q.eq('player', player) : q.neq('player', '__none__'); // sem player → apaga tudo
     const { error } = await q;
     if (error) throw new Error(error.message);
   };
-  await wipe('capture_numero_captures', 'numero_value');
-  await wipe('capture_numero_event', 'event_id');
+  await wipe('capture_numero_captures');
+  await wipe('capture_numero_event');
 }
