@@ -218,7 +218,17 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
       {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>}
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',
+        // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
+        // um item flex ('flex:1') tem largura mínima automática = a largura
+        // do conteúdo mais largo lá dentro (min-content), IGNORANDO o
+        // overflow:hidden que já existe no filho (portal-area) — aquele só
+        // corta o que transborda DELE, não impede que ESTA div (e por tabela
+        // a página toda, já que ela é item do flex raiz logo abaixo) cresça
+        // primeiro pra caber tudo. Era por isso que a rolagem lateral
+        // continuava mesmo depois do fix no card da missão.
+        minWidth:0,overflowX:'hidden',
+        transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
             `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
