@@ -24,6 +24,10 @@
    catálogo mudou nos últimos dias).
 ══════════════════════════════════════════════════════════════════════════ */
 export const NOVIDADES = [
+  { id:'wave-supernova-2026-09', titulo:'Uniko Wave', texto:'Nova personagem: Supernova!',
+    destino:['colaborador','unikowave'], arte:'ondas', cor:'#8B5CF6', ate:'2026-10-15' },
+  { id:'wave-visual-mecanica-2026-09', titulo:'Uniko Wave', texto:'Visual e mecânica renovados.',
+    detalhe:'Telas, player e comandos com cara nova', destino:['colaborador','unikowave'], arte:'ondas', cor:'#22D3EE', ate:'2026-10-15' },
   { id:'temas-novos-2026-09', titulo:'Temas novos', texto:'Novas cores pra deixar o Uniko com a sua cara.',
     detalhe:'Lilás, Sakura, Bege, Preto e Cinza', acao:'tema', arte:'paleta', cor:'#9BA0FA', ate:'2026-10-31' },
   { id:'modulos-personalizaveis-2026-09', titulo:'Seus módulos', texto:'Ordem, tamanho e cor, do seu jeito.',
