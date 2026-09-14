@@ -3068,7 +3068,8 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
 // (não dá pra saber com certeza qual item era só pelo texto da descrição).
 const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
   const [hist, setHist] = useState([]);
-  const [itemsById, setItemsById] = useState({}); // item_id -> { rarity, name } — pro filtro de raridade
+  const [itemsById, setItemsById] = useState({});   // item_id -> { rarity, name }
+  const [itemsByName, setItemsByName] = useState({}); // nome do item -> { rarity } — fallback (ver rarityOf)
   const [busy, setBusy] = useState(true);
   const [refundingId, setRefundingId] = useState(null);
   const [playerQuery, setPlayerQuery] = useState('');
@@ -3085,17 +3086,30 @@ const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
       ]);
       setHist((data || []).map(r => ({ ...histFromRow(r), player: r.player })));
       setItemsById(Object.fromEntries((itemRows || []).map(r => [r.id, { rarity: r.rarity, name: r.name }])));
+      setItemsByName(Object.fromEntries((itemRows || []).map(r => [r.name, { rarity: r.rarity }])));
     } catch {}
     setBusy(false);
   };
   useEffect(() => { load(); }, []); // eslint-disable-line
+
+  // Raridade de uma compra: tenta pelo item_id (preciso, só existe em compras feitas
+  // DEPOIS de set/2026 — supabase_mercado_estorno.sql); se não tiver (compra mais
+  // antiga, ou o SQL ainda não rodou nesse Supabase), cai pro NOME extraído de
+  // `desc` ("Comprou “X”") batido contra o catálogo atual — cobre o caso comum de o
+  // item ainda existir com o mesmo nome, só não dá pra saber se ele foi RENOMEADO
+  // desde a compra (aí a raridade mostrada é a de hoje, não a de quando foi comprado).
+  const rarityOf = (h) => {
+    if (h.itemId && itemsById[h.itemId]) return itemsById[h.itemId].rarity;
+    const m = /^Comprou\s+[“"](.+)[”"]$/.exec(h.desc || '');
+    return m ? (itemsByName[m[1]]?.rarity || null) : null;
+  };
 
   const q = playerQuery.trim().toLowerCase();
   const filtered = hist.filter(h => {
     if (q && !(h.player || '').toLowerCase().includes(q)) return false;
     if (dateFrom && h.date < dateFrom) return false;
     if (dateTo && h.date > dateTo) return false;
-    if (rarityFilter !== 'todos' && (itemsById[h.itemId]?.rarity || null) !== rarityFilter) return false;
+    if (rarityFilter !== 'todos' && rarityOf(h) !== rarityFilter) return false;
     return true;
   });
 
@@ -3208,7 +3222,7 @@ const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 560, overflowY: 'auto' }}>
               {filtered.map(h => {
                 const refunded = !!h.refundedAt;
-                const rarity = itemsById[h.itemId]?.rarity || null;
+                const rarity = rarityOf(h);
                 return (
                   <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', opacity: refunded ? .6 : 1, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IcoCart size={15} /></div>
