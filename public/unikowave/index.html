@@ -817,7 +817,7 @@ canvas{display:block}
 /* ─── HUD CENTER-TOP: SCORE + JUDGMENT ─── */
 #hudTopCenter{
   position:absolute;
-  top:42px;
+  top:48px;
   left:50%;
   transform:translateX(-50%);
   display:flex;flex-direction:column;align-items:center;gap:1px;
@@ -949,9 +949,10 @@ canvas{display:block}
 /* ─── SONG PROGRESS BAR (topo da tela) ─── */
 #songProgress{position:absolute;top:36px;left:0;right:0;height:3px;background:rgba(255,255,255,.08);pointer-events:none;z-index:7}
 /* ─── BARRA DE VIDA (errar muito = perde a partida) ─── */
-#lifeBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(340px,52vw);height:15px;background:rgba(8,8,22,.72);border:2px solid rgba(255,255,255,.22);border-radius:9px;overflow:hidden;z-index:8;box-shadow:0 0 12px rgba(0,0,0,.45)}
-#lifeBar::before{content:'❤';position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:9px;z-index:1;pointer-events:none;color:#fff;opacity:.85}
-#lifeFill{height:100%;width:100%;border-radius:7px;background:linear-gradient(90deg,#00ff88,#00f0ff);transition:width .2s ease,background .35s ease}
+#lifeBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(440px,64vw);height:32px;box-sizing:border-box;padding:4px;background:rgba(12,12,26,.86);border:1px solid rgba(255,255,255,.14);border-radius:11px;z-index:8}
+#lifeBar::before{content:'';position:absolute;inset:4px;border-radius:7px;background:rgba(255,255,255,.08)}
+#lifeFill{position:relative;height:100%;width:100%;border-radius:7px;background:#3DDC97;transition:width .2s ease,background-color .25s ease}
+#lifeTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:800 14px 'Inter','Segoe UI',system-ui,sans-serif;color:#fff;pointer-events:none;z-index:1}
 #lifeBar.low #lifeFill{animation:lifePulse .5s ease-in-out infinite alternate}
 @keyframes lifePulse{from{opacity:.55}to{opacity:1}}
 #songProgressFill{height:100%;width:0%;background:linear-gradient(90deg,var(--C),var(--M),var(--P),var(--Y));background-size:300%;animation:grooveShift 3s linear infinite;box-shadow:0 0 6px rgba(0,240,255,.7);transition:width .3s linear}
@@ -2242,7 +2243,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Barra de progresso da música (topo) -->
   <div id="songProgress"><div id="songProgressFill"></div></div>
   <!-- Barra de vida: errar muito esgota e perde a partida -->
-  <div id="lifeBar"><div id="lifeFill"></div></div>
+  <div id="lifeBar"><div id="lifeFill"></div><div id="lifeTxt"><span>❤ VIDA</span><span id="lifePct">100%</span></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
   <div id="hudStars">
     <div class="star-row">
@@ -2289,15 +2290,15 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Score breakdown direita -->
   <div id="scoreBreakdown">
     <div class="sbreak-row sbreak-perf">
-      <span class="sbreak-lbl">PERFECT</span>
+      <span class="sbreak-lbl">PERFEITO</span>
       <span class="sbreak-val" id="sbP">0</span>
     </div>
     <div class="sbreak-row sbreak-good">
-      <span class="sbreak-lbl">GOOD</span>
+      <span class="sbreak-lbl">BOM</span>
       <span class="sbreak-val" id="sbG">0</span>
     </div>
     <div class="sbreak-row sbreak-miss">
-      <span class="sbreak-lbl">MISS</span>
+      <span class="sbreak-lbl">ERROU</span>
       <span class="sbreak-val" id="sbM">0</span>
     </div>
   </div>
@@ -2368,7 +2369,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- ── Coluna DIREITA: grade + stats + botões ── -->
   <div class="res-right">
     <div class="res-grade" id="resGrade">S</div>
-    <div class="res-tag" id="resTag">STAGE CLEAR</div>
+    <div class="res-tag" id="resTag">FASE COMPLETA</div>
     <div class="res-acc" id="resAcc">0.00%</div>
     <div class="res-sc" id="resSc">0</div>
     <div class="res-stars" id="resStars">
@@ -2380,12 +2381,12 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
     </div>
     <div class="megastar-badge" id="resMegastar" style="font-size:11px;letter-spacing:3px;margin-top:4px">✦ MEGASTAR ✦</div>
     <div class="res-stats">
-      <div class="sbox sp"><div class="sv" id="rP">0</div><div class="sl">PERFECT</div></div>
-      <div class="sbox sg"><div class="sv" id="rG">0</div><div class="sl">GOOD</div></div>
-      <div class="sbox sm"><div class="sv" id="rM">0</div><div class="sl">MISS</div></div>
+      <div class="sbox sp"><div class="sv" id="rP">0</div><div class="sl">PERFEITO</div></div>
+      <div class="sbox sg"><div class="sv" id="rG">0</div><div class="sl">BOM</div></div>
+      <div class="sbox sm"><div class="sv" id="rM">0</div><div class="sl">ERROU</div></div>
     </div>
     <div class="res-btns">
-      <button class="btn-re" onclick="retryGame()">↺ REPLAY</button>
+      <button class="btn-re" onclick="retryGame()">↺ DE NOVO</button>
       <button class="btn-mn" onclick="goMenu()">☰ MENU</button>
     </div>
   </div>
@@ -6078,11 +6079,11 @@ function pressLane(lane){
     if(best.holdDur>0){
       best.state='holding';
       heldNotes.set(best.id,{note:best,startTime:st});
-      spawnHitFx(lane,LANE_COLORS[lane],'HOLD!',perf);
+      spawnHitFx(lane,LANE_COLORS[lane],'SEGURA!',perf);
     } else {
       best.state=perf?'perfect':'good';
       commitHit(best,perf);
-      spawnHitFx(lane,LANE_COLORS[lane],perf?'PERFECT':'GOOD',perf);
+      spawnHitFx(lane,LANE_COLORS[lane],perf?'PERFEITO':'BOM',perf);
     }
   } else {
     rings.push({x:laneX(lane),y:hitY(),r:4,maxR:laneW()*.9,life:.3,decay:.1,color:'#ffffff',w:laneW()*.6,flash:true});
@@ -6101,10 +6102,10 @@ function releaseLane(lane){
       const completion=Math.min(1,elapsed/note.holdDur);
       if(completion>=0.55){
         note.state='perfect'; commitHit(note,true);
-        addJudge(laneX(lane),hitY()-55,'HELD! ★',LANE_COLORS[lane]);
+        addJudge(laneX(lane),hitY()-55,'SEGUROU! ★',LANE_COLORS[lane]);
       } else {
         note.state='miss'; scoreMiss();
-        addJudge(laneX(lane),hitY()-55,'MISS',var_R());
+        addJudge(laneX(lane),hitY()-55,'ERROU',var_R());
       }
       heldNotes.delete(id);
     }
@@ -6132,7 +6133,7 @@ function commitHit(note,perf){
 function scoreMiss(){
   const hadCombo=score.combo;
   score.miss++; score.combo=0;
-  if(gameMode==='wargame') wgSetJudge('MISS','#ff4466'); // grande, sobre a Mizuki
+  if(gameMode==='wargame') wgSetJudge('ERROU','#ff4466'); // grande, sobre a Mizuki
   onMissStreak();
   // Mostra MISS no centro da estrada se havia combo significativo
   if(hadCombo>=10){
@@ -6214,11 +6215,8 @@ function updateLifeBar(){
   if(!fill) return;
   const h=Math.max(0,Math.min(100,score.health??100));
   fill.style.width=h+'%';
-  const col = h>50 ? 'linear-gradient(90deg,#00ff88,#00f0ff)'
-            : h>25 ? 'linear-gradient(90deg,#ffcc00,#ff8800)'
-                   : 'linear-gradient(90deg,#ff4444,#ff0066)';
-  fill.style.background=col;
-  fill.style.boxShadow=`0 0 12px ${h>50?'rgba(0,255,136,.5)':h>25?'rgba(255,160,0,.5)':'rgba(255,40,80,.6)'}`;
+  fill.style.background=wgLifeColor(h); // cor sólida (verde → amarelo → vermelho)
+  const pct=document.getElementById('lifePct'); if(pct) pct.textContent=Math.round(h)+'%';
   if(bar) bar.classList.toggle('low', h<=25);
 }
 
@@ -6299,7 +6297,7 @@ function updateHUD(){
   // Judgment text
   const jEl=document.getElementById('hudJudgment');
   if(jEl){
-    const judgeText=score.miss===0&&score.good===0?'ALL PERFECT':score.miss===0?'FULL COMBO':grade==='S'||grade==='A'?grade+' RANK':total<3?'---':grade+' RANK';
+    const judgeText=score.miss===0&&score.good===0?'TUDO PERFEITO':score.miss===0?'COMBO COMPLETO':grade==='S'||grade==='A'?'NOTA '+grade:total<3?'---':'NOTA '+grade;
     jEl.textContent=judgeText;
     jEl.style.color=col;
     jEl.style.textShadow=`0 0 14px ${col}`;
@@ -9182,10 +9180,10 @@ function wgRelease(kind){
     h.note.state='perfect'; commitHit(h.note,true);
     wgHitFx(WG.hitX,laneY,true,kind==='air'?C_AIR:C_GROUND);
     spawnDeadMinion(WG.hitX,laneY,kind==='air');
-    addJudge(WG.hitX,laneY-44,'HOLD ★','#ffd34d');
+    addJudge(WG.hitX,laneY-44,'SEGUROU ★','#ffd34d');
   } else {
     h.note.state='miss'; scoreMiss();
-    addJudge(WG.hitX,laneY-44,'MISS','#ff4444');
+    addJudge(WG.hitX,laneY-44,'ERROU','#ff4444');
   }
 }
 
@@ -9198,13 +9196,13 @@ function wgHitFx(ex,laneY,perf,c){
     wgMagicBurst(ex,laneY,perf?16:10);
     rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?mg.ring1Hi:mg.ring1Lo,w:5});
     rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:mg.ring2,w:3,flash:true});
-    wgSetJudge(perf?'PERFECT':'GOOD', perf?mg.judgeHi:mg.judgeLo);
+    wgSetJudge(perf?'PERFEITO':'BOM', perf?mg.judgeHi:mg.judgeLo);
     return;
   }
   spawnBurst(ex,laneY,perf?'#ffe66d':c,perf?24:14);
   rings.push({x:ex,y:laneY,r:4,maxR:perf?120:84,life:perf?.8:.55,decay:.07,color:perf?'#ffd34d':c,w:5});
   rings.push({x:ex,y:laneY,r:2,maxR:54,life:.5,decay:.1,color:'#ffffff',w:3,flash:true});
-  wgSetJudge(perf?'PERFECT':'GOOD', perf?'#ffd34d':'#00ff9a'); // grande, sobre a Mizuki
+  wgSetJudge(perf?'PERFEITO':'BOM', perf?'#ffd34d':'#00ff9a'); // grande, sobre a Mizuki
 }
 
 // Minion derrotado: cai pro chão girando e some
@@ -9832,13 +9830,10 @@ function drawWgSpecial(glow){
   ctx.shadowColor='#28e0ff'; ctx.shadowBlur=glow?20:0; ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
   ctx.fillStyle='#9ff0ff'; ctx.font=`${Math.round(ks*0.5)}px 'Press Start 2P',monospace`;
   ctx.fillText('W', sx, cy+2); ctx.globalAlpha=1;
-  const bw=Math.min(CW*0.32,260), bx=sx-bw/2, by=sy+size*0.5+14;
-  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(bx-3,by-3,bw+6,16);
-  ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(bx,by,bw,10);
-  const pct=Math.max(0,1-sp.hits/sp.need);
-  const g=ctx.createLinearGradient(bx,0,bx+bw,0); g.addColorStop(0,'#28e0ff'); g.addColorStop(1,'#b020ff');
-  ctx.fillStyle=g; ctx.fillRect(bx,by,bw*pct,10);
   ctx.restore();
+  const bw=Math.min(CW*0.34,300), bx=sx-bw/2, by=sy+size*0.5+14;
+  const pct=Math.max(0,1-sp.hits/sp.need);
+  wgFlatBar(bx,by,bw,24,pct,'#4AA6FF',{ right:(sp.need-sp.hits)+'' });
 }
 
 // Feixe da nota de segurar: brilha, muda de cor periodicamente e tem notinhas correndo
@@ -10036,37 +10031,16 @@ function drawWargame(t){
     ctx.restore();
   }
 
-  // ── Barra de vida do BOSS (topo central) — MAIOR, com paleta vermelho/preto animada ──
+  // ── Barra de vida do BOSS (topo central) — grossa e lisa ──
   if(WG.phase!=='special'){
-    const bw=Math.min(CW*0.64,580), h=20, bhx=(CW-bw)/2, bhy=CH*0.05;
-    const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);}else{ctx.beginPath();ctx.rect(x,y,w,hh);} };
-    ctx.save();
-    // moldura + trilho
-    ctx.fillStyle='rgba(0,0,0,.6)'; rr(bhx-4,bhy-4,bw+8,h+8,7); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.1)'; rr(bhx,bhy,bw,h,5); ctx.fill();
+    const w=Math.min(CW*0.6,640), h=40, bx=(CW-w)/2, by=CH*0.05+18;
     const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
-    // preenchimento animado — base vermelha pulsando + listras pretas diagonais correndo
-    ctx.save(); rr(bhx,bhy,bw*hpPct,h,5); ctx.clip();
-    const pulse=0.5+0.5*Math.sin(animT*3.5);
-    const bgg=ctx.createLinearGradient(bhx,bhy,bhx,bhy+h);
-    bgg.addColorStop(0,`rgb(${(205+50*pulse)|0},22,40)`);
-    bgg.addColorStop(0.5,'#1a0008');
-    bgg.addColorStop(1,`rgb(${(150+45*pulse)|0},12,26)`);
-    ctx.fillStyle=bgg; ctx.fillRect(bhx,bhy,bw,h);
-    ctx.fillStyle='rgba(0,0,0,.42)';
-    const sw=20, off=(animT*44)%(sw*2);
-    for(let sx=bhx-sw*2-off; sx<bhx+bw; sx+=sw*2){
-      ctx.beginPath(); ctx.moveTo(sx,bhy); ctx.lineTo(sx+sw,bhy); ctx.lineTo(sx+sw-h,bhy+h); ctx.lineTo(sx-h,bhy+h); ctx.closePath(); ctx.fill();
-    }
-    const sh=ctx.createLinearGradient(0,bhy,0,bhy+h*0.5); sh.addColorStop(0,'rgba(255,255,255,.28)'); sh.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=sh; ctx.fillRect(bhx,bhy,bw,h*0.5);
+    const col = WG.bossHitFx>0 ? '#FF8FA0' : '#FF4D6D';      // clareia no golpe, sem brilho
+    ctx.save();
+    ctx.font=`800 13px ${WG_BAR_FONT}`; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, by-6);
     ctx.restore();
-    // borda neon vermelha
-    ctx.strokeStyle='rgba(255,40,70,.7)'; ctx.lineWidth=2; rr(bhx,bhy,bw,h,5); ctx.stroke();
-    ctx.font="9px 'Press Start 2P',monospace"; ctx.textAlign='center'; ctx.textBaseline='bottom';
-    ctx.shadowColor='#ff2040'; ctx.shadowBlur=8;
-    ctx.fillStyle='#fff'; ctx.fillText(WG.bossDefeated?'BOSS DERROTADO':'BOSS', CW/2, bhy-6);
-    ctx.shadowBlur=0; ctx.restore();
+    wgFlatBar(bx,by,w,h,hpPct,col,{ left:'DarkCatBot', right:Math.round(hpPct*100)+'%' });
   }
 
   // ── Notas / minions (incl. notas de segurar com linha roxa) ──
@@ -10342,57 +10316,41 @@ function drawWargame(t){
   drawWgBottomBar(combo);
 }
 
-// Barra de VIDA — fica em cima do botão de PAUSA, grande, com paleta vermelho→rosa.
-function drawWgLifeBar(){
-  const barW=Math.min(CW*0.26,330), h=26, x0=20, y0=120;   // o botão de PAUSA fica em top:160
-  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);}else{ctx.beginPath();ctx.rect(x,y,w,hh);} };
+// ── BARRA LISA (estilo painéis do Portal: grossa, cor sólida, sem degradê/brilho) ──
+// Card escuro arredondado + trilho + preenchimento de UMA cor. Texto sem serifa dentro.
+const WG_BAR_FONT = "'Inter','Segoe UI',system-ui,-apple-system,sans-serif";
+function wgRR(x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
+function wgFlatBar(x,y,w,h,pct,color,opt){
+  opt=opt||{};
+  const pad=Math.max(3,Math.round(h*0.12)), r=Math.round(h*0.34);
   ctx.save();
-  // moldura
-  ctx.fillStyle='rgba(22,2,10,.78)'; rr(x0-6,y0-7,barW+12,h+14,12); ctx.fill();
-  ctx.strokeStyle='rgba(255,46,110,.65)'; ctx.lineWidth=2; rr(x0-6,y0-7,barW+12,h+14,12); ctx.stroke();
-  // trilho
-  ctx.fillStyle='rgba(255,255,255,.1)'; rr(x0,y0,barW,h,8); ctx.fill();
-  // preenchimento vermelho→rosa
-  const health=Math.max(0,Math.min(100,score.health??100));
-  ctx.save(); rr(x0,y0,Math.max(0.0001,barW*(health/100)),h,8); ctx.clip();
-  const lg=ctx.createLinearGradient(x0,0,x0+barW,0);
-  lg.addColorStop(0,'#b3002a'); lg.addColorStop(0.5,'#ff1f5a'); lg.addColorStop(1,'#ff85c0');
-  ctx.fillStyle=lg; ctx.fillRect(x0,y0,barW,h);
-  const shine=ctx.createLinearGradient(0,y0,0,y0+h*0.5); shine.addColorStop(0,'rgba(255,255,255,.38)'); shine.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.fillStyle=shine; ctx.fillRect(x0,y0,barW,h*0.5);
-  ctx.restore();
-  // coração
-  const hx=x0+13, hy=y0+h*0.5, hs=9;
-  ctx.fillStyle='#fff'; ctx.shadowColor='#ff2e6e'; ctx.shadowBlur=8;
-  ctx.beginPath(); ctx.moveTo(hx,hy+hs*0.7);
-  ctx.bezierCurveTo(hx-hs,hy-hs*0.4,hx-hs*0.5,hy-hs,hx,hy-hs*0.3);
-  ctx.bezierCurveTo(hx+hs*0.5,hy-hs,hx+hs,hy-hs*0.4,hx,hy+hs*0.7);
-  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-  // texto %
-  ctx.font="9px 'Press Start 2P',monospace"; ctx.textBaseline='middle'; ctx.textAlign='center';
-  ctx.fillStyle='#fff'; ctx.fillText(Math.round(health)+'%', x0+barW*0.5+8, y0+h*0.5);
+  ctx.fillStyle='rgba(12,12,26,.86)'; wgRR(x,y,w,h,r); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=1; wgRR(x+0.5,y+0.5,w-1,h-1,r); ctx.stroke();
+  const iw=w-pad*2, ih=h-pad*2, ir=Math.max(2,r-pad);
+  ctx.fillStyle='rgba(255,255,255,.08)'; wgRR(x+pad,y+pad,iw,ih,ir); ctx.fill();
+  const fw=iw*Math.max(0,Math.min(1,pct));
+  if(fw>0.5){ ctx.fillStyle=color; wgRR(x+pad,y+pad,Math.max(fw,ir*2),ih,ir); ctx.fill(); }
+  const fs=Math.max(11,Math.round(h*0.42));
+  ctx.textBaseline='middle'; ctx.fillStyle='#fff';
+  if(opt.left){ ctx.font=`800 ${fs}px ${WG_BAR_FONT}`; ctx.textAlign='left'; ctx.fillText(opt.left, x+pad+Math.round(h*0.32), y+h/2+1); }
+  if(opt.right){ ctx.font=`800 ${fs}px ${WG_BAR_FONT}`; ctx.textAlign='right'; ctx.fillText(opt.right, x+w-pad-Math.round(h*0.32), y+h/2+1); }
   ctx.restore();
 }
+// Cor da vida: verde → amarelo → vermelho (sólidas)
+function wgLifeColor(h){ return h>50 ? '#3DDC97' : h>25 ? '#F5B046' : '#FF5A6E'; }
 
-// Medidor de COMBO (ciano) — centro inferior.
+// Barra de VIDA — em cima do botão de PAUSA (top:160). Grossa e lisa.
+function drawWgLifeBar(){
+  const health=Math.max(0,Math.min(100,score.health??100));
+  const w=Math.min(CW*0.28,360), h=40, x0=16, y0=112;
+  wgFlatBar(x0,y0,w,h,health/100,wgLifeColor(health),{ left:'❤ VIDA', right:Math.round(health)+'%' });
+}
+
+// Medidor de COMBO — centro inferior. Enche a cada 50 de combo. Liso.
 function drawWgBottomBar(combo){
-  const barW=Math.min(CW*0.30,320), h=20, x0=(CW-barW)/2, y0=CH-42, comboW=barW;
-  const rr=(x,y,w,hh,r)=>{ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,hh,r);} else {ctx.beginPath();ctx.rect(x,y,w,hh);} };
-  // moldura
-  ctx.save();
-  ctx.fillStyle='rgba(8,4,20,.72)'; rr(x0-10,y0-7,barW+70,h+14,12); ctx.fill();
-  ctx.strokeStyle='rgba(40,224,255,.5)'; ctx.lineWidth=2; rr(x0-10,y0-7,barW+70,h+14,12); ctx.stroke();
-  // COMBO (ciano) — enche a cada 50 de combo
-  const cx0=x0, cg=(combo%50)/50;
-  ctx.fillStyle='rgba(255,255,255,.12)'; rr(cx0,y0,comboW,h,7); ctx.fill();
-  const cgr=ctx.createLinearGradient(cx0,0,cx0+comboW,0); cgr.addColorStop(0,'#28e0ff'); cgr.addColorStop(1,'#7af0ff');
-  ctx.fillStyle=cgr; rr(cx0,y0,comboW*(combo>0?Math.max(0.04,cg):0),h,7); ctx.fill();
-  // textos
-  ctx.font="8px 'Press Start 2P',monospace"; ctx.textBaseline='middle';
-  ctx.fillStyle='#062536'; ctx.textAlign='center'; ctx.fillText('x'+combo, cx0+comboW*0.5, y0+h*0.5);
-  ctx.fillStyle='#28e0ff'; ctx.textAlign='left'; ctx.font="8px 'Press Start 2P',monospace";
-  ctx.fillText('COMBO', cx0+comboW+8, y0+h*0.5);
-  ctx.restore();
+  const w=Math.min(CW*0.34,380), h=28, x0=(CW-w)/2, y0=CH-h-14;
+  const cg=(combo%50)/50;
+  wgFlatBar(x0,y0,w,h,combo>0?Math.max(0.04,cg):0,'#4AA6FF',{ left:'COMBO', right:'x'+combo });
 }
 
 // ─── ESTRADA EM PERSPECTIVA ───
@@ -10586,7 +10544,7 @@ function updateHoldNotes(){
     }
     if(elapsed>=note.holdDur){
       note.state='perfect'; commitHit(note,true);
-      addJudge(laneX(note.lane),hitY()-55,'HELD! ★',LANE_COLORS[note.lane]);
+      addJudge(laneX(note.lane),hitY()-55,'SEGUROU! ★',LANE_COLORS[note.lane]);
       heldNotes.delete(id);
     }
   }
@@ -10714,7 +10672,7 @@ function showResult(){
   const acc=total>0?(score.perfect*100+score.good*60)/total:0;
   const{grade,col}=getGrade(acc);
   
-  document.getElementById('resTag').textContent = gameOverByDeath ? (gameOverReason==='chord' ? '💀 GAME OVER · UM BOTÃO POR VEZ!' : '💀 GAME OVER') : 'STAGE CLEAR';
+  document.getElementById('resTag').textContent = gameOverByDeath ? (gameOverReason==='chord' ? '💀 FIM DE JOGO · UM BOTÃO POR VEZ!' : '💀 FIM DE JOGO') : 'FASE COMPLETA';
   
   // FORMATAÇÃO DO 0.00% GARANTIDA
   document.getElementById('resAcc').textContent = acc === 0 ? "0.00%" : acc.toFixed(2) + "%";
@@ -11338,7 +11296,7 @@ function updateGpContextHint(){
   if(isPlaying){
     html = mk('OPT','sym-opts','SAIR');
   } else if(isResult){
-    html = mk('✕','sym-cross','REPLAY') + mk('□','sym-square','MENU');
+    html = mk('✕','sym-cross','DE NOVO') + mk('□','sym-square','MENU');
   } else if(screenVisible('libraryScr')){
     html = mk('✕','sym-cross','JOGAR') + mk('□','sym-square','FECHAR');
   } else if(screenVisible('settingsScr')){
