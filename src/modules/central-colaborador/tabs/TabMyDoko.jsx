@@ -1,14 +1,15 @@
 // src/modules/central-colaborador/tabs/TabMyDoko.jsx
-// COLEÇÃO DE UNIKOS — substitui o antigo "My Uniko" (pet/tamagotchi). Aqui o colaborador
-// vê os Unikos colecionáveis: os CAPTURADOS (no Portal) viram cards com suas vantagens
-// visuais + botões "Usar como foto de perfil" e "Usar como assistente" (troca o robô do
-// canto pela carinha do Uniko). Os ainda não capturados aparecem como silhueta bloqueada.
+// COLEÇÃO — duas sub-abas: Unikos (substitui o antigo "My Uniko"/pet-tamagotchi; os
+// CAPTURADOS no Portal viram cards com vantagens visuais + botões "Usar como foto de
+// perfil"/"Usar como assistente") e Números (Capture o Número — grid 1-100, só mostra
+// quais a pessoa já capturou, sem essas ações — número não vira assistente nem foto).
 import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { USER, saveUserPhoto, getAuthUser, supabase } from '../../../contexts/user';
 import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
+import { getCapturedNumeros, syncNumeroCollectionFromServer } from '../../../shared/captureNumero';
 import {
   hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations,
   getFalasAutomaticas, setFalasAutomaticas, onFalasAutomaticasChange,
@@ -46,7 +47,7 @@ const DEFAULT_UNIKO = {
 // Compara nomes ignorando maiúscula/minúscula e acento (ex.: "sereia" acha "Sereia").
 const normSearch = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
 
-const TabMyDoko = ({ onPhotoChange }) => {
+const ColecaoUnikos = ({ onPhotoChange }) => {
   const isMobile = useIsMobile();
   const [captured, setCaptured] = useState(() => getCapturedCollection());
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
@@ -422,6 +423,183 @@ const TabMyDoko = ({ onPhotoChange }) => {
           </div>
         );
       })()}
+    </div>
+  );
+};
+
+/* ── COLEÇÃO DE NÚMEROS (Capture o Número) — grid 1 a 100, só mostra quais a pessoa
+   já capturou. Sem "usar como assistente"/"usar como foto": número não vira nenhum
+   dos dois, é só coleção (o sorteio/prêmio de verdade fica pra depois). ── */
+const ColecaoNumeros = () => {
+  const isMobile = useIsMobile();
+  const [captured, setCaptured] = useState(() => getCapturedNumeros());
+  const [search, setSearch] = useState('');
+  const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
+  const [resyncing, setResyncing] = useState(false);
+  const [detail, setDetail] = useState(null); // número aberto no modal (mostra a data de captura)
+
+  const resync = React.useCallback(async () => {
+    setResyncing(true);
+    try {
+      const list = await syncNumeroCollectionFromServer();
+      if (Array.isArray(list)) setCaptured(list);
+    } finally { setResyncing(false); }
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setCaptured(getCapturedNumeros());
+    window.addEventListener('numero-collection:changed', refresh);
+    resync();
+    const onVis = () => { if (document.visibilityState === 'visible') resync(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', resync);
+    const me = getAuthUser()?.name;
+    let ch;
+    try {
+      ch = supabase.channel('mynumeros-captures')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'capture_numero_captures', filter: me ? `player=eq.${me}` : undefined }, resync)
+        .subscribe();
+    } catch {}
+    return () => {
+      window.removeEventListener('numero-collection:changed', refresh);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', resync);
+      try { supabase.removeChannel(ch); } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ownedSet = new Set(captured.map(c => c.value));
+  const owns = (n) => ownedSet.has(n);
+  const atOf = (n) => captured.find(c => c.value === n)?.at || null;
+  const ownedCount = ownedSet.size;
+  const all = Array.from({ length: 100 }, (_, i) => i + 1);
+  const q = search.trim();
+  const visible = all.filter(n => {
+    if (q && !String(n).includes(q)) return false;
+    if (filtro === 'obtidos' && !owns(n)) return false;
+    if (filtro === 'faltam' && owns(n)) return false;
+    return true;
+  });
+
+  return (
+    <div>
+      <style>{`@keyframes numIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes colRot{to{transform:rotate(360deg)}}`}</style>
+
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: '.02em' }}>Coleção de Números</div>
+          <div style={{ fontSize: 13, color: T.textT, marginTop: 3 }}>
+            Capture números da sorte no Portal — {ownedCount}/100 desbloqueado{ownedCount === 1 ? '' : 's'}.
+          </div>
+        </div>
+        <button onClick={resync} disabled={resyncing} title="Atualizar coleção"
+          style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10,
+            border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, cursor: resyncing ? 'wait' : 'pointer',
+            fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', opacity: resyncing ? 0.6 : 1 }}>
+          <span style={{ display: 'inline-block', transformOrigin: 'center', animation: resyncing ? 'colRot .8s linear infinite' : 'none' }}>↻</span>
+          {resyncing ? 'Atualizando…' : 'Atualizar'}
+        </button>
+      </div>
+
+      {/* Busca por número */}
+      <div style={{ position: 'relative', marginBottom: 16 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input value={search} onChange={e => setSearch(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))} placeholder="Buscar número..." inputMode="numeric"
+          style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', fontSize: 13, color: T.text, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }}/>
+        {search && (
+          <button onClick={() => setSearch('')} title="Limpar busca"
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', color: T.textT, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}>×</button>
+        )}
+      </div>
+
+      {/* Filtro: todos / obtidos / faltam */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        {[['todos', 'Todos', 100], ['obtidos', '✓ Obtidos', ownedCount], ['faltam', 'Faltam', 100 - ownedCount]].map(([id, label, n]) => {
+          const sel = filtro === id;
+          return (
+            <button key={id} onClick={() => setFiltro(id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                border: `1.5px solid ${sel ? T.text : T.border}`,
+                background: sel ? T.text : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                color: sel ? T.surface : T.textS }}>
+              {label}
+              <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 999,
+                background: sel ? 'rgba(255,255,255,.2)' : T.border, color: sel ? T.surface : T.textT }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Grade 1-100 */}
+      {visible.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: T.textT }}>
+          {search ? `Nenhum número encontrado pra "${search}".`
+            : filtro === 'obtidos' ? 'Você ainda não capturou nenhum número — fica de olho no Portal! 🎯'
+            : '🎉 Parabéns! Você já capturou todos os números.'}
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill,minmax(${isMobile ? 56 : 68}px,1fr))`, gap: 10 }}>
+        {visible.map(n => {
+          const owned = owns(n);
+          return (
+            <button key={n} onClick={() => owned && setDetail(n)} disabled={!owned}
+              style={{ aspectRatio: '1', borderRadius: 14, border: `1.5px solid ${owned ? '#ffb02066' : T.border}`,
+                background: owned ? 'linear-gradient(160deg,#ffd873,#ffb020 55%,#c97a00)' : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                color: owned ? '#3a2400' : T.textD, fontSize: isMobile ? 15 : 17, fontWeight: 900, fontFamily: 'var(--font-brand)',
+                cursor: owned ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: owned ? '0 4px 14px rgba(255,176,32,.35)' : 'none', animation: owned ? 'numIn .3s ease' : 'none', padding: 0 }}>
+              {owned ? n : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity=".5">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Modal de detalhe — data de captura */}
+      {detail && (
+        <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, width: 'min(320px,94vw)', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.5)', textAlign: 'center', padding: '28px 24px' }}>
+            <div style={{ width: 84, height: 84, borderRadius: '50%', margin: '0 auto 14px', background: 'linear-gradient(160deg,#ffd873,#ffb020 55%,#c97a00)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontWeight: 900, color: '#3a2400', fontFamily: 'var(--font-brand)', boxShadow: '0 4px 20px rgba(255,176,32,.4)' }}>{detail}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', marginBottom: 4 }}>Número {detail}</div>
+            {atOf(detail) && <div style={{ fontSize: 12.5, color: T.textT }}>Capturado em {new Date(atOf(detail)).toLocaleDateString('pt-BR')}</div>}
+            <button onClick={() => setDetail(null)} style={{ marginTop: 18, padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${T.gold},${T.gold}cc)`, color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)' }}>Fechar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── Aba "Coleção" — duas sub-abas clicáveis (mesmo padrão de pills usado no
+   Dashboard RH → Capture o Uniko: evento/oficina/enviar). ── */
+const TabMyDoko = ({ onPhotoChange }) => {
+  const [sub, setSub] = useState('unikos'); // unikos | numeros
+
+  return (
+    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {[['unikos', 'Coleção de Unikos'], ['numeros', 'Coleção de Números']].map(([id, label]) => {
+          const sel = sub === id;
+          return (
+            <button key={id} onClick={() => setSub(id)}
+              style={{ padding: '10px 18px', borderRadius: 12, cursor: 'pointer', fontSize: 13.5, fontWeight: 800,
+                fontFamily: 'var(--font-brand)', letterSpacing: '.01em',
+                border: `1.5px solid ${sel ? T.gold : T.border}`,
+                background: sel ? T.goldGl : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                color: sel ? T.gold : T.textS }}>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {sub === 'unikos' ? <ColecaoUnikos onPhotoChange={onPhotoChange} /> : <ColecaoNumeros />}
     </div>
   );
 };

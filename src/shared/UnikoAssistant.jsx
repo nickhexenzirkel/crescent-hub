@@ -10,6 +10,7 @@ import { T } from '../contexts/theme';
 import { supabase as _supabase, SERVER_URL } from '../contexts/user';
 import { loadMissionProgress, loadMissionDefs, GAME_LABEL } from './prismaMissions';
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
+import { onCaptureNumeroState, getCaptureNumeroTargetRect, emitCaptureNumeroThrow } from './captureNumero';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange, getFalasAutomaticas, onFalasAutomaticasChange } from './assistantSkin';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { setContadorTitulo } from './tituloAba';
@@ -510,18 +511,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [skinId, setSkinId] = useState(getActiveAssistantSkinId); // skin do assistente (default | uniko capturado)
   const [scale, setScale] = useState(getAssistantScale); // preferência pessoal de tamanho (Coleção)
   const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
+  const [numeroAlert, setNumeroAlert] = useState(null);   // Número da sorte disponível pra capturar (mesma ideia, sistema paralelo — ver captureNumero.js)
   const skin = getAssistantSkin(skinId);
   const IMG = skin.sprites;                          // sprites resolvidos pela skin ativa
   const imgRef = useRef(IMG); imgRef.current = IMG;  // versão sempre atual p/ closures de effects
   const tipSpriteRef = useRef(skin.tipSprite); tipSpriteRef.current = skin.tipSprite; // override das DICAS (se a skin tiver um ícone próprio de dica)
-  // Enquanto um Uniko está DISPONÍVEL pra capturar, o tamanho volta a 100% temporariamente
-  // pra quem tinha zoom (aumentou/diminuiu em "Tamanho do assistente" na Coleção) — sem
-  // isso, alguém com o assistente bem grande/pequeno arremessando pro encontro (tamanho
-  // fixo) ficava em desvantagem/vantagem injusta. Volta pra escala pessoal assim que o
-  // Uniko é capturado por alguém (ou o evento esgota) — `captureAlert` já vira null nesse
-  // momento (ver onCaptureState abaixo).
+  // Enquanto um Uniko OU um Número está DISPONÍVEL pra capturar, o tamanho volta a 100%
+  // temporariamente pra quem tinha zoom (aumentou/diminuiu em "Tamanho do assistente" na
+  // Coleção) — sem isso, alguém com o assistente bem grande/pequeno arremessando pro
+  // encontro (tamanho fixo) ficava em desvantagem/vantagem injusta. Volta pra escala
+  // pessoal assim que a captura acontece ou o evento esgota (os alerts viram null).
   const isMobile = useIsMobile();
-  const effectiveScale = captureAlert ? 1 : scale;
+  const effectiveScale = (captureAlert || numeroAlert) ? 1 : scale;
   /* No celular a preferência de tamanho (0.6–2.5×) podia gerar um robô de até
      ~290px — quase metade da largura da tela, impossibilitando tocar em
      qualquer coisa perto dele. O teto existe por isso; o jeito como ele era
@@ -626,6 +627,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const openRef = useRef(open);   openRef.current = open;
   const inPortalRef = useRef(inPortal); inPortalRef.current = inPortal;
   const captureRef = useRef(captureAlert); captureRef.current = captureAlert;
+  const numeroCaptureRef = useRef(numeroAlert); numeroCaptureRef.current = numeroAlert;
   const bubbleRef = useRef(bubble); bubbleRef.current = bubble;
   const posRef = useRef(pos);     posRef.current = pos;
   const chatModeRef = useRef(chatMode); chatModeRef.current = chatMode;
@@ -736,6 +738,39 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const id = setInterval(() => { if (captureRef.current) announce(); }, 22000);
     return () => clearInterval(id);
   }, [captureAlert, say]);
+
+  // ── CAPTURE O NÚMERO: mesmo mecanismo acima, sistema paralelo (captureNumero.js) —
+  // dá pra ter os dois eventos rolando ao mesmo tempo sem um atrapalhar o outro.
+  const lastCaptureNumeroId = useRef(null);
+  useEffect(() => {
+    const off = onCaptureNumeroState((s) => {
+      if (s?.captured) {
+        setNumeroAlert(null);
+        // Só o VENCEDOR de verdade recebe o numeroValue no payload (ver resolveAttempt
+        // em CaptureNumeroWidget.jsx); nos outros clientes vem null — mesmo cuidado do
+        // Capture o Uniko, pra não anunciar "você capturou" pra quem não capturou nada.
+        if (s.numeroValue != null) {
+          say(`Boa! Você capturou o número ${s.numeroValue}! Ele já está na sua Coleção de Números. 🎉`, { sprite: imgRef.current.CAPTURE, dismissable: true });
+        }
+        return;
+      }
+      setNumeroAlert(s?.available ? s.numeroValue : null);
+    });
+    return off;
+  }, [say]);
+
+  useEffect(() => {
+    if (numeroAlert == null) { lastCaptureNumeroId.current = null; return; }
+    const announce = () => {
+      const msg = inPortalRef.current
+        ? `Olha ali! O número ${numeroAlert} apareceu pra capturar — me arraste até ele! ✨`
+        : `Corre olhar no Portal do Colaborador — apareceu uma coisa surpreendente lá! 👀✨`;
+      say(msg, { sprite: imgRef.current.CAPTURE, dismissable: false });
+    };
+    if (numeroAlert !== lastCaptureNumeroId.current) { lastCaptureNumeroId.current = numeroAlert; announce(); }
+    const id = setInterval(() => { if (numeroCaptureRef.current != null) announce(); }, 22000);
+    return () => clearInterval(id);
+  }, [numeroAlert, say]);
 
   // Falas automáticas (dicas, evento novo, progresso de missão) podem ser caladas
   // pela pessoa na Coleção. Ref: os intervalos abaixo leem o valor ATUAL sem
@@ -1064,25 +1099,34 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     // "estacionar" já em cima esperando o spawn). Empurra pra fora pela borda mais próxima
     // (como colidir com uma parede), em vez de só corrigir depois de soltar — assim ele
     // desliza ao redor da área durante o próprio arraste, nunca chega a entrar.
+    // Os DOIS eventos de captura (Uniko e Número) têm a MESMA barreira, cada um com
+    // seu card/estado — generalizado numa lista em vez de duplicar a função inteira.
+    const captureBarriers = () => [
+      { available: captureRef.current || getCaptureTargetRect(), cardId: 'capture-uniko-card' },
+      { available: numeroCaptureRef.current != null || getCaptureNumeroTargetRect(), cardId: 'capture-numero-card' },
+    ];
     const pushOutsideCard = (pt, icon) => {
-      // Checa os DOIS sinais de "disponível agora": captureRef.current (estado React,
-      // via pub/sub) E getCaptureTargetRect() (variável direta que o próprio widget seta
-      // no mesmo instante que fica disponível, sem depender de um re-render do React pra
-      // propagar) — evita a barreira ficar presa achando "nada disponível" por causa de um
-      // possível atraso entre o widget emitir o estado e o React aplicar o novo valor aqui.
-      if (captureRef.current || getCaptureTargetRect()) return pt; // tem Uniko disponível agora -- pode entrar
-      const rect = document.getElementById('capture-uniko-card')?.getBoundingClientRect();
-      if (!rect || rect.width <= 0 || rect.height <= 0) return pt;
-      const left = pt.x, right = pt.x + icon, top = pt.y, bottom = pt.y + icon;
-      const overlaps = right > rect.left && left < rect.right && bottom > rect.top && top < rect.bottom;
-      if (!overlaps) return pt;
-      const penLeft = right - rect.left, penRight = rect.right - left;
-      const penTop = bottom - rect.top, penBottom = rect.bottom - top;
-      const minPen = Math.min(penLeft, penRight, penTop, penBottom);
-      if (minPen === penLeft)   return { x: rect.left - icon, y: pt.y };
-      if (minPen === penRight)  return { x: rect.right, y: pt.y };
-      if (minPen === penTop)    return { x: pt.x, y: rect.top - icon };
-      return { x: pt.x, y: rect.bottom };
+      for (const b of captureBarriers()) {
+        // Checa os DOIS sinais de "disponível agora": o estado React (via pub/sub) E o
+        // getTargetRect() correspondente (variável direta que o próprio widget seta no
+        // mesmo instante que fica disponível, sem depender de um re-render do React pra
+        // propagar) — evita a barreira ficar presa achando "nada disponível" por causa de
+        // um possível atraso entre o widget emitir o estado e o React aplicar aqui.
+        if (b.available) continue; // tem encontro disponível agora nesse card -- pode entrar
+        const rect = document.getElementById(b.cardId)?.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+        const left = pt.x, right = pt.x + icon, top = pt.y, bottom = pt.y + icon;
+        const overlaps = right > rect.left && left < rect.right && bottom > rect.top && top < rect.bottom;
+        if (!overlaps) continue;
+        const penLeft = right - rect.left, penRight = rect.right - left;
+        const penTop = bottom - rect.top, penBottom = rect.bottom - top;
+        const minPen = Math.min(penLeft, penRight, penTop, penBottom);
+        if (minPen === penLeft)   return { x: rect.left - icon, y: pt.y };
+        if (minPen === penRight)  return { x: rect.right, y: pt.y };
+        if (minPen === penTop)    return { x: pt.x, y: rect.top - icon };
+        return { x: pt.x, y: rect.bottom };
+      }
+      return pt;
     };
     const moveTo = (cx, cy) => {
       const d = dragRef.current; if (!d) return;
@@ -1105,14 +1149,21 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       if (!d) return;
       if (!d.moved) { setOpen(o => !o); return; } // foi um toque/clique → abre o chat
 
-      // ── ARREMESSO: soltou o assistente em cima do Uniko do widget? → captura ──
+      // ── ARREMESSO: soltou o assistente em cima do Uniko OU do Número do widget? ──
+      // Os dois alvos possíveis, na mesma ordem/forma de captureBarriers() acima —
+      // cada um com sua função de pegar o rect e disparar o próprio arremesso.
       const icon = iconRef.current, margin = marginRef.current;
       const cx = posRef.current.x + icon / 2, cy = posRef.current.y + icon / 2;
-      if (captureRef.current || getCaptureTargetRect()) {
-        const rect = getCaptureTargetRect();
+      const targets = [
+        { available: captureRef.current || getCaptureTargetRect(), getRect: getCaptureTargetRect, throwFn: emitCaptureThrow, cardId: 'capture-uniko-card' },
+        { available: numeroCaptureRef.current != null || getCaptureNumeroTargetRect(), getRect: getCaptureNumeroTargetRect, throwFn: emitCaptureNumeroThrow, cardId: 'capture-numero-card' },
+      ];
+      for (const t of targets) {
+        if (!t.available) continue;
+        const rect = t.getRect();
         const M = 46; // margem de tolerância (mira generosa)
         if (rect && cx > rect.left - M && cx < rect.right + M && cy > rect.top - M && cy < rect.bottom + M) {
-          emitCaptureThrow();
+          t.throwFn();
           // voa até o alvo e volta pro dock atual (sensação de arremesso)
           const homeDock = pixelsToDock(posRef.current, icon, margin);
           const home = dockToPixels(homeDock, icon, margin);
@@ -1120,14 +1171,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           setTimeout(() => { setPos(home); saveDock(homeDock); }, 420);
           return;
         }
-      } else {
-        // Não deixa "estacionar" o assistente em cima da área do Capture o Uniko
-        // enquanto não tem nada spawnado — sem isso, dava pra ficar de tocaia já
-        // em cima esperando o Uniko aparecer, com vantagem injusta sobre quem
-        // precisa arrastar até lá na hora certa. Volta pra posição de ANTES do
-        // arraste, como se o solto ali nunca tivesse acontecido.
-        const card = document.getElementById('capture-uniko-card');
-        const r = card?.getBoundingClientRect();
+      }
+      // Não caiu em nenhum alvo ativo — não deixa "estacionar" o assistente em cima
+      // da área de um card SEM nada spawnado (Uniko ou Número) — sem isso, dava pra
+      // ficar de tocaia já em cima esperando o encontro aparecer, com vantagem
+      // injusta sobre quem precisa arrastar até lá na hora certa. Volta pra posição
+      // de ANTES do arraste, como se o solto ali nunca tivesse acontecido.
+      for (const t of targets) {
+        if (t.available) continue;
+        const r = document.getElementById(t.cardId)?.getBoundingClientRect();
         if (r && r.width > 0 && r.height > 0 && cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
           const backDock = pixelsToDock({ x: d.ox, y: d.oy }, icon, margin);
           setPos(dockToPixels(backDock, icon, margin));
@@ -1293,7 +1345,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       `}</style>
 
       {/* ── Robô: flutua, fica EXPANDIDO com balão, ARRASTÁVEL (clique abre, arraste move) ── */}
-      <div style={{ animation: dragging ? 'none' : captureAlert && !open ? 'uaHeartbeat .85s ease-in-out infinite' : 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
+      <div style={{ animation: dragging ? 'none' : (captureAlert || numeroAlert) && !open ? 'uaHeartbeat .85s ease-in-out infinite' : 'uaFloat 5s ease-in-out infinite', pointerEvents: 'auto' }}>
         <button
           onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
           onTouchStart={(e) => { if (e.touches[0]) startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
@@ -1307,7 +1359,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s ease',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}${hovered && !dragging ? '99' : '55'})`,
           }}>
-          <UnikoFace size={ICON} src={captureAlert && !open ? IMG.CAPTURE : sprite} talking={talking} skin={skin} />
+          <UnikoFace size={ICON} src={(captureAlert || numeroAlert) && !open ? IMG.CAPTURE : sprite} talking={talking} skin={skin} />
         </button>
       </div>
 

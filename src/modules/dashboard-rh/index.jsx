@@ -14,6 +14,12 @@ import {
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
   RANDOM_UNIKO_ID, RANDOM_PER_SLOT_ID, isRandomUnikoChoice, resolveUnikoChoice,
 } from '../../shared/captureUniko';
+import {
+  loadCaptureConfig as loadCaptureNumeroConfig, saveCaptureConfig as saveCaptureNumeroConfig,
+  resetNumeroCaptures, maxWinnersFor as maxWinnersForNumero,
+  RANDOM_NUMERO_ID, RANDOM_PER_SLOT_ID as NUMERO_RANDOM_PER_SLOT_ID,
+  resolveNumeroChoice,
+} from '../../shared/captureNumero';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { bolhaGradiente } from '../../shared/bolhas';
 import { AtualizacaoFrame } from '../../shared/atualizacao';
@@ -1478,6 +1484,80 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     setTimeout(() => setResetMsg(''), 6000);
   };
 
+  // ── Capture o Número (evento simples — sem agenda recorrente) ──
+  const [numCfg, setNumCfg]           = useState(null);
+  const [numLoaded, setNumLoaded]     = useState(false);
+  const [numPool, setNumPool]         = useState([]);      // números marcados como elegíveis (1-100)
+  const [numMode, setNumMode]         = useState(RANDOM_NUMERO_ID); // fixo | RANDOM_NUMERO_ID | NUMERO_RANDOM_PER_SLOT_ID
+  const [numMaxWinners, setNumMaxWinners] = useState(3);
+  const [numStart, setNumStart]       = useState('');
+  const [numEnd, setNumEnd]           = useState('');
+  const [numEnabled, setNumEnabled]   = useState(false);
+  const [numSaving, setNumSaving]     = useState(false);
+  const [numMsg, setNumMsg]           = useState('');
+  const [numSearch, setNumSearch]     = useState('');
+  useEffect(() => {
+    if (tab !== 'capture-numero' || numLoaded) return;
+    (async () => {
+      const cfg = await loadCaptureNumeroConfig();
+      setNumLoaded(true);
+      if (!cfg) return;
+      setNumCfg(cfg);
+      setNumEnabled(!!cfg.enabled);
+      setNumPool(Array.isArray(cfg.pool) ? cfg.pool : (cfg.numeroValue ? [cfg.numeroValue] : []));
+      setNumMode(Array.isArray(cfg.slotNumeroValues) ? NUMERO_RANDOM_PER_SLOT_ID
+        : (Array.isArray(cfg.pool) && cfg.pool.length > 1 ? RANDOM_NUMERO_ID : String(cfg.numeroValue || '')));
+      setNumMaxWinners(maxWinnersForNumero(cfg));
+      setNumStart(cfg.startAt ? cfg.startAt.slice(0, 16) : '');
+      setNumEnd(cfg.endAt ? cfg.endAt.slice(0, 16) : '');
+    })();
+  }, [tab, numLoaded]);
+  const toggleNumPoolValue = (n) => setNumPool(p => p.includes(n) ? p.filter(x => x !== n) : [...p, n].sort((a, b) => a - b));
+  const saveNumConfig = async (spawnNow) => {
+    if (!numPool.length) { setNumMsg('⚠️ Marque pelo menos 1 número elegível.'); return; }
+    setNumSaving(true); setNumMsg('');
+    try {
+      const startAt = spawnNow ? new Date().toISOString() : (numStart ? new Date(numStart).toISOString() : new Date().toISOString());
+      const endAt = numEnd ? new Date(numEnd).toISOString() : new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const choice = numMode === RANDOM_NUMERO_ID || numMode === NUMERO_RANDOM_PER_SLOT_ID ? numMode : Number(numMode || numPool[0]);
+      const resolved = resolveNumeroChoice(choice, numPool, numMaxWinners);
+      const cfg = { enabled: true, startAt, endAt, pool: numPool, maxWinners: numMaxWinners, ...resolved };
+      await saveCaptureNumeroConfig(cfg);
+      setNumCfg(cfg); setNumEnabled(true);
+      setNumStart(startAt.slice(0, 16)); setNumEnd(endAt.slice(0, 16));
+      setNumMsg(spawnNow ? '✅ Número spawnado agora!' : '✅ Evento salvo!');
+    } catch (e) { setNumMsg('❌ ' + (e.message || 'Erro ao salvar')); }
+    setNumSaving(false);
+    setTimeout(() => setNumMsg(''), 6000);
+  };
+  const disableNumConfig = async () => {
+    setNumSaving(true); setNumMsg('');
+    try {
+      const cfg = { ...(numCfg || {}), enabled: false };
+      await saveCaptureNumeroConfig(cfg);
+      setNumCfg(cfg); setNumEnabled(false);
+      setNumMsg('✅ Evento desligado.');
+    } catch (e) { setNumMsg('❌ ' + (e.message || 'Erro ao desligar')); }
+    setNumSaving(false);
+    setTimeout(() => setNumMsg(''), 6000);
+  };
+  const [numResetPlayer, setNumResetPlayer] = useState('');
+  const [numResetMsg, setNumResetMsg]       = useState('');
+  const [numResetting, setNumResetting]     = useState(false);
+  const doNumReset = async (all) => {
+    const who = all ? 'TODOS os usuários' : `"${numResetPlayer.trim()}"`;
+    if (!all && !numResetPlayer.trim()) { setNumResetMsg('⚠️ Selecione o colaborador'); return; }
+    if (!window.confirm(`Resetar a coleção do Capture o Número de ${who}? Eles poderão capturar novamente. Esta ação não pode ser desfeita.`)) return;
+    setNumResetting(true); setNumResetMsg('');
+    try {
+      await resetNumeroCaptures(all ? {} : { player: numResetPlayer.trim() });
+      setNumResetMsg(`✅ Coleção resetada de ${who}.`);
+      if (!all) setNumResetPlayer('');
+    } catch (e) { setNumResetMsg('❌ ' + (e.message || 'Erro ao resetar')); }
+    setNumResetting(false);
+    setTimeout(() => setNumResetMsg(''), 6000);
+  };
+
   // ── Lembretes & Alexa programada ────────────────────────
   const [lembretes, setLembretes]       = useState([]);
   const [lembLoading, setLembLoading]   = useState(false);
@@ -1892,6 +1972,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     {id:'lembretes',      label:'Lembretes & Alexa',  icon:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>},
     {id:'maquina',        label:'Máquina do Tempo',   icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></>},
     {id:'capture',        label:'Capture o Uniko',     icon:<><circle cx="11" cy="11" r="8"/><line x1="11" y1="3" x2="11" y2="19"/><line x1="3" y1="11" x2="19" y2="11"/><circle cx="11" cy="11" r="2.5" fill="currentColor"/></>},
+    {id:'capture-numero', label:'Capture o Número',    icon:<><circle cx="12" cy="12" r="9"/><text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="800" fill="currentColor" stroke="none">7</text></>},
     {id:'oficina-wave',   label:'Oficina Uniko Wave',  icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
     {id:'uniko-fit',      label:'Uniko FIT',           icon:<><path d="M6.5 6.5l11 11"/><path d="M21 21l-3-3"/><path d="M3 3l3 3"/><path d="M5 9l4-4 2 2-4 4z"/><path d="M15 19l4-4 2 2-4 4z"/><path d="M9 9l6 6"/></>},
     {id:'uniko-suspect',  label:'Uniko Detetive',       icon:<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="7" x2="11" y2="12"/><circle cx="11" cy="15" r="0.6" fill="currentColor"/></>},
@@ -4249,6 +4330,137 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
             </div>
           );})()}
+
+          {/* ── TAB: CAPTURE O NÚMERO (evento único, sem agenda) ── */}
+          {tab==='capture-numero'&&(()=>{
+            const inpSt = {width:'100%',padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box'};
+            const lblSt = {fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6};
+            const numFiltrados = numSearch.trim()
+              ? Array.from({length:100},(_,i)=>i+1).filter(n=>String(n).includes(numSearch.trim()))
+              : Array.from({length:100},(_,i)=>i+1);
+            return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {/* Header */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM}}>
+                <div style={{fontFamily:'var(--font-brand)',fontSize:18,fontWeight:700,color:T.text}}>Capture o Número</div>
+                <div style={{fontSize:13,color:T.textS,marginTop:2}}>
+                  Sorteio de números da sorte (1 a 100). Escolha quais números entram no evento, quantas vagas ele tem e a janela em que ele fica disponível pra captura no Portal — mesmo lugar e mecânica do Capture o Uniko. Por enquanto é só captura/coleção — o prêmio do sorteio fica pra depois.
+                </div>
+              </div>
+
+              {/* Status atual */}
+              <div style={{padding:'14px 20px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+                <div style={{width:10,height:10,borderRadius:999,background:numEnabled?(T.success||'#3a9'):T.textT,flexShrink:0}}/>
+                <div style={{fontSize:13,color:T.text,fontWeight:600}}>
+                  {numEnabled ? 'Evento ATIVO' : 'Nenhum evento ativo no momento'}
+                </div>
+                {numEnabled && numCfg && (
+                  <div style={{fontSize:12,color:T.textS}}>
+                    {Array.isArray(numCfg.slotNumeroValues)
+                      ? `Números: ${numCfg.slotNumeroValues.join(', ')}`
+                      : `Número: ${numCfg.numeroValue}`} · {maxWinnersForNumero(numCfg)} vaga(s)
+                  </div>
+                )}
+                {numEnabled && (
+                  <button onClick={disableNumConfig} disabled={numSaving}
+                    style={{marginLeft:'auto',padding:'8px 16px',borderRadius:9,border:`1px solid ${T.danger||'#C04050'}55`,cursor:numSaving?'default':'pointer',background:'transparent',color:T.danger||'#C04050',fontWeight:700,fontSize:12.5,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
+                    Desligar evento
+                  </button>
+                )}
+              </div>
+
+              {/* Formulário do evento */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🎟️ Números elegíveis</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>
+                    Clique pra marcar quais números (1 a 100) entram no sorteio desse evento. {numPool.length>0 && <b>{numPool.length} selecionado(s)</b>}
+                  </div>
+                </div>
+                <input value={numSearch} onChange={e=>setNumSearch(e.target.value.replace(/[^\d]/g,''))} placeholder="Buscar número..." style={{...inpSt,maxWidth:220}}/>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(44px,1fr))',gap:6,maxHeight:260,overflowY:'auto',padding:4}}>
+                  {numFiltrados.map(n=>{
+                    const on = numPool.includes(n);
+                    return (
+                      <button key={n} onClick={()=>toggleNumPoolValue(n)}
+                        style={{padding:'8px 0',borderRadius:8,cursor:'pointer',fontFamily:'var(--font-body)',
+                          fontSize:12.5,fontWeight:700,textAlign:'center',transition:'all .12s',
+                          border:`1.5px solid ${on?T.gold:T.border}`,
+                          background:on?(T.goldGl||`${T.gold}22`):'transparent',color:on?T.gold:T.textS}}>
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,alignItems:'end'}}>
+                  <div>
+                    <label style={lblSt}>Modo de sorteio</label>
+                    <select value={numMode} onChange={e=>setNumMode(e.target.value)} style={{...inpSt,cursor:'pointer'}}>
+                      <option value={RANDOM_NUMERO_ID}>🎲 Sortear 1 número do pool</option>
+                      <option value={NUMERO_RANDOM_PER_SLOT_ID}>🎲 Sortear 1 diferente por vaga</option>
+                      {numPool.length===1 && <option value={String(numPool[0])}>🔒 Número fixo ({numPool[0]})</option>}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Vagas (quantas pessoas podem ganhar)</label>
+                    <select value={numMaxWinners} onChange={e=>setNumMaxWinners(Number(e.target.value))} style={{...inpSt,cursor:'pointer'}}>
+                      {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} vaga{n>1?'s':''}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Início</label>
+                    <input type="datetime-local" value={numStart} onChange={e=>setNumStart(e.target.value)} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Fim</label>
+                    <input type="datetime-local" value={numEnd} onChange={e=>setNumEnd(e.target.value)} style={inpSt}/>
+                  </div>
+                </div>
+
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={()=>saveNumConfig(false)} disabled={numSaving}
+                    style={{padding:'10px 20px',borderRadius:10,border:'none',cursor:numSaving?'default':'pointer',background:`linear-gradient(135deg,${T.gold},#c9902a)`,color:'#221604',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
+                    {numSaving?'Salvando...':'💾 Salvar evento'}
+                  </button>
+                  <button onClick={()=>saveNumConfig(true)} disabled={numSaving}
+                    style={{padding:'10px 20px',borderRadius:10,border:`1px solid ${T.gold}`,cursor:numSaving?'default':'pointer',background:'transparent',color:T.gold,fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numSaving?.6:1}}>
+                    ⚡ Spawnar agora
+                  </button>
+                  {numMsg&&<span style={{fontSize:13,color:numMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{numMsg}</span>}
+                </div>
+              </div>
+
+              {/* Reset da coleção */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🗑️ Resetar coleção</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Apaga os números capturados (de um colaborador ou de todos) e libera a captura de novo.</div>
+                </div>
+
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+                  <select value={numResetPlayer} onChange={e=>setNumResetPlayer(e.target.value)}
+                    style={{flex:1,minWidth:220,padding:'10px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'var(--font-body)',boxSizing:'border-box',cursor:'pointer'}}>
+                    <option value="">Selecione o colaborador...</option>
+                    {empList.filter(e=>e.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
+                  </select>
+                  <button onClick={()=>doNumReset(false)} disabled={numResetting}
+                    style={{padding:'10px 18px',borderRadius:10,border:`1px solid ${T.danger||'#C04050'}55`,cursor:numResetting?'default':'pointer',background:'transparent',color:T.danger||'#C04050',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numResetting?.6:1}}>
+                    Resetar deste usuário
+                  </button>
+                </div>
+
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <button onClick={()=>doNumReset(true)} disabled={numResetting}
+                    style={{padding:'10px 20px',borderRadius:10,border:'none',cursor:numResetting?'default':'pointer',background:`linear-gradient(135deg,${T.danger||'#C04050'},#8b2030)`,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:numResetting?.6:1}}>
+                    {numResetting?'Resetando...':'⚠️ Resetar de TODOS os usuários'}
+                  </button>
+                  {numResetMsg&&<span style={{fontSize:13,color:numResetMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{numResetMsg}</span>}
+                </div>
+              </div>
+            </div>
+            );
+          })()}
 
           {/* ── TAB: LEMBRETES & ALEXA PROGRAMADA ── */}
           {tab==='lembretes'&&(

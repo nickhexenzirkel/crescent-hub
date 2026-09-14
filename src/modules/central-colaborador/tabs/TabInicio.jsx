@@ -22,6 +22,7 @@ import unikoGospel    from '../../../assets/UnikoGospel.png';
 import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
 import { getCapturedCollection, getUniko, onCaptureSlotBusy } from '../../../shared/captureUniko';
+import { onCaptureNumeroSlotBusy } from '../../../shared/captureNumero';
 import { getMyVacationDeadline, monthsDaysUntil } from '../../../shared/vacationDeadlines';
 import { nomeChamado, useNomesExibicao } from '../../../shared/nomeExibicao';
 
@@ -127,6 +128,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
      capBusy vem do próprio widget (encontro disponível OU painel de "resgatado" ativo). */
   const [capBusy,   setCapBusy]   = useState(false);
   useEffect(() => onCaptureSlotBusy(setCapBusy), []);
+  /* Capture o Número — mesma ideia, sistema PARALELO (o encontro/painel renderiza
+     DENTRO deste outro widget, #capture-numero-slot). Os dois podem ficar visíveis
+     ao mesmo tempo se dois eventos rolarem juntos. */
+  const [capNumeroBusy, setCapNumeroBusy] = useState(false);
+  useEffect(() => onCaptureNumeroSlotBusy(setCapNumeroBusy), []);
   const [comuns,    setComuns]    = useState([]);
   /* Usa a MESMA DOKO_KEY exportada pelo TabMyDoko — garante chave idêntica */
   const readDoko = () => {
@@ -653,6 +659,28 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </>}
         {/* alvo do encontro — o CaptureUnikoWidget injeta o card aqui via portal */}
         <div id="capture-uniko-slot" style={{width:'100%',display:'flex',justifyContent:'center'}}/>
+      </div>
+
+      {/* ══ CAPTURE O NÚMERO — sistema paralelo ao Capture o Uniko acima, mesma ideia (config do RH) ═════ */}
+      <div id="capture-numero-card" className="home-card" style={{position:'relative',minHeight:capNumeroBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
+        background:capNumeroBusy?'transparent':'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
+        border:capNumeroBusy?'none':`1px solid ${T.border}`,boxShadow:capNumeroBusy?'none':T.sh,
+        display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
+        {/* placeholder (só quando não há número no slot) — reaproveita o @keyframes capStarTwinkle já definido acima */}
+        {!capNumeroBusy && <>
+          {[{l:'8%',t:'24%',s:3,d:0},{l:'18%',t:'68%',s:2,d:.6},{l:'30%',t:'34%',s:2.5,d:1.2},{l:'42%',t:'74%',s:2,d:.3},
+            {l:'58%',t:'28%',s:2,d:.9},{l:'70%',t:'62%',s:3,d:1.5},{l:'82%',t:'30%',s:2.5,d:.4},{l:'90%',t:'70%',s:2,d:1.1},
+            {l:'14%',t:'48%',s:2,d:1.8},{l:'50%',t:'18%',s:2,d:.7},{l:'64%',t:'80%',s:2,d:1.3},{l:'86%',t:'50%',s:3,d:.2}].map((st,i)=>(
+            <span key={i} style={{position:'absolute',left:st.l,top:st.t,width:st.s,height:st.s,borderRadius:'50%',
+              background:T.textT,boxShadow:`0 0 6px ${T.textS||T.textT}`,animation:`capStarTwinkle ${2.4+st.d}s ease-in-out ${st.d}s infinite`}}/>
+          ))}
+          <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
+            <div style={{fontSize:18,marginBottom:4,opacity:.5,letterSpacing:'.3em'}}>✦ ✧ ✦</div>
+            <div style={{fontSize:13,color:T.textT,fontWeight:500,letterSpacing:'.02em'}}>Não há nada aqui, por enquanto...</div>
+          </div>
+        </>}
+        {/* alvo do encontro — o CaptureNumeroWidget injeta o card aqui via portal */}
+        <div id="capture-numero-slot" style={{width:'100%',display:'flex',justifyContent:'center'}}/>
       </div>
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}

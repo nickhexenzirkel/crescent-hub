@@ -21,9 +21,11 @@ import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
+import CaptureNumeroWidget from './shared/CaptureNumeroWidget';
 import { AtualizacaoOverlay } from './shared/atualizacao';
 import { subscribeGameInvites, setPendingJoin, GAME_JOIN_EVENT, GAME_LABEL } from './shared/gameInvites';
 import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
+import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
 
@@ -35,6 +37,7 @@ export default function CrescentHub() {
   const caixaTitulo = useCaixaEntrada(authUser);
   useEffect(() => { setContadorTitulo('caixa', authUser ? caixaTitulo.naoLidos : 0); }, [authUser, caixaTitulo.naoLidos]);
   const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
+  const [captureNumeroCfg, setCaptureNumeroCfg] = useState(null); // "Capture o Número" — sistema paralelo, global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
@@ -79,6 +82,25 @@ export default function CrescentHub() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${CONFIG_KEY}` }, refresh)
       .subscribe();
     const poll = setInterval(refresh, 5000); // fallback caso realtime não esteja habilitado
+    return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
+  }, [authUser]);
+
+  // Config do "Capture o Número" — sistema PARALELO ao Capture o Uniko acima, mesmo
+  // padrão (config load + realtime + poll fallback). SEM fila de agendamento (v1: o
+  // admin liga/desliga um evento de cada vez pelo Dashboard RH, sem recorrência).
+  useEffect(() => {
+    if (!authUser) return;
+    let alive = true;
+    const refresh = () => loadCaptureNumeroConfig().then(c => {
+      if (!alive) return;
+      const next = c?.enabled ? c : null;
+      setCaptureNumeroCfg(prev => (JSON.stringify(prev || null) === JSON.stringify(next) ? prev : next));
+    });
+    refresh();
+    const ch = _supabase.channel('capture-numero-cfg')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: `key=eq.${CAPTURE_NUMERO_CONFIG_KEY}` }, refresh)
+      .subscribe();
+    const poll = setInterval(refresh, 5000);
     return () => { alive = false; clearInterval(poll); try { _supabase.removeChannel(ch); } catch {} };
   }, [authUser]);
   // ── Fila de spawns agendados do "Capture o Uniko" ────────────────────────────
@@ -593,6 +615,7 @@ export default function CrescentHub() {
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
+        {authUser && captureNumeroCfg && <CaptureNumeroWidget cfg={captureNumeroCfg} inPortal={screen==='colaborador'} />}
 
         {/* ── Diagnóstico de performance — invisível até alguém teclar Ctrl+Alt+P
             (ou abrir com ?perf=1). Mede FPS/travadas e desliga os suspeitos um
