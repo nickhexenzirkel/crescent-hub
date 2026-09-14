@@ -9543,6 +9543,164 @@ function wgDrawBelt(gy,h){
   ctx.shadowBlur=0;
 }
 
+// ══ FUNDO ESPACIAL da Guerra Estelar ══════════════════════════════════════════
+// Planetas grandes, muitas estrelinhas de 4 pontas piscando (as mesmas ✦ do menu de
+// módulos do Uniko) e estrelas cadentes. Planetas e o pó de estrelas são desenhados UMA
+// vez num canvas fora da tela (refeito só se o tamanho mudar). As ✦ piscando também são
+// pré-desenhadas em sprites (3 tons) — por quadro é só drawImage com alpha, sem path/save.
+// Gráfico "ultra": menos ✦ e sem cadentes.
+const WG_SPACE = { key:'', layer:null, stars:[], shoot:[], nextShoot:0, lastT:0, planets:[], sprites:null };
+
+function wgSpaceBuild(){
+  const S = WG_SPACE, dpr = DPR || 1;
+  S.key = CW+'x'+CH+'@'+dpr;
+  const R = (a,b) => a + Math.random()*(b-a);
+  const u = Math.min(CW, CH*1.6); // escala base dos planetas (não explode em tela ultra-larga)
+  S.planets = [
+    { x:CW*0.42, y:CH*0.20, r:u*0.105, kind:'ring'  },   // planeta com anel (lilás/azul)
+    { x:CW*0.99, y:CH*0.03, r:u*0.24,  kind:'giant' },   // gigante saindo do canto (quente)
+    { x:CW*0.14, y:CH*0.13, r:u*0.035, kind:'moon'  },   // lua pequena (turquesa)
+  ];
+  const layer = S.layer || document.createElement('canvas');
+  layer.width = Math.max(1, Math.round(CW*dpr)); layer.height = Math.max(1, Math.round(CH*dpr));
+  const c = layer.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,CW,CH);
+  const floor = WG.floorFeet || CH*0.82;
+  const insidePlanet = (x,y,pad) => S.planets.some(p => Math.hypot(x-p.x, y-p.y) < p.r*(p.kind==='ring'?1.9:1)+pad);
+
+  // pó de estrelas (pontinhos fixos)
+  for(let i=0;i<220;i++){
+    const x=R(0,CW), y=R(0,floor);
+    if(insidePlanet(x,y,4)) continue;
+    const a=R(0.18,0.85), s=Math.random()<0.12?2:1;
+    c.fillStyle = Math.random()<0.18 ? `rgba(180,210,255,${a})` : `rgba(255,255,255,${a})`;
+    c.fillRect(x,y,s,s);
+  }
+  S.planets.forEach(p => wgDrawPlanet(c, p));
+  S.layer = layer;
+
+  // sprites da ✦ (branca e azulada), 32px de base
+  if(!S.sprites){
+    S.sprites = ['#ffffff','#bcd6ff'].map(col => {
+      const sc = document.createElement('canvas'); sc.width = sc.height = 32;
+      const g = sc.getContext('2d'); g.scale(32/14, 32/14); g.fillStyle = col;
+      g.beginPath(); g.moveTo(7,1); g.lineTo(7.8,5.4); g.lineTo(12,7); g.lineTo(7.8,8.6); g.lineTo(7,13); g.lineTo(6.2,8.6); g.lineTo(2,7); g.lineTo(6.2,5.4); g.closePath(); g.fill();
+      return sc;
+    });
+  }
+
+  // ✦ piscando — mais densas nas bordas, como no menu (o miolo é onde passam os minions)
+  const mul = (GFX && GFX.particleMul!=null) ? GFX.particleMul : 1;
+  const want = Math.round(28 + 62*Math.min(1, mul + 0.25));
+  S.stars = [];
+  for(let t=0; S.stars.length<want && t<6000; t++){
+    const x=R(0,CW), y=R(0,floor*0.97);
+    const d=Math.hypot((x/CW-0.5)/0.5, (y/floor-0.45)/0.55);
+    if(Math.random() > Math.min(1, 0.12 + 0.88*d*d*d)) continue;
+    if(insidePlanet(x,y,10)) continue;
+    S.stars.push({ x, y, tam:R(6,15), w:(Math.PI*2)/R(2.6,6.4), ph:R(0,Math.PI*2), brilho:R(0.35,1), spr:Math.random()<0.2?1:0 });
+  }
+  S.shoot.length = 0;
+}
+
+function wgDrawPlanet(c, p){
+  const { x, y, r } = p;
+  c.save();
+  if(p.kind==='ring'){
+    const tilt=-0.32, rx=r*1.95, ry=r*0.44;
+    const ringStroke = (front) => {
+      c.save(); c.translate(x,y); c.rotate(tilt);
+      if(front){ c.beginPath(); c.rect(-rx*1.2, 0, rx*2.4, ry*1.6); c.clip(); }
+      for(const [k,w,a] of [[1,r*0.10,0.55],[0.86,r*0.05,0.35],[1.12,r*0.035,0.28]]){
+        c.beginPath(); c.ellipse(0,0,rx*k,ry*k,0,0,Math.PI*2);
+        const g=c.createLinearGradient(-rx,0,rx,0);
+        g.addColorStop(0,`rgba(150,170,255,${a*0.4})`); g.addColorStop(0.5,`rgba(230,215,255,${a})`); g.addColorStop(1,`rgba(140,160,255,${a*0.5})`);
+        c.strokeStyle=g; c.lineWidth=w; c.stroke();
+      }
+      c.restore();
+    };
+    ringStroke(false);                       // metade de trás do anel
+    wgPlanetBody(c, x, y, r, ['#d9d2ff','#8f86e8','#4a3fa8','#1a1447'], 'rgba(150,140,255,0.28)', 'bands');
+    ringStroke(true);                        // metade da frente, por cima do planeta
+  } else if(p.kind==='giant'){
+    wgPlanetBody(c, x, y, r, ['#ffd1a6','#f0806a','#b03c6e','#2b0d2e'], 'rgba(255,120,150,0.22)', 'bands');
+  } else {
+    wgPlanetBody(c, x, y, r, ['#dffcff','#7fd6e0','#2f7d9a','#0c2233'], 'rgba(120,230,255,0.25)', 'craters');
+  }
+  c.restore();
+}
+
+// Corpo do planeta: halo de atmosfera, esfera iluminada de cima/esquerda, faixas ou
+// crateras e a sombra do lado noturno.
+function wgPlanetBody(c, x, y, r, cols, halo, detail){
+  const h=c.createRadialGradient(x,y,r*0.9,x,y,r*1.35);
+  h.addColorStop(0,halo); h.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=h; c.beginPath(); c.arc(x,y,r*1.35,0,Math.PI*2); c.fill();
+  c.save(); c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.clip();
+  const g=c.createRadialGradient(x-r*0.45,y-r*0.5,r*0.05,x,y,r*1.05);
+  g.addColorStop(0,cols[0]); g.addColorStop(0.35,cols[1]); g.addColorStop(0.75,cols[2]); g.addColorStop(1,cols[3]);
+  c.fillStyle=g; c.fillRect(x-r,y-r,r*2,r*2);
+  if(detail==='bands'){
+    c.save(); c.translate(x,y); c.rotate(-0.32);
+    const bands=[[-0.55,0.10,0.16],[-0.28,0.06,0.12],[-0.05,0.13,0.14],[0.25,0.07,0.18],[0.48,0.11,0.12]];
+    for(const [off,hgt,a] of bands){ c.fillStyle=`rgba(255,255,255,${a*0.5})`; c.fillRect(-r*1.2, off*r, r*2.4, hgt*r); c.fillStyle=`rgba(20,0,40,${a*0.6})`; c.fillRect(-r*1.2, (off+hgt)*r, r*2.4, hgt*0.35*r); }
+    c.restore();
+  } else {
+    for(const [dx,dy,rr] of [[-0.35,-0.1,0.18],[0.2,0.3,0.12],[0.35,-0.35,0.09],[-0.1,0.45,0.08]]){
+      c.fillStyle='rgba(10,40,60,0.28)'; c.beginPath(); c.arc(x+dx*r,y+dy*r,rr*r,0,Math.PI*2); c.fill();
+      c.strokeStyle='rgba(255,255,255,0.18)'; c.lineWidth=Math.max(1,r*0.02); c.beginPath(); c.arc(x+dx*r-rr*r*0.15,y+dy*r-rr*r*0.15,rr*r,Math.PI*0.9,Math.PI*1.6); c.stroke();
+    }
+  }
+  const sh=c.createRadialGradient(x+r*0.55,y+r*0.55,r*0.2,x+r*0.2,y+r*0.2,r*1.5);
+  sh.addColorStop(0,'rgba(5,2,15,0.85)'); sh.addColorStop(0.55,'rgba(5,2,15,0.35)'); sh.addColorStop(1,'rgba(5,2,15,0)');
+  c.fillStyle=sh; c.fillRect(x-r,y-r,r*2,r*2);
+  c.restore();
+  // borda iluminada fina
+  c.strokeStyle='rgba(255,255,255,0.22)'; c.lineWidth=Math.max(1,r*0.012);
+  c.beginPath(); c.arc(x,y,r-0.5,Math.PI*0.95,Math.PI*1.75); c.stroke();
+}
+
+function drawWgSpace(t){
+  const S = WG_SPACE, dpr = DPR || 1;
+  if(S.key !== CW+'x'+CH+'@'+dpr || !S.layer) wgSpaceBuild();
+  const dt = Math.max(0, Math.min(0.1, animT - S.lastT)); S.lastT = animT;
+  // leve deriva dos planetas (parallax lento, só visual)
+  ctx.drawImage(S.layer, Math.sin(animT*0.05)*6, 0, CW, CH);
+
+  // ✦ piscando (sprites)
+  const spr = S.sprites;
+  for(const s of S.stars){
+    const k = 0.5 + 0.5*Math.sin(animT*s.w + s.ph);
+    const sz = s.tam*(0.8 + 0.32*k);
+    ctx.globalAlpha = s.brilho*(0.12 + 0.88*k);
+    ctx.drawImage(spr[s.spr], s.x - sz/2, s.y - sz/2, sz, sz);
+  }
+  ctx.globalAlpha = 1;
+
+  // estrelas cadentes (riscos em diagonal, igual ao menu) — desligadas no gráfico "ultra"
+  const mul = (GFX && GFX.particleMul!=null) ? GFX.particleMul : 1;
+  if(mul > 0){
+    if(animT >= S.nextShoot && S.shoot.length < 3){
+      const ang = Math.PI*(0.75 + Math.random()*0.08);            // descendo pra esquerda
+      const sp = Math.max(CW, CH)*(0.75 + Math.random()*0.35);
+      S.shoot.push({ x: CW*(0.35 + Math.random()*0.75), y: CH*(Math.random()*0.32), vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+        len: 90 + Math.random()*90, life: 0, dur: 0.7 + Math.random()*0.5 });
+      S.nextShoot = animT + 0.9 + Math.random()*2.2/Math.max(0.35, mul);
+    }
+    ctx.lineCap='round'; ctx.lineWidth=1.8;
+    for(let i=S.shoot.length-1;i>=0;i--){
+      const m=S.shoot[i]; m.life+=dt; m.x+=m.vx*dt; m.y+=m.vy*dt;
+      if(m.life>=m.dur || m.y>(WG.floorFeet||CH)){ S.shoot.splice(i,1); continue; }
+      const p=m.life/m.dur, a=p<0.15?p/0.15:(1-p)/0.85;
+      const n=Math.hypot(m.vx,m.vy)||1, tx=m.x-m.vx/n*m.len, ty=m.y-m.vy/n*m.len;
+      const g=ctx.createLinearGradient(tx,ty,m.x,m.y);
+      g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(0.7,`rgba(255,255,255,${0.35*a})`); g.addColorStop(1,`rgba(255,255,255,${0.95*a})`);
+      ctx.strokeStyle=g; ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(m.x,m.y); ctx.stroke();
+      ctx.fillStyle=`rgba(255,255,255,${a})`; ctx.fillRect(m.x-1.5,m.y-1.5,3,3);
+    }
+  }
+}
+
 function drawWgBackground(t){
   if(WG.floorFeet===0) wgComputeLayout();
   const gy=WG.floorFeet;
@@ -9552,14 +9710,16 @@ function drawWgBackground(t){
     const sp=ctx.createLinearGradient(0,0,0,CH);
     sp.addColorStop(0,'#150626'); sp.addColorStop(0.6,'#0c0420'); sp.addColorStop(1,'#05010f');
     ctx.fillStyle=sp; ctx.fillRect(0,0,CW,CH);
-    for(let i=0;i<60;i++){ const sx=(i*137.5)%CW, sy=(i*89.3)%gy, tw=0.4+0.6*Math.abs(Math.sin(animT*2+i)); ctx.globalAlpha=tw*0.7; ctx.fillStyle=i%3?'#ffd34d':'#ff7ad0'; ctx.fillRect(sx,sy,2,2); }
-    ctx.globalAlpha=1;
+    drawWgSpace(t);
     return;
   }
   // Céu semitransparente (deixa o vídeo aparecer acima da esteira)
   const sky=ctx.createLinearGradient(0,0,0,gy);
   sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
+  // Espaço (planetas, ✦ e cadentes) — só no cenário original; mapa com fundo próprio fica limpo
+  const _sc=(typeof CURRENT_SCENE!=='undefined')?CURRENT_SCENE:null;
+  if(!(_sc && _sc.bgUrl && _sc.bgKind!=='none')) drawWgSpace(t);
   const under=ctx.createLinearGradient(0,gy,0,CH);
   under.addColorStop(0,'rgba(10,2,24,0.35)'); under.addColorStop(1,'rgba(10,2,24,0.75)');
   ctx.fillStyle=under; ctx.fillRect(0,gy,CW,CH-gy);
