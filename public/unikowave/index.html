@@ -1324,23 +1324,27 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
   pointer-events:all;transition:all .2s;z-index:6;
 }
 #pauseBtn:hover{border-color:var(--C);color:var(--C)}
-/* Botão de habilidade especial (Guerra Estelar) — some no modo clássico, e some
-   também se o personagem não tem habilidade (wgUpdateAbilityBtn cuida disso). */
+/* Botão de habilidade especial (Guerra Estelar) — redondo, ao lado do botão de
+   PAUSA (mesma linha). Some no modo clássico e some também se o personagem não
+   tem habilidade (wgUpdateAbilityBtn cuida disso — via wgApplyMobileHud também
+   reposiciona em cada perfil de tela, igual o botão de pausa). */
 #wgAbilityBtn{
   display:none;
-  position:absolute;top:198px;left:14px;
-  background:rgba(255,255,255,.07);
-  border:1.5px solid rgba(255,209,77,.55);border-radius:8px;
-  color:#ffd34d;align-items:center;gap:6px;
-  font-family:var(--font-pixel);font-size:8px;font-weight:900;
-  padding:7px 12px;cursor:pointer;letter-spacing:1px;
-  pointer-events:all;transition:all .2s;z-index:6;
+  position:absolute;top:154px;left:126px;
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(20,14,4,.55);
+  border:2px solid rgba(255,209,77,.65);
+  color:#ffd34d;align-items:center;justify-content:center;
+  font-family:var(--font-pixel);font-size:16px;font-weight:900;
+  cursor:pointer;letter-spacing:0;line-height:1;
+  pointer-events:all;transition:border-color .2s,background .2s;z-index:6;
 }
-#wgAbilityBtn:hover{border-color:#ffe38a;background:rgba(255,209,77,.12)}
-#wgAbilityBtn.used{opacity:.35;cursor:default;filter:grayscale(1)}
-#wgAbilityBtn.used:hover{border-color:rgba(255,209,77,.55);background:rgba(255,255,255,.07)}
+#wgAbilityBtn #wgAbilityLabel{font-size:9px}
+#wgAbilityBtn:hover{border-color:#ffe38a;background:rgba(255,209,77,.18)}
+#wgAbilityBtn.cooling{opacity:.55;cursor:default;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.75)}
+#wgAbilityBtn.cooling:hover{border-color:rgba(255,255,255,.3);background:rgba(20,14,4,.55)}
 #wgAbilityBtn.active{animation:wgAbilityPulse 1s ease-in-out infinite}
-@keyframes wgAbilityPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,77,.55)}50%{box-shadow:0 0 18px 4px rgba(255,209,77,.55)}}
+@keyframes wgAbilityPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,77,.55)}50%{box-shadow:0 0 18px 5px rgba(255,209,77,.55)}}
 .res-letters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .res-grade{font-family:var(--font-pixel);font-size:clamp(70px,18vw,130px);font-weight:900;line-height:1;animation:gPop .5s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes gPop{from{transform:scale(0) rotate(-18deg);opacity:0}}
@@ -2639,7 +2643,7 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Barra de vida: errar muito esgota e perde a partida -->
   <div id="lifeBar"><div id="lifeFill"></div><div id="lifeTxt"><span>❤ VIDA</span><span id="lifePct">100%</span></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
-  <!-- Habilidade especial da Guerra Estelar (1x por música): Espaço ou clique/toque aqui -->
+  <!-- Habilidade especial da Guerra Estelar (recarrega a cada 30s): Espaço ou clique/toque aqui -->
   <button id="wgAbilityBtn" onclick="wgActivateAbility()" title="Habilidade especial (Espaço)">
     <span id="wgAbilityIcon">✨</span> <span id="wgAbilityLabel">HABILIDADE</span>
   </button>
@@ -9481,7 +9485,7 @@ const WG = {
   kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
   beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null, embers:[], fireRecolorAt:30,
   // Habilidade especial por personagem (ver WG_ABILITY) — 1 uso por música, Espaço/botão ativa.
-  abilityUsed:false, abilityKind:null, abilityUntil:0,
+  abilityKind:null, abilityUntil:0, abilityReadyAt:0,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -9546,7 +9550,9 @@ const WG_LINES = {
 function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!=null) ? c[key] : WG_LINES.mizuki[key]; }
 
 // ── HABILIDADE ESPECIAL (por personagem) ──────────────────────────────────
-// Espaço (ou o botão ✨ do HUD) ativa 1x por música. Dois efeitos:
+// Espaço (ou o botão ✨ do HUD) ativa — recarrega sozinha a cada WG_ABILITY_COOLDOWN
+// segundos (conta a partir do momento em que foi ATIVADA, não de quando o efeito
+// acaba). Dois efeitos:
 //   'auto'   → flutua e acerta sozinha TODA nota que chegar por `dur` segundos
 //              (perfeito, sem precisar apertar W/S) — Venebra, Ashen, Icy, Supernova.
 //   'shield' → por `dur` segundos não perde vida errando, esquecendo nota ou
@@ -9556,6 +9562,7 @@ function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!
 // a entrada dela aqui já deixa a habilidade pronta pro dia que a arte chegar,
 // só registrando o personagem nos outros pontos (wgChar nunca vale 'supernova'
 // hoje, então esse trecho fica inerte até lá).
+const WG_ABILITY_COOLDOWN = 30;
 const WG_ABILITY = {
   venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:10, sfx:'beam',   say:'🩸 FRENESI SANGRENTO! 🩸' },
   oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:15, sfx:'charge', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
@@ -9566,30 +9573,33 @@ const WG_ABILITY = {
 const WG_ABILITY_ICON = { venebra:'🩸', oceania:'🌊', ashen:'🔥', icydoll:'✨', supernova:'💥' };
 function wgAbility(){ return WG_ABILITY[wgChar] || null; }
 function wgAbilityActive(){ return WG.abilityUntil>songTime(); }
+function wgAbilityOnCooldown(){ return WG.abilityReadyAt>songTime(); }
 function wgShieldActive(){ return gameMode==='wargame' && WG.abilityKind==='shield' && wgAbilityActive(); }
 
 // Atualiza o botão ✨ do HUD: mostra/esconde (só personagem com habilidade),
-// ícone/nome, e o estado usada/ativa. Chamado ao iniciar a partida, ao ativar
-// e (o `.active`, que pulsa) a cada quadro em drawWargame.
+// ícone/nome/contagem da recarga. Chamado ao iniciar a partida, ao ativar e
+// (pra contar os segundos e pulsar o `.active`) a cada quadro em drawWargame.
 function wgUpdateAbilityBtn(){
   const btn=document.getElementById('wgAbilityBtn'); if(!btn) return;
   const ab=wgAbility();
   if(gameMode!=='wargame' || !ab){ btn.style.display='none'; return; }
   btn.style.display='flex';
-  btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`}`;
+  const cooling=wgAbilityOnCooldown();
+  const left=Math.ceil(WG.abilityReadyAt-songTime());
+  btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
   const icoEl=document.getElementById('wgAbilityIcon'), lblEl=document.getElementById('wgAbilityLabel');
-  if(icoEl) icoEl.textContent=WG_ABILITY_ICON[wgChar]||'✨';
-  if(lblEl) lblEl.textContent=WG.abilityUsed ? 'USADA' : ab.name.toUpperCase();
-  btn.classList.toggle('used', WG.abilityUsed && !wgAbilityActive());
+  if(icoEl) icoEl.textContent=cooling?'':(WG_ABILITY_ICON[wgChar]||'✨');
+  if(lblEl) lblEl.textContent=cooling?left+'s':'';
+  btn.classList.toggle('cooling', cooling);
 }
 
-// Ativação (Espaço ou clique no botão ✨). 1 uso por música.
+// Ativação (Espaço ou clique no botão ✨). Recarrega a cada WG_ABILITY_COOLDOWN.
 function wgActivateAbility(){
   if(gameMode!=='wargame' || gameState!=='playing') return;
   if(WG.phase!=='play' || WG.attack) return;          // não durante finisher/evento/ataque do boss
-  if(WG.abilityUsed) return;
+  if(wgAbilityOnCooldown()) return;
   const ab=wgAbility(); if(!ab) return;
-  WG.abilityUsed=true; WG.abilityKind=ab.kind; WG.abilityUntil=songTime()+ab.dur;
+  WG.abilityKind=ab.kind; WG.abilityUntil=songTime()+ab.dur; WG.abilityReadyAt=songTime()+WG_ABILITY_COOLDOWN;
   wgSfx(ab.sfx); wgSay('mizuki', ab.say, 2.8);
   // Sem isso, a fala periódica aleatória (a cada ~13-20s) podia disparar 1-2s depois
   // e apagar a fala de ativação antes de dar tempo de ler.
@@ -9600,6 +9610,35 @@ function wgActivateAbility(){
   spawnBurst(WG.charX+WG.charH*0.3,WG.floorFeet-WG.charH*0.5, mg?mg.hitBurstHi:burstColor, 34);
   if(ab.kind==='auto'){ WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; } // já entra flutuando
   wgUpdateAbilityBtn();
+}
+
+// Aura contínua ao redor do personagem ENQUANTO a habilidade está ativa — pulsa
+// e (só na 'auto', pra parecer explosão) solta faíscas de dentro pra fora, na cor
+// de magia do personagem (wgMagic(): a da Oceania já É azul, então a "aura azul"
+// dela sai de graça reaproveitando a mesma função pro escudo, só sem as faíscas
+// — o escudo é uma aura calma, a 'auto' é uma explosão contínua).
+let _wgAuraEmitAt=0;
+function wgDrawAbilityAura(cx,cy,size,now){
+  const mg=wgMagic();
+  const col=mg?mg.ring1Hi:'#ffd34d';
+  const exploding=WG.abilityKind==='auto';
+  const pulse=0.5+0.5*Math.sin(now*(exploding?7:3));
+  ctx.save();
+  const R=size*(0.55+pulse*(exploding?0.16:0.08));
+  const grd=ctx.createRadialGradient(cx,cy,size*0.06,cx,cy,R);
+  grd.addColorStop(0,col+'70'); grd.addColorStop(0.55,col+'28'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.globalAlpha=0.8;
+  ctx.shadowColor=col; ctx.shadowBlur=GFX.glow?16:0;
+  ctx.beginPath(); ctx.arc(cx,cy,size*(0.4+pulse*(exploding?0.07:0.04)),0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+  if(exploding && now-_wgAuraEmitAt>0.1){
+    _wgAuraEmitAt=now;
+    for(let i=0;i<4;i++){
+      const ang=Math.random()*Math.PI*2, dist=size*(0.15+Math.random()*0.3);
+      spawnBurst(cx+Math.cos(ang)*dist, cy+Math.sin(ang)*dist*0.6, col, 2);
+    }
+  }
 }
 
 function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (W) / 0-1 = chão (S)
@@ -9746,10 +9785,13 @@ function wgApplyMobileHud(){
     else { pb.style.top=''; pb.style.left=''; }
   }
   if(sb) sb.style.display = on ? 'none' : '';
-  // Botão de habilidade: sempre logo abaixo do botão de pausa, mesma coluna.
+  // Botão de habilidade: redondo, do lado do botão de pausa (mesma linha) — o
+  // deslocamento pra cima (-8px) centraliza o círculo (44px) contra a altura
+  // menor do botão de pausa (~28px); o deslocamento pra direita (+112px) dá
+  // espaço de sobra pro texto "⏸ PAUSA"/"▶ JOGO" nunca encostar.
   if(ab){
-    if(on && WG.portrait){ ab.style.top=(WG.safeT+100+38)+'px'; ab.style.left='12px'; }
-    else if(on){ ab.style.top='90px'; ab.style.left=WG.safeL+'px'; }
+    if(on && WG.portrait){ ab.style.top=(WG.safeT+100-8)+'px'; ab.style.left='124px'; }
+    else if(on){ ab.style.top='44px'; ab.style.left=(WG.safeL+112)+'px'; }
     else { ab.style.top=''; ab.style.left=''; }
   }
   if(pad){
@@ -9775,7 +9817,7 @@ function wgInit(){
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
-  WG.abilityUsed=false; WG.abilityKind=null; WG.abilityUntil=0; wgUpdateAbilityBtn(); // habilidade especial: 1 uso por música
+  WG.abilityKind=null; WG.abilityUntil=0; WG.abilityReadyAt=0; wgUpdateAbilityBtn(); // habilidade especial: recarrega a cada WG_ABILITY_COOLDOWN
   wgHoldSfxStop();
   // Fogo em ESTÁGIOS: a cada 15s troca de paleta (matizes da CAPA da música) e sobe um
   // pouco de altura. Sem capa válida (CORS), usa matizes quentes variados.
@@ -10609,9 +10651,9 @@ function drawWargame(t){
   // Habilidade 'auto' ativa: mantém a pose de flutuar/atacar o tempo todo (sem isso
   // o airTimer zeraria entre uma nota e outra e ela voltaria a correr no chão).
   if(WG.abilityKind==='auto' && wgAbilityActive()) WG.airTimer=WG_AIR_HOLD;
-  // Botão ✨ pulsa enquanto QUALQUER habilidade está ativa (auto ou escudo).
+  // Botão ✨: pulsa enquanto ativa, mostra a contagem da recarga enquanto esfria.
   const _abBtn=document.getElementById('wgAbilityBtn');
-  if(_abBtn) _abBtn.classList.toggle('active', wgAbilityActive());
+  if(_abBtn){ _abBtn.classList.toggle('active', wgAbilityActive()); wgUpdateAbilityBtn(); }
   WG.airAnimT+=dt;
   const airActive = WG.airTimer>0 || holdingAir;
   const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
@@ -10852,6 +10894,8 @@ function drawWargame(t){
     drawX=WG.charX; feet=WG.feetY-bob+tremble;
   }
   const chDraw = chH * wgCharScale();   // altura VISUAL (por personagem); pés continuam ancorados em `feet`
+  // Aura da habilidade especial: atrás do sprite, "vindo de dentro" dela.
+  if(wgAbilityActive()) wgDrawAbilityAura(drawX, feet-chDraw*0.5, chDraw, st);
   const mzRatio=(spr.naturalHeight? spr.naturalWidth/spr.naturalHeight : 0.7), mzDw=chDraw*mzRatio;
   ctx.save(); ctx.translate(drawX, feet); if(mzRot) ctx.rotate(mzRot);
   if(WG.waving && glow){ ctx.shadowColor='#ffd34d'; ctx.shadowBlur=32; }
