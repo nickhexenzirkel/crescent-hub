@@ -215,10 +215,21 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     {id:'__menu',      label:'Menu',      icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>},
   ];
 
+  // Portal do Colaborador 20% menor nas abas "normais" — pedido explícito pra
+  // não ficar gigante em tela grande, igual um Ctrl+- pra 80% do navegador.
+  // Os minijogos (Wave/Paint/Stop/Faster) ficam de FORA: eles calculam tudo
+  // (posição de personagem, hit-box, layout) a partir do window.innerWidth/
+  // innerHeight de VERDADE — zoom deixaria o clique/toque desalinhado do que
+  // é desenhado. O zoom também só envolve Sidebar+conteúdo, não os modais
+  // (Configurações, Onboarding), que ficam fora dele e continuam no tamanho
+  // real da tela — modal encolhido junto seria estranho de usar.
+  const isGameTab = tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster';
+  const zoomOut = !isMobile && !isGameTab;
   return(
-    <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
+    <>
+    <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
       {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>}
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
         // do conteúdo mais largo lá dentro (min-content), IGNORANDO o
@@ -251,10 +262,19 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
           overflowX: 'hidden',
           minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster') ? 0 : undefined,
           paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
-          height: tab==='unikowave' ? '100vh' : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined))}}>
+          // Com zoomOut, o 100vh/52px têm que compensar o encolhimento (÷0.8) —
+          // mesma lógica do zoom do Seletor de módulos: sem isso a caixa sobra
+          // menor que a tela (zoomOut sempre implica desktop, então os outros
+          // ramos do ternário original — mobile/jogo — não precisam dessa conta).
+          height: tab==='unikowave' ? '100vh' : (zoomOut
+            ? (tab==='inicio' ? 'calc(100vh / 0.8)' : 'calc((100vh - 52px) / 0.8)')
+            : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined)))}}>
           {render()}
         </div>
       </div>
+    </div>
+    {/* Daqui pra baixo fica FORA do zoom de propósito (ver zoomOut acima) —
+        modais/overlays devem continuar no tamanho real da tela. */}
 
       {/* ── Uniko Wave (celular): botões flutuantes de sair + tela cheia ── */}
       {(isMobile || celularDeitado) && tab==='unikowave' && (
@@ -589,7 +609,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
