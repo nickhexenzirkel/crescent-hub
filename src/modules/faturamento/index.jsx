@@ -34,8 +34,27 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
   /* "Sair" normalmente é só o onBack do App (que é o Voltar do navegador). A
      exceção é ter uma ferramenta de PDF aberta: ela tem entrada própria no
      histórico (ver rotaFerramenta.js), então um Voltar só cairia na escolha de
-     ferramenta em vez de sair do módulo — aí são dois de uma vez. */
-  const sair = () => { if (ferramentaDaUrl()) window.history.go(-2); else onBack(); };
+     ferramenta em vez de sair do módulo — aí são dois de uma vez.
+     BUG real corrigido (set/2026): isso era `window.history.go(-2)`, que
+     assume uma profundidade FIXA de histórico — funcionava só se a pilha
+     tivesse exatamente aquele formato. Chegar na Ferramenta de Edição por um
+     atalho favoritado (ou qualquer navegação com uma pilha mais rasa/funda do
+     que o esperado) fazia o "-2" ultrapassar a tela de módulos e cair numa
+     entrada sem `screen` — o App tratava isso como sessão perdida e mandava
+     pra tela de login, mesmo com o token continuando válido. Fix: em vez de
+     "pula 2 de uma vez", desfaz a entrada da ferramenta (1 passo de verdade)
+     e só DEPOIS de esse passo realmente acontecer (espera o popstate dele)
+     sai do módulo (mais 1 passo) — sempre 2 passos RELATIVOS a onde a pessoa
+     está agora, nunca 2 posições absolutas que podem não existir. */
+  const sair = () => {
+    if (!ferramentaDaUrl()) { onBack(); return; }
+    const aposFecharFerramenta = () => {
+      window.removeEventListener('popstate', aposFecharFerramenta);
+      onBack();
+    };
+    window.addEventListener('popstate', aposFecharFerramenta);
+    voltarDaFerramenta();
+  };
 
   const safeSetTab = (id) => {
     if (GATED_TABS.has(id)) { if (!canSeeTab(id, authUser, isAdmin)) return; }

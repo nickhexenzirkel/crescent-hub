@@ -163,7 +163,7 @@ export default function CrescentHub() {
     const token = localStorage.getItem('ch_token');
     if (!token) {
       // Semeia o estado inicial — garante que voltar ao início funcione
-      window.history.replaceState({ screen: 'landing' }, '');
+      window.history.replaceState({ screen: 'landing' }, '', '#landing');
       setAuthChecked(true);
       return;
     }
@@ -174,14 +174,22 @@ export default function CrescentHub() {
           setAuthUser(d.user);
           carregarNomesExibicao();
           ss('modules');
-          window.history.replaceState({ screen: 'modules' }, '');
+          // Também normaliza a URL (3º argumento), não só o state — sem isso, um
+          // hash de rota interna de um módulo (ex.: #faturamento/oficina/editor,
+          // ver rotaFerramenta.js) sobrevivia a um F5/reabertura de aba: o state
+          // virava {screen:'modules'} certinho, mas a URL ficava presa na rota
+          // velha. Essa entrada "remendada" (state novo + URL velha) é o que
+          // fazia o `sair()` da Oficina Estelar (2 passos de volta) ultrapassar
+          // a tela de módulos depois — a causa real do bug "favoritar/abrir o
+          // Editor de PDF parece deslogar".
+          window.history.replaceState({ screen: 'modules' }, '', '#modules');
           loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
         } else {
           localStorage.removeItem('ch_token');
-          window.history.replaceState({ screen: 'landing' }, '');
+          window.history.replaceState({ screen: 'landing' }, '', '#landing');
         }
       })
-      .catch(() => { window.history.replaceState({ screen: 'landing' }, ''); })
+      .catch(() => { window.history.replaceState({ screen: 'landing' }, '', '#landing'); })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -194,13 +202,19 @@ export default function CrescentHub() {
   useEffect(() => {
     const onPop = (e) => {
       const s = e.state?.screen;
-      if (s) ss(s);
-      // state nulo = entrada anterior ao site (sem estado) → vai para o início
-      else ss('landing');
+      if (s) { ss(s); return; }
+      // state nulo = entrada sem `screen` no histórico (ex.: uma entrada de
+      // antes do replaceState do login rodar, ou uma pulada de mais de um
+      // `history.go()` de dentro de algum módulo — ver `sair()` da Oficina
+      // Estelar). Quem já está LOGADO nunca deve cair na landing por causa
+      // disso — parecia "sessão caiu, precisa logar de novo" mesmo com o
+      // token continuando válido (bug real relatado: favoritar/abrir o Editor
+      // de PDF). Só quem nunca autenticou cai na landing de verdade.
+      ss(authUser ? 'modules' : 'landing');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [authUser]);
 
   const handleLogin = (user) => {
     setAuthUser(user);
