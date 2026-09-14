@@ -1324,6 +1324,23 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
   pointer-events:all;transition:all .2s;z-index:6;
 }
 #pauseBtn:hover{border-color:var(--C);color:var(--C)}
+/* Botão de habilidade especial (Guerra Estelar) — some no modo clássico, e some
+   também se o personagem não tem habilidade (wgUpdateAbilityBtn cuida disso). */
+#wgAbilityBtn{
+  display:none;
+  position:absolute;top:198px;left:14px;
+  background:rgba(255,255,255,.07);
+  border:1.5px solid rgba(255,209,77,.55);border-radius:8px;
+  color:#ffd34d;align-items:center;gap:6px;
+  font-family:var(--font-pixel);font-size:8px;font-weight:900;
+  padding:7px 12px;cursor:pointer;letter-spacing:1px;
+  pointer-events:all;transition:all .2s;z-index:6;
+}
+#wgAbilityBtn:hover{border-color:#ffe38a;background:rgba(255,209,77,.12)}
+#wgAbilityBtn.used{opacity:.35;cursor:default;filter:grayscale(1)}
+#wgAbilityBtn.used:hover{border-color:rgba(255,209,77,.55);background:rgba(255,255,255,.07)}
+#wgAbilityBtn.active{animation:wgAbilityPulse 1s ease-in-out infinite}
+@keyframes wgAbilityPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,77,.55)}50%{box-shadow:0 0 18px 4px rgba(255,209,77,.55)}}
 .res-letters{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .res-grade{font-family:var(--font-pixel);font-size:clamp(70px,18vw,130px);font-weight:900;line-height:1;animation:gPop .5s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes gPop{from{transform:scale(0) rotate(-18deg);opacity:0}}
@@ -2572,22 +2589,22 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
           <button class="wg-char-card" data-wgchar="venebra" id="wgCharVenebra" onclick="selectWgChar('venebra')">
             <img class="wg-char-img" src="images/venebra_passo2.png" alt="Lady Venebra" onerror="this.style.display='none'">
             <div class="wg-char-name">🩸 LADY VENEBRA</div>
-            <div class="wg-char-desc">Vampira da realeza. Finisher: Explosão de Magia Sanguínea.</div>
+            <div class="wg-char-desc">Vampira da realeza. Finisher: Explosão de Magia Sanguínea. Habilidade (Espaço): Frenesi Sangrento.</div>
           </button>
           <button class="wg-char-card" data-wgchar="oceania" id="wgCharOceania" onclick="selectWgChar('oceania')">
             <img class="wg-char-img" src="images/oceania_passo2.png" alt="Oceania" onerror="this.style.display='none'">
             <div class="wg-char-name">🌊 OCEANIA</div>
-            <div class="wg-char-desc">Rainha dos Mares. Finisher: Maremoto Abissal.</div>
+            <div class="wg-char-desc">Rainha dos Mares. Finisher: Maremoto Abissal. Habilidade (Espaço): Proteção Oceânica.</div>
           </button>
           <button class="wg-char-card" data-wgchar="ashen" id="wgCharAshen" onclick="selectWgChar('ashen')">
             <img class="wg-char-img" src="images/ashen_passo2.png" alt="Ashen" onerror="this.style.display='none'">
             <div class="wg-char-name">🔥 ASHEN</div>
-            <div class="wg-char-desc">Cavaleiro das Cinzas. Finisher: Cinzas do Fim.</div>
+            <div class="wg-char-desc">Cavaleiro das Cinzas. Finisher: Cinzas do Fim. Habilidade (Espaço): Lâmina Vulcânica.</div>
           </button>
           <button class="wg-char-card" data-wgchar="icydoll" id="wgCharIcy" onclick="selectWgChar('icydoll')">
             <img class="wg-char-img" src="images/icy_passo2.png" alt="Icy the Doll" onerror="this.style.display='none'">
             <div class="wg-char-name">💋 ICY THE DOLL</div>
-            <div class="wg-char-desc">Modelo luxuosa. Finisher: Holofote Fatal.</div>
+            <div class="wg-char-desc">Modelo luxuosa. Finisher: Holofote Fatal. Habilidade (Espaço): Ataque Luxuoso.</div>
           </button>
         </div>
       </div>
@@ -2622,6 +2639,10 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Barra de vida: errar muito esgota e perde a partida -->
   <div id="lifeBar"><div id="lifeFill"></div><div id="lifeTxt"><span>❤ VIDA</span><span id="lifePct">100%</span></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
+  <!-- Habilidade especial da Guerra Estelar (1x por música): Espaço ou clique/toque aqui -->
+  <button id="wgAbilityBtn" onclick="wgActivateAbility()" title="Habilidade especial (Espaço)">
+    <span id="wgAbilityIcon">✨</span> <span id="wgAbilityLabel">HABILIDADE</span>
+  </button>
   <!-- Guerra Estelar no CELULAR: botões grandes de cima (ar) e baixo (chão); segurar = nota longa -->
   <div id="wgPad" aria-hidden="false">
     <button class="wgpad-btn" id="wgBtnUp" aria-label="Cima (ar)"><span>▲</span><small>AR</small></button>
@@ -6674,8 +6695,10 @@ function scoreMiss(){
     addJudge(VP_X, VP_Y+(HIT_YP-VP_Y)*0.55, `COMBO ✕ (${hadCombo})`, '#ff4444');
   }
   // ── Vida: cada erro tira vida; zerou → perde a partida ──
+  // Proteção Oceânica (Oceania): por 15s não perde vida errando/esquecendo nota — o
+  // resto (combo zera, "ERROU" na tela) continua normal, só a vida fica protegida.
   const dmg=(DIFF_CFG[difficulty]&&DIFF_CFG[difficulty].lifeDmg)||8;
-  score.health=Math.max(0,(score.health??100)-dmg);
+  if(!wgShieldActive()) score.health=Math.max(0,(score.health??100)-dmg);
   updateLifeBar();
   updateHUD();
   if(score.health<=0) gameOver();
@@ -6706,7 +6729,9 @@ function guardJudge(text,color){
 }
 function guardDamage(dmg){
   score.combo=0;
-  score.health=Math.max(0,(score.health??100)-dmg);
+  // Proteção Oceânica também cobre "apertar sem querer" (dois botões juntos, spam) —
+  // é exatamente esse o caso de uso dela.
+  if(!wgShieldActive()) score.health=Math.max(0,(score.health??100)-dmg);
   try{ triggerScreenFlash('miss'); }catch(_){}
   updateLifeBar(); updateHUD();
   if(score.health<=0) gameOver();
@@ -9455,6 +9480,8 @@ const WG = {
   finisherStart:0, finisherKicks:0, finisherNeed:30, lungeT:0, resultScheduled:false,
   kickX:0, kickY:0, kickAng:0, waving:false, waveT:0, waveShot:false, waveBeam:false,
   beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null, embers:[], fireRecolorAt:30,
+  // Habilidade especial por personagem (ver WG_ABILITY) — 1 uso por música, Espaço/botão ativa.
+  abilityUsed:false, abilityKind:null, abilityUntil:0,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
@@ -9517,6 +9544,63 @@ const WG_LINES = {
   },
 };
 function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!=null) ? c[key] : WG_LINES.mizuki[key]; }
+
+// ── HABILIDADE ESPECIAL (por personagem) ──────────────────────────────────
+// Espaço (ou o botão ✨ do HUD) ativa 1x por música. Dois efeitos:
+//   'auto'   → flutua e acerta sozinha TODA nota que chegar por `dur` segundos
+//              (perfeito, sem precisar apertar W/S) — Venebra, Ashen, Icy, Supernova.
+//   'shield' → por `dur` segundos não perde vida errando, esquecendo nota ou
+//              apertando errado (o resto — combo, "ERROU" na tela — continua
+//              normal, só a vida fica protegida) — Oceania.
+// Supernova ainda não tem sprite/card (ver WG_CHAR_FRAMES, wgCharGrid no HTML) —
+// a entrada dela aqui já deixa a habilidade pronta pro dia que a arte chegar,
+// só registrando o personagem nos outros pontos (wgChar nunca vale 'supernova'
+// hoje, então esse trecho fica inerte até lá).
+const WG_ABILITY = {
+  venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:10, sfx:'beam',   say:'🩸 FRENESI SANGRENTO! 🩸' },
+  oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:15, sfx:'charge', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
+  ashen:     { name:'Lâmina Vulcânica',   kind:'auto',   dur:10, sfx:'beam',   say:'🔥 LÂMINA VULCÂNICA! 🔥' },
+  icydoll:   { name:'Ataque Luxuoso',     kind:'auto',   dur:10, sfx:'beam',   say:'✨ ATAQUE LUXUOSO! ✨' },
+  supernova: { name:'Explosão Estelar',   kind:'auto',   dur:10, sfx:'beam',   say:'💥 EXPLOSÃO ESTELAR! 💥' },
+};
+const WG_ABILITY_ICON = { venebra:'🩸', oceania:'🌊', ashen:'🔥', icydoll:'✨', supernova:'💥' };
+function wgAbility(){ return WG_ABILITY[wgChar] || null; }
+function wgAbilityActive(){ return WG.abilityUntil>songTime(); }
+function wgShieldActive(){ return gameMode==='wargame' && WG.abilityKind==='shield' && wgAbilityActive(); }
+
+// Atualiza o botão ✨ do HUD: mostra/esconde (só personagem com habilidade),
+// ícone/nome, e o estado usada/ativa. Chamado ao iniciar a partida, ao ativar
+// e (o `.active`, que pulsa) a cada quadro em drawWargame.
+function wgUpdateAbilityBtn(){
+  const btn=document.getElementById('wgAbilityBtn'); if(!btn) return;
+  const ab=wgAbility();
+  if(gameMode!=='wargame' || !ab){ btn.style.display='none'; return; }
+  btn.style.display='flex';
+  btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`}`;
+  const icoEl=document.getElementById('wgAbilityIcon'), lblEl=document.getElementById('wgAbilityLabel');
+  if(icoEl) icoEl.textContent=WG_ABILITY_ICON[wgChar]||'✨';
+  if(lblEl) lblEl.textContent=WG.abilityUsed ? 'USADA' : ab.name.toUpperCase();
+  btn.classList.toggle('used', WG.abilityUsed && !wgAbilityActive());
+}
+
+// Ativação (Espaço ou clique no botão ✨). 1 uso por música.
+function wgActivateAbility(){
+  if(gameMode!=='wargame' || gameState!=='playing') return;
+  if(WG.phase!=='play' || WG.attack) return;          // não durante finisher/evento/ataque do boss
+  if(WG.abilityUsed) return;
+  const ab=wgAbility(); if(!ab) return;
+  WG.abilityUsed=true; WG.abilityKind=ab.kind; WG.abilityUntil=songTime()+ab.dur;
+  wgSfx(ab.sfx); wgSay('mizuki', ab.say, 2.8);
+  // Sem isso, a fala periódica aleatória (a cada ~13-20s) podia disparar 1-2s depois
+  // e apagar a fala de ativação antes de dar tempo de ler.
+  WG.nextMizukiSayAt=Math.max(WG.nextMizukiSayAt, songTime()+3.5);
+  const mg=wgMagic();
+  const burstColor = mg ? mg.ring1Hi : '#ffd34d';
+  rings.push({x:WG.charX+WG.charH*0.3,y:WG.floorFeet-WG.charH*0.5,r:8,maxR:CH*0.5,life:.7,decay:.1,color:burstColor,w:6,flash:true});
+  spawnBurst(WG.charX+WG.charH*0.3,WG.floorFeet-WG.charH*0.5, mg?mg.hitBurstHi:burstColor, 34);
+  if(ab.kind==='auto'){ WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; } // já entra flutuando
+  wgUpdateAbilityBtn();
+}
 
 function wgIsAir(note){ return note.lane>=2; } // lanes 2-3 = ar (W) / 0-1 = chão (S)
 function wgPick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -9654,6 +9738,7 @@ function wgComputeLayout(){
 // de acertos do modo normal (que no celular ficava por cima da barra do boss).
 function wgApplyMobileHud(){
   const pb=document.getElementById('pauseBtn'), pad=document.getElementById('wgPad'), sb=document.getElementById('scoreBreakdown');
+  const ab=document.getElementById('wgAbilityBtn');
   const on = gameMode==='wargame' && WG.mob;
   if(pb){
     if(on && WG.portrait){ pb.style.top=(WG.safeT+100)+'px'; pb.style.left='12px'; }
@@ -9661,6 +9746,12 @@ function wgApplyMobileHud(){
     else { pb.style.top=''; pb.style.left=''; }
   }
   if(sb) sb.style.display = on ? 'none' : '';
+  // Botão de habilidade: sempre logo abaixo do botão de pausa, mesma coluna.
+  if(ab){
+    if(on && WG.portrait){ ab.style.top=(WG.safeT+100+38)+'px'; ab.style.left='12px'; }
+    else if(on){ ab.style.top='90px'; ab.style.left=WG.safeL+'px'; }
+    else { ab.style.top=''; ab.style.left=''; }
+  }
   if(pad){
     pad.classList.toggle('on', on);
     pad.style.setProperty('--pad', WG.padSize+'px');
@@ -9684,6 +9775,7 @@ function wgInit(){
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
+  WG.abilityUsed=false; WG.abilityKind=null; WG.abilityUntil=0; wgUpdateAbilityBtn(); // habilidade especial: 1 uso por música
   wgHoldSfxStop();
   // Fogo em ESTÁGIOS: a cada 15s troca de paleta (matizes da CAPA da música) e sobe um
   // pouco de altura. Sem capa válida (CORS), usa matizes quentes variados.
@@ -10514,6 +10606,12 @@ function drawWargame(t){
   // ── Estado/animação da Mizuki ──
   if(WG.airTimer>0) WG.airTimer-=dt;
   if(WG.atkTimer>0) WG.atkTimer-=dt;
+  // Habilidade 'auto' ativa: mantém a pose de flutuar/atacar o tempo todo (sem isso
+  // o airTimer zeraria entre uma nota e outra e ela voltaria a correr no chão).
+  if(WG.abilityKind==='auto' && wgAbilityActive()) WG.airTimer=WG_AIR_HOLD;
+  // Botão ✨ pulsa enquanto QUALQUER habilidade está ativa (auto ou escudo).
+  const _abBtn=document.getElementById('wgAbilityBtn');
+  if(_abBtn) _abBtn.classList.toggle('active', wgAbilityActive());
   WG.airAnimT+=dt;
   const airActive = WG.airTimer>0 || holdingAir;
   const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
@@ -11220,9 +11318,22 @@ function updateMisses(){
   if(gameState!=='playing') return;
   const st=songTime();
   const wgSpecial = (gameMode==='wargame' && WG.phase==='special'); // evento: minions somem sem erro
+  // Habilidade 'auto' ativa (Frenesi Sangrento/Lâmina Vulcânica/Ataque Luxuoso/Explosão
+  // Estelar): flutua e acerta sozinha, perfeito, toda nota que chegar — igual um W/S
+  // apertado bem na hora, mas automático. Só durante WG.phase==='play' (não durante
+  // finisher/evento especial/ataque do boss, que já têm suas próprias regras).
+  const wgAbilityAuto = gameMode==='wargame' && WG.phase==='play' && !WG.attack && WG.abilityKind==='auto' && wgAbilityActive();
   for(const n of chart){
     if(n.state!=='pending') continue;
     if(wgSpecial){ if(n.hitTime<=st+0.3) n.state='gone'; continue; }
+    if(wgAbilityAuto && st>=n.hitTime){
+      const air=wgIsAir(n), laneY=air?WG.airNoteY:WG.groundNoteY;
+      n.state='perfect';
+      commitHit(n,true);
+      wgHitFx(WG.hitX,laneY,true,air?C_AIR:C_GROUND);
+      spawnDeadMinion(WG.hitX,laneY,air);
+      continue;
+    }
     if(st-n.hitTime>WIN_GOOD+0.06){ n.state='miss'; scoreMiss(); }
   }
   // No wargame o fim é controlado pelo FINISHER / morte do boss — não auto-encerra aqui.
@@ -11618,6 +11729,7 @@ document.addEventListener('keydown',e=>{
   const k=e.code.toLowerCase();
   if(k==='keyw'||k==='arrowup'){ e.preventDefault(); wgAction('air'); }
   else if(k==='keys'||k==='arrowdown'){ e.preventDefault(); wgAction('ground'); }
+  else if(k==='space'){ e.preventDefault(); wgActivateAbility(); } // habilidade especial (1x por música)
 });
 document.addEventListener('keyup',e=>{
   if(gameMode!=='wargame') return;
