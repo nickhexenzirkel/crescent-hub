@@ -265,6 +265,10 @@ canvas{display:block}
 }
 /* Tela inicial ocupa toda a área do menuMain (sem o teto de 900px dos painéis) */
 #panelHome{max-width:none!important;padding:0!important}
+/* Tela inicial: arte preenchendo tudo; COMEÇAR no canto inferior esquerdo, fora do logo
+   "WAVE" (centralizado ele encostava/tampava o logo em várias proporções de tela). */
+.home-cta{justify-content:flex-start!important}
+.home-cta .go-btn{max-width:300px!important}
 .menu-panel{
   background:rgba(255,255,255,0.04);
   border:1px solid rgba(255,255,255,0.1);
@@ -1851,14 +1855,12 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
   <div id="menuMain">
     <!-- HOME PANEL — tela inicial (arte do Uniko Wave + botão COMEÇAR) -->
     <div class="menu-panel" id="panelHome" style="padding:0;overflow:hidden">
-      <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;background:#0a0118">
-        <!-- Tela inicial: só a arte do Uniko Wave (o vídeo em looping saiu). A arte fica INTEIRA
-             (contain) e o botão ganha uma faixa própria embaixo — por cima ele tampava o "WAVE". -->
-        <div style="position:relative;flex:1;min-height:0">
-          <img id="homeHeroPhoto" src="images/tela_inicio_uniko_wave.jpg" alt="Uniko Wave"
-            style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;display:block">
-        </div>
-        <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:14px 24px 18px">
+      <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;background:#0a0118">
+        <!-- Tela inicial: só a arte do Uniko Wave, PREENCHENDO o painel todo (cover — sem
+             faixas vazias). O botão fica por cima, colado embaixo, abaixo do logo "WAVE". -->
+        <img id="homeHeroPhoto" src="images/tela_inicio_uniko_wave_v2.jpg" alt="Uniko Wave"
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 62%;display:block">
+        <div class="home-cta" style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 24px 16px">
           <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlayChoice',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>
         </div>
       </div>
