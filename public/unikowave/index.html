@@ -10071,7 +10071,7 @@ function drawWargame(t){
     const w=Math.min(CW*0.6,680), h=64, bx=(CW-w)/2, by=14;
     const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
     const col = WG.bossHitFx>0 ? '#FF8FA0' : '#FF4D6D';      // clareia no golpe, sem brilho
-    wgFlatBar(bx,by,w,h,hpPct,col,{ left:WG.bossDefeated?'BOSS - REI MORCEGO ROBÓTICO - DERROTADO':'BOSS - REI MORCEGO ROBÓTICO - O DESTRUIDOR', right:Math.round(hpPct*100)+'%' });
+    wgFlatBar(bx,by,w,h,hpPct,col,{ left:WG.bossDefeated?'REI MORCEGO ROBÓTICO - DERROTADO':'REI MORCEGO ROBÓTICO', right:Math.round(hpPct*100)+'%' });
   }
 
   // ── Notas / minions (incl. notas de segurar com linha roxa) ──
@@ -10362,9 +10362,20 @@ function wgFlatBar(x,y,w,h,pct,color,opt){
   const fw=iw*Math.max(0,Math.min(1,pct));
   if(fw>0.5){ ctx.fillStyle=color; wgRR(x+pad,y+pad,Math.max(fw,ir*2),ih,ir); ctx.fill(); }
   const fs=Math.max(11,Math.min(24,Math.round(h*0.36)));
+  const inset=Math.round(h*0.32), gap=Math.round(h*0.3);
   ctx.textBaseline='middle'; ctx.fillStyle='#fff';
-  if(opt.left){ ctx.font=`800 ${fs}px ${WG_BAR_FONT}`; ctx.textAlign='left'; ctx.fillText(opt.left, x+pad+Math.round(h*0.32), y+h/2+1); }
-  if(opt.right){ ctx.font=`800 ${fs}px ${WG_BAR_FONT}`; ctx.textAlign='right'; ctx.fillText(opt.right, x+w-pad-Math.round(h*0.32), y+h/2+1); }
+  // A % da direita tem prioridade: o texto da esquerda encolhe (e, no limite, ganha "…")
+  // pra nunca passar por cima dela — em tela estreita o nome do boss tampava a vida.
+  let rightW=0;
+  if(opt.right){ ctx.font=`800 ${fs}px ${WG_BAR_FONT}`; rightW=ctx.measureText(opt.right).width; ctx.textAlign='right'; ctx.fillText(opt.right, x+w-pad-inset, y+h/2+1); }
+  if(opt.left){
+    const maxW=w-pad*2-inset*2-(rightW?rightW+gap:0);
+    let lfs=fs, txt=opt.left;
+    ctx.font=`800 ${lfs}px ${WG_BAR_FONT}`;
+    while(lfs>11 && ctx.measureText(txt).width>maxW){ lfs--; ctx.font=`800 ${lfs}px ${WG_BAR_FONT}`; }
+    if(ctx.measureText(txt).width>maxW){ while(txt.length>1 && ctx.measureText(txt+'…').width>maxW) txt=txt.slice(0,-1); txt=txt.trimEnd()+'…'; }
+    ctx.textAlign='left'; ctx.fillText(txt, x+pad+inset, y+h/2+1);
+  }
   ctx.restore();
 }
 // Cor da vida: verde → amarelo → vermelho (sólidas)
