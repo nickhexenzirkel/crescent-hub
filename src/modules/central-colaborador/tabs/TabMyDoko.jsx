@@ -311,72 +311,67 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
             : 'Nenhum Uniko na coleção.'}
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
+      {/* Ícones pequenos e redondos — 8 por fileira. Clique expande os detalhes no modal. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: isMobile ? 8 : 14 }}>
         {orderedRoster.map(u => {
           const owned = owns(u);
           const th = u.theme;
-          const canAssist = u.canBeAssistant && hasAssistantSkin(u.id);
           const isActive = activeAssistant === u.id;
-          const okPhoto = photoOk === u.id;
-
-          if (!owned) {
-            // ── Bloqueado — mostra a arte e as informações normalmente (não é mais um
-            // "???" misterioso), só o NOME vira um aviso de bloqueio. ──
-            return (
-              <Card key={u.id} style={{ padding: 0, overflow: 'hidden', opacity: .85 }}>
-                <div style={{ position: 'relative', height: 168, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #20242c, #0d0f13)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src={u.img} alt={u.name} style={{ width: 128, height: 128, objectFit: 'contain', filter: `grayscale(.55) drop-shadow(0 0 14px ${th.accent || '#888'}55)` }}/>
-                  <div style={{ position: 'absolute', top: 10, right: 10, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,.25)' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                  </div>
-                </div>
-                <div style={{ padding: '14px 16px 16px' }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: T.textT, fontFamily: 'var(--font-brand)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                    Você ainda não tem
-                  </div>
-                  <div style={{ fontSize: 12, color: T.textT, marginBottom: criadoAtOf(u) ? 6 : 10 }}>{u.tagline}</div>
-
-                  {criadoAtOf(u) && (
-                    <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
-                      background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
-                      <IcoCal size={12}/>Criado em {new Date(criadoAtOf(u)).toLocaleDateString('pt-BR')}
-                    </div>
-                  )}
-
-                  {(u.perks || []).length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
-                      {u.perks.map((p, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: T.textT, lineHeight: 1.4 }}>
-                          <span style={{ color: T.textT, marginTop: 1, opacity: .7 }}><IcoSpark size={13}/></span>{p}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: 11.5, color: T.textT, fontStyle: 'italic' }}>Capture no Portal para desbloquear</div>
-                </div>
-              </Card>
-            );
-          }
-
-          // ── Capturado (card completo) ──
           return (
-            <Card key={u.id} style={{ padding: 0, overflow: 'hidden', animation: 'colIn .35s ease', border: `1px solid ${th.accent}55` }}>
-              <div onClick={() => setDetail(u)} title="Ver variações"
-                style={{ position: 'relative', height: 180, background: th.scene || 'radial-gradient(120% 90% at 50% 0%, #2a0810, #0b0204)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <img src={u.img} alt={u.name} style={{ width: 140, height: 140, objectFit: 'contain', filter: `drop-shadow(0 0 20px ${th.accent})` }}/>
-                {isActive && (
-                  <div style={{ position: 'absolute', top: 10, right: 10, padding: '4px 10px', borderRadius: 999, background: th.accent, color: '#fff', fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em', display: 'flex', alignItems: 'center', gap: 4 }}><IcoCheck size={11}/>ASSISTENTE</div>
-                )}
-                <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 10.5, color: '#fff', opacity: .85, fontWeight: 600 }}><IcoEye size={13}/>Ver variações</div>
-              </div>
-              <div style={{ padding: '14px 16px 16px' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.shortName || u.name}</div>
-                <div style={{ fontSize: 12, color: T.textT, marginBottom: (atOf(u.id) && !isAdminUser) || criadoAtOf(u) ? 6 : 10 }}>{u.tagline}</div>
+            <button key={u.id} onClick={() => setDetail(u)} title={u.shortName || u.name}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.07)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+              style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '50%', padding: 0, cursor: 'pointer',
+                border: `2.5px solid ${owned ? th.accent : T.border}`,
+                background: owned ? (th.scene || 'radial-gradient(120% 90% at 50% 0%,#20242c,#0d0f13)') : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                boxShadow: isActive ? `0 0 0 3px ${th.accent}55, 0 4px 14px ${th.accent}55` : (owned ? `0 2px 10px ${th.accent}33` : 'none'),
+                transition: 'transform .15s, box-shadow .15s', animation: 'colIn .3s ease' }}>
+              <img src={u.img} alt={u.name} style={{ width: '70%', height: '70%', objectFit: 'contain',
+                filter: owned ? `drop-shadow(0 0 6px ${th.accent}aa)` : 'grayscale(.6) opacity(.5)' }}/>
+              {!owned && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.18)' }}>
+                  <svg width="30%" height="30%" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" opacity=".8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                </div>
+              )}
+              {isActive && (
+                <div style={{ position: 'absolute', bottom: -1, right: -1, width: '24%', height: '24%', minWidth: 16, minHeight: 16, borderRadius: '50%', background: th.accent, border: `2px solid ${T.surface}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <IcoCheck size={9} />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-                {/* data de obtenção (só pra capturas de verdade — admin tem tudo liberado) e/ou
-                    data de criação do Uniko (só os da Oficina têm) */}
+      {/* ── Modal de detalhe: descrição, data(s), ações (foto/assistente) e variações ── */}
+      {detail && (() => {
+        const u = detail;
+        const owned = owns(u);
+        const th = u.theme || {};
+        const canAssist = owned && u.canBeAssistant && hasAssistantSkin(u.id);
+        const isActive = activeAssistant === u.id;
+        const okPhoto = photoOk === u.id;
+        const vars = owned ? getSkinVariations(u.id) : [];
+        return (
+          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, width: 'min(560px,94vw)', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.5)' }}>
+              <div style={{ position: 'relative', padding: '22px 20px', background: th.scene || 'radial-gradient(120% 90% at 50% 0%,#20242c,#0d0f13)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <button onClick={() => setDetail(null)} style={{ position: 'absolute', top: 10, right: 12, border: 'none', background: 'rgba(0,0,0,.35)', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', color: '#fff', fontSize: 20, lineHeight: 1 }}>×</button>
+                <img src={u.img} alt={u.name} style={{ width: 96, height: 96, objectFit: 'contain', filter: owned ? `drop-shadow(0 0 18px ${th.accent})` : 'grayscale(.55) opacity(.6)' }}/>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 8 }}>{u.shortName || u.name}</div>
+                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>{u.tagline}</div>
+              </div>
+
+              <div style={{ padding: '16px 20px 20px', overflowY: 'auto' }}>
+                {!owned && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 10 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    Você ainda não tem — capture no Portal para desbloquear
+                  </div>
+                )}
+
+                {/* data de obtenção (só pra capturas de verdade) e/ou de criação (só Oficina) */}
                 {((atOf(u.id) && !isAdminUser) || criadoAtOf(u)) && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                     {atOf(u.id) && !isAdminUser && (
@@ -395,59 +390,52 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
                 )}
 
                 {/* vantagens visuais */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 14 }}>
-                  {(u.perks || []).map((p, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12, color: T.textS, lineHeight: 1.4 }}>
-                      <span style={{ color: th.accent, marginTop: 1 }}><IcoSpark size={13}/></span>{p}
-                    </div>
-                  ))}
-                </div>
-
-                {/* ações */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => setAsPhoto(u.img, u.id)}
-                    style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    {okPhoto ? <><IcoCheck/>Foto salva!</> : <><IcoCam/>Usar como foto</>}
-                  </button>
-                  {canAssist && (
-                    <button onClick={() => { if (!(isActive && u.id === 'default')) setActiveAssistantSkin(isActive ? 'default' : u.id); }}
-                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        background: isActive ? (T.surfaceSub || 'rgba(0,0,0,.06)') : `linear-gradient(135deg,${th.accent2},${th.accent})`,
-                        color: isActive ? T.textS : '#fff' }}>
-                      {isActive ? (u.id === 'default' ? <><IcoCheck/>Assistente ativo</> : <><IcoUndo/>Remover assistente</>) : <><IcoBot/>Usar como assistente</>}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* ── Modal de VARIAÇÕES (carinhas/sprites do Uniko) ── */}
-      {detail && (() => {
-        const vars = getSkinVariations(detail.id);
-        const th = detail.theme || {};
-        return (
-          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, width: 'min(560px,94vw)', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.5)' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(135deg,${th.accent}22,transparent)` }}>
-                <img src={detail.img} alt={detail.name} style={{ width: 42, height: 42, objectFit: 'contain' }}/>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{detail.shortName || detail.name}</div>
-                  <div style={{ fontSize: 11.5, color: T.textT }}>Variações da carinha</div>
-                </div>
-                <button onClick={() => setDetail(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 22, lineHeight: 1 }}>×</button>
-              </div>
-              <div style={{ padding: 18, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 12 }}>
-                {vars.map((v, i) => (
-                  <div key={i} style={{ borderRadius: 14, overflow: 'hidden', border: `1px solid ${T.border}`, background: th.scene || (T.surfaceSub || 'rgba(0,0,0,.04)') }}>
-                    <div style={{ height: 92, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <img src={v.img} alt={v.label} style={{ width: 72, height: 72, objectFit: 'contain', filter: th.accent ? `drop-shadow(0 0 8px ${th.accent}aa)` : 'none' }}/>
-                    </div>
-                    <div style={{ padding: '7px 8px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: T.text, background: T.surface }}>{v.label}</div>
+                {(u.perks || []).length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 16 }}>
+                    {u.perks.map((p, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 12.5, color: T.textS, lineHeight: 1.4 }}>
+                        <span style={{ color: owned ? th.accent : T.textT, marginTop: 1, opacity: owned ? 1 : .7 }}><IcoSpark size={13}/></span>{p}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* ações (só pra quem já tem) */}
+                {owned && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: vars.length ? 18 : 0 }}>
+                    <button onClick={() => setAsPhoto(u.img, u.id)}
+                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      {okPhoto ? <><IcoCheck/>Foto salva!</> : <><IcoCam/>Usar como foto</>}
+                    </button>
+                    {canAssist && (
+                      <button onClick={() => { if (!(isActive && u.id === 'default')) setActiveAssistantSkin(isActive ? 'default' : u.id); }}
+                        style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          background: isActive ? (T.surfaceSub || 'rgba(0,0,0,.06)') : `linear-gradient(135deg,${th.accent2},${th.accent})`,
+                          color: isActive ? T.textS : '#fff' }}>
+                        {isActive ? (u.id === 'default' ? <><IcoCheck/>Assistente ativo</> : <><IcoUndo/>Remover assistente</>) : <><IcoBot/>Usar como assistente</>}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* variações (carinhas/sprites) */}
+                {vars.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                      <IcoEye size={13}/>Variações da carinha
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(90px,1fr))', gap: 10 }}>
+                      {vars.map((v, i) => (
+                        <div key={i} style={{ borderRadius: 14, overflow: 'hidden', border: `1px solid ${T.border}`, background: th.scene || (T.surfaceSub || 'rgba(0,0,0,.04)') }}>
+                          <div style={{ height: 76, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={v.img} alt={v.label} style={{ width: 58, height: 58, objectFit: 'contain', filter: th.accent ? `drop-shadow(0 0 8px ${th.accent}aa)` : 'none' }}/>
+                          </div>
+                          <div style={{ padding: '6px 7px', textAlign: 'center', fontSize: 10.5, fontWeight: 600, color: T.text, background: T.surface }}>{v.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
