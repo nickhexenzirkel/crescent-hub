@@ -1,16 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
 import { USER, getAuthUser, supabase as _supabase } from '../../../contexts/user';
-import { Card, StarDivider } from '../../../shared/components';
 import { computePontoDays, loadColaboradorPonto } from '../../../shared/pontoCalc';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const BRL = v => 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const Ico = ({ d, size = 14, stroke = 'currentColor' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+const Ico = ({ d, size = 14, stroke = 'currentColor', sw = 1.8, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}
+    stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 );
+
+// Glifos usados no layout (traço estilo feather).
+const G = {
+  clock:     <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></>,
+  calendar:  <><rect x="3" y="4.5" width="18" height="17" rx="2.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="3" y1="10" x2="21" y2="10" /></>,
+  calPlus:   <><rect x="3" y="4.5" width="18" height="17" rx="2.5" /><line x1="16" y1="2.5" x2="16" y2="6.5" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="12" y1="13.5" x2="12" y2="18" /><line x1="9.75" y1="15.75" x2="14.25" y2="15.75" /></>,
+  building:  <><rect x="4.5" y="3" width="15" height="18" rx="1.5" /><path d="M9 7h1.5M13.5 7H15M9 11h1.5M13.5 11H15M9 15h1.5M13.5 15H15M10.5 21v-3h3v3" /></>,
+  arrowUp:   <><line x1="12" y1="19" x2="12" y2="5" /><polyline points="5.5 11.5 12 5 18.5 11.5" /></>,
+  arrowDown: <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="5.5 12.5 12 19 18.5 12.5" /></>,
+  upCircle:  <><circle cx="12" cy="12" r="9" /><polyline points="8.5 11.5 12 8 15.5 11.5" /><line x1="12" y1="16" x2="12" y2="8.5" /></>,
+  downCircle:<><circle cx="12" cy="12" r="9" /><polyline points="8.5 12.5 12 16 15.5 12.5" /><line x1="12" y1="8" x2="12" y2="15.5" /></>,
+  money:     <><circle cx="12" cy="12" r="9" /><path d="M14.6 9.3c-.5-.8-1.4-1.3-2.6-1.3-1.5 0-2.5.8-2.5 1.9 0 2.6 5.1 1.4 5.1 4.1 0 1.1-1.1 2-2.6 2-1.2 0-2.2-.5-2.7-1.4M12 6.5V8M12 16v1.5" /></>,
+  coins:     <><ellipse cx="9.5" cy="6" rx="6" ry="2.6" /><path d="M3.5 6v5c0 1.4 2.7 2.6 6 2.6M3.5 11v5c0 1.4 2.7 2.6 6 2.6M15.5 6v2.5" /><circle cx="17" cy="16" r="4.2" /><polyline points="17 14.2 17 16 18.2 17" /></>,
+  search:    <><circle cx="11" cy="11" r="7" /><line x1="20.5" y1="20.5" x2="16.2" y2="16.2" /></>,
+  filter:    <polygon points="21.5 4 2.5 4 10 12.9 10 19 14 21 14 12.9 21.5 4" />,
+  chevR:     <polyline points="9 18 15 12 9 6" />,
+  chevD:     <polyline points="6 9 12 15 18 9" />,
+  trash:     <><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M9 6V4h6v2" /></>,
+};
+
+// Mistura duas cores hex (t = peso de b). Cores fora do formato caem na primeira.
+const hexRgb = h => {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(h || '');
+  if (!m) return null;
+  let s = m[1]; if (s.length === 3) s = s.split('').map(c => c + c).join('');
+  return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16));
+};
+const mix = (a, b, t) => {
+  const A = hexRgb(a), B = hexRgb(b);
+  if (!A || !B) return a;
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('');
+};
+const alpha = (h, a) => { const c = hexRgb(h); return c ? `rgba(${c[0]},${c[1]},${c[2]},${a})` : h; };
 
 const calcHoras = (inicio, fim) => {
   if (!inicio || !fim) return 0;
@@ -31,9 +63,9 @@ const fmtData = iso => {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
 };
 
-const onlyDigits = s => (s || '').replace(/\D/g, '');
 const fmtMin = m => { const a = Math.abs(Math.round(m)), h = Math.floor(a / 60), mm = a % 60; return `${m < 0 ? '-' : ''}${h}h${mm.toString().padStart(2, '0')}`; };
 const diaSemana = iso => { try { return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long' }); } catch { return ''; } };
+const hhmm = t => (t || '').slice(0, 5);
 
 const nowTime = () =>
   new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo', hour12: false });
@@ -41,11 +73,31 @@ const nowTime = () =>
 const todayIso = () =>
   new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
-const STATUS_STYLE = {
-  pendente:  { bg: 'rgba(216,144,48,0.15)',  color: '#D89030' },
-  aprovado:  { bg: 'rgba(26,156,112,0.12)',  color: '#1A9C70' },
-  rejeitado: { bg: 'rgba(192,64,80,0.12)',   color: '#C04050' },
+// Cores de status: mais vivas nos temas escuros, mais sóbrias nos claros.
+const statusStyle = (status) => {
+  const d = T.dark;
+  const S = {
+    pendente:  { label: 'Pendente',  bg: d ? 'rgba(245,176,70,0.14)' : 'rgba(216,144,48,0.13)', color: d ? '#F5B046' : '#B97416' },
+    aprovado:  { label: 'Aprovado',  bg: d ? 'rgba(52,211,153,0.13)' : 'rgba(26,156,112,0.11)', color: d ? '#3DDC97' : '#168A62' },
+    rejeitado: { label: 'Rejeitado', bg: d ? 'rgba(248,113,133,0.14)' : 'rgba(192,64,80,0.11)', color: d ? '#FF7A8E' : '#C04050' },
+    negativa:  { label: 'Ponto',     bg: T.surfaceSub, color: T.textS },
+  };
+  return S[status] || S.pendente;
 };
+const POS = () => (T.dark ? { bg: 'rgba(52,211,153,0.13)', color: '#3DDC97' } : { bg: 'rgba(26,156,112,0.11)', color: '#168A62' });
+const NEG = () => (T.dark ? { bg: 'rgba(248,113,133,0.14)', color: '#FF7A8E' } : { bg: 'rgba(192,64,80,0.11)', color: '#C04050' });
+
+const FILTROS = [
+  { grupo: 'Tipo', itens: [['todos', 'Todos os tipos'], ['extra', 'Horas extras'], ['feriado', 'Feriado / Domingo'], ['negativa', 'Negativas do ponto']] },
+  { grupo: 'Status', itens: [['pendente', 'Pendentes'], ['aprovado', 'Aprovados'], ['rejeitado', 'Rejeitados']] },
+];
+
+const HeroStat = ({ icon, color, children }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'rgba(255,255,255,.86)', whiteSpace: 'nowrap' }}>
+    <Ico d={icon} size={19} stroke={color} />
+    {children}
+  </div>
+);
 
 const TabHoras = () => {
   const isMobile  = useIsMobile();
@@ -62,6 +114,8 @@ const TabHoras = () => {
   const [msg,       setMsg]       = useState('');
   const [horaFimErr, setHoraFimErr] = useState('');
   const [search,    setSearch]    = useState('');
+  const [filtro,    setFiltro]    = useState('todos');
+  const [aberto,    setAberto]    = useState(null);
   const [form,      setForm]      = useState({
     data: new Date().toISOString().slice(0, 10),
     descricao: '',
@@ -104,7 +158,6 @@ const TabHoras = () => {
     await loadRegistros();
   };
 
-  const totalHorasCalc = registros.reduce((a, r) => a + Number(r.horas_calculadas || 0), 0);
   const totalValor     = registros.reduce((a, r) => a + Number(r.valor_total || 0), 0);
 
   // Banco LÍQUIDO = horas extras (não rejeitadas) − horas negativas do ponto.
@@ -153,98 +206,238 @@ const TabHoras = () => {
     setSaving(false);
   };
 
-  const filtrados = registros.filter(r =>
-    r.descricao.toLowerCase().includes(search.toLowerCase())
-  );
+  // Histórico unificado: registros de extra + dias negativos do ponto, do mais recente pro mais antigo.
+  const itens = [
+    ...registros.map(r => ({ kind: 'extra', key: 'r' + r.id, data: r.data, r })),
+    ...negDays.map(d => ({ kind: 'negativa', key: 'n' + d.data, data: d.data, d })),
+  ].sort((a, b) => (a.data === b.data ? 0 : a.data < b.data ? 1 : -1));
+
+  const q = search.trim().toLowerCase();
+  const filtrados = itens.filter(it => {
+    if (filtro === 'extra'    && it.kind !== 'extra') return false;
+    if (filtro === 'feriado'  && !(it.kind === 'extra' && it.r.feriado_domingo)) return false;
+    if (filtro === 'negativa' && it.kind !== 'negativa') return false;
+    if (['pendente', 'aprovado', 'rejeitado'].includes(filtro) && !(it.kind === 'extra' && it.r.status === filtro)) return false;
+    if (!q) return true;
+    const alvo = it.kind === 'extra'
+      ? `${it.r.descricao} ${fmtData(it.r.data)} ${it.r.status}`
+      : `ponto negativa ${fmtData(it.data)} ${diaSemana(it.data)}`;
+    return alvo.toLowerCase().includes(q);
+  });
+
+  // ── Paleta do cabeçalho: tom profundo do tema com brilho nas pontas ──
+  const heroBase   = mix(T.blue, '#070618', T.dark ? 0.72 : 0.62);
+  const heroMid    = mix(T.blue, '#070618', T.dark ? 0.84 : 0.78);
+  const heroGlow   = T.blueL;
+  const heroAccent = mix(T.blueL, '#FFFFFF', 0.38);
+  const saldoCor   = netPos ? '#FFFFFF' : '#FFB3BE';
+  const pontoNeg   = pontoBalanceMin < 0;
+
+  const inputBase = {
+    height: 44, borderRadius: 12, border: `1px solid ${T.border}`, background: T.surfaceInput || T.surfaceSub,
+    color: T.text, fontFamily: 'var(--font-body)', fontSize: 13.5, outline: 'none', boxSizing: 'border-box',
+  };
 
   return (
     <div className="fi" style={{ fontFamily: 'var(--font-body)' }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .bh-row{transition:background .16s, border-color .16s}
+        .bh-row:hover{background:${T.itemHover || T.surfaceSub} !important}
+        .bh-row:hover .bh-chev{color:${T.text} !important}
+        .bh-cta{transition:transform .16s, box-shadow .16s}
+        .bh-cta:hover{transform:translateY(-1px);box-shadow:0 12px 30px ${alpha(T.blueL, 0.45)} !important}
+        .bh-field:focus-within{border-color:${alpha(T.blue, 0.55)} !important}
+        .bh-select option, .bh-select optgroup{background:${T.surface};color:${T.text}}
+        .bh-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px) auto;align-items:center}
+        .bh-head{display:flex;align-items:center;gap:20px}
+        .bh-tools{display:flex;gap:12px}
+        .bh-search{width:330px}
+        .bh-filter{width:230px}
+        @container (max-width: 1380px){
+          .bh-hero{grid-template-columns:minmax(0,1fr) auto}
+          .bh-hero-title{grid-column:1 / -1}
+        }
+        @container (max-width: 980px){
+          .bh-head{flex-direction:column;align-items:stretch}
+          .bh-search{flex:1;width:auto}
+        }
+        @container (max-width: 700px){
+          .bh-hero{grid-template-columns:minmax(0,1fr)}
+          .bh-hero .bh-cta{width:100%}
+          .bh-tools{flex-direction:column}
+          .bh-search,.bh-filter{width:100%;flex:none}
+        }
+      `}</style>
 
-      {/* ── BANNER (saldo LÍQUIDO: extras − negativas do ponto) ── */}
-      <div style={{
-        background: netPos ? `linear-gradient(135deg,${T.blue},${T.blueL})` : 'linear-gradient(135deg,#C04050,#E0697A)',
-        borderRadius: 18, padding: isMobile ? '22px 16px' : '28px 30px', marginBottom: 22,
-        textAlign: 'center', boxShadow: `0 8px 28px ${netPos ? 'rgba(78,143,168,0.25)' : 'rgba(192,64,80,0.25)'}`,
-        position: 'relative', overflow: 'hidden', boxSizing: 'border-box',
+      {/* ── CABEÇALHO (saldo LÍQUIDO: extras − negativas do ponto) ── */}
+      <div style={{ containerType: 'inline-size' }}>
+      <div className="bh-hero" style={{
+        position: 'relative', overflow: 'hidden', borderRadius: 22, marginBottom: 22, boxSizing: 'border-box',
+        padding: isMobile ? '22px 18px' : '28px 44px 28px 58px',
+        background: `radial-gradient(120% 140% at 0% 110%, ${alpha(heroGlow, 0.42)} 0%, transparent 42%),
+                     radial-gradient(90% 120% at 100% -10%, ${alpha(heroGlow, 0.5)} 0%, transparent 38%),
+                     linear-gradient(115deg, ${heroBase} 0%, ${heroMid} 52%, ${heroBase} 100%)`,
+        border: `1px solid ${alpha(T.blueL, 0.35)}`,
+        boxShadow: `0 18px 44px ${alpha(T.blue, T.dark ? 0.22 : 0.2)}`,
+        gap: isMobile ? 18 : 28,
       }}>
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: isMobile ? 13 : 15, fontWeight: 600, color: '#fff', letterSpacing: '.08em', marginBottom: 8 }}>
-            BANCO DE HORAS
-          </div>
-          <div style={{ width: '100%', maxWidth: 250, margin: '0 auto 12px' }}><StarDivider /></div>
-          <div style={{ fontSize: isMobile ? 32 : 44, fontWeight: 700, color: '#fff', letterSpacing: '-.02em', lineHeight: 1, marginBottom: 6, wordBreak: 'break-word' }}>
-            {netPos ? '+' : ''}{fmtMin(netMin)}
-          </div>
-          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginBottom: 8, padding: '0 6px' }}>
-            Extras {fmtMin(extraMin)}{pontoBalanceMin < 0 ? ` · Negativas ${fmtMin(pontoBalanceMin)}` : (pontoBalanceMin > 0 ? ` · Ponto +${fmtMin(pontoBalanceMin)}` : '')}
-          </div>
-          {valorHora > 0 && totalValor > 0 && (
-            <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 600, color: 'rgba(255,255,255,.85)', marginBottom: 8 }}>
-              Extras ≈ {BRL(totalValor)}
-            </div>
-          )}
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.7)', marginBottom: 16 }}>
-            {registros.length} registro{registros.length !== 1 ? 's' : ''} de extra · {netPos ? 'saldo positivo' : 'saldo devendo'}
-          </div>
-          <button onClick={openModal} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            padding: '9px 22px', borderRadius: 10,
-            border: '1px solid rgba(255,255,255,.35)', background: 'rgba(255,255,255,.15)',
-            color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            fontFamily: 'var(--font-body)', outline: 'none',
+        {/* ondas decorativas nos cantos inferiores */}
+        <svg aria-hidden viewBox="0 0 400 120" preserveAspectRatio="none"
+          style={{ position: 'absolute', left: 0, bottom: 0, width: isMobile ? '70%' : '32%', height: '55%', pointerEvents: 'none' }}>
+          <path d="M0 30 C 90 40, 170 80, 260 120 L0 120 Z" fill={alpha(heroGlow, 0.22)} />
+          <path d="M0 70 C 70 78, 130 100, 180 120 L0 120 Z" fill={alpha(heroGlow, 0.18)} />
+        </svg>
+        <svg aria-hidden viewBox="0 0 400 120" preserveAspectRatio="none"
+          style={{ position: 'absolute', right: 0, bottom: 0, width: isMobile ? '60%' : '26%', height: '48%', pointerEvents: 'none' }}>
+          <path d="M400 10 C 330 60, 250 100, 140 120 L400 120 Z" fill={alpha(heroGlow, 0.2)} />
+        </svg>
+
+        {/* título */}
+        <div className="bh-hero-title" style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? 14 : 30 }}>
+          <div style={{
+            width: isMobile ? 64 : 130, height: isMobile ? 64 : 130, borderRadius: '50%', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: `radial-gradient(circle at 50% 40%, ${alpha(heroGlow, 0.28)}, ${alpha(heroGlow, 0.06)} 70%)`,
+            border: `1px solid ${alpha(heroAccent, 0.22)}`,
           }}>
-            <Ico d={<><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>} size={13} stroke="white" />
+            <div style={{
+              width: isMobile ? 44 : 84, height: isMobile ? 44 : 84, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: alpha(heroGlow, 0.14), boxShadow: `0 0 34px ${alpha(heroGlow, 0.35)}`,
+            }}>
+              <Ico d={G.clock} size={isMobile ? 26 : 50} stroke="#FFFFFF" sw={2.2} />
+            </div>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 11.5 : 13, fontWeight: 700, letterSpacing: '.06em', color: heroAccent, marginBottom: 4 }}>
+              BANCO DE HORAS
+            </div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: isMobile ? 23 : 36, fontWeight: 700, color: '#fff', lineHeight: 1.12, letterSpacing: '-.015em' }}>
+              Seu tempo, no <span style={{ color: heroAccent, whiteSpace: 'nowrap' }}>seu ritmo</span>
+            </div>
+            {!isMobile && (
+              <div style={{ fontSize: 14.5, color: 'rgba(255,255,255,.72)', marginTop: 10, lineHeight: 1.55, maxWidth: 470 }}>
+                Acompanhe suas horas acumuladas, visualize os registros e mantenha seu banco sempre em dia.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* saldo */}
+        <div style={{
+          position: 'relative', minWidth: 0, boxSizing: 'border-box',
+          borderRadius: 18, padding: isMobile ? '18px 16px' : '20px 28px 20px 32px',
+          background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.14)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: alpha(heroGlow, 0.3), border: `1px solid ${alpha(heroAccent, 0.25)}` }}>
+              <Ico d={G.coins} size={22} stroke="#FFFFFF" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, letterSpacing: '.04em', color: 'rgba(255,255,255,.9)', marginTop: 3 }}>SALDO ATUAL</div>
+              <div style={{ fontSize: isMobile ? 36 : 46, fontWeight: 800, color: saldoCor, letterSpacing: '-.02em', lineHeight: 1.05, marginTop: 4 }}>
+                {netPos ? '+' : ''}{fmtMin(netMin)}
+              </div>
+              {!netPos && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 2 }}>saldo devendo</div>}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? '12px 18px' : '10px 28px', marginTop: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 28px' }}>
+                <HeroStat icon={G.upCircle} color="#3DDC97">Extras <strong style={{ color: '#fff', fontWeight: 600 }}>{fmtMin(extraMin)}</strong></HeroStat>
+                {pontoBalanceMin !== 0 && (
+                  <HeroStat icon={pontoNeg ? G.downCircle : G.clock} color={pontoNeg ? '#FF8A9C' : '#6BB8FF'}>
+                    Ponto <strong style={{ color: '#fff', fontWeight: 600 }}>{pontoNeg ? fmtMin(pontoBalanceMin) : '+' + fmtMin(pontoBalanceMin)}</strong>
+                  </HeroStat>
+                )}
+              </div>
+              {valorHora > 0 && totalValor > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: heroAccent }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: alpha(heroGlow, 0.35), display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ico d={G.money} size={15} stroke="#FFFFFF" sw={2} />
+                  </span>
+                  Extras: {BRL(totalValor)}
+                </div>
+              )}
+            </div>
+            {!isMobile && <div style={{ width: 1, alignSelf: 'stretch', minHeight: 40, background: 'rgba(255,255,255,.14)' }} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Ico d={G.clock} size={21} stroke="rgba(255,255,255,.85)" />
+              <div>
+                <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.7)' }}>Total de registros</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{registros.length}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ação */}
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="bh-cta" onClick={openModal} style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+            height: isMobile ? 50 : 62, padding: '0 26px 0 30px', borderRadius: 999,
+            border: `1px solid ${alpha('#FFFFFF', 0.22)}`,
+            background: T.dark
+              ? `linear-gradient(135deg, ${mix(T.blue, '#0B0A1E', 0.38)}, ${mix(T.blue, '#0B0A1E', 0.1)})`
+              : `linear-gradient(135deg, ${T.blue}, ${mix(T.blue, '#FFFFFF', 0.22)})`,
+            boxShadow: `0 8px 24px ${alpha(T.blueL, 0.35)}`,
+            color: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-body)', outline: 'none', whiteSpace: 'nowrap',
+          }}>
+            <Ico d={G.calPlus} size={21} stroke="#fff" />
             Registrar Horas
+            <Ico d={G.chevR} size={17} stroke="#fff" sw={2.2} />
           </button>
         </div>
       </div>
 
-      {/* ── HORAS NEGATIVAS (Ponto Eletrônico) ── */}
-      {negDays.length > 0 && (
-        <Card style={{ padding: isMobile ? '16px 14px' : '22px 26px', marginBottom: 18, border: '1px solid rgba(192,64,80,0.25)', boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(192,64,80,0.12)', color: '#C04050', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Ico d={<><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>} size={16} stroke="#C04050" />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: T.text }}>Horas negativas</div>
-                <div style={{ fontSize: 12, color: T.textT }}>Dias com saldo negativo no ponto · {negDays.length}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#C04050' }}>
-              {fmtMin(negDays.reduce((a, d) => a + Number(d.saldo || 0), 0))}
-            </div>
-          </div>
-          <StarDivider my={6} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {negDays.map((d, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, padding: isMobile ? '10px 12px' : '11px 15px', background: 'rgba(192,64,80,0.04)', border: '1px solid rgba(192,64,80,0.15)', borderRadius: 11, boxSizing: 'border-box' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fmtData(d.data)}</div>
-                  <div style={{ fontSize: 11.5, color: T.textT, textTransform: 'capitalize' }}>{diaSemana(d.data)}</div>
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#C04050', background: 'rgba(192,64,80,0.10)', borderRadius: 7, padding: '4px 11px' }}>
-                  {fmtMin(Number(d.saldo || 0))}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 11, color: T.textT, marginTop: 12, lineHeight: 1.5 }}>
-            Dias justificados pelo RH são abonados e deixam de contar como negativos.
-          </div>
-        </Card>
-      )}
+      </div>
 
       {/* ── HISTÓRICO ── */}
-      <Card style={{ padding: isMobile ? '16px 14px' : '24px 26px', boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 10 : 8, marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: T.text, textAlign: isMobile ? 'center' : 'left' }}>Histórico</div>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-            style={{ background: 'rgba(0,0,0,0.03)', border: `1.5px solid ${T.border}`, borderRadius: 9, padding: '7px 12px', color: T.text, fontFamily: 'var(--font-body)', fontSize: 13, outline: 'none', width: isMobile ? '100%' : 180, boxSizing: 'border-box' }} />
+      <div style={{ containerType: 'inline-size' }}>
+      <div style={{
+        background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, boxShadow: T.sh,
+        padding: isMobile ? '18px 14px' : '26px 30px 30px', boxSizing: 'border-box',
+      }}>
+        <div className="bh-head" style={{ marginBottom: 22 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 26 }}>
+            <div style={{
+              width: isMobile ? 46 : 64, height: isMobile ? 46 : 64, borderRadius: '50%', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: `radial-gradient(circle at 50% 35%, ${alpha(T.blueL, 0.28)}, ${alpha(T.blue, 0.1)})`,
+              color: T.dark ? '#fff' : T.blue,
+            }}>
+              <Ico d={G.clock} size={isMobile ? 22 : 30} sw={2} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: isMobile ? 19 : 24, fontWeight: 700, color: T.text, letterSpacing: '-.01em' }}>Histórico</div>
+              <div style={{ fontSize: isMobile ? 12.5 : 15, color: T.textS, marginTop: 2 }}>
+                Aqui você encontra todos os registros de horas do seu banco.
+              </div>
+            </div>
+          </div>
+
+          <div className="bh-tools">
+            <label className="bh-field bh-search" style={{ ...inputBase, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', cursor: 'text' }}>
+              <Ico d={G.search} size={18} stroke={T.textS} />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar no histórico..."
+                style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: T.text, fontFamily: 'inherit', fontSize: 'inherit' }} />
+            </label>
+            <label className="bh-field bh-filter" style={{ ...inputBase, position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Ico d={G.filter} size={17} stroke={T.text} style={{ position: 'absolute', left: 16, pointerEvents: 'none' }} />
+              <select className="bh-select" value={filtro} onChange={e => setFiltro(e.target.value)}
+                style={{ appearance: 'none', WebkitAppearance: 'none', width: '100%', height: '100%', padding: '0 40px 0 46px', background: 'none', border: 'none', outline: 'none', color: T.text, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 500, cursor: 'pointer' }}>
+                {FILTROS.map(g => (
+                  <optgroup key={g.grupo} label={g.grupo}>
+                    {g.itens.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              <Ico d={G.chevD} size={17} stroke={T.text} style={{ position: 'absolute', right: 16, pointerEvents: 'none' }} />
+            </label>
+          </div>
         </div>
-        <StarDivider my={4} />
 
         {loading
           ? <div style={{ textAlign: 'center', padding: 48, color: T.textT }}>
@@ -253,56 +446,17 @@ const TabHoras = () => {
             </div>
           : filtrados.length === 0
             ? <div style={{ textAlign: 'center', padding: '40px 0', color: T.textT }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="1.2" strokeLinecap="round" style={{ display: 'block', margin: '0 auto 12px', opacity: .4 }}>
-                  <circle cx="12" cy="12" r="9" /><polyline points="12 6 12 12 16 14" />
-                </svg>
-                <div style={{ fontSize: 13 }}>Nenhuma hora registrada ainda.</div>
-                <div style={{ fontSize: 12, marginTop: 4, opacity: .7 }}>Use o botão acima para registrar suas horas extras.</div>
+                <Ico d={G.clock} size={36} stroke={T.textD} sw={1.2} style={{ display: 'block', margin: '0 auto 12px', opacity: .6 }} />
+                <div style={{ fontSize: 13 }}>{itens.length === 0 ? 'Nenhuma hora registrada ainda.' : 'Nada encontrado com esse filtro.'}</div>
+                {itens.length === 0 && <div style={{ fontSize: 12, marginTop: 4, opacity: .7 }}>Use o botão acima para registrar suas horas extras.</div>}
               </div>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-                {filtrados.map(r => {
-                  const ss = STATUS_STYLE[r.status] || STATUS_STYLE.pendente;
-                  return (
-                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 10 : 14, padding: isMobile ? '12px 12px' : '14px 16px', background: 'rgba(0,0,0,0.02)', border: `1px solid ${T.border}`, borderRadius: 12, boxSizing: 'border-box' }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 12, background: `linear-gradient(135deg,${T.blue},${T.blueL})`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.1 }}>{fmtHoras(Number(r.horas_calculadas))}</div>
-                        {r.feriado_domingo && <div style={{ fontSize: 8, opacity: .85 }}>×2</div>}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descricao}</div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: 11, color: T.textD }}>{fmtData(r.data)}</span>
-                          <span style={{ fontSize: 11, color: T.textD }}>{r.hora_inicio} → {r.hora_fim}</span>
-                          {r.feriado_domingo && (
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#D89030', background: 'rgba(216,144,48,0.12)', borderRadius: 5, padding: '1px 6px' }}>Feriado/Dom</span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, color: T.textS, marginTop: 3 }}>
-                          {fmtHoras(Number(r.total_horas))} trabalhadas → {fmtHoras(Number(r.horas_calculadas))} no banco
-                        </div>
-                        {Number(r.valor_hora) > 0 && Number(r.total_horas) > 0 && (
-                          <div style={{ fontSize: 11, color: T.text, marginTop: 5, padding: '6px 9px', background: 'rgba(26,156,112,0.07)', border: '1px solid rgba(26,156,112,0.18)', borderRadius: 7, fontFamily: 'monospace', lineHeight: 1.6 }}>
-                            {Number(r.total_horas).toFixed(2)}h × {BRL(Number(r.valor_hora))} × <strong style={{ color: r.feriado_domingo ? '#D89030' : T.blue }}>{r.feriado_domingo ? '200%' : '150%'}</strong> = <strong style={{ color: '#1A9C70' }}>{BRL(Number(r.valor_total))}</strong>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: ss.bg, color: ss.color, textTransform: 'capitalize' }}>
-                          {r.status}
-                        </span>
-                        {r.status === 'rejeitado' && (
-                          <button onClick={() => delRegistro(r.id)} title="Excluir"
-                            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(192,64,80,0.25)', background: 'rgba(192,64,80,0.06)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C04050', outline: 'none' }}>
-                            <Ico d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></>} size={11} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {filtrados.map(it => <HistRow key={it.key} it={it} isMobile={isMobile} open={aberto === it.key}
+                  onToggle={() => setAberto(a => (a === it.key ? null : it.key))} onDelete={delRegistro} />)}
               </div>
         }
-      </Card>
+      </div>
+      </div>
 
       {/* ── MODAL REGISTRO ── */}
       {modal && (
@@ -413,6 +567,134 @@ const TabHoras = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Linha do histórico: extra lançada ou dia negativo do ponto ──
+const HistRow = ({ it, isMobile, open, onToggle, onDelete }) => {
+  const extra = it.kind === 'extra';
+  const r = it.r;
+  const ss = statusStyle(extra ? r.status : 'negativa');
+  const rejeitado = extra && r.status === 'rejeitado';
+  const delta = extra ? (rejeitado ? { bg: T.surfaceSub, color: T.textT } : POS()) : NEG();
+  const barra = extra ? ss.color : NEG().color;
+  const tileBg = extra
+    ? `linear-gradient(135deg, ${T.blue}, ${T.blueL})`
+    : `linear-gradient(135deg, #B8384C, #E0697A)`;
+  const meta = { display: 'flex', alignItems: 'center', gap: 8, fontSize: isMobile ? 12.5 : 14, color: T.textS, flexWrap: 'wrap', minWidth: 0 };
+  const dot = <span style={{ color: T.textT }}>•</span>;
+
+  const valor = extra && Number(r.valor_total) > 0 ? BRL(Number(r.valor_total)) : null;
+
+  const deltaBlock = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 13px', borderRadius: 9, background: delta.bg, color: delta.color, fontSize: 14.5, fontWeight: 700, textDecoration: rejeitado ? 'line-through' : 'none' }}>
+        <Ico d={extra ? G.arrowUp : G.arrowDown} size={15} stroke="currentColor" sw={2.4} />
+        {extra ? `+ ${fmtHoras(Number(r.horas_calculadas))}` : `- ${fmtMin(Number(it.d.saldo || 0)).replace('-', '')}`}
+      </span>
+      {valor
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14.5, fontWeight: 600, color: T.text }}>
+            <Ico d={G.money} size={18} stroke={T.textS} />{valor}
+          </span>
+        : !extra && <span style={{ fontSize: 12.5, color: T.textT }}>Saldo do dia no ponto</span>}
+    </div>
+  );
+
+  const statusPill = (
+    <span style={{ fontSize: 13.5, fontWeight: 700, padding: '6px 15px', borderRadius: 999, background: ss.bg, color: ss.color, whiteSpace: 'nowrap', justifySelf: 'end' }}>
+      {ss.label}
+    </span>
+  );
+
+  return (
+    <div className="bh-row" style={{
+      borderRadius: 16, border: `1px solid ${T.border}`, background: T.surfaceSub,
+      boxShadow: `inset 4px 0 0 ${barra}`, overflow: 'hidden', boxSizing: 'border-box',
+    }}>
+      <div role="button" tabIndex={0} onClick={onToggle}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
+        style={{
+          display: 'grid', cursor: 'pointer', outline: 'none', alignItems: 'center',
+          gridTemplateColumns: isMobile ? 'auto minmax(0,1fr) auto' : 'auto minmax(0,1fr) 1px minmax(0,1fr) 104px auto',
+          columnGap: isMobile ? 12 : 26, rowGap: 12,
+          padding: isMobile ? '14px 12px 14px 16px' : '16px 22px 16px 28px',
+        }}>
+        <div style={{ width: isMobile ? 52 : 72, height: isMobile ? 52 : 72, borderRadius: isMobile ? 12 : 14, background: tileBg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 18px ${alpha(extra ? T.blue : '#C04050', 0.28)}` }}>
+          <Ico d={G.clock} size={isMobile ? 26 : 36} stroke="#fff" sw={2.2} />
+        </div>
+
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: isMobile ? 4 : 6 }}>
+          <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {extra ? r.descricao : 'Horas negativas no ponto'}
+          </div>
+          <div style={meta}>
+            <Ico d={G.calendar} size={16} stroke={T.textS} />
+            <span>{fmtData(it.data)}</span>{dot}
+            {extra
+              ? <span>{hhmm(r.hora_inicio)} → {hhmm(r.hora_fim)}</span>
+              : <span style={{ textTransform: 'capitalize' }}>{diaSemana(it.data)}</span>}
+          </div>
+          {extra && (
+            <div style={meta}>
+              <Ico d={G.building} size={16} stroke={T.textS} />
+              <span>{fmtHoras(Number(r.total_horas))} trabalhadas</span>{dot}
+              <span>{fmtHoras(Number(r.horas_calculadas))} no banco</span>
+              {r.feriado_domingo && (
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#D89030', background: 'rgba(216,144,48,0.14)', borderRadius: 6, padding: '2px 7px' }}>Feriado/Dom ×2</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {isMobile
+          ? <Ico d={G.chevR} size={18} stroke={T.textS} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} />
+          : <>
+              <div style={{ width: 1, height: 62, background: T.border }} />
+              {deltaBlock}
+              {statusPill}
+              <span className="bh-chev" style={{ color: T.textS, display: 'flex', transition: 'color .16s' }}>
+                <Ico d={G.chevR} size={20} sw={2} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }} />
+              </span>
+            </>}
+
+        {isMobile && (
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+            {deltaBlock}
+            {statusPill}
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.border}`, padding: isMobile ? '12px 16px 14px' : '14px 28px 16px 126px', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5, color: T.textS }}>
+          {extra ? (
+            <>
+              {Number(r.valor_hora) > 0 && Number(r.total_horas) > 0
+                ? <div style={{ fontFamily: 'monospace', fontSize: 12.5, color: T.text, lineHeight: 1.6 }}>
+                    {Number(r.total_horas).toFixed(2)}h × {BRL(Number(r.valor_hora))} × <strong style={{ color: r.feriado_domingo ? '#D89030' : T.blueL }}>{r.feriado_domingo ? '200%' : '150%'}</strong> = <strong style={{ color: POS().color }}>{BRL(Number(r.valor_total))}</strong>
+                  </div>
+                : <div>Valor em reais indisponível — salário não configurado quando o registro foi feito.</div>}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <span>
+                  {r.feriado_domingo ? 'Feriado/Domingo: horas contam em dobro no banco. ' : ''}
+                  {r.status === 'pendente' && 'Aguardando aprovação do RH.'}
+                  {r.status === 'aprovado' && 'Aprovado pelo RH.'}
+                  {rejeitado && 'Rejeitado pelo RH — não entra no saldo.'}
+                </span>
+                {rejeitado && (
+                  <button onClick={() => onDelete(r.id)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 9, border: `1px solid ${alpha('#C04050', 0.3)}`, background: alpha('#C04050', 0.08), color: NEG().color, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--font-body)', outline: 'none' }}>
+                    <Ico d={G.trash} size={13} /> Excluir registro
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div>Dias justificados pelo RH são abonados e deixam de contar como negativos.</div>
+          )}
         </div>
       )}
     </div>
