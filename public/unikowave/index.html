@@ -269,6 +269,36 @@ canvas{display:block}
    "WAVE" (centralizado ele encostava/tampava o logo em várias proporções de tela). */
 .home-cta{justify-content:flex-start!important}
 .home-cta .go-btn{max-width:300px!important}
+/* Botão COMEÇAR da tela inicial (substitui o visual do .go-btn só aqui) */
+.go-btn.home-start{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;width:auto!important;max-width:none!important;
+  height:72px;padding:0 20px 0 10px;border-radius:22px;border:1px solid rgba(255,255,255,.28);cursor:pointer;
+  background:linear-gradient(135deg,rgba(24,10,56,.78),rgba(56,20,110,.78));color:#fff;letter-spacing:0;
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 4px rgba(255,95,192,.12);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:transform .15s,box-shadow .2s}
+.go-btn.home-start::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;
+  background:conic-gradient(from var(--hsA,0deg),#ff5fc0,#8b5cff,#4AA6FF,#3DDC97,#ff5fc0);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:hsGira 4s linear infinite}
+.go-btn.home-start::after{content:'';position:absolute;top:0;bottom:0;width:40%;left:-60%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);animation:hsBrilho 3.2s ease-in-out infinite}
+@property --hsA{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes hsGira{to{--hsA:360deg}}
+@keyframes hsBrilho{0%,55%{left:-60%}100%{left:130%}}
+.go-btn.home-start:hover{transform:translateY(-3px);box-shadow:0 22px 48px rgba(0,0,0,.55),0 0 0 6px rgba(255,95,192,.18);filter:none}
+.go-btn.home-start:active{transform:scale(.97)}
+.hs-play{position:relative;width:52px;height:52px;border-radius:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#ff5fc0,#8b5cff);box-shadow:0 8px 20px rgba(255,95,192,.45)}
+.hs-play::after{content:'';position:absolute;inset:-6px;border-radius:20px;border:2px solid rgba(255,95,192,.55);animation:hsPulso 1.8s ease-out infinite}
+@keyframes hsPulso{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.25);opacity:0}}
+.hs-play svg{width:24px;height:24px;fill:#fff;margin-left:3px}
+.hs-txt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;text-align:left}
+.hs-txt b{font-size:21px;font-weight:900;letter-spacing:.04em}
+.hs-txt small{font-size:12px;font-weight:600;color:rgba(255,255,255,.7);margin-top:3px;white-space:nowrap}
+.hs-arrow{margin-left:6px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);transition:transform .2s}
+.hs-arrow svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.go-btn.home-start:hover .hs-arrow{transform:translateX(4px)}
+html.gfx-ultra .go-btn.home-start::before,html.gfx-ultra .go-btn.home-start::after,html.gfx-ultra .hs-play::after{animation:none}
+html.gfx-low .go-btn.home-start{backdrop-filter:none;-webkit-backdrop-filter:none;background:linear-gradient(135deg,#1b0c3f,#3a1672)}
 .menu-panel{
   background:rgba(255,255,255,0.04);
   border:1px solid rgba(255,255,255,0.1);
@@ -1107,14 +1137,15 @@ html.m-menu #mAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;b
 html.m-menu #mName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:26vw}
 /* player de música vira um compacto no topo */
 html.m-menu #vinylPlayer{position:relative!important;right:auto!important;bottom:auto!important;grid-area:player;align-self:end;z-index:4;
-  margin:52px 12px 8px 0;padding:5px 12px 5px 5px!important;gap:8px!important;border-radius:999px;max-width:none;
-  backdrop-filter:none;box-shadow:none;background:rgba(8,4,26,.7)}
-html.m-menu #vinylDisc{width:34px!important;height:34px!important}
-html.m-menu #vinylDiscArt{width:13px;height:13px}
-html.m-menu #vinylNow{display:none}
-html.m-menu #vinylTitle{max-width:74px!important;font-size:9px!important}
-html.m-menu #vinylControls{margin-top:2px;gap:5px}
-html.m-menu #vinylControls button{width:30px;height:30px;font-size:11px}
+  margin:52px 12px 8px 0;width:auto;max-width:none;grid-template-columns:auto auto;grid-template-rows:auto;column-gap:8px;row-gap:0;
+  padding:5px 6px 5px 5px!important;border-radius:999px;box-shadow:none}
+html.m-menu #vinylPlayer::before{border-radius:999px}
+html.m-menu #vinylDisc{grid-row:auto;width:36px!important;height:36px!important;border-radius:50%;padding-bottom:9px;gap:2px;box-shadow:none}
+html.m-menu #vinylDisc i{width:3px}
+html.m-menu #vinylInfo,html.m-menu #vinylTime{display:none}
+html.m-menu #vinylControls{grid-column:auto;gap:5px}
+html.m-menu #vinylControls button{width:32px;height:32px}
+html.m-menu #vinylPlayPause{width:38px!important;height:38px!important}
 html.m-menu #menuMain{grid-area:main;padding:6px 10px 8px!important;min-height:0}
 html.m-menu .menu-panel{max-width:none;height:100%;padding:18px 14px 22px!important;justify-content:flex-start!important;
   border-radius:18px;backdrop-filter:none;-webkit-overflow-scrolling:touch}
@@ -1147,7 +1178,8 @@ html.m-menu #homeHeroBg{display:block;position:absolute;inset:-20px;width:calc(1
   filter:blur(16px) brightness(.55) saturate(1.2)}
 html.m-menu #homeHeroPhoto{object-fit:contain!important;object-position:center 42%!important}
 html.m-menu .home-cta{justify-content:center!important;padding:0 16px 14px!important}
-html.m-menu .home-cta .go-btn{max-width:420px!important;width:100%;min-height:54px;font-size:13px}
+html.m-menu .home-cta .go-btn.home-start{width:100%!important;max-width:440px!important;height:66px}
+html.m-menu .home-cta .go-btn.home-start .hs-arrow{margin-left:auto}
 html.gfx-ultra.m-menu #homeHeroBg{filter:brightness(.45)}
 
 /* ── DEITADO: trilho de abas à esquerda ── */
@@ -1165,7 +1197,10 @@ html.m-menu.m-land #menuMain{padding:4px 40px 12px 8px!important}
 html.m-menu.m-land .menu-panel{padding:14px 16px 16px!important}
 html.m-menu.m-land #homeHeroPhoto{object-position:center!important}
 html.m-menu.m-land .home-cta{justify-content:flex-end!important;padding:0 14px 12px!important}
-html.m-menu.m-land .home-cta .go-btn{max-width:190px!important;min-height:42px;font-size:11px}
+html.m-menu.m-land .home-cta .go-btn.home-start{width:auto!important;height:56px;padding:0 12px 0 8px}
+html.m-menu.m-land .home-start .hs-play{width:40px;height:40px;border-radius:12px}
+html.m-menu.m-land .home-start .hs-txt b{font-size:17px}
+html.m-menu.m-land .home-start .hs-txt small{display:none}
 /* personagens em 2 colunas no celular (1 card ocupava a tela inteira) */
 html.m-menu .char-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
 html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
@@ -1843,48 +1878,60 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
   <button id="musicToggleBtn" onclick="toggleMenuMusic()" title="Música do menu"
     style="position:absolute;top:14px;right:14px;z-index:6;width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);backdrop-filter:blur(8px);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">🔊</button>
 
-  <!-- ── Disco de vinil: música tocando agora + pular/voltar ── -->
+  <!-- ── Player do lobby: capa com equalizador, faixa, barra de progresso e controles ── -->
   <style>
-    #vinylPlayer{position:absolute;right:16px;bottom:16px;z-index:6;display:flex;align-items:center;gap:13px;
-      background:rgba(8,4,26,.82);border:1px solid rgba(255,255,255,.12);border-radius:46px;padding:9px 18px 9px 9px;
-      backdrop-filter:blur(14px);box-shadow:0 10px 38px rgba(0,0,0,.5),0 0 26px rgba(168,85,247,.16);max-width:78vw}
-    #vinylDisc{width:58px;height:58px;border-radius:50%;flex-shrink:0;position:relative;
-      display:flex;align-items:center;justify-content:center;
-      background:repeating-radial-gradient(circle at 50% 50%,#0a0a0a 0 2px,#1a1a1a 2px 4px);
-      box-shadow:0 4px 13px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.06);
-      animation:vinylSpin 3.2s linear infinite;animation-play-state:paused}
-    #vinylPlayer.playing #vinylDisc{animation-play-state:running}
-    #vinylDiscArt{width:22px;height:22px;border-radius:50%;position:relative;
-      background:radial-gradient(circle at 35% 30%,#ff8fd0,#ff2d92 45%,#a855f7);
-      box-shadow:0 0 0 3px #0d0118,0 0 9px rgba(255,45,146,.55)}
-    #vinylDiscArt::after{content:'';position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#0d0118;transform:translate(-50%,-50%)}
-    @keyframes vinylSpin{to{transform:rotate(360deg)}}
-    #vinylInfo{display:flex;flex-direction:column;gap:2px;min-width:0}
-    #vinylNow{font-family:var(--font-pixel);font-size:6px;letter-spacing:1.5px;color:rgba(255,255,255,.42)}
-    #vinylTitle{font-family:Orbitron,monospace;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-    #vinylControls{display:flex;gap:6px;margin-top:4px}
-    #vinylControls button{width:25px;height:25px;border-radius:50%;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0;
-      display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
-    #vinylControls button:hover{background:rgba(168,85,247,.35);border-color:rgba(168,85,247,.6)}
-    #vinylPlayPause{background:linear-gradient(135deg,#ff2d92,#a855f7)!important;border:none!important}
-    #vinylPlayPause:hover{filter:brightness(1.12)}
-    @media (max-width:560px){
-      #vinylPlayer{right:10px;bottom:10px;gap:9px;padding:7px 13px 7px 7px}
-      #vinylDisc{width:46px;height:46px}
-      #vinylTitle{max-width:100px;font-size:10px}
-    }
+    #vinylPlayer{position:absolute;right:18px;bottom:18px;z-index:6;width:318px;box-sizing:border-box;
+      display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:14px;row-gap:10px;align-items:center;
+      padding:12px 14px 12px 12px;border-radius:22px;color:#fff;font-family:'Inter','Segoe UI',system-ui,sans-serif;
+      background:linear-gradient(145deg,rgba(40,18,82,.82),rgba(12,6,32,.9));border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 18px 44px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)}
+    #vinylPlayer::before{content:'';position:absolute;inset:-1px;border-radius:23px;padding:1px;pointer-events:none;
+      background:linear-gradient(120deg,rgba(255,95,192,.7),rgba(139,92,255,.2) 40%,rgba(74,166,255,.7));
+      -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+    #vinylDisc{grid-row:1/3;width:66px;height:66px;border-radius:16px;position:relative;overflow:hidden;flex-shrink:0;
+      background:radial-gradient(120% 90% at 20% 10%,#ff7ad0 0%,#a855f7 45%,#3a1d8a 100%);
+      display:flex;align-items:flex-end;justify-content:center;gap:4px;padding-bottom:12px;box-sizing:border-box;
+      box-shadow:0 8px 22px rgba(168,85,247,.45)}
+    #vinylDisc::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,rgba(255,255,255,.35),transparent 45%)}
+    #vinylDisc i{width:6px;border-radius:3px;background:#fff;height:10px;opacity:.95;transform-origin:bottom;
+      animation:lobbyEq 1s ease-in-out infinite;animation-play-state:paused}
+    #vinylDisc i:nth-child(2){animation-delay:-.35s;height:22px}
+    #vinylDisc i:nth-child(3){animation-delay:-.7s;height:16px}
+    #vinylDisc i:nth-child(4){animation-delay:-.15s;height:26px}
+    #vinylPlayer.playing #vinylDisc i{animation-play-state:running}
+    @keyframes lobbyEq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+    #vinylDiscArt{display:none}
+    #vinylInfo{min-width:0;display:flex;flex-direction:column;gap:3px}
+    #vinylNow{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.14em;color:#ff9ad8}
+    #vinylNow::before{content:'';width:7px;height:7px;border-radius:50%;background:#3DDC97;box-shadow:0 0 0 3px rgba(61,220,151,.22)}
+    #vinylPlayer:not(.playing) #vinylNow::before{background:#9AA3B2;box-shadow:none}
+    #vinylTitle{font-size:16px;font-weight:900;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #vinylBar{height:5px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:5px}
+    #vinylBarFill{height:100%;width:0;border-radius:5px;background:linear-gradient(90deg,#ff5fc0,#4AA6FF)}
+    #vinylControls{grid-column:2;display:flex;align-items:center;gap:10px}
+    #vinylControls button{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;padding:0;
+      display:flex;align-items:center;justify-content:center;transition:transform .12s,background .15s}
+    #vinylControls button:hover{background:rgba(255,255,255,.18)}
+    #vinylControls button:active{transform:scale(.9)}
+    #vinylControls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+    #vinylControls svg .f{fill:currentColor;stroke:none}
+    #vinylPlayPause{width:44px!important;height:44px!important;background:#fff!important;color:#2a1260!important;box-shadow:0 6px 18px rgba(255,255,255,.18)}
+    #vinylPlayPause svg{width:18px;height:18px}
+    #vinylTime{margin-left:auto;font-size:11px;font-weight:700;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+    @media (max-width:560px){ #vinylPlayer{right:10px;bottom:10px;width:280px} }
   </style>
   <div id="vinylPlayer" aria-label="Música tocando agora">
-    <div id="vinylDisc"><div id="vinylDiscArt"></div></div>
+    <div id="vinylDisc" aria-hidden="true"><i></i><i></i><i></i><i></i><div id="vinylDiscArt"></div></div>
     <div id="vinylInfo">
-      <div id="vinylNow">TOCANDO AGORA</div>
+      <div id="vinylNow">NO LOBBY</div>
       <div id="vinylTitle">—</div>
-      <div id="vinylControls">
-        <button id="vinylPrev" onclick="menuMusicPrev()" title="Música anterior">⏮</button>
-        <button id="vinylPlayPause" onclick="toggleMenuMusic()" title="Pausar / tocar">⏸</button>
-        <button id="vinylNext" onclick="menuMusicNext()" title="Próxima música">⏭</button>
-      </div>
+      <div id="vinylBar"><div id="vinylBarFill"></div></div>
+    </div>
+    <div id="vinylControls">
+      <button id="vinylPrev" onclick="menuMusicPrev()" title="Música anterior" aria-label="Música anterior"><svg viewBox="0 0 24 24"><path d="M7 5v14"/><path d="M19 6.2v11.6a.8.8 0 0 1-1.25.66L9.6 12.66a.8.8 0 0 1 0-1.32l8.15-5.8A.8.8 0 0 1 19 6.2z" class="f"/></svg></button>
+      <button id="vinylPlayPause" onclick="toggleMenuMusic()" title="Pausar / tocar" aria-label="Pausar ou tocar"></button>
+      <button id="vinylNext" onclick="menuMusicNext()" title="Próxima música" aria-label="Próxima música"><svg viewBox="0 0 24 24"><path d="M17 5v14"/><path d="M5 6.2v11.6a.8.8 0 0 0 1.25.66l8.15-5.8a.8.8 0 0 0 0-1.32L6.25 5.54A.8.8 0 0 0 5 6.2z" class="f"/></svg></button>
+      <span id="vinylTime">0:00</span>
     </div>
   </div>
 
@@ -1972,7 +2019,11 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
         <img id="homeHeroPhoto" src="images/tela_inicio_uniko_wave_v3.jpg" alt="Uniko Wave"
           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 62%;display:block">
         <div class="home-cta" style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 24px 16px">
-          <button class="go-btn" style="max-width:360px" onclick="showMenuPanel('panelPlayChoice',document.getElementById('mnBtn0'))">▶ COMEÇAR</button>
+          <button class="go-btn home-start" onclick="showMenuPanel('panelPlayChoice',document.getElementById('mnBtn0'))" aria-label="Começar">
+            <span class="hs-play"><svg viewBox="0 0 24 24"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.4-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg></span>
+            <span class="hs-txt"><b>COMEÇAR</b><small>Escolher música e jogar</small></span>
+            <span class="hs-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+          </button>
         </div>
       </div>
     </div>
@@ -3578,6 +3629,15 @@ function setMenuMusic(on){
   syncMusicUI();
 }
 function toggleMenuMusic(){ setMenuMusic(!musicEnabled); }
+// Barra de progresso + tempo da música do lobby (atualiza no timeupdate, ~4x/s).
+function _lobbyProgress(){
+  const m=document.getElementById('menuMusic'), f=document.getElementById('vinylBarFill'), t=document.getElementById('vinylTime');
+  if(!m) return;
+  const d=m.duration, c=m.currentTime||0;
+  if(f) f.style.width = (d>0 ? Math.min(100,c/d*100) : 0)+'%';
+  if(t){ const sec=Math.floor(c); t.textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'); }
+}
+(function(){ const m=document.getElementById('menuMusic'); if(m) m.addEventListener('timeupdate', _lobbyProgress); })();
 function syncMusicUI(){
   const fb=document.getElementById('musicToggleBtn');
   if(fb){ fb.textContent=musicEnabled?'🔊':'🔇'; fb.title=musicEnabled?'Música: ligada':'Música: desligada'; }
@@ -3593,7 +3653,16 @@ function syncMusicUI(){
   const wrap=document.getElementById('vinylPlayer');
   if(wrap) wrap.classList.toggle('playing', !!playing);
   const pp=document.getElementById('vinylPlayPause');
-  if(pp) pp.textContent = playing ? '⏸' : '▶';
+  if(pp){
+    const want = playing ? 'pause' : 'play';
+    if(pp.dataset.icon!==want){
+      pp.dataset.icon=want;
+      pp.innerHTML = playing
+        ? '<svg viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" class="f"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" class="f"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.4-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z" class="f"/></svg>';
+    }
+  }
+  _lobbyProgress();
 }
 
 /* ─── QUALIDADE GRÁFICA (otimização p/ máquinas fracas) ────────────────
