@@ -3308,9 +3308,10 @@ function stopAudioIframe(){
   if(_audioIframeTimer){clearTimeout(_audioIframeTimer);_audioIframeTimer=null;}
 }
 // Envia comando (pauseVideo/playVideo) ao iframe de áudio oculto do modo efeitos
-function audioIframeCmd(func){
+function audioIframeCmd(func, args){
   const f=document.getElementById('ytAudioFrame');
-  if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:[]}),'*'); }catch(_){} }
+  if(!args && func==='seekTo') args=[0,true];
+  if(f&&f.contentWindow){ try{ f.contentWindow.postMessage(JSON.stringify({event:'command',func,args:args||[]}),'*'); }catch(_){} }
 }
 
 /* ─── MÚSICA DO MENU ───────────────────────────────────────────────────
@@ -6155,40 +6156,95 @@ function _beginPlaybackNow(startDelay){
 // à frente do "GO" visual (perde-se a sincronia perfeita "silêncio até o GO"),
 // e o `runCountdown` só reancora a posição (seekTo 0, com o player já tocando —
 // isso não conta como "iniciar áudio novo" pro iOS, então funciona sem gesto).
+// ── CELULAR / iPhone: música da partida com som ─────────────────────────────
+// O iOS só deixa um player do YouTube tocar COM SOM se o playVideo() sair DIRETO de
+// um toque. Antes o player era criado dentro do toque, mas ele leva ~1s pra ficar
+// pronto e o playVideo() só acontecia depois (no onReady), já fora do gesto → o iOS
+// bloqueava e a partida ficava muda. Só "pausar e despausar" resolvia, porque aí o
+// playVideo() saía do toque no botão com o player já pronto.
+// Agora é igual a esse caminho que funciona: 1) cria o player JÁ ao entrar (mudo não —
+// desmutado, só esperando), 2) espera ele ficar pronto mostrando "PREPARANDO…",
+// 3) "TOQUE PARA COMEÇAR": o toque chama playVideo() na hora, com o player pronto.
+let _audioIframeReady=false;
+window.addEventListener('message',(e)=>{
+  try{
+    if(!/youtube(-nocookie)?\.com$/.test(new URL(e.origin).hostname)) return;
+    const f=document.getElementById('ytAudioFrame');
+    if(f && e.source===f.contentWindow) _audioIframeReady=true;
+  }catch(_){}
+});
+function _mobileMusicReady(){
+  if(bgMode==='video') return !!(_vbAudioPlayer && typeof _vbAudioPlayer.playVideo==='function');
+  return _audioIframeReady;
+}
+function _mobilePlayNowInGesture(){
+  try{
+    if(_vbAudioPlayer){
+      if(_vbAudioPlayer.unMute)    _vbAudioPlayer.unMute();
+      if(_vbAudioPlayer.setVolume) _vbAudioPlayer.setVolume(100);
+      if(_vbAudioPlayer.seekTo)    _vbAudioPlayer.seekTo(0, true);
+      if(_vbAudioPlayer.playVideo) _vbAudioPlayer.playVideo();
+    }
+    if(_vbPlayer && _vbPlayer!==_vbAudioPlayer && _vbPlayer.playVideo){
+      if(_vbPlayer.seekTo) _vbPlayer.seekTo(0, true);
+      _vbPlayer.playVideo();
+    }
+    audioIframeCmd('unMute'); audioIframeCmd('seekTo'); audioIframeCmd('playVideo');
+  }catch(_){}
+}
 function _mobileTapStart(){
   let ov=document.getElementById('tapStartOverlay');
   if(!ov){
     ov=document.createElement('div'); ov.id='tapStartOverlay';
-    ov.style.cssText='position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,4,15,.94);color:#fff;text-align:center;padding:24px;cursor:pointer';
-    ov.innerHTML='<div style="font-family:var(--font-pixel);font-size:15px;letter-spacing:2px">TOQUE PARA COMEÇAR</div>'
-      +'<div style="font-size:46px">▶</div>'
-      +'<div style="font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6">No celular o som da música só toca depois de um toque na tela.</div>';
+    ov.style.cssText='position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(4,4,15,.94);color:#fff;text-align:center;padding:24px;cursor:pointer;font-family:Inter,"Segoe UI",system-ui,sans-serif';
     document.body.appendChild(ov);
   }
-  ov.style.display='flex';
+  const loading=()=>{ ov.innerHTML='<div style="font-size:20px;font-weight:900;letter-spacing:.06em">PREPARANDO A MÚSICA…</div>'
+      +'<div style="width:42px;height:42px;border-radius:50%;border:4px solid rgba(255,255,255,.18);border-top-color:#ff6fb5;animation:spin .8s linear infinite"></div>'
+      +'<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'; ov.style.opacity='.9'; };
+  const ready=()=>{ ov.innerHTML='<div style="font-size:22px;font-weight:900;letter-spacing:.06em">TOQUE PARA COMEÇAR</div>'
+      +'<div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#ff6fb5);display:flex;align-items:center;justify-content:center;font-size:40px;padding-left:6px;box-sizing:border-box">▶</div>'
+      +'<div style="font-size:13px;color:rgba(255,255,255,.6);max-width:300px;line-height:1.5">No celular a música da partida começa com um toque na tela.</div>'; ov.style.opacity='1'; };
+  ov.style.display='flex'; loading();
+
+  // Espera o toque num estado próprio: se o player bufferizar antes do toque, a auto-
+  // pausa de buffering (que só age em playing/countdown) não mexe no relógio da partida.
+  gameState='tapwait';
+  _videoStartPending=true;
+  _audioIframeReady=false;
+  // 1) cria o player agora (desmutado, esperando) — o som é liberado no toque
+  try{
+    if(bgMode==='video'&&lastVideoUrl) _beginVideoBg(lastVideoUrl, false, true);
+    else {
+      startAudioIframe(lastVideoUrl, false);
+      const f=document.getElementById('ytAudioFrame');
+      // pede pro embed avisar quando estiver pronto (responde com postMessage)
+      if(f){ const ping=()=>{ try{ f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*'); }catch(_){} };
+        f.addEventListener('load',()=>{ ping(); setTimeout(ping,400); setTimeout(ping,1200); }); }
+    }
+  }catch(_){}
+
+  let armed=false;
   const go=()=>{
+    if(!armed) return;
+    ov.removeEventListener('click', go);
     ov.style.display='none';
-    // Marca ANTES de criar o player: _releaseVideoIfGoAlreadyPassed (chamado
-    // dentro de _beginVideoBg) só deve liberar o som se o GO já tiver passado —
-    // com a flag já true na hora da criação, ela corretamente NÃO libera agora.
-    _videoStartPending=true;
-    try{
-      if(bgMode==='video'&&lastVideoUrl){
-        _beginVideoBg(lastVideoUrl, false, true); // desmutado, síncrono, pula sondagem do vídeo local
-      } else {
-        startAudioIframe(lastVideoUrl, false); // desmutado, síncrono — cria dentro do toque
-      }
-    }catch(_){}
-    _vbSynced=false;          // re-ancora o relógio quando o vídeo tocar
+    _mobilePlayNowInGesture();          // ← dentro do toque, com o player pronto
+    gameState='countdown';
+    _vbSynced=false;                    // re-ancora o relógio quando o vídeo tocar
     gameStartWallTime=performance.now()+3800; // sem notas durante a contagem
     initColorMoments(songDuration);
     setupTZ(); startGameLoop(); runCountdown();
   };
   // 'click' (não 'pointerdown'/'touchstart') — o Safari/iOS só reconhece click, touchend
-  // ou keydown como gesto válido pra desbloquear áudio com som. pointerdown NÃO conta,
-  // e era exatamente por isso que só o botão de PAUSA (que usa onclick de verdade)
-  // conseguia liberar o som — o toque no overlay nunca contava como gesto de verdade.
-  ov.addEventListener('click', go, {once:true});
+  // ou keydown como gesto válido pra liberar áudio com som.
+  ov.addEventListener('click', go);
+  // 2) libera o toque quando o player estiver pronto (ou depois de 8s, pra nunca travar)
+  const t0=performance.now();
+  const iv=setInterval(()=>{
+    if(ov.style.display==='none'){ clearInterval(iv); return; }
+    if(_mobileMusicReady() || performance.now()-t0>8000){ clearInterval(iv); armed=true; ready(); }
+  },150);
 }
 
 function runCountdown(){
