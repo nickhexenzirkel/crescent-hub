@@ -797,8 +797,16 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     // o fundo ficava com a cor do tema anterior. Agora quem resolve isso é o
     // aviso de troca de tema (onThemeChange, em contexts/theme.js), que o
     // lava lamp escuta e se redesenha sozinho — e é ele que pinta o fundo.
-    <div style={{height:'100vh',overflow:'hidden',display:'flex',flexDirection:'column',
-      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box'}}>
+    <div style={{height:'calc(100vh / 0.8)',overflow:'hidden',display:'flex',flexDirection:'column',
+      position:'relative',zIndex:1,padding:'22px 34px 26px',boxSizing:'border-box',
+      // Zoom de 80%: os cards em 100% ficavam grandes demais e a tela não
+      // respirava — aqui reduzimos tudo (cards, textos, ícones) igual a um
+      // Ctrl+- do navegador, sem precisar remexer em cada número do layout.
+      // A altura precisa compensar o zoom (100vh/0.8) porque o `vh` é medido
+      // pela viewport de verdade, não pelo espaço já encolhido — sem isso a
+      // caixa ficava menor que a tela E cortava conteúdo (overflow:hidden
+      // corta ANTES do zoom encolher), sobrando uma faixa vazia embaixo.
+      zoom:0.8}}>
 
       <style>{`@keyframes msShootStar{0%,33%{opacity:0;transform:translate(0,0)}38%{opacity:1;transform:translate(8px,8px)}65%{opacity:.45;transform:translate(140px,140px)}72%,100%{opacity:0;transform:translate(180px,180px)}}`}</style>
       <div style={{position:'absolute',inset:0,zIndex:-1,overflow:'hidden',pointerEvents:'none'}}>
