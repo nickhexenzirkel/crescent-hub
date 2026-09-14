@@ -1488,7 +1488,11 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const [numCfg, setNumCfg]           = useState(null);
   const [numLoaded, setNumLoaded]     = useState(false);
   const [numPool, setNumPool]         = useState([]);      // números marcados como elegíveis (1-100)
-  const [numMode, setNumMode]         = useState(RANDOM_NUMERO_ID); // fixo | RANDOM_NUMERO_ID | NUMERO_RANDOM_PER_SLOT_ID
+  // Default é "1 diferente por vaga" — é o comportamento que o RH pediu (cada
+  // captura ganha um número aleatório DIFERENTE do pool). "1 número só pra
+  // todo mundo" existe como opção, mas deixado como padrão gerava a confusão
+  // de "selecionei 3 números e todo mundo tá ganhando o mesmo" (ver histórico).
+  const [numMode, setNumMode]         = useState(NUMERO_RANDOM_PER_SLOT_ID); // fixo | RANDOM_NUMERO_ID | NUMERO_RANDOM_PER_SLOT_ID
   const [numMaxWinners, setNumMaxWinners] = useState(3);
   const [numStart, setNumStart]       = useState('');
   const [numEnd, setNumEnd]           = useState('');
@@ -4397,10 +4401,15 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   <div>
                     <label style={lblSt}>Modo de sorteio</label>
                     <select value={numMode} onChange={e=>setNumMode(e.target.value)} style={{...inpSt,cursor:'pointer'}}>
-                      <option value={RANDOM_NUMERO_ID}>🎲 Sortear 1 número do pool</option>
-                      <option value={NUMERO_RANDOM_PER_SLOT_ID}>🎲 Sortear 1 diferente por vaga</option>
+                      <option value={NUMERO_RANDOM_PER_SLOT_ID}>🎲 Cada vaga ganha um número diferente (recomendado)</option>
+                      <option value={RANDOM_NUMERO_ID}>🎯 1 número só, o MESMO pra todo mundo que capturar</option>
                       {numPool.length===1 && <option value={String(numPool[0])}>🔒 Número fixo ({numPool[0]})</option>}
                     </select>
+                    <div style={{fontSize:11,color:T.textT,marginTop:5,lineHeight:1.4}}>
+                      {numMode===RANDOM_NUMERO_ID
+                        ? <>⚠️ Nesse modo, as {numMaxWinners} vaga(s) sorteiam pessoas diferentes, mas todo mundo leva o <b>mesmo</b> número.</>
+                        : <>Com {numPool.length} número(s) marcado(s) e {numMaxWinners} vaga(s), cada captura sorteia um número diferente do pool (se sobrar mais vaga que número, algum se repete).</>}
+                    </div>
                   </div>
                   <div>
                     <label style={lblSt}>Vagas (quantas pessoas podem ganhar)</label>
