@@ -63,12 +63,6 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   const [phase, setPhase]         = useState('idle'); // idle | thrown | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
-  // Confirmação antes de capturar de verdade: diferente do Uniko (que tem uma 1ª
-  // tentativa com chance de "escapar"), aqui é sempre acerto de primeira — um
-  // arrasto sem querer perto do card (repondo o assistente, tocando sem intenção)
-  // bastava pra ganhar o número na hora, sem chance de desfazer. Pedido explícito
-  // do usuário: só quem realmente jogou o assistente na área deve participar.
-  const [pendingConfirm, setPendingConfirm] = useState(false);
 
   const maxWinners = maxWinnersFor(cfg);
   const me      = getAuthUser()?.name;
@@ -93,7 +87,6 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   const eventId = captureEventId(cfg);
   useEffect(() => {
     setPhase('idle');
-    setPendingConfirm(false);
     resolvingRef.current = false;
     revealArmedRef.current = null;
     setWinners([]);
@@ -265,24 +258,17 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available, numeroValue]);
 
-  /* ── Recebe o ARREMESSO do assistente — só ABRE a confirmação, não captura ainda.
-       "Sim" chama confirmCapture() (abaixo); "Cancelar" só fecha o prompt, sem
-       gastar a tentativa nem mudar o estado do evento pra ninguém. ── */
+  /* ── Recebe o ARREMESSO do assistente — captura na hora, sem confirmação extra
+       (pedido explícito: soltar na área já vale, sem botão a mais). ── */
   useEffect(() => {
     const off = onCaptureNumeroThrow(() => {
       if (phaseRef.current !== 'idle' || resolvingRef.current) return;
-      setPendingConfirm(true);
+      setPhase('thrown');
+      setTimeout(() => resolveAttemptRef.current(), 520);
     });
     return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const confirmCapture = () => {
-    setPendingConfirm(false);
-    setPhase('thrown');
-    setTimeout(() => resolveAttemptRef.current(), 520);
-  };
-  const cancelCapture = () => setPendingConfirm(false);
 
   // UMA tentativa só — captura sempre na primeira (sem chance de escapar).
   const resolveAttempt = async () => {
@@ -440,19 +426,6 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
               {phase === 'thrown' ? '...' : 'Arraste o assistente UNIKO até aqui e solte!'}
             </div>
           </div>
-
-          {/* Confirmação antes de gastar a única tentativa — sem isso, um arrasto sem
-              querer perto do card já contava como captura de verdade, sem volta. */}
-          {pendingConfirm && (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 9, background: 'rgba(6,4,1,.72)', backdropFilter: 'blur(3px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 20, animation: 'cnToastIn .25s ease' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 800, color: '#fff', textAlign: 'center', textShadow: `0 1px 8px ${th.accent2}` }}>Capturar este número?</div>
-              <div style={{ fontSize: 11.5, color: th.ink, textAlign: 'center', maxWidth: 220, lineHeight: 1.4 }}>É a sua única tentativa — depois de confirmar não tem como desfazer.</div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={confirmCapture} style={{ padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${th.glow},${th.accent})`, color: '#3a2400', fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-body)' }}>Sim, capturar!</button>
-                <button onClick={cancelCapture} style={{ padding: '10px 18px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,.35)', cursor: 'pointer', background: 'transparent', color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)' }}>Cancelar</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
   );
