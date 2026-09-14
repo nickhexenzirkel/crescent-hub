@@ -333,7 +333,8 @@ canvas{display:block}
   transition:transform .18s,border-color .18s,background .18s,box-shadow .18s;
 }
 .play-choice-card:hover{transform:translateY(-4px);border-color:rgba(255,45,146,.5);background:rgba(255,45,146,.08);box-shadow:0 10px 34px rgba(255,45,146,.3)}
-.play-choice-icon{font-size:38px;filter:drop-shadow(0 0 14px rgba(255,45,146,.5))}
+.play-choice-icon{width:62px;height:62px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 12px rgba(168,85,247,.45))}
+.play-choice-icon svg{width:100%;height:100%;overflow:visible}
 .play-choice-title{font-family:var(--font-pixel);font-size:12px;color:#fff;letter-spacing:1px}
 .play-choice-sub{font-size:11.5px;color:rgba(255,255,255,.45);line-height:1.5}
 
@@ -1984,12 +1985,19 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
       <div class="play-hint">Escolha como você quer começar</div>
       <div class="play-choice-row">
         <div class="play-choice-card" onclick="showMenuPanel('panelPlay',document.getElementById('mnBtn0'))">
-          <div class="play-choice-icon">🎵</div>
+          <div class="play-choice-icon"><svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="pcGrad1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5fc0"/><stop offset="1" stop-color="#8b5cff"/></linearGradient></defs>
+            <path d="M18 35V11l18-4v22" fill="none" stroke="url(#pcGrad1)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="13" cy="35" r="5.5" fill="url(#pcGrad1)"/><circle cx="31" cy="29" r="5.5" fill="url(#pcGrad1)"/>
+            <circle cx="38" cy="38" r="8" fill="#0d0620" stroke="#4AA6FF" stroke-width="2.4"/><path d="M38 34v8M34 38h8" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg></div>
           <div class="play-choice-title">ADICIONAR MÚSICA NOVA</div>
           <div class="play-choice-sub">Cole o link de qualquer música do YouTube e jogue na hora</div>
         </div>
         <div class="play-choice-card" onclick="showMenuPanel('panelLib',document.getElementById('mnBtn2'))">
-          <div class="play-choice-icon">📚</div>
+          <div class="play-choice-icon"><svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="pcGrad2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4AA6FF"/><stop offset="1" stop-color="#8b5cff"/></linearGradient></defs>
+            <rect x="7" y="9" width="7" height="30" rx="2" fill="none" stroke="url(#pcGrad2)" stroke-width="3"/>
+            <rect x="17" y="6" width="7" height="33" rx="2" fill="none" stroke="url(#pcGrad2)" stroke-width="3"/>
+            <path d="M27.5 12.2l6.6-2.4 10 27.4-6.6 2.4z" fill="none" stroke="#ff5fc0" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M5 42h38" stroke="rgba(255,255,255,.55)" stroke-width="3" stroke-linecap="round"/></svg></div>
           <div class="play-choice-title">BIBLIOTECA</div>
           <div class="play-choice-sub">Escolha entre as músicas iniciais e as que você já jogou</div>
         </div>
