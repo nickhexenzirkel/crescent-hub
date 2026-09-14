@@ -414,7 +414,7 @@ const USER_SLICE = (s) => ({ checkins: s.checkins || [], capMonth: s.capMonth ||
 const CONFIG_PLAYER = '__mercado_config__';
 const itemToRow = (it, idx) => ({ id: it.id, name: it.name, descr: it.desc || '', price: it.price, cur: it.cur, stock: it.stock, rarity: it.rarity, emoji: it.emoji || '🎁', featured: !!it.featured, images: prizeImages(it), sort: idx, uniko_id: it.unikoId || null, updated_at: new Date().toISOString() });
 const itemFromRow = (r) => ({ id: r.id, name: r.name, desc: r.descr || '', price: r.price, cur: r.cur, stock: r.stock, rarity: r.rarity, emoji: r.emoji || '🎁', featured: !!r.featured, images: Array.isArray(r.images) ? r.images : [], unikoId: r.uniko_id || null });
-const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10) });
+const histFromRow = (r) => ({ id: r.id, kind: r.kind, desc: r.descr, comum: r.comum, premium: r.premium, date: (r.created_at || '').slice(0, 10), itemId: r.item_id || null, refundedAt: r.refunded_at || null });
 
 /* Abas que dá pra pedir de fora — os atalhos do seletor de módulos levam direto
    pro Check-in, pra Carteira etc. 'admin' fica de fora: aquela aba tem a própria
@@ -548,10 +548,21 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const buyGuard = useSpendGuard();
   const checkinGuard = useSpendGuard();
 
-  // Persiste o catálogo (upsert dos itens + remove os apagados)
+  // Persiste o catálogo (upsert dos itens + remove os apagados) — SÓ pro admin.
+  // BUG real encontrado (set/2026): esse efeito reenviava `state.items` INTEIRO
+  // (a cópia local de CADA cliente) sempre que a referência mudava — inclusive
+  // pra um colaborador comum, cuja única ação foi COMPRAR um item (o que já
+  // atualiza `state.items` localmente pra refletir o novo estoque). Se essa
+  // aba tivesse sido aberta antes de o admin editar preço/remover um prêmio,
+  // a cópia local ficava desatualizada — e o upsert do catálogo INTEIRO
+  // reescrevia por cima com preços antigos e RESSUSCITAVA prêmios que o admin
+  // já tinha apagado (o `id` continuava no array local, então o upsert recriava
+  // a linha). Só o admin deveria poder gravar o catálogo — colaborador nunca
+  // precisa disso (o estoque, quando ele compra, já é gravado à parte e de
+  // forma atômica pela RPC mercado_buy_stock).
   const prevItemIds = useRef(null);
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !isAdmin) return;
     const t = setTimeout(async () => {
       try {
         await supabase.from('mercado_items').upsert(state.items.map(itemToRow));
@@ -561,7 +572,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
       } catch {}
     }, 400);
     return () => clearTimeout(t);
-  }, [loaded, state.items]); // eslint-disable-line
+  }, [loaded, isAdmin, state.items]); // eslint-disable-line
 
   // ── Tracking REAL das missões: progresso ao vivo a partir de dados do Supabase/histórico ──
   // (minutos jogados, compras, coleção, ranking da Alexa e feedback — ver a métrica
@@ -611,7 +622,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
     // Antes disparava o insert sem aguardar nem checar erro — uma falha (RLS, coluna
     // errada etc.) sumia em silêncio e a compra "funcionava" pro usuário mas nunca
     // aparecia pro admin em Transações. Agora aguarda e loga se der erro de verdade.
-    const { error } = await supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null });
+    const { error } = await supabase.from('mercado_history').insert({ player: userName, kind: entry.kind, descr: entry.desc, comum: entry.comum ?? null, premium: entry.premium ?? null, item_id: entry.itemId ?? null });
     if (error) console.error('[mercado-estelar] addHistory falhou:', error);
   };
 
@@ -665,7 +676,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
       };
     });
     applyCredit(item.cur === 'comum' ? -item.price : 0, item.cur === 'premium' ? -item.price : 0);
-    addHistory({ kind: isUniko ? 'compra_uniko' : 'compra', desc: `Comprou “${item.name}”`, [item.cur]: -item.price });
+    addHistory({ kind: isUniko ? 'compra_uniko' : 'compra', desc: `Comprou “${item.name}”`, itemId: item.id, [item.cur]: -item.price });
     flash(`Você resgatou: ${item.name}`);
     if (isUniko) {
       setOwnedUnikoIds(prev => new Set([...prev, item.unikoId]));
@@ -1979,6 +1990,7 @@ const KIND_META = {
   captura:      { Icon: IcoTarget,  label: 'Capture o Uniko' },
   presente:     { Icon: IcoGift,    label: 'Presente (RH)' },
   admin:        { Icon: IcoShield,  label: 'Administrador' },
+  estorno:      { Icon: IcoSwap,    label: 'Estorno' },
 };
 
 const Historico = ({ history, isMobile, cardBg }) => {
@@ -2229,7 +2241,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player, mi
 
       {/* Sub-abas */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'missoes', label: 'Missões', Icon: IcoTarget }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }, { id: 'checkin', label: 'Verificar Check-in', Icon: IcoAlert }].map(t => {
+        {[{ id: 'premios', label: 'Prêmios', Icon: IcoGift }, { id: 'compras', label: 'Compras da loja', Icon: IcoCart }, { id: 'missoes', label: 'Missões', Icon: IcoTarget }, { id: 'transacoes', label: 'Transações', Icon: IcoReceipt }, { id: 'checkin', label: 'Verificar Check-in', Icon: IcoAlert }].map(t => {
           const on = sub === t.id;
           return (
             <button key={t.id} onClick={() => setSub(t.id)} style={{
@@ -2243,6 +2255,7 @@ const Admin = ({ items, expiresAt, setState, flash, isMobile, cardBg, player, mi
       </div>
 
       {sub === 'transacoes' ? <AdminTransacoes flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} missionDefs={missionDefs} />
+        : sub === 'compras' ? <AdminCompras flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
         : sub === 'missoes' ? <AdminMissoes missions={missionDefs} setMissions={setMissionDefs} flash={flash} isMobile={isMobile} cardBg={cardBg} />
         : sub === 'checkin' ? <AdminCheckin flash={flash} isMobile={isMobile} cardBg={cardBg} adminName={player} ownSetState={setState} />
         : (
@@ -3044,6 +3057,147 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
     </div>
   );
 };
+
+// ═══════════════════════════════ ADMIN · COMPRAS DA LOJA ═══════════════════════
+// Histórico de quem comprou o quê (kind compra/compra_uniko), com botão de
+// ESTORNAR: devolve o valor pra carteira da pessoa (mercado_credit, atômico),
+// repõe 1 unidade no estoque (mercado_refund_stock) e tira o prêmio da coleção
+// dela — revogando a posse de verdade também, se tiver sido um Uniko. Precisa
+// de `item_id` na linha do histórico (supabase_mercado_estorno.sql) — compras
+// feitas ANTES dessa migração não têm como ser estornadas automaticamente
+// (não dá pra saber com certeza qual item era só pelo texto da descrição).
+const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
+  const [hist, setHist] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [refundingId, setRefundingId] = useState(null);
+  const [playerQuery, setPlayerQuery] = useState('');
+
+  const load = async () => {
+    setBusy(true);
+    try {
+      const { data } = await supabase.from('mercado_history').select('*')
+        .in('kind', ['compra', 'compra_uniko']).order('created_at', { ascending: false }).limit(300);
+      setHist((data || []).map(r => ({ ...histFromRow(r), player: r.player })));
+    } catch {}
+    setBusy(false);
+  };
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const q = playerQuery.trim().toLowerCase();
+  const filtered = q ? hist.filter(h => (h.player || '').toLowerCase().includes(q)) : hist;
+
+  const estornar = async (h) => {
+    if (h.refundedAt || refundingId) return;
+    if (!h.itemId) { flash('Essa compra é antiga demais — sem item registrado pra estornar automaticamente.'); return; }
+    if (!window.confirm(`Estornar a compra de "${h.desc.replace(/^Comprou /, '').replace(/[“”]/g, '')}" feita por ${h.player}? O valor volta pra carteira dela, o prêmio sai da coleção e o estoque é reposto.`)) return;
+    setRefundingId(h.id);
+    try {
+      // 1) Devolve o valor gasto — o delta salvo na compra já é NEGATIVO, então
+      // devolver é só inverter o sinal (mercado_credit soma o delta, atômico).
+      const backComum = h.comum ? -h.comum : 0;
+      const backPremium = h.premium ? -h.premium : 0;
+      const { error: credErr } = await supabase.rpc('mercado_credit', { p_player: h.player, p_comum: backComum, p_premium: backPremium });
+      if (credErr) throw credErr;
+
+      // 2) Repõe 1 unidade no estoque (não falha se o item já não existir mais no catálogo)
+      await supabase.rpc('mercado_refund_stock', { p_item_id: h.itemId });
+
+      // 3) Tira o prêmio da coleção dela (mercado_state.data.collection) — merge
+      // via mercado_patch_state, nunca toca em comum/premium/checkins/missões.
+      const { data: row } = await supabase.from('mercado_state').select('data').eq('player', h.player).maybeSingle();
+      const collection = ((row?.data?.collection) || []).map(c => c.id === h.itemId ? { ...c, qty: (c.qty || 1) - 1 } : c).filter(c => (c.qty || 0) > 0);
+      await supabase.rpc('mercado_patch_state', { p_player: h.player, p_patch: { collection, updatedAt: Date.now() } });
+
+      // 4) Se era um Uniko (id "uniko_<id>", ver Admin.addItem), revoga a posse de verdade.
+      if (h.kind === 'compra_uniko' && h.itemId.startsWith('uniko_')) {
+        const unikoId = h.itemId.slice('uniko_'.length);
+        try { await supabase.from('capture_uniko_captures').delete().eq('player', h.player).eq('uniko_id', unikoId); } catch {}
+      }
+
+      // 5) Marca a compra como estornada + loga o estorno em si (aparece nas Transações)
+      await supabase.from('mercado_history').update({ refunded_at: new Date().toISOString() }).eq('id', h.id);
+      await supabase.from('mercado_history').insert({
+        player: h.player, kind: 'estorno', item_id: h.itemId,
+        descr: `Estorno de "${h.desc.replace(/^Comprou /, '').replace(/[“”]/g, '')}" (admin)`,
+        comum: backComum || null, premium: backPremium || null,
+      });
+
+      // Se estornou a própria compra do admin, reflete a carteira no estado local dele
+      if (h.player === adminName && ownSetState) {
+        ownSetState(s => ({ ...s, comum: Math.max(0, (s.comum || 0) + backComum), premium: Math.max(0, (s.premium || 0) + backPremium) }));
+      }
+
+      flash(`Estornado: ${h.desc} — ${h.player}`);
+      setHist(prev => prev.map(x => x.id === h.id ? { ...x, refundedAt: new Date().toISOString() } : x));
+    } catch (e) {
+      console.error('[prisma-store] estorno falhou:', e);
+      flash('Falha ao estornar — confira o console.');
+    }
+    setRefundingId(null);
+  };
+
+  return (
+    <div>
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+          <span style={{ color: T.gold }}><IcoCart size={16} /></span>Compras da loja
+        </div>
+        <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.5 }}>
+          Todo mundo que já resgatou um prêmio ou Uniko na loja. Estornar devolve o valor pra carteira da pessoa, tira o prêmio da coleção dela (revoga a posse, se for Uniko) e repõe 1 unidade no estoque.
+        </div>
+      </div>
+
+      <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 20px', boxShadow: T.sh }}>
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input value={playerQuery} onChange={e => setPlayerQuery(e.target.value)} placeholder="Buscar colaborador..."
+            style={{ ...adminField, paddingLeft: 34, paddingRight: playerQuery ? 34 : 12 }} />
+          {playerQuery && (
+            <button onClick={() => setPlayerQuery('')} aria-label="Limpar busca" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textT, fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          )}
+        </div>
+
+        {busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
+          : filtered.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma compra encontrada.</div>
+          : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 560, overflowY: 'auto' }}>
+              {filtered.map(h => {
+                const refunded = !!h.refundedAt;
+                return (
+                  <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', opacity: refunded ? .6 : 1, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IcoCart size={15} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.player}</div>
+                      <div style={{ fontSize: 11.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.desc} · {h.date}{refunded ? ' · estornado' : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      {['comum', 'premium'].map(c => h[c] != null && (
+                        <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700 }}>
+                          <span style={h[c] >= 0 ? { color: '#16a34a' } : (c === 'premium' ? prismText('premium') : { color: COMUM.color })}>{h[c] >= 0 ? '+' : ''}{fmt(h[c])}</span>
+                          <PrismIcon type={c} size={15} />
+                        </span>
+                      ))}
+                    </div>
+                    <button onClick={() => estornar(h)} disabled={refunded || refundingId === h.id || !h.itemId}
+                      title={!h.itemId ? 'Compra antiga — sem item registrado pra estornar' : undefined}
+                      style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 9, border: `1.5px solid ${refunded ? T.border : '#C04050'}55`,
+                        background: refunded ? 'transparent' : 'rgba(192,64,80,0.08)', color: refunded ? T.textT : '#C04050',
+                        cursor: (refunded || !h.itemId) ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+                        opacity: (!h.itemId && !refunded) ? .5 : 1 }}>
+                      {refunded ? 'Estornado' : refundingId === h.id ? 'Estornando…' : 'Estornar'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════ ADMIN · VERIFICAR CHECK-IN ═══════════════════
 // Nomes de dia da semana pra exibição (não confundir com WEEKDAY_LABELS, que são
 // posições 1-5 do CICLO, não dias reais).
