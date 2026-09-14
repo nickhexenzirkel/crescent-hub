@@ -9584,13 +9584,19 @@ function wgUpdateAbilityBtn(){
   const ab=wgAbility();
   if(gameMode!=='wargame' || !ab){ btn.style.display='none'; return; }
   btn.style.display='flex';
-  const cooling=wgAbilityOnCooldown();
-  const left=Math.ceil(WG.abilityReadyAt-songTime());
+  // 3 estados: ATIVA (contagem regressiva de quanto falta acabar o efeito),
+  // ESFRIANDO (contagem regressiva de quanto falta pra poder usar de novo —
+  // já inclui o tempo em que ela estava ativa, ver wgActivateAbility) e PRONTA.
+  const active=wgAbilityActive();
+  const cooling=!active && wgAbilityOnCooldown();
+  const activeLeft=Math.ceil(WG.abilityUntil-songTime());
+  const coolLeft=Math.ceil(WG.abilityReadyAt-songTime());
   btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
   const icoEl=document.getElementById('wgAbilityIcon'), lblEl=document.getElementById('wgAbilityLabel');
-  if(icoEl) icoEl.textContent=cooling?'':(WG_ABILITY_ICON[wgChar]||'✨');
-  if(lblEl) lblEl.textContent=cooling?left+'s':'';
+  if(icoEl) icoEl.textContent=(active||cooling)?'':(WG_ABILITY_ICON[wgChar]||'✨');
+  if(lblEl) lblEl.textContent=active?activeLeft+'s':cooling?coolLeft+'s':'';
   btn.classList.toggle('cooling', cooling);
+  btn.classList.toggle('active', active);
 }
 
 // Ativação (Espaço ou clique no botão ✨). Recarrega a cada WG_ABILITY_COOLDOWN.
@@ -10651,9 +10657,8 @@ function drawWargame(t){
   // Habilidade 'auto' ativa: mantém a pose de flutuar/atacar o tempo todo (sem isso
   // o airTimer zeraria entre uma nota e outra e ela voltaria a correr no chão).
   if(WG.abilityKind==='auto' && wgAbilityActive()) WG.airTimer=WG_AIR_HOLD;
-  // Botão ✨: pulsa enquanto ativa, mostra a contagem da recarga enquanto esfria.
-  const _abBtn=document.getElementById('wgAbilityBtn');
-  if(_abBtn){ _abBtn.classList.toggle('active', wgAbilityActive()); wgUpdateAbilityBtn(); }
+  // Botão ✨: a cada quadro atualiza a contagem (ativa e recarga) — ver wgUpdateAbilityBtn.
+  wgUpdateAbilityBtn();
   WG.airAnimT+=dt;
   const airActive = WG.airTimer>0 || holdingAir;
   const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
