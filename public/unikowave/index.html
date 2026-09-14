@@ -1469,6 +1469,8 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
     #bootSplash .bs-scene.bs-on{opacity:1;transform:none}
     #bootSplash .bs-logo{font-size:clamp(56px,11vw,168px);font-weight:900;letter-spacing:-.04em;line-height:.9}
     #bootSplash .bs-logo span{color:#ff6fb5}
+    /* N da marca = U de ponta-cabeça (mesma fonte/peso das outras letras, como no U∩IKO) */
+    #bootSplash .bs-logo .bs-n{display:inline-block;font-style:normal;transform:rotate(180deg) translateY(var(--nY,-.122em))}
     #bootSplash .bs-line{width:min(420px,60vw);height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent)}
     #bootSplash .bs-by{font-size:clamp(15px,1.7vw,24px);font-weight:600;color:rgba(255,255,255,.72);letter-spacing:.02em}
     #bootSplash .bs-by b{color:#fff;font-weight:900}
@@ -1509,7 +1511,7 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
   </style>
   <div class="bs-sky" id="bsSky"></div>
   <div class="bs-scene" id="bsScene1">
-    <div class="bs-logo">UNIKO <span>WAVE</span></div>
+    <div class="bs-logo" aria-label="UNIKO WAVE">U<i class="bs-n">U</i>IKO <span>WAVE</span></div>
     <div class="bs-line"></div>
     <div class="bs-by">Jogo desenvolvido por <b>Crescentia Tech</b></div>
   </div>
