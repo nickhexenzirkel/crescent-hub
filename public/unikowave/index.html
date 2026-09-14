@@ -2031,6 +2031,9 @@ html.gfx-med .menu-orb{filter:blur(46px)!important}
 html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:none!important;text-shadow:none!important}
 html.gfx-ultra #homeHeroMedia{display:none!important}
 html.gfx-ultra #homeHeroPhoto{display:block!important}
+/* Ultra Leve na partida: filtros CSS (drop-shadow/brightness/grayscale animados) no HUD e no
+   mascote obrigam o navegador a repintar a cada quadro — fora, dentro da tela de jogo. */
+html.gfx-ultra #gameWrap,html.gfx-ultra #gameWrap *{filter:none!important}
 
 /* Título de seção da biblioteca (ocupa a linha toda do grid) */
 .lib-section-title{grid-column:1/-1;width:100%;font-family:var(--font-pixel);font-size:11px;letter-spacing:1px;color:#ffd700;margin:8px 0 2px}
@@ -3497,7 +3500,7 @@ function _bufferResume(){
   if(audioCtx) audioCtx.resume();
   gameStartWallTime+=performance.now()-pauseStartWallMs; // âncora provisória
   _vbSynced=false;                                       // re-snap no relógio real ao retomar
-  requestAnimationFrame(gameLoop);
+  startGameLoop();
 }
 
 // Trava a qualidade do vídeo de fundo num nível mais leve (~480p) em vez de
@@ -5936,7 +5939,7 @@ function _beginPlaybackNow(startDelay){
     }
   }
   initColorMoments(songDuration);
-  setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
+  setupTZ(); startGameLoop(); runCountdown();
 }
 
 // Celular/iOS: um iframe cross-origin (YouTube) só toca com som se o autoplay
@@ -5978,7 +5981,7 @@ function _mobileTapStart(){
     _vbSynced=false;          // re-ancora o relógio quando o vídeo tocar
     gameStartWallTime=performance.now()+3800; // sem notas durante a contagem
     initColorMoments(songDuration);
-    setupTZ(); requestAnimationFrame(gameLoop); runCountdown();
+    setupTZ(); startGameLoop(); runCountdown();
   };
   // 'click' (não 'pointerdown'/'touchstart') — o Safari/iOS só reconhece click, touchend
   // ou keydown como gesto válido pra desbloquear áudio com som. pointerdown NÃO conta,
@@ -6339,7 +6342,15 @@ function getGrade(acc){
 
 let animT=0;
 let _lastProgressUpdate=0;
-function gameLoop(ts){
+// UM loop só por vez. Pausar e retomar no MESMO quadro (micro-engasgo do YouTube →
+// _bufferPause/_bufferResume, ou pausa rápida) deixava o loop antigo vivo e criava
+// outro: a cada vez o jogo passava a desenhar o quadro 2x, 3x, 4x… até o fim da música
+// (medido: 106 → 424 quadros desenhados/s depois de 3 retomadas). Cada início ganha
+// uma geração; loops de gerações antigas se encerram sozinhos.
+let _loopGen=0;
+function startGameLoop(){ const g=++_loopGen; requestAnimationFrame(ts=>gameLoop(ts,g)); }
+function gameLoop(ts,gen){
+  if(gen!==_loopGen) return;
   if(gameState!=='playing'&&gameState!=='countdown'&&gameState!=='paused'){return;}
   if(gameState==='paused'){return;}
   // Mantém songTime() colado no áudio REAL do YouTube (corrige drift continuamente).
@@ -6367,7 +6378,7 @@ function gameLoop(ts){
     const pf=document.getElementById('songProgressFill');
     if(pf) pf.style.width=pct.toFixed(1)+'%';
   }
-  requestAnimationFrame(gameLoop);
+  requestAnimationFrame(t2=>gameLoop(t2,gen));
 }
 
 function updateBgIntensity(){
@@ -10651,7 +10662,7 @@ function resumeGame(){
   _vbSynced=false;                   // força re-snap no relógio real do YouTube ao retomar
   document.getElementById('pauseOverlay').classList.add('off');
   const pb=document.getElementById('pauseBtn'); if(pb) pb.innerHTML=pxIcon('pause',{size:'1em'})+' PAUSA';
-  requestAnimationFrame(gameLoop);
+  startGameLoop();
 }
 
 function showResult(){

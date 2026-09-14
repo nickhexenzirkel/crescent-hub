@@ -80,6 +80,16 @@ body.pd-sem-estrelas .bg-estrelas { display: none !important; }
 body.pd-sem-orbita .orbita-estrelinha,
 body.pd-sem-orbita .estrela-cadente { display: none !important; }
 
+/* Uniko Wave aberto (body.uw-active): o jogo cobre a tela inteira num iframe, mas o
+   fundo animado do Portal (lava lamp + 52 estrelas) e as animações da sidebar
+   continuavam rodando por trás, disputando o quadro com o jogo. Some com o que fica
+   escondido e congela o resto enquanto se joga. */
+body.uw-active .lava-lamp,
+body.uw-active .bg-estrelas { display: none !important; }
+body.uw-active .portal-sidebar *,
+body.uw-active .portal-sidebar *::before,
+body.uw-active .portal-sidebar *::after { animation-play-state: paused !important; }
+
 /* Quem pediu "menos movimento" no sistema operacional não deve levar um fundo
    se mexendo sem parar — e de quebra o app fica mais leve nessas máquinas. */
 @media (prefers-reduced-motion: reduce) {
