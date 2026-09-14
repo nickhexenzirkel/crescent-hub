@@ -11,6 +11,8 @@ import {
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
   loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
+  loadCategoriaTags, getCategoriaTags, saveCategoriaTag, deleteCategoriaTag,
+  loadUnikoCategorias, saveUnikoCategorias, getUnikoCategorias,
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
   RANDOM_UNIKO_ID, RANDOM_PER_SLOT_ID, isRandomUnikoChoice, resolveUnikoChoice,
 } from '../../shared/captureUniko';
@@ -1057,6 +1059,45 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     try { await saveUnikoBgVideo(unikoId, ''); setRewardTick(t => t + 1); }
     catch (e) { setBgVidMsg('Erro ao remover: ' + (e.message || '')); setTimeout(()=>setBgVidMsg(''),5000); }
     setBgVidUploading(null);
+  };
+
+  // ── Categorias de Uniko (aba "Categoria" da Oficina): catálogo de tags + atribuição ──
+  const [oficinaView, setOficinaView] = useState('criar'); // criar | categoria
+  const [catTags, setCatTags]         = useState(() => getCategoriaTags());
+  const [catNome, setCatNome]         = useState('');
+  const [catCor, setCatCor]           = useState('#6C5CE7');
+  const [catBusy, setCatBusy]         = useState(null); // 'nova' | tagId | uniko_id em andamento
+  const [catMsg, setCatMsg]           = useState('');
+  const [catFiltro, setCatFiltro]     = useState(''); // busca de Uniko na atribuição
+  const flashCat = (m) => { setCatMsg(m); setTimeout(() => setCatMsg(''), 4500); };
+  useEffect(() => {
+    if (tab !== 'capture') return;
+    loadCategoriaTags().then(setCatTags);
+    loadUnikoCategorias().then(() => setRewardTick(t => t + 1));
+  }, [tab]);
+  const criarCategoria = async () => {
+    const nome = catNome.trim();
+    if (!nome) return;
+    if (catTags.some(t => t.nome.toLowerCase() === nome.toLowerCase())) { flashCat('❌ Já existe uma categoria com esse nome.'); return; }
+    setCatBusy('nova');
+    try { await saveCategoriaTag(nome, catCor); setCatTags([...getCategoriaTags()]); setCatNome(''); flashCat(`✅ Categoria "${nome}" criada.`); }
+    catch (e) { flashCat('❌ Erro ao criar: ' + (e.message || '')); }
+    setCatBusy(null);
+  };
+  const apagarCategoria = async (tag) => {
+    if (!window.confirm(`Apagar a categoria "${tag.nome}"? Ela sai de todos os Unikos que a têm.`)) return;
+    setCatBusy(tag.id);
+    try { await deleteCategoriaTag(tag.id); setCatTags([...getCategoriaTags()]); setRewardTick(t => t + 1); }
+    catch (e) { flashCat('❌ Erro ao apagar: ' + (e.message || '')); }
+    setCatBusy(null);
+  };
+  const alternarCategoria = async (unikoId, tagId) => {
+    const atual = getUnikoCategorias(unikoId);
+    const next = atual.includes(tagId) ? atual.filter(t => t !== tagId) : [...atual, tagId];
+    setCatBusy(unikoId);
+    try { await saveUnikoCategorias(unikoId, next); setRewardTick(t => t + 1); }
+    catch (e) { flashCat('❌ Erro ao salvar: ' + (e.message || '')); }
+    setCatBusy(null);
   };
 
   // ── Oficina Uniko Wave: cria personagens pro jogo (roster/gacha/Guerra Estelar) ──
@@ -4000,6 +4041,104 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
               {/* Oficina de Uniko — CARD 1: criar/editar um Uniko */}
               {captureSubTab==='oficina' && (<>
+              {/* Abas internas da Oficina: criar/biblioteca vs. categorias (tags) */}
+              <div style={{display:'flex',gap:6,padding:4,borderRadius:12,border:`1px solid ${T.border}`,alignSelf:'flex-start',background:isDark?'rgba(255,255,255,.03)':'rgba(0,0,0,.02)'}}>
+                {[{id:'criar',label:'🛠️ Criar & Biblioteca'},{id:'categoria',label:'🏷️ Categoria'}].map(v=>{
+                  const on = oficinaView===v.id;
+                  return (
+                    <button key={v.id} onClick={()=>setOficinaView(v.id)}
+                      style={{padding:'7px 14px',borderRadius:9,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:12.5,fontWeight:700,
+                        background:on?T.gold:'transparent',color:on?'#fff':T.textS,transition:'all .15s'}}>
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {oficinaView==='categoria' && (<>
+              {/* Categoria — CARD 1: catálogo de tags */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:16}}>
+                <div>
+                  <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🏷️ Categorias de Uniko</div>
+                  <div style={{fontSize:12,color:T.textS,marginTop:3}}>Crie tags como <b>Frutas</b>, <b>Seres Místicos</b>, <b>Desenho Animado</b>, <b>Especiais</b>… e marque abaixo quais Unikos pertencem a cada uma. Na Coleção de Unikos o colaborador filtra por essas tags.</div>
+                </div>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'end'}}>
+                  <div style={{flex:'1 1 240px'}}>
+                    <label style={lblSt}>Nome da categoria</label>
+                    <input value={catNome} onChange={e=>setCatNome(e.target.value)} placeholder="Ex.: Seres Místicos" maxLength={40}
+                      onKeyDown={e=>{ if (e.key==='Enter') criarCategoria(); }} style={inpSt}/>
+                  </div>
+                  <div>
+                    <label style={lblSt}>Cor</label>
+                    <input type="color" value={catCor} onChange={e=>setCatCor(e.target.value)}
+                      style={{width:52,height:40,border:`1px solid ${T.border}`,borderRadius:8,cursor:'pointer',padding:2,background:'transparent'}}/>
+                  </div>
+                  <button onClick={criarCategoria} disabled={!catNome.trim()||catBusy==='nova'}
+                    style={{padding:'11px 20px',borderRadius:10,border:'none',cursor:(!catNome.trim()||catBusy==='nova')?'default':'pointer',background:catCor,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)',opacity:(!catNome.trim()||catBusy==='nova')?.55:1}}>
+                    {catBusy==='nova'?'Criando…':'+ Criar categoria'}
+                  </button>
+                </div>
+                {catMsg && <div style={{fontSize:12.5,fontWeight:600,color:catMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050'}}>{catMsg}</div>}
+                {catTags.length===0
+                  ? <div style={{fontSize:12,color:T.textT}}>Nenhuma categoria criada ainda.</div>
+                  : <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                      {catTags.map(tg=>{
+                        const n = rosterUnikos.filter(u=>getUnikoCategorias(u.id).includes(tg.id)).length;
+                        return (
+                          <span key={tg.id} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 8px 6px 12px',borderRadius:999,
+                            background:`${tg.cor}1f`,border:`1.5px solid ${tg.cor}66`,color:tg.cor,fontSize:12.5,fontWeight:700}}>
+                            {tg.nome}
+                            <span style={{fontSize:10.5,fontWeight:800,padding:'1px 7px',borderRadius:999,background:`${tg.cor}33`}}>{n}</span>
+                            <button onClick={()=>apagarCategoria(tg)} disabled={catBusy===tg.id} title="Apagar categoria"
+                              style={{width:20,height:20,borderRadius:'50%',border:'none',background:'transparent',color:tg.cor,cursor:'pointer',fontSize:15,lineHeight:1,padding:0,opacity:catBusy===tg.id?.4:.8}}>×</button>
+                          </span>
+                        );
+                      })}
+                    </div>}
+              </div>
+
+              {/* Categoria — CARD 2: atribuir tags a cada Uniko */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
+                <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:14,flexWrap:'wrap'}}>
+                  <div style={{flex:'1 1 320px'}}>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📌 Marcar categorias ({rosterUnikos.length} Unikos)</div>
+                    <div style={{fontSize:12,color:T.textS,marginTop:3}}>Clique numa tag pra ligar/desligar naquele Uniko — salva na hora. Vale pros fixos e pros criados na Oficina.</div>
+                  </div>
+                  <input value={catFiltro} onChange={e=>setCatFiltro(e.target.value)} placeholder="🔎 Buscar Uniko…" style={{...inpSt,width:230,flex:'0 0 auto'}}/>
+                </div>
+                {catTags.length===0 ? (
+                  <div style={{fontSize:12,color:T.textT}}>Crie pelo menos uma categoria acima pra poder marcar os Unikos.</div>
+                ) : (
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {rosterUnikos.filter(u=>!catFiltro.trim()||_semAcento(u.name).includes(_semAcento(catFiltro))).map(u=>{
+                      const tagsU = getUnikoCategorias(u.id);
+                      const salvando = catBusy===u.id;
+                      return (
+                        <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'8px 12px',borderRadius:11,
+                          border:`1px solid ${tagsU.length?`${u.theme.accent}55`:T.border}`,background:isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,.012)',opacity:salvando?.6:1}}>
+                          <img src={u.img} alt={u.name} style={{width:38,height:38,objectFit:'contain',flexShrink:0}}/>
+                          <div style={{width:170,minWidth:120,fontSize:13,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={u.name}>{u.name}</div>
+                          <div style={{display:'flex',gap:6,flexWrap:'wrap',flex:1}}>
+                            {catTags.map(tg=>{
+                              const on = tagsU.includes(tg.id);
+                              return (
+                                <button key={tg.id} onClick={()=>alternarCategoria(u.id,tg.id)} disabled={salvando}
+                                  style={{padding:'5px 11px',borderRadius:999,cursor:salvando?'wait':'pointer',fontSize:11.5,fontWeight:700,fontFamily:'var(--font-body)',
+                                    border:`1.5px solid ${on?tg.cor:T.border}`,background:on?tg.cor:'transparent',color:on?'#fff':T.textS,transition:'all .12s'}}>
+                                  {on?'✓ ':''}{tg.nome}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              </>)}
+
+              {oficinaView==='criar' && (<>
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:18}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                   <div>
@@ -4259,6 +4398,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   })}
                 </div>
               </div>
+              </>)}
               </>)}
 
               {/* Enviar Uniko direto pra um colaborador (fora do sorteio) — tudo numa linha só */}

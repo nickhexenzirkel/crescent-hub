@@ -24,7 +24,7 @@ import CaptureUnikoWidget from './shared/CaptureUnikoWidget';
 import CaptureNumeroWidget from './shared/CaptureNumeroWidget';
 import { AtualizacaoOverlay } from './shared/atualizacao';
 import { subscribeGameInvites, setPendingJoin, GAME_JOIN_EVENT, GAME_LABEL } from './shared/gameInvites';
-import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
+import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, loadUnikoBgVideos, loadCategoriaTags, loadUnikoCategorias, syncServerClock, runCaptureScheduler } from './shared/captureUniko';
 import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY, runCaptureScheduler as runCaptureNumeroScheduler } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
@@ -140,7 +140,7 @@ export default function CrescentHub() {
   }, [authUser]);
   // Unikos criados na Oficina (Dashboard RH) — carrega o roster + skins de assistente
   // uma vez no login, pra getUniko/getAssistantSkin já encontrarem os customizados.
-  useEffect(() => { if (authUser) { loadCustomUnikos(); loadRewardOverrides(); loadUnikoBgVideos(); } }, [authUser]);
+  useEffect(() => { if (authUser) { loadCustomUnikos(); loadRewardOverrides(); loadUnikoBgVideos(); loadCategoriaTags(); loadUnikoCategorias(); } }, [authUser]);
 
   // Uniko escolhido como assistente sincroniza em tempo real entre dispositivos (celular/
   // computador logados com a mesma conta) — puxa do banco e assina mudanças (ver assistantSkin.js).

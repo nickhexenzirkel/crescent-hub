@@ -282,6 +282,7 @@ export async function loadCustomUnikos() {
     // Skins do assistente ficam num módulo separado (assistantSkin.js) — registra lá.
     for (const row of data) registerCustomSkin(row.id, _buildCustomSkin(row));
     applyBgVideos(); // reaplica os vídeos de fundo (o cache foi reconstruído acima)
+    applyCategorias(); // idem pras categorias/tags
     return Object.values(_customUnikoCache);
   } catch { return Object.values(_customUnikoCache); }
 }
@@ -781,6 +782,72 @@ export async function saveUnikoBgVideo(unikoId, url) {
   applyBgVideos();
 }
 export const getUnikoBgVideo = (id) => _bgVideoCache[id] || '';
+
+/* ── Categorias/tags de Uniko (Frutas, Seres Místicos, Desenho Animado...) ──
+   Duas peças: o CATÁLOGO de tags (lista global, admin cria/apaga) e a
+   ATRIBUIÇÃO por Uniko (quais tags cada um tem). Mesma ideia do vídeo de
+   fundo acima — vale pros fixos E pros da Oficina, aplica `categorias`
+   DIRETO no objeto do roster em memória. **Rodar supabase_uniko_categorias.sql.** ── */
+let _categoriaTagsCache = []; // [{id,nome,cor}]
+export async function loadCategoriaTags() {
+  try {
+    const { data } = await _supabase.from('uniko_categoria_tags').select('id,nome,cor').order('sort', { ascending: true });
+    _categoriaTagsCache = data || [];
+  } catch (e) { console.error('[capture-uniko] loadCategoriaTags falhou:', e); }
+  return _categoriaTagsCache;
+}
+export const getCategoriaTags = () => _categoriaTagsCache;
+export async function saveCategoriaTag(nome, cor) {
+  const id = `cat_${_slugify(nome)}`;
+  const sort = _categoriaTagsCache.length;
+  const { error } = await _supabase.from('uniko_categoria_tags').upsert({ id, nome: nome.trim(), cor: cor || '#6C5CE7', sort }, { onConflict: 'id' });
+  if (error) throw error;
+  await loadCategoriaTags();
+  return id;
+}
+export async function deleteCategoriaTag(id) {
+  const { error } = await _supabase.from('uniko_categoria_tags').delete().eq('id', id);
+  if (error) throw error;
+  // Tira a tag apagada de todo mundo que a tinha, senão ela fica "fantasma"
+  // presa em uniko_categorias.tags sem nunca mais poder ser removida na UI.
+  try {
+    const { data } = await _supabase.from('uniko_categorias').select('uniko_id,tags').contains('tags', [id]);
+    for (const r of (data || [])) {
+      const tags = (r.tags || []).filter(t => t !== id);
+      await _supabase.from('uniko_categorias').update({ tags, updated_at: new Date().toISOString() }).eq('uniko_id', r.uniko_id);
+      _categoriasCache[r.uniko_id] = tags;
+    }
+    applyCategorias();
+  } catch (e) { console.error('[capture-uniko] deleteCategoriaTag (limpeza) falhou:', e); }
+  await loadCategoriaTags();
+}
+
+let _categoriasCache = {}; // uniko_id -> [tagId,...]
+function applyCategorias() {
+  for (const [id, tags] of Object.entries(_categoriasCache)) {
+    if (CAPTURE_UNIKOS[id]) CAPTURE_UNIKOS[id].categorias = tags;
+    if (_customUnikoCache[id]) _customUnikoCache[id].categorias = tags;
+  }
+}
+export async function loadUnikoCategorias() {
+  try {
+    const { data } = await _supabase.from('uniko_categorias').select('uniko_id,tags');
+    _categoriasCache = {};
+    for (const r of (data || [])) _categoriasCache[r.uniko_id] = Array.isArray(r.tags) ? r.tags : [];
+    applyCategorias();
+  } catch (e) { console.error('[capture-uniko] loadUnikoCategorias falhou:', e); }
+}
+export async function saveUnikoCategorias(unikoId, tags) {
+  const clean = Array.isArray(tags) ? [...new Set(tags)] : [];
+  const { error } = await _supabase.from('uniko_categorias').upsert(
+    { uniko_id: unikoId, tags: clean, updated_at: new Date().toISOString() },
+    { onConflict: 'uniko_id' }
+  );
+  if (error) throw error;
+  _categoriasCache[unikoId] = clean;
+  applyCategorias();
+}
+export const getUnikoCategorias = (id) => _categoriasCache[id] || [];
 
 /* ── Loja de Unikos — preço (Prisma Comum) definido pelo admin pra cada Uniko poder ser
    COMPRADO na Prisma Store (além de capturado no evento). Tabela `uniko_store_prices`,

@@ -8,7 +8,8 @@ import { T } from '../../../contexts/theme';
 import { Card } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { USER, saveUserPhoto, getAuthUser, supabase } from '../../../contexts/user';
-import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos } from '../../../shared/captureUniko';
+import { CAPTURE_UNIKOS, getCapturedCollection, syncCollectionFromServer, getCustomUnikos, loadCustomUnikos,
+  loadCategoriaTags, getCategoriaTags, loadUnikoCategorias, getUnikoCategorias } from '../../../shared/captureUniko';
 import { getCapturedNumeros, syncNumeroCollectionFromServer } from '../../../shared/captureNumero';
 import {
   hasAssistantSkin, getActiveAssistantSkinId, setActiveAssistantSkin, getAssistantSkin, onAssistantSkinChange, getSkinVariations,
@@ -57,6 +58,10 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
   const [search, setSearch] = useState(''); // busca por nome na coleção
   const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
   const [ordenar, setOrdenar] = useState('nome'); // nome | recentes|antigos (obtenção) | criados_recentes|criados_antigos (criação do Uniko)
+  // Categorias (tags criadas pelo RH na Oficina): mostra só os Unikos com ALGUMA das marcadas.
+  const [catTags, setCatTags] = useState(() => getCategoriaTags());
+  const [catSel, setCatSel] = useState([]); // ids das tags marcadas ([] = sem filtro)
+  const [, setCatTick] = useState(0);
   const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
   // Falas automáticas do assistente (dicas etc.) — liga/desliga por conta; ouve a
   // troca feita em outro dispositivo (chega pelo sync da skin).
@@ -108,6 +113,25 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
     };
   }, []);
   useEffect(() => onAssistantSkinChange((id) => setActiveAssistant(id || 'default')), []);
+  // Categorias: carrega e acompanha em tempo real (RH criou tag / marcou Uniko).
+  useEffect(() => {
+    let alive = true;
+    const refreshTags = () => loadCategoriaTags().then(list => {
+      if (!alive) return;
+      setCatTags([...list]);
+      setCatSel(sel => sel.filter(id => list.some(t => t.id === id))); // tag apagada sai do filtro
+    });
+    const refreshCats = () => loadUnikoCategorias().then(() => { if (alive) setCatTick(t => t + 1); });
+    refreshTags(); refreshCats();
+    let ch;
+    try {
+      ch = supabase.channel('mydoko-categorias')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_categoria_tags' }, refreshTags)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_categorias' }, refreshCats)
+        .subscribe();
+    } catch {}
+    return () => { alive = false; try { supabase.removeChannel(ch); } catch {} };
+  }, []);
 
   const isCaptured = (id) => captured.some(c => c.id === id);
 
@@ -149,8 +173,11 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
   // custom_unikos); os fixos do roster (Vampire-Robot, Sereia...) são hardcoded no código
   // e não têm timestamp, então ficam de fora dessa ordenação (igual um "sem data").
   const criadoAtOf = (u) => u.createdAt || null;
+  // O UNIKO padrão ('default') é a mesma arte do 'uniko-comum' — herda as tags dele.
+  const catsOf = (u) => getUnikoCategorias(u.id === 'default' ? 'uniko-comum' : u.id);
   const visibleRoster = roster.filter(u => {
     if (q && !(normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q))) return false;
+    if (catSel.length && !catsOf(u).some(t => catSel.includes(t))) return false;
     if (filtro === 'obtidos' && !owns(u)) return false;   // só os já obtidos
     if (filtro === 'faltam' && owns(u)) return false;      // só os que faltam
     return true;
@@ -279,6 +306,35 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
         })}
       </div>
 
+      {/* Categorias (tags do RH) — marcar várias mostra quem tem QUALQUER uma delas */}
+      {catTags.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textT }}>Categorias:</span>
+          {catTags.map(tg => {
+            const sel = catSel.includes(tg.id);
+            const n = roster.filter(u => catsOf(u).includes(tg.id)).length;
+            return (
+              <button key={tg.id} onClick={() => setCatSel(s => sel ? s.filter(x => x !== tg.id) : [...s, tg.id])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999, cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+                  border: `1.5px solid ${sel ? tg.cor : T.border}`,
+                  background: sel ? tg.cor : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                  color: sel ? '#fff' : T.textS }}>
+                {sel ? <IcoCheck size={12}/> : <span style={{ width: 8, height: 8, borderRadius: '50%', background: tg.cor }}/>}
+                {tg.nome}
+                <span style={{ fontSize: 10.5, fontWeight: 800, opacity: .8 }}>{n}</span>
+              </button>
+            );
+          })}
+          {catSel.length > 0 && (
+            <button onClick={() => setCatSel([])}
+              style={{ padding: '7px 10px', borderRadius: 999, border: 'none', background: 'transparent', color: T.textT, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>
+              limpar
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Ordenar por data de obtenção */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -306,6 +362,7 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
       {visibleRoster.length === 0 && (
         <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: T.textT }}>
           {search ? `Nenhum Uniko encontrado pra "${search}".`
+            : catSel.length ? 'Nenhum Uniko nessas categorias.'
             : filtro === 'obtidos' ? 'Você ainda não obteve nenhum Uniko — capture no Portal! 🎯'
             : filtro === 'faltam' ? '🎉 Parabéns! Você já obteve todos os Unikos.'
             : 'Nenhum Uniko na coleção.'}
