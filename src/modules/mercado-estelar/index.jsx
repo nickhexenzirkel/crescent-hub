@@ -3068,23 +3068,36 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
 // (não dá pra saber com certeza qual item era só pelo texto da descrição).
 const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
   const [hist, setHist] = useState([]);
+  const [itemsById, setItemsById] = useState({}); // item_id -> { rarity, name } — pro filtro de raridade
   const [busy, setBusy] = useState(true);
   const [refundingId, setRefundingId] = useState(null);
   const [playerQuery, setPlayerQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState(''); // YYYY-MM-DD, comparável direto com h.date
+  const [dateTo, setDateTo] = useState('');
+  const [rarityFilter, setRarityFilter] = useState('todos'); // todos | Comum | Raro | Épico | Lendário
 
   const load = async () => {
     setBusy(true);
     try {
-      const { data } = await supabase.from('mercado_history').select('*')
-        .in('kind', ['compra', 'compra_uniko']).order('created_at', { ascending: false }).limit(300);
+      const [{ data }, { data: itemRows }] = await Promise.all([
+        supabase.from('mercado_history').select('*').in('kind', ['compra', 'compra_uniko']).order('created_at', { ascending: false }).limit(300),
+        supabase.from('mercado_items').select('id,rarity,name'),
+      ]);
       setHist((data || []).map(r => ({ ...histFromRow(r), player: r.player })));
+      setItemsById(Object.fromEntries((itemRows || []).map(r => [r.id, { rarity: r.rarity, name: r.name }])));
     } catch {}
     setBusy(false);
   };
   useEffect(() => { load(); }, []); // eslint-disable-line
 
   const q = playerQuery.trim().toLowerCase();
-  const filtered = q ? hist.filter(h => (h.player || '').toLowerCase().includes(q)) : hist;
+  const filtered = hist.filter(h => {
+    if (q && !(h.player || '').toLowerCase().includes(q)) return false;
+    if (dateFrom && h.date < dateFrom) return false;
+    if (dateTo && h.date > dateTo) return false;
+    if (rarityFilter !== 'todos' && (itemsById[h.itemId]?.rarity || null) !== rarityFilter) return false;
+    return true;
+  });
 
   const estornar = async (h) => {
     if (h.refundedAt || refundingId) return;
@@ -3159,18 +3172,52 @@ const AdminCompras = ({ flash, isMobile, cardBg, adminName, ownSetState }) => {
           )}
         </div>
 
+        {/* Filtro por data de aquisição (intervalo) */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textT }}>De</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...adminField, width: 'auto', padding: '7px 10px', fontSize: 12.5, cursor: 'pointer' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textT }}>Até</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...adminField, width: 'auto', padding: '7px 10px', fontSize: 12.5, cursor: 'pointer' }} />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '6px 12px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 600 }}>Limpar datas</button>
+          )}
+        </div>
+
+        {/* Filtro por raridade do prêmio (item deletado do catálogo não tem raridade conhecida — só aparece em "Todos") */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          {[{ id: 'todos', label: 'Todas as raridades' }, ...RARITY_ORDER.map(r => ({ id: r, label: r }))].map(f => {
+            const on = rarityFilter === f.id;
+            const color = f.id === 'todos' ? T.gold : RARITY_COLOR[f.id];
+            return (
+              <button key={f.id} onClick={() => setRarityFilter(f.id)} style={{
+                padding: '6px 12px', borderRadius: 999, border: `1.5px solid ${on ? color : T.border}`, cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: on ? 700 : 500,
+                background: on ? `${color}22` : 'transparent', color: on ? color : T.textS,
+              }}>{f.label}</button>
+            );
+          })}
+        </div>
+
         {busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
           : filtered.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma compra encontrada.</div>
           : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 560, overflowY: 'auto' }}>
               {filtered.map(h => {
                 const refunded = !!h.refundedAt;
+                const rarity = itemsById[h.itemId]?.rarity || null;
                 return (
                   <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)', opacity: refunded ? .6 : 1, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IcoCart size={15} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.player}</div>
-                      <div style={{ fontSize: 11.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.desc} · {h.date}{refunded ? ' · estornado' : ''}</div>
+                      <div style={{ fontSize: 11.5, color: T.textT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.desc} · {h.date}{refunded ? ' · estornado' : ''}</span>
+                        {rarity && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, color: RARITY_COLOR[rarity], background: `${RARITY_COLOR[rarity]}22` }}>{rarity}</span>}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                       {['comum', 'premium'].map(c => h[c] != null && (
