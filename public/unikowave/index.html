@@ -2816,8 +2816,14 @@ const WG_MINION_AIR_DOWN = new Image(); WG_MINION_AIR_DOWN.src = 'images/minion_
 const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/minion_boss.png';
 const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/minion_boss.png';
 
-// Esteira (chão) animada: 3 frames que dão a impressão de movimento
-const WG_BELT_ORIG = ['images/ESTEIRA_FRAME1.png','images/ESTEIRA_FRAME2.png','images/ESTEIRA_FRAME3.png'];
+// Esteira (chão): plataforma lunar (imagem única; o array segue com 3 posições
+// porque mapas da Oficina ainda podem trocar a textura e o código espera 3 frames).
+const WG_BELT_ORIG = ['images/esteira_lunar.png','images/esteira_lunar.png','images/esteira_lunar.png'];
+// Encaixe da imagem na tela, em FRAÇÃO da altura da imagem:
+//  surf  = linha onde os personagens pisam (topo do chão)
+//  fillY/fillH = faixa 100% opaca usada pra preencher o chão sem "buracos"
+const WG_BELT_FIT_ORIG   = { surf:0.45, fillY:0.45, fillH:0.14 }; // esteira_lunar.png (2112x745)
+const WG_BELT_FIT_LEGACY = { surf:0.46, fillY:0.24, fillH:0.14 }; // esteiras antigas / de mapas da Oficina
 const WG_BELT_FRAMES = WG_BELT_ORIG.map(src => { const i = new Image(); i.src = src; return i; });
 // Texturas ORIGINAIS do Guerra Estelar. Ficam guardadas porque o jogador pode
 // trocar de mapa (ou voltar pro "Original") sem recarregar o jogo — sem elas
@@ -9039,6 +9045,20 @@ function wgHoldSfxStop(){
 }
 function wgSyncHoldSfx(){ if(WG.holds.air||WG.holds.ground) wgHoldSfxStart(); else wgHoldSfxStop(); }
 
+// Boss FLUTUANDO: fica WG_BOSS_LIFT (fração da altura dele) acima do chão e sobe/desce
+// devagar. Todo lugar que mira no boss (desenho, lasers, chutes, onda final) usa isto.
+const WG_BOSS_LIFT = 0.24, WG_BOSS_FLOAT = 0.045;
+function wgBossCY(bossH, noFloat){
+  const base = WG.floorFeet*0.98 - bossH*0.5 - bossH*WG_BOSS_LIFT;
+  return noFloat ? base : base + Math.sin(animT*1.5)*bossH*WG_BOSS_FLOAT;
+}
+// Olhos do boss (de onde saem os lasers), calibrado pra arte minion_boss.png
+// (olhos em ~37% e ~51% da largura, ~56% da altura — o rosto fica à esquerda do centro).
+function wgBossEyes(cx, bossH){
+  const ey = wgBossCY(bossH) + bossH*0.06;
+  return [[cx - bossH*0.13, ey], [cx + bossH*0.015, ey]];
+}
+
 function wgComputeLayout(){
   WG.charX       = CW*0.15;
   WG.charH       = Math.max(140, Math.min(240, CH*0.30));
@@ -9228,7 +9248,7 @@ function wgKick(){
   WG.lungeT=0.18; WG.atkTimer=0.22;
   WG.bossHitFx=1; WG.bossShake=12;
   WG.bossHp=Math.max(0, WG.bossMaxHp*(1 - WG.finisherKicks/WG.finisherNeed));
-  const bcy=WG.floorFeet-WG.charH*0.9;
+  const bcy=wgBossCY(WG.charH*1.7);
   const ang=Math.random()*Math.PI*2, rad=WG.charH*0.72;
   WG.kickAng=ang; WG.kickX=WG.bossX+Math.cos(ang)*rad; WG.kickY=bcy+Math.sin(ang)*rad*0.7;
   spawnBurst(WG.bossX,bcy,'#ffd34d',22);
@@ -9466,19 +9486,30 @@ function wgDrawBelt(gy,h){
   if(frame && frame.complete && frame.naturalWidth){
     const sw=frame.naturalWidth, sh=frame.naturalHeight;
     const bw=CW, bh=bw*(sh/sw);
-    const surf=0.46;                       // fração da altura onde fica a superfície do chão
+    // textura original (plataforma lunar) ou esteira de mapa da Oficina (encaixe antigo)
+    const fit=(!frame._texSrc || frame._texSrc===WG_BELT_ORIG[0]) ? WG_BELT_FIT_ORIG : WG_BELT_FIT_LEGACY;
+    const surf=fit.surf;                   // fração da altura onde fica a superfície do chão
     const top=gy - bh*surf;
     const speed=CW*0.35;                   // px/s que a esteira corre pra esquerda
-    let off=-((animT*speed)%bw);           // deslocamento (-bw, 0]
-    // 1) Preenche o chão INTEIRO com uma fatia TOTALMENTE OPACA do meio dos treads (evita as
-    //    quinas anguladas/transparentes das pontas) esticada de gy até o fim. Assim os
-    //    "buracos" viram esteira de verdade — o chão todo é a imagem da esteira.
-    const sy0=Math.round(sh*0.24), syh=Math.round(sh*0.14);
-    ctx.drawImage(frame, 0,sy0,sw,syh, off,      gy, bw, CH-gy);
-    ctx.drawImage(frame, 0,sy0,sw,syh, off + bw, gy, bw, CH-gy);
-    // 2) Esteira em proporção real por cima (com as pernas) pro visual bonito
-    ctx.drawImage(frame, off,      top, bw, bh);
-    ctx.drawImage(frame, off + bw, top, bw, bh);
+    // Mosaico ESPELHADO (normal, espelhada, normal…): a borda direita de uma cópia encontra
+    // a mesma borda da cópia espelhada → emenda invisível (a lua tem pedras cortadas nas pontas).
+    const period=bw*2;
+    let off=-((animT*speed)%period);       // deslocamento (-2bw, 0]
+    // 1) Preenche a faixa do chão com uma fatia TOTALMENTE OPACA da imagem (evita as
+    //    quinas/transparências das pontas), só na altura dessa faixa — abaixo dela ficam
+    //    as "pernas"/propulsores da própria imagem, sem fatia esticada por trás.
+    const sy0=Math.round(sh*fit.fillY), syh=Math.round(sh*fit.fillH);
+    const fillTo=gy + bh*(fit.fillY+fit.fillH-surf);
+    // cópias em off, off+bw, off+2bw (a do meio espelhada) cobrem a tela inteira
+    for(let k=0;k<3;k++){
+      const x=off + k*bw, flip=(k%2===1);
+      ctx.save();
+      if(flip){ ctx.translate(x+bw,0); ctx.scale(-1,1); } else ctx.translate(x,0);
+      ctx.drawImage(frame, 0,sy0,sw,syh, 0, gy, bw, fillTo-gy);
+      // 2) Esteira em proporção real por cima (com as pernas) pro visual bonito
+      ctx.drawImage(frame, 0, top, bw, bh);
+      ctx.restore();
+    }
     return;
   }
   // Fallback procedural (caso as imagens ainda não tenham carregado)
@@ -9529,12 +9560,13 @@ function drawWgBackground(t){
   const sky=ctx.createLinearGradient(0,0,0,gy);
   sky.addColorStop(0,'rgba(10,2,24,0.55)'); sky.addColorStop(1,'rgba(10,2,24,0.14)');
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,gy);
+  const under=ctx.createLinearGradient(0,gy,0,CH);
+  under.addColorStop(0,'rgba(10,2,24,0.35)'); under.addColorStop(1,'rgba(10,2,24,0.75)');
+  ctx.fillStyle=under; ctx.fillRect(0,gy,CW,CH-gy);
   // Esteira
   wgDrawBelt(gy, WG.beltH);
-  // Abaixo da esteira: faixa escura (gap) e SÓ no fundo o fogo
-  const belowY=gy+WG.beltH;
-  ctx.fillStyle='#0a0816'; ctx.fillRect(0, belowY, CW, CH-belowY);
-  wgDrawFire(WG.fireTop);
+  // Abaixo da esteira: sem fogo (removido) — só um véu escuro por trás da plataforma,
+  // pra ela e os propulsores se destacarem do vídeo. Desenhado ANTES da esteira.
 }
 
 // Desenha um minion (imagem) com brilho da cor da linha e seta indicando a tecla.
@@ -9816,13 +9848,15 @@ function drawWargame(t){
     const img=(WG_BOSS_DEFEATED.complete&&WG_BOSS_DEFEATED.naturalWidth)?WG_BOSS_DEFEATED:WG_BOSS_IMG;
     if(img.complete&&img.naturalWidth){
       const ratio=img.naturalWidth/img.naturalHeight, dh=bossH*s, dw=dh*ratio;
-      ctx.save(); ctx.translate(WG.bossX, WG.floorFeet*0.98-bossH*0.5+fall); ctx.rotate(tilt+wob);
+      // cai da altura em que flutuava até pousar na esteira
+      const drop=Math.min(1,dT/0.9)*bossH*WG_BOSS_LIFT;
+      ctx.save(); ctx.translate(WG.bossX, wgBossCY(bossH,true)+drop+fall); ctx.rotate(tilt+wob);
       if(glow){ ctx.shadowColor='rgba(255,60,60,.5)'; ctx.shadowBlur=22; }
       ctx.drawImage(img,-dw/2,-dh/2,dw,dh); ctx.restore();
     }
   } else {
     const bShake=(Math.random()*2-1)*WG.bossShake;
-    const bcx=WG.bossX+bShake, bcy=WG.floorFeet*0.98-bossH*0.5;
+    const bcx=WG.bossX+bShake, bcy=wgBossCY(bossH);
     ctx.save();
     if(WG_BOSS_IMG && WG_BOSS_IMG.complete && WG_BOSS_IMG.naturalWidth){
       const ratio=WG_BOSS_IMG.naturalWidth/WG_BOSS_IMG.naturalHeight, dh=bossH, dw=dh*ratio;
@@ -9971,7 +10005,7 @@ function drawWargame(t){
   // ── Finalização — Mizuki: FLECHA ESTELAR (raio colorido) / Venebra: EXPLOSÃO DE MAGIA SANGUÍNEA ──
   if(WG.waving){
     const wt=WG.waveT, ox=drawX, oy=feet-chH*0.55;
-    const bcx=WG.bossX, bcy=WG.floorFeet-bossH*0.5;
+    const bcx=WG.bossX, bcy=wgBossCY(bossH);
     const ang=Math.atan2(bcy-oy,bcx-ox), len=Math.hypot(bcx-ox,bcy-oy);
     const mg=wgMagic();
     if(mg){
@@ -10067,8 +10101,8 @@ function drawWargame(t){
   // ── Lasers do boss: DOIS feixes vermelhos saindo dos OLHOS até a Mizuki ──
   for(const b of WG.bolts){
     const k=Math.max(0,1-b.t/0.45);
-    const cxB=(b.ox||CW*0.82), eyeY=WG.floorFeet*0.98 - bossH*0.62;
-    const eyes=[[cxB - bossW*0.12, eyeY],[cxB + bossW*0.12, eyeY]];
+    const cxB=(b.ox||CW*0.82);
+    const eyes=wgBossEyes(cxB, bossH);
     const x2=drawX, y2=feet-chH*0.5;
     for(const [ex,ey] of eyes){
       // feixe quase reto com leve tremor
@@ -10085,7 +10119,7 @@ function drawWargame(t){
   }
 
   // ── Balões de fala (boss + Mizuki) ──
-  if(WG.bossSay){ if(WG.bossSay.until>st) drawWgBubble(CW*0.85, WG.floorFeet-bossH*1.0, WG.bossSay.text, '#3a0a22', '#ffd0e6'); else WG.bossSay=null; }
+  if(WG.bossSay){ if(WG.bossSay.until>st) drawWgBubble(CW*0.85, wgBossCY(bossH,true)-bossH*0.5, WG.bossSay.text, '#3a0a22', '#ffd0e6'); else WG.bossSay=null; }
   if(WG.mizukiSay){ if(WG.mizukiSay.until>st) drawWgBubble(drawX, feet-chH-4, WG.mizukiSay.text, '#0e2740', '#bfe9ff'); else WG.mizukiSay=null; }
 
   // ── Prompt do FINISHER: aperte W pra chutar (30x) ──
