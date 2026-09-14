@@ -56,7 +56,7 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
   const [search, setSearch] = useState(''); // busca por nome na coleção
   const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
-  const [ordenar, setOrdenar] = useState('nome'); // nome | recentes | antigos (por data de obtenção)
+  const [ordenar, setOrdenar] = useState('nome'); // nome | recentes|antigos (obtenção) | criados_recentes|criados_antigos (criação do Uniko)
   const [assistantScale, setAssistantScaleState] = useState(getAssistantScale); // tamanho pessoal do assistente ativo
   // Falas automáticas do assistente (dicas etc.) — liga/desliga por conta; ouve a
   // troca feita em outro dispositivo (chega pelo sync da skin).
@@ -145,20 +145,28 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
   const q = normSearch(search);
   // Data de aquisição (ISO) do Uniko na coleção — só existe pra capturas de verdade.
   const atOf = (id) => captured.find(c => c.id === id)?.at || null;
+  // Data de CRIAÇÃO (ISO) do Uniko em si — só os da Oficina têm (`created_at` da tabela
+  // custom_unikos); os fixos do roster (Vampire-Robot, Sereia...) são hardcoded no código
+  // e não têm timestamp, então ficam de fora dessa ordenação (igual um "sem data").
+  const criadoAtOf = (u) => u.createdAt || null;
   const visibleRoster = roster.filter(u => {
     if (q && !(normSearch(u.name).includes(q) || normSearch(u.shortName).includes(q))) return false;
     if (filtro === 'obtidos' && !owns(u)) return false;   // só os já obtidos
     if (filtro === 'faltam' && owns(u)) return false;      // só os que faltam
     return true;
   });
-  // Ordenação por data de obtenção (ISO compara cronologicamente). Unikos sem data
-  // (padrão / ainda não obtidos) vão pro fim. 'nome' mantém a ordem original do roster.
+  // Ordenação por data de obtenção OU de criação (ISO compara cronologicamente). Unikos
+  // sem a data escolhida (padrão/fixos do roster, ou ainda não obtidos) vão pro fim.
+  // 'nome' mantém a ordem original do roster.
+  const isOrdCriado = ordenar === 'criados_recentes' || ordenar === 'criados_antigos';
   const orderedRoster = ordenar === 'nome' ? visibleRoster : [...visibleRoster].sort((a, b) => {
-    const ta = atOf(a.id), tb = atOf(b.id);
+    const getAt = isOrdCriado ? criadoAtOf : (u) => atOf(u.id);
+    const ta = getAt(a), tb = getAt(b);
     if (!ta && !tb) return 0;
     if (!ta) return 1;
     if (!tb) return -1;
-    return ordenar === 'recentes' ? tb.localeCompare(ta) : ta.localeCompare(tb);
+    const maisRecentesPrimeiro = ordenar === 'recentes' || ordenar === 'criados_recentes';
+    return maisRecentesPrimeiro ? tb.localeCompare(ta) : ta.localeCompare(tb);
   });
 
   return (
@@ -276,7 +284,11 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
         <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <IcoCal size={13}/>Ordenar:
         </span>
-        {[['nome', 'Nome (A–Z)'], ['recentes', '↓ Mais recentes'], ['antigos', '↑ Mais antigos']].map(([id, label]) => {
+        {[
+          ['nome', 'Nome (A–Z)'],
+          ['recentes', '↓ Obtidos: mais recentes'], ['antigos', '↑ Obtidos: mais antigos'],
+          ['criados_recentes', '↓ Criados: mais recentes'], ['criados_antigos', '↑ Criados: mais antigos'],
+        ].map(([id, label]) => {
           const sel = ordenar === id;
           return (
             <button key={id} onClick={() => setOrdenar(id)}
@@ -323,7 +335,14 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                     Você ainda não tem
                   </div>
-                  <div style={{ fontSize: 12, color: T.textT, marginBottom: 10 }}>{u.tagline}</div>
+                  <div style={{ fontSize: 12, color: T.textT, marginBottom: criadoAtOf(u) ? 6 : 10 }}>{u.tagline}</div>
+
+                  {criadoAtOf(u) && (
+                    <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 5,
+                      background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
+                      <IcoCal size={12}/>Criado em {new Date(criadoAtOf(u)).toLocaleDateString('pt-BR')}
+                    </div>
+                  )}
 
                   {(u.perks || []).length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
@@ -354,13 +373,24 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
               </div>
               <div style={{ padding: '14px 16px 16px' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{u.shortName || u.name}</div>
-                <div style={{ fontSize: 12, color: T.textT, marginBottom: atOf(u.id) && !isAdminUser ? 6 : 10 }}>{u.tagline}</div>
+                <div style={{ fontSize: 12, color: T.textT, marginBottom: (atOf(u.id) && !isAdminUser) || criadoAtOf(u) ? 6 : 10 }}>{u.tagline}</div>
 
-                {/* data de obtenção (só pra capturas de verdade — admin tem tudo liberado) */}
-                {atOf(u.id) && !isAdminUser && (
-                  <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 12, display: 'inline-flex', alignItems: 'center', gap: 5,
-                    background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
-                    <IcoCal size={12}/>Obtido em {new Date(atOf(u.id)).toLocaleDateString('pt-BR')}
+                {/* data de obtenção (só pra capturas de verdade — admin tem tudo liberado) e/ou
+                    data de criação do Uniko (só os da Oficina têm) */}
+                {((atOf(u.id) && !isAdminUser) || criadoAtOf(u)) && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                    {atOf(u.id) && !isAdminUser && (
+                      <div style={{ fontSize: 11.5, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 5,
+                        background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
+                        <IcoCal size={12}/>Obtido em {new Date(atOf(u.id)).toLocaleDateString('pt-BR')}
+                      </div>
+                    )}
+                    {criadoAtOf(u) && (
+                      <div style={{ fontSize: 11.5, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 5,
+                        background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border}`, borderRadius: 8, padding: '3px 9px' }}>
+                        <IcoCal size={12}/>Criado em {new Date(criadoAtOf(u)).toLocaleDateString('pt-BR')}
+                      </div>
+                    )}
                   </div>
                 )}
 

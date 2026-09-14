@@ -240,6 +240,7 @@ function _buildCustomCaptureUniko(row) {
     reward: { comum: row.reward_comum ?? 100, premium: row.reward_premium ?? 100 },
     theme,
     isCustom: true,
+    createdAt: row.created_at || null, // quando foi criado na Oficina (Unikos fixos do roster não têm)
   };
 }
 
