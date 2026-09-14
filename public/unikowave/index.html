@@ -2807,13 +2807,14 @@ const WG_CHAR_SCALE = { ashen: 1.18, icydoll: 1.3 };
 function wgCharScale(){ return WG_CHAR_SCALE[wgChar] || 1; }
 
 // Minions (substituem as notas no Guerra Estelar): chão = comum, ar = voador (com asas)
-const WG_MINION = new Image();      WG_MINION.src      = 'images/DarkCatBotMinions.png';
-const WG_MINION_SMILE = new Image(); WG_MINION_SMILE.src = 'images/DarkCatBot Sorrindo.png';        // chão: sorri ao nascer
-const WG_MINION_AIR = new Image();  WG_MINION_AIR.src  = 'images/DarkCatBotMinionsVoador.png';       // voador: asa pra CIMA
-const WG_MINION_AIR_DOWN = new Image(); WG_MINION_AIR_DOWN.src = 'images/DarkCatBot Voador Asa pra Baixo.png'; // voador: asa pra BAIXO
-// Boss (fixo) — normal e derrotado
-const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/DarkCatBotBoss.png';
-const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/DarkCatBotBossDerrotado.png';
+const WG_MINION = new Image();      WG_MINION.src      = 'images/minion_terrestre.png';
+const WG_MINION_SMILE = new Image(); WG_MINION_SMILE.src = 'images/minion_terrestre_sorrindo.png';  // chão: sorri ao nascer
+const WG_MINION_AIR = new Image();  WG_MINION_AIR.src  = 'images/minion_voador_asa_cima.png';        // voador: asa pra CIMA
+const WG_MINION_AIR_DOWN = new Image(); WG_MINION_AIR_DOWN.src = 'images/minion_voador_asa_baixo.png'; // voador: asa pra BAIXO
+// Boss (fixo) — normal e derrotado. A arte nova do boss ainda não tem versão
+// "derrotado": usa a mesma imagem (a animação de derrota tomba e derruba ela).
+const WG_BOSS_IMG = new Image();      WG_BOSS_IMG.src      = 'images/minion_boss.png';
+const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/minion_boss.png';
 
 // Esteira (chão) animada: 3 frames que dão a impressão de movimento
 const WG_BELT_ORIG = ['images/ESTEIRA_FRAME1.png','images/ESTEIRA_FRAME2.png','images/ESTEIRA_FRAME3.png'];
@@ -2822,16 +2823,18 @@ const WG_BELT_FRAMES = WG_BELT_ORIG.map(src => { const i = new Image(); i.src = 
 // trocar de mapa (ou voltar pro "Original") sem recarregar o jogo — sem elas
 // não haveria pra onde voltar depois de aplicar um mapa da Oficina.
 const WG_TEX_ORIG = {
-  minion:        'images/DarkCatBotMinions.png',
-  minionSmile:   'images/DarkCatBot Sorrindo.png',
-  minionAir:     'images/DarkCatBotMinionsVoador.png',
-  minionAirDown: 'images/DarkCatBot Voador Asa pra Baixo.png',
-  boss:          'images/DarkCatBotBoss.png',
-  bossDefeated:  'images/DarkCatBotBossDerrotado.png',
+  minion:        'images/minion_terrestre.png',
+  minionSmile:   'images/minion_terrestre_sorrindo.png',
+  minionAir:     'images/minion_voador_asa_cima.png',
+  minionAirDown: 'images/minion_voador_asa_baixo.png',
+  boss:          'images/minion_boss.png',
+  bossDefeated:  'images/minion_boss.png',
+  minionBig:     'images/minion_boss.png', // minion GIGANTE do evento de combo 50 (W várias vezes)
 };
-// Minion GRANDE (evento de combo 50). null = usa o minion terrestre ampliado,
-// que é como sempre foi; só existe imagem própria se o admin subir uma.
-let WG_MINION_BIG = null;
+// Minion GRANDE (evento de combo 50, bate de W várias vezes). No mapa original é a
+// arte do boss novo; mapa com minion próprio e sem arte de gigante → null = usa o
+// minion terrestre do mapa ampliado (applySceneTextures decide a cada partida).
+let WG_MINION_BIG = (() => { const i = new Image(); i._texSrc = 'images/minion_boss.png'; i.src = i._texSrc; return i; })();
 
 /* ─── CENÁRIOS & TEXTURAS DA OFICINA ────────────────────────────────────────
    Montados em Dashboard RH → Oficina Uniko Wave → Mapas & Texturas
@@ -2885,11 +2888,14 @@ function applySceneTextures(s){
   setTex(WG_MINION_AIR,      (s && s.minionAirUrl)     || WG_TEX_ORIG.minionAir);
   setTex(WG_MINION_AIR_DOWN, (s && s.minionAirDownUrl) || WG_TEX_ORIG.minionAirDown);
   setTex(WG_BOSS_IMG,        (s && s.bossUrl)          || WG_TEX_ORIG.boss);
-  setTex(WG_BOSS_DEFEATED,   (s && s.bossDefeatedUrl)  || WG_TEX_ORIG.bossDefeated);
+  // Sem arte de derrota no mapa, usa o boss DO MAPA (não a derrota do original).
+  setTex(WG_BOSS_DEFEATED,   (s && (s.bossDefeatedUrl || s.bossUrl)) || WG_TEX_ORIG.bossDefeated);
   // wgDrawBelt usa só o frame 0 (rola a mesma imagem), mas todos recebem a
   // textura nova pra não sobrar frame antigo se o desenho mudar um dia.
   WG_BELT_FRAMES.forEach((f, i) => setTex(f, (s && s.beltUrl) || WG_BELT_ORIG[i]));
-  const big = s && s.minionBigUrl;
+  // Minion gigante: arte do mapa; senão, no mapa com minions PRÓPRIOS continua o
+  // minion do mapa ampliado (null); no original, a arte do boss novo.
+  const big = (s && s.minionBigUrl) || ((s && s.minionUrl) ? null : WG_TEX_ORIG.minionBig);
   if(big){
     if(!WG_MINION_BIG || WG_MINION_BIG._texSrc !== big){
       WG_MINION_BIG = new Image(); WG_MINION_BIG._texSrc = big; WG_MINION_BIG.src = big;
