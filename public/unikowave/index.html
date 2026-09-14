@@ -2818,11 +2818,11 @@ const WG_BOSS_DEFEATED = new Image(); WG_BOSS_DEFEATED.src = 'images/minion_boss
 
 // Esteira (chão): plataforma lunar (imagem única; o array segue com 3 posições
 // porque mapas da Oficina ainda podem trocar a textura e o código espera 3 frames).
-const WG_BELT_ORIG = ['images/esteira_lunar.png','images/esteira_lunar.png','images/esteira_lunar.png'];
+const WG_BELT_ORIG = ['images/esteira_lunar_v2.png','images/esteira_lunar_v2.png','images/esteira_lunar_v2.png'];
 // Encaixe da imagem na tela, em FRAÇÃO da altura da imagem:
 //  surf  = linha onde os personagens pisam (topo do chão)
 //  fillY/fillH = faixa 100% opaca usada pra preencher o chão sem "buracos"
-const WG_BELT_FIT_ORIG   = { surf:0.45, fillY:0.45, fillH:0.14 }; // esteira_lunar.png (2112x745)
+const WG_BELT_FIT_ORIG   = { surf:0.38, fillY:0.35, fillH:0.17 }; // esteira_lunar_v2.png (2112x745; chão reto de 34% a 53%)
 const WG_BELT_FIT_LEGACY = { surf:0.46, fillY:0.24, fillH:0.14 }; // esteiras antigas / de mapas da Oficina
 const WG_BELT_FRAMES = WG_BELT_ORIG.map(src => { const i = new Image(); i.src = src; return i; });
 // Texturas ORIGINAIS do Guerra Estelar. Ficam guardadas porque o jogador pode
