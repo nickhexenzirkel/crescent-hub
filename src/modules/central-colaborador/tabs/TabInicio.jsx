@@ -23,6 +23,7 @@ import unikoColumbina from '../../../assets/UnikoColumbina.png';
 import { DOKO_KEY }   from './TabMyDoko';
 import { getCapturedCollection, getUniko, onCaptureSlotBusy } from '../../../shared/captureUniko';
 import { getMyVacationDeadline, monthsDaysUntil } from '../../../shared/vacationDeadlines';
+import { nomeChamado, useNomesExibicao } from '../../../shared/nomeExibicao';
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 const SKINS  = {
@@ -112,6 +113,7 @@ const SHOOT_POS = [{x:'18%',y:'16%',delay:'-1.5s'},{x:'50%',y:'8%',delay:'-3.2s'
 
 /* ══════════════════════════════════════════════════════════════════ */
 const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPhotoProp, onPhotoChange, profileComplete, captureCfg = null }) => {
+  useNomesExibicao();
   const isMobile = useIsMobile();
   // Acessos recentes: lido uma vez ao montar (essa aba remonta toda vez que
   // se volta pra Início, então já pega o histórico atualizado sozinha).
@@ -504,7 +506,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             </div>
             <div style={{minWidth:0}}>
               <div style={{fontSize:isMobile?10:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
-              <div style={{fontSize:isMobile?21:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{USER.short}!</div>
+              <div style={{fontSize:isMobile?21:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nomeChamado(USER.name)}!</div>
               <div style={{fontSize:isMobile?11:12,color:'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
               {/* Contagem de férias — só pra quem está na lista seleta. Cabia num
                   card inteiro antes; virou uma pílula discreta aqui embaixo da

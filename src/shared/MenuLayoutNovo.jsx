@@ -6,6 +6,7 @@ import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
 import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada } from './menuWidgets';
 import { setPendingJoin } from './gameInvites';
+import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 
 /* ══════════════════════════════════════════════════════════════════════════
    LAYOUT NOVO DO MENU DE MÓDULOS — módulos à esquerda, widgets à direita
@@ -354,11 +355,12 @@ const BotaoAcao = ({ b, emLinha }) => (
 );
 
 const WidgetPerfil = ({ tam, authUser, userPhoto, acoes, ...moldura }) => {
+  useNomesExibicao();
   const agora = useAgora();
   const [menu, setMenu] = useState(false);
   const hora = agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
   const papel = authUser?.role === 'admin' ? 'Admin' : authUser?.role === 'moderador' ? 'Moderador' : 'Colaborador';
-  const nome = authUser?.name?.split(' ')[0] || 'Olá';
+  const nome = authUser?.name ? nomeChamado(authUser.name) : 'Olá';
   const [c, l] = WIDGETS.perfil[tam];
 
   if (tam === 'p') {

@@ -25,6 +25,7 @@ import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 import { GAME_JOIN_EVENT, readPendingJoin, GAME_TAB } from '../../shared/gameInvites';
+import { nomeChamado } from '../../shared/nomeExibicao';
 
 /* Tela das abas de ponto pra quem foi desligado — o cálculo parou, não há mais
    banco de horas nem falta pra mostrar. */
@@ -338,7 +339,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
               {onbStep===0&&(
                 <div style={{textAlign:'center'}}>
                   <div style={{fontSize:22,fontWeight:700,color:T.text,marginBottom:6}}>
-                    Bem-vindo(a), {USER.short}! 👋
+                    Bem-vindo(a), {nomeChamado(USER.name)}! 👋
                   </div>
                   <div style={{fontSize:13,color:T.textT,marginBottom:28}}>
                     Adicione sua foto para personalizar o perfil

@@ -6,6 +6,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { bolhaGradiente } from '../../shared/bolhas';
 /* Cabeçalho da barra — o MESMO componente que a Oficina Estelar usa. */
 import { UnikoBrandArt } from '../../shared/UnikoBrand';
+import { nomeExibido, useNomesExibicao } from '../../shared/nomeExibicao';
 
 const READ_KEY = 'uniko_notif_read';
 const getReadIds = () => { try { return new Set(JSON.parse(localStorage.getItem(READ_KEY)) || []); } catch { return new Set(); } };
@@ -65,6 +66,7 @@ const LockIcon = () => (
 );
 
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado}) => {
+  useNomesExibicao();
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
   const nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);
@@ -189,7 +191,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
           <AvatarCircle name={USER.name} photo={userPhoto} size={collapsed?34:38} fontSize={13}/>
           {!collapsed && <div style={{overflow:'hidden',flex:1}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,
-              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{USER.name}</div>
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={USER.name}>{nomeExibido(USER.name)}</div>
             <div style={{fontSize:12,color:T.textT,marginTop:1}}>Colaborador</div>
           </div>}
         </div>

@@ -12,6 +12,7 @@ import { MenuLayoutNovo, WIDGETS_NOVO } from './MenuLayoutNovo';
    a partir das listas que cada módulo exporta, sem cópia local. */
 import { catalogoAtalhos, resolverAtalho, useSalasConexao } from './atalhos';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
    preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
@@ -240,6 +241,7 @@ const SHOOT_POS = [
 ];
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
+  useNomesExibicao(); // re-renderiza quando o nome de exibição carrega/muda
   const [pressed, setPressed] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [menuMobile, setMenuMobile] = useState(false);   // menu do ⚙ no celular
@@ -547,7 +549,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
               <AvatarCircle name={authUser.name} photo={userPhoto} size={34} fontSize={12} rounded="10px"/>
               <div>
                 <div style={{fontSize:12.5, fontWeight:700, color:T.text, lineHeight:1.25, maxWidth:90,
-                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{authUser.name.split(' ')[0]}</div>
+                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{nomeChamado(authUser.name)}</div>
                 <div style={{fontSize:9.5, color:T.gold, fontWeight:700}}>
                   {isAdmin?'Admin':isModerador?'Moderador':'Colaborador'}
                 </div>
@@ -817,7 +819,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
         </div>
         <div style={{textAlign:'center'}}>
           {authUser?.name && <div style={{fontSize:11,color:T.textT,letterSpacing:'.16em',textTransform:'uppercase',marginBottom:6}}>
-            Bem-vindo, {authUser.name.split(' ')[0]}
+            Bem-vindo, {nomeChamado(authUser.name)}
           </div>}
           <div style={{fontFamily:'var(--font-brand)',fontSize:32,fontWeight:800,color:T.text,letterSpacing:'-.01em'}}>
             Escolha seu <span style={{color:T.gold}}>módulo</span>

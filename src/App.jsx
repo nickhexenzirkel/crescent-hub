@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName } from './contexts/user';
+import { carregarNomesExibicao, nomeChamado } from './shared/nomeExibicao';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
@@ -127,6 +128,7 @@ export default function CrescentHub() {
       .then(d => {
         if (d?.user) {
           setAuthUser(d.user);
+          carregarNomesExibicao();
           ss('modules');
           window.history.replaceState({ screen: 'modules' }, '');
           loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
@@ -158,6 +160,7 @@ export default function CrescentHub() {
 
   const handleLogin = (user) => {
     setAuthUser(user);
+    carregarNomesExibicao();
     navReplace('modules');
     loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
   };
@@ -359,7 +362,7 @@ export default function CrescentHub() {
       setGameInvite(inv);
       playReminder();
       notifyDesktop({ id: 'invite-' + inv.id, type: 'lembrete',
-        title: `🎮 ${inv.from_name.split(' ')[0]} te convidou!`,
+        title: `🎮 ${nomeChamado(inv.from_name)} te convidou!`,
         message: `Vem jogar ${GAME_LABEL[inv.game] || 'Uniko'}${inv.room_name ? ` — sala "${inv.room_name}"` : ''}!`, active: true });
     });
     return off;
@@ -569,7 +572,7 @@ export default function CrescentHub() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#FF6B35',letterSpacing:'.02em',marginBottom:2}}>Bate-Papo · Uniko FIT</div>
                 <div style={{fontSize:13,color:'#1a1320',lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
-                  <b>{chatToast.player.split(' ')[0]}:</b> {chatToast.texto}
+                  <b>{nomeChamado(chatToast.player)}:</b> {chatToast.texto}
                 </div>
               </div>
               <button onClick={e => { e.stopPropagation(); setChatToast(null); }} aria-label="Fechar"

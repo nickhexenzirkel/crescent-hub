@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../contexts/user';
 import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
+import { nomeChamado } from './nomeExibicao';
 
 /* Check-in diário da Prisma Store.
    status: 'carregando' | 'disponivel' | 'feito' | 'folga' (fim de semana/feriado)
@@ -208,7 +209,7 @@ const itemPrisma = (r) => {
     sub: r.descr || 'Prisma Store', destino: ['mercado-estelar', 'historico'] };
 };
 const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', subtipo: r.game, quando: r.created_at, jogo: r.game, sala: r.room_id,
-  titulo: `${(r.from_name || 'Alguém').split(' ')[0]} te chamou pra jogar ${JOGO[r.game]?.nome || 'um jogo'}`,
+  titulo: `${r.from_name ? nomeChamado(r.from_name) : 'Alguém'} te chamou pra jogar ${JOGO[r.game]?.nome || 'um jogo'}`,
   sub: r.room_name ? `Sala ${r.room_name}` : 'Toque pra entrar', destino: ['colaborador', JOGO[r.game]?.aba || 'inicio'] });
 const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', subtipo: r.type || 'Evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
   sub: [diaTxt(r.event_date), r.event_time, r.type].filter(Boolean).join(' · '), destino: ['colaborador', 'eventos'] });

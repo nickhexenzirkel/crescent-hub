@@ -9,6 +9,7 @@ import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
 import dokoMedico     from '../../../assets/DodocoMedico.jpg';
 import dokoAmbiental  from '../../../assets/DodocoAmbientalista.jpg';
 import dokoContador   from '../../../assets/DodocoContador.jpg';
+import { nomeExibido, temNomeEscolhido, useNomesExibicao } from '../../../shared/nomeExibicao';
 
 const DOKO_IMG = { tecnico:dokoTecnico, cozinheiro:dokoCozinheiro, medico:dokoMedico, ambiental:dokoAmbiental, contador:dokoContador };
 const DOKO_LABEL = { tecnico:'Técnico', cozinheiro:'Cozinheiro', medico:'Médico', ambiental:'Ambientalista', contador:'Contador' };
@@ -112,7 +113,7 @@ const GiftModal = ({ show, onClose, selected, photos, isAdmin, availTrophies, re
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <AvatarCircle name={selected.name} photo={photos[selected.name]} size={38} fontSize={13} style={{ boxShadow:`0 0 0 3px rgba(0,0,0,0.10)` }}/>
               <div>
-                <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{selected.name}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{nomeExibido(selected.name)}</div>
                 <div style={{ fontSize:11, color:T.textT }}>{selected.cargo || selected.role || 'Colaborador'}</div>
               </div>
             </div>
@@ -234,6 +235,7 @@ const GiftModal = ({ show, onClose, selected, photos, isAdmin, availTrophies, re
 };
 
 const TabColegas = () => {
+  useNomesExibicao();
   const auth     = getAuthUser();
   const isAdmin  = auth?.role === 'admin';
 
@@ -385,11 +387,12 @@ const TabColegas = () => {
               style={{ boxShadow: activeSkin ? `0 0 0 4px ${activeSkin.accent}55` : `0 0 0 4px rgba(0,0,0,0.10)` }}/>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                <div style={{ fontSize:19, fontWeight:700, color:T.text }}>{emp.name}</div>
+                <div style={{ fontSize:19, fontWeight:700, color:T.text }} title={emp.name}>{nomeExibido(emp.name)}</div>
                 {activeSkin && (
                   <Tag color={activeSkin.accent}>🦇 {activeSkin.name.replace(/^Uniko\s*/i, '')}</Tag>
                 )}
               </div>
+              {temNomeEscolhido(emp.name) && <div style={{ fontSize:12, color:T.textT, marginTop:2 }}>{emp.name}</div>}
               <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
               {emp.admission && <div style={{ fontSize:11, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
             </div>
@@ -444,7 +447,7 @@ const TabColegas = () => {
   }
 
   /* ── LIST VIEW ────────────────────────────────────────────── */
-  const filtered = employees.filter(e => !search || e.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = employees.filter(e => !search || `${e.name} ${nomeExibido(e.name)}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
@@ -518,7 +521,7 @@ const TabColegas = () => {
                 </div>
                 {/* Nome */}
                 <div style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:3,
-                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.name}</div>
+                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={emp.name}>{nomeExibido(emp.name)}</div>
                 <div style={{ fontSize:11, color:T.textT,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {emp.cargo || emp.role || 'Colaborador'}

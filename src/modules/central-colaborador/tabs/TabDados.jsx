@@ -3,10 +3,97 @@ import { T } from '../../../contexts/theme';
 import { USER, SERVER_URL, supabase, getAuthUser } from '../../../contexts/user';
 import { Card, Btn, StarDivider, SHead } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import { partesDoNome, nomeChamado, temNomeEscolhido, salvarNomeExibicao, useNomesExibicao } from '../../../shared/nomeExibicao';
 
 // Campos da tabela colaborador_info (familiares + saúde) — precisam casar com o SQL.
 const EXTRA_KEYS = ['familiar1_nome','familiar1_cel','familiar1_parentesco','familiar2_nome','familiar2_cel','familiar2_parentesco','doencas','alergias'];
 const emptyExtra = () => EXTRA_KEYS.reduce((o, k) => (o[k] = '', o), {});
+
+// ── "Como quer ser chamado(a)": escolhe quais partes do nome completo aparecem no Uniko.
+// Só muda a APRESENTAÇÃO; o nome completo segue como identificação em tudo (ranking,
+// jogos, banco de horas...), então não gera cadastro/contagem duplicada.
+const NomeExibicaoCard = ({ cardPad, isMobile }) => {
+  useNomesExibicao();
+  const nomeCompleto = USER.name;
+  const partes = partesDoNome(nomeCompleto);
+  const atualEscolhido = temNomeEscolhido(nomeCompleto);
+  const atual = nomeChamado(nomeCompleto);
+  const idxDe = (nome) => {
+    const ws = (nome || '').toLowerCase().split(/\s+/);
+    return partes.map((p, i) => (ws.includes(p.toLowerCase()) ? i : -1)).filter(i => i >= 0);
+  };
+  const [sel, setSel] = useState(() => idxDe(atual));
+  // Quando o nome salvo muda por fora (carregou do banco depois do cache), realinha a seleção.
+  const [base, setBase] = useState(atual);
+  if (base !== atual) { setBase(atual); setSel(idxDe(atual)); }
+  const [salvando, setSalvando] = useState(false);
+  const [aviso, setAviso] = useState('');
+
+  const escolhido = partes.filter((_, i) => sel.includes(i)).join(' ');
+  const mudou = escolhido !== atual;
+  const toggle = i => { setAviso(''); setSel(s => (s.includes(i) ? s.filter(x => x !== i) : [...s, i])); };
+
+  const salvar = async (nome) => {
+    setSalvando(true); setAviso('');
+    const r = await salvarNomeExibicao({ nomeCompleto, cpf: getAuthUser()?.cpf, nome });
+    setSalvando(false);
+    if (r.erro) { setAviso('Erro: ' + r.erro); return; }
+    setAviso(nome ? '✅ Pronto! Agora o Uniko te chama de ' + nome + '.' : '✅ Voltou a usar o seu primeiro nome.');
+    setTimeout(() => setAviso(''), 4000);
+  };
+
+  if (!partes.length || nomeCompleto === 'Colaborador') return null;
+
+  return (
+    <Card style={{padding:cardPad,marginBottom:16}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+        <div style={{width:4,height:18,borderRadius:2,background:`linear-gradient(180deg,${T.blue},${T.blueL||T.blue}55)`}}/>
+        <span style={{fontSize:18,fontWeight:600,color:T.text}}>Como quer ser chamado(a)</span>
+        <span style={{marginLeft:isMobile?0:8,fontSize:11,color:T.textD,background:T.surfaceSub,padding:'2px 8px',borderRadius:4}}>nome de exibição</span>
+      </div>
+      <StarDivider my={0}/>
+      <div style={{fontSize:13.5,color:T.textS,lineHeight:1.55,margin:'16px 0 14px'}}>
+        Escolha as partes do seu nome que vão aparecer nas saudações, no menu e para os colegas.
+        Seu nome completo continua o mesmo nos documentos, no ponto, nos rankings e nos jogos.
+      </div>
+
+      <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+        {partes.map((p, i) => {
+          const on = sel.includes(i);
+          return (
+            <button key={i} onClick={() => toggle(i)} aria-pressed={on}
+              style={{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 14px',borderRadius:999,cursor:'pointer',
+                fontFamily:'var(--font-body)',fontSize:14,fontWeight:600,transition:'all .15s',
+                border:`1.5px solid ${on ? T.blue : T.border}`,
+                background: on ? `linear-gradient(135deg,${T.blue},${T.blueL||T.blue})` : (T.surfaceSub||'transparent'),
+                color: on ? '#fff' : T.text}}>
+              {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+              {p}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginTop:16,
+        padding:'12px 16px',borderRadius:12,background:T.surfaceSub||'rgba(0,0,0,0.03)',border:`1px solid ${T.border}`}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:11.5,color:T.textT,letterSpacing:'.05em',textTransform:'uppercase',fontWeight:600}}>Prévia</div>
+          <div style={{fontSize:17,fontWeight:700,color:escolhido?T.text:T.textD,marginTop:2}}>
+            {escolhido ? `Olá, ${escolhido}! 👋` : 'Selecione ao menos uma parte do nome'}
+          </div>
+          <div style={{fontSize:12,color:T.textT,marginTop:2}}>
+            {atualEscolhido ? `Hoje: ${atual}` : `Hoje: ${atual} (padrão — primeiro nome)`}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {atualEscolhido && <Btn v="secondary" onClick={() => salvar('')} disabled={salvando}>Usar o padrão</Btn>}
+          <Btn v="primary" onClick={() => salvar(escolhido)} disabled={salvando || !escolhido || !mudou}>{salvando ? 'Salvando...' : 'Salvar nome'}</Btn>
+        </div>
+      </div>
+      {aviso && <div style={{fontSize:13,marginTop:10,color:aviso.startsWith('✅')?'#16a34a':'#C04050'}}>{aviso}</div>}
+    </Card>
+  );
+};
 
 const TabDados = ({ onProfileSaved }) => {
   const isMobile = useIsMobile();
@@ -134,6 +221,8 @@ const TabDados = ({ onProfileSaved }) => {
         </div>
       </div>
       {msg && <div style={{fontSize:13,color:msg.startsWith('✅')?'#16a34a':'#C04050',marginBottom:12,padding:'8px 14px',borderRadius:8,background:msg.startsWith('✅')?'rgba(34,197,94,0.08)':'rgba(192,64,80,0.06)',border:`1px solid ${msg.startsWith('✅')?'rgba(34,197,94,0.25)':'rgba(192,64,80,0.2)'}`}}>{msg}</div>}
+
+      <NomeExibicaoCard cardPad={cardPad} isMobile={isMobile}/>
 
       {/* Informações Pessoais — somente leitura */}
       <Card style={{padding:cardPad,marginBottom:16}}>
