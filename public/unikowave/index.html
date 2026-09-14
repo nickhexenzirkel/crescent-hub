@@ -1445,7 +1445,7 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
 </style>
 </head>
 <body>
-<!-- ═══ ABERTURA (tipo tela de carregamento de jogo): 3s logo · 3s aviso do Ultra Leve · abre o jogo ═══ -->
+<!-- ═══ ABERTURA (tipo tela de carregamento de jogo): 3s logo · 3s aviso do Ultra Leve · 5s versão celular · abre o jogo ═══ -->
 <div id="bootSplash" aria-live="polite">
   <style>
     #bootSplash{position:fixed;inset:0;z-index:2147483000;overflow:hidden;color:#fff;
@@ -1478,9 +1478,33 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
     #bootSplash .bs-warn{font-size:clamp(28px,4.4vw,64px);font-weight:900;letter-spacing:-.02em;line-height:1.05;max-width:1100px}
     #bootSplash .bs-warn-sub{font-size:clamp(16px,1.9vw,26px);font-weight:600;color:rgba(255,255,255,.8);max-width:900px;line-height:1.4}
     #bootSplash .bs-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;background:#fff;color:#1a1433;font-weight:900;white-space:nowrap}
+    #bootSplash .bs-phone-stage{position:relative;width:clamp(170px,22vw,240px);height:clamp(170px,22vw,240px);display:flex;align-items:center;justify-content:center}
+    #bootSplash .bs-phone{position:relative;width:clamp(78px,9.5vw,104px);height:clamp(150px,18.5vw,200px);border-radius:22px;
+      border:4px solid #fff;background:#120e2a;box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 0 6px rgba(124,92,255,.18);
+      transform:rotate(0deg);animation:bsGira 5s cubic-bezier(.65,0,.35,1) forwards;animation-play-state:paused}
+    #bootSplash .bs-scene.bs-on .bs-phone{animation-play-state:running}
+    #bootSplash .bs-phone::before{content:'';position:absolute;top:7px;left:50%;width:30%;height:6px;border-radius:6px;background:#fff;opacity:.85;transform:translateX(-50%)}
+    #bootSplash .bs-screen{position:absolute;inset:18px 7px 10px;border-radius:12px;overflow:hidden;
+      background:radial-gradient(circle at 70% 30%,rgba(255,111,181,.45),transparent 55%),linear-gradient(160deg,#2a1f63,#0d0a24)}
+    /* conteúdo da telinha gira AO CONTRÁRIO do aparelho: a cena termina na horizontal, como o jogo se adapta */
+    #bootSplash .bs-view{position:absolute;left:50%;top:50%;width:100%;height:100%;transform:translate(-50%,-50%) rotate(0deg);
+      animation:bsTela 5s cubic-bezier(.65,0,.35,1) forwards;animation-play-state:paused}
+    #bootSplash .bs-scene.bs-on .bs-view{animation-play-state:running}
+    @keyframes bsTela{0%,28%{transform:translate(-50%,-50%) rotate(0deg);width:100%;height:100%}62%,100%{transform:translate(-50%,-50%) rotate(90deg);width:200%;height:50%}}
+    #bootSplash .bs-screen i{position:absolute;left:0;right:0;bottom:18%;height:8%;background:#9aa3b2;opacity:.8}
+    #bootSplash .bs-screen b{position:absolute;width:22%;aspect-ratio:1;border-radius:50%;background:#ff6fb5;left:18%;bottom:30%}
+    #bootSplash .bs-screen em{position:absolute;width:16%;aspect-ratio:1;border-radius:50%;background:#4AA6FF;right:18%;bottom:52%;animation:bsMinion 1.2s linear infinite}
+    @keyframes bsMinion{from{right:-16%}to{right:110%}}
+    #bootSplash .bs-arrow{position:absolute;inset:0;pointer-events:none;opacity:0;animation:bsSeta 5s ease forwards;animation-play-state:paused}
+    #bootSplash .bs-scene.bs-on .bs-arrow{animation-play-state:running}
+    #bootSplash .bs-arrow path{fill:none;stroke:#ffd34d;stroke-width:5;stroke-linecap:round}
+    @keyframes bsGira{0%,28%{transform:rotate(0deg)}62%,100%{transform:rotate(-90deg)}}
+    @keyframes bsSeta{0%,18%{opacity:0}28%,58%{opacity:1}70%,100%{opacity:0}}
+    #bootSplash .bs-tags{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    #bootSplash .bs-tag{padding:8px 16px;border-radius:999px;font-weight:900;font-size:clamp(13px,1.3vw,17px);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25)}
     #bootSplash .bs-load{position:absolute;left:50%;bottom:clamp(28px,6vh,64px);width:min(520px,70vw);transform:translateX(-50%)}
     #bootSplash .bs-track{height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
-    #bootSplash .bs-fill{height:100%;width:0;border-radius:999px;background:#4AA6FF;transition:width 6s linear}
+    #bootSplash .bs-fill{height:100%;width:0;border-radius:999px;background:#4AA6FF;transition:width 11s linear}
     #bootSplash .bs-load small{display:block;margin-top:10px;font-size:13px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.55)}
   </style>
   <div class="bs-sky" id="bsSky"></div>
@@ -1495,6 +1519,15 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
     <div class="bs-warn">Em casos de travamento ou perda de desempenho</div>
     <div class="bs-warn-sub">ative nas <b>Configurações</b> → Gráficos o modo <span class="bs-chip">⚡ ULTRA LEVE</span></div>
   </div>
+  <div class="bs-scene" id="bsScene3">
+    <div class="bs-phone-stage">
+      <div class="bs-phone"><div class="bs-screen"><div class="bs-view"><i></i><b></b><em></em></div></div></div>
+      <svg class="bs-arrow" viewBox="0 0 200 200"><path d="M40 60 A80 80 0 0 1 150 40"/><path d="M136 26 L152 40 L134 52"/></svg>
+    </div>
+    <div class="bs-warn-kicker" style="color:#4AA6FF">VERSÃO PARA CELULAR</div>
+    <div class="bs-warn">Totalmente adaptada e pronta pra jogar</div>
+    <div class="bs-tags"><span class="bs-tag">📱 Em pé (vertical)</span><span class="bs-tag">📲 Deitado (horizontal)</span><span class="bs-tag">▲▼ Botões na tela</span></div>
+  </div>
   <div class="bs-load"><div class="bs-track"><div class="bs-fill" id="bsFill"></div></div><small id="bsTxt">CARREGANDO…</small></div>
   <script>
   (function(){
@@ -1504,11 +1537,12 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
     for(var k=0;k<55;k++){ var t=R(8,18).toFixed(1); h+='<svg width="'+t+'" height="'+t+'" viewBox="0 0 14 14" style="left:'+R(1,99)+'%;top:'+R(1,99)+'%;--d:'+R(2.4,5.6).toFixed(2)+'s;--dl:-'+R(0,5).toFixed(2)+'s;--o:'+R(.4,1).toFixed(2)+'"><path d="M7 1 L7.8 5.4 L12 7 L7.8 8.6 L7 13 L6.2 8.6 L2 7 L6.2 5.4 Z"/></svg>'; }
     for(var n=0;n<4;n++) h+='<i class="bs-shoot" style="left:'+R(0,70)+'%;top:'+R(0,45)+'%;--dl:-'+R(0,3).toFixed(2)+'s"></i>';
     sky.innerHTML=h;
-    var s1=document.getElementById('bsScene1'), s2=document.getElementById('bsScene2'), fill=document.getElementById('bsFill'), txt=document.getElementById('bsTxt');
+    var s1=document.getElementById('bsScene1'), s2=document.getElementById('bsScene2'), s3=document.getElementById('bsScene3'), fill=document.getElementById('bsFill'), txt=document.getElementById('bsTxt');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ s1.classList.add('bs-on'); fill.style.width='100%'; }); });
     setTimeout(function(){ s1.classList.remove('bs-on'); s2.classList.add('bs-on'); txt.textContent='QUASE LÁ…'; }, 3000);
-    setTimeout(function(){ root.classList.add('bs-out'); }, 6000);
-    setTimeout(function(){ if(root.parentNode) root.parentNode.removeChild(root); }, 6700);
+    setTimeout(function(){ s2.classList.remove('bs-on'); s3.classList.add('bs-on'); txt.textContent='PRONTO PRA JOGAR…'; }, 6000);
+    setTimeout(function(){ root.classList.add('bs-out'); }, 11000);
+    setTimeout(function(){ if(root.parentNode) root.parentNode.removeChild(root); }, 11700);
   })();
   </script>
 </div>
