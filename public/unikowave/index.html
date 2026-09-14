@@ -3441,13 +3441,17 @@ function renderCustomWgCards(){
     if(!c || !c.id || !WG_CHAR_FRAMES[c.id]) continue;
     if(typeof isUnlocked==='function' && !isUnlocked(c.id)) continue; // só as que ele tem
     const img = (c.runUrls && c.runUrls[0]) || c.splashUrl;
+    // Personagem da Oficina batizada de "Supernova" (comparação por nome — ver
+    // wgAbility()) já ganha a habilidade Explosão Estelar; mostra isso no card
+    // igual as 5 fixas mostram a delas.
+    const ownAbility = (c.name||'').trim().toLowerCase()==='supernova' ? WG_ABILITY.supernova : null;
     const btn = document.createElement('button');
     btn.className = 'wg-char-card custom' + (wgChar===c.id?' sel':'');
     btn.dataset.wgchar = c.id;
     btn.onclick = ()=>selectWgChar(c.id);
     btn.innerHTML = `<img class="wg-char-img" src="${img}" alt="${c.name||''}" onerror="this.style.display='none'">
       <div class="wg-char-name">✦ ${(c.name||'OFICINA').toUpperCase()}</div>
-      <div class="wg-char-desc">${c.desc||'Personagem da Oficina.'}</div>`;
+      <div class="wg-char-desc">${c.desc||'Personagem da Oficina.'}${ownAbility?` Habilidade (Espaço): ${ownAbility.name}.`:''}</div>`;
     grid.appendChild(btn);
   }
 }
@@ -9564,14 +9568,23 @@ function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!
 // hoje, então esse trecho fica inerte até lá).
 const WG_ABILITY_COOLDOWN = 30;
 const WG_ABILITY = {
-  venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:10, sfx:'beam',   say:'🩸 FRENESI SANGRENTO! 🩸' },
-  oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:15, sfx:'charge', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
-  ashen:     { name:'Lâmina Vulcânica',   kind:'auto',   dur:10, sfx:'beam',   say:'🔥 LÂMINA VULCÂNICA! 🔥' },
-  icydoll:   { name:'Ataque Luxuoso',     kind:'auto',   dur:10, sfx:'beam',   say:'✨ ATAQUE LUXUOSO! ✨' },
-  supernova: { name:'Explosão Estelar',   kind:'auto',   dur:10, sfx:'beam',   say:'💥 EXPLOSÃO ESTELAR! 💥' },
+  venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:10, sfx:'beam',   icon:'🩸', say:'🩸 FRENESI SANGRENTO! 🩸' },
+  oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:15, sfx:'charge', icon:'🌊', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
+  ashen:     { name:'Lâmina Vulcânica',   kind:'auto',   dur:10, sfx:'beam',   icon:'🔥', say:'🔥 LÂMINA VULCÂNICA! 🔥' },
+  icydoll:   { name:'Ataque Luxuoso',     kind:'auto',   dur:10, sfx:'beam',   icon:'✨', say:'✨ ATAQUE LUXUOSO! ✨' },
+  supernova: { name:'Explosão Estelar',   kind:'auto',   dur:10, sfx:'beam',   icon:'💥', say:'💥 EXPLOSÃO ESTELAR! 💥' },
 };
-const WG_ABILITY_ICON = { venebra:'🩸', oceania:'🌊', ashen:'🔥', icydoll:'✨', supernova:'💥' };
-function wgAbility(){ return WG_ABILITY[wgChar] || null; }
+// Personagens FIXAS (venebra/oceania/ashen/icydoll) casam direto pelo id. Já
+// as da OFICINA (CUSTOM_WAVE_CHARS, injetadas em CHARACTERS com um id gerado —
+// ver injectCustomChars) não têm como bater com a chave 'supernova' pelo id;
+// casam pelo NOME que o admin deu na Oficina (ex.: criar um personagem lá e
+// chamar ele de "Supernova" já liga a habilidade Explosão Estelar nele).
+function wgAbility(){
+  if(WG_ABILITY[wgChar]) return WG_ABILITY[wgChar];
+  const nm=(CHARACTERS[wgChar]?.name||'').trim().toLowerCase();
+  if(nm==='supernova') return WG_ABILITY.supernova;
+  return null;
+}
 function wgAbilityActive(){ return WG.abilityUntil>songTime(); }
 function wgAbilityOnCooldown(){ return WG.abilityReadyAt>songTime(); }
 function wgShieldActive(){ return gameMode==='wargame' && WG.abilityKind==='shield' && wgAbilityActive(); }
@@ -9593,7 +9606,7 @@ function wgUpdateAbilityBtn(){
   const coolLeft=Math.ceil(WG.abilityReadyAt-songTime());
   btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
   const icoEl=document.getElementById('wgAbilityIcon'), lblEl=document.getElementById('wgAbilityLabel');
-  if(icoEl) icoEl.textContent=(active||cooling)?'':(WG_ABILITY_ICON[wgChar]||'✨');
+  if(icoEl) icoEl.textContent=(active||cooling)?'':(ab.icon||'✨');
   if(lblEl) lblEl.textContent=active?activeLeft+'s':cooling?coolLeft+'s':'';
   btn.classList.toggle('cooling', cooling);
   btn.classList.toggle('active', active);
