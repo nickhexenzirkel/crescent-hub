@@ -1085,6 +1085,90 @@ canvas{display:block}
 @media (max-width:520px){ .rv-top{grid-template-columns:minmax(0,1fr)} }
 html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-char{animation:none}
 
+
+/* ═══ MENU DO CELULAR ════════════════════════════════════════════════════════
+   Ligado por html.m-menu (toque + tela de celular; ver mMenuLayout). Em PÉ: topo
+   compacto (perfil + player) · conteúdo · abas grandes embaixo. DEITADO: trilho de
+   abas à esquerda e o conteúdo usando a altura toda. Margens pro relógio/notch do
+   iPhone, pros botões ← ⛶ do Portal e pra barrinha de home. */
+#mTop,#mTabs,#mMais,#homeHeroBg{display:none}
+html.m-menu #menuScr:not(.off){display:grid!important;padding:0!important;gap:0!important;
+  grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"top player" "main main" "tabs tabs"}
+html.m-menu #menuSidebar,html.m-menu #musicToggleBtn,html.m-menu .menu-orb,html.m-menu #topProfileCard{display:none!important}
+html.m-menu #mTop{display:flex;grid-area:top;align-items:center;gap:10px;min-width:0;position:relative;z-index:4;
+  padding:52px 6px 8px 14px}
+html.m-menu .m-logo{font-family:var(--font-pixel);font-size:11px;line-height:1.25;color:#ff6ecb;letter-spacing:1px;flex-shrink:0}
+html.m-menu .m-logo b{display:block;color:#7ad8ff;font-weight:400}
+html.m-menu #mProfileBtn{display:flex;align-items:center;gap:8px;min-width:0;height:44px;padding:0 12px 0 4px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font-family:var(--font-pixel);font-size:9px;cursor:pointer}
+html.m-menu #mAvatar{width:36px;height:36px;border-radius:50%;object-fit:cover;background:#1a1036;flex-shrink:0}
+html.m-menu #mName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:26vw}
+/* player de música vira um compacto no topo */
+html.m-menu #vinylPlayer{position:relative!important;right:auto!important;bottom:auto!important;grid-area:player;align-self:end;z-index:4;
+  margin:52px 12px 8px 0;padding:5px 12px 5px 5px!important;gap:8px!important;border-radius:999px;max-width:none;
+  backdrop-filter:none;box-shadow:none;background:rgba(8,4,26,.7)}
+html.m-menu #vinylDisc{width:34px!important;height:34px!important}
+html.m-menu #vinylDiscArt{width:13px;height:13px}
+html.m-menu #vinylNow{display:none}
+html.m-menu #vinylTitle{max-width:74px!important;font-size:9px!important}
+html.m-menu #vinylControls{margin-top:2px;gap:5px}
+html.m-menu #vinylControls button{width:30px;height:30px;font-size:11px}
+html.m-menu #menuMain{grid-area:main;padding:6px 10px 8px!important;min-height:0}
+html.m-menu .menu-panel{max-width:none;height:100%;padding:18px 14px 22px!important;justify-content:flex-start!important;
+  border-radius:18px;backdrop-filter:none;-webkit-overflow-scrolling:touch}
+/* conteúdo central que cabe fica centralizado; o que não cabe rola a partir do topo (não corta) */
+html.m-menu .menu-panel>:first-child{margin-top:auto}
+html.m-menu .menu-panel>:last-child{margin-bottom:auto}
+html.m-menu #panelHome>:first-child{margin:0}
+/* abas grandes embaixo */
+html.m-menu #mTabs{display:flex;grid-area:tabs;position:relative;z-index:5;gap:4px;
+  padding:6px 8px 20px;background:rgba(6,3,20,.94);border-top:1px solid rgba(255,255,255,.1)}
+html.m-menu .m-tab{flex:1;min-width:0;height:56px;border:none;border-radius:14px;background:none;color:rgba(255,255,255,.6);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  font-family:'Inter','Segoe UI',system-ui,sans-serif}
+html.m-menu .m-tab i{font-style:normal;font-size:21px;line-height:1}
+html.m-menu .m-tab span{font-size:11px;font-weight:800;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+html.m-menu .m-tab.on{color:#fff;background:linear-gradient(135deg,rgba(255,45,146,.3),rgba(100,80,255,.3))}
+html.m-menu .m-tab:active{transform:scale(.95)}
+/* folha "Mais" */
+html.m-menu #mMais:not([hidden]){display:flex;position:fixed;inset:0;z-index:60;align-items:flex-end;background:rgba(0,0,0,.55)}
+html.m-menu .m-sheet{width:100%;max-width:560px;margin:0 auto;box-sizing:border-box;padding:10px 14px 26px;border-radius:24px 24px 0 0;
+  background:#120a2a;border-top:1px solid rgba(255,255,255,.14);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
+  animation:mSheet .22s ease-out}
+@keyframes mSheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+html.m-menu .m-sheet-grab{grid-column:1/-1;width:44px;height:5px;border-radius:5px;background:rgba(255,255,255,.3);margin:0 auto 6px}
+html.m-menu .m-sheet button{height:64px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;
+  display:flex;align-items:center;gap:12px;padding:0 16px;font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:15px;font-weight:800;cursor:pointer}
+html.m-menu .m-sheet button i{font-style:normal;font-size:22px}
+/* tela inicial: arte inteira + a mesma arte borrada preenchendo o resto */
+html.m-menu #homeHeroBg{display:block;position:absolute;inset:-20px;width:calc(100% + 40px);height:calc(100% + 40px);object-fit:cover;
+  filter:blur(16px) brightness(.55) saturate(1.2)}
+html.m-menu #homeHeroPhoto{object-fit:contain!important;object-position:center 42%!important}
+html.m-menu .home-cta{justify-content:center!important;padding:0 16px 14px!important}
+html.m-menu .home-cta .go-btn{max-width:420px!important;width:100%;min-height:54px;font-size:13px}
+html.gfx-ultra.m-menu #homeHeroBg{filter:brightness(.45)}
+
+/* ── DEITADO: trilho de abas à esquerda ── */
+html.m-menu.m-land #menuScr:not(.off){grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"tabs top player" "tabs main main"}
+html.m-menu.m-land #mTabs{flex-direction:column;justify-content:center;gap:2px;overflow-y:auto;
+  padding:50px 6px 10px 44px;border-top:none;border-right:1px solid rgba(255,255,255,.1)}
+html.m-menu.m-land .m-tab{flex:0 0 auto;width:74px;height:52px}
+html.m-menu.m-land .m-tab i{font-size:19px}
+html.m-menu.m-land .m-tab span{font-size:10px}
+html.m-menu.m-land #mTop{padding:8px 6px 4px 12px}
+html.m-menu.m-land .m-logo{display:none}
+html.m-menu.m-land #vinylPlayer{margin:8px 40px 4px 0}
+html.m-menu.m-land #menuMain{padding:4px 40px 12px 8px!important}
+html.m-menu.m-land .menu-panel{padding:14px 16px 16px!important}
+html.m-menu.m-land #homeHeroPhoto{object-position:center!important}
+html.m-menu.m-land .home-cta{justify-content:flex-end!important;padding:0 14px 12px!important}
+html.m-menu.m-land .home-cta .go-btn{max-width:190px!important;min-height:42px;font-size:11px}
+/* personagens em 2 colunas no celular (1 card ocupava a tela inteira) */
+html.m-menu .char-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+
 /* ─── RESULTADO DO GUERRA ESTELAR — imagem de fundo + overlays nas áreas reservadas ─── */
 #resScrWG{background:radial-gradient(ellipse at 50% 35%,#150821,#080411 70%,#04020c)}
 .wgres2-wrap{position:relative;display:inline-block;line-height:0;max-width:96vw;max-height:95vh}
@@ -1803,6 +1887,31 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
     </div>
   </div>
 
+  <!-- ══ MENU DO CELULAR (html.m-menu): topo compacto + abas grandes + folha "Mais" ══ -->
+  <div id="mTop">
+    <div class="m-logo">UNIKO<b>WAVE</b></div>
+    <button id="mProfileBtn" onclick="mMenuGo('panelProfile')" aria-label="Seu perfil">
+      <img id="mAvatar" src="images/DodocoWave.png" alt=""><span id="mName">JOGADOR</span>
+    </button>
+  </div>
+  <nav id="mTabs" aria-label="Menu">
+    <button class="m-tab" data-panel="panelHome" onclick="mMenuGo('panelHome')"><i>🏠</i><span>Início</span></button>
+    <button class="m-tab" data-panel="panelPlayChoice" onclick="mMenuGo('panelPlayChoice')"><i>▶</i><span>Jogar</span></button>
+    <button class="m-tab" data-panel="panelChar" onclick="mMenuGo('panelChar')"><i>👤</i><span>Personagens</span></button>
+    <button class="m-tab" data-panel="panelLib" onclick="mMenuGo('panelLib')"><i>🎵</i><span>Biblioteca</span></button>
+    <button class="m-tab" data-panel="__mais" onclick="mMenuMais(true)"><i>☰</i><span>Mais</span></button>
+  </nav>
+  <div id="mMais" hidden onclick="if(event.target===this) mMenuMais(false)">
+    <div class="m-sheet" role="dialog" aria-label="Mais opções">
+      <div class="m-sheet-grab"></div>
+      <button onclick="mMenuGo('panelWish')"><i>⭐</i><span>Audição</span></button>
+      <button onclick="mMenuGo('panelRank')"><i>🏆</i><span>Ranking</span></button>
+      <button onclick="mMenuGo('panelSettings')"><i>⚙️</i><span>Configurações</span></button>
+      <button onclick="mMenuGo('panelProfile')"><i>✏️</i><span>Editar perfil</span></button>
+      <button onclick="mMenuMais(false); toggleFullscreen()"><i>⛶</i><span>Tela cheia</span></button>
+    </div>
+  </div>
+
   <!-- SIDEBAR -->
   <div id="menuSidebar">
     <div class="sidebar-logo">UNIKO<br>WAVE<span class="sidebar-star-icon">✦</span></div>
@@ -1858,6 +1967,7 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
       <div style="position:relative;width:100%;height:100%;border-radius:20px;overflow:hidden;background:#0a0118">
         <!-- Tela inicial: só a arte do Uniko Wave, PREENCHENDO o painel todo (cover — sem
              faixas vazias). O botão fica por cima, colado embaixo, abaixo do logo "WAVE". -->
+        <img id="homeHeroBg" src="images/tela_inicio_uniko_wave_v2.jpg" alt="" aria-hidden="true">
         <img id="homeHeroPhoto" src="images/tela_inicio_uniko_wave_v2.jpg" alt="Uniko Wave"
           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 62%;display:block">
         <div class="home-cta" style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 24px 16px">
@@ -4933,6 +5043,8 @@ function applySidebarProfile(){
   const sbWrap   = sbRing?.parentElement;
   if(sbName)   sbName.textContent = profile.name.toUpperCase();
   if(sbAvatar) sbAvatar.src = profile.avatarImg;
+  { const mn=document.getElementById('mName'), ma=document.getElementById('mAvatar');
+    if(mn) mn.textContent = profile.name.toUpperCase(); if(ma) ma.src = profile.avatarImg; }
   applyBorderRing(sbRing, border, sbWrap, '-5px');
   updateTopCard();
 }
@@ -5005,7 +5117,35 @@ function applyProfileEdit(){
 // ═══════════════════════════════════════════
 
 // ── Panel switcher ──
+// ── Menu do celular ──
+// Liga o layout próprio em aparelho de toque com tela de celular (menor lado < 700px),
+// e marca a orientação. Refeito ao girar.
+function mMenuLayout(){
+  const w=window.innerWidth, h=window.innerHeight;
+  const on = IS_MOBILE && Math.min(w,h) < 700;
+  document.documentElement.classList.toggle('m-menu', on);
+  document.documentElement.classList.toggle('m-land', on && w>h);
+}
+window.addEventListener('resize', mMenuLayout);
+window.addEventListener('orientationchange', ()=>setTimeout(mMenuLayout,120));
+mMenuLayout();
+const _M_SIDEBTN={panelHome:'mnBtnHome',panelPlayChoice:'mnBtn0',panelPlay:'mnBtn0',panelChar:'mnBtn4',panelWish:'mnBtnWish',panelLib:'mnBtn2',panelRank:'mnBtnRank',panelSettings:'mnBtn0s'};
+function mMenuMais(abrir){ const el=document.getElementById('mMais'); if(el) el.hidden=!abrir; }
+function mMenuGo(panelId){
+  mMenuMais(false);
+  showMenuPanel(panelId, document.getElementById(_M_SIDEBTN[panelId]||'') || null);
+}
+function mMenuSync(panelId){
+  const principal={panelHome:1,panelPlayChoice:1,panelPlay:1,panelChar:1,panelLib:1};
+  const alvo = panelId==='panelPlay' ? 'panelPlayChoice' : panelId;
+  document.querySelectorAll('#mTabs .m-tab').forEach(b=>{
+    const d=b.dataset.panel;
+    b.classList.toggle('on', d===alvo || (d==='__mais' && !principal[panelId]));
+  });
+}
+
 function showMenuPanel(panelId, btn){
+  mMenuSync(panelId);
   document.querySelectorAll('.menu-panel').forEach(p=>p.classList.add('off'));
   const panel=document.getElementById(panelId);
   if(panel) panel.classList.remove('off');
