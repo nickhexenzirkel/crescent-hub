@@ -522,8 +522,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // momento (ver onCaptureState abaixo).
   const isMobile = useIsMobile();
   const effectiveScale = captureAlert ? 1 : scale;
-  /* No celular a preferência de tamanho (0.6–1.8×) podia gerar um robô de até
-     ~210px — quase metade da largura da tela, impossibilitando tocar em
+  /* No celular a preferência de tamanho (0.6–2.5×) podia gerar um robô de até
+     ~290px — quase metade da largura da tela, impossibilitando tocar em
      qualquer coisa perto dele. O teto existe por isso; o jeito como ele era
      aplicado é que estava errado.
 
@@ -539,7 +539,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
      tela pequena, então cada toque muda ~6px e se vê na hora. A skin ainda
      influencia (as maiores continuam maiores), mas dentro de um limite — no
      celular quem manda é a tela, não a arte. A preferência salva não é
-     tocada: no desktop continua valendo 0,6–1,8× em cima do tamanho da skin. */
+     tocada: no desktop continua valendo 0,6–2,5× em cima do tamanho da skin. */
   const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 104, MOBILE_ICON_BASE = 58;
   const skinIcon = skin.iconSize || 84;
   const ICON = isMobile

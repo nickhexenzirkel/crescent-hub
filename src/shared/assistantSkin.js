@@ -231,7 +231,7 @@ export function initAssistantSkinSync() {
    edgeMargin da skin (fixo ou da Oficina) — não mexe no tamanho "de fábrica" do Uniko,
    só na preferência pessoal de exibição. ── */
 export const ASSISTANT_SCALE_MIN = 0.6;
-export const ASSISTANT_SCALE_MAX = 1.8;
+export const ASSISTANT_SCALE_MAX = 2.5;
 export const ASSISTANT_SCALE_STEP = 0.1;
 const SCALE_KEY = () => `uniko_assistant_scale_${userTag()}`;
 const SCALE_EV  = 'uniko-assistant-scale:changed';
