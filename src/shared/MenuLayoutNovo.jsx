@@ -359,7 +359,7 @@ const WidgetPerfil = ({ tam, authUser, userPhoto, acoes, ...moldura }) => {
   const agora = useAgora();
   const [menu, setMenu] = useState(false);
   const hora = agora.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-  const papel = authUser?.role === 'admin' ? 'Admin' : authUser?.role === 'moderador' ? 'Moderador' : authUser?.role === 'dj' ? 'DJ Uniko' : 'Colaborador';
+  const papel = authUser?.role === 'admin' ? 'Admin' : authUser?.role === 'moderador' ? 'Moderador' : 'Colaborador';
   const nome = authUser?.name ? nomeChamado(authUser.name) : 'Olá';
   const [c, l] = WIDGETS.perfil[tam];
 

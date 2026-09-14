@@ -3904,7 +3904,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                       </a>
                     </div>
                   )}
-                  <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>{isAdmin ? 'Controles de Admin' : 'Controles do DJ Uniko'}</div>
+                  <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>{isAdmin ? 'Controles de Admin' : 'Controles do player'}</div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     {isAdmin && <button onClick={handleToggleAutoplay}
                       title={autoplayEnabled ? "Desativar autoplay — hoje ele puxa as mais tocadas da Máquina do Tempo" : "Ativar autoplay — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
