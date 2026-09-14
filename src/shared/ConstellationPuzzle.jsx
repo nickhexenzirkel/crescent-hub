@@ -4,29 +4,25 @@
 // arrastar o assistente até a área de captura de novo — dá uma chance maior pra
 // quem ainda não ganhou nada. Usado dentro de CaptureUnikoWidget.jsx e
 // CaptureNumeroWidget.jsx (ver `mustSolvePuzzle` em cada um).
+//
+// Layout FIXO (não embaralha posição) — pedido explícito do usuário: antes as
+// estrelas apareciam espalhadas em cantos aleatórios sem relação com o tamanho,
+// confuso ("cada uma está em um canto diferente"). Agora ficam num caminho só,
+// crescendo da esquerda pra direita — 1 é a menor, 6 é a maior, na ordem visual
+// óbvia — com um número em cada uma pra não deixar dúvida.
 import React, { useState } from 'react';
 
-const STAR_SIZES = [8, 12, 16, 20, 24, 28]; // raio, menor → maior (ordem certa de clique)
-// Posições (% da área do puzzle) espalhadas o bastante pra nenhuma estrela grande
-// encostar na vizinha mesmo no maior tamanho — a ORDEM espacial é embaralhada
-// à parte (ver `order` abaixo), só os tamanhos precisam ser clicados em sequência.
-const POSITIONS = [
-  { x: 14, y: 74 }, { x: 32, y: 26 }, { x: 50, y: 70 },
-  { x: 68, y: 22 }, { x: 84, y: 58 }, { x: 93, y: 16 },
+const STARS = [
+  { n: 1, size: 8,  x: 10, y: 82 },
+  { n: 2, size: 12, x: 26, y: 64 },
+  { n: 3, size: 16, x: 42, y: 72 },
+  { n: 4, size: 20, x: 58, y: 48 },
+  { n: 5, size: 24, x: 74, y: 56 },
+  { n: 6, size: 28, x: 90, y: 24 },
 ];
 
 const ConstellationPuzzle = ({ onSolved, accent = '#ffb020' }) => {
-  // Embaralha quais POSIÇÕES recebem quais TAMANHOS — o layout muda a cada
-  // tentativa, então não dá pra decorar "sempre clica no canto tal primeiro".
-  const [order] = useState(() => {
-    const idx = [0, 1, 2, 3, 4, 5];
-    for (let i = idx.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [idx[i], idx[j]] = [idx[j], idx[i]];
-    }
-    return idx.map((posIdx, sizeIdx) => ({ size: STAR_SIZES[sizeIdx], pos: POSITIONS[posIdx] }));
-  });
-  const [done, setDone]   = useState(0);     // quantas estrelas já ligadas em ordem (0-6)
+  const [done, setDone]       = useState(0);  // quantas estrelas já ligadas em ordem (0-6)
   const [shakeAt, setShakeAt] = useState(-1); // índice que tremeu por clique errado
 
   const clickStar = (i) => {
@@ -34,7 +30,7 @@ const ConstellationPuzzle = ({ onSolved, accent = '#ffb020' }) => {
     if (i !== done) { setShakeAt(i); setTimeout(() => setShakeAt(-1), 350); return; }
     const next = done + 1;
     setDone(next);
-    if (next === order.length) setTimeout(() => onSolved?.(), 550);
+    if (next === STARS.length) setTimeout(() => onSolved?.(), 550);
   };
 
   return (
@@ -43,24 +39,35 @@ const ConstellationPuzzle = ({ onSolved, accent = '#ffb020' }) => {
         @keyframes cpShake{0%,100%{transform:translate(-50%,-50%)}25%{transform:translate(calc(-50% - 4px),-50%)}75%{transform:translate(calc(-50% + 4px),-50%)}}
         @keyframes cpPop{from{transform:translate(-50%,-50%) scale(.5);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
       `}</style>
+      {/* Trilha fantasma mostrando o caminho inteiro (1→6) desde o início, bem fraca,
+          pra deixar a ordem óbvia antes mesmo de clicar em nada. */}
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-        {order.slice(1, done).map((s, i) => (
-          <line key={i} x1={order[i].pos.x} y1={order[i].pos.y} x2={s.pos.x} y2={s.pos.y}
-            stroke={accent} strokeWidth="0.7" strokeLinecap="round" opacity=".85" />
+        {STARS.slice(1).map((s, i) => (
+          <line key={`ghost${i}`} x1={STARS[i].x} y1={STARS[i].y} x2={s.x} y2={s.y}
+            stroke="#fff" strokeWidth="0.5" strokeDasharray="2,2" opacity=".22" />
+        ))}
+        {STARS.slice(1, done).map((s, i) => (
+          <line key={`lit${i}`} x1={STARS[i].x} y1={STARS[i].y} x2={s.x} y2={s.y}
+            stroke={accent} strokeWidth="0.8" strokeLinecap="round" opacity=".9" />
         ))}
       </svg>
-      {order.map((s, i) => {
+      {STARS.map((s, i) => {
         const lit = i < done;
+        const next = i === done;
         return (
-          <button key={i} onClick={() => clickStar(i)} aria-label={`Estrela ${i + 1} de ${order.length}`}
+          <button key={s.n} onClick={() => clickStar(i)} aria-label={`Estrela ${s.n} de ${STARS.length}`}
             style={{
-              position: 'absolute', left: `${s.pos.x}%`, top: `${s.pos.y}%`, transform: 'translate(-50%,-50%)',
-              width: s.size * 2, height: s.size * 2, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+              position: 'absolute', left: `${s.x}%`, top: `${s.y}%`, transform: 'translate(-50%,-50%)',
+              width: s.size * 2, height: s.size * 2, borderRadius: '50%', border: next ? `1.5px solid ${accent}` : 'none', padding: 0, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: lit ? `radial-gradient(circle at 35% 30%,#fff,${accent})` : 'rgba(255,255,255,.28)',
-              boxShadow: lit ? `0 0 ${s.size}px ${accent}` : 'inset 0 0 0 1.5px rgba(255,255,255,.4)',
+              boxShadow: lit ? `0 0 ${s.size}px ${accent}` : next ? `0 0 ${Math.max(6, s.size * .6)}px ${accent}aa` : 'inset 0 0 0 1.5px rgba(255,255,255,.4)',
               animation: shakeAt === i ? 'cpShake .35s ease' : lit ? 'cpPop .25s ease' : 'none',
               transition: 'background .2s, box-shadow .2s',
-            }} />
+              fontSize: Math.max(9, s.size * .68), fontWeight: 800, color: lit ? '#3a2400' : '#fff', fontFamily: 'var(--font-body)', lineHeight: 1,
+            }}>
+            {s.n}
+          </button>
         );
       })}
     </div>
