@@ -254,6 +254,16 @@ export const useCaixaEntrada = (authUser) => {
   const chave = caixaKey(authUser);
   const [mapa, setMapa] = useState({});         // id → item
   const [lidos, setLidos] = useState(() => lerLidos(chave));
+  // Mais de um lugar usa a caixa (widget do menu + contador no título da aba): quando
+  // um marca como lido, os outros releem na hora. Também relê ao trocar de conta.
+  useEffect(() => {
+    setLidos(lerLidos(chave));
+    const reler = (e) => { if (!e.detail || e.detail === chave) setLidos(lerLidos(chave)); };
+    const outraAba = (e) => { if (e.key === chave) setLidos(lerLidos(chave)); };
+    window.addEventListener('uniko-caixa-lidos', reler);
+    window.addEventListener('storage', outraAba);
+    return () => { window.removeEventListener('uniko-caixa-lidos', reler); window.removeEventListener('storage', outraAba); };
+  }, [chave]);
 
   const vivoRef = useRef(true);
   useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
@@ -353,7 +363,11 @@ export const useCaixaEntrada = (authUser) => {
     return () => { clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
   }, [nome, consultar, juntar]);
 
-  const salvar = (next) => { setLidos(next); try { localStorage.setItem(chave, JSON.stringify(next)); } catch { /* ignora */ } };
+  const salvar = (next) => {
+    setLidos(next);
+    try { localStorage.setItem(chave, JSON.stringify(next)); } catch { /* ignora */ }
+    try { window.dispatchEvent(new CustomEvent('uniko-caixa-lidos', { detail: chave })); } catch { /* ignora */ }
+  };
   const excluidos = new Set(lidos.excluidos);
   const itens = Object.values(mapa)
     .filter(it => !excluidos.has(it.id))

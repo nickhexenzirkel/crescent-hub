@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName } from './contexts/user';
 import { carregarNomesExibicao, nomeChamado } from './shared/nomeExibicao';
+import { useCaixaEntrada } from './shared/menuWidgets';
+import { setContadorTitulo } from './shared/tituloAba';
 import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
@@ -28,6 +30,10 @@ import PerfHud from './shared/diagnosticoPerf';
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
   const [authUser, setAuthUser] = useState(null);
+  // Bolinha no título da aba: "🔴 (4) Mensagens - UNIKO" enquanto a caixa de entrada
+  // tiver não lidas (em qualquer tela); ao ler tudo, volta pra "UNIKO".
+  const caixaTitulo = useCaixaEntrada(authUser);
+  useEffect(() => { setContadorTitulo('caixa', authUser ? caixaTitulo.naoLidos : 0); }, [authUser, caixaTitulo.naoLidos]);
   const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);

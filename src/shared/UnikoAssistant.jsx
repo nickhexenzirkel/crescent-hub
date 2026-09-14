@@ -12,6 +12,7 @@ import { loadMissionProgress, loadMissionDefs, GAME_LABEL } from './prismaMissio
 import { onCaptureState, getCaptureTargetRect, emitCaptureThrow, getUniko } from './captureUniko';
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange, getFalasAutomaticas, onFalasAutomaticasChange } from './assistantSkin';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { setContadorTitulo } from './tituloAba';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
 // Sem entrada aqui → cai no `default` (azul clássico).
@@ -338,20 +339,10 @@ function resizeImageFile(file, maxSide = 640, quality = 0.82) {
   });
 }
 
-/* ── Título da aba com contador de não lidas do Blog Secreto — "UNIKO (2 Mensagens Não
-   Lidas)". Guarda o título ORIGINAL só na 1ª vez (nunca mais mexe nele) e sempre
-   reconstrói a partir dele — não mexe/hardcoda o título do site, só acrescenta o sufixo
-   quando tem não lida e tira quando não tem. ── */
-let _baseDocTitle = null;
-function setDocTitleUnread(count) {
-  if (typeof document === 'undefined') return;
-  if (_baseDocTitle === null) _baseDocTitle = document.title;
-  // Com não lida: título vira SÓ "N Mensagens Não Lidas" (sem nome do site, de propósito
-  // — chama mais atenção na aba). Ao ler, volta pro título original de verdade.
-  document.title = count > 0
-    ? `${count} Mensage${count > 1 ? 'ns' : 'm'} Não Lida${count > 1 ? 's' : ''}`
-    : _baseDocTitle;
-}
+/* ── Título da aba: o Blog Secreto informa as não lidas pro controlador único
+   (shared/tituloAba.js), que soma com a caixa de entrada e mostra
+   "🔴 (N) Mensagens - UNIKO". ── */
+function setDocTitleUnread(count) { setContadorTitulo('blog', count); }
 
 /* ── Som de notificação de mensagem nova no Blog Secreto (Web Audio, sem asset) —
    badalada de 3 notas subindo (tipo "ding-ding-DING"), bem mais alta e encorpada que
