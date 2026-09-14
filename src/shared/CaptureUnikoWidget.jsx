@@ -32,6 +32,12 @@ import {
 // pra quem ainda não ganhou nenhum Uniko. Pedido explícito do usuário. Contagem
 // SEPARADA do Capture o Número (cada sistema tem a sua).
 const PUZZLE_AFTER_CAPTURES = 2;
+// TEMPORÁRIO (set/2026) — pedido do usuário pra testar o puzzle sem precisar
+// capturar 2x de verdade primeiro: força a tarefa pra ele sempre, não importa
+// a contagem. REMOVER assim que o teste confirmar que tá funcionando.
+const TEST_FORCE_PUZZLE_NAME = 'nicolas andrade';
+const isTestForcePuzzlePlayer = (name) =>
+  (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(TEST_FORCE_PUZZLE_NAME);
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
 
@@ -102,7 +108,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
   const winnerMine = !!myWin;
-  const mustSolvePuzzle = (priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES && !puzzleSolved;
+  const mustSolvePuzzle = ((priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES || isTestForcePuzzlePlayer(me)) && !puzzleSolved;
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
