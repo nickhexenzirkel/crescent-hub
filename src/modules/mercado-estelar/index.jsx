@@ -637,6 +637,20 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
     }
     const bal = state[item.cur];
     if (bal < item.price) { flash(`Saldo de ${item.cur === 'premium' ? PREMIUM.name : COMUM.name} insuficiente`); return; }
+
+    // Baixa o estoque de forma ATÔMICA no banco ANTES de debitar carteira/entregar o
+    // item — a checagem `item.stock<=0` acima só olha a cópia local (por isso 3
+    // pessoas conseguiram levar um prêmio com estoque 2: cada tela ainda mostrava
+    // "disponível" até o catálogo inteiro ser reenviado, 400ms depois, um por vez).
+    // Só o banco serializa updates concorrentes na MESMA linha — ver
+    // supabase_mercado_estoque_atomico.sql.
+    const { data: newStock, error: stockErr } = await supabase.rpc('mercado_buy_stock', { p_item_id: item.id });
+    if (stockErr || newStock == null) {
+      flash('Esgotou agora mesmo — alguém levou na sua frente!');
+      setState(s => ({ ...s, items: s.items.map(i => i.id === item.id ? { ...i, stock: 0 } : i) }));
+      return;
+    }
+
     setState(s => {
       const ex = (s.collection || []).find(c => c.id === item.id);
       const collection = ex
@@ -645,7 +659,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
       return {
         ...s,
         [item.cur]: s[item.cur] - item.price,
-        items: s.items.map(i => i.id === item.id ? { ...i, stock: i.stock - 1 } : i),
+        items: s.items.map(i => i.id === item.id ? { ...i, stock: newStock } : i),
         collection,
         updatedAt: Date.now(),
       };
