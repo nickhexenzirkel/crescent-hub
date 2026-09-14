@@ -3366,11 +3366,40 @@ const MENU_TRACKS = [
   { src:'/unikowave/music/Spring%20Fever.mp3',        name:'Spring Fever' },
   { src:'/unikowave/music/Stellar%20Ringtone.mp3',    name:'Stellar Ringtone' },
   { src:'/unikowave/music/UP!.mp3',                   name:'UP!' },
+  // Novas (set/2026) — peso 3: cada uma entra 3x por rodada da playlist, então toca
+  // 3x mais que uma faixa antiga (peso 1).
+  { src:'/unikowave/music/COVEN.mp3',                 name:'COVEN',       peso:3 },
+  { src:'/unikowave/music/POP%20ORBIT.mp3',           name:'POP ORBIT',   peso:3 },
+  { src:'/unikowave/music/TELL%20N%20KISS.mp3',       name:'TELL N KISS', peso:3 },
 ];
 let _trackOrder=[], _orderPos=0, _playlistHooked=false, _trackLoaded=false;
+// Rodada da playlist com PESO: cada faixa entra `peso` vezes (padrão 1) e a ordem é
+// embaralhada sem tocar a mesma faixa duas vezes seguidas (nem repetir a última da
+// rodada anterior logo no começo da próxima).
 function _shuffleTracks(){
-  _trackOrder = MENU_TRACKS.map((_,i)=>i);
-  for(let i=_trackOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [_trackOrder[i],_trackOrder[j]]=[_trackOrder[j],_trackOrder[i]]; }
+  const ultima = _trackOrder.length ? _trackOrder[Math.min(_orderPos,_trackOrder.length-1)] : -1;
+  const resta = MENU_TRACKS.map(t=>t.peso||1);
+  const seq=[];
+  let prev=ultima;
+  const total=resta.reduce((a,b)=>a+b,0);
+  for(let n=0;n<total;n++){
+    // sorteio com peso entre as faixas que ainda têm vez nesta rodada (menos a anterior)
+    let soma=0; for(let k=0;k<resta.length;k++) if(resta[k]>0 && k!==prev) soma+=resta[k];
+    if(soma===0){
+      // só sobrou a mesma faixa da vez anterior: encaixa numa posição sem vizinho igual
+      const k=prev; resta[k]--;
+      let pos=-1;
+      for(let q=1;q<seq.length;q++){ if(seq[q-1]!==k && seq[q]!==k){ pos=q; break; } }
+      if(pos<0 && seq.length && seq[0]!==k && ultima!==k) pos=0;
+      if(pos<0) seq.push(k); else seq.splice(pos,0,k);
+      continue;
+    }
+    let r=Math.random()*soma, escolhida=-1;
+    for(let k=0;k<resta.length;k++){ if(resta[k]>0 && k!==prev){ r-=resta[k]; if(r<0){ escolhida=k; break; } } }
+    if(escolhida<0){ for(let k=resta.length-1;k>=0;k--) if(resta[k]>0 && k!==prev){ escolhida=k; break; } }
+    seq.push(escolhida); resta[escolhida]--; prev=escolhida;
+  }
+  _trackOrder = seq;
   _orderPos=0;
 }
 function _curTrack(){ if(!_trackOrder.length) _shuffleTracks(); return MENU_TRACKS[_trackOrder[_orderPos]]||null; }
