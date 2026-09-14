@@ -763,7 +763,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (numeroAlert == null) { lastCaptureNumeroId.current = null; return; }
     const announce = () => {
       const msg = inPortalRef.current
-        ? `Olha ali! O número ${numeroAlert} apareceu pra capturar — me arraste até ele! ✨`
+        ? `Olha ali! Um número da sorte apareceu pra capturar — me arraste até ele! ✨`
         : `Corre olhar no Portal do Colaborador — apareceu uma coisa surpreendente lá! 👀✨`;
       say(msg, { sprite: imgRef.current.CAPTURE, dismissable: false });
     };

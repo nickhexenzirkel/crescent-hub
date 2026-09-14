@@ -177,7 +177,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
       id: `capture-numero-${spawnKey}`,
       type: 'lembrete',
       title: '.✧. Um número da sorte apareceu! .✧.',
-      message: `O número ${numeroValue} está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! 🎰`,
+      message: 'Está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! Só revela qual número é depois que você capturar. 🎰',
     });
   }, [available, cfg, numeroValue]);
 
@@ -411,7 +411,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
               fontSize: 52, fontWeight: 900, color: '#3a2400', fontFamily: 'var(--font-brand)',
               boxShadow: `0 0 22px ${th.accent}, 0 8px 16px rgba(0,0,0,.6), inset 0 3px 0 rgba(255,255,255,.4)`,
               animation: phase === 'error' ? 'cnDodge .9s ease-in-out' : phase === 'thrown' ? 'cnHit .5s ease-in-out' : 'cnIdle 3.5s ease-in-out infinite' }}>
-            {numeroValue}
+            ?
           </div>
 
           {phase === 'error' && (
