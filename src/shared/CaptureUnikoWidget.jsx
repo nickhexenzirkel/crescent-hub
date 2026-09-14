@@ -18,13 +18,20 @@ import CosmosScene from './cosmosScene';
 import SakuraScene from './sakuraScene';
 import FairyScene from './fairyScene';
 import OliviaScene from './oliviaScene';
+import ConstellationPuzzle from './ConstellationPuzzle';
 import {
   getUniko, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
-  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection,
+  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection, fetchCapturesFor,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner, syncCollectionFromServer,
   loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId, unikoIdForSlot,
 } from './captureUniko';
+
+// A partir da 2ª captura JÁ FEITA (ou seja, na 3ª tentativa em diante), a pessoa
+// precisa resolver a constelação antes de poder capturar de novo — dá mais chance
+// pra quem ainda não ganhou nenhum Uniko. Pedido explícito do usuário. Contagem
+// SEPARADA do Capture o Número (cada sistema tem a sua).
+const PUZZLE_AFTER_CAPTURES = 2;
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
 
@@ -66,6 +73,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
   const [, forceRefresh]          = useState(0);
+  // Desbloqueio por tarefa: quem já capturou PUZZLE_AFTER_CAPTURES+ Unikos precisa
+  // ligar a constelação antes de poder tentar de novo (ver efeitos mais abaixo).
+  const [priorCount, setPriorCount]     = useState(null); // null = ainda não checou
+  const [puzzleSolved, setPuzzleSolved] = useState(false);
 
   // Garante que os Unikos da Oficina estejam carregados ANTES de precisar deles aqui —
   // App.jsx já carrega no login, mas se o admin criar um Uniko novo e "Spawnar agora"
@@ -91,6 +102,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
   const winnerMine = !!myWin;
+  const mustSolvePuzzle = (priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES && !puzzleSolved;
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
@@ -121,6 +133,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     setWinners([]);
     setAvailable(false);
     setChecked(false); // o fetch de vencedores logo abaixo devolve pra true
+    setPriorCount(null);
+    setPuzzleSolved(false);
   }, [eventId]);
 
   /* ── Desbloqueia o áudio no 1º clique (autoplay policy do navegador) ── */
@@ -319,11 +333,34 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     if (available && phase !== 'caught') {
       playCaptureAlert();
       emitCaptureState({ available: true, uniko });
-      registerCaptureTarget(() => unikoRef.current?.getBoundingClientRect() || sceneRef.current?.getBoundingClientRect() || null);
     }
-    return () => { emitCaptureState({ available: false, uniko: null }); registerCaptureTarget(null); };
+    return () => { emitCaptureState({ available: false, uniko: null }); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available, uniko]);
+
+  /* ── Checa quantas vezes essa pessoa JÁ capturou Uniko (pra saber se precisa
+       da tarefa de desbloqueio) — uma vez por evento, quando fica disponível. ── */
+  useEffect(() => {
+    if (!available) return;
+    let alive = true;
+    const me2 = getAuthUser()?.name;
+    if (!me2) { setPriorCount(0); return; }
+    fetchCapturesFor(me2).then(rows => { if (alive) setPriorCount(rows.length); });
+    return () => { alive = false; };
+  }, [available, eventId]);
+
+  /* ── Alvo do arremesso: SÓ registra enquanto não estiver travado pela tarefa —
+       sem alvo registrado, o arrasto do assistente não conta como arremesso (ver
+       UnikoAssistant.jsx), então quem precisa resolver o puzzle não consegue
+       capturar por acidente antes de terminar. ── */
+  useEffect(() => {
+    if (available && phase !== 'caught' && !mustSolvePuzzle) {
+      registerCaptureTarget(() => unikoRef.current?.getBoundingClientRect() || sceneRef.current?.getBoundingClientRect() || null);
+    } else {
+      registerCaptureTarget(null);
+    }
+    return () => registerCaptureTarget(null);
+  }, [available, phase, mustSolvePuzzle]);
 
   /* ── Recebe o ARREMESSO do assistente ── */
   useEffect(() => {
@@ -502,6 +539,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
         <div style={{ position: 'absolute', inset: 0, borderRadius: 18, padding: 3, background: `conic-gradient(from var(--cuAng), ${th.border.join(',')})`, animation: 'cuBorder 4s linear infinite', WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', pointerEvents: 'none' }}/>
 
         <div ref={sceneRef} style={{ position: 'relative', borderRadius: 15, overflow: 'hidden', background: th.scene, height: 300 }}>
+          {mustSolvePuzzle ? (
+            <>
+              <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none', padding: '0 14px' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.14em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cuPulse 1.6s ease-in-out infinite' }}>★ DESBLOQUEIE PRA CAPTURAR ★</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginTop: 3, fontFamily: 'var(--font-brand)', textShadow: `0 2px 12px ${th.accent2}` }}>Ligue as estrelas: da menor até a maior</div>
+                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você já capturou {priorCount}x — dá uma chance pros outros primeiro! ✨</div>
+              </div>
+              <div style={{ position: 'absolute', inset: '62px 18px 16px' }}>
+                <ConstellationPuzzle accent={th.glow} onSolved={() => setPuzzleSolved(true)} />
+              </div>
+            </>
+          ) : (
+          <>
           <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none' }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.18em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cuPulse 1.6s ease-in-out infinite' }}>★ CAPTURE O UNIKO ★</div>
             <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2, fontFamily: 'var(--font-brand)', letterSpacing: '.03em', textShadow: `0 2px 12px ${th.accent2}` }}>{uniko.shortName || uniko.name}</div>
@@ -537,6 +587,8 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
               {phase === 'thrown' ? '...' : 'Arraste o assistente UNIKO até aqui e solte!'}
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
   );

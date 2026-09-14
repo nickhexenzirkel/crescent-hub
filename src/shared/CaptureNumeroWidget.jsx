@@ -9,13 +9,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
 import { notifyDesktop } from '../utils/desktopNotify';
+import ConstellationPuzzle from './ConstellationPuzzle';
 import {
   isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureNumeroState, emitCaptureNumeroSlotBusy, getCaptureResult, setCaptureResult,
-  WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, addToMyNumeroCollection,
+  WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, addToMyNumeroCollection, fetchCapturesFor,
   registerCaptureNumeroTarget, onCaptureNumeroThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner,
   syncNumeroCollectionFromServer, nowMs, ensureServerClock, maxWinnersFor, captureEventId, numeroValueForSlot,
 } from './captureNumero';
+
+// A partir da 2ª captura JÁ FEITA (ou seja, na 3ª tentativa em diante), a pessoa
+// precisa resolver a constelação antes de poder capturar de novo — dá mais chance
+// pra quem ainda não ganhou nada. Pedido explícito do usuário.
+const PUZZLE_AFTER_CAPTURES = 2;
 
 // Cartão dourado fixo — "número da sorte" não tem tema por item (ao contrário do
 // Uniko, que tem cor/cenário próprios por personagem).
@@ -63,6 +69,10 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   const [phase, setPhase]         = useState('idle'); // idle | thrown | error | caught
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
+  // Desbloqueio por tarefa: quem já capturou PUZZLE_AFTER_CAPTURES+ números precisa
+  // ligar a constelação antes de poder tentar de novo (ver efeitos mais abaixo).
+  const [priorCount, setPriorCount]     = useState(null); // null = ainda não checou
+  const [puzzleSolved, setPuzzleSolved] = useState(false);
 
   const maxWinners = maxWinnersFor(cfg);
   const me      = getAuthUser()?.name;
@@ -74,6 +84,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
   const winnerMine = !!myWin;
+  const mustSolvePuzzle = (priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES && !puzzleSolved;
 
   const sceneRef = useRef(null);
   const numeroRef = useRef(null);
@@ -92,6 +103,8 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     setWinners([]);
     setAvailable(false);
     setChecked(false);
+    setPriorCount(null);
+    setPuzzleSolved(false);
   }, [eventId]);
 
   /* ── Desbloqueia o áudio no 1º clique (autoplay policy do navegador) ── */
@@ -247,16 +260,41 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     return () => clearInterval(id);
   }, [inPortal, available, winnerActive]);
 
-  /* ── Ao ficar DISPONÍVEL: toca o som, avisa o assistente e registra o alvo ── */
+  /* ── Ao ficar DISPONÍVEL: toca o som e avisa o assistente (independe da tarefa —
+       quem está travado também precisa saber que "tem algo lá", só não pode
+       arremessar ainda). ── */
   useEffect(() => {
     if (available && phase !== 'caught') {
       playCaptureAlert();
       emitCaptureNumeroState({ available: true, numeroValue });
-      registerCaptureNumeroTarget(() => numeroRef.current?.getBoundingClientRect() || sceneRef.current?.getBoundingClientRect() || null);
     }
-    return () => { emitCaptureNumeroState({ available: false, numeroValue: null }); registerCaptureNumeroTarget(null); };
+    return () => { emitCaptureNumeroState({ available: false, numeroValue: null }); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available, numeroValue]);
+
+  /* ── Checa quantas vezes essa pessoa JÁ capturou número (pra saber se precisa
+       da tarefa de desbloqueio) — uma vez por evento, quando fica disponível. ── */
+  useEffect(() => {
+    if (!available) return;
+    let alive = true;
+    const me2 = getAuthUser()?.name;
+    if (!me2) { setPriorCount(0); return; }
+    fetchCapturesFor(me2).then(rows => { if (alive) setPriorCount(rows.length); });
+    return () => { alive = false; };
+  }, [available, eventId]);
+
+  /* ── Alvo do arremesso: SÓ registra enquanto não estiver travado pela tarefa —
+       sem alvo registrado, o arrasto do assistente não conta como arremesso (ver
+       UnikoAssistant.jsx), então quem precisa resolver o puzzle não consegue
+       capturar por acidente antes de terminar. ── */
+  useEffect(() => {
+    if (available && phase !== 'caught' && !mustSolvePuzzle) {
+      registerCaptureNumeroTarget(() => numeroRef.current?.getBoundingClientRect() || sceneRef.current?.getBoundingClientRect() || null);
+    } else {
+      registerCaptureNumeroTarget(null);
+    }
+    return () => registerCaptureNumeroTarget(null);
+  }, [available, phase, mustSolvePuzzle]);
 
   /* ── Recebe o ARREMESSO do assistente — captura na hora, sem confirmação extra
        (pedido explícito: soltar na área já vale, sem botão a mais). ── */
@@ -393,6 +431,19 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
         <div style={{ position: 'absolute', inset: 0, borderRadius: 18, padding: 3, background: `conic-gradient(from var(--cnAng), ${th.border.join(',')})`, animation: 'cnBorder 4s linear infinite', WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', pointerEvents: 'none' }}/>
 
         <div ref={sceneRef} style={{ position: 'relative', borderRadius: 15, overflow: 'hidden', background: th.scene, height: 300 }}>
+          {mustSolvePuzzle ? (
+            <>
+              <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none', padding: '0 14px' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.14em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cnPulse 1.6s ease-in-out infinite' }}>★ DESBLOQUEIE PRA CAPTURAR ★</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginTop: 3, fontFamily: 'var(--font-brand)', textShadow: `0 2px 12px ${th.accent2}` }}>Ligue as estrelas: da menor até a maior</div>
+                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você já capturou {priorCount}x — dá uma chance pros outros primeiro! ✨</div>
+              </div>
+              <div style={{ position: 'absolute', inset: '62px 18px 16px' }}>
+                <ConstellationPuzzle accent={th.glow} onSolved={() => setPuzzleSolved(true)} />
+              </div>
+            </>
+          ) : (
+          <>
           <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none' }}>
             <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.18em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cnPulse 1.6s ease-in-out infinite' }}>★ CAPTURE O NÚMERO ★</div>
             <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', marginTop: 2, fontFamily: 'var(--font-brand)', letterSpacing: '.03em', textShadow: `0 2px 12px ${th.accent2}` }}>Número da sorte</div>
@@ -426,6 +477,8 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
               {phase === 'thrown' ? '...' : 'Arraste o assistente UNIKO até aqui e solte!'}
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
   );
