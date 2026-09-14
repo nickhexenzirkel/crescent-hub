@@ -539,8 +539,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
      tela pequena, então cada toque muda ~6px e se vê na hora. A skin ainda
      influencia (as maiores continuam maiores), mas dentro de um limite — no
      celular quem manda é a tela, não a arte. A preferência salva não é
-     tocada: no desktop continua valendo 0,6–2,5× em cima do tamanho da skin. */
-  const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 104, MOBILE_ICON_BASE = 58;
+     tocada: no desktop continua valendo 0,6–2,5× em cima do tamanho da skin.
+
+     MOBILE_ICON_MAX era 104 (calibrado pro teto antigo de 1,8×) — com a
+     preferência indo até 2,5×, quem chegava em ~180% já batia nesse teto e
+     "+" parava de fazer qualquer coisa dali pra cima (o card mostrava 250%
+     mas o robô ficava do mesmo tamanho). Reajustado na mesma proporção
+     (104 × 2,5/1,8) pra a faixa inteira continuar tendo efeito visível. */
+  const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 144, MOBILE_ICON_BASE = 58;
   const skinIcon = skin.iconSize || 84;
   const ICON = isMobile
     ? Math.round(Math.min(MOBILE_ICON_MAX, Math.max(MOBILE_ICON_MIN,
