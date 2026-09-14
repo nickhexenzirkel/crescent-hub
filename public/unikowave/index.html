@@ -1143,6 +1143,21 @@ html.gfx-ultra .rv-sky .rvs,html.gfx-ultra .rv-sky .rvshoot,html.gfx-ultra .rv-c
   align-self:center!important;
 }
 /* Pausa */
+/* Botões ▲/▼ da Guerra Estelar no celular (ver wgApplyMobileHud) */
+#wgPad{display:none;position:absolute;inset:0;pointer-events:none;z-index:7}
+#wgPad.on{display:block}
+.wgpad-btn{position:absolute;bottom:calc(var(--padB,10px) + 0px);width:var(--pad,84px);height:var(--pad,84px);border-radius:26px;
+  pointer-events:all;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;color:#fff;border:2px solid rgba(255,255,255,.28);
+  background:rgba(12,12,26,.62);transition:transform .08s,background .08s}
+.wgpad-btn span{font-size:calc(var(--pad,84px) * .38);line-height:1}
+.wgpad-btn small{font-size:12px;font-weight:900;letter-spacing:.12em;opacity:.85}
+#wgBtnUp{left:var(--padL,14px);border-color:rgba(74,166,255,.75);box-shadow:inset 0 -4px 0 rgba(74,166,255,.55)}
+#wgBtnDown{right:var(--padR,14px);border-color:rgba(255,111,181,.75);box-shadow:inset 0 -4px 0 rgba(255,111,181,.55)}
+.wgpad-btn.press{transform:scale(.93)}
+#wgBtnUp.press{background:rgba(74,166,255,.45)}
+#wgBtnDown.press{background:rgba(255,111,181,.45)}
 #pauseOverlay{
   position:fixed;inset:0;z-index:50;
   background:rgba(4,4,15,.88);backdrop-filter:blur(10px);
@@ -2402,6 +2417,11 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Barra de vida: errar muito esgota e perde a partida -->
   <div id="lifeBar"><div id="lifeFill"></div><div id="lifeTxt"><span>❤ VIDA</span><span id="lifePct">100%</span></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
+  <!-- Guerra Estelar no CELULAR: botões grandes de cima (ar) e baixo (chão); segurar = nota longa -->
+  <div id="wgPad" aria-hidden="false">
+    <button class="wgpad-btn" id="wgBtnUp" aria-label="Cima (ar)"><span>▲</span><small>AR</small></button>
+    <button class="wgpad-btn" id="wgBtnDown" aria-label="Baixo (chão)"><span>▼</span><small>CHÃO</small></button>
+  </div>
   <div id="hudStars">
     <div class="star-row">
       <span class="star-item" id="star0" data-i="0">★</span>
@@ -4353,6 +4373,15 @@ function resize(){
   resizePersp();
   setupTZ();
   _sizeVideoBgWrap();
+  // Guerra Estelar: o layout só era calculado no começo da partida — girar o celular
+  // deixava tudo nas posições da orientação anterior (chão e personagem fora da tela).
+  try{
+    if(gameMode==='wargame' && WG.active){
+      wgComputeLayout();
+      WG.bossX = WG.bossHomeX;
+      if(!WG.holds.air && !(WG.airTimer>0)) WG.feetY = WG.floorFeet;
+    }
+  }catch(_){}
 }
 window.addEventListener('resize',resize);
 // laneX, laneW, hitY, getLaneBounds → definidos após resizePersp abaixo
@@ -6059,6 +6088,8 @@ function beginGame(){
   // partes do HUD clássico (mantendo só o botão de PAUSA e a barra de progresso).
   const _wgHide=['lifeBar','hudTopCenter','hudStars','hudBottom'];
   _wgHide.forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = gameMode==='wargame'?'none':''; });
+  { const pad=document.getElementById('wgPad'); if(pad && gameMode!=='wargame') pad.classList.remove('on'); }
+  if(gameMode!=='wargame'){ const pb=document.getElementById('pauseBtn'); if(pb){ pb.style.top=''; pb.style.left=''; } const sb=document.getElementById('scoreBreakdown'); if(sb) sb.style.display=''; }
   buildKeyLegend();
 
   showScreen('gameWrap'); document.getElementById('hud').classList.remove('off'); resize();
@@ -9241,17 +9272,68 @@ function wgBossEyes(cx, bossH){
 }
 
 function wgComputeLayout(){
-  WG.charX       = CW*0.15;
-  WG.charH       = Math.max(140, Math.min(240, CH*0.30));
-  WG.noteR       = WG.charH*0.30;                      // raio do minion
+  // Três perfis: CELULAR EM PÉ (tela estreita e alta), CELULAR DEITADO (baixa) e
+  // COMPUTADOR (o de sempre). No celular o tamanho vem da MENOR dimensão da tela — em
+  // pé, dimensionar pela altura deixava minions/boss gigantes numa tela de ~390px.
+  const mob = IS_MOBILE, portrait = CH > CW;
+  WG.mob = mob; WG.portrait = mob && portrait;
+  WG.safeT = mob ? (portrait ? 54 : 8) : 0;      // notch/relógio do iPhone + botões do Portal
+  WG.safeL = mob && !portrait ? 88 : 0;          // notch + botões ← ⛶ do Portal (deitado)
+  WG.safeR = mob && !portrait ? 44 : 0;
+  WG.safeB = mob ? (portrait ? 22 : 10) : 0;     // barrinha de "home" do iPhone
+  WG.hudK  = mob ? Math.max(0.55, Math.min(1, Math.min(CW, CH)/760)) : 1;
+  WG.padSize = mob ? (portrait ? 92 : 76) : 0;   // botões ▲/▼
+  if(WG.portrait){
+    WG.charX     = CW*0.17;
+    WG.charH     = Math.max(100, Math.min(190, CW*0.36));
+    WG.noteR     = WG.charH*0.24;
+    WG.floorFeet = Math.min(CH*0.75, CH - WG.safeB - WG.padSize - CW*0.24);
+    WG.airNoteY  = WG.floorFeet - WG.charH*1.65;
+    WG.bossK     = 1.3;
+    WG.bossHomeX = CW*0.76;
+  } else if(mob){
+    WG.charX     = WG.safeL + CW*0.08;
+    WG.charH     = Math.max(80, Math.min(190, CH*0.30));
+    WG.noteR     = WG.charH*0.30;
+    WG.floorFeet = CH*0.80;
+    WG.airNoteY  = CH*0.47;
+    WG.bossK     = 1.5;
+    WG.bossHomeX = CW - WG.safeR - CW*0.14;
+  } else {
+    WG.charX     = CW*0.15;
+    WG.charH     = Math.max(140, Math.min(240, CH*0.30));
+    WG.noteR     = WG.charH*0.30;                      // raio do minion
+    WG.floorFeet = CH*0.82;                             // pés no chão
+    WG.airNoteY  = CH*0.48;                             // linha do ar
+    WG.bossK     = 1.7;
+    WG.bossHomeX = CW*0.85;
+  }
   WG.hitX        = WG.charX + WG.charH*0.16;            // ponto de contato (pé da Mizuki)
-  WG.floorFeet   = CH*0.82;                             // pés no chão
-  WG.airNoteY    = CH*0.48;                             // linha do ar (mais baixa, não tão alta)
   WG.airFeet     = WG.airNoteY + WG.charH*0.50;         // pés quando sobe (centro ~ linha do ar)
   WG.groundNoteY = WG.floorFeet - WG.charH*0.40;        // notas do chão na altura do tronco
-  WG.beltH       = Math.round(CH*0.11);                 // esteira (alta o bastante pra ver a textura)
-  // espaço (gap) abaixo da esteira e SÓ depois o fogo (faixa no fundo, com chamas subindo)
+  WG.beltH       = Math.round(CH*0.11);                 // esteira
   WG.fireTop     = WG.floorFeet + WG.beltH + Math.round(CH*0.02);
+  wgApplyMobileHud();
+}
+
+// Peças em HTML do HUD que dependem do perfil: botão de PAUSA, botões ▲/▼ e o placar
+// de acertos do modo normal (que no celular ficava por cima da barra do boss).
+function wgApplyMobileHud(){
+  const pb=document.getElementById('pauseBtn'), pad=document.getElementById('wgPad'), sb=document.getElementById('scoreBreakdown');
+  const on = gameMode==='wargame' && WG.mob;
+  if(pb){
+    if(on && WG.portrait){ pb.style.top=(WG.safeT+100)+'px'; pb.style.left='12px'; }
+    else if(on){ pb.style.top='52px'; pb.style.left=WG.safeL+'px'; }
+    else { pb.style.top=''; pb.style.left=''; }
+  }
+  if(sb) sb.style.display = on ? 'none' : '';
+  if(pad){
+    pad.classList.toggle('on', on);
+    pad.style.setProperty('--pad', WG.padSize+'px');
+    pad.style.setProperty('--padB', WG.safeB+'px');
+    pad.style.setProperty('--padL', (WG.portrait?14:Math.max(14,WG.safeL-60))+'px');
+    pad.style.setProperty('--padR', (WG.portrait?14:Math.max(14,WG.safeR))+'px');
+  }
 }
 
 function wgInit(){
@@ -9262,7 +9344,7 @@ function wgInit(){
   WG.bossDefeated=false; WG.bossDefeatT=0; WG.bossHitFx=0; WG.bossShake=0; WG.dmgNums.length=0;
   WG.phase='play'; WG.bossSay=null; WG.mizukiSay=null; WG.bolts.length=0; WG.hurtT=0;
   WG.nextBossSayAt=5; WG.nextMizukiSayAt=8;
-  WG.bossX=CW*0.85; WG.attacksDone=0; WG.attack=null;
+  WG.bossX=WG.bossHomeX||CW*0.85; WG.attacksDone=0; WG.attack=null;
   WG.finisherKicks=0; WG.finisherNeed=wgDiff().kicks; WG.lungeT=0; WG.resultScheduled=false;
   WG.waving=false; WG.waveT=0; WG.waveShot=false; WG.waveBeam=false; WG.prevT=performance.now()*0.001;
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
@@ -9429,7 +9511,7 @@ function wgKick(){
   WG.lungeT=0.18; WG.atkTimer=0.22;
   WG.bossHitFx=1; WG.bossShake=12;
   WG.bossHp=Math.max(0, WG.bossMaxHp*(1 - WG.finisherKicks/WG.finisherNeed));
-  const bcy=wgBossCY(WG.charH*1.7);
+  const bcy=wgBossCY(WG.charH*(WG.bossK||1.7));
   const ang=Math.random()*Math.PI*2, rad=WG.charH*0.72;
   WG.kickAng=ang; WG.kickX=WG.bossX+Math.cos(ang)*rad; WG.kickY=bcy+Math.sin(ang)*rad*0.7;
   spawnBurst(WG.bossX,bcy,'#ffd34d',22);
@@ -10102,7 +10184,7 @@ function drawWargame(t){
   if(WG.bossDefeated) WG.bossDefeatT+=dt;
 
   // ── Lógica de tempo (falas, fases de ataque, finisher) — só durante a partida ──
-  const homeX=CW*0.85, frontX=CW*0.46;
+  const homeX=WG.bossHomeX||CW*0.85, frontX=CW*0.46;
   if(gameState==='playing'){
     // (fogo mantém paleta quente realista — sem trocas de cor aleatórias)
     // Falas periódicas
@@ -10192,7 +10274,7 @@ function drawWargame(t){
   const chH=WG.charH, glow=(typeof GFX!=='undefined'&&GFX.glow);
 
   // ── Boss (à direita) — escondido durante o EVENTO ESPECIAL (combo 50) ──
-  const bossH=chH*1.7, bossW=bossH;
+  const bossH=chH*(WG.bossK||1.7), bossW=bossH;
   if(WG.phase==='special' && WG.special){
     drawWgSpecial(glow);
   } else if(WG.bossDefeated){
@@ -10235,7 +10317,13 @@ function drawWargame(t){
 
   // ── Barra de vida do BOSS (topo central) — grossa e lisa ──
   if(WG.phase!=='special'){
-    const w=Math.min(CW*0.6,680), h=64, bx=(CW-w)/2, by=14;
+    let w=Math.min(CW*0.6,680), h=64, bx=(CW-w)/2, by=14;
+    if(WG.portrait){ w=CW-24; h=44; bx=12; by=WG.safeT; }
+    else if(WG.mob){
+      // deitado: entre a barra de vida (esquerda) e o placar (direita)
+      const lifeEnd = WG.safeL + Math.round(Math.min(CW*0.26,300));
+      bx = lifeEnd + 12; w = Math.max(160, CW - WG.safeR - 150 - bx); h = 36; by = 8;
+    }
     const hpPct=WG.bossMaxHp?WG.bossHp/WG.bossMaxHp:0;
     const col = WG.bossHitFx>0 ? '#FF8FA0' : '#FF4D6D';      // clareia no golpe, sem brilho
     wgFlatBar(bx,by,w,h,hpPct,col,{ left:WG.bossDefeated?'REI MORCEGO ROBÓTICO - DERROTADO':'REI MORCEGO ROBÓTICO', right:Math.round(hpPct*100)+'%' });
@@ -10479,9 +10567,21 @@ function drawWargame(t){
   // ── Pontuação (canto superior esquerdo) ──
   ctx.save(); ctx.textAlign='left'; ctx.textBaseline='top';
   ctx.shadowColor='rgba(0,240,255,.6)'; ctx.shadowBlur=glow?10:0;
-  ctx.fillStyle='#fff'; ctx.font="22px 'Press Start 2P',monospace";
-  ctx.fillText(String(score.v||0).padStart(6,'0'), 22, 18);
-  ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font="8px 'Press Start 2P',monospace"; ctx.fillText('SCORE', 24, 50);
+  if(WG.portrait){
+    // em pé: placar à direita, na linha da barra de vida
+    ctx.textAlign='right'; ctx.fillStyle='#fff'; ctx.font="16px 'Press Start 2P',monospace";
+    ctx.fillText(String(score.v||0).padStart(6,'0'), CW-14, WG.safeT+56);
+    ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font="7px 'Press Start 2P',monospace"; ctx.fillText('SCORE', CW-14, WG.safeT+78);
+  } else if(WG.mob){
+    // deitado: placar à direita, no alto (a vida fica à esquerda)
+    ctx.textAlign='right'; ctx.fillStyle='#fff'; ctx.font="14px 'Press Start 2P',monospace";
+    ctx.fillText(String(score.v||0).padStart(6,'0'), CW-WG.safeR-8, 12);
+    ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font="7px 'Press Start 2P',monospace"; ctx.fillText('SCORE', CW-WG.safeR-8, 32);
+  } else {
+    ctx.fillStyle='#fff'; ctx.font="22px 'Press Start 2P',monospace";
+    ctx.fillText(String(score.v||0).padStart(6,'0'), 22, 18);
+    ctx.shadowBlur=0; ctx.fillStyle='#28e0ff'; ctx.font="8px 'Press Start 2P',monospace"; ctx.fillText('SCORE', 24, 50);
+  }
   ctx.restore();
 
   // ── Judgment GRANDE acima da Mizuki (PERFECT / GOOD / MISS) ──
@@ -10551,13 +10651,21 @@ function wgLifeColor(h){ return h>50 ? '#3DDC97' : h>25 ? '#F5B046' : '#FF5A6E';
 // Barra de VIDA — em cima do botão de PAUSA (top:160). Grossa e lisa.
 function drawWgLifeBar(){
   const health=Math.max(0,Math.min(100,score.health??100));
-  const w=Math.min(CW*0.30,400), h=60, x0=16, y0=92;   // termina em 152 (pausa em 160)
-  wgFlatBar(x0,y0,w,h,health/100,wgLifeColor(health),{ left:'❤ VIDA', right:Math.round(health)+'%' });
+  let w=Math.min(CW*0.30,400), h=60, x0=16, y0=92;   // termina em 152 (pausa em 160)
+  if(WG.portrait){ w=Math.round(CW*0.54); h=40; x0=12; y0=WG.safeT+52; }
+  else if(WG.mob){ w=Math.round(Math.min(CW*0.26,300)); h=36; x0=WG.safeL; y0=8; }
+  wgFlatBar(x0,y0,w,h,health/100,wgLifeColor(health),{ left: w<230 ? '❤' : '❤ VIDA', right:Math.round(health)+'%' });
 }
 
 // Medidor de COMBO — centro inferior. Enche a cada 50 de combo. Liso.
 function drawWgBottomBar(combo){
-  const w=Math.min(CW*0.36,420), h=44, x0=(CW-w)/2, y0=CH-h-12;
+  let w=Math.min(CW*0.36,420), h=44, x0=(CW-w)/2, y0=CH-h-12;
+  if(WG.mob){
+    // entre os botões ▲ e ▼ lá embaixo
+    h = WG.portrait ? 40 : 34;
+    w = Math.max(90, Math.min(360, CW - 2*(WG.padSize + 30)));
+    x0 = (CW-w)/2; y0 = CH - WG.safeB - WG.padSize/2 - h/2;
+  }
   const cg=(combo%50)/50;
   wgFlatBar(x0,y0,w,h,combo>0?Math.max(0.04,cg):0,'#4AA6FF',{ left:'COMBO', right:'x'+combo });
 }
@@ -11179,6 +11287,21 @@ document.addEventListener('keyup',e=>{
   const k=e.code.toLowerCase();
   if(k==='keyw'||k==='arrowup') wgRelease('air');
   else if(k==='keys'||k==='arrowdown') wgRelease('ground');
+});
+// Botões ▲ AR / ▼ CHÃO do celular: cada dedo segura o seu (multi-toque), soltar
+// finaliza nota longa. Não deixa o toque "vazar" pro canvas (senão contaria 2x).
+[['wgBtnUp','air'],['wgBtnDown','ground']].forEach(([id,kind])=>{
+  const b=document.getElementById(id); if(!b) return;
+  const down=e=>{ e.preventDefault(); e.stopPropagation(); if(gameMode!=='wargame'||gameState!=='playing') return;
+    try{ b.setPointerCapture(e.pointerId); }catch(_){}
+    b.classList.add('press'); wgAction(kind); };
+  const up=e=>{ e.preventDefault(); e.stopPropagation(); if(!b.classList.contains('press')) return;
+    b.classList.remove('press'); if(gameMode==='wargame') wgRelease(kind); };
+  b.addEventListener('pointerdown',down);
+  b.addEventListener('pointerup',up);
+  b.addEventListener('pointercancel',up);
+  b.addEventListener('lostpointercapture',up);
+  b.addEventListener('contextmenu',e=>e.preventDefault());
 });
 // Toque/clique na tela: metade de cima = AR (W), metade de baixo = CHÃO (S)
 document.getElementById('gc').addEventListener('pointerdown',e=>{

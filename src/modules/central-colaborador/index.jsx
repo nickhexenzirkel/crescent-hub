@@ -44,8 +44,21 @@ const DesligadoAviso = ({data}) => (
   </div>
 );
 
+// Celular DEITADO: a largura passa de 768px e o Portal achava que era computador —
+// mostrava a barra lateral (comendo a tela do Uniko Wave) e sumia com os botões de
+// sair/tela cheia. Toque + altura baixa = celular deitado.
+const ehCelularDeitado = () => {
+  try { return window.matchMedia('(pointer:coarse)').matches && window.innerHeight < 520; } catch { return false; }
+};
+
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
   const isMobile = useIsMobile();
+  const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
+  useEffect(() => {
+    const f = () => setCelularDeitado(ehCelularDeitado());
+    window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
+    return () => { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); };
+  }, []);
   const [tab,st]=useState(initialTab || 'inicio');
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
@@ -204,8 +217,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
 
   return(
     <div key={activeTheme} style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?76:280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
+      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>}
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:'100vh',transition:'margin-left .22s ease'}}>
         {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
             `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
@@ -227,7 +240,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
       </div>
 
       {/* ── Uniko Wave (celular): botões flutuantes de sair + tela cheia ── */}
-      {isMobile && tab==='unikowave' && (
+      {(isMobile || celularDeitado) && tab==='unikowave' && (
         <div style={{position:'fixed',top:6,left:6,zIndex:100000,display:'flex',gap:6}}>
           <button onClick={()=>st('inicio')} title="Sair do jogo"
             style={{width:34,height:34,borderRadius:9,border:'1px solid rgba(255,255,255,.25)',
