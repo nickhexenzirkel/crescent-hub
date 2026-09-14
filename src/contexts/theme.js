@@ -470,7 +470,7 @@ const THEMES = {
     text:'#F2F2F5', textS:'#A9A9B2', textT:'#6E6E78', textD:'#3E3E46',
   },
   grayDark: {
-    name:'Cinza Nebula', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#B4B9C4', dark:true,
+    name:'Cinza Cósmico', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#B4B9C4', dark:true,
     page:'#121418', surface:'#1D2026', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
     surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
     gold:'#8A909C', goldL:'#B4B9C4', goldV:'#D8DCE3',
