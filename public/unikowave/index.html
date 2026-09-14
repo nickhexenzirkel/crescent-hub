@@ -1395,7 +1395,9 @@ canvas{display:block}
           Notas coloridas descem em 4 colunas.<br>
           Pressione a tecla certa no momento em que<br>
           a nota chegar à linha de acerto na base da tela.<br><br>
-          <strong>● Nota redonda</strong> — toque rápido &nbsp;·&nbsp; <strong>▬ Nota longa</strong> — segure
+          <strong>● Nota redonda</strong> — toque rápido &nbsp;·&nbsp; <strong>▬ Nota longa</strong> — segure<br><br>
+          <strong style="color:#ffb020">⚠ Um botão por vez</strong> — apertar dois juntos tira vida, e na 3ª vez você perde<br>
+          <strong style="color:#ff4466">✋ Nada de spam</strong> — ficar apertando sem acertar tira muita vida
         </div>
       </div>
 
@@ -5833,7 +5835,7 @@ function generateChart(beats,dur,cfg,meta){
 
 function beginGame(){
   Object.assign(score,{v:0,combo:0,maxCombo:0,perfect:0,good:0,miss:0,health:100});
-  gameOverByDeath=false; updateLifeBar();
+  gameOverByDeath=false; resetInputGuard(); updateLifeBar();
   
   heldKeys.clear();heldNotes.clear();
   particles.length=0;rings.length=0;judgments.length=0;fireP.length=0;
@@ -6058,7 +6060,8 @@ function pressLane(lane){
     const d=Math.abs(n.hitTime-st);
     if(d<bestD){bestD=d;best=n;}
   }
-  if(best&&bestD<=WIN_GOOD+0.025){
+  const hit=!!(best&&bestD<=WIN_GOOD+0.025);
+  if(hit){
     const perf=bestD<=WIN_PERFECT;
     if(best.holdDur>0){
       best.state='holding';
@@ -6072,6 +6075,7 @@ function pressLane(lane){
   } else {
     rings.push({x:laneX(lane),y:hitY(),r:4,maxR:laneW()*.9,life:.3,decay:.1,color:'#ffffff',w:laneW()*.6,flash:true});
   }
+  guardPress('lane'+lane, hit);
 }
 
 function releaseLane(lane){
@@ -6128,6 +6132,67 @@ function scoreMiss(){
   updateLifeBar();
   updateHUD();
   if(score.health<=0) gameOver();
+}
+
+// ── REGRAS ANTI-SPAM ──────────────────────────────────────────────────────────
+// 1) DOIS BOTÕES AO MESMO TEMPO: dois botões DIFERENTES apertados com menos de
+//    CHORD_WINDOW s entre si, sem que os DOIS tenham acertado nota/minion. As músicas
+//    nunca pedem duas notas juntas (generateChart → NO_STACK), então isso é "apertar
+//    tudo pra ver se pega". Cada vez = aviso + dano forte; CHORD_STRIKES vezes sem
+//    passar CHORD_RESET s limpo = derrota na hora. Dois acertos colados (nota rápida
+//    logo depois de outra) NÃO contam.
+// 2) APERTAR À TOA: toques que não acertam nada, em sequência. Zera ao acertar ou
+//    depois de WHIFF_RESET s sem errar toque. Os WHIFF_FREE primeiros são perdoados
+//    (nervosismo, antecipar a nota); a partir daí CADA toque vazio tira muita vida.
+// Não valem no finisher, no minion gigante nem com a Mizuki paralisada — lá apertar
+// muito é a mecânica (wgAction sai antes de chamar guardPress).
+const INPUT_GUARD={ CHORD_WINDOW:0.05, CHORD_STRIKES:3, CHORD_RESET:8, WHIFF_FREE:3, WHIFF_RESET:2 };
+const inputGuard={ last:null, strikes:0, lastStrikeAt:-99, whiffs:0, lastWhiffAt:-99 };
+let gameOverReason=null; // 'chord' quando a derrota foi por apertar dois botões juntos
+function resetInputGuard(){
+  Object.assign(inputGuard,{ last:null, strikes:0, lastStrikeAt:-99, whiffs:0, lastWhiffAt:-99 });
+  gameOverReason=null;
+}
+function guardJudge(text,color){
+  if(gameMode==='wargame') wgSetJudge(text,color);
+  else addJudge(VP_X, VP_Y+(HIT_YP-VP_Y)*0.45, text, color);
+}
+function guardDamage(dmg){
+  score.combo=0;
+  score.health=Math.max(0,(score.health??100)-dmg);
+  try{ triggerScreenFlash('miss'); }catch(_){}
+  updateLifeBar(); updateHUD();
+  if(score.health<=0) gameOver();
+}
+function guardPress(btn, hit){
+  if(gameState!=='playing'||gameOverByDeath) return;
+  const G=INPUT_GUARD, now=performance.now()/1000;
+  const prev=inputGuard.last;
+  inputGuard.last={btn,t:now,hit};
+  const baseDmg=(DIFF_CFG[difficulty]&&DIFF_CFG[difficulty].lifeDmg)||8;
+
+  if(prev && prev.btn!==btn && now-prev.t<=G.CHORD_WINDOW && !(prev.hit&&hit)){
+    inputGuard.last=null; // esse par já foi punido
+    if(now-inputGuard.lastStrikeAt>G.CHORD_RESET) inputGuard.strikes=0;
+    inputGuard.strikes++; inputGuard.lastStrikeAt=now;
+    if(inputGuard.strikes>=G.CHORD_STRIKES){
+      gameOverReason='chord';
+      guardJudge('✋ DOIS BOTÕES JUNTOS!','#ff4444');
+      guardDamage(score.health??100); // zera a vida → gameOver()
+      return;
+    }
+    guardJudge(`⚠ UM BOTÃO POR VEZ! (${inputGuard.strikes}/${G.CHORD_STRIKES})`,'#ffb020');
+    guardDamage(Math.max(15, baseDmg*2));
+    return;
+  }
+
+  if(hit){ inputGuard.whiffs=0; return; }
+  if(now-inputGuard.lastWhiffAt>G.WHIFF_RESET) inputGuard.whiffs=0;
+  inputGuard.whiffs++; inputGuard.lastWhiffAt=now;
+  if(inputGuard.whiffs<=G.WHIFF_FREE) return;
+  const dmg=Math.max(12, Math.round(baseDmg*1.8));
+  guardJudge(`SPAM! −${dmg} ❤`,'#ff4466');
+  guardDamage(dmg);
 }
 
 // Atualiza a barra de vida (largura + cor verde→amarelo→vermelho).
@@ -9059,7 +9124,8 @@ function wgAction(kind){
   }
   const laneY = kind==='air' ? WG.airNoteY : WG.groundNoteY;
   const c = kind==='air'?C_AIR:C_GROUND;
-  if(best && bestD<=WIN_GOOD+0.025){
+  const hit=!!(best && bestD<=WIN_GOOD+0.025);
+  if(hit){
     const perf=bestD<=WIN_PERFECT;
     if(best.holdDur>0){
       // nota de segurar: começa a segurar (resolve no final / ao soltar)
@@ -9077,6 +9143,7 @@ function wgAction(kind){
   } else {
     rings.push({x:WG.hitX,y:laneY,r:4,maxR:46,life:.28,decay:.13,color:'#ffffff',w:3,flash:true});
   }
+  guardPress('wg-'+kind, hit);
 }
 
 // Soltar (keyup) — finaliza nota de segurar
@@ -10447,7 +10514,7 @@ function showResult(){
   const acc=total>0?(score.perfect*100+score.good*60)/total:0;
   const{grade,col}=getGrade(acc);
   
-  document.getElementById('resTag').textContent = gameOverByDeath ? '💀 GAME OVER' : 'STAGE CLEAR';
+  document.getElementById('resTag').textContent = gameOverByDeath ? (gameOverReason==='chord' ? '💀 GAME OVER · UM BOTÃO POR VEZ!' : '💀 GAME OVER') : 'STAGE CLEAR';
   
   // FORMATAÇÃO DO 0.00% GARANTIDA
   document.getElementById('resAcc').textContent = acc === 0 ? "0.00%" : acc.toFixed(2) + "%";
