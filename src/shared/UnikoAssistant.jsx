@@ -541,12 +541,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
      celular quem manda é a tela, não a arte. A preferência salva não é
      tocada: no desktop continua valendo 0,6–2,5× em cima do tamanho da skin.
 
-     MOBILE_ICON_MAX era 104 (calibrado pro teto antigo de 1,8×) — com a
-     preferência indo até 2,5×, quem chegava em ~180% já batia nesse teto e
-     "+" parava de fazer qualquer coisa dali pra cima (o card mostrava 250%
-     mas o robô ficava do mesmo tamanho). Reajustado na mesma proporção
-     (104 × 2,5/1,8) pra a faixa inteira continuar tendo efeito visível. */
-  const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 144, MOBILE_ICON_BASE = 58;
+     MOBILE_ICON_MAX era 104, depois 144 — dava pra achar que bastava escalar
+     na mesma proporção do teto antigo (1,8×), mas o cálculo usa a BASE já
+     multiplicada pelo fator da skin (0,85 a 1,25×): numa skin grande
+     (fator 1,25) o teto de 144 batia em ~199% e "+" morria dali pra cima —
+     era exatamente essa conta (58 × 1,25 × 1,99 ≈ 144) que explicava parar
+     "por volta de 210%" em vez de 250% pra quem tinha uma skin maior que a
+     padrão. Agora o teto é o PIOR caso de propósito — skin no fator máximo
+     (1,25) na escala máxima (2,5×) — então NENHUMA skin clampa antes de
+     250%; skins menores (fator 1×) só chegam a ~145px em vez de 182px, o
+     que é esperado (a arte delas é menor, mas a faixa toda continua tendo
+     efeito visível ponta a ponta). */
+  const MOBILE_ICON_MIN = 38, MOBILE_ICON_MAX = 182, MOBILE_ICON_BASE = 58;
   const skinIcon = skin.iconSize || 84;
   const ICON = isMobile
     ? Math.round(Math.min(MOBILE_ICON_MAX, Math.max(MOBILE_ICON_MIN,
