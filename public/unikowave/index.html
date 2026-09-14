@@ -6562,16 +6562,9 @@ function updateHUD(){
   if(groove) groove.style.width=Math.min(100,acc).toFixed(1)+'%';
 
   // Estrelas pela PRECISÃO (acc) — justo nos dois modos: não infla com o multiplicador de combo.
-  // 1★ acc≥30 | 2★ ≥55 | 3★ ≥75 | 4★ ≥88 | 5★ ≥95 + sem miss | MEGA ≥99 + sem miss
-  let sl=0;
-  if(total>0){
-    if(acc>=99&&score.miss===0)sl=6;
-    else if(acc>=95&&score.miss===0)sl=5;
-    else if(acc>=88)sl=4;
-    else if(acc>=75)sl=3;
-    else if(acc>=55)sl=2;
-    else if(acc>=30)sl=1;
-  }
+  // Mesma régua da nota (calcRank): 6 = 5★ + MEGASTAR.
+  const _rk=calcRank(acc, score.miss, total);
+  let sl=_rk.mega?6:_rk.stars;
   const prevSl=starLevel; starLevel=sl;
   for(let i=0;i<5;i++) document.getElementById('star'+i).classList.toggle('lit',i<Math.min(sl,5));
   document.getElementById('megastarBadge').classList.toggle('show',sl>=6);
@@ -6622,13 +6615,24 @@ function updateHUD(){
   updateDodoco();
 }
 
+// Régua ÚNICA de nota + estrelas (HUD, tela de resultado, biblioteca e recompensas).
+// Antes a nota e as estrelas tinham limites diferentes (ex.: nota S com 95% mas só 4★
+// porque a 5ª estrela exigia zero erros) — agora cada nota corresponde a um nº de estrelas:
+//   SS  ≥98% e 0 erros → 5★ + MEGASTAR      S ≥95% → 5★      A ≥85% → 4★
+//   B   ≥70% → 3★      C ≥50% → 2★      D ≥30% → 1★      abaixo de 30% → 0★
+function calcRank(acc, miss, total){
+  if(!(total>0)) return {grade:'D', col:'#ff4444', stars:0, mega:false};
+  if(acc>=98 && miss===0) return {grade:'SS', col:'#fff000', stars:5, mega:true};
+  if(acc>=95) return {grade:'S', col:'#00f0ff', stars:5, mega:false};
+  if(acc>=85) return {grade:'A', col:'#00ff88', stars:4, mega:false};
+  if(acc>=70) return {grade:'B', col:'#ff00cc', stars:3, mega:false};
+  if(acc>=50) return {grade:'C', col:'#ff8800', stars:2, mega:false};
+  return {grade:'D', col:'#ff4444', stars: acc>=30?1:0, mega:false};
+}
 function getGrade(acc){
-  if(acc>=98&&score.miss===0)return{grade:'SS',col:'#fff000'};
-  if(acc>=95)return{grade:'S',col:'#00f0ff'};
-  if(acc>=85)return{grade:'A',col:'#00ff88'};
-  if(acc>=70)return{grade:'B',col:'#ff00cc'};
-  if(acc>=50)return{grade:'C',col:'#ff8800'};
-  return{grade:'D',col:'#ff4444'};
+  const total=score.perfect+score.good+score.miss;
+  const r=calcRank(acc, score.miss, total>0?total:1);
+  return {grade:r.grade, col:r.col};
 }
 
 let animT=0;
@@ -9462,6 +9466,14 @@ function wgInit(){
     ? [songDuration*0.34, songDuration*0.64].filter(s=>s>=10 && s<=songDuration-14)
     : [];
   WG.bossMaxHp = Math.round(100*wgDiff().hp); WG.bossHp = WG.bossMaxHp;
+  // Dano por acerto calibrado pelas notas ANTES do finisher: jogando perfeito o boss chega
+  // no fim da música com ~15% da vida (e o finisher tira o resto na pancada). Antes cada
+  // acerto tirava 1 fixo — numa música com ~400 notas a vida batia no piso na METADE e
+  // ficava travada lá até o fim.
+  const fimPlay = songDuration>0 ? songDuration-6.5 : Infinity;
+  const nNotas = Math.max(1, chart.filter(n=>n.hitTime < fimPlay).length);
+  WG.bossDmgPerfect = WG.bossMaxHp*0.85/nNotas;
+  WG.bossDmgGood    = WG.bossDmgPerfect*0.6;
 }
 
 // X de uma nota num dado tempo (entra pela direita, chega no pé da Mizuki no hitTime)
@@ -9571,7 +9583,8 @@ function spawnDeadMinion(x,y,air){
 // final fica pro FINISHER no fim da música (piso em 12% da vida).
 function wgDamageBoss(perf){
   if(WG.bossDefeated || WG.phase!=='play') return;
-  WG.bossHp = Math.max(WG.bossMaxHp*0.12, WG.bossHp - (perf?1:0.6));
+  const dmg = perf ? (WG.bossDmgPerfect||1) : (WG.bossDmgGood||0.6);
+  WG.bossHp = Math.max(WG.bossMaxHp*0.10, WG.bossHp - dmg); // piso só pra nunca morrer antes do finisher
   WG.bossHitFx=1; WG.bossShake=8;
   const bx=CW*0.85, by=WG.floorFeet-WG.charH*0.95;
   WG.dmgNums.push({x:bx+(Math.random()*50-25), y:by, life:1, val:perf?'-100':'-60', color:perf?'#ffd34d':'#fff'});
@@ -9581,7 +9594,8 @@ function wgDamageBoss(perf){
 function wgEnterFinisher(){
   if(WG.phase!=='play') return;
   WG.phase='finisher'; WG.finisherStart=songTime(); WG.finisherKicks=0; WG.finisherNeed=wgDiff().kicks;
-  WG.bossHp=WG.bossMaxHp; WG.attack=null; WG.waving=false; WG.waveT=0; wgHoldSfxStop();
+  WG.finisherStartHp=Math.max(WG.bossMaxHp*0.05, WG.bossHp); // continua de onde a música deixou
+  WG.attack=null; WG.waving=false; WG.waveT=0; wgHoldSfxStop();
   // some com o vídeo de fundo no finisher (visual fica só no canvas) — funciona
   // tanto pro embed do YouTube quanto pro <video> local (some o container todo).
   const vbWrap=document.getElementById('videoBgWrap'); if(vbWrap) vbWrap.style.opacity='0';
@@ -9600,7 +9614,7 @@ function wgKick(){
   // chute normal — a Mizuki atinge o boss de um ângulo aleatório (de todos os lados)
   WG.lungeT=0.18; WG.atkTimer=0.22;
   WG.bossHitFx=1; WG.bossShake=12;
-  WG.bossHp=Math.max(0, WG.bossMaxHp*(1 - WG.finisherKicks/WG.finisherNeed));
+  WG.bossHp=Math.max(0, (WG.finisherStartHp||WG.bossMaxHp)*(1 - WG.finisherKicks/WG.finisherNeed));
   const bcy=wgBossCY(WG.charH*(WG.bossK||1.7));
   const ang=Math.random()*Math.PI*2, rad=WG.charH*0.72;
   WG.kickAng=ang; WG.kickX=WG.bossX+Math.cos(ang)*rad; WG.kickY=bcy+Math.sin(ang)*rad*0.7;
@@ -10948,9 +10962,9 @@ function updateHoldNotes(){
     note.holdProgress=Math.min(1, elapsed/note.holdDur);
     if(!note.lastScoreTick) note.lastScoreTick=startTime;
     if(st-note.lastScoreTick>0.1){
+      // pontinhos enquanto segura; o COMBO só sobe quando a nota fecha (commitHit) —
+      // antes subia a cada 0,1s e o combo máximo passava do total de notas.
       score.v+=Math.round(50*getMultiplier());
-      score.combo++;
-      if(score.combo>score.maxCombo) score.maxCombo=score.combo;
       note.lastScoreTick=st;
       updateHUD();
     }
@@ -11084,16 +11098,9 @@ function showResult(){
   const acc=total>0?(score.perfect*100+score.good*60)/total:0;
   const{grade,col}=getGrade(acc);
   
-  // Estrelas pela PRECISÃO (acc) — mesma escala justa do HUD (vale pros dois modos).
-  let sl2=0;
-  if(total>0){
-    if(acc>=99&&score.miss===0)sl2=6;
-    else if(acc>=95&&score.miss===0)sl2=5;
-    else if(acc>=88)sl2=4;
-    else if(acc>=75)sl2=3;
-    else if(acc>=55)sl2=2;
-    else if(acc>=30)sl2=1;
-  }
+  // Estrelas pela MESMA régua da nota (calcRank) — nota e estrelas nunca divergem.
+  const _rk=calcRank(acc, score.miss, total);
+  let sl2=_rk.mega?6:_rk.stars;
   const sl=Math.min(5,sl2);
   const isWG = (gameMode==='wargame');
   const wgWin = isWG && !gameOverByDeath && !!(typeof WG!=='undefined' && WG.bossDefeated);
