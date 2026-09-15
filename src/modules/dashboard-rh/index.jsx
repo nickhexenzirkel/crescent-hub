@@ -4821,10 +4821,15 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                       </div>
                     </div>
                     <div style={{overflowY:'auto',padding:'0 14px 14px',display:'flex',flexDirection:'column',gap:6}}>
+                      {(numAllCaptures[numGridDetail]||[]).length > 1 && (
+                        <div style={{fontSize:10.5,color:T.textT,padding:'0 2px 4px',lineHeight:1.5}}>
+                          ℹ️ Esta grade é a coleção HISTÓRICA — se as datas abaixo forem diferentes, foram sorteios diferentes, não o mesmo.
+                        </div>
+                      )}
                       {(numAllCaptures[numGridDetail]||[]).map((o,i)=>(
                         <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'9px 12px',borderRadius:10,background:isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.03)'}}>
                           <span style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'var(--font-body)'}}>{o.player}</span>
-                          <span style={{fontSize:11,color:T.textT,flexShrink:0}}>{new Date(o.at).toLocaleDateString('pt-BR')}</span>
+                          <span style={{fontSize:11,color:T.textT,flexShrink:0}}>{new Date(o.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
                         </div>
                       ))}
                     </div>
