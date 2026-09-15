@@ -387,65 +387,92 @@ html.gfx-low .go-btn.home-start{backdrop-filter:none;-webkit-backdrop-filter:non
 .panel-title-icon{margin-right:8px;font-size:1.1em}
 .panel-subtitle{font-size:12px;color:rgba(255,255,255,.35);letter-spacing:1px;text-align:center;margin-bottom:28px}
 
-/* ─── CHARACTER PANEL — carrossel (14/09/2026): 1 personagem em foco, setas
-   nos lados; ao navegar mostra nome, descrição, habilidade e se já tem/está
-   bloqueado. Era uma grade de cartões (a versão antiga, com cartão em
-   degradê, ainda mora em #charSelectScr — tela morta, nunca é exibida —
-   coincidência de nome inofensiva, já que as classes aqui embaixo são
-   outras). Mesma linha visual da Biblioteca: superfícies lisas, sem
+/* ─── CHARACTER PANEL — holofote (14/09/2026, v2 pedido explícito com
+   referência visual): tira de miniaturas à esquerda, splash art GRANDE no
+   meio com setas dos lados, painel de informação largo à direita (nome,
+   tag, descrição, habilidade, status e o botão de confirmar). Era um
+   carrossel de coluna única e centralizada; a arte era pequena demais.
+   A versão antiga (cartão em degradê) ainda mora em #charSelectScr — tela
+   morta, nunca é exibida — coincidência de nome inofensiva, classes daqui
+   são outras. Mesma linha visual da Biblioteca: superfícies lisas, sem
    degradê em texto/botão — o único "gradiente" é o halo radial atrás da
    arte, pra dar profundidade ao holofote. ── */
-.cspot{display:flex;align-items:center;justify-content:center;gap:16px;width:100%;max-width:640px;margin:0 auto}
-.cspot-arrow{
-  flex-shrink:0;width:52px;height:52px;border-radius:50%;
+#panelChar{max-width:1180px}
+
+.cspot2{display:flex;align-items:stretch;gap:16px;width:100%;flex:1;min-height:0}
+/* Tira de miniaturas — clicável, rola se tiver muito personagem (Oficina cria mais) */
+.cspot2-thumbs{display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:4px 3px;max-height:min(64vh,520px);scrollbar-width:thin;flex-shrink:0}
+.cspot2-thumb{width:60px;height:60px;flex-shrink:0;border-radius:13px;padding:6px;box-sizing:border-box;
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.1);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:border-color .15s,background .15s,transform .12s}
+.cspot2-thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.cspot2-thumb:hover{border-color:rgba(0,240,255,.35);transform:translateY(-1px)}
+.cspot2-thumb.active{border-color:#00f0ff;background:rgba(0,240,255,.1);box-shadow:0 0 0 1px rgba(0,240,255,.3)}
+.cspot2-thumb.locked img{filter:brightness(.35) saturate(0)}
+
+.cspot2-artstage{flex:1;min-width:0;position:relative;display:flex;align-items:center;justify-content:center}
+.cspot2-ring{position:absolute;width:min(72%,420px);aspect-ratio:1/1;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 50% 45%,rgba(0,240,255,.17),rgba(0,240,255,0) 70%);
+  border:1px solid rgba(255,255,255,.07)}
+.cspot2-art{position:relative;max-width:92%;max-height:min(64vh,540px);object-fit:contain;
+  filter:drop-shadow(0 16px 32px rgba(0,0,0,.55));transition:filter .15s}
+.cspot2-art.locked{filter:brightness(.32) saturate(0) drop-shadow(0 16px 32px rgba(0,0,0,.55))}
+.cspot2-lock{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:46px;opacity:0;
+  pointer-events:none;transition:opacity .15s;filter:drop-shadow(0 0 14px rgba(255,200,0,.55))}
+.cspot2-lock.show{opacity:.95}
+.cspot2-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  flex-shrink:0;width:48px;height:48px;border-radius:50%;
   background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.14);
-  color:#fff;font-size:26px;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;padding:0;
+  color:#fff;font-size:24px;line-height:1;cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center;
   transition:border-color .18s,background .18s,transform .15s;
 }
-.cspot-arrow:hover{border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.08);transform:scale(1.06)}
-.cspot-arrow:active{transform:scale(.94)}
-.cspot-stage{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+.cspot2-arrow:hover{border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.08);transform:translateY(-50%) scale(1.06)}
+.cspot2-arrow:active{transform:translateY(-50%) scale(.94)}
+.cspot2-arrow-l{left:4px}
+.cspot2-arrow-r{right:4px}
 
-.cspot-imgwrap{
-  position:relative;width:100%;max-width:220px;aspect-ratio:1/1;
-  display:flex;align-items:center;justify-content:center;border-radius:50%;
-  background:radial-gradient(circle at 50% 45%,rgba(0,240,255,.16),rgba(0,240,255,0) 70%);
-  margin-bottom:2px;
-}
-.cspot-img{max-width:88%;max-height:88%;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(0,0,0,.5));transition:filter .15s}
-.cspot-img.locked{filter:brightness(.32) saturate(0) drop-shadow(0 10px 22px rgba(0,0,0,.5))}
-.cspot-lock{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:38px;opacity:0;pointer-events:none;transition:opacity .15s;filter:drop-shadow(0 0 10px rgba(255,200,0,.5))}
-.cspot-lock.show{opacity:.95}
+/* Painel de informação — largo, à direita, texto alinhado à esquerda */
+.cspot2-card{width:min(340px,32vw);flex-shrink:0;box-sizing:border-box;overflow-y:auto;
+  display:flex;flex-direction:column;gap:12px;text-align:left;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:22px}
+.cspot2-index{font-family:var(--font-pixel);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px}
+.cspot2-name{font-family:var(--font-pixel);font-size:19px;font-weight:900;color:#fff;letter-spacing:2px;margin-top:2px}
+.cspot2-desc{font-size:12px;color:rgba(255,255,255,.55);line-height:1.7}
 
-.cspot-index{font-family:var(--font-pixel);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px}
-.cspot-name{font-family:var(--font-pixel);font-size:18px;font-weight:900;color:#fff;letter-spacing:2px;margin-top:2px}
-.cspot-desc{font-size:12px;color:rgba(255,255,255,.55);line-height:1.6;max-width:420px;margin-top:2px}
-
-.cspot-ability{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:11px 16px;margin-top:8px;text-align:left;max-width:420px;box-sizing:border-box}
+.cspot-ability{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:11px 14px;box-sizing:border-box}
 .cspot-ability-icon{font-size:21px;flex-shrink:0}
 .cspot-ability-name{font-family:var(--font-pixel);font-size:9.5px;color:#ffd700;letter-spacing:1px}
 .cspot-ability-desc{font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;line-height:1.4}
-.cspot-no-ability{font-size:11px;color:rgba(255,255,255,.32);font-style:italic;margin-top:8px}
+.cspot-no-ability{font-size:11px;color:rgba(255,255,255,.32);font-style:italic}
 
-.cspot-status{margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px}
-.cspot-owned-badge{display:flex;align-items:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:#3ddc97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.35);border-radius:999px;padding:9px 18px}
+.cspot-status{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.cspot-owned-badge{display:flex;align-items:center;justify-content:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:#3ddc97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.35);border-radius:999px;padding:9px 18px}
+.cspot-use-btn,.cspot-unlock-btn,.char-confirm{width:100%;box-sizing:border-box}
 .cspot-use-btn{background:rgba(0,240,255,.09);border:1.5px solid rgba(0,240,255,.4);border-radius:11px;color:#00f0ff;font-family:var(--font-pixel);font-size:10px;font-weight:900;padding:11px 22px;cursor:pointer;letter-spacing:1.5px;transition:background .15s,transform .1s}
-.cspot-use-btn:hover{background:rgba(0,240,255,.2);transform:scale(1.02)}
-.cspot-locked-badge{display:flex;align-items:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:rgba(255,255,255,.5);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 18px}
+.cspot-use-btn:hover{background:rgba(0,240,255,.2);transform:scale(1.01)}
+.cspot-locked-badge{display:flex;align-items:center;justify-content:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:rgba(255,255,255,.5);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 18px}
 .cspot-unlock-btn{background:rgba(255,209,77,.1);border:1.5px solid rgba(255,209,77,.5);border-radius:11px;color:#ffd34d;font-family:var(--font-pixel);font-size:10px;font-weight:900;padding:11px 22px;cursor:pointer;letter-spacing:1.5px;transition:background .15s,transform .1s}
-.cspot-unlock-btn:hover{background:rgba(255,209,77,.22);transform:scale(1.02)}
+.cspot-unlock-btn:hover{background:rgba(255,209,77,.22);transform:scale(1.01)}
+/* Botão CONFIRMAR mora dentro do painel agora (era um rodapé solto do painel inteiro) */
+.cspot2-card .char-confirm{margin-top:2px}
 
-.char-tag{font-size:8px;letter-spacing:1px;padding:3px 8px;border-radius:4px;margin-top:6px;font-family:var(--font-pixel);font-weight:700}
+.char-tag{font-size:8px;letter-spacing:1px;padding:3px 8px;border-radius:4px;font-family:var(--font-pixel);font-weight:700;align-self:flex-start}
 .char-tag.default{background:rgba(0,240,255,.15);color:var(--C);border:1px solid rgba(0,240,255,.3)}
 .char-tag.new{background:rgba(255,45,146,.15);color:#ff2d92;border:1px solid rgba(255,45,146,.3)}
 .char-tag.comum{background:rgba(160,160,160,.15);color:#ccc;border:1px solid rgba(200,200,200,.3)}
 .char-tag.epico{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.4)}
 .char-tag.lendario{background:rgba(220,40,60,.16);color:#ff5a6e;border:1px solid rgba(220,40,60,.55)}
-@media (max-width:640px){
-  .cspot{gap:6px}
-  .cspot-arrow{width:40px;height:40px;font-size:20px}
-  .cspot-imgwrap{max-width:160px}
+
+@media (max-width:900px){
+  #panelChar{max-width:none}
+  .cspot2{flex-direction:column;align-items:stretch}
+  .cspot2-thumbs{flex-direction:row;max-height:none;overflow-x:auto;overflow-y:hidden}
+  .cspot2-card{width:100%;max-width:none}
+  .cspot2-art{max-height:34vh}
+  .cspot2-ring{width:min(60%,240px)}
+  .cspot2-arrow{width:40px;height:40px;font-size:20px}
 }
 /* ─── WALLET DISPLAY ─── */
 .gw-bar{display:flex;align-items:center;gap:8px;background:rgba(255,220,0,.07);border:1px solid rgba(255,220,0,.25);border-radius:10px;padding:8px 14px;margin-bottom:16px;width:100%;max-width:500px;box-sizing:border-box}
@@ -1257,9 +1284,10 @@ html.m-menu.m-land .home-cta .go-btn.home-start{width:auto!important;height:56px
 html.m-menu.m-land .home-start .hs-play{width:40px;height:40px;border-radius:12px}
 html.m-menu.m-land .home-start .hs-txt b{font-size:17px}
 html.m-menu.m-land .home-start .hs-txt small{display:none}
-/* Personagens no celular: carrossel mais compacto (menos altura sobrando) */
-html.m-menu .cspot-imgwrap{max-width:150px}
-html.m-menu.m-land .cspot-imgwrap{max-width:110px}
+/* Personagens no celular: holofote mais compacto (menos altura sobrando) */
+html.m-menu .cspot2-art{max-height:26vh}
+html.m-menu .cspot2-ring{width:min(55%,200px)}
+html.m-menu.m-land .cspot2-art{max-height:38vh}
 html.m-menu.m-land .cspot-ability{padding:8px 12px}
 
 /* ─── RESULTADO DO GUERRA ESTELAR — imagem de fundo + overlays nas áreas reservadas ─── */
@@ -2134,7 +2162,7 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
     <!-- CHARACTER PANEL -->
     <div class="menu-panel off" id="panelChar">
       <div class="panel-title"><span class="panel-title-icon">✦</span>PERSONAGENS<span class="panel-title-icon">✦</span></div>
-      <div class="panel-subtitle">Passe pelas setas e escolha quem vai te acompanhar</div>
+      <div class="panel-subtitle">Navegue pelos personagens e escolha quem vai te acompanhar</div>
       <div class="gw-bar" id="charPanelWallet">
         <span class="gw-bar-icon">🌊</span>
         <div>
@@ -2144,25 +2172,29 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
         <div class="gw-bar-amount" id="charPanelGwAmount">0 GW</div>
       </div>
 
-      <!-- Carrossel: 1 personagem em foco, setas nos lados (ver renderCharSpotlight/browseChar) -->
-      <div class="cspot">
-        <button class="cspot-arrow" onclick="browseChar(-1)" aria-label="Personagem anterior">‹</button>
-        <div class="cspot-stage">
-          <div class="cspot-imgwrap">
-            <img class="cspot-img" id="cspotImg" src="" alt="">
-            <div class="cspot-lock" id="cspotLock">🔒</div>
-          </div>
-          <div class="cspot-index" id="cspotIndex">1 / 1</div>
-          <div class="cspot-name" id="cspotName">—</div>
+      <!-- Holofote: tira de miniaturas + splash art grande + painel de info
+           (ver renderCharSpotlight/browseChar/jumpToChar) -->
+      <div class="cspot2">
+        <div class="cspot2-thumbs" id="cspotThumbs"></div>
+
+        <div class="cspot2-artstage">
+          <button class="cspot2-arrow cspot2-arrow-l" onclick="browseChar(-1)" aria-label="Personagem anterior">‹</button>
+          <div class="cspot2-ring" aria-hidden="true"></div>
+          <img class="cspot2-art" id="cspotImg" src="" alt="">
+          <div class="cspot2-lock" id="cspotLock">🔒</div>
+          <button class="cspot2-arrow cspot2-arrow-r" onclick="browseChar(1)" aria-label="Próximo personagem">›</button>
+        </div>
+
+        <div class="cspot2-card">
+          <div class="cspot2-index" id="cspotIndex">1 / 1</div>
+          <div class="cspot2-name" id="cspotName">—</div>
           <span class="char-tag" id="cspotTag"></span>
-          <div class="cspot-desc" id="cspotDesc"></div>
+          <div class="cspot2-desc" id="cspotDesc"></div>
           <div class="cspot-ability" id="cspotAbility"></div>
           <div class="cspot-status" id="cspotStatus"></div>
+          <button class="char-confirm" onclick="confirmCharSelect()">✓ CONFIRMAR</button>
         </div>
-        <button class="cspot-arrow" onclick="browseChar(1)" aria-label="Próximo personagem">›</button>
       </div>
-
-      <button class="char-confirm" onclick="confirmCharSelect()">✓ CONFIRMAR</button>
     </div>
 
     <!-- WISH / AUDIÇÃO PANEL (gacha) -->
@@ -9139,6 +9171,23 @@ function abilityForCharId(id){
   return null;
 }
 
+// Tira de miniaturas do holofote — clicável (jumpToChar), rola pra manter a
+// miniatura ativa visível quando navega pelas setas/teclado.
+function renderCharThumbs(ids, activeIdx){
+  const wrap=document.getElementById('cspotThumbs');
+  if(!wrap) return;
+  wrap.innerHTML = ids.map((id,i)=>{
+    const ch=CHARACTERS[id];
+    const cls='cspot2-thumb'+(i===activeIdx?' active':'')+(isUnlocked(id)?'':' locked');
+    return `<div class="${cls}" onclick="jumpToChar(${i})" title="${(ch.name||'').replace(/"/g,'&quot;')}"><img src="${ch.previewImg}" alt="" onerror="this.style.opacity='.3'"></div>`;
+  }).join('');
+  wrap.children[activeIdx]?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+function jumpToChar(idx){
+  charBrowseIdx = idx;
+  renderCharSpotlight();
+}
+
 function renderCharSpotlight(){
   const ids = charIds();
   if(!document.getElementById('cspotImg') || !ids.length) return;
@@ -9148,6 +9197,7 @@ function renderCharSpotlight(){
   const ch = CHARACTERS[id];
   const unlocked = isUnlocked(id);
   const isSel = id===selectedChar;
+  renderCharThumbs(ids, charBrowseIdx);
 
   const img=document.getElementById('cspotImg');
   img.src = ch.previewImg; img.alt = ch.name; img.onerror = ()=>{ img.style.opacity='.3'; };
