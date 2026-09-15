@@ -11,6 +11,9 @@ import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../..
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
 import SalasLobby from './SalasLobby';
 import { bolhaGradiente } from '../../shared/bolhas';
+import { fetchColegas } from '../../shared/gameInvites';
+import { sendListShare, fetchListShare, respondListShare, fetchMyAcceptedShares,
+  readPendingListInvite, clearPendingListInvite } from '../../shared/listShares';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const UNIKO_GRAD = 'linear-gradient(135deg,#E0559A 0%,#A24CE0 100%)';
@@ -147,6 +150,8 @@ const ICON_PATHS = {
   edit:    <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
   lock:    <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   unlock:  <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></>,
+  share:   <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.5l6.8-3.9" /><path d="M8.6 13.5l6.8 3.9" /></>,
+  users:   <><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9" /><path d="M16 3.1a4 4 0 0 1 0 7.8" /></>,
 };
 const Ic = ({ n, size = 16, sw = 2, style }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw}
@@ -165,6 +170,44 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   const [roomId, setRoomId] = useState(null);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const room = rooms.find(r => r.id === roomId) || null;
+
+  /* ── Compartilhar UMA coluna com um colega (sem dar acesso à sala inteira) ──
+     guestListIds: null = acesso normal (dono/membro vê tudo da sala); array =
+     modo CONVIDADO, só enxerga essas colunas (as outras somem da tela — ver
+     visibleLists/visibleCards abaixo). Quem chega assim nunca digitou a senha
+     da sala; entrou aceitando um convite (ver pendingShare) ou reabrindo pelo
+     "Compartilhado com você" do lobby (compartilhados). */
+  const [guestListIds, setGuestListIds] = useState(null);
+  const [compartilhados, setCompartilhados] = useState([]); // convites que EU aceitei
+  const [pendingShare, setPendingShare] = useState(null);   // convite recém-clicado na Caixa, aguardando aceitar/recusar
+  const [shareModal, setShareModal] = useState(null);       // { listId, listTitle } — abrindo o "convidar alguém"
+
+  // Convite pendente (veio da Caixa de Entrada): busca a linha fresca e mostra
+  // o aceitar/recusar. Roda uma vez, independente de já estar numa sala ou não.
+  useEffect(() => {
+    const id = readPendingListInvite();
+    if (!id) return;
+    clearPendingListInvite();
+    fetchListShare(id).then(row => { if (row && row.to_name === me && row.status === 'pendente') setPendingShare(row); });
+  }, [me]);
+
+  const carregarCompartilhados = useCallback(async () => { setCompartilhados(await fetchMyAcceptedShares()); }, []);
+  useEffect(() => {
+    carregarCompartilhados();
+    const ch = sb.channel('conexao-list-shares-' + me)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conexao_list_shares' }, carregarCompartilhados)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Abre a sala em modo CONVIDADO: enxerga essa coluna + qualquer outra que eu
+  // também tenha aceito NESSA MESMA sala (junta tudo que já foi liberado).
+  const abrirComoConvidado = useCallback((share, lista) => {
+    const doMesmoRoom = [...lista, share].filter(s => s.room_id === share.room_id).map(s => s.list_id);
+    setGuestListIds([...new Set(doMesmoRoom)]);
+    setRoomId(share.room_id);
+  }, []);
 
   /* Atalho de sala (initialTab = id da sala), aplicado na PRIMEIRA vez que as
      salas chegam: entra direto se ela for aberta ou já destravada neste
@@ -480,10 +523,29 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
       const h = await sha256(senha || '');
       if (h !== sala.pass_hash) return false;
     }
+    setGuestListIds(null); // entrando pela senha/dono → acesso normal, nunca fica preso num modo convidado de antes
     marcarAberta(sala.id);
     setRoomId(sala.id);
     return true;
   };
+
+  // ── Convite de coluna: aceitar/recusar (veio da Caixa de Entrada) ─────────
+  const aceitarConvitePendente = async () => {
+    if (!pendingShare) return;
+    await respondListShare(pendingShare.id, true);
+    const atual = { ...pendingShare, status: 'aceito' };
+    setPendingShare(null);
+    const lista = await fetchMyAcceptedShares();
+    setCompartilhados(lista);
+    abrirComoConvidado(atual, lista);
+  };
+  const recusarConvitePendente = async () => {
+    if (!pendingShare) return;
+    await respondListShare(pendingShare.id, false);
+    setPendingShare(null);
+  };
+  // Reabrir um acesso já aceito, a partir do "Compartilhado com você" do lobby.
+  const abrirCompartilhadoDoLobby = (share) => abrirComoConvidado(share, compartilhados);
 
   const addList = async (title) => {
     const t = title.trim(); if (!t) return;
@@ -509,6 +571,20 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
     await sb.from('conexao_lists').delete().eq('id', id);
     scheduleReload();
   };
+  // Compartilha esta coluna com um colega — vira um convite "pendente" na
+  // Caixa de Entrada dele; aceitando, ele passa a ver só ela (ver guestListIds
+  // acima e listShares.js). Quem já é convidado (guestListIds) não compartilha.
+  const compartilharColuna = async (listId, listTitle, toName) => {
+    const { error } = await sendListShare({
+      toName, roomId, roomName: room?.name || 'Trello', roomColor: room?.color,
+      listId, listTitle,
+    });
+    if (error) { setToast({ title: 'Não deu pra convidar', message: String(error) }); setTimeout(() => setToast(null), 4500); return false; }
+    setToast({ title: 'Convite enviado! 🎉', message: `${toName} vai ver esse convite na Caixa de Entrada dele(a).` });
+    setTimeout(() => setToast(null), 4500);
+    return true;
+  };
+
   // Trava/destrava a coluna — enquanto trancada, o X de excluir não funciona.
   const toggleLockList = async (id) => {
     const l = lists.find(x => x.id === id);
@@ -557,8 +633,13 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
     return true;
   };
   const filterActive = filterText || filterCreator;
-  const creators = [...new Set(cards.filter(c => !c.archived).map(c => c.created_by).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const archivedCards = cards.filter(c => c.archived).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  // Modo convidado: só as colunas liberadas (e os cards delas) existem pra
+  // tela — nada de "esconder com CSS", as outras colunas nem entram nesses
+  // arrays, então não vazam em busca, "mover para", arquivados etc.
+  const visibleLists = guestListIds ? lists.filter(l => guestListIds.includes(l.id)) : lists;
+  const visibleCards = guestListIds ? cards.filter(c => guestListIds.includes(c.list_id)) : cards;
+  const creators = [...new Set(visibleCards.filter(c => !c.archived).map(c => c.created_by).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const archivedCards = visibleCards.filter(c => c.archived).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const archivedCount = archivedCards.length;
 
   const toggleNotif = async () => {
@@ -645,7 +726,11 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         <SalasLobby key={salaPedida?.id || 'lobby'}
           rooms={rooms} loading={roomsLoading} isAdmin={isAdmin} brd={brd} onBack={onBack}
           jaAberta={(id) => lidasNaSessao().includes(id)} salaPedida={salaPedida}
-          onEntrar={abrirSala} onCriar={criarSala} onEditar={editarSala} onSenha={definirSenhaSala} onExcluir={excluirSala} />
+          onEntrar={abrirSala} onCriar={criarSala} onEditar={editarSala} onSenha={definirSenhaSala} onExcluir={excluirSala}
+          compartilhados={compartilhados} onAbrirCompartilhado={abrirCompartilhadoDoLobby} />
+        {pendingShare && (
+          <ConviteColunaModal share={pendingShare} onAceitar={aceitarConvitePendente} onRecusar={recusarConvitePendente} onFechar={() => setPendingShare(null)} brd={brd} cardBg={T.surface || '#fff'} />
+        )}
       </div>
     );
   }
@@ -662,13 +747,19 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
           se via, e sobre os blobs animados era o pior caso: reborra a faixa a
           cada frame enquanto eles se movem (ver comentário do CS_CSS acima). */}
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, flexWrap: 'wrap' }}>
-        {/* voltar = sai da sala e volta pro lobby (não sai do módulo) */}
-        <button className="cs-btn cs-ghost" onClick={() => setRoomId(null)} title="Voltar para as salas"
+        {/* voltar = sai da sala e volta pro lobby (não sai do módulo); limpa o
+            modo convidado, senão uma sala aberta depois pela senha herdaria a
+            restrição de colunas de quem nem é dela. */}
+        <button className="cs-btn cs-ghost" onClick={() => { setRoomId(null); setGuestListIds(null); }} title="Voltar para as salas"
           style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
         <div style={{ width: 40, height: 40, borderRadius: 12, background: room?.color || UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
         <div style={{ marginRight: 'auto' }}>
           <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>{room?.name || 'Trello'}</div>
-          <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>{cards.length} cards · {lists.length} colunas</div>
+          <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>
+            {guestListIds
+              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#A24CE0' }}><Ic n="users" size={12} /> Acesso compartilhado · {visibleLists.length === 1 ? '1 coluna' : `${visibleLists.length} colunas`}</span>
+              : <>{visibleCards.length} cards · {visibleLists.length} colunas</>}
+          </div>
         </div>
         <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
           style={{ background: filterActive ? UNIKO_GRAD : (T.surfaceSub || colBg), color: filterActive ? '#fff' : T.text, borderRadius: 12, padding: '8px 14px', fontWeight: 700, fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', border: `1px solid ${brd}` }}>
@@ -705,14 +796,14 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
           <div style={{ margin: 'auto', color: T.textT, fontWeight: 600 }}>Carregando quadro…</div>
         ) : (
           <>
-            {lists.map(list => {
+            {visibleLists.map(list => {
               const listCards = cards.filter(c => c.list_id === list.id && passesFilter(c)).sort((a, b) => a.position - b.position);
               const isDoneList = /conclu/i.test(list.title || '');
               return (
                 <div key={list.id}
                   onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
                   onDrop={() => performDrop(list.id)}
-                  onContextMenu={e => { e.preventDefault(); setCtxMenuList({ listId: list.id, x: e.clientX, y: e.clientY }); }}
+                  onContextMenu={e => { if (guestListIds) return; e.preventDefault(); setCtxMenuList({ listId: list.id, x: e.clientX, y: e.clientY }); }}
                   style={{ flex: `1 1 ${LIST_W_MIN}px`, minWidth: LIST_W_MIN, maxWidth: LIST_W_MAX, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}` }}>
                   {/* Cabeçalho da coluna */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' }}>
@@ -723,10 +814,16 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
                         onKeyDown={e => { if (e.key === 'Enter') { renameList(list.id, editListText); setEditingList(null); } if (e.key === 'Escape') setEditingList(null); }}
                         style={{ flex: 1, padding: '5px 8px', borderRadius: 8, border: `1px solid ${brd}`, background: T.page, color: T.text, fontWeight: 700, fontSize: 14 }} />
                     ) : (
-                      <div onClick={() => { setEditingList(list.id); setEditListText(list.title); }} style={{ flex: 1, fontWeight: 800, fontSize: 14.5, cursor: 'text', fontFamily: 'var(--font-brand)' }}>{list.title}</div>
+                      <div onClick={() => { if (guestListIds) return; setEditingList(list.id); setEditListText(list.title); }}
+                        style={{ flex: 1, fontWeight: 800, fontSize: 14.5, cursor: guestListIds ? 'default' : 'text', fontFamily: 'var(--font-brand)' }}>{list.title}</div>
                     )}
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, background: T.surfaceSub || 'rgba(0,0,0,.05)', borderRadius: 20, padding: '2px 9px' }}>{listCards.length}</span>
-                    {!list.locked && <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="x" size={14} /></button>}
+                    {/* Compartilhar — só quem tem a sala de verdade (não repassa acesso que ganhou) */}
+                    {!guestListIds && (
+                      <button className="cs-btn cs-ghost" onClick={() => setShareModal({ listId: list.id, listTitle: list.title })} title="Compartilhar esta coluna com um colega"
+                        style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="share" size={14} /></button>
+                    )}
+                    {!list.locked && !guestListIds && <button className="cs-btn cs-ghost" onClick={() => deleteList(list.id)} title="Excluir coluna" style={{ background: 'transparent', color: T.textT, borderRadius: 8, width: 26, height: 26, display: 'grid', placeItems: 'center' }}><Ic n="x" size={14} /></button>}
                   </div>
 
                   {/* Cards */}
@@ -843,8 +940,8 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
               );
             })}
 
-            {/* Nova coluna — largura fixa (é um botão, não precisa esticar) */}
-            <div style={{ flex: '0 0 auto', width: LIST_W_MIN }}>
+            {/* Nova coluna — largura fixa (é um botão, não precisa esticar). Some no modo convidado. */}
+            {!guestListIds && <div style={{ flex: '0 0 auto', width: LIST_W_MIN }}>
               {addingList ? (
                 <div style={{ background: colBg, borderRadius: 16, border: `1px solid ${brd}`, padding: 12 }}>
                   <input autoFocus value={newListText} onChange={e => setNewListText(e.target.value)}
@@ -858,7 +955,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
               ) : (
                 <button className="cs-btn" onClick={() => setAddingList(true)} style={{ width: '100%', background: T.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.03)', color: T.text, borderRadius: 16, padding: '13px', fontWeight: 700, fontSize: 13.5, border: `1px dashed ${brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Ic n="plus" size={16} /> Nova coluna</button>
               )}
-            </div>
+            </div>}
           </>
         )}
       </div>
@@ -895,7 +992,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
                   Nenhum card arquivado.
                 </div>
               ) : archivedCards.map(c => {
-                const list = lists.find(l => l.id === c.list_id);
+                const list = visibleLists.find(l => l.id === c.list_id);
                 const prev = stripHtml(c.description);
                 return (
                   <div key={c.id} className="cs-fade" style={{ background: T.page, border: `1px solid ${brd}`, borderRadius: 12, padding: 12 }}>
@@ -925,7 +1022,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         const cCtx = cards.find(c => c.id === ctxMenu.cardId);
         if (!cCtx) return null;
         const miCtx = { display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: 600, color: T.text, cursor: 'pointer' };
-        const outrasListas = lists.filter(l => l.id !== cCtx.list_id);
+        const outrasListas = visibleLists.filter(l => l.id !== cCtx.list_id);
         const menuLeft = Math.min(ctxMenu.x, window.innerWidth - 216);
         const menuTop = Math.min(ctxMenu.y, window.innerHeight - 200);
         return (
@@ -981,9 +1078,16 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
       {/* ── Modal do card ── */}
       {selectedCard && (
         <CardModal card={selectedCard} me={me} people={people} onClose={() => setSelectedId(null)}
-          lists={lists} onPatch={patchCard} onPatchLog={patchLog} onLog={logHistory}
+          lists={visibleLists} onPatch={patchCard} onPatchLog={patchLog} onLog={logHistory}
           onDelete={deleteCard} onArchive={archiveCard} onCopy={copyCard} onComment={appendComment}
           onAddImages={addImages} onRemoveImage={removeImage} isMobile={isMobile} />
+      )}
+
+      {/* ── Modal "Compartilhar esta coluna" ── */}
+      {shareModal && (
+        <CompartilharColunaModal listTitle={shareModal.listTitle} brd={brd} cardBg={T.surface || '#fff'}
+          onFechar={() => setShareModal(null)}
+          onEnviar={async (toName) => { const ok = await compartilharColuna(shareModal.listId, shareModal.listTitle, toName); if (ok) setShareModal(null); }} />
       )}
     </div>
   );
@@ -1265,6 +1369,87 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
           <img src={lightbox} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Aceitar/recusar um convite de coluna (veio da Caixa de Entrada) ───────────
+function ConviteColunaModal({ share, onAceitar, onRecusar, onFechar, brd, cardBg }) {
+  const [busy, setBusy] = useState(null); // 'aceitar' | 'recusar'
+  const agir = async (fn, qual) => { setBusy(qual); try { await fn(); } finally { setBusy(null); } };
+  return (
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 18, border: `1px solid ${brd}`, padding: 24, width: 420, maxWidth: '95vw', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
+        <div style={{ width: 46, height: 46, borderRadius: 12, background: share.room_color || '#A24CE0', display: 'grid', placeItems: 'center', color: '#fff', marginBottom: 14 }}>
+          <Ic n="share" size={22} />
+        </div>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 6 }}>Convite pra uma coluna do Trello</div>
+        <div style={{ fontSize: 13.5, color: T.textS, lineHeight: 1.6 }}>
+          <b>{share.from_name}</b> compartilhou a coluna <b>"{share.list_title}"</b> da sala <b>{share.room_name}</b> com você.
+          Vocês dois vão poder ver e editar essa coluna juntos — as outras colunas dessa sala continuam só dele(a).
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={() => agir(onRecusar, 'recusar')} disabled={!!busy}
+            style={{ flex: 1, padding: '11px', borderRadius: 11, border: `1px solid ${brd}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13.5, cursor: busy ? 'default' : 'pointer', opacity: busy ? .6 : 1 }}>
+            {busy === 'recusar' ? 'Recusando…' : 'Recusar'}
+          </button>
+          <button onClick={() => agir(onAceitar, 'aceitar')} disabled={!!busy}
+            style={{ flex: 1, padding: '11px', borderRadius: 11, border: 'none', background: UNIKO_GRAD, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: busy ? 'default' : 'pointer', opacity: busy ? .8 : 1 }}>
+            {busy === 'aceitar' ? 'Aceitando…' : '✓ Aceitar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compartilhar uma coluna com um colega (busca + escolhe 1 + envia) ─────────
+function CompartilharColunaModal({ listTitle, brd, cardBg, onFechar, onEnviar }) {
+  const [colegas, setColegas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState('');
+  const [alvo, setAlvo] = useState(null); // nome escolhido
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => { let alive = true; fetchColegas().then(l => { if (alive) { setColegas(l); setLoading(false); } }); return () => { alive = false; }; }, []);
+  const q = busca.trim().toLowerCase();
+  const filtrados = q ? colegas.filter(c => c.name.toLowerCase().includes(q)) : colegas;
+  const enviar = async () => { if (!alvo) return; setEnviando(true); try { await onEnviar(alvo); } finally { setEnviando(false); } };
+  return (
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 18, border: `1px solid ${brd}`, padding: 20, width: 420, maxWidth: '95vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text }}>Compartilhar coluna</div>
+          <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 14 }}>
+          Escolha quem vai poder ver e editar <b>"{listTitle}"</b> com você. Ela(e) só vê essa coluna, nenhuma outra da sala.
+        </div>
+        <input value={busca} onChange={e => { setBusca(e.target.value); setAlvo(null); }} placeholder="🔎 Buscar colega..."
+          style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${brd}`, background: T.page || '#fff', fontSize: 13, color: T.text, outline: 'none', boxSizing: 'border-box', marginBottom: 10, flexShrink: 0 }} />
+        <div className="cs-scroll" style={{ overflowY: 'auto', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 18, color: T.textT, fontSize: 12 }}>Carregando colegas...</div>
+          ) : filtrados.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 18, color: T.textT, fontSize: 12 }}>Nenhum colega encontrado.</div>
+          ) : filtrados.map(c => (
+            <button key={c.name} onClick={() => setAlvo(c.name)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, textAlign: 'left', cursor: 'pointer',
+                background: alvo === c.name ? 'rgba(162,76,224,.14)' : (T.surfaceSub || 'rgba(0,0,0,.03)'),
+                border: `1.5px solid ${alvo === c.name ? '#A24CE0' : brd}` }}>
+              <Avatar name={c.name} size={30} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                {c.cargo && <div style={{ fontSize: 10.5, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.cargo}</div>}
+              </div>
+              {alvo === c.name && <span style={{ color: '#A24CE0' }}><Ic n="checkMark" size={16} /></span>}
+            </button>
+          ))}
+        </div>
+        <button onClick={enviar} disabled={!alvo || enviando}
+          style={{ width: '100%', padding: '11px', borderRadius: 11, border: 'none', background: alvo ? UNIKO_GRAD : brd, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: (!alvo || enviando) ? 'default' : 'pointer', opacity: (!alvo || enviando) ? .7 : 1 }}>
+          {enviando ? 'Enviando…' : alvo ? `Convidar ${alvo.split(' ')[0]}` : 'Escolha um colega'}
+        </button>
+      </div>
     </div>
   );
 }

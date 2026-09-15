@@ -23,10 +23,12 @@ const IcoKey = <><circle cx="8" cy="15" r="4" /><path d="M10.8 12.2L20 3" /><pat
 const IcoTrash = <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></>;
 
 const IcoEdit = <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>;
+const IcoShare = <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.5l6.8-3.9" /><path d="M8.6 13.5l6.8 3.9" /></>;
 
 export default function SalasLobby({
   rooms, loading, isAdmin, brd, onBack, jaAberta, salaPedida,
   onEntrar, onCriar, onEditar, onSenha, onExcluir,
+  compartilhados = [], onAbrirCompartilhado,
 }) {
   // Sala com o prompt de senha aberto. Vindo de um atalho de sala com senha, o
   // pedido dela já nasce aberto (o módulo recria o lobby quando isso muda).
@@ -105,6 +107,33 @@ export default function SalasLobby({
             </button>
           )}
         </div>
+
+        {/* ── Compartilhado com você: colunas de OUTRAS salas que alguém te deu acesso ── */}
+        {compartilhados.length > 0 && (
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Ico d={IcoShare} size={15} sw={2.2} />
+              <div style={{ fontWeight: 800, fontSize: 14, color: T.text }}>Compartilhado com você</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+              {compartilhados.map(s => (
+                <div key={s.id} className="cs-card" onClick={() => onAbrirCompartilhado(s)}
+                  style={{ background: T.surface || '#fff', border: `1px solid ${brd}`, borderRadius: 14, padding: 14, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: s.room_color || '#A24CE0' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: s.room_color || '#A24CE0', display: 'grid', placeItems: 'center', color: '#fff', flexShrink: 0 }}>
+                      <Ico d={IcoShare} size={15} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 13.5, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.list_title}</div>
+                      <div style={{ fontSize: 11, color: T.textT, fontWeight: 600 }}>Sala {s.room_name} · de {s.from_name}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: T.textT, fontWeight: 600 }}>Carregando salas…</div>
