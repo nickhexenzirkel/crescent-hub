@@ -68,6 +68,39 @@ export function subscribeRoletaConfig(onChange) {
   return () => { try { _supabase.removeChannel(ch); } catch {} };
 }
 
+/* ── Aviso "vem ver a roleta" ────────────────────────────────────────────────
+   Botão do admin: manda um aviso EFÊMERO (Realtime Broadcast — não grava nada
+   no banco, não precisa de tabela/migração) pra quem estiver com o Portal
+   aberto em QUALQUER computador. Vira um toast dentro do app (não é
+   notificação de desktop — de propósito: pedido explícito de não usar aquele
+   canal aqui) com um botão que leva direto pra aba Roleta da Sorte. Quem não
+   estiver com o Portal aberto no instante simplesmente não recebe (é um
+   convite pra vir ver agora, não um lembrete persistente). */
+const PING_CHANNEL = 'roleta-sorte-ping';
+
+export async function notifyRoletaPing(message) {
+  const ch = _supabase.channel(PING_CHANNEL);
+  await new Promise((resolve) => {
+    ch.subscribe((status) => { if (status === 'SUBSCRIBED') resolve(); });
+    setTimeout(resolve, 2000); // não trava pra sempre se o realtime demorar
+  });
+  try {
+    await ch.send({ type: 'broadcast', event: 'ping', payload: { message: message || 'Vem ver a Roleta da Sorte!', at: Date.now() } });
+  } finally {
+    setTimeout(() => { try { _supabase.removeChannel(ch); } catch {} }, 500);
+  }
+}
+
+export function subscribeRoletaPing(onPing) {
+  let ch;
+  try {
+    ch = _supabase.channel(PING_CHANNEL)
+      .on('broadcast', { event: 'ping' }, ({ payload }) => onPing(payload))
+      .subscribe();
+  } catch { return () => {}; }
+  return () => { try { _supabase.removeChannel(ch); } catch {} };
+}
+
 /* Ângulo de descanso ATUAL (acumulado, nunca normalizado) — de onde o
    PRÓXIMO giro deve continuar pra roleta não "pular" visualmente. */
 export const restAngleOf = (cfg) => cfg?.spin?.finalAngle || 0;

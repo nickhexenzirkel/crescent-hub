@@ -12,7 +12,7 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
 import {
   loadRoletaConfig, saveRoletaConfig, subscribeRoletaConfig,
   restAngleOf, buildSpin, spinProgress, nowMs, ensureServerClock,
-  ROLETA_DURATION_MS,
+  ROLETA_DURATION_MS, notifyRoletaPing,
 } from '../../../shared/roletaSorte';
 
 const segColor = (i, n) => {
@@ -52,6 +52,13 @@ const WheelIcon = ({ size = 20, color = 'currentColor', strokeWidth = 1.8 }) => 
     <circle cx="12" cy="12" r="9"/>
     <circle cx="12" cy="12" r="2.1" fill={color} stroke="none"/>
     <path d="M12 3v4.3M12 16.7V21M3 12h4.3M16.7 12H21M5.64 5.64l3.04 3.04M15.32 15.32l3.04 3.04M18.36 5.64l-3.04 3.04M8.68 15.32l-3.04 3.04"/>
+  </svg>
+);
+
+const BellIcon = ({ size = 18, color = 'currentColor', strokeWidth = 1.8 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+    <path d="M13.73 21a2 2 0 01-3.46 0"/>
   </svg>
 );
 
@@ -316,6 +323,19 @@ const TabRoletaSorte = () => {
     catch (e) { flash('❌ ' + (e.message || 'Erro ao limpar')); }
     setBusy(false);
   };
+  // Avisa geral: manda um toast (só dentro do app — sem notificação de
+  // desktop) pra quem estiver com o Portal aberto, com um botão que leva
+  // direto pra esta aba. Não precisa de ninguém já estar girando — dá pra
+  // usar antes, pra chamar todo mundo pra assistir.
+  const [notifying, setNotifying] = useState(false);
+  const doNotify = async () => {
+    setNotifying(true);
+    try {
+      await notifyRoletaPing('A Roleta da Sorte está rolando no Portal — vem ver!');
+      flash('✅ Aviso enviado pra quem está no Portal agora!');
+    } catch (e) { flash('❌ ' + (e.message || 'Erro ao avisar')); }
+    setNotifying(false);
+  };
 
   const wheelSize = isMobile ? 300 : 560;
   const inpSt = { flex: 1, minWidth: 160, padding: '10px 14px', borderRadius: 11, border: `1.5px solid ${T.border}`,
@@ -439,6 +459,14 @@ const TabRoletaSorte = () => {
               <WheelIcon size={18} color="#fff" strokeWidth={2}/>
               Girar a roleta!
             </button>
+            <button onClick={doNotify} disabled={notifying}
+              title="Manda um aviso dentro do app pra quem estiver com o Portal aberto — sem notificação de desktop"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, cursor: 'pointer',
+                border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, fontWeight: 700,
+                fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: notifying ? .55 : 1 }}>
+              <BellIcon size={16} color={T.text}/>
+              {notifying ? 'Avisando…' : 'Avisar todo mundo'}
+            </button>
             <button onClick={doReset} disabled={busy || !spin}
               style={{ padding: '10px 16px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.danger || '#C04050'}55`,
                 background: 'transparent', color: T.danger || '#C04050', fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)',
@@ -458,4 +486,4 @@ const TabRoletaSorte = () => {
   );
 };
 
-export { TabRoletaSorte };
+export { TabRoletaSorte, WheelIcon };

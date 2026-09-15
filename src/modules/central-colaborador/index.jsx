@@ -15,7 +15,7 @@ import { TabFeedback } from './tabs/TabFeedback';
 import { TabEventos } from './tabs/TabEventos';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
-import { TabRoletaSorte } from './tabs/TabRoletaSorte';
+import { TabRoletaSorte, WheelIcon } from './tabs/TabRoletaSorte';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
@@ -25,6 +25,7 @@ import { TabUnikoFaster } from './tabs/TabUnikoFaster';
 import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
+import { subscribeRoletaPing } from '../../shared/roletaSorte';
 import { GAME_JOIN_EVENT, readPendingJoin, GAME_TAB } from '../../shared/gameInvites';
 import { nomeChamado } from '../../shared/nomeExibicao';
 
@@ -98,6 +99,24 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     window.addEventListener(GAME_JOIN_EVENT, h);
     return () => window.removeEventListener(GAME_JOIN_EVENT, h);
   }, []);
+
+  // Toast "Roleta da Sorte" — aviso do admin (botão dentro da própria aba),
+  // só dentro do app (sem notificação de desktop, de propósito). Global aqui
+  // (não dentro de TabRoletaSorte) porque precisa aparecer não importa em
+  // qual aba a pessoa esteja. Ignora se ela já está olhando a roleta.
+  const [roletaPing, setRoletaPing] = useState(null);
+  useEffect(() => {
+    const unsub = subscribeRoletaPing((payload) => {
+      if (tabRef.current === 'roleta') return;
+      setRoletaPing(payload);
+    });
+    return unsub;
+  }, []);
+  useEffect(() => {
+    if (!roletaPing) return;
+    const id = setTimeout(() => setRoletaPing(null), 14000);
+    return () => clearTimeout(id);
+  }, [roletaPing]);
 
   // Tela cheia (celular) — aplica no app inteiro; iOS Safari pode não suportar.
   const toggleFullscreenApp = () => {
@@ -372,6 +391,32 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
               <span style={{fontSize:15,fontWeight:500}}>Sair</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Toast "Roleta da Sorte" — aviso do admin, só dentro do app ── */}
+      {roletaPing && (
+        <div style={{position:'fixed', zIndex:9000, bottom:isMobile?76:24, right:isMobile?12:24, left:isMobile?12:undefined,
+          maxWidth:360, display:'flex', gap:12, alignItems:'flex-start', padding:'16px 16px 16px 14px', borderRadius:16,
+          background:'linear-gradient(135deg,#182849,#0e1730)', border:'1px solid rgba(255,255,255,.12)',
+          boxShadow:'0 18px 50px rgba(0,0,0,.45)', animation:'roletaPingIn .35s cubic-bezier(.2,1.4,.4,1)'}}>
+          <style>{`@keyframes roletaPingIn{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+          <div style={{width:38,height:38,borderRadius:'50%',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',
+            background:'linear-gradient(160deg,#ffd873,#ffb020)',boxShadow:'0 0 14px rgba(255,176,32,.5)'}}>
+            <WheelIcon size={20} color="#3a2400" strokeWidth={2}/>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:800,color:'#fff',fontFamily:'var(--font-brand)'}}>Roleta da Sorte</div>
+            <div style={{fontSize:12.5,color:'rgba(255,255,255,.82)',marginTop:2,lineHeight:1.4}}>{roletaPing.message}</div>
+            <button onClick={()=>{ st('roleta'); setRoletaPing(null); }}
+              style={{marginTop:10,padding:'8px 16px',borderRadius:9,border:'none',cursor:'pointer',
+                background:'linear-gradient(135deg,#ffd873,#ffb020)',color:'#3a2400',fontWeight:800,fontSize:12.5,
+                fontFamily:'var(--font-body)'}}>
+              Ir para a Roleta →
+            </button>
+          </div>
+          <button onClick={()=>setRoletaPing(null)} title="Fechar"
+            style={{background:'none',border:'none',color:'rgba(255,255,255,.55)',cursor:'pointer',fontSize:18,lineHeight:1,padding:2,flexShrink:0}}>×</button>
         </div>
       )}
 
