@@ -84,12 +84,6 @@ const Wheel = ({ entries, angle, phase, size, gold }) => {
           : `0 8px 30px rgba(0,0,0,.3), inset 0 0 24px rgba(0,0,0,.2)`,
         transition: 'box-shadow .4s ease',
       }}>
-        {entries.length === 0 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'center', padding: 20, opacity: .8 }}>
-            Aguardando o RH montar a roleta…
-          </div>
-        )}
         {/* Linhas divisórias entre os gomos */}
         {entries.map((e, i) => (
           <div key={`div-${e.id}`} style={{ position: 'absolute', inset: 0, transform: `rotate(${i * segWidth}deg)` }}>
@@ -131,6 +125,36 @@ const Wheel = ({ entries, angle, phase, size, gold }) => {
         animation: 'roletaHubShine 2.4s ease-in-out infinite' }}>
         <WheelIcon size={size > 300 ? 32 : 26} color="#fff" strokeWidth={1.6}/>
       </div>
+    </div>
+  );
+};
+
+// Fundo do palco: campo de estrelas piscando + umas estrelas cadentes cruzando
+// de vez em quando, pra roleta parecer um sorteio "de verdade" num palco.
+const Starfield = () => {
+  const stars = useMemo(() => Array.from({ length: 70 }, (_, i) => ({
+    id: i, left: Math.random() * 100, top: Math.random() * 100,
+    size: 1 + Math.random() * 2.6, big: Math.random() < 0.14,
+    dur: 1.6 + Math.random() * 3, delay: Math.random() * 4,
+  })), []);
+  const shooters = useMemo(() => Array.from({ length: 3 }, (_, i) => ({
+    id: i, top: 6 + Math.random() * 40, left: 55 + Math.random() * 35,
+    dur: 5 + i * 2.4, delay: i * 3.1 + Math.random() * 2,
+  })), []);
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {stars.map(s => (
+        <div key={s.id} style={{ position: 'absolute', left: `${s.left}%`, top: `${s.top}%`,
+          width: s.big ? s.size * 2.1 : s.size, height: s.big ? s.size * 2.1 : s.size, borderRadius: '50%',
+          background: '#fff', boxShadow: s.big ? '0 0 7px 2px rgba(255,255,255,.9)' : '0 0 3px 1px rgba(255,255,255,.55)',
+          animation: `roletaTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite` }}/>
+      ))}
+      {shooters.map(s => (
+        <div key={s.id} style={{ position: 'absolute', top: `${s.top}%`, left: `${s.left}%`, width: 90, height: 2,
+          borderRadius: 2, background: 'linear-gradient(90deg, #fff, rgba(255,255,255,0))',
+          transform: 'rotate(-32deg)', opacity: 0,
+          animation: `roletaShoot ${s.dur}s ease-in ${s.delay}s infinite` }}/>
+      ))}
     </div>
   );
 };
@@ -293,19 +317,25 @@ const TabRoletaSorte = () => {
     setBusy(false);
   };
 
-  const wheelSize = isMobile ? 260 : 400;
+  const wheelSize = isMobile ? 300 : 560;
   const inpSt = { flex: 1, minWidth: 160, padding: '10px 14px', borderRadius: 11, border: `1.5px solid ${T.border}`,
     background: T.surfaceSub || 'rgba(0,0,0,.04)', fontSize: 13, color: T.text, fontFamily: 'var(--font-body)',
     outline: 'none', boxSizing: 'border-box' };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ maxWidth: 980, margin: '0 auto' }}>
       <style>{`
         @keyframes roletaBulb { 0%,100%{opacity:.25;transform:scale(.7)} 50%{opacity:1;transform:scale(1.2)} }
         @keyframes roletaPointer { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(4px)} }
         @keyframes roletaHubShine { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.4)} }
         @keyframes roletaConfetti { 0%{transform:translateY(0) rotate(0deg);opacity:1} 100%{transform:translateY(420px) rotate(640deg);opacity:0} }
         @keyframes roletaWinnerPop { 0%{transform:scale(.6);opacity:0} 65%{transform:scale(1.08);opacity:1} 100%{transform:scale(1)} }
+        @keyframes roletaTwinkle { 0%,100%{opacity:.15;transform:scale(.6)} 50%{opacity:1;transform:scale(1)} }
+        @keyframes roletaShoot {
+          0%{transform:translate(0,0) rotate(-32deg);opacity:0}
+          4%{opacity:1} 14%{opacity:0}
+          100%{transform:translate(-320px,200px) rotate(-32deg);opacity:0}
+        }
       `}</style>
 
       <div style={{ marginBottom: 20 }}>
@@ -317,23 +347,38 @@ const TabRoletaSorte = () => {
         </div>
       </div>
 
-      {/* Palco da roleta */}
-      <div style={{ position: 'relative', borderRadius: 24, padding: isMobile ? '28px 12px' : '40px 20px',
-        background: 'radial-gradient(120% 100% at 50% 0%, rgba(0,0,0,.04) 0%, rgba(0,0,0,0) 60%)',
-        border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
-        overflow: 'hidden' }}>
+      {/* Palco da roleta — fundo cósmico escuro (de propósito fixo, não segue o
+          tema claro/escuro do resto do Portal) pra as estrelas brilharem. */}
+      <div style={{ position: 'relative', borderRadius: 24, padding: isMobile ? '32px 12px' : '48px 20px',
+        background: 'radial-gradient(120% 90% at 50% 0%, #182849 0%, #0e1730 45%, #060a18 100%)',
+        border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, overflow: 'hidden' }}>
+        <Starfield/>
         {!loaded ? (
-          <div style={{ width: wheelSize, height: wheelSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'relative', zIndex: 1, width: wheelSize, height: wheelSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', border: `3px solid ${T.gold}`, borderTopColor: 'transparent', animation: 'spin .7s linear infinite' }}/>
           </div>
         ) : (
-          <Wheel entries={entries} angle={angle} phase={phase} size={wheelSize} gold={T.gold}/>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <Wheel entries={entries} angle={angle} phase={phase} size={wheelSize} gold={T.gold}/>
+          </div>
         )}
 
         {showConfetti && <Confetti seed={spin?.id}/>}
 
+        {loaded && entries.length === 0 && (
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', letterSpacing: '.01em' }}>
+              Aguardando o RH montar a roleta…
+            </div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.6)', marginTop: 5 }}>
+              Assim que alguém adicionar participantes, ela aparece aqui.
+            </div>
+          </div>
+        )}
+
         {winnerLabel && (
-          <div style={{ animation: 'roletaWinnerPop .5s cubic-bezier(.2,1.4,.4,1)', textAlign: 'center',
+          <div style={{ position: 'relative', zIndex: 1, animation: 'roletaWinnerPop .5s cubic-bezier(.2,1.4,.4,1)', textAlign: 'center',
             padding: '14px 28px', borderRadius: 16, background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`,
             boxShadow: `0 10px 30px ${T.goldLine || T.gold}55`, color: '#fff' }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', opacity: .85 }}>🎉 Ganhou a roleta</div>
@@ -341,7 +386,7 @@ const TabRoletaSorte = () => {
           </div>
         )}
         {spinning && (
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.gold, fontFamily: 'var(--font-body)' }}>Girando… 🎲</div>
+          <div style={{ position: 'relative', zIndex: 1, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: 'var(--font-body)' }}>Girando… 🎲</div>
         )}
       </div>
 
