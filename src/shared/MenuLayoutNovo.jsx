@@ -6,6 +6,7 @@ import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
 import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada } from './menuWidgets';
 import { setPendingJoin } from './gameInvites';
+import { setPendingListInvite } from './listShares';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1002,6 +1003,9 @@ const WidgetCaixa = ({ tam, authUser, onSelect, ...moldura }) => {
     // Convite recente: deixa a sala "pendente" pra o jogo entrar direto nela
     // (mesma ponte que o popup de convite do App usa). Convite velho só abre o jogo.
     if (it.tipo === 'convite' && conviteRecente(it)) setPendingJoin(it.jogo, it.sala);
+    // Convite de coluna do Trello: deixa "pendente" pro módulo abrir o
+    // aceitar/recusar assim que montar (mesma ponte, ver listShares.js).
+    if (it.tipo === 'lista_compartilhada') setPendingListInvite(it.shareId);
     setAberta(false);
     onSelect(it.destino[0], it.destino[1]);
   };

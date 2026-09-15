@@ -134,6 +134,8 @@ export const usePrismaResumo = () => {
      • prismas recebidos: envio de colega, presente ou crédito do RH
        (check-in e missão ela mesma fez, então ficam de fora);
      • convite pra jogar Uniko Paint / Uniko Stop;
+     • convite pra uma COLUNA do Trello (Conexão Setorial) compartilhada com ela;
+     • Uniko Fit: curtida/comentário na foto dela, mensagem nova no grupo;
      • evento novo na agenda;
      • justificativa do ponto: a solicitação dela em análise, aprovada (o RH
        aceitou e abonou o dia) ou resolvida, e dias que o RH abonou direto;
@@ -211,6 +213,28 @@ const itemPrisma = (r) => {
 const itemConvite = (r) => ({ id: `gi:${r.id}`, tipo: 'convite', subtipo: r.game, quando: r.created_at, jogo: r.game, sala: r.room_id,
   titulo: `${r.from_name ? nomeChamado(r.from_name) : 'Alguém'} te chamou pra jogar ${JOGO[r.game]?.nome || 'um jogo'}`,
   sub: r.room_name ? `Sala ${r.room_name}` : 'Toque pra entrar', destino: ['colaborador', JOGO[r.game]?.aba || 'inicio'] });
+// Convite pra uma COLUNA do Trello (Conexão Setorial) — não a sala inteira. Ver
+// listShares.js/conexao-setorial (guestListIds). shareId carrega pro clique
+// deixar o convite "pendente" pro Trello mostrar o aceitar/recusar ao abrir.
+const itemListaCompartilhada = (r) => ({ id: `cls:${r.id}`, tipo: 'lista_compartilhada', subtipo: 'pendente', quando: r.created_at, shareId: r.id,
+  titulo: `${r.from_name ? nomeChamado(r.from_name) : 'Alguém'} compartilhou a coluna "${r.list_title}" com você no Trello`,
+  sub: r.room_name ? `Sala ${r.room_name} · Toque pra ver e aceitar` : 'Toque pra ver e aceitar', destino: ['conexao-setorial'] });
+// Uniko Fit — curtida/comentário na SUA foto e mensagem no grupo (chat geral).
+const itemFitCurtida = (r) => {
+  const dono = r.uniko_fit_checkins?.player;
+  if (!dono || r.player === dono) return null;
+  return { id: `fr:${r.id}`, tipo: 'fit', subtipo: 'curtida', quando: r.created_at,
+    titulo: `${nomeChamado(r.player)} curtiu sua foto no Uniko Fit`, sub: r.emoji ? `Reação ${r.emoji}` : 'Toque pra ver', destino: ['uniko-fit'] };
+};
+const itemFitComentario = (r) => {
+  const dono = r.uniko_fit_checkins?.player;
+  if (!dono || r.player === dono) return null;
+  return { id: `fc:${r.id}`, tipo: 'fit', subtipo: 'comentario', quando: r.created_at,
+    titulo: `${nomeChamado(r.player)} comentou na sua foto no Uniko Fit`, sub: r.texto || 'Toque pra ver', destino: ['uniko-fit'] };
+};
+const itemFitChat = (r) => ({ id: `fch:${r.id}`, tipo: 'fit', subtipo: 'chat', quando: r.created_at,
+  titulo: `${nomeChamado(r.player)} mandou mensagem no grupo do Uniko Fit`,
+  sub: r.tipo === 'imagem' ? '📷 Imagem' : r.tipo === 'audio' ? '🎤 Áudio' : (r.texto || ''), destino: ['uniko-fit'] });
 const itemEvento = (r) => ({ id: `ev:${r.id}`, tipo: 'evento', subtipo: r.type || 'Evento', quando: r.created_at, titulo: `Novo na agenda: ${r.title || 'Evento'}`,
   sub: [diaTxt(r.event_date), r.event_time, r.type].filter(Boolean).join(' · '), destino: ['colaborador', 'eventos'] });
 
@@ -280,11 +304,11 @@ export const useCaixaEntrada = (authUser) => {
     });
   }, []);
 
-  /* Uma consulta às quatro fontes entre `de` e `ate` (ISO; `ate` opcional). */
+  /* Uma consulta a todas as fontes entre `de` e `ate` (ISO; `ate` opcional). */
   const consultar = useCallback(async (de, ate, limite) => {
     if (!nome) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
-    const [bh, ph, gi, ev, ps, at, nt, cm] = await Promise.all([
+    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
       faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
       faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
@@ -294,6 +318,10 @@ export const useCaixaEntrada = (authUser) => {
       faixa(supabase.from('atualizacoes').select('id,titulo,descricao,imagem_url,active,created_at').eq('active', true), 'created_at'),
       faixa(supabase.from('notifications').select('id,type,title,message,active,created_at').eq('active', true), 'created_at'),
       faixa(supabase.from('comunicados').select('id,title,body,cat,active,created_at').eq('active', true), 'created_at'),
+      faixa(supabase.from('conexao_list_shares').select('id,from_name,to_name,room_name,list_title,status,created_at').eq('to_name', nome), 'created_at'),
+      faixa(supabase.from('uniko_fit_reactions').select('id,player,emoji,created_at,uniko_fit_checkins(player)'), 'created_at'),
+      faixa(supabase.from('uniko_fit_comments').select('id,player,texto,created_at,uniko_fit_checkins(player)'), 'created_at'),
+      faixa(supabase.from('uniko_fit_chat').select('id,player,texto,tipo,created_at').neq('tipo', 'checkin'), 'created_at'),
     ].map(q => q.then(r => r.data || [], () => [])));
 
     /* Abonos do ponto: pelo id de ponto que as solicitações usam (PIS) e pelo
@@ -307,16 +335,21 @@ export const useCaixaEntrada = (authUser) => {
     for (const j of pj) if (j.abonado !== false) abonos[j.data] = j;
     const diasDeSolicitacao = new Set(ps.filter(x => x.status !== 'pendente').map(x => x.data_ref));
     const idsAtuais = new Set(ps.map(x => itemSolicitacao(x, abonos).id));
+    // Convite de coluna do Trello: só mostra enquanto "pendente" — aceito/recusado sai sozinho.
+    const idsClsPendentes = new Set(cls.filter(x => x.status === 'pendente').map(x => `cls:${x.id}`));
 
     juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
       ...ev.filter(e => e.created_by !== nome).map(itemEvento),
       ...ps.map(x => itemSolicitacao(x, abonos)),
       // abono que veio de uma solicitação já aparece como "aprovada" — não repete
       ...pj.filter(j => !diasDeSolicitacao.has(j.data)).map(itemAbono),
-      ...at.map(itemAtualizacao), ...nt.map(itemAviso), ...cm.map(itemComunicado)],
-    // Solicitação desta faixa que mudou de estado ou sumiu (recusada = apagada):
-    // a versão velha sai do mapa.
-    (it) => it.id.startsWith('ps:') && !idsAtuais.has(it.id)
+      ...at.map(itemAtualizacao), ...nt.map(itemAviso), ...cm.map(itemComunicado),
+      ...cls.filter(x => x.status === 'pendente').map(itemListaCompartilhada),
+      ...fr.map(itemFitCurtida), ...fc.map(itemFitComentario),
+      ...fch.filter(x => x.player !== nome).map(itemFitChat)],
+    // Registro desta faixa que mudou de estado ou sumiu: a versão velha sai do
+    // mapa (solicitação de ponto resolvida/recusada, convite de coluna decidido).
+    (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id)))
       && String(it.quando) >= de && (!ate || String(it.quando) < ate));
   }, [nome, cpf, juntar]);
 
@@ -358,6 +391,18 @@ export const useCaixaEntrada = (authUser) => {
         ({ new: r }) => { if (r) juntar([itemAviso(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comunicados' },
         ({ new: r }) => { if (r) juntar([itemComunicado(r)]); })
+      // Convite de coluna do Trello: o payload do realtime não traz o join com a
+      // sala/lista (isso já vem no INSERT em si), então dá pra montar direto; já
+      // aceitar/recusar só muda o status — refaz a consulta pra sumir da caixa.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conexao_list_shares' },
+        ({ new: r }) => { if (r?.to_name === nome && r.status === 'pendente') juntar([itemListaCompartilhada(r)]); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conexao_list_shares' }, () => buscar())
+      // Uniko Fit: reação/comentário dependem de saber o DONO do check-in (join
+      // que o payload do realtime não traz) — refaz a consulta, é barata.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_reactions' }, () => buscar())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_comments' }, () => buscar())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_chat' },
+        ({ new: r }) => { if (r && r.player !== nome && r.tipo !== 'checkin') juntar([itemFitChat(r)]); })
       .subscribe();
 
     return () => { clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
