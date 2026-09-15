@@ -1087,17 +1087,43 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const apagarCategoria = async (tag) => {
     if (!window.confirm(`Apagar a categoria "${tag.nome}"? Ela sai de todos os Unikos que a têm.`)) return;
     setCatBusy(tag.id);
-    try { await deleteCategoriaTag(tag.id); setCatTags([...getCategoriaTags()]); setRewardTick(t => t + 1); }
+    try {
+      await deleteCategoriaTag(tag.id); setCatTags([...getCategoriaTags()]); setRewardTick(t => t + 1);
+      if (catEditando === tag.id) { setCatEditando(null); setCatOverrides({}); } // estava editando ela em massa — reseta
+    }
     catch (e) { flashCat('❌ Erro ao apagar: ' + (e.message || '')); }
     setCatBusy(null);
   };
-  const alternarCategoria = async (unikoId, tagId) => {
-    const atual = getUnikoCategorias(unikoId);
-    const next = atual.includes(tagId) ? atual.filter(t => t !== tagId) : [...atual, tagId];
-    setCatBusy(unikoId);
-    try { await saveUnikoCategorias(unikoId, next); setRewardTick(t => t + 1); }
-    catch (e) { flashCat('❌ Erro ao salvar: ' + (e.message || '')); }
-    setCatBusy(null);
+  // ── Marcar em massa: escolhe UMA categoria, marca/desmarca numa caixa de
+  // seleção com todos os Unikos e só grava tudo de uma vez no "Salvar". Era um
+  // botão por categoria em cada linha (salvava na hora, um clique de cada
+  // vez) — pra marcar "Frutas" em 15 Unikos eram 15 idas ao banco.
+  // catOverrides guarda só o que a pessoa MEXEU nesta edição (uniko_id →
+  // marcado?); o resto lê o estado real (getUnikoCategorias). Assim não
+  // precisa recalcular a caixa inteira toda vez que ela troca de categoria.
+  const [catEditando, setCatEditando] = useState(null); // categoria sendo editada em massa
+  const [catOverrides, setCatOverrides] = useState({});
+  const [catSalvandoLote, setCatSalvandoLote] = useState(false);
+  const catAtiva = catEditando && catTags.some(t => t.id === catEditando) ? catEditando : (catTags[0]?.id || null);
+  const catEscolher = (id) => { setCatEditando(id); setCatOverrides({}); };
+  const catChecked = (u) => catOverrides[u.id] !== undefined ? catOverrides[u.id] : getUnikoCategorias(u.id).includes(catAtiva);
+  const toggleCatDraft = (u) => setCatOverrides(o => ({ ...o, [u.id]: !catChecked(u) }));
+  const catDirtyCount = Object.values(catOverrides).length;
+  const salvarCategoriaLote = async () => {
+    if (!catAtiva || !catDirtyCount) return;
+    setCatSalvandoLote(true);
+    try {
+      for (const [unikoId, marcado] of Object.entries(catOverrides)) {
+        const atual = getUnikoCategorias(unikoId);
+        if (marcado === atual.includes(catAtiva)) continue; // desfez a própria mudança — nada a gravar
+        const next = marcado ? [...new Set([...atual, catAtiva])] : atual.filter(t => t !== catAtiva);
+        await saveUnikoCategorias(unikoId, next);
+      }
+      setCatOverrides({});
+      setRewardTick(t => t + 1);
+      flashCat(`✅ Categoria "${catTags.find(t => t.id === catAtiva)?.nome || ''}" atualizada.`);
+    } catch (e) { flashCat('❌ Erro ao salvar: ' + (e.message || '')); }
+    setCatSalvandoLote(false);
   };
 
   // ── Oficina Uniko Wave: cria personagens pro jogo (roster/gacha/Guerra Estelar) ──
@@ -4097,44 +4123,74 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                     </div>}
               </div>
 
-              {/* Categoria — CARD 2: atribuir tags a cada Uniko */}
+              {/* Categoria — CARD 2: marcar em massa (14/09/2026, pedido explícito) —
+                  escolhe UMA categoria, marca numa caixa de seleção quais Unikos
+                  têm ela e clica Salvar uma vez só. Era um botão por categoria em
+                  cada linha, salvando a cada clique — pra marcar 15 Unikos numa
+                  categoria eram 15 idas ao banco em vez de 1. */}
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
-                <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:14,flexWrap:'wrap'}}>
-                  <div style={{flex:'1 1 320px'}}>
-                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📌 Marcar categorias ({rosterUnikos.length} Unikos)</div>
-                    <div style={{fontSize:12,color:T.textS,marginTop:3}}>Clique numa tag pra ligar/desligar naquele Uniko — salva na hora. Vale pros fixos e pros criados na Oficina.</div>
-                  </div>
-                  <input value={catFiltro} onChange={e=>setCatFiltro(e.target.value)} placeholder="🔎 Buscar Uniko…" style={{...inpSt,width:230,flex:'0 0 auto'}}/>
-                </div>
                 {catTags.length===0 ? (
-                  <div style={{fontSize:12,color:T.textT}}>Crie pelo menos uma categoria acima pra poder marcar os Unikos.</div>
-                ) : (
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                    {rosterUnikos.filter(u=>!catFiltro.trim()||_semAcento(u.name).includes(_semAcento(catFiltro))).map(u=>{
-                      const tagsU = getUnikoCategorias(u.id);
-                      const salvando = catBusy===u.id;
+                  <>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📌 Marcar categorias</div>
+                    <div style={{fontSize:12,color:T.textT}}>Crie pelo menos uma categoria acima pra poder marcar os Unikos.</div>
+                  </>
+                ) : (<>
+                  <div style={{display:'flex',alignItems:'end',justifyContent:'space-between',gap:14,flexWrap:'wrap'}}>
+                    <div style={{flex:'1 1 320px'}}>
+                      <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>📌 Marcar categorias</div>
+                      <div style={{fontSize:12,color:T.textS,marginTop:3}}>Escolha a categoria, marque os Unikos que fazem parte dela e clique em Salvar.</div>
+                    </div>
+                    <input value={catFiltro} onChange={e=>setCatFiltro(e.target.value)} placeholder="🔎 Buscar Uniko…" style={{...inpSt,width:230,flex:'0 0 auto'}}/>
+                  </div>
+
+                  {/* Escolha da categoria sendo editada */}
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {catTags.map(tg=>{
+                      const ativa = tg.id===catAtiva;
                       return (
-                        <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',padding:'8px 12px',borderRadius:11,
-                          border:`1px solid ${tagsU.length?`${u.theme.accent}55`:T.border}`,background:isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,.012)',opacity:salvando?.6:1}}>
-                          <img src={u.img} alt={u.name} style={{width:38,height:38,objectFit:'contain',flexShrink:0}}/>
-                          <div style={{width:170,minWidth:120,fontSize:13,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={u.name}>{u.name}</div>
-                          <div style={{display:'flex',gap:6,flexWrap:'wrap',flex:1}}>
-                            {catTags.map(tg=>{
-                              const on = tagsU.includes(tg.id);
-                              return (
-                                <button key={tg.id} onClick={()=>alternarCategoria(u.id,tg.id)} disabled={salvando}
-                                  style={{padding:'5px 11px',borderRadius:999,cursor:salvando?'wait':'pointer',fontSize:11.5,fontWeight:700,fontFamily:'var(--font-body)',
-                                    border:`1.5px solid ${on?tg.cor:T.border}`,background:on?tg.cor:'transparent',color:on?'#fff':T.textS,transition:'all .12s'}}>
-                                  {on?'✓ ':''}{tg.nome}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        <button key={tg.id} onClick={()=>catEscolher(tg.id)}
+                          style={{padding:'8px 15px',borderRadius:999,cursor:'pointer',fontSize:12.5,fontWeight:700,fontFamily:'var(--font-body)',
+                            border:`1.5px solid ${ativa?tg.cor:T.border}`,background:ativa?tg.cor:'transparent',color:ativa?'#fff':T.textS,transition:'all .12s'}}>
+                          {tg.nome}
+                        </button>
                       );
                     })}
                   </div>
-                )}
+
+                  {/* Caixa de seleção com todos os Unikos */}
+                  <div style={{border:`1px solid ${T.border}`,borderRadius:12,maxHeight:360,overflowY:'auto'}}>
+                    {rosterUnikos.filter(u=>!catFiltro.trim()||_semAcento(u.name).includes(_semAcento(catFiltro))).map((u,i)=>{
+                      const checked = catChecked(u);
+                      return (
+                        <label key={u.id} onClick={()=>toggleCatDraft(u)}
+                          style={{display:'flex',alignItems:'center',gap:11,padding:'9px 14px',cursor:'pointer',userSelect:'none',
+                            borderTop:i?`1px solid ${T.border}`:'none',background:checked?`${catTags.find(t=>t.id===catAtiva)?.cor||'#6C5CE7'}14`:'transparent'}}>
+                          <input type="checkbox" checked={checked} readOnly
+                            style={{width:17,height:17,cursor:'pointer',accentColor:catTags.find(t=>t.id===catAtiva)?.cor||'#6C5CE7',flexShrink:0}}/>
+                          <img src={u.img} alt={u.name} style={{width:30,height:30,objectFit:'contain',flexShrink:0}}/>
+                          <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.name}</div>
+                        </label>
+                      );
+                    })}
+                    {rosterUnikos.filter(u=>!catFiltro.trim()||_semAcento(u.name).includes(_semAcento(catFiltro))).length===0 && (
+                      <div style={{padding:'14px',fontSize:12,color:T.textT}}>Nenhum Uniko com esse nome.</div>
+                    )}
+                  </div>
+
+                  <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    <button onClick={salvarCategoriaLote} disabled={!catDirtyCount||catSalvandoLote}
+                      style={{padding:'10px 22px',borderRadius:10,border:'none',cursor:(!catDirtyCount||catSalvandoLote)?'default':'pointer',
+                        background:catTags.find(t=>t.id===catAtiva)?.cor||'#6C5CE7',color:'#fff',fontWeight:700,fontSize:13.5,fontFamily:'var(--font-body)',
+                        opacity:(!catDirtyCount||catSalvandoLote)?.55:1}}>
+                      {catSalvandoLote?'Salvando…':catDirtyCount?`💾 Salvar (${catDirtyCount} alterado${catDirtyCount===1?'':'s'})`:'💾 Salvar'}
+                    </button>
+                    {!!catDirtyCount && !catSalvandoLote && (
+                      <button onClick={()=>setCatOverrides({})} style={{background:'none',border:'none',cursor:'pointer',color:T.textT,fontSize:12.5,fontWeight:600,textDecoration:'underline'}}>
+                        Desfazer alterações
+                      </button>
+                    )}
+                  </div>
+                </>)}
               </div>
               </>)}
 
