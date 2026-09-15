@@ -46,6 +46,15 @@ const RingLights = ({ n, size, speedS, gold }) => (
   </>
 );
 
+const WheelIcon = ({ size = 20, color = 'currentColor', strokeWidth = 1.8 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth}
+    strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9"/>
+    <circle cx="12" cy="12" r="2.1" fill={color} stroke="none"/>
+    <path d="M12 3v4.3M12 16.7V21M3 12h4.3M16.7 12H21M5.64 5.64l3.04 3.04M15.32 15.32l3.04 3.04M18.36 5.64l-3.04 3.04M8.68 15.32l-3.04 3.04"/>
+  </svg>
+);
+
 const labelStyleFor = (n) => {
   if (n <= 6)  return { width: 112, fontSize: 15 };
   if (n <= 10) return { width: 88,  fontSize: 13 };
@@ -118,8 +127,10 @@ const Wheel = ({ entries, angle, phase, size, gold }) => {
         width: size > 300 ? 66 : 52, height: size > 300 ? 66 : 52, borderRadius: '50%', zIndex: 4,
         background: `radial-gradient(circle at 35% 30%, #fff8, ${gold} 55%, ${gold}dd)`,
         border: '3px solid rgba(255,255,255,.6)', boxShadow: '0 4px 18px rgba(0,0,0,.4)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size > 300 ? 26 : 21,
-        animation: 'roletaHubShine 2.4s ease-in-out infinite' }}>🎡</div>
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'roletaHubShine 2.4s ease-in-out infinite' }}>
+        <WheelIcon size={size > 300 ? 32 : 26} color="#fff" strokeWidth={1.6}/>
+      </div>
     </div>
   );
 };
@@ -376,11 +387,12 @@ const TabRoletaSorte = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
             <button onClick={doSpin} disabled={busy || entries.length < 2 || spinning}
-              style={{ padding: '12px 26px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '12px 26px', borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 800,
                 fontSize: 14.5, fontFamily: 'var(--font-body)', boxShadow: `0 4px 16px ${T.goldLine || T.gold}44`,
                 opacity: (busy || entries.length < 2 || spinning) ? .55 : 1 }}>
-              🎡 Girar a roleta!
+              <WheelIcon size={18} color="#fff" strokeWidth={2}/>
+              Girar a roleta!
             </button>
             <button onClick={doReset} disabled={busy || !spin}
               style={{ padding: '10px 16px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.danger || '#C04050'}55`,
