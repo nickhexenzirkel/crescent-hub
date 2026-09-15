@@ -1,52 +1,48 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   URL PRÓPRIA PARA CADA FERRAMENTA DE PDF
-   Editor, Organizar e Mesclar moravam os três em `#faturamento`, junto com o
-   resto do módulo: não dava pra mandar o link de uma ferramenta pra alguém,
-   e o Voltar do navegador saía do módulo inteiro em vez de devolver pra
-   escolha de ferramenta. Aqui elas ganham endereço:
+   URL PRÓPRIA PARA AS ABAS DE PDF DA OFICINA ESTELAR
+   Editor, Organizar e Mesclar são abas soltas na sidebar (15/09/2026 — antes
+   viviam dentro de UMA aba "Ferramentas de Edição", cada uma escolhida por
+   dentro dela como uma "ferramenta"; esse arquivo cuidava só de ir e voltar
+   dessa escolha). Agora cada uma tem endereço fixo:
 
-     #faturamento/oficina/editor
-     #faturamento/oficina/organizar
-     #faturamento/oficina/mesclar
+     #faturamento/pdf-editor
+     #faturamento/pdf-organizar
+     #faturamento/pdf-mesclar
 
-   As outras abas do módulo continuam em `#faturamento` (decisão de 13/09/2026
-   — o pedido era só pelas três ferramentas de PDF).
+   pra dar pra favoritar no navegador (barra de favoritos do Chrome) e abrir
+   DIRETO nela — sem passar pelo seletor de módulos. Quem decide isso no
+   carregamento é o App (`abaDaUrl`, lido uma vez no boot e de novo dentro do
+   handleLogin caso a pessoa precise logar primeiro) — ver App.jsx.
 
-   O que este arquivo NÃO faz, de propósito: abrir a ferramenta quando a URL é
-   carregada de fora (F5, link colado). Quem manda no carregamento é o App, que
-   restaura a sessão e cai no seletor de módulos sem olhar o hash — mudar isso
-   mexeria no comportamento de F5 de TODOS os módulos, e ficou fora do pedido.
-   Por isso `ferramentaDaUrl` só é consultada com o módulo já aberto, onde o
-   hash é sempre fruto de uma navegação nossa.
-
-   O `state` do histórico carrega `screen: 'faturamento'` porque o App escuta
-   popstate e lê justamente esse campo pra saber qual tela mostrar (ver navPush
-   em App.jsx) — sem ele, o Voltar cairia na landing.
+   `refletirAbaNaUrl` roda a cada troca de aba do módulo e usa replaceState
+   (NUNCA pushState): não empilha histórico, só mantém a URL visível fiel à
+   aba atual, que é o que faz o botão de favoritar do navegador "pegar" o
+   endereço certo. O botão Voltar do navegador continua sem andar ENTRE as
+   abas do módulo — nunca andou, nem pras outras (Início, Controle de
+   Notas...) —, só sai do módulo inteiro, exatamente como sempre foi.
 ══════════════════════════════════════════════════════════════════════════ */
 
 const BASE = '#faturamento';
-const ROTA = /^#faturamento\/oficina\/([a-z]+)$/;
 
-/* Lista fechada: hash com nome de ferramenta que não existe lê como nenhuma,
-   em vez de abrir uma tela em branco. */
-const FERRAMENTAS = ['editor', 'organizar', 'mesclar'];
+/* Lista fechada: só estas abas têm endereço próprio. As outras (Início,
+   Controle de Notas, Assinatura Automática...) caem no hash genérico do
+   módulo — ninguém pediu favoritar aquelas, e um hash desconhecido no boot
+   tem que ler como "nenhum alvo" em vez de abrir uma tela em branco. */
+const ABAS_COM_URL = ['pdf-editor', 'pdf-organizar', 'pdf-mesclar'];
 
-/* Ferramenta que a URL atual aponta, ou null (inclui hash desconhecido). */
-export const ferramentaDaUrl = () => {
-  const m = ROTA.exec(window.location.hash);
-  return m && FERRAMENTAS.includes(m[1]) ? m[1] : null;
+/* Chamado a cada troca de aba do módulo (ver useEffect em index.jsx) —
+   mantém a URL fiel à aba atual sem criar entrada nova no histórico. */
+export const refletirAbaNaUrl = (tab) => {
+  const hash = ABAS_COM_URL.includes(tab) ? `${BASE}/${tab}` : BASE;
+  if (window.location.hash !== hash) window.history.replaceState({ screen: 'faturamento' }, '', hash);
 };
 
-/* Nova entrada no histórico: o Voltar do navegador devolve pra escolha de
-   ferramenta, igual ao botão "Trocar ferramenta". */
-export const irParaFerramenta = (f) => {
-  window.history.pushState({ screen: 'faturamento', ferramenta: f }, '', `${BASE}/oficina/${f}`);
+/* Lê um hash #faturamento/<aba> e devolve { tab, hash } se for uma das abas
+   com endereço próprio, ou null — usado só no BOOT do App (e no login, se a
+   pessoa precisou entrar com senha primeiro) pra decidir se abre direto
+   numa aba do módulo em vez de cair no seletor de módulos. */
+export const abaDaUrl = (hash) => {
+  const m = /^#faturamento\/([a-z-]+)$/.exec(hash || '');
+  const tab = m && m[1];
+  return tab && ABAS_COM_URL.includes(tab) ? { tab, hash: `${BASE}/${tab}` } : null;
 };
-
-/* Desfaz a entrada da ferramenta. Todo caminho de saída passa por aqui — o
-   botão "Trocar ferramenta", o Voltar do navegador e a troca de aba na sidebar
-   —, e é o que garante que a entrada nunca fique órfã no histórico: se ela
-   sobrasse, o "Sair" do módulo gastaria um clique voltando pra ela sem sair
-   de lugar nenhum. */
-export const voltarDaFerramenta = () => { window.history.back(); };
-

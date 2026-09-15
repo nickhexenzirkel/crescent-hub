@@ -5,6 +5,45 @@ import { canSeeTab } from '../Sidebar';
 
 const FEATURES = [
   {
+    id: 'pdf-editor',
+    color: '#8B5FE8',
+    bg: 'rgba(139,95,232,0.10)',
+    title: 'Editor de PDF',
+    desc: 'Edite o texto existente do PDF, adicione textos, imagens e assinaturas — direto no navegador.',
+    steps: ['Carregue o PDF', 'Edite o texto ou adicione elementos', 'Salve o PDF editado'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="14" r="2"/><path d="M20 20l-3-3"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'pdf-organizar',
+    color: '#6C5CE7',
+    bg: 'rgba(108,92,231,0.10)',
+    title: 'Organizar PDF',
+    desc: 'Mova e exclua páginas vendo cada uma em miniatura, e salve o PDF na nova ordem.',
+    steps: ['Carregue o PDF', 'Arraste as miniaturas ou exclua páginas', 'Salve o PDF reorganizado'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'pdf-mesclar',
+    color: '#A855F7',
+    bg: 'rgba(168,85,247,0.10)',
+    title: 'Mesclar PDF',
+    desc: 'Junte vários PDFs num único arquivo, na ordem que você definir.',
+    steps: ['Carregue os PDFs', 'Defina a ordem dos arquivos', 'Baixe o PDF mesclado'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/><path d="M10 8h4M10 12h4M10 16h4"/>
+      </svg>
+    ),
+  },
+  {
     id: 'xml',
     color: '#1A6FB5',
     bg: 'rgba(26,111,181,0.10)',
@@ -48,19 +87,6 @@ const FEATURES = [
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'oficina',
-    color: '#8B5FE8',
-    bg: 'rgba(139,95,232,0.10)',
-    title: 'Ferramenta de Edição',
-    desc: 'Editor de PDF: edite o texto existente, adicione textos, imagens e assinaturas — direto no navegador.',
-    steps: ['Carregue o PDF', 'Edite o texto ou adicione elementos', 'Salve o PDF editado'],
-    icon: (c) => (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="14" r="2"/><path d="M20 20l-3-3"/>
       </svg>
     ),
   },

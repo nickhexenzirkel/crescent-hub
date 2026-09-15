@@ -28,6 +28,7 @@ import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, l
 import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY, runCaptureScheduler as runCaptureNumeroScheduler } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
+import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -42,6 +43,14 @@ export default function CrescentHub() {
   const [userPhoto, setUserPhoto] = useState(null);
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
   const isMobile = useIsMobile();
+
+  /* Favoritar Editor/Organizar/Mesclar de PDF (Oficina Estelar) no navegador
+     e abrir DIRETO neles — ver rotaFerramenta.js. Guarda o alvo (se o hash de
+     boot apontar pra uma dessas abas) numa ref: se a pessoa AINDA PRECISA
+     logar, o efeito de baixo cai na landing normalmente, e é o handleLogin
+     que consulta esta ref depois pra abrir a aba certa em vez do seletor de
+     módulos — sem isso, favoritar funcionaria só pra quem já estava logado. */
+  const alvoBootRef = useRef(null);
 
   /* ── Nada de arrastar imagem, em TODO o Portal (ago/2026) ─────────────────
      Metade CSS do bloqueio está em index.css (`user-drag: none`, que resolve
@@ -160,6 +169,13 @@ export default function CrescentHub() {
   }, [authUser]);
   // Verifica token salvo ao carregar o app
   useEffect(() => {
+    // Lido AGORA, antes de qualquer replaceState desta função mexer no hash —
+    // é o endereço com que a aba/janela nasceu (F5, link colado, ou o clique
+    // num favorito do navegador). null se não apontar pra nenhuma aba com
+    // endereço próprio (ver rotaFerramenta.js): cai no boot normal de sempre.
+    const alvo = abaDaUrl(window.location.hash);
+    alvoBootRef.current = alvo; // guardado pro handleLogin, caso precise logar primeiro
+
     const token = localStorage.getItem('ch_token');
     if (!token) {
       // Semeia o estado inicial — garante que voltar ao início funcione
@@ -173,16 +189,25 @@ export default function CrescentHub() {
         if (d?.user) {
           setAuthUser(d.user);
           carregarNomesExibicao();
-          ss('modules');
           // Também normaliza a URL (3º argumento), não só o state — sem isso, um
-          // hash de rota interna de um módulo (ex.: #faturamento/oficina/editor,
-          // ver rotaFerramenta.js) sobrevivia a um F5/reabertura de aba: o state
-          // virava {screen:'modules'} certinho, mas a URL ficava presa na rota
-          // velha. Essa entrada "remendada" (state novo + URL velha) é o que
-          // fazia o `sair()` da Oficina Estelar (2 passos de volta) ultrapassar
-          // a tela de módulos depois — a causa real do bug "favoritar/abrir o
-          // Editor de PDF parece deslogar".
-          window.history.replaceState({ screen: 'modules' }, '', '#modules');
+          // hash de rota interna de um módulo (ex.: #faturamento/pdf-editor, ver
+          // rotaFerramenta.js) sobrevivia a um F5/reabertura de aba "remendado"
+          // numa entrada com state novo mas URL velha, o que já causou um bug
+          // real de navegação aqui (ver histórico do commit). Já ANUNCIA o
+          // destino final (se houver) — não fica um instante com '#modules' pra
+          // depois trocar de novo, o que geraria uma entrada de histórico a mais.
+          window.history.replaceState({ screen: 'modules' }, '', alvo ? alvo.hash : '#modules');
+          if (alvo) {
+            // Empilha a Oficina Estelar JÁ na aba certa por cima do '#modules' que
+            // acabou de virar a entrada de baixo — exatamente a mesma relação de
+            // duas entradas que uma navegação normal (clicar no módulo) cria, então
+            // o "Sair" (history.back()) volta pro seletor de módulos igualzinho.
+            setPortalInitialTab(alvo.tab);
+            window.history.pushState({ screen: 'faturamento' }, '', alvo.hash);
+            ss('faturamento');
+          } else {
+            ss('modules');
+          }
           loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
         } else {
           localStorage.removeItem('ch_token');
@@ -219,7 +244,20 @@ export default function CrescentHub() {
   const handleLogin = (user) => {
     setAuthUser(user);
     carregarNomesExibicao();
-    navReplace('modules');
+    // Mesmo alvo lido no boot (ver useEffect acima) — se a pessoa precisou
+    // logar antes de chegar na aba favoritada, é aqui que ele é consumido.
+    // Zera a ref depois: um logout seguido de login manual (mesma aba do
+    // navegador, sem F5) não deve reabrir o alvo de uma sessão anterior.
+    const alvo = alvoBootRef.current;
+    alvoBootRef.current = null;
+    if (alvo) {
+      window.history.replaceState({ screen: 'modules' }, '', '#modules');
+      setPortalInitialTab(alvo.tab);
+      window.history.pushState({ screen: 'faturamento' }, '', alvo.hash);
+      ss('faturamento');
+    } else {
+      navReplace('modules');
+    }
     loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
   };
 

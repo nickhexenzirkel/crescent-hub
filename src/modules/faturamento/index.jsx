@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { T, applyTheme } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { Sidebar, TopBar, canSeeTab, NAV } from './Sidebar';
 import { TabInicio } from './tabs/TabInicio';
 import { TabLeitorXML } from './tabs/TabLeitorXML';
-import { TabOficinaEstelar, TabCartaCorrecao } from './tabs/TabOficinaEstelar';
+import { TabPdfEditor, TabPdfOrganizar, TabPdfMesclar, TabCartaCorrecao } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
-import { ferramentaDaUrl, voltarDaFerramenta } from './rotaFerramenta';
+import { refletirAbaNaUrl } from './rotaFerramenta';
 
 // 'xml'/'carta'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx
 const GATED_TABS = new Set(['xml', 'carta', 'assinatura']);
@@ -31,39 +31,20 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
     applyTheme(saved);
   });
 
-  /* "Sair" normalmente é só o onBack do App (que é o Voltar do navegador). A
-     exceção é ter uma ferramenta de PDF aberta: ela tem entrada própria no
-     histórico (ver rotaFerramenta.js), então um Voltar só cairia na escolha de
-     ferramenta em vez de sair do módulo — aí são dois de uma vez.
-     BUG real corrigido (set/2026): isso era `window.history.go(-2)`, que
-     assume uma profundidade FIXA de histórico — funcionava só se a pilha
-     tivesse exatamente aquele formato. Chegar na Ferramenta de Edição por um
-     atalho favoritado (ou qualquer navegação com uma pilha mais rasa/funda do
-     que o esperado) fazia o "-2" ultrapassar a tela de módulos e cair numa
-     entrada sem `screen` — o App tratava isso como sessão perdida e mandava
-     pra tela de login, mesmo com o token continuando válido. Fix: em vez de
-     "pula 2 de uma vez", desfaz a entrada da ferramenta (1 passo de verdade)
-     e só DEPOIS de esse passo realmente acontecer (espera o popstate dele)
-     sai do módulo (mais 1 passo) — sempre 2 passos RELATIVOS a onde a pessoa
-     está agora, nunca 2 posições absolutas que podem não existir. */
-  const sair = () => {
-    if (!ferramentaDaUrl()) { onBack(); return; }
-    const aposFecharFerramenta = () => {
-      window.removeEventListener('popstate', aposFecharFerramenta);
-      onBack();
-    };
-    window.addEventListener('popstate', aposFecharFerramenta);
-    voltarDaFerramenta();
-  };
+  /* Mantém a URL fiel à aba atual — é o que dá pra favoritar o Editor/
+     Organizar/Mesclar de PDF no navegador e abrir direto neles depois (ver
+     rotaFerramenta.js e o boot em App.jsx). Usa replaceState (não empilha
+     histórico), então "Sair" continua sendo só o onBack normal do App: não
+     tem mais entrada extra de ferramenta pra desfazer antes — cada aba do
+     módulo é uma trocada de estado local, igual sempre foi pras outras
+     (Início, Controle de Notas...). */
+  useEffect(() => { refletirAbaNaUrl(tab); }, [tab]);
+
+  const sair = onBack;
 
   const safeSetTab = (id) => {
     if (GATED_TABS.has(id)) { if (!canSeeTab(id, authUser, isAdmin)) return; }
     else if (ADMIN_TABS.has(id) && !isAdmin) return;
-    /* Sair da Ferramenta de Edição pela sidebar tem que desfazer a entrada da
-       ferramenta aberta, senão ela fica órfã no histórico: a URL anunciaria uma
-       ferramenta que não está mais na tela, e o "Sair" gastaria um clique
-       voltando pra ela. */
-    if (id !== 'oficina' && ferramentaDaUrl()) voltarDaFerramenta();
     setTab(id);
   };
 
@@ -75,7 +56,9 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
       case 'xml':     return <TabLeitorXML/>;
       case 'assinatura': return <TabAssinatura/>;
       case 'historico-assinatura': return <TabHistoricoAssinatura/>;
-      case 'oficina':     return <TabOficinaEstelar/>;
+      case 'pdf-editor':    return <TabPdfEditor/>;
+      case 'pdf-organizar': return <TabPdfOrganizar/>;
+      case 'pdf-mesclar':   return <TabPdfMesclar/>;
       case 'carta':       return <TabCartaCorrecao/>;
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
     }

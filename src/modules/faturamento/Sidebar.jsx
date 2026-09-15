@@ -33,6 +33,21 @@ const NAV = [
     icon: <I><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-5H9v5H4a1 1 0 01-1-1z"/></I>,
   },
   {
+    id: 'pdf-editor',
+    label: 'Editor de PDF',
+    icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
+  },
+  {
+    id: 'pdf-organizar',
+    label: 'Organizar PDF',
+    icon: <I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>,
+  },
+  {
+    id: 'pdf-mesclar',
+    label: 'Mesclar PDF',
+    icon: <I><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="18" rx="1.5"/><path d="M10 8h4M10 12h4M10 16h4"/></I>,
+  },
+  {
     id: 'xml',
     label: 'Controle de Notas',
     tabGate: true,
@@ -49,11 +64,6 @@ const NAV = [
     label: 'Histórico de Assinatura',
     adminOnly: true,
     icon: <I><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></I>,
-  },
-  {
-    id: 'oficina',
-    label: 'Ferramenta de Edição',
-    icon: <I><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></I>,
   },
   {
     id: 'carta',
@@ -149,7 +159,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser }) => {
 
 const TopBar = ({ tab, onBack }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', oficina:'Ferramenta de Edição', carta:'Carta de Correção' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção' };
   if (tab === 'inicio') return null;
   return (
     <div style={{
