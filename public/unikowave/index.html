@@ -2148,7 +2148,7 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
         <div class="wish-banner-grid" id="wishBannerGrid"></div>
         <button class="wish-do-btn" id="wishDoBtn" onclick="doWish()">✨ DESEJO — 100 GW</button>
         <button class="wish-do-btn wish-do-btn10" id="wishDoBtn10" onclick="doWish10()">✨ ×10 DESEJOS — 1.000 GW</button>
-        <div class="wish-hint" id="wishHint">Cada desejo custa 100 GW · a chance sobe a cada desejo (≈99% no 22º)</div>
+        <div class="wish-hint" id="wishHint">Cada desejo custa 100 GW · a chance sobe a cada desejo (≈99% no 77º)</div>
       </div>
     </div>
 
@@ -9142,10 +9142,10 @@ function selectChar(id){
 
 /* ─── AUDIÇÃO (GACHA estilo Genshin) ──────────────────────────────────
    100 GW por desejo. A chance de ganhar sobe a cada desejo sem vitória
-   (pity) chegando a ~99% no 22º desejo; ao ganhar, o pity zera. O jogador
+   (pity) chegando a ~99% no 77º desejo; ao ganhar, o pity zera. O jogador
    escolhe o banner (personagem) e o desejo concede esse personagem.
-   (Chances subidas em 14/09/2026: base 6%→12%, pity suave a partir do
-   10º desejo em vez do 20º — pedido pra ficar mais fácil ganhar.) */
+   (14/09/2026: base 6%→12%; pity suave começando no 65º desejo, era no
+   20º — pedido explícito pra começar a subir só lá pelo 65.) */
 const WISH_COST = 100;
 const WISH_COST10 = 1000;
 const WISH_PITY_KEY = 'dw_wish_pity';
@@ -9174,7 +9174,7 @@ function loadPity(){ try{ return parseInt(localStorage.getItem(WISH_PITY_KEY),10
 function savePity(n){ try{ localStorage.setItem(WISH_PITY_KEY, String(n)); cloudSave(); }catch(_){} }
 // n = número do desejo atual (1-based) desde a última vitória
 function wishProb(n){
-  const base=0.12, soft=10, hard=22;
+  const base=0.12, soft=65, hard=77;
   if(n<soft) return base;
   if(n>=hard) return 0.99;
   return base + (0.99-base)*(n-soft)/(hard-soft);
@@ -9368,18 +9368,27 @@ function showWishReveal(){
   const sparkC=document.getElementById('wishRevealSparkles');
   if(rarity) rarity.style.display='none';
   if(p.multi){
+    // Sem a gradezinha de 10 células — mesma cara da revelação de desejo
+    // único: só a splash art do personagem se ganhou algum dos 10 (o banner
+    // é sempre o mesmo personagem, então não importa QUAL dos 10 acertou),
+    // ou nada (sem imagem nenhuma) se não ganhou nenhum.
     const anyWin = p.wins>0;
     reveal.classList.toggle('win', anyWin);
-    if(img) img.style.display='none';
-    if(grid){
-      grid.style.display='grid';
-      grid.innerHTML = p.results.map(r=> r.win
-        ? `<div class="wrg-cell win"><img src="${r.ch.previewImg}" onerror="this.style.opacity='.3'"></div>`
-        : `<div class="wrg-cell"><span>—</span></div>`).join('');
+    if(grid){ grid.style.display='none'; grid.innerHTML=''; }
+    if(img){
+      if(anyWin){
+        img.style.display='';
+        img.src = p.ch.previewImg;
+        img.style.transform = 'scale('+(p.ch.splashScale||1)+')';
+      } else {
+        img.style.display='none';
+        img.style.transform = 'scale(1)';
+      }
     }
     title.textContent = anyWin ? `🎉 ${p.wins}/10 GANHOS!` : '10 DESEJOS';
     title.style.color = anyWin ? '#ffd700' : '#9aa6c0';
     sub.textContent = anyWin ? `${p.ch.name} conquistado!` : 'Nenhum personagem dessa vez... 🌠';
+    if(rarity && anyWin){ rarity.textContent = p.ch.tag||''; rarity.className = 'wish-reveal-rarity '+(p.ch.tagClass||'default'); rarity.style.display='inline-block'; }
     if(anyWin) spawnWishSparkles(sparkC); else if(sparkC) sparkC.innerHTML='';
     playSfx(anyWin?'win':'lose');
   } else {
