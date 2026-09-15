@@ -466,42 +466,60 @@ html.gfx-low .go-btn.home-start{backdrop-filter:none;-webkit-backdrop-filter:non
 }
 .char-confirm:hover{transform:scale(1.03);box-shadow:0 6px 32px rgba(255,45,146,.55)}
 
+/* ══ BIBLIOTECA — design novo (14/09/2026): superfícies LISAS, sem degradê
+   nenhum (nem no botão, nem na nota) — o mesmo tom translúcido do próprio
+   .menu-panel, com brilho de borda/sombra na cor de destaque só no hover.
+   O "estelar" vem dos acentos (nota ♪, estrelas com glow, halo do hover),
+   não de gradiente pintado. Baseado na composição das abas modernas do
+   Portal (Banco de Horas/Ponto Eletrônico): busca em pílula, filtros em
+   pílula, cartões com selo de nota sólido em vez de texto degradê. ── */
 .lib-search-wrap{width:100%;margin-bottom:16px;position:relative}
-.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;width:100%}
 .lib-search{
-  width:100%;background:rgba(255,255,255,.07);
-  border:1.5px solid rgba(255,255,255,.14);border-radius:12px;
+  width:100%;background:rgba(255,255,255,.05);
+  border:1.5px solid rgba(255,255,255,.12);border-radius:14px;
   color:#fff;font-family:var(--font-ui);font-size:14px;
-  padding:12px 16px 12px 42px;outline:none;
-  transition:border-color .2s,box-shadow .2s;
+  padding:13px 16px 13px 44px;outline:none;
+  transition:border-color .2s,box-shadow .2s,background .2s;
   -webkit-user-select:text;user-select:text;
 }
-.lib-search:focus{border-color:rgba(255,45,146,.5);box-shadow:0 0 20px rgba(255,45,146,.15)}
-.lib-search::placeholder{color:rgba(255,255,255,.28)}
-.lib-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.5;pointer-events:none}
+.lib-search:focus{border-color:rgba(0,240,255,.5);box-shadow:0 0 0 4px rgba(0,240,255,.1);background:rgba(0,240,255,.05)}
+.lib-search::placeholder{color:rgba(255,255,255,.3)}
+.lib-search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.55;pointer-events:none}
 
-.lib-empty{color:rgba(255,255,255,.3)}
-.lib-empty-state{display:flex;flex-direction:column;align-items:center;gap:16px}
-.lib-empty-icon{font-size:64px;opacity:.4;animation:float 3s ease-in-out infinite}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.lib-empty-msg{font-family:var(--font-pixel);font-size:16px;font-weight:900;letter-spacing:2px}
-.lib-empty-sub{font-size:12px;text-align:center;max-width:340px;line-height:1.6}
-.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;width:100%}
-.lib-card{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column}
-.lib-card:hover{border-color:rgba(255,45,146,.4);transform:translateY(-3px);box-shadow:0 8px 28px rgba(255,45,146,.15)}
-.lib-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;background:rgba(255,255,255,.05)}
-.lib-thumb-fb{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);font-size:32px}
-.lib-body{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1}
-.lib-song{font-family:var(--font-pixel);font-size:10px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.lib-meta{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:2px}
-.lib-grade{font-family:var(--font-pixel);font-size:20px;font-weight:900;line-height:1}
-.lib-score{font-family:var(--font-pixel);font-size:9px;color:var(--Y);letter-spacing:1px}
-.lib-diff{font-size:8px;color:rgba(255,255,255,.35);letter-spacing:1px;text-transform:uppercase}
-.lib-stars{display:flex;gap:2px;font-size:11px}
-.lib-star-lit{color:#ffd700;filter:drop-shadow(0 0 3px #ffd700)}
-.lib-star-dim{color:#1a2040}
-.lib-play-btn{background:linear-gradient(135deg,#ff2d92,#a855f7);border:none;border-radius:8px;color:#fff;font-family:var(--font-pixel);font-size:9px;font-weight:900;padding:8px;cursor:pointer;letter-spacing:1px;transition:all .15s;margin-top:4px}
-.lib-play-btn:hover{opacity:.85;transform:scale(1.02)}
+.wlib-empty{display:flex;flex-direction:column;align-items:center;gap:14px;padding:46px 20px;border-radius:18px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.14)}
+.wlib-empty-icon{font-size:52px;opacity:.5;animation:wlibFloat 3s ease-in-out infinite}
+@keyframes wlibFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.wlib-empty-msg{font-family:var(--font-pixel);font-size:15px;font-weight:900;letter-spacing:2px;color:#fff}
+.wlib-empty-sub{font-size:12.5px;text-align:center;max-width:340px;line-height:1.6;color:rgba(255,255,255,.5)}
+
+/* Título de seção (ocupa a linha toda do grid) — rótulo + linha fina, sem cor sozinha carregando o destaque */
+.wlib-section-title{grid-column:1/-1;display:flex;align-items:center;gap:10px;width:100%;font-family:var(--font-pixel);font-size:10.5px;letter-spacing:1.5px;color:rgba(255,255,255,.55);margin:16px 0 4px;text-transform:uppercase}
+.wlib-section-title:first-child{margin-top:0}
+.wlib-section-title::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.1)}
+.wlib-no-results{grid-column:1/-1;text-align:center;padding:30px 10px;color:rgba(255,255,255,.4);font-size:12.5px;letter-spacing:.5px}
+
+.wlib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;width:100%}
+.wlib-card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:16px;overflow:hidden;cursor:default;transition:border-color .18s,transform .15s,box-shadow .18s;display:flex;flex-direction:column}
+.wlib-card:hover{border-color:rgba(0,240,255,.4);transform:translateY(-3px);box-shadow:0 10px 28px rgba(0,240,255,.14)}
+.wlib-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:rgba(255,255,255,.04)}
+.wlib-thumb-fb{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);font-size:30px;flex-shrink:0;opacity:.6}
+.wlib-body{padding:12px;display:flex;flex-direction:column;gap:8px;flex:1}
+.wlib-song{font-family:var(--font-pixel);font-size:10px;font-weight:700;color:#fff;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.wlib-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:1px}
+.wlib-grade{font-family:var(--font-pixel);font-size:19px;font-weight:900;line-height:1}
+.wlib-score{font-family:var(--font-pixel);font-size:9px;color:var(--Y);letter-spacing:1px}
+.wlib-stars{display:flex;gap:2px;font-size:11px}
+.wlib-star-dim{color:rgba(255,255,255,.14)}
+.wlib-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:9.5px}
+.wlib-diff{color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;font-weight:700}
+.wlib-play-btn{background:rgba(0,240,255,.09);border:1.5px solid rgba(0,240,255,.32);border-radius:9px;color:#00f0ff;font-family:var(--font-pixel);font-size:9px;font-weight:900;padding:8px;cursor:pointer;letter-spacing:1px;transition:background .15s,border-color .15s,transform .1s;margin-top:2px}
+.wlib-play-btn:hover{background:rgba(0,240,255,.18);border-color:#00f0ff;transform:scale(1.015)}
+.wlib-play-btn:active{transform:scale(.97)}
+/* Linha compacta com scroll horizontal (visão "todas" da biblioteca) */
+.wlib-row-wrap{grid-column:1/-1;display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scrollbar-width:thin}
+.wlib-row-wrap .wlib-card{flex:0 0 156px;width:156px}
+.wlib-row-wrap::-webkit-scrollbar{height:5px}
+.wlib-row-wrap::-webkit-scrollbar-thumb{background:rgba(0,240,255,.3);border-radius:3px}
 
 /* ─── SETTINGS PANEL ─── */
 .settings-section{display:flex;flex-direction:column;gap:10px;width:100%;max-width:680px;margin-bottom:8px}
@@ -1395,36 +1413,11 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
 .tz:active{background:linear-gradient(to top, rgba(255,255,255,.15), transparent)}
 
 
-/* ─── BIBLIOTECA DE MÚSICAS ─── */
+/* ─── BIBLIOTECA DE MÚSICAS ───
+   (CSS da tela antiga #libraryScr, substituída pelo panelLib — ver o design
+   novo em .wlib-* logo acima. #libraryScr não existe mais no HTML; só sobrou
+   essa regra de fundo/blur, inofensiva por não ter em quê aplicar.) */
 #libraryScr{background:rgba(4,4,15,.98);z-index:45;backdrop-filter:blur(12px);overflow-y:auto;justify-content:flex-start;align-items:center;padding:28px 40px 40px}
-.lib-header{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:820px;margin:0 auto 22px;flex-shrink:0}
-.lib-title{font-family:var(--font-pixel);font-size:20px;font-weight:900;color:var(--C);letter-spacing:4px}
-.lib-close{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;color:rgba(255,255,255,.6);font-family:var(--font-pixel);font-size:10px;padding:10px 18px;cursor:pointer;letter-spacing:1px;transition:all .2s}
-.lib-close:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.1)}
-.lib-empty{color:#2a3560;font-size:13px;letter-spacing:2px;text-align:center;margin-top:80px;font-family:var(--font-pixel)}
-.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;width:100%;max-width:820px;margin:0 auto}
-.lib-card{background:rgba(10,10,34,.85);border:1.5px solid rgba(0,240,255,.14);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s,transform .15s,box-shadow .2s;cursor:default}
-.lib-card:hover{border-color:rgba(0,240,255,.45);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,240,255,.12)}
-.lib-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:linear-gradient(135deg,#0a0a22,#12093a)}
-.lib-thumb-fb{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a22,#180840);font-size:28px;flex-shrink:0}
-.lib-body{padding:9px 9px 8px;display:flex;flex-direction:column;gap:5px;flex:1}
-.lib-song{font-family:var(--font-pixel);font-size:9.5px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.lib-meta{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:1px}
-.lib-grade{font-family:var(--font-pixel);font-size:16px;font-weight:900;line-height:1}
-.lib-score{font-family:var(--font-pixel);font-size:8.5px;color:var(--Y);letter-spacing:1px}
-.lib-diff{font-size:8px;color:#3a4870;letter-spacing:1px;text-transform:uppercase}
-.lib-stars{display:flex;gap:1px;font-size:10px}
-.lib-star-lit{color:#fff000;filter:drop-shadow(0 0 4px #fff000)}
-.lib-star-dim{color:#1a2040}
-.lib-play-btn{background:linear-gradient(135deg,var(--C),var(--P));border:none;border-radius:8px;color:#000;font-family:var(--font-pixel);font-size:8.5px;font-weight:900;padding:7px;cursor:pointer;letter-spacing:.5px;transition:opacity .15s,transform .1s;margin-top:2px}
-.lib-play-btn:hover{opacity:.85;transform:scale(1.02)}
-.lib-play-btn:active{transform:scale(.96)}
-.lib-count{font-size:10px;color:#2a3860;letter-spacing:1px;font-family:var(--font-pixel)}
-/* Linha compacta com scroll horizontal (visão "todas" da biblioteca) */
-.lib-row-wrap{grid-column:1/-1;display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
-.lib-row-wrap .lib-card{flex:0 0 132px;width:132px}
-.lib-row-wrap::-webkit-scrollbar{height:6px}
-.lib-row-wrap::-webkit-scrollbar-thumb{background:rgba(0,240,255,.25);border-radius:3px}
 /* ─── RANKING GLOBAL ─── */
 .rank-section{width:100%;max-width:820px;margin:32px auto 0;border-top:1px solid rgba(255,255,255,.1);padding-top:24px}
 .rank-title{font-family:var(--font-pixel);font-size:15px;font-weight:900;color:var(--Y);letter-spacing:3px;text-align:center}
@@ -2203,9 +2196,12 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
       </div>
       <style>
         #panelLib .lib-search-wrap{margin-bottom:10px}
-        .lib-filters{display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:700px;margin:2px auto 4px;justify-content:center}
-        .lib-fsel{background:rgba(10,16,40,.9);color:#cfe3ff;border:1px solid #2a3a66;border-radius:8px;padding:6px 8px;font-size:11px;font-family:inherit;outline:none;cursor:pointer}
-        .lib-fsel:focus{border-color:#00f0ff}
+        /* Filtros em pílula (era um <select> cinza padrão do navegador) — mesma
+           família visual dos cartões: superfície lisa translúcida, sem degradê. */
+        .lib-filters{display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:720px;margin:2px auto 18px;justify-content:center}
+        .lib-fsel{background:rgba(255,255,255,.05);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:8px 14px;font-size:11px;font-family:inherit;font-weight:600;outline:none;cursor:pointer;transition:border-color .15s,background .15s}
+        .lib-fsel:hover{border-color:rgba(255,255,255,.3)}
+        .lib-fsel:focus{border-color:#00f0ff;background:rgba(0,240,255,.06)}
       </style>
       <div class="lib-filters" id="libFilters">
         <select class="lib-fsel" id="libFCat" onchange="setLibFilter('cat',this.value)" title="Categoria">
@@ -2233,12 +2229,12 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
           <option value="10000">10 mil+</option><option value="50000">50 mil+</option><option value="100000">100 mil+</option><option value="250000">250 mil+</option>
         </select>
       </div>
-      <div id="libEmpty" class="lib-empty-state" style="margin-top:40px">
-        <div class="lib-empty-icon">🎵</div>
-        <div class="lib-empty-msg">BIBLIOTECA VAZIA</div>
-        <div class="lib-empty-sub">Suas músicas jogadas aparecerão aqui. Comece a jogar para criar seu histórico!</div>
+      <div id="libEmpty" class="wlib-empty" style="margin-top:40px">
+        <div class="wlib-empty-icon">🎵</div>
+        <div class="wlib-empty-msg">BIBLIOTECA VAZIA</div>
+        <div class="wlib-empty-sub">Suas músicas jogadas aparecerão aqui. Comece a jogar para criar seu histórico!</div>
       </div>
-      <div class="lib-grid" id="libGrid"></div>
+      <div class="wlib-grid" id="libGrid"></div>
     </div>
 
     <!-- RANKING PANEL -->
@@ -2443,9 +2439,6 @@ html.gfx-ultra *,html.gfx-ultra *::before,html.gfx-ultra *::after{box-shadow:non
 /* Ultra Leve na partida: filtros CSS (drop-shadow/brightness/grayscale animados) no HUD e no
    mascote obrigam o navegador a repintar a cada quadro — fora, dentro da tela de jogo. */
 html.gfx-ultra #gameWrap,html.gfx-ultra #gameWrap *{filter:none!important}
-
-/* Título de seção da biblioteca (ocupa a linha toda do grid) */
-.lib-section-title{grid-column:1/-1;width:100%;font-family:var(--font-pixel);font-size:11px;letter-spacing:1px;color:#ffd700;margin:8px 0 2px}
 
 /* ─── Celular: zonas de toque nas lanes (perto dos botões) + menu responsivo ─── */
 html.is-mobile #tzones{height:26vh}
@@ -5393,7 +5386,6 @@ function setLibFilter(key, val){
   libFilters[key] = (key==='stars'||key==='score') ? (parseInt(val,10)||0) : val;
   renderLibraryPanel();
 }
-const _LIB_STAR_COLORS=['#ff1aaa','#00f0ff','#44ff00','#ff8800','#ffee00'];
 const _LIB_DIFF_LABELS={easy:'Fácil',normal:'Normal',hard:'Difícil',insane:'Insano',impossible:'Impossível',nightmare:'Pesadelo'};
 const _LIB_DIFF_COLORS={easy:'#00ff88',normal:'#00f0ff',hard:'#ff4444',insane:'#ff00cc',impossible:'#ff8800',nightmare:'#cc0000'};
 
@@ -5427,21 +5419,22 @@ function renderLibraryPanel(){
     return true;
   };
   const esc=(t)=>(t||'Sem título').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='lib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
+  const addTitle=(txt)=>{ const h=document.createElement('div'); h.className='wlib-section-title'; h.textContent=txt; libGrid.appendChild(h); };
   const card=(s, container)=>{
-    const c=document.createElement('div'); c.className='lib-card';
-    const thumb = s.thumbUrl ? `<img class="lib-thumb" src="${s.thumbUrl}" alt="" onerror="this.style.display='none'">` : `<div class="lib-thumb-fb">🎵</div>`;
+    const c=document.createElement('div'); c.className='wlib-card';
+    const thumb = s.thumbUrl ? `<img class="wlib-thumb" src="${s.thumbUrl}" alt="" onerror="this.style.display='none'">` : `<div class="wlib-thumb-fb">🎵</div>`;
     let body;
     if(s.category==='sua'){
+      // Nota em cor SÓLIDA (var(--Y) com glow) — nada de texto em degradê.
       const gc=s.gradeCol||'#00f0ff';
-      const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<(s.stars||0);const scc=_LIB_STAR_COLORS[k];return lit?`<span style="color:${scc};filter:drop-shadow(0 0 4px ${scc})">★</span>`:'<span style="color:#1a2040">★</span>';}).join('');
+      const starsHtml=Array.from({length:5},(_,k)=>{const lit=k<(s.stars||0);return lit?`<span style="color:var(--Y);filter:drop-shadow(0 0 4px var(--Y))">★</span>`:'<span class="wlib-star-dim">★</span>';}).join('');
       const modeTag = s.mode==='wargame' ? '<span style="color:#ff5a6e">⚔ Guerra</span>' : (s.mode==='classic' ? '<span style="color:#00f0ff">🎹 Clássico</span>' : '');
-      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-meta"><div class="lib-grade" style="background:linear-gradient(135deg,${gc},#fff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${s.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><div class="lib-score">${(s.score||0).toLocaleString()}</div><div class="lib-stars">${starsHtml}</div></div></div><div style="display:flex;align-items:center;justify-content:space-between;font-size:10px"><div class="lib-diff" style="color:${_LIB_DIFF_COLORS[s.diff]||'#00f0ff'}">${_LIB_DIFF_LABELS[s.diff]||s.diff||''}</div><div>${modeTag}</div></div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR NOVAMENTE</button></div>`;
+      body=`<div class="wlib-body"><div class="wlib-song">${esc(s.title)}</div><div class="wlib-meta"><div class="wlib-grade" style="color:${gc};text-shadow:0 0 12px ${gc}77">${s.grade||'?'}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><div class="wlib-score">${(s.score||0).toLocaleString()}</div><div class="wlib-stars">${starsHtml}</div></div></div><div class="wlib-foot"><div class="wlib-diff" style="color:${_LIB_DIFF_COLORS[s.diff]||'#00f0ff'}">${_LIB_DIFF_LABELS[s.diff]||s.diff||''}</div><div>${modeTag}</div></div><button class="wlib-play-btn" data-idx="${s._idx}">▶ JOGAR NOVAMENTE</button></div>`;
     } else {
-      body=`<div class="lib-body"><div class="lib-song">${esc(s.title)}</div><div class="lib-diff" style="color:#00f0ff">Música inicial</div><button class="lib-play-btn" data-idx="${s._idx}">▶ JOGAR</button></div>`;
+      body=`<div class="wlib-body"><div class="wlib-song">${esc(s.title)}</div><div class="wlib-diff" style="color:#00f0ff">Música inicial</div><button class="wlib-play-btn" data-idx="${s._idx}">▶ JOGAR</button></div>`;
     }
     c.innerHTML=`${thumb}${body}`;
-    c.querySelector('.lib-play-btn').addEventListener('click',()=>libReplay(s._idx));
+    c.querySelector('.wlib-play-btn').addEventListener('click',()=>libReplay(s._idx));
     (container||libGrid).appendChild(c);
   };
   const section=(title,list)=>{ if(list.length){ addTitle(title); list.forEach(s=>card(s)); } };
@@ -5449,7 +5442,7 @@ function renderLibraryPanel(){
   const rowSection=(title,list)=>{
     if(!list.length) return;
     addTitle(title);
-    const wrap=document.createElement('div'); wrap.className='lib-row-wrap';
+    const wrap=document.createElement('div'); wrap.className='wlib-row-wrap';
     list.forEach(s=>card(s, wrap));
     libGrid.appendChild(wrap);
   };
@@ -5468,15 +5461,15 @@ function renderLibraryPanel(){
   }
 
   if(!libGrid.children.length){
-    const e=document.createElement('div'); e.className='lib-section-title'; e.style.opacity='0.6';
+    const e=document.createElement('div'); e.className='wlib-no-results';
     e.textContent='Nenhuma música com esses filtros.'; libGrid.appendChild(e);
   }
 }
 
 function filterLibrary(query){
   const q=(query||'').toLowerCase().trim();
-  document.querySelectorAll('#libGrid .lib-card').forEach(card=>{
-    const title=card.querySelector('.lib-song')?.textContent?.toLowerCase()||'';
+  document.querySelectorAll('#libGrid .wlib-card').forEach(card=>{
+    const title=card.querySelector('.wlib-song')?.textContent?.toLowerCase()||'';
     card.style.display=(!q||title.includes(q))?'':'none';
   });
 }
@@ -12166,7 +12159,7 @@ function gpLaneButtons(){
 }
 
 // ── Visual feedback: highlight active library card ──
-function gpLibCards(){ return document.querySelectorAll('#libGrid .lib-card'); }
+function gpLibCards(){ return document.querySelectorAll('#libGrid .wlib-card'); }
 function activeMenuPanel(){ const p=document.querySelector('.menu-panel:not(.off)'); return p?p.id:null; }
 function gpHighlightLib(){
   const cards = gpLibCards();
@@ -12450,7 +12443,7 @@ function pollGamepad(){
         if(navUp  ||navLeft) { gpLibIdx=Math.max(0,gpLibIdx-1);   gpHighlightLib(); }
         if(pressed[GP.R1])   { gpLibIdx=Math.min(n-1,gpLibIdx+3); gpHighlightLib(); }
         if(pressed[GP.L1])   { gpLibIdx=Math.max(0,gpLibIdx-3);   gpHighlightLib(); }
-        if(confirm){ const pb=cards[gpLibIdx]?.querySelector('.lib-play-btn'); if(pb) pb.click(); } // ✕ joga
+        if(confirm){ const pb=cards[gpLibIdx]?.querySelector('.wlib-play-btn'); if(pb) pb.click(); } // ✕ joga
       }
       // □/○ volta para o início (libera a navegação da sidebar)
       if(back||pressed[GP.CIRCLE]){ showMenuPanel('panelHome', document.getElementById('mnBtnHome')); gpMenuIdx=0; gpHighlightMenu(); }
