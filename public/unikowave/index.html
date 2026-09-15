@@ -387,39 +387,66 @@ html.gfx-low .go-btn.home-start{backdrop-filter:none;-webkit-backdrop-filter:non
 .panel-title-icon{margin-right:8px;font-size:1.1em}
 .panel-subtitle{font-size:12px;color:rgba(255,255,255,.35);letter-spacing:1px;text-align:center;margin-bottom:28px}
 
-/* ─── CHARACTER PANEL ─── */
-.char-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;width:100%}
-.char-card{
-  border-radius:16px;overflow:hidden;
-  cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s;
-  display:flex;flex-direction:column;align-items:center;
-  padding-bottom:14px;position:relative;
-  background:linear-gradient(145deg,rgba(255,45,146,.15),rgba(168,85,247,.15));
-  border:1.5px solid rgba(255,255,255,0.1);
+/* ─── CHARACTER PANEL — carrossel (14/09/2026): 1 personagem em foco, setas
+   nos lados; ao navegar mostra nome, descrição, habilidade e se já tem/está
+   bloqueado. Era uma grade de cartões (a versão antiga, com cartão em
+   degradê, ainda mora em #charSelectScr — tela morta, nunca é exibida —
+   coincidência de nome inofensiva, já que as classes aqui embaixo são
+   outras). Mesma linha visual da Biblioteca: superfícies lisas, sem
+   degradê em texto/botão — o único "gradiente" é o halo radial atrás da
+   arte, pra dar profundidade ao holofote. ── */
+.cspot{display:flex;align-items:center;justify-content:center;gap:16px;width:100%;max-width:640px;margin:0 auto}
+.cspot-arrow{
+  flex-shrink:0;width:52px;height:52px;border-radius:50%;
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.14);
+  color:#fff;font-size:26px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0;
+  transition:border-color .18s,background .18s,transform .15s;
 }
-.char-card:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 12px 36px rgba(255,45,146,.25)}
-.char-card.selected{border-color:rgba(255,45,146,.8);box-shadow:0 0 28px rgba(255,45,146,.4);background:linear-gradient(145deg,rgba(255,45,146,.22),rgba(168,85,247,.22))}
-.char-card.selected::after{content:'✓';position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;background:#fff;color:#ff2d92;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;line-height:28px;text-align:center}
-.char-img-wrap{width:100%;height:200px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;background:linear-gradient(180deg,transparent,rgba(0,0,0,.2))}
-.char-img-wrap img{height:100%;width:auto;object-fit:contain;object-position:bottom center;transition:transform .3s}
-.char-card:hover .char-img-wrap img{transform:scale(1.06)}
-.char-name{font-family:var(--font-pixel);font-size:12px;font-weight:900;color:#fff;letter-spacing:1px;margin-top:10px;text-align:center}
-.char-desc{font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.3px;text-align:center;padding:0 10px;margin-top:4px;line-height:1.5}
+.cspot-arrow:hover{border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.08);transform:scale(1.06)}
+.cspot-arrow:active{transform:scale(.94)}
+.cspot-stage{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+
+.cspot-imgwrap{
+  position:relative;width:100%;max-width:220px;aspect-ratio:1/1;
+  display:flex;align-items:center;justify-content:center;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%,rgba(0,240,255,.16),rgba(0,240,255,0) 70%);
+  margin-bottom:2px;
+}
+.cspot-img{max-width:88%;max-height:88%;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(0,0,0,.5));transition:filter .15s}
+.cspot-img.locked{filter:brightness(.32) saturate(0) drop-shadow(0 10px 22px rgba(0,0,0,.5))}
+.cspot-lock{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:38px;opacity:0;pointer-events:none;transition:opacity .15s;filter:drop-shadow(0 0 10px rgba(255,200,0,.5))}
+.cspot-lock.show{opacity:.95}
+
+.cspot-index{font-family:var(--font-pixel);font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px}
+.cspot-name{font-family:var(--font-pixel);font-size:18px;font-weight:900;color:#fff;letter-spacing:2px;margin-top:2px}
+.cspot-desc{font-size:12px;color:rgba(255,255,255,.55);line-height:1.6;max-width:420px;margin-top:2px}
+
+.cspot-ability{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:11px 16px;margin-top:8px;text-align:left;max-width:420px;box-sizing:border-box}
+.cspot-ability-icon{font-size:21px;flex-shrink:0}
+.cspot-ability-name{font-family:var(--font-pixel);font-size:9.5px;color:#ffd700;letter-spacing:1px}
+.cspot-ability-desc{font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;line-height:1.4}
+.cspot-no-ability{font-size:11px;color:rgba(255,255,255,.32);font-style:italic;margin-top:8px}
+
+.cspot-status{margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.cspot-owned-badge{display:flex;align-items:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:#3ddc97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.35);border-radius:999px;padding:9px 18px}
+.cspot-use-btn{background:rgba(0,240,255,.09);border:1.5px solid rgba(0,240,255,.4);border-radius:11px;color:#00f0ff;font-family:var(--font-pixel);font-size:10px;font-weight:900;padding:11px 22px;cursor:pointer;letter-spacing:1.5px;transition:background .15s,transform .1s}
+.cspot-use-btn:hover{background:rgba(0,240,255,.2);transform:scale(1.02)}
+.cspot-locked-badge{display:flex;align-items:center;gap:7px;font-family:var(--font-pixel);font-size:10px;letter-spacing:1px;color:rgba(255,255,255,.5);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:9px 18px}
+.cspot-unlock-btn{background:rgba(255,209,77,.1);border:1.5px solid rgba(255,209,77,.5);border-radius:11px;color:#ffd34d;font-family:var(--font-pixel);font-size:10px;font-weight:900;padding:11px 22px;cursor:pointer;letter-spacing:1.5px;transition:background .15s,transform .1s}
+.cspot-unlock-btn:hover{background:rgba(255,209,77,.22);transform:scale(1.02)}
+
 .char-tag{font-size:8px;letter-spacing:1px;padding:3px 8px;border-radius:4px;margin-top:6px;font-family:var(--font-pixel);font-weight:700}
 .char-tag.default{background:rgba(0,240,255,.15);color:var(--C);border:1px solid rgba(0,240,255,.3)}
 .char-tag.new{background:rgba(255,45,146,.15);color:#ff2d92;border:1px solid rgba(255,45,146,.3)}
 .char-tag.comum{background:rgba(160,160,160,.15);color:#ccc;border:1px solid rgba(200,200,200,.3)}
 .char-tag.epico{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.4)}
-.char-tag.lendario{background:linear-gradient(135deg,rgba(200,20,40,.22),rgba(120,0,20,.22));color:#ff5a6e;border:1px solid rgba(220,40,60,.55)}
-/* ─── LOCK OVERLAY ─── */
-.char-card.locked{opacity:1;cursor:default}
-.char-card.locked:hover{transform:none;box-shadow:none}
-.char-lock-overlay{position:absolute;inset:0;background:rgba(4,4,20,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:14px;backdrop-filter:blur(2px);z-index:3}
-.char-lock-icon{font-size:30px;filter:drop-shadow(0 0 8px rgba(255,200,0,.5))}
-.char-lock-price{font-family:var(--font-pixel);font-size:9px;color:#ffe066;letter-spacing:1px;text-align:center;line-height:1.6}
-.char-unlock-btn{background:linear-gradient(135deg,#ff2d92,#a855f7);border:none;border-radius:8px;color:#fff;font-family:var(--font-pixel);font-size:8px;font-weight:900;padding:8px 14px;cursor:pointer;letter-spacing:1px;transition:all .15s;margin-top:4px}
-.char-unlock-btn:hover{filter:brightness(1.2);transform:scale(1.05)}
-.char-unlock-btn:disabled{background:rgba(255,255,255,.1);color:rgba(255,255,255,.3);cursor:not-allowed;transform:none;filter:none}
+.char-tag.lendario{background:rgba(220,40,60,.16);color:#ff5a6e;border:1px solid rgba(220,40,60,.55)}
+@media (max-width:640px){
+  .cspot{gap:6px}
+  .cspot-arrow{width:40px;height:40px;font-size:20px}
+  .cspot-imgwrap{max-width:160px}
+}
 /* ─── WALLET DISPLAY ─── */
 .gw-bar{display:flex;align-items:center;gap:8px;background:rgba(255,220,0,.07);border:1px solid rgba(255,220,0,.25);border-radius:10px;padding:8px 14px;margin-bottom:16px;width:100%;max-width:500px;box-sizing:border-box}
 .gw-bar-icon{font-size:16px}
@@ -1230,9 +1257,10 @@ html.m-menu.m-land .home-cta .go-btn.home-start{width:auto!important;height:56px
 html.m-menu.m-land .home-start .hs-play{width:40px;height:40px;border-radius:12px}
 html.m-menu.m-land .home-start .hs-txt b{font-size:17px}
 html.m-menu.m-land .home-start .hs-txt small{display:none}
-/* personagens em 2 colunas no celular (1 card ocupava a tela inteira) */
-html.m-menu .char-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
-html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+/* Personagens no celular: carrossel mais compacto (menos altura sobrando) */
+html.m-menu .cspot-imgwrap{max-width:150px}
+html.m-menu.m-land .cspot-imgwrap{max-width:110px}
+html.m-menu.m-land .cspot-ability{padding:8px 12px}
 
 /* ─── RESULTADO DO GUERRA ESTELAR — imagem de fundo + overlays nas áreas reservadas ─── */
 #resScrWG{background:radial-gradient(ellipse at 50% 35%,#150821,#080411 70%,#04020c)}
@@ -2106,7 +2134,7 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
     <!-- CHARACTER PANEL -->
     <div class="menu-panel off" id="panelChar">
       <div class="panel-title"><span class="panel-title-icon">✦</span>PERSONAGENS<span class="panel-title-icon">✦</span></div>
-      <div class="panel-subtitle">Selecione o personagem que vai te acompanhar na jornada musical</div>
+      <div class="panel-subtitle">Passe pelas setas e escolha quem vai te acompanhar</div>
       <div class="gw-bar" id="charPanelWallet">
         <span class="gw-bar-icon">🌊</span>
         <div>
@@ -2115,7 +2143,25 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
         </div>
         <div class="gw-bar-amount" id="charPanelGwAmount">0 GW</div>
       </div>
-      <div class="char-grid" id="charGrid"></div>
+
+      <!-- Carrossel: 1 personagem em foco, setas nos lados (ver renderCharSpotlight/browseChar) -->
+      <div class="cspot">
+        <button class="cspot-arrow" onclick="browseChar(-1)" aria-label="Personagem anterior">‹</button>
+        <div class="cspot-stage">
+          <div class="cspot-imgwrap">
+            <img class="cspot-img" id="cspotImg" src="" alt="">
+            <div class="cspot-lock" id="cspotLock">🔒</div>
+          </div>
+          <div class="cspot-index" id="cspotIndex">1 / 1</div>
+          <div class="cspot-name" id="cspotName">—</div>
+          <span class="char-tag" id="cspotTag"></span>
+          <div class="cspot-desc" id="cspotDesc"></div>
+          <div class="cspot-ability" id="cspotAbility"></div>
+          <div class="cspot-status" id="cspotStatus"></div>
+        </div>
+        <button class="cspot-arrow" onclick="browseChar(1)" aria-label="Próximo personagem">›</button>
+      </div>
+
       <button class="char-confirm" onclick="confirmCharSelect()">✓ CONFIRMAR</button>
     </div>
 
@@ -5266,7 +5312,7 @@ function showMenuPanel(panelId, btn){
   document.querySelectorAll('.snav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   // Refresh panel contents
-  if(panelId==='panelChar'){ renderCharGrid(); try{ renderCustomWgCards(); }catch(e){} }
+  if(panelId==='panelChar'){ charBrowseIdx=charIds().indexOf(selectedChar); renderCharSpotlight(); try{ renderCustomWgCards(); }catch(e){} }
   if(panelId==='panelWish') renderWishPanel();
   if(panelId==='panelPlay'){ try{ renderCustomWgCards(); }catch(e){} } // refresca o grid da Guerra Estelar (novas personagens da Oficina/gacha)
   if(panelId==='panelLib'){ renderLibraryPanel(); gpLibIdx=0; if(gpConnected) setTimeout(()=>gpHighlightLib(),40); }
@@ -9077,55 +9123,65 @@ function calcGWReward(grade, stars){
   return base + bonus;
 }
 
-function renderCharGrid(){
-  const grid = document.getElementById('charGrid');
-  if(!grid) return;
-  grid.innerHTML = Object.entries(CHARACTERS).map(([id, ch])=>{
-    const unlocked = isUnlocked(id);
-    const sel = id === selectedChar;
-    const canAfford = getGW() >= ch.gwPrice;
-    const lockOverlay = (!unlocked) ? `
-      <div class="char-lock-overlay">
-        <div class="char-lock-icon">🔒</div>
-        <button class="char-unlock-btn" onclick="goToWish(event)"
-          title="Conquiste este personagem fazendo desejos na Audição">
-          🌠 AUDIÇÃO
-        </button>
-      </div>` : '';
-    return `
-    <div class="char-card ${sel&&unlocked?'selected':''} ${!unlocked?'locked':''}" 
-         onclick="${unlocked?`selectChar('${id}')`:''}">
-      ${lockOverlay}
-      <div class="char-img-wrap">
-        <img src="${ch.previewImg}" alt="${ch.name}" onerror="this.style.opacity='0.3'" style="${!unlocked?'filter:brightness(0.35) saturate(0)':''}">
-      </div>
-      <div class="char-name">${ch.name}</div>
-      <div class="char-desc">${ch.desc}</div>
-      <span class="char-tag ${ch.tagClass}">${ch.tag}</span>
-    </div>`;
-  }).join('');
+// ── Carrossel de personagens (aba Personagens): 1 em foco, setas nos lados ──
+let charBrowseIdx = 0;
+const charIds = () => Object.keys(CHARACTERS);
+
+// Habilidade especial (Guerra Estelar) de um personagem, pelo id do CHARACTERS
+// — não pelo id do WG_CHAR_FRAMES (são chaves diferentes pros dois fixos mais
+// antigos: mizuki=Linnea, icydoll=Icy; os demais, incl. Oficina, batem direto
+// pelo id). Mesma lógica de wgAbility(), só que parametrizada.
+function abilityForCharId(id){
+  const wgKey = ({ linnea:'mizuki', icy:'icydoll' })[id] || id;
+  if(typeof WG_ABILITY!=='undefined' && WG_ABILITY[wgKey]) return WG_ABILITY[wgKey];
+  const nm=(CHARACTERS[id]?.name||'').trim().toLowerCase();
+  if(nm==='supernova' && typeof WG_ABILITY!=='undefined') return WG_ABILITY.supernova;
+  return null;
 }
 
-function handleUnlockChar(id, evt){
-  evt.stopPropagation();
+function renderCharSpotlight(){
+  const ids = charIds();
+  if(!document.getElementById('cspotImg') || !ids.length) return;
+  if(charBrowseIdx<0) charBrowseIdx = ids.length-1;
+  if(charBrowseIdx>ids.length-1) charBrowseIdx = 0;
+  const id = ids[charBrowseIdx];
   const ch = CHARACTERS[id];
-  if(!ch) return;
-  if(unlockChar(id)){
-    selectChar(id);
-    renderCharGrid();
-    showGWToast(-ch.gwPrice, '');
-    // Pequeno feedback visual de sucesso
-    const toast2 = document.createElement('div');
-    toast2.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:linear-gradient(135deg,#ff2d92,#a855f7);color:#fff;font-family:var(--font-pixel);font-size:11px;padding:18px 32px;border-radius:16px;z-index:99999;letter-spacing:2px;transition:all .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none';
-    toast2.textContent = `✓ ${ch.name.toUpperCase()} DESBLOQUEADO!`;
-    document.body.appendChild(toast2);
-    requestAnimationFrame(()=>{ toast2.style.transform='translate(-50%,-50%) scale(1)'; });
-    setTimeout(()=>{ toast2.style.opacity='0'; setTimeout(()=>toast2.remove(),400); }, 2200);
+  const unlocked = isUnlocked(id);
+  const isSel = id===selectedChar;
+
+  const img=document.getElementById('cspotImg');
+  img.src = ch.previewImg; img.alt = ch.name; img.onerror = ()=>{ img.style.opacity='.3'; };
+  img.classList.toggle('locked', !unlocked);
+  document.getElementById('cspotLock').classList.toggle('show', !unlocked);
+
+  document.getElementById('cspotIndex').textContent = `${charBrowseIdx+1} / ${ids.length}`;
+  document.getElementById('cspotName').textContent = ch.name.toUpperCase();
+  const tag=document.getElementById('cspotTag');
+  tag.textContent = ch.tag||''; tag.className = 'char-tag '+(ch.tagClass||'default');
+  document.getElementById('cspotDesc').textContent = ch.desc||'';
+
+  const ab = abilityForCharId(id);
+  const abEl=document.getElementById('cspotAbility');
+  if(ab){
+    const efeito = ab.kind==='shield' ? `${ab.dur}s imune a erro` : `${ab.dur}s de ataque automático`;
+    abEl.innerHTML = `<span class="cspot-ability-icon">${ab.icon||'✨'}</span><div><div class="cspot-ability-name">${ab.name.toUpperCase()}</div><div class="cspot-ability-desc">${efeito} · recarrega em ${WG_ABILITY_COOLDOWN}s (Guerra Estelar)</div></div>`;
   } else {
-    // GW insuficiente - shake
-    const card = evt.target.closest('.char-card');
-    if(card){ card.style.animation='dodoShake .4s ease-in-out'; setTimeout(()=>card.style.animation='',500); }
+    abEl.innerHTML = `<div class="cspot-no-ability">Sem habilidade especial na Guerra Estelar</div>`;
   }
+
+  const statusEl=document.getElementById('cspotStatus');
+  if(!unlocked){
+    statusEl.innerHTML = `<span class="cspot-locked-badge">🔒 BLOQUEADO</span><button class="cspot-unlock-btn" onclick="goToWish(event)" title="Conquiste este personagem fazendo desejos na Audição">🌠 CONSEGUIR NA AUDIÇÃO</button>`;
+  } else if(isSel){
+    statusEl.innerHTML = `<span class="cspot-owned-badge">✓ SELECIONADO</span>`;
+  } else {
+    statusEl.innerHTML = `<button class="cspot-use-btn" onclick="selectChar('${id}')">USAR ESTE PERSONAGEM</button>`;
+  }
+}
+
+function browseChar(delta){
+  charBrowseIdx += delta;
+  renderCharSpotlight();
 }
 
 function selectChar(id){
@@ -9133,7 +9189,7 @@ function selectChar(id){
   selectedChar = id;
   localStorage.setItem('dw_char', id);
   cloudSave();
-  renderCharGrid();
+  renderCharSpotlight();
 }
 
 /* ─── AUDIÇÃO (GACHA estilo Genshin) ──────────────────────────────────
