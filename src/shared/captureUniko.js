@@ -954,15 +954,35 @@ export function subscribeCaptureWinner(cfg, onWinner) {
 // Tenta ocupar um dos 5 slots do evento via função atômica no banco
 // (capture_uniko_try) — evita a corrida de duas pessoas "ganhando" o mesmo
 // slot ao capturar quase ao mesmo tempo (ver supabase_capture_uniko_multi.sql).
+//
+// `uniko` aqui é só o palpite de qual vaga é a próxima (config sem
+// `slotUnikoIds`, ou seja, Uniko fixo/mesmo Uniko sorteado pra todo mundo —
+// onde é IGUAL pra todo mundo de propósito). Sempre que existe
+// `slotUnikoIds`, a lista INTEIRA (Uniko + recompensa de cada vaga) vai pro
+// servidor e é ele quem decide, a partir da vaga que de fato conquistou —
+// nunca um palpite calculado no cliente a partir de `winners.length` (local e
+// defasado): era exatamente isso que fazia duas pessoas ganharem o MESMO
+// Uniko (e a mesma recompensa) em capturas quase simultâneas, mesmo no modo
+// "Uniko aleatório por vaga" (mesma causa do bug já corrigido no Capture o
+// Número — ver claimCapture em captureNumero.js).
 export async function claimCapture(cfg, uniko) {
   const me = getAuthUser()?.name || 'Você';
-  const reward = getCaptureReward(uniko);
+  const max = maxWinnersFor(cfg);
+  const slotIds = Array.isArray(cfg?.slotUnikoIds) && cfg.slotUnikoIds.length
+    ? cfg.slotUnikoIds.slice(0, max)
+    : Array.from({ length: max }, () => uniko.id);
+  const ids = [], names = [], comuns = [], premiums = [];
+  for (const id of slotIds) {
+    const u = getUniko(id);
+    const r = getCaptureReward(u);
+    ids.push(u.id); names.push(u.name); comuns.push(r.comum); premiums.push(r.premium);
+  }
+  const fallbackReward = getCaptureReward(uniko);
   try {
     const { data, error } = await _supabase.rpc('capture_uniko_try', {
       p_event_id: captureEventId(cfg), p_player: me,
-      p_uniko_id: uniko.id, p_uniko_name: uniko.name,
-      p_comum: reward.comum, p_premium: reward.premium,
-      p_max_winners: maxWinnersFor(cfg),
+      p_uniko_ids: ids, p_uniko_names: names, p_comums: comuns, p_premiums: premiums,
+      p_max_winners: max,
     });
     if (error) {
       console.error('[capture-uniko] claimCapture (rpc) falhou:', error);
@@ -971,7 +991,9 @@ export async function claimCapture(cfg, uniko) {
     const row = Array.isArray(data) ? data[0] : data;
     if (row?.ok) {
       return { won: true, alreadyMine: false, isFull: false,
-        winner: { player: me, unikoId: uniko.id, unikoName: uniko.name, comum: reward.comum, premium: reward.premium, at: new Date().toISOString() } };
+        winner: { player: me, unikoId: row.uniko_id ?? uniko.id, unikoName: row.uniko_name ?? uniko.name,
+          comum: row.comum ?? fallbackReward.comum, premium: row.premium ?? fallbackReward.premium,
+          at: new Date().toISOString() } };
     }
     if (row?.already_mine) return { won: false, alreadyMine: true, isFull: false, winner: null };
     /* Não ganhou e não é meu. Isso quase sempre quer dizer "as vagas fecharam",

@@ -392,8 +392,15 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     // na Dashboard: quem já estava com o Portal aberto desde antes da edição
     // ainda creditou 100/100 em vez do valor novo).
     await Promise.all([loadCustomUnikos(), loadRewardOverrides()]);
-    const freshUniko = getUniko(unikoIdForSlot(cfg, winners.length)); // o mesmo que está na tela
-    const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, freshUniko);
+    // `guessUniko` é só o palpite otimista de qual vaga é a próxima — quem
+    // decide o Uniko (e a recompensa) DE VERDADE é o servidor, com base na
+    // vaga que a captura realmente ocupou (ver claimCapture/capture_uniko_try:
+    // antes o cliente "escolhia" o Uniko a partir de `winners.length`, local e
+    // podia estar desatualizado — duas capturas quase simultâneas apostavam na
+    // mesma vaga e saíam com o MESMO Uniko/recompensa, mesmo no modo "Uniko
+    // aleatório por vaga").
+    const guessUniko = getUniko(unikoIdForSlot(cfg, winners.length)); // o mesmo que está na tela
+    const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, guessUniko);
     if (networkError || rejected) {
       // erro de verdade, ou recusa com vaga ainda sobrando (ver claimCapture)
       // — NÃO marca como feito; deixa tentar de novo em vez de fingir sucesso
@@ -407,18 +414,19 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     setPhase('caught');
     setAvailable(false);
     if (won) {
-      const reward = getCaptureReward(freshUniko);
+      const finalUniko = winner?.unikoId ? getUniko(winner.unikoId) : guessUniko;
+      const reward = { comum: winner?.comum ?? getCaptureReward(finalUniko).comum, premium: winner?.premium ?? getCaptureReward(finalUniko).premium };
       awardPrismas(me, reward.comum, reward.premium);
-      addToMyUnikoCollection(freshUniko);             // otimista: já aparece na Coleção local na hora
-      await saveCaptureToCollection(freshUniko);       // grava no servidor (agora loga erro se falhar)
-      syncCollectionFromServer();                     // reconcilia com o servidor (fire-and-forget)
+      addToMyUnikoCollection(finalUniko);              // otimista: já aparece na Coleção local na hora
+      await saveCaptureToCollection(finalUniko);        // grava no servidor (agora loga erro se falhar)
+      syncCollectionFromServer();                      // reconcilia com o servidor (fire-and-forget)
       setWinners(prev => {
         if (prev.some(p => p.player === me)) return prev;
         const next = [...prev, winner].slice(0, maxWinners);
         setCaptureResult(cfg, next);
         return next;
       });
-      emitCaptureState({ available: false, uniko: freshUniko, captured: true });
+      emitCaptureState({ available: false, uniko: finalUniko, captured: true });
     } else if (!alreadyMine && full && fullList?.length) {
       // esgotado (5/5) — mostra a lista completa de quem conseguiu
       setWinners(fullList);
