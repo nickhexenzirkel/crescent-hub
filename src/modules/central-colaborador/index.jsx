@@ -15,6 +15,7 @@ import { TabFeedback } from './tabs/TabFeedback';
 import { TabEventos } from './tabs/TabEventos';
 import { TabComunicados } from './tabs/TabComunicados';
 import { TabMyDoko } from './tabs/TabMyDoko';
+import { TabRoletaSorte } from './tabs/TabRoletaSorte';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
@@ -193,6 +194,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
+    if(tab==='roleta')      return <TabRoletaSorte/>;
     // Uniko Wave é montado SEMPRE, fora deste switch (ver `{render()}` abaixo) —
     // pra trocar de aba e voltar não derrubar o iframe/recarregar o jogo do zero.
     if(tab==='unikopaint')  return <TabUnikoPaint zoomOut={zoomOut}/>;
