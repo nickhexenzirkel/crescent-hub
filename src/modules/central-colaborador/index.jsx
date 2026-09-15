@@ -60,6 +60,12 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     return () => { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); };
   }, []);
   const [tab,st]=useState(initialTab || 'inicio');
+  // Uniko Wave só MONTA na primeira vez que a aba é aberta (senão todo mundo que
+  // abre o Portal carregaria o iframe do jogo à toa) — mas depois disso NUNCA
+  // desmonta de novo, só fica escondido (ver <TabUnikoWave active=.../> abaixo).
+  // Assim trocar de aba e voltar não reaparece a tela de carregamento do jogo.
+  const [waveVisited, setWaveVisited] = useState(() => (initialTab || 'inicio') === 'unikowave');
+  if (tab === 'unikowave' && !waveVisited) setWaveVisited(true);
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
   const [showSettings,setShowSettings]=useState(false);
   const [profileReady, setProfileReady] = useState(false);
@@ -187,7 +193,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     if(tab==='eventos')    return <TabEventos/>;
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
-    if(tab==='unikowave')   return <TabUnikoWave/>;
+    // Uniko Wave é montado SEMPRE, fora deste switch (ver `{render()}` abaixo) —
+    // pra trocar de aba e voltar não derrubar o iframe/recarregar o jogo do zero.
     if(tab==='unikopaint')  return <TabUnikoPaint zoomOut={zoomOut}/>;
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
@@ -276,7 +283,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
           height: tab==='unikowave' ? '100vh' : (zoomOut
             ? (tab==='inicio' ? 'calc(100vh / 0.8)' : 'calc((100vh - 52px) / 0.8)')
             : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined)))}}>
-          {render()}
+          {waveVisited && <TabUnikoWave active={tab==='unikowave'}/>}
+          {tab!=='unikowave' && render()}
         </div>
       </div>
     </div>

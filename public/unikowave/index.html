@@ -2030,6 +2030,26 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
     #vinylPlayPause svg{width:18px;height:18px}
     #vinylTime{margin-left:auto;font-size:11px;font-weight:700;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
     @media (max-width:560px){ #vinylPlayer{right:10px;bottom:10px;width:280px} }
+
+    /* ── Modo compacto: fora do painel Início, o player encolhe pra só um disco de
+       vinil girando (pedido do usuário — a versão cheia tampava conteúdo nos outros
+       painéis, ex.: cartões da Biblioteca). Alternado em showMenuPanel(). ── */
+    #vinylPlayer.vinyl-mini{width:auto;padding:0;background:none;border:none;box-shadow:none;
+      display:block;grid-template-columns:none;grid-template-rows:none}
+    #vinylPlayer.vinyl-mini::before{display:none}
+    #vinylPlayer.vinyl-mini #vinylInfo,#vinylPlayer.vinyl-mini #vinylControls{display:none}
+    #vinylPlayer.vinyl-mini #vinylDisc{grid-row:auto;width:52px;height:52px;border-radius:50%;
+      background:
+        radial-gradient(circle at 50% 50%,#0a0a12 0 9px,transparent 9.5px),
+        repeating-radial-gradient(circle at 50% 50%,#20202c 0 3px,#15151d 3px 6px);
+      box-shadow:0 8px 20px rgba(0,0,0,.55);padding:0;
+      animation:vinylMiniSpin 2.6s linear infinite;animation-play-state:paused}
+    #vinylPlayer.vinyl-mini.playing #vinylDisc{animation-play-state:running}
+    #vinylPlayer.vinyl-mini #vinylDisc i{display:none}
+    #vinylPlayer.vinyl-mini #vinylDisc::after{content:'';position:absolute;inset:0;margin:auto;
+      width:8px;height:8px;border-radius:50%;background:#ff5fc0;box-shadow:0 0 7px rgba(255,95,192,.85)}
+    @keyframes vinylMiniSpin{to{transform:rotate(360deg)}}
+    @media (max-width:560px){ #vinylPlayer.vinyl-mini{right:10px;bottom:10px} }
   </style>
   <div id="vinylPlayer" aria-label="Música tocando agora">
     <div id="vinylDisc" aria-hidden="true"><i></i><i></i><i></i><i></i><div id="vinylDiscArt"></div></div>
@@ -5368,6 +5388,10 @@ function mMenuSync(panelId){
 
 function showMenuPanel(panelId, btn){
   mMenuSync(panelId);
+  // Player do lobby só fica cheio no Início — em qualquer outro painel encolhe
+  // pra um discreto disco de vinil (pedido do usuário: tampava cartões da Biblioteca).
+  const vinylEl=document.getElementById('vinylPlayer');
+  if(vinylEl) vinylEl.classList.toggle('vinyl-mini', panelId!=='panelHome');
   document.querySelectorAll('.menu-panel').forEach(p=>p.classList.add('off'));
   const panel=document.getElementById(panelId);
   if(panel) panel.classList.remove('off');

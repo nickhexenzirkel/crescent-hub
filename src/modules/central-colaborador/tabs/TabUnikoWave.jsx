@@ -29,7 +29,10 @@ const pushSave = async (player, data) => {
   } catch {}
 };
 
-const TabUnikoWave = () => {
+// `active`: a aba fica MONTADA sempre (ver central-colaborador/index.jsx) pra trocar
+// de aba e voltar não recarregar o iframe do zero (som/progresso/tela de carregamento
+// do jogo persistem) — só escondida via display quando outra aba está em foco.
+const TabUnikoWave = ({ active = true }) => {
   const iframeRef = useRef(null);
   const saveTimer = useRef(null);
   const [ready, setReady] = useState(false);
@@ -225,7 +228,7 @@ const TabUnikoWave = () => {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: T.page }}>
+    <div style={{ display: active ? 'flex' : 'none', flexDirection: 'column', height: '100vh', background: T.page }}>
       {ready ? (
         <iframe
           ref={iframeRef}
