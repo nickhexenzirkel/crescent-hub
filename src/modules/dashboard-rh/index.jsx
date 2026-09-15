@@ -15,6 +15,7 @@ import {
   loadUnikoCategorias, saveUnikoCategorias, getUnikoCategorias,
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
   RANDOM_UNIKO_ID, RANDOM_PER_SLOT_ID, isRandomUnikoChoice, resolveUnikoChoice,
+  markAgendaDone as markUnikoAgendaDone,
 } from '../../shared/captureUniko';
 import {
   saveCaptureConfig as saveCaptureNumeroConfig,
@@ -22,6 +23,7 @@ import {
   RANDOM_NUMERO_ID, RANDOM_PER_SLOT_ID as NUMERO_RANDOM_PER_SLOT_ID, isRandomNumeroChoice,
   resolveNumeroChoice,
   loadCaptureSchedule as loadCaptureNumeroSchedule, saveCaptureSchedule as saveCaptureNumeroSchedule,
+  markAgendaDone as markNumeroAgendaDone,
 } from '../../shared/captureNumero';
 import { loadMensagemEspecial, saveMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { bolhaGradiente } from '../../shared/bolhas';
@@ -1006,6 +1008,16 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
         maxWinners,
         alexaMessage: entry.alexaMessage || DEFAULT_CAPTURE_ALEXA_MSG,
       });
+      // Marca a ocorrência que este clique está ANTECIPANDO como já feita —
+      // senão o agendador (que roda sozinho em todo navegador) dispara ela de
+      // novo automaticamente no horário original, soltando o MESMO Uniko uma
+      // segunda vez (bug relatado: "⚡ Agora" + horário agendado, os dois
+      // disparam pro mesmo item da fila).
+      const occ = activeOccurrence(entry) || nextOccurrence(entry);
+      if (occ) {
+        await markUnikoAgendaDone(occ.key);
+        if (entry.mode === 'once') await persistSched(capSched.filter(e => e.id !== entry.id));
+      }
       flashSched('✅ Uniko liberado! Surge em segundos pra quem estiver no Portal (e a Alexa avisa).');
     } catch (e) { flashSched('❌ ' + (e.message || 'Erro ao spawnar')); }
     setSchedBusy(false);
@@ -1616,6 +1628,16 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
         ...resolveNumeroChoice(choice, entry.pool, maxWinners),
         maxWinners,
       });
+      // Marca a ocorrência que este clique está ANTECIPANDO como já feita —
+      // senão o agendador (que roda sozinho em todo navegador) dispara ela de
+      // novo automaticamente no horário original, soltando os MESMOS números
+      // uma segunda vez (bug relatado: "⚡ Agora" + horário agendado, os dois
+      // disparam pro mesmo item da fila).
+      const occ = activeOccurrence(entry) || nextOccurrence(entry);
+      if (occ) {
+        await markNumeroAgendaDone(occ.key);
+        if (entry.mode === 'once') await persistNumSched(numSched.filter(e => e.id !== entry.id));
+      }
       flashNumSched('✅ Número liberado! Surge em segundos pra quem estiver no Portal.');
     } catch (e) { flashNumSched('❌ ' + (e.message || 'Erro ao spawnar')); }
     setNumSchedBusy(false);

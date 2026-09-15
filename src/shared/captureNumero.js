@@ -395,7 +395,11 @@ async function loadAgendaDone() {
   const v = await _loadSetting(AGENDA_STATE_KEY);
   return Array.isArray(v?.done) ? v.done : [];
 }
-async function markAgendaDone(key) {
+// Exportada: o "⚡ Agora" do Dashboard RH também precisa marcar a ocorrência
+// como feita (senão o agendador dispara ela de novo sozinho no horário
+// original — bug relatado: item da fila soltado na mão E de novo, automático,
+// no horário agendado, com os mesmos números).
+export async function markAgendaDone(key) {
   const done = await loadAgendaDone();
   if (done.includes(key)) return;
   await _saveSetting(AGENDA_STATE_KEY, { done: [...done, key].slice(-60) });
