@@ -193,10 +193,15 @@ export default function CrescentHub() {
           // hash de rota interna de um módulo (ex.: #faturamento/pdf-editor, ver
           // rotaFerramenta.js) sobrevivia a um F5/reabertura de aba "remendado"
           // numa entrada com state novo mas URL velha, o que já causou um bug
-          // real de navegação aqui (ver histórico do commit). Já ANUNCIA o
-          // destino final (se houver) — não fica um instante com '#modules' pra
-          // depois trocar de novo, o que geraria uma entrada de histórico a mais.
-          window.history.replaceState({ screen: 'modules' }, '', alvo ? alvo.hash : '#modules');
+          // real de navegação aqui (ver histórico do commit). URL desta entrada
+          // SEMPRE '#modules' (igual ao state) — mesmo quando há `alvo`, porque
+          // ela é a entrada de BAIXO que o "Sair" (history.back()) restaura; usar
+          // alvo.hash aqui (como era antes) deixava o endereço preso na aba do
+          // módulo depois de sair, mesmo a TELA voltando certo pro seletor (bug
+          // relatado). replaceState+pushState rodam no mesmo tick, sem repaint
+          // entre os dois, então não há flash de '#modules' antes do pushState
+          // de baixo levar pro destino final.
+          window.history.replaceState({ screen: 'modules' }, '', '#modules');
           if (alvo) {
             // Empilha a Oficina Estelar JÁ na aba certa por cima do '#modules' que
             // acabou de virar a entrada de baixo — exatamente a mesma relação de
