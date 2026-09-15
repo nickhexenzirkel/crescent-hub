@@ -193,7 +193,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
             background: extStatus==='ok'?'#1A9060':extStatus==='checking'?'#C8960A':'#C04050' }}/>
           {extStatus==='checking' ? 'Verificando…' : extStatus==='ok' ? 'Extensão ativa' : extStatus==='reload' ? 'Recarregue (F5)' : 'Extensão inativa'}
         </button>
-        <a href="/uniko-catbot.zip" download="uniko-catbot.zip"
+        <a href="https://api.centraluniko.com.br/uniko-catbot.zip" download="uniko-catbot.zip"
           title="Baixar a extensão Uniko Cat-Bot (.zip)"
           style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 14px', borderRadius:12, textDecoration:'none',
             border:`1px solid ${extStatus==='ok'?T.border:'rgba(200,150,10,0.5)'}`, background: extStatus==='ok'?'transparent':'rgba(200,150,10,0.08)',

@@ -75,7 +75,7 @@ export const ExtensionPrompt = () => {
           </div>
         </div>
         {!isReload && (
-          <a href="/uniko-catbot.zip" download="uniko-catbot.zip"
+          <a href="https://api.centraluniko.com.br/uniko-catbot.zip" download="uniko-catbot.zip"
             style={{ flexShrink:0, display:'inline-flex', alignItems:'center', gap:7, padding:'10px 16px',
               borderRadius:11, background:`linear-gradient(135deg, ${C.gold}, ${C.warn})`, color:'#fff',
               fontWeight:700, fontSize:13, textDecoration:'none', boxShadow:`0 3px 12px ${C.warn}44` }}>
