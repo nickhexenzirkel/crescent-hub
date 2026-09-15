@@ -178,12 +178,16 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     };
   }, [cfg, checked, isFull, myWin, eventId]);
 
-  /* ── Avisa no DESKTOP quando o número surge (transição false→true só) ── */
+  /* ── Avisa no DESKTOP quando o número surge (transição false→true só) — UMA
+       vez por EVENTO (cfg.startAt), não por vaga: `numeroValue` muda toda vez
+       que alguém captura (o "atual" passa pro número da PRÓXIMA vaga livre),
+       então usar ele na chave disparava uma notificação nova a cada captura
+       de outra pessoa — era o spam relatado. ── */
   const notifiedSpawnRef = useRef(null);
   useEffect(() => {
     if (!available || !cfg) { notifiedSpawnRef.current = null; return; }
     if (!isSpawned(cfg)) return;
-    const spawnKey = `${numeroValue}-${cfg.startAt || ''}`;
+    const spawnKey = cfg.startAt || '';
     if (notifiedSpawnRef.current === spawnKey) return;
     notifiedSpawnRef.current = spawnKey;
     notifyDesktop({
@@ -192,7 +196,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
       title: '.✧. Um número da sorte apareceu! .✧.',
       message: 'Está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! Só revela qual número é depois que você capturar. 🎰',
     });
-  }, [available, cfg, numeroValue]);
+  }, [available, cfg]);
 
   /* ── Alguém capturou? → acumula na lista; quando fecha as vagas, some pra
        quem ainda não capturou. Realtime + poll de 4s como fallback. ── */
