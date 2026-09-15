@@ -574,12 +574,12 @@ function showDesktopNotification(n) {
 if (chrome.notifications && chrome.notifications.onClicked) {
   chrome.notifications.onClicked.addListener((notifId) => {
     if (!notifId.startsWith('uniko-')) return;
-    chrome.tabs.query({ url: ['https://crescent-hub.vercel.app/*', 'http://localhost/*'] }, (tabs) => {
+    chrome.tabs.query({ url: ['https://crescent-hub.vercel.app/*', 'https://centraluniko.com.br/*', 'https://*.centraluniko.com.br/*', 'http://localhost/*'] }, (tabs) => {
       if (tabs && tabs.length) {
         chrome.tabs.update(tabs[0].id, { active: true });
         if (tabs[0].windowId != null) chrome.windows.update(tabs[0].windowId, { focused: true });
       } else {
-        chrome.tabs.create({ url: 'https://crescent-hub.vercel.app/' });
+        chrome.tabs.create({ url: 'https://centraluniko.com.br/' });
       }
       chrome.notifications.clear(notifId);
     });

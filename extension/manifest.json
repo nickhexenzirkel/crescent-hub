@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Uniko Cat-Bot",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Automação de downloads do módulo Faturamento do Uniko HUB + notificações desktop do Portal do Colaborador",
   "icons": {
     "16": "icon.png",
@@ -19,6 +19,8 @@
     "https://app.7beneficiosgestao.com.br/*",
     "https://*.s3.amazonaws.com/*",
     "https://crescent-hub.vercel.app/*",
+    "https://centraluniko.com.br/*",
+    "https://*.centraluniko.com.br/*",
     "https://*.youtube.com/*",
     "https://*.google.com/*",
     "https://api.centraluniko.com.br/*",
@@ -34,6 +36,8 @@
     {
       "matches": [
         "https://crescent-hub.vercel.app/*",
+        "https://centraluniko.com.br/*",
+        "https://*.centraluniko.com.br/*",
         "http://localhost:5173/*",
         "http://localhost:4173/*",
         "http://localhost:*/*"
