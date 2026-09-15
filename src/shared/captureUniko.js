@@ -440,12 +440,14 @@ export function unikoIdForSlot(cfg, taken = 0) {
   return cfg?.unikoId;
 }
 
+// `endAt` NÃO fecha mais o encontro sozinho — pedido explícito do usuário: o
+// evento só termina quando todas as vagas são preenchidas (ou o admin desliga
+// manualmente). `endAt` continua existindo só pro agendador saber quando a
+// PRÓXIMA ocorrência da fila pode assumir (ver runCaptureScheduler).
 export function isWithinWindow(cfg, now = nowMs()) {
   if (!cfg?.enabled) return false;
   const s = cfg.startAt ? Date.parse(cfg.startAt) : null;
-  const e = cfg.endAt ? Date.parse(cfg.endAt) : null;
   if (s != null && !Number.isNaN(s) && now < s) return false;
-  if (e != null && !Number.isNaN(e) && now > e) return false;
   return true;
 }
 
