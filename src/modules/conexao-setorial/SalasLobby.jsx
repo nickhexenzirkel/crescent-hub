@@ -22,9 +22,11 @@ const IcoBack = <><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></>;
 const IcoKey = <><circle cx="8" cy="15" r="4" /><path d="M10.8 12.2L20 3" /><path d="M16 7l3 3" /></>;
 const IcoTrash = <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></>;
 
+const IcoEdit = <><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>;
+
 export default function SalasLobby({
   rooms, loading, isAdmin, brd, onBack, jaAberta, salaPedida,
-  onEntrar, onCriar, onSenha, onExcluir,
+  onEntrar, onCriar, onEditar, onSenha, onExcluir,
 }) {
   // Sala com o prompt de senha aberto. Vindo de um atalho de sala com senha, o
   // pedido dela já nasce aberto (o módulo recria o lobby quando isso muda).
@@ -34,6 +36,7 @@ export default function SalasLobby({
   const [entrando, setEntrando] = useState(false);
 
   const [criando, setCriando] = useState(false);
+  const [editando, setEditando] = useState(null); // sala sendo editada (null = criando uma nova)
   const [form, setForm] = useState({ name: '', descricao: '', senha: '', color: CORES[0] });
   const [salvando, setSalvando] = useState(false);
 
@@ -52,13 +55,17 @@ export default function SalasLobby({
     if (!ok) { setErro('Senha incorreta.'); setSenha(''); }
   };
 
+  const abrirEdicao = (sala) => {
+    setForm({ name: sala.name || '', descricao: sala.descricao || '', senha: '', color: sala.color || CORES[0] });
+    setEditando(sala);
+  };
+  const fecharModal = () => { setCriando(false); setEditando(null); setForm({ name: '', descricao: '', senha: '', color: CORES[0] }); };
   const salvarSala = async () => {
     if (!form.name.trim()) return;
     setSalvando(true);
-    await onCriar(form);
+    if (editando) await onEditar(editando.id, form); else await onCriar(form);
     setSalvando(false);
-    setCriando(false);
-    setForm({ name: '', descricao: '', senha: '', color: CORES[0] });
+    fecharModal();
   };
 
   const trocarSenha = async (sala) => {
@@ -137,7 +144,12 @@ export default function SalasLobby({
                 )}
 
                 {isAdmin && (
-                  <div style={{ display: 'flex', gap: 7, marginTop: 14 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', gap: 7, marginTop: 14, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                    <button className="cs-btn" onClick={() => abrirEdicao(sala)} title="Editar nome, descrição e cor"
+                      style={{ background: T.surfaceSub || 'rgba(120,60,180,.08)', color: T.text, borderRadius: 9,
+                        padding: '6px 11px', fontSize: 11.5, fontWeight: 700, display: 'flex', gap: 5, alignItems: 'center' }}>
+                      <Ico d={IcoEdit} size={13} /> Editar
+                    </button>
                     <button className="cs-btn" onClick={() => trocarSenha(sala)} title="Definir ou remover a senha"
                       style={{ background: T.surfaceSub || 'rgba(120,60,180,.08)', color: T.text, borderRadius: 9,
                         padding: '6px 11px', fontSize: 11.5, fontWeight: 700, display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -188,15 +200,15 @@ export default function SalasLobby({
         </div>
       )}
 
-      {/* ── Criar sala (admin) ── */}
-      {criando && (
-        <div onClick={() => !salvando && setCriando(false)}
+      {/* ── Criar/editar sala (admin) — mesmo modal; editar não mexe na senha (isso é o botão "Senha"). ── */}
+      {(criando || editando) && (
+        <div onClick={() => !salvando && fecharModal()}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'grid', placeItems: 'center', zIndex: 90 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background: cardBg, borderRadius: 18, padding: 26, width: 'min(430px, 92vw)',
               border: `1px solid ${brd}`, boxShadow: '0 24px 60px rgba(0,0,0,.3)', animation: 'csPop .2s ease' }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 16 }}>
-              Nova sala
+              {editando ? 'Editar sala' : 'Nova sala'}
             </div>
 
             <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, marginBottom: 5 }}>NOME *</div>
@@ -207,13 +219,15 @@ export default function SalasLobby({
             <input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))}
               placeholder="Do que essa sala trata" style={inSt} />
 
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, margin: '13px 0 5px' }}>SENHA</div>
-            <input type="text" value={form.senha} onChange={e => setForm(p => ({ ...p, senha: e.target.value }))}
-              placeholder="Deixe em branco para sala aberta" style={inSt} />
-            <div style={{ fontSize: 11, color: T.textT, marginTop: 6, lineHeight: 1.5 }}>
-              Guardamos só o hash da senha — depois de criar, ela não pode ser consultada, só redefinida.
-              A senha organiza o acesso entre colegas; não use a sala para segredo de verdade.
-            </div>
+            {!editando && (<>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, margin: '13px 0 5px' }}>SENHA</div>
+              <input type="text" value={form.senha} onChange={e => setForm(p => ({ ...p, senha: e.target.value }))}
+                placeholder="Deixe em branco para sala aberta" style={inSt} />
+              <div style={{ fontSize: 11, color: T.textT, marginTop: 6, lineHeight: 1.5 }}>
+                Guardamos só o hash da senha — depois de criar, ela não pode ser consultada, só redefinida.
+                A senha organiza o acesso entre colegas; não use a sala para segredo de verdade.
+              </div>
+            </>)}
 
             <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, margin: '13px 0 7px' }}>COR</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -223,15 +237,18 @@ export default function SalasLobby({
                     outline: form.color === c ? `2px solid ${T.text}` : 'none', outlineOffset: 2 }} />
               ))}
             </div>
+            {editando && (
+              <div style={{ fontSize: 11, color: T.textT, marginTop: 8 }}>Pra trocar a senha, use o botão “Senha” no card da sala.</div>
+            )}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              <button className="cs-btn" onClick={() => setCriando(false)}
+              <button className="cs-btn" onClick={fecharModal}
                 style={{ flex: 1, background: T.surfaceSub || 'rgba(120,60,180,.08)', color: T.text,
                   borderRadius: 11, padding: '11px', fontWeight: 700, fontSize: 13 }}>Cancelar</button>
               <button className="cs-btn" onClick={salvarSala} disabled={salvando || !form.name.trim()}
                 style={{ flex: 1, background: GRAD, color: '#fff', borderRadius: 11, padding: '11px',
                   fontWeight: 800, fontSize: 13, opacity: form.name.trim() ? 1 : .5 }}>
-                {salvando ? 'Criando…' : 'Criar sala'}
+                {salvando ? 'Salvando…' : (editando ? 'Salvar alterações' : 'Criar sala')}
               </button>
             </div>
           </div>
