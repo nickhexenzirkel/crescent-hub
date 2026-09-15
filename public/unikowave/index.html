@@ -34,6 +34,17 @@ canvas{display:block}
 .shooting-star{position:absolute;height:2px;border-radius:1px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff,rgba(255,255,255,0));transform-origin:left center;animation:shootingStar 0.7s ease-out forwards;opacity:0}
 @keyframes shootingStar{0%{opacity:0;transform:scaleX(0) rotate(var(--ang,160deg))}10%{opacity:1;transform:scaleX(0.3) rotate(var(--ang,160deg))}70%{opacity:1;transform:scaleX(1) rotate(var(--ang,160deg)) translateX(100px)}100%{opacity:0;transform:scaleX(1) rotate(var(--ang,160deg)) translateX(180px)}}
 
+/* Estrelinhas da SIDEBAR — mesma família visual do fundo do menu de módulos
+   do Uniko HUB (sparkle de 4 pontas, opacity+scale piscando parado, sem
+   blur/will-change: custo de desenho perto de zero). O #menuSidebar tem
+   fundo quase opaco (rgba(4,4,15,.82)) por cima do starfield da tela toda,
+   então sem essa camada própria ele ficava sempre escuro e liso. */
+.sb-stars{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.sb-star{position:absolute;background:#fff;
+  clip-path:polygon(50% 0%,65% 35%,100% 50%,65% 65%,50% 100%,35% 65%,0% 50%,35% 35%);
+  animation:sbStarPisca var(--dur,4s) ease-in-out infinite}
+@keyframes sbStarPisca{0%,100%{opacity:.12;transform:scale(.8)}50%{opacity:var(--op,1);transform:scale(1.12)}}
+
 /* Blur orbs */
 .menu-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orbFloat var(--od,8s) ease-in-out infinite alternate}
 @keyframes orbFloat{0%{transform:translate(0,0) scale(1)}100%{transform:translate(var(--tx,20px),var(--ty,-20px)) scale(1.08)}}
@@ -1983,6 +1994,7 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
 
   <!-- SIDEBAR -->
   <div id="menuSidebar">
+    <div class="sb-stars" id="sbStars" aria-hidden="true"></div>
     <div class="sidebar-logo">UNIKO<br>WAVE<span class="sidebar-star-icon">✦</span></div>
     <div class="sidebar-sub">SINTA O RITMO</div>
 
@@ -2136,7 +2148,7 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
         <div class="wish-banner-grid" id="wishBannerGrid"></div>
         <button class="wish-do-btn" id="wishDoBtn" onclick="doWish()">✨ DESEJO — 100 GW</button>
         <button class="wish-do-btn wish-do-btn10" id="wishDoBtn10" onclick="doWish10()">✨ ×10 DESEJOS — 1.000 GW</button>
-        <div class="wish-hint" id="wishHint">Cada desejo custa 100 GW · a chance sobe a cada desejo (≈99% no 32º)</div>
+        <div class="wish-hint" id="wishHint">Cada desejo custa 100 GW · a chance sobe a cada desejo (≈99% no 22º)</div>
       </div>
     </div>
 
@@ -5583,8 +5595,27 @@ function confirmCharSelect(){
   showMenuPanel('panelPlay', document.getElementById('mnBtn0'));
 }
 
+// Estrelinhas da sidebar (sparkle piscando parado) — independente da qualidade
+// gráfica: são só ~16 elementos com opacity+scale, sem blur nem will-change,
+// custo de desenho perto de zero (mesma lógica do fundo do menu de módulos).
+function initSidebarStars(){
+  const wrap=document.getElementById('sbStars');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  for(let i=0;i<16;i++){
+    const s=document.createElement('div');
+    s.className='sb-star';
+    const sz=(4+Math.random()*6).toFixed(1);
+    const dur=(2.6+Math.random()*3.4).toFixed(1);
+    const op=(0.35+Math.random()*0.65).toFixed(2);
+    s.style.cssText=`left:${(4+Math.random()*92).toFixed(1)}%;top:${(4+Math.random()*92).toFixed(1)}%;width:${sz}px;height:${sz}px;--dur:${dur}s;--op:${op};animation-delay:${(-Math.random()*dur).toFixed(1)}s`;
+    wrap.appendChild(s);
+  }
+}
+
 // ── Animated starfield ──
 function initMenuBg(){
+  initSidebarStars();
   const menuScr=document.getElementById('menuScr');
   if(!menuScr) return;
   // Remove old stars
@@ -9111,8 +9142,10 @@ function selectChar(id){
 
 /* ─── AUDIÇÃO (GACHA estilo Genshin) ──────────────────────────────────
    100 GW por desejo. A chance de ganhar sobe a cada desejo sem vitória
-   (pity) chegando a ~99% no 32º desejo; ao ganhar, o pity zera. O jogador
-   escolhe o banner (personagem) e o desejo concede esse personagem. */
+   (pity) chegando a ~99% no 22º desejo; ao ganhar, o pity zera. O jogador
+   escolhe o banner (personagem) e o desejo concede esse personagem.
+   (Chances subidas em 14/09/2026: base 6%→12%, pity suave a partir do
+   10º desejo em vez do 20º — pedido pra ficar mais fácil ganhar.) */
 const WISH_COST = 100;
 const WISH_COST10 = 1000;
 const WISH_PITY_KEY = 'dw_wish_pity';
@@ -9141,7 +9174,7 @@ function loadPity(){ try{ return parseInt(localStorage.getItem(WISH_PITY_KEY),10
 function savePity(n){ try{ localStorage.setItem(WISH_PITY_KEY, String(n)); cloudSave(); }catch(_){} }
 // n = número do desejo atual (1-based) desde a última vitória
 function wishProb(n){
-  const base=0.06, soft=20, hard=32;
+  const base=0.12, soft=10, hard=22;
   if(n<soft) return base;
   if(n>=hard) return 0.99;
   return base + (0.99-base)*(n-soft)/(hard-soft);
@@ -11626,16 +11659,22 @@ function fillResultV2(r){
   }
   $('rvGrid').classList.toggle('rv-g5', tiles.length>8);
   $('rvGrid').innerHTML = tiles.map(([l,v,sm,c])=>`<div class="rv-tile" style="--c:${c}"><div class="rv-lbl">${l}</div><b>${rvEsc(v)}</b>${sm?`<small>${rvEsc(sm)}</small>`:''}</div>`).join('');
-  // personagem + balão
+  // personagem + balão — SEMPRE a splash art (previewImg), vitória ou derrota.
+  // Antes trocava de frame (chateada/alegre, ou raiva/animado/surpreso/tranquilo)
+  // conforme o resultado; agora é uma arte só, igual à da seleção de personagem.
   const img=$('rvChar'); img.style.opacity='';
   const estado = gameOverByDeath ? 'raiva' : r.sl2>=5 ? 'animado' : r.sl2>=3 ? 'surpreso' : (r.total&&score.miss/r.total>0.3) ? 'raiva' : 'tranquilo';
   let src='';
   if(r.isWG && typeof WG_CHAR_FRAMES!=='undefined'){
-    const f=WG_CHAR_FRAMES[wgChar]||WG_CHAR_FRAMES.mizuki;
-    src = (gameOverByDeath || (!r.wgWin && r.sl2<3)) ? (f.chateada||f.run[0]) : (f.alegre||f.run[0]);
+    // wgChar usa dois apelidos históricos (mizuki=Linnea, icydoll=Icy) — os
+    // demais (custom incluídos) já têm o MESMO id em CHARACTERS.
+    const linkedId = ({ mizuki:'linnea', icydoll:'icy' })[wgChar] || wgChar;
+    const ch = CHARACTERS[linkedId];
+    const f = WG_CHAR_FRAMES[wgChar]||WG_CHAR_FRAMES.mizuki;
+    src = ch?.previewImg || f.alegre || f.run[0];
   } else {
     const ch=CHARACTERS[selectedChar]||CHARACTERS.linnea;
-    src = (ch.imgs&&(ch.imgs[estado]||ch.imgs.wave)) || '';
+    src = ch.previewImg || (ch.imgs&&ch.imgs.wave) || '';
     try{ setTimeout(()=>{ setDodoco(estado); charSay(estado); },400); }catch(_){}
   }
   if(src) img.src=src;
