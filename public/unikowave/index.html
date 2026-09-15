@@ -1335,23 +1335,25 @@ html.m-menu.m-land .char-grid{grid-template-columns:repeat(4,minmax(0,1fr))!impo
   pointer-events:all;transition:all .2s;z-index:6;
 }
 #pauseBtn:hover{border-color:var(--C);color:var(--C)}
-/* Botão de habilidade especial (Guerra Estelar) — redondo, ao lado do botão de
-   PAUSA (mesma linha). Some no modo clássico e some também se o personagem não
-   tem habilidade (wgUpdateAbilityBtn cuida disso — via wgApplyMobileHud também
-   reposiciona em cada perfil de tela, igual o botão de pausa). */
+/* Botão de habilidade especial (Guerra Estelar) — barra de texto perto do chão,
+   praticamente embaixo dos pés do personagem (que fica ancorado por volta de
+   15-17% da largura do canvas, com os pés a uns 75-82% da altura — WG.charX/
+   WG.floorFeet em wgComputeLayout). Some no modo clássico e some também se o
+   personagem não tem habilidade (wgUpdateAbilityBtn cuida disso — via
+   wgApplyMobileHud também reposiciona no perfil mobile). */
 #wgAbilityBtn{
   display:none;
-  position:absolute;top:154px;left:126px;
-  width:44px;height:44px;border-radius:50%;
-  background:rgba(20,14,4,.55);
+  position:absolute;left:17%;top:86%;transform:translate(-50%,0);
+  width:max(200px,26vw);max-width:78vw;height:34px;border-radius:999px;
+  background:rgba(20,14,4,.6);
   border:2px solid rgba(255,209,77,.65);
   color:#ffd34d;align-items:center;justify-content:center;
-  font-family:var(--font-pixel);font-size:16px;font-weight:900;
-  cursor:pointer;letter-spacing:0;line-height:1;
+  font-family:var(--font-pixel);font-size:10.5px;font-weight:900;
+  cursor:pointer;letter-spacing:.5px;line-height:1;text-align:center;padding:0 12px;
   pointer-events:all;transition:border-color .2s,background .2s;z-index:6;
+  box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-#wgAbilityBtn #wgAbilityLabel{font-size:9px}
-#wgAbilityBtn:hover{border-color:#ffe38a;background:rgba(255,209,77,.18)}
+#wgAbilityBtn:hover{border-color:#ffe38a;background:rgba(255,209,77,.24)}
 #wgAbilityBtn.cooling{opacity:.55;cursor:default;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.75)}
 #wgAbilityBtn.cooling:hover{border-color:rgba(255,255,255,.3);background:rgba(20,14,4,.55)}
 #wgAbilityBtn.active{animation:wgAbilityPulse 1s ease-in-out infinite}
@@ -2655,9 +2657,10 @@ html.is-mobile .tz:active{background:linear-gradient(to top,rgba(255,255,255,.22
   <!-- Barra de vida: errar muito esgota e perde a partida -->
   <div id="lifeBar"><div id="lifeFill"></div><div id="lifeTxt"><span>❤ VIDA</span><span id="lifePct">100%</span></div></div>
   <button id="pauseBtn" onclick="pauseGame()" title="Pausar (ESC)"><i class="pxi" data-pxicon="pause"></i> PAUSA</button>
-  <!-- Habilidade especial da Guerra Estelar (recarrega a cada 30s): Espaço ou clique/toque aqui -->
+  <!-- Habilidade especial da Guerra Estelar (recarrega a cada 30s): Espaço ou clique/toque aqui.
+       Barra de texto (não mais um círculo com emoji) perto dos pés do personagem. -->
   <button id="wgAbilityBtn" onclick="wgActivateAbility()" title="Habilidade especial (Espaço)">
-    <span id="wgAbilityIcon">✨</span> <span id="wgAbilityLabel">HABILIDADE</span>
+    <span id="wgAbilityLabel">USAR HABILIDADE ESPECIAL</span>
   </button>
   <!-- Guerra Estelar no CELULAR: botões grandes de cima (ar) e baixo (chão); segurar = nota longa -->
   <div id="wgPad" aria-hidden="false">
@@ -9647,9 +9650,11 @@ function wgUpdateAbilityBtn(){
   const activeLeft=Math.ceil(WG.abilityUntil-songTime());
   const coolLeft=Math.ceil(WG.abilityReadyAt-songTime());
   btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
-  const icoEl=document.getElementById('wgAbilityIcon'), lblEl=document.getElementById('wgAbilityLabel');
-  if(icoEl) icoEl.textContent=(active||cooling)?'':(ab.icon||'✨');
-  if(lblEl) lblEl.textContent=active?activeLeft+'s':cooling?coolLeft+'s':'';
+  const lblEl=document.getElementById('wgAbilityLabel');
+  // Texto sempre visível (nada de ícone sozinho) — muda conforme o estado.
+  if(lblEl) lblEl.textContent = active ? `HABILIDADE ATIVA · ${activeLeft}s`
+    : cooling ? `RECARREGANDO · ${coolLeft}s`
+    : 'USAR HABILIDADE ESPECIAL';
   btn.classList.toggle('cooling', cooling);
   btn.classList.toggle('active', active);
 }
@@ -9846,14 +9851,17 @@ function wgApplyMobileHud(){
     else { pb.style.top=''; pb.style.left=''; }
   }
   if(sb) sb.style.display = on ? 'none' : '';
-  // Botão de habilidade: redondo, do lado do botão de pausa (mesma linha) — o
-  // deslocamento pra cima (-8px) centraliza o círculo (44px) contra a altura
-  // menor do botão de pausa (~28px); o deslocamento pra direita (+112px) dá
-  // espaço de sobra pro texto "⏸ PAUSA"/"▶ JOGO" nunca encostar.
+  // Botão de habilidade: barra de texto perto do chão (ver CSS). No celular o
+  // padrão em % bateria com o botão ▲ do pad (ambos ficam à esquerda), então
+  // aqui ela sobe pra cima do pad em vez de por baixo, ancorada à direita dele.
   if(ab){
-    if(on && WG.portrait){ ab.style.top=(WG.safeT+100-8)+'px'; ab.style.left='124px'; }
-    else if(on){ ab.style.top='44px'; ab.style.left=(WG.safeL+112)+'px'; }
-    else { ab.style.top=''; ab.style.left=''; }
+    if(on){
+      ab.style.top=''; ab.style.transform='none';
+      ab.style.left=(WG.safeL+WG.padSize+22)+'px';
+      ab.style.bottom=(WG.safeB+14)+'px';
+    } else {
+      ab.style.top=''; ab.style.left=''; ab.style.bottom=''; ab.style.transform='';
+    }
   }
   if(pad){
     pad.classList.toggle('on', on);
