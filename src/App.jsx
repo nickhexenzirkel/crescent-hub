@@ -241,6 +241,25 @@ export default function CrescentHub() {
     return () => window.removeEventListener('popstate', onPop);
   }, [authUser]);
 
+  /* Reage a troca de hash SEM navegação de página de verdade — acontece quando
+     o Chrome reaproveita uma aba já aberta pra abrir um favorito (ex.: clicar
+     no favorito do Editor de PDF com o Portal já aberto noutra aba/nesta mesma
+     aba): só o hash muda, a página não recarrega, então o boot (que só roda
+     1x no mount) nunca vê o novo endereço. Bug relatado: a URL virava
+     #faturamento/pdf-editor mas a TELA continuava no seletor de módulos. */
+  useEffect(() => {
+    const onHashChange = () => {
+      if (!authUser) return;
+      const alvo = abaDaUrl(window.location.hash);
+      if (!alvo) return;
+      setPortalInitialTab(alvo.tab);
+      window.history.replaceState({ screen: 'faturamento' }, '', alvo.hash);
+      ss('faturamento');
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [authUser]);
+
   const handleLogin = (user) => {
     setAuthUser(user);
     carregarNomesExibicao();
