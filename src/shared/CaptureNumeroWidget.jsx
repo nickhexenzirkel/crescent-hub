@@ -311,8 +311,15 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   // UMA tentativa só — captura sempre na primeira (sem chance de escapar).
   const resolveAttempt = async () => {
     resolvingRef.current = true;
-    const freshValue = numeroValueForSlot(cfg, winners.length); // o mesmo que está na tela
-    const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, freshValue);
+    // `guessValue` é só o palpite otimista de qual vaga é a próxima (pra manter
+    // o parâmetro antigo da função) — quem decide o número DE VERDADE é o
+    // servidor, com base na vaga que a captura realmente ocupou (ver
+    // claimCapture/capture_numero_try: antes o cliente que "escolhia" o
+    // número a partir de `winners.length`, que é local e podia estar
+    // desatualizado — duas capturas quase simultâneas apostavam na mesma vaga
+    // e saíam com o MESMO número, mesmo no modo "cada vaga é diferente").
+    const guessValue = numeroValueForSlot(cfg, winners.length);
+    const { won, alreadyMine, isFull: full, rejected, winner, winners: fullList, networkError } = await claimCapture(cfg, guessValue);
     if (networkError || rejected) {
       setPhase('error');
       setTimeout(() => { setPhase('idle'); resolvingRef.current = false; }, 1800);
@@ -323,16 +330,17 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     setPhase('caught');
     setAvailable(false);
     if (won) {
-      addToMyNumeroCollection(freshValue);             // otimista: já aparece na Coleção local na hora
-      await saveCaptureToCollection(freshValue);        // grava no servidor
-      syncNumeroCollectionFromServer();                // reconcilia com o servidor (fire-and-forget)
+      const finalValue = winner?.numeroValue ?? guessValue;
+      addToMyNumeroCollection(finalValue);              // otimista: já aparece na Coleção local na hora
+      await saveCaptureToCollection(finalValue);         // grava no servidor
+      syncNumeroCollectionFromServer();                  // reconcilia com o servidor (fire-and-forget)
       setWinners(prev => {
         if (prev.some(p => p.player === me2)) return prev;
         const next = [...prev, winner].slice(0, maxWinners);
         setCaptureResult(cfg, next);
         return next;
       });
-      emitCaptureNumeroState({ available: false, numeroValue: freshValue, captured: true });
+      emitCaptureNumeroState({ available: false, numeroValue: finalValue, captured: true });
     } else if (!alreadyMine && full && fullList?.length) {
       setWinners(fullList);
       setCaptureResult(cfg, fullList);

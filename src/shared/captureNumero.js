@@ -185,12 +185,25 @@ export function subscribeCaptureWinner(cfg, onWinner) {
 // Tenta ocupar um dos slots do evento via função atômica no banco (capture_numero_try)
 // — evita a corrida de duas pessoas "ganhando" o mesmo slot ao capturar quase ao
 // mesmo tempo (ver supabase_capture_numero.sql).
+//
+// `numeroValue` aqui é só um FALLBACK (config sem `slotNumeroValues`, ou seja,
+// modo "número fixo"/"mesmo número pra todo mundo" — onde o valor É igual pra
+// todo mundo de propósito). Sempre que existe `slotNumeroValues`, a lista
+// INTEIRA vai pro servidor e é ELE quem decide o número, a partir da vaga que
+// de fato conquistou — nunca um palpite calculado no cliente a partir de
+// `winners.length` (que é local e pode estar desatualizado): era exatamente
+// isso que fazia duas pessoas ganharem o mesmo número em capturas quase
+// simultâneas, mesmo no modo "cada vaga ganha um número diferente".
 export async function claimCapture(cfg, numeroValue) {
   const me = getAuthUser()?.name || 'Você';
+  const max = maxWinnersFor(cfg);
+  const values = Array.isArray(cfg?.slotNumeroValues) && cfg.slotNumeroValues.length
+    ? cfg.slotNumeroValues.slice(0, max)
+    : Array.from({ length: max }, () => numeroValue);
   try {
     const { data, error } = await _supabase.rpc('capture_numero_try', {
       p_event_id: captureEventId(cfg), p_player: me,
-      p_numero_value: numeroValue, p_max_winners: maxWinnersFor(cfg),
+      p_numero_values: values, p_max_winners: max,
     });
     if (error) {
       console.error('[capture-numero] claimCapture (rpc) falhou:', error);
@@ -199,7 +212,7 @@ export async function claimCapture(cfg, numeroValue) {
     const row = Array.isArray(data) ? data[0] : data;
     if (row?.ok) {
       return { won: true, alreadyMine: false, isFull: false,
-        winner: { player: me, numeroValue, at: new Date().toISOString() } };
+        winner: { player: me, numeroValue: row.numero_value ?? numeroValue, at: new Date().toISOString() } };
     }
     if (row?.already_mine) return { won: false, alreadyMine: true, isFull: false, winner: null };
     // Não ganhou e não é meu — só é "esgotado" se a lista real estiver cheia; senão

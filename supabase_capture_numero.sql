@@ -59,32 +59,48 @@ create policy capture_numero_event_delete on public.capture_numero_event for del
 -- tenta slot por slot com INSERT direto — o índice único acima garante que só um
 -- jogador ganha cada slot mesmo com duas tentativas simultâneas (unique_violation
 -- no perdedor, que passa pro próximo slot).
+--
+-- p_numero_values (ago/2026, corrige bug): recebe a lista INTEIRA de números
+-- possíveis (um por vaga, `cfg.slotNumeroValues`) em vez de um único número já
+-- escolhido pelo cliente. Antes, cada navegador ADIVINHAVA seu número a partir
+-- de quantos vencedores ele via localmente (`winners.length`, defasado por
+-- realtime/poll) e mandava esse palpite pronto — duas pessoas capturando quase
+-- ao mesmo tempo, cada uma achando que era "a próxima vaga livre", mandavam o
+-- MESMO número, mesmo a função aqui atribuindo corretamente vagas DIFERENTES
+-- pra cada uma (o índice do array nunca era conferido contra a vaga real).
+-- Agora quem decide o número é o próprio INSERT atômico: pega
+-- p_numero_values[vaga_conquistada], que é sempre um valor do pool do admin.
 drop function if exists public.capture_numero_try(text, text, integer, integer);
+drop function if exists public.capture_numero_try(text, text, integer[], integer);
 
 create or replace function public.capture_numero_try(
-  p_event_id text, p_player text, p_numero_value integer, p_max_winners integer default 3
-) returns table(ok boolean, already_mine boolean, is_full boolean) as $$
+  p_event_id text, p_player text, p_numero_values integer[], p_max_winners integer default 3
+) returns table(ok boolean, already_mine boolean, is_full boolean, numero_value integer) as $$
 declare
   v_slot  integer;
   v_count integer;
   v_max   integer := greatest(1, least(coalesce(p_max_winners, 3), 5));
+  v_num   integer;
 begin
   if exists (select 1 from public.capture_numero_event where event_id = p_event_id and player = p_player) then
-    return query select false, true, false;
+    return query select false, true, false, null::integer;
     return;
   end if;
 
   select count(*) into v_count from public.capture_numero_event where event_id = p_event_id;
   if v_count >= v_max then
-    return query select false, false, true;
+    return query select false, false, true, null::integer;
     return;
   end if;
 
   for v_slot in 1..v_max loop
     begin
+      -- p_numero_values pode vir mais curto que v_max em configs antigas — trava
+      -- no último valor disponível em vez de estourar o array.
+      v_num := p_numero_values[least(v_slot, greatest(array_length(p_numero_values, 1), 1))];
       insert into public.capture_numero_event (event_id, player, numero_value, slot, captured_at)
-      values (p_event_id, p_player, p_numero_value, v_slot, now());
-      return query select true, false, false;
+      values (p_event_id, p_player, v_num, v_slot, now());
+      return query select true, false, false, v_num;
       return;
     exception when unique_violation then
       continue; -- esse slot foi pego por outra pessoa nesse exato instante — tenta o próximo
@@ -92,11 +108,11 @@ begin
   end loop;
 
   -- todos os slots foram preenchidos entre a checagem do count e a tentativa (corrida rara)
-  return query select false, false, true;
+  return query select false, false, true, null::integer;
 end;
 $$ language plpgsql;
 
-grant execute on function public.capture_numero_try(text, text, integer, integer) to anon, authenticated;
+grant execute on function public.capture_numero_try(text, text, integer[], integer) to anon, authenticated;
 
 -- ── Realtime (mesmo padrão de supabase_capture_uniko_realtime.sql) — o "Spawnar
 --    agora" e a captura por outra pessoa propagam ~na hora pra todo mundo. ──
