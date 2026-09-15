@@ -10,6 +10,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
 import SalasLobby from './SalasLobby';
+import { bolhaGradiente } from '../../shared/bolhas';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const UNIKO_GRAD = 'linear-gradient(135deg,#E0559A 0%,#A24CE0 100%)';
@@ -454,6 +455,13 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
     });
     await loadRooms();
   };
+  // Edita nome/descrição/cor de uma sala já criada — a senha continua só pelo botão "Senha".
+  const editarSala = async (id, { name, descricao, color }) => {
+    await sb.from('conexao_rooms').update({
+      name: name.trim(), descricao: (descricao || '').trim(), color: color || '#A24CE0',
+    }).eq('id', id);
+    await loadRooms();
+  };
   const definirSenhaSala = async (id, senha) => {
     const pass_hash = senha ? await sha256(senha) : null;
     await sb.from('conexao_rooms').update({ pass_hash }).eq('id', id);
@@ -565,6 +573,12 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   const brd = T.border || 'rgba(0,0,0,0.08)';
   const colBg = T.dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
   const cardBg = T.surface || (T.dark ? '#1a1a2e' : '#fff');
+  // Largura das colunas: FLUIDA entre um piso e um teto, não mais fixa (era
+  // 300/268). Com poucas colunas elas esticam pra preencher a tela; a partir
+  // do piso elas param de encolher e o quadro rola de lado — sem isso, quem
+  // tinha várias colunas só via todas dando zoom out no navegador.
+  const LIST_W_MIN = isMobile ? 240 : 232;
+  const LIST_W_MAX = 320;
 
   const shellStyle = { position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' };
   const Blobs = (
@@ -599,9 +613,11 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         .cs-desc b,.cs-desc strong{color:${T.text}}
         .cs-desc:hover{background:${T.itemHover || 'rgba(120,60,180,.05)'};border-radius:8px}
 
-        /* ── blobs de fundo: manchas coloridas desfocadas que vagam devagar ── */
-        .cs-blobs{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;
-          filter:blur(72px);opacity:.5;contain:paint}
+        /* ── blobs de fundo: manchas coloridas que vagam devagar. SEM filter:blur —
+           blur numa mancha de ~1000px animada em loop é refeito a cada frame e
+           derruba o FPS (medido: 6fps com blur, 144 sem). A queda suave vem pronta
+           no degradê (bolhaGradiente, shared/bolhas.js), custo de desenho zero. ── */
+        .cs-blobs{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;contain:paint}
         .cs-blob{position:absolute;border-radius:50%;will-change:transform}
         @keyframes csBlobA{0%,100%{transform:translate(0,0) scale(1)}
           33%{transform:translate(9vw,7vh) scale(1.16)}
@@ -612,11 +628,11 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         @keyframes csBlobC{0%,100%{transform:translate(0,0) scale(1.05)}
           50%{transform:translate(8vw,-10vh) scale(.86)}}
         .cs-blob1{width:44vw;height:44vw;top:-12vh;left:-8vw;
-          background:radial-gradient(circle,#E0559A,transparent 68%);animation:csBlobA 26s ease-in-out infinite}
+          background:${bolhaGradiente('#E0559A')};animation:csBlobA 26s ease-in-out infinite}
         .cs-blob2{width:40vw;height:40vw;top:18vh;right:-10vw;
-          background:radial-gradient(circle,#A24CE0,transparent 68%);animation:csBlobB 32s ease-in-out infinite}
+          background:${bolhaGradiente('#A24CE0')};animation:csBlobB 32s ease-in-out infinite}
         .cs-blob3{width:36vw;height:36vw;bottom:-16vh;left:28vw;
-          background:radial-gradient(circle,#5B8DEF,transparent 68%);animation:csBlobC 38s ease-in-out infinite}
+          background:${bolhaGradiente('#5B8DEF')};animation:csBlobC 38s ease-in-out infinite}
         @media (prefers-reduced-motion: reduce){ .cs-blob{animation:none !important} }
   `;
 
@@ -629,7 +645,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         <SalasLobby key={salaPedida?.id || 'lobby'}
           rooms={rooms} loading={roomsLoading} isAdmin={isAdmin} brd={brd} onBack={onBack}
           jaAberta={(id) => lidasNaSessao().includes(id)} salaPedida={salaPedida}
-          onEntrar={abrirSala} onCriar={criarSala} onSenha={definirSenhaSala} onExcluir={excluirSala} />
+          onEntrar={abrirSala} onCriar={criarSala} onEditar={editarSala} onSenha={definirSenhaSala} onExcluir={excluirSala} />
       </div>
     );
   }
@@ -642,13 +658,16 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
       {Blobs}
 
       {/* ── Header ── */}
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, backdropFilter: 'blur(12px)', flexWrap: 'wrap' }}>
+      {/* T.topbarBg já é 94% opaco em todos os temas — o backdrop-filter daqui não
+          se via, e sobre os blobs animados era o pior caso: reborra a faixa a
+          cada frame enquanto eles se movem (ver comentário do CS_CSS acima). */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 14px' : '14px 22px', borderBottom: `1px solid ${brd}`, background: T.topbarBg || T.surface, flexWrap: 'wrap' }}>
         {/* voltar = sai da sala e volta pro lobby (não sai do módulo) */}
         <button className="cs-btn cs-ghost" onClick={() => setRoomId(null)} title="Voltar para as salas"
           style={{ background: 'transparent', color: T.text, width: 38, height: 38, borderRadius: 12, display: 'grid', placeItems: 'center' }}><Ic n="back" size={20} /></button>
         <div style={{ width: 40, height: 40, borderRadius: 12, background: room?.color || UNIKO_GRAD, display: 'grid', placeItems: 'center', color: '#fff', boxShadow: '0 4px 14px rgba(160,60,190,.4)' }}><Ic n="board" size={21} /></div>
         <div style={{ marginRight: 'auto' }}>
-          <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>{room?.name || 'Conexão Setorial'}</div>
+          <div style={{ fontWeight: 800, fontSize: isMobile ? 16 : 19, fontFamily: 'var(--font-brand)', background: UNIKO_GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '.01em' }}>{room?.name || 'Trello'}</div>
           <div style={{ fontSize: 11.5, color: T.textT, fontWeight: 600 }}>{cards.length} cards · {lists.length} colunas</div>
         </div>
         <button className="cs-btn" onClick={() => setShowFilters(s => !s)} title="Filtros"
@@ -681,7 +700,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
       )}
 
       {/* ── Board ── */}
-      <div className="cs-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', gap: 16, padding: 18, overflowX: 'auto', overflowY: 'hidden', alignItems: 'flex-start' }}>
+      <div className="cs-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', gap: 12, padding: '14px 14px 18px', overflowX: 'auto', overflowY: 'hidden', alignItems: 'flex-start' }}>
         {loading ? (
           <div style={{ margin: 'auto', color: T.textT, fontWeight: 600 }}>Carregando quadro…</div>
         ) : (
@@ -694,7 +713,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
                   onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
                   onDrop={() => performDrop(list.id)}
                   onContextMenu={e => { e.preventDefault(); setCtxMenuList({ listId: list.id, x: e.clientX, y: e.clientY }); }}
-                  style={{ flex: '0 0 auto', width: isMobile ? 268 : 300, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}` }}>
+                  style={{ flex: `1 1 ${LIST_W_MIN}px`, minWidth: LIST_W_MIN, maxWidth: LIST_W_MAX, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}` }}>
                   {/* Cabeçalho da coluna */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' }}>
                     {list.locked && <span title="Coluna trancada" style={{ color: '#E0A83A', display: 'grid', placeItems: 'center' }}><Ic n="lock" size={14} /></span>}
@@ -824,8 +843,8 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
               );
             })}
 
-            {/* Nova coluna */}
-            <div style={{ flex: '0 0 auto', width: 268 }}>
+            {/* Nova coluna — largura fixa (é um botão, não precisa esticar) */}
+            <div style={{ flex: '0 0 auto', width: LIST_W_MIN }}>
               {addingList ? (
                 <div style={{ background: colBg, borderRadius: 16, border: `1px solid ${brd}`, padding: 12 }}>
                   <input autoFocus value={newListText} onChange={e => setNewListText(e.target.value)}

@@ -118,7 +118,7 @@ const KB = [
   { k: ['tema', 'cor do site', 'aparencia', 'modo escuro', 'modo claro', 'tema escuro', 'tema claro'],
     a: 'Dá pra trocar o tema/visual pelo botão flutuante de tema. Tem modos claro e escuro.' },
   { k: ['o que e o sistema', 'o que e o uniko hub', 'o que da pra fazer', 'para que serve', 'quais modulos', 'modulos'],
-    a: 'O Uniko HUB é o portal interno da empresa: Portal do Colaborador (RH, jogos, eventos), Prisma Store (recompensas), Uniko Wave (jogo de ritmo), Central Alexa (música), Ponto Eletrônico, Oficina Estelar e Conexão Setorial.' },
+    a: 'O Uniko HUB é o portal interno da empresa: Portal do Colaborador (RH, jogos, eventos), Prisma Store (recompensas), Uniko Wave (jogo de ritmo), Central Alexa (música), Ponto Eletrônico, Oficina Estelar e Trello.' },
   { k: ['ajuda', 'o que voce faz', 'oi', 'ola', 'help', 'funcoes', 'o que voce pode fazer'],
     a: 'Oi! Eu sou o UNIKO 🤖. Posso explicar as funções do sistema (Prisma Store, Uniko Wave, Ponto, Alexa...), criar lembretes ("me lembre de X às HH:MM"), e te avisar de prismas recebidos, avisos do RH, eventos e do progresso das missões.' },
   { k: ['quem e voce', 'quem e o uniko', 'o viajante', 'sua historia', 'de onde voce veio', 'quem sou eu', 'qual sua origem', 'voce e um alien', 'quem te criou'],

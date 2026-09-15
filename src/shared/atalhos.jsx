@@ -66,7 +66,7 @@ export const catalogoAtalhos = (authUser, salas = []) => {
     { modulo:'faturamento', nome:'Oficina Estelar',
       abas: NAV_OFICINA.filter(n => n.id !== 'inicio'
         && (n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))) },
-    { modulo:'conexao-setorial', nome:'Conexão Setorial',
+    { modulo:'conexao-setorial', nome:'Trello',
       abas: salas.map(s => ({ id:s.id, label:s.name || 'Sala', icon:IcoSala, cor: /^#[0-9a-f]{6}$/i.test(s.color || '') ? s.color : null })) },
   ].filter(g => g.abas.length).map(g => ({
     ...g,
