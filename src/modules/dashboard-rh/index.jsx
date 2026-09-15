@@ -18,7 +18,7 @@ import {
 } from '../../shared/captureUniko';
 import {
   saveCaptureConfig as saveCaptureNumeroConfig,
-  resetNumeroCaptures,
+  resetNumeroCaptures, fetchAllCaptures as fetchAllNumeroCaptures,
   RANDOM_NUMERO_ID, RANDOM_PER_SLOT_ID as NUMERO_RANDOM_PER_SLOT_ID, isRandomNumeroChoice,
   resolveNumeroChoice,
   loadCaptureSchedule as loadCaptureNumeroSchedule, saveCaptureSchedule as saveCaptureNumeroSchedule,
@@ -1636,7 +1636,21 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     } catch (e) { setNumResetMsg('❌ ' + (e.message || 'Erro ao resetar')); }
     setNumResetting(false);
     setTimeout(() => setNumResetMsg(''), 6000);
+    loadNumAllCaptures(); // reflete o reset na grade global na hora
   };
+
+  // Grade global 1-100: quais números já saíram (de QUALQUER jogador) e quem pegou
+  // cada um — clicar num número capturado revela a lista de donos.
+  const [numAllCaptures, setNumAllCaptures] = useState({}); // { [numero]: [{player,at}] }
+  const [numAllLoaded, setNumAllLoaded]     = useState(false);
+  const [numAllLoading, setNumAllLoading]   = useState(false);
+  const [numGridSearch, setNumGridSearch]   = useState('');
+  const [numGridDetail, setNumGridDetail]   = useState(null); // número aberto no popover
+  const loadNumAllCaptures = async () => {
+    setNumAllLoading(true);
+    try { setNumAllCaptures(await fetchAllNumeroCaptures()); } finally { setNumAllLoading(false); setNumAllLoaded(true); }
+  };
+  useEffect(() => { if (tab === 'capture-numero') loadNumAllCaptures(); }, [tab]);
 
   // ── Lembretes & Alexa programada ────────────────────────
   const [lembretes, setLembretes]       = useState([]);
@@ -4715,6 +4729,58 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                 </div>
               </div>
 
+              {/* Grade global 1-100: quais números já saíram e quem pegou cada um */}
+              <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+                  <div>
+                    <div style={{fontFamily:'var(--font-brand)',fontSize:16,fontWeight:700,color:T.text}}>🔢 Quem já pegou cada número</div>
+                    <div style={{fontSize:12,color:T.textS,marginTop:3}}>
+                      Grade com todos os números já sorteados (de qualquer jogador, em qualquer evento). Clique num número capturado pra ver quem pegou.
+                    </div>
+                  </div>
+                  <button onClick={loadNumAllCaptures} disabled={numAllLoading}
+                    style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:6,padding:'7px 13px',borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:numAllLoading?'wait':'pointer',fontSize:12,fontWeight:700,fontFamily:'var(--font-body)',opacity:numAllLoading?.6:1}}>
+                    ↻ {numAllLoading?'Atualizando…':'Atualizar'}
+                  </button>
+                </div>
+
+                <input value={numGridSearch} onChange={e=>setNumGridSearch(e.target.value.replace(/[^\d]/g,''))} placeholder="Buscar número..."
+                  style={{...inpSt,maxWidth:220}}/>
+
+                <div style={{fontSize:11.5,color:T.textT}}>
+                  {Object.keys(numAllCaptures).length}/100 números já saíram
+                </div>
+
+                {!numAllLoaded && <div style={{fontSize:12,color:T.textT}}>Carregando…</div>}
+                {numAllLoaded && (
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(44px,1fr))',gap:6}}>
+                    {Array.from({length:100},(_,i)=>i+1)
+                      .filter(n=>!numGridSearch.trim()||String(n).includes(numGridSearch.trim()))
+                      .map(n=>{
+                        const owners = numAllCaptures[n];
+                        const hit = !!owners?.length;
+                        return (
+                          <button key={n} onClick={()=>hit&&setNumGridDetail(n)} disabled={!hit}
+                            title={hit?`${owners.length} pessoa${owners.length>1?'s':''} já pegou este número`:'Ainda não saiu'}
+                            style={{position:'relative',padding:'8px 0',borderRadius:8,cursor:hit?'pointer':'default',fontFamily:'var(--font-body)',
+                              fontSize:12.5,fontWeight:800,textAlign:'center',
+                              border:`1.5px solid ${hit?T.gold:T.border}`,
+                              background:hit?(T.goldGl||`${T.gold}22`):'transparent',
+                              color:hit?T.gold:T.textT}}>
+                            {n}
+                            {hit && owners.length>1 && (
+                              <span style={{position:'absolute',top:-6,right:-6,minWidth:16,height:16,padding:'0 3px',borderRadius:999,
+                                background:T.gold,color:'#fff',fontSize:9.5,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
+                                {owners.length}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
               {/* Reset da coleção */}
               <div style={{padding:'20px 22px',borderRadius:13,background:cardBg,border:`1px solid ${T.border}`,boxShadow:T.shM,display:'flex',flexDirection:'column',gap:14}}>
                 <div>
@@ -4742,6 +4808,30 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                   {numResetMsg&&<span style={{fontSize:13,color:numResetMsg.startsWith('✅')?(T.success||'#3a9'):'#C04050',fontWeight:600}}>{numResetMsg}</span>}
                 </div>
               </div>
+
+              {/* Popover: quem pegou o número clicado na grade global */}
+              {numGridDetail!==null && (
+                <div onClick={()=>setNumGridDetail(null)} style={{position:'fixed',inset:0,zIndex:3000,background:'rgba(6,8,14,.6)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+                  <div onClick={e=>e.stopPropagation()} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:18,width:'min(340px,94vw)',maxHeight:'80vh',overflow:'hidden',boxShadow:'0 24px 70px rgba(0,0,0,.5)',display:'flex',flexDirection:'column'}}>
+                    <div style={{padding:'20px 22px 14px',textAlign:'center',flexShrink:0}}>
+                      <div style={{width:56,height:56,borderRadius:'50%',margin:'0 auto 10px',background:`linear-gradient(160deg,${T.gold},${T.goldL||T.gold}cc)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:900,color:'#fff',fontFamily:'var(--font-brand)'}}>{numGridDetail}</div>
+                      <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:'var(--font-brand)'}}>Número {numGridDetail}</div>
+                      <div style={{fontSize:12,color:T.textT,marginTop:2}}>
+                        {(numAllCaptures[numGridDetail]||[]).length} pessoa{(numAllCaptures[numGridDetail]||[]).length>1?'s':''} já pegou
+                      </div>
+                    </div>
+                    <div style={{overflowY:'auto',padding:'0 14px 14px',display:'flex',flexDirection:'column',gap:6}}>
+                      {(numAllCaptures[numGridDetail]||[]).map((o,i)=>(
+                        <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'9px 12px',borderRadius:10,background:isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.03)'}}>
+                          <span style={{fontSize:13,fontWeight:700,color:T.text,fontFamily:'var(--font-body)'}}>{o.player}</span>
+                          <span style={{fontSize:11,color:T.textT,flexShrink:0}}>{new Date(o.at).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={()=>setNumGridDetail(null)} style={{margin:'0 14px 16px',padding:'10px 0',borderRadius:10,border:'none',cursor:'pointer',background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,color:'#fff',fontWeight:700,fontSize:13,fontFamily:'var(--font-body)'}}>Fechar</button>
+                  </div>
+                </div>
+              )}
             </div>
             );
           })()}

@@ -253,6 +253,23 @@ export async function fetchCapturesFor(player) {
   } catch { return []; }
 }
 
+// ADMIN: busca TODAS as capturas já feitas (de qualquer jogador), agrupadas por
+// número — usada na grade global 1-100 do Dashboard RH pra mostrar quais números
+// já saíram e quem já pegou cada um (um mesmo número pode ter mais de um dono,
+// já que o sorteio pode repetir número entre eventos/jogadores diferentes).
+export async function fetchAllCaptures() {
+  try {
+    const { data, error } = await _supabase.from('capture_numero_captures')
+      .select('player,numero_value,captured_at').order('captured_at', { ascending: true });
+    if (error) return {};
+    const byNumero = {};
+    for (const row of (data || [])) {
+      (byNumero[row.numero_value] ||= []).push({ player: row.player, at: row.captured_at });
+    }
+    return byNumero;
+  } catch { return {}; }
+}
+
 export function addToMyNumeroCollection(numeroValue) {
   try {
     const list = getCapturedNumeros();
