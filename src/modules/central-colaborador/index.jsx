@@ -188,7 +188,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     if(tab==='comunicados') return <TabComunicados/>;
     if(tab==='uniko')       return <TabMyDoko onPhotoChange={onPhotoChange}/>;
     if(tab==='unikowave')   return <TabUnikoWave/>;
-    if(tab==='unikopaint')  return <TabUnikoPaint/>;
+    if(tab==='unikopaint')  return <TabUnikoPaint zoomOut={zoomOut}/>;
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
@@ -217,13 +217,20 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
 
   // Portal do Colaborador 20% menor nas abas "normais" — pedido explícito pra
   // não ficar gigante em tela grande, igual um Ctrl+- pra 80% do navegador.
-  // Os minijogos (Wave/Paint/Stop/Faster) ficam de FORA: eles calculam tudo
-  // (posição de personagem, hit-box, layout) a partir do window.innerWidth/
-  // innerHeight de VERDADE — zoom deixaria o clique/toque desalinhado do que
-  // é desenhado. O zoom também só envolve Sidebar+conteúdo, não os modais
-  // (Configurações, Onboarding), que ficam fora dele e continuam no tamanho
-  // real da tela — modal encolhido junto seria estranho de usar.
-  const isGameTab = tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster';
+  // O Uniko Wave fica de FORA: roda num <iframe> que calcula tudo a partir do
+  // window.innerWidth/innerHeight de VERDADE dele mesmo — zoom no pai deixaria
+  // o clique/toque desalinhado do que é desenhado ali dentro.
+  // Paint/Stop/Faster ENTRAM no zoom (14/09/2026, pedido explícito — a
+  // sidebar e os botões deles ficavam maiores que os das abas normais): Stop
+  // não usa canvas, Faster mede o canvas por offsetWidth/offsetHeight com
+  // ResizeObserver (já dá o tamanho JÁ escalado pelo zoom, então funciona
+  // igual), e o Paint só lê window.innerWidth/innerHeight pra decidir layout
+  // (não pro desenho em si, que usa coordenadas normalizadas 0-1) — por isso
+  // ele recebe `zoomOut` como prop e compensa essa leitura (ver useTela lá).
+  // O zoom também só envolve Sidebar+conteúdo, não os modais (Configurações,
+  // Onboarding), que ficam fora dele e continuam no tamanho real da tela —
+  // modal encolhido junto seria estranho de usar.
+  const isGameTab = tab==='unikowave';
   const zoomOut = !isMobile && !isGameTab;
   return(
     <>

@@ -84,10 +84,21 @@ const MASCOTE = '/uniko-paint.png';
      deixaria tudo pequeno à toa.
 
    `paisagem` entra porque o desenho é 16:10: deitado ele fica bem maior, em pé
-   a largura da tela é o teto do tamanho dele. */
-const useTela = () => {
+   a largura da tela é o teto do tamanho dele.
+
+   `zoomOut`: no desktop o Portal roda com `zoom:0.8` (ver central-colaborador/
+   index.jsx) pra não ficar gigante em tela grande — só que isso NÃO encolhe
+   window.innerWidth/innerHeight (são do viewport de verdade, o zoom só afeta
+   o layout de dentro dele). Sem compensar, este hook lia a tela como 20%
+   menor do que o espaço que o conteúdo zoomado realmente tem pra usar, e
+   podia cair num breakpoint errado. Dividindo por 0.8 (mesmo fator do
+   wrapper) alinha com o `calc(100vh / 0.8)` que ele já usa lá. Só entra no
+   desktop — no celular o Portal nunca aplica esse zoom. */
+const ZOOM_PORTAL = 0.8; // mesmo valor do zoom do Portal (index.jsx) — mudou lá, muda aqui também
+const useTela = (zoomOut) => {
   const ler = () => {
-    const L = window.innerWidth, A = window.innerHeight;
+    const L = (zoomOut ? window.innerWidth / ZOOM_PORTAL : window.innerWidth),
+          A = (zoomOut ? window.innerHeight / ZOOM_PORTAL : window.innerHeight);
     const dedo = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     const paisagem = L > A;
     const compacto = dedo || L < 820;
@@ -107,10 +118,11 @@ const useTela = () => {
       return (n.compacto === p.compacto && n.paisagem === p.paisagem
         && n.pequeno === p.pequeno && n.empilhado === p.empilhado) ? p : n;
     });
+    fn(); // `zoomOut` pode ter mudado sem nenhum resize (ex.: trocou de aba) — recalcula na hora
     window.addEventListener('resize', fn);
     window.addEventListener('orientationchange', fn);
     return () => { window.removeEventListener('resize', fn); window.removeEventListener('orientationchange', fn); };
-  }, []);
+  }, [zoomOut]);
   return t;
 };
 
@@ -126,17 +138,22 @@ const useTela = () => {
    deixando tudo com aparência quebrada/deslocada. `visualViewport.offsetTop`
    é exatamente essa diferença — aplicando ela como `top` o card acompanha
    pra onde a tela visível realmente foi. */
-const useAlturaVisivel = (ativo) => {
-  const ler = () => { const vv = window.visualViewport; return vv ? { h: vv.height, top: vv.offsetTop } : { h: null, top: 0 }; };
+const useAlturaVisivel = (ativo, zoomOut) => {
+  // visualViewport também é do viewport de VERDADE (não encolhe com o `zoom`
+  // do Portal) — mesma compensação do useTela acima, senão a tela cheia do
+  // celular-compacto sobrava ~20% curta quando essa aba roda com zoom.
+  const ler = () => { const vv = window.visualViewport;
+    return vv ? { h: zoomOut ? vv.height / ZOOM_PORTAL : vv.height, top: zoomOut ? vv.offsetTop / ZOOM_PORTAL : vv.offsetTop } : { h: null, top: 0 }; };
   const [v, setV] = useState(ler);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!ativo || !vv) return undefined;
     const fn = () => setV(ler());
+    fn();
     vv.addEventListener('resize', fn);
     vv.addEventListener('scroll', fn);
     return () => { vv.removeEventListener('resize', fn); vv.removeEventListener('scroll', fn); };
-  }, [ativo]);
+  }, [ativo, zoomOut]);
   return ativo ? v : { h: null, top: 0 };
 };
 
@@ -1116,7 +1133,7 @@ const RankingGeral = ({ name, cardBg, maxAltura }) => {
   );
 };
 
-const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
+const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
   const [rooms, setRooms] = useState([]);
   const [carregou, setCarregou] = useState(false);   // 1ª busca de salas concluída
   const [criando, setCriando] = useState(false);
@@ -1124,7 +1141,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
   const [temaSala, setTemaSala] = useState('geral');
   const [erro, setErro] = useState('');
   const [confirmarEx, setConfirmarEx] = useState(null);  // id da sala a excluir
-  const { compacto, empilhado, pequeno } = useTela();
+  const { compacto, empilhado, pequeno } = useTela(zoomOut);
   const cardBg = T.surface || '#fff';
   const isAdmin = getAuthUser()?.role === 'admin';
 
@@ -1446,7 +1463,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    SALA — a partida em si.
    ═══════════════════════════════════════════════════════════════════════════ */
-const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
+const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut }) => {
   const [state, setState] = useState(null);
   const [chat, setChat]   = useState([]);
   const [guess, setGuess] = useState('');
@@ -1470,8 +1487,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
      A sala no celular vira TELA CHEIA e os painéis laterais (jogadores, menu)
      viram gavetas — não cabem três colunas em 390px sem espremer o desenho,
      que é o que a pessoa veio fazer. */
-  const { compacto, empilhado, pequeno, paisagem } = useTela();
-  const { h: alturaVis, top: topoVis } = useAlturaVisivel(compacto);
+  const { compacto, empilhado, pequeno, paisagem } = useTela(zoomOut);
+  const { h: alturaVis, top: topoVis } = useAlturaVisivel(compacto, zoomOut);
   const [chatAberto, setChatAberto]   = useState(true);
   const [sheetJog, setSheetJog]       = useState(false);   // gaveta "Jogadores"
   const [menuMob, setMenuMob]         = useState(false);   // gaveta "⋯"
@@ -3013,8 +3030,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker }) => {
    RAIZ — mantém a presence global (quem está em qual sala) e alterna
    lobby ⇄ sala.
    ═══════════════════════════════════════════════════════════════════════════ */
-const TabUnikoPaint = () => {
-  const { compacto, pequeno } = useTela();
+const TabUnikoPaint = ({ zoomOut }) => {
+  const { compacto, pequeno } = useTela(zoomOut);
   const [name, setName]   = useState(() => myName());
   const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
@@ -3195,9 +3212,9 @@ const TabUnikoPaint = () => {
     <>
       {room
         ? <Sala roomId={room} name={name} photo={photo} players={naSala}
-            onLeave={() => setRoom(null)} onAbrirPicker={abrirPicker} />
+            onLeave={() => setRoom(null)} onAbrirPicker={abrirPicker} zoomOut={zoomOut} />
         : <Lobby name={name} photo={photo} porSala={porSala}
-            onEnter={setRoom} onAbrirPicker={abrirPicker} />}
+            onEnter={setRoom} onAbrirPicker={abrirPicker} zoomOut={zoomOut} />}
 
       {picker && (() => {
         const termo = busca.trim().toLowerCase();
