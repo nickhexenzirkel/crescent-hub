@@ -19,6 +19,7 @@ import { TabRoletaSorte, WheelIcon } from './tabs/TabRoletaSorte';
 import { TabColegas } from './tabs/TabColegas';
 import { TabUnikoWave } from './tabs/TabUnikoWave';
 import { TabUnikoPaint } from './tabs/TabUnikoPaint';
+import { TabUnikoCamera } from './tabs/TabUnikoCamera';
 import { TabQuizMM } from './tabs/TabQuizMM';
 import { TabUnikoStop } from './tabs/TabUnikoStop';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
@@ -217,6 +218,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     // Uniko Wave é montado SEMPRE, fora deste switch (ver `{render()}` abaixo) —
     // pra trocar de aba e voltar não derrubar o iframe/recarregar o jogo do zero.
     if(tab==='unikopaint')  return <TabUnikoPaint zoomOut={zoomOut}/>;
+    if(tab==='unikocamera') return <TabUnikoCamera/>;
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
@@ -263,8 +265,8 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
   return(
     <>
     <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
-      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'} desligado={desligado.off}/>}
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikowave'?(celularDeitado?0:76):280),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
+      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'||tab==='unikocamera'} desligado={desligado.off}/>}
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikocamera'?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
         // do conteúdo mais largo lá dentro (min-content), IGNORANDO o
