@@ -601,6 +601,20 @@ const THEMES = [
     'She Knows no Carnaval', 'Casa monstro', 'Bananinha da Kill', 'Beats',
     'Cocô na Geladeira', 'Bunda da Abner', 'Quarto dos Héteros', 'Sunga Branca do João',
     'Língua Azul', 'Lucas Guedes'] },
+  /* Nome de artista de verdade (cantores), metade internacional metade
+     brasileiro — mesmo estilo do tema Disney (nome próprio com maiúscula),
+     não instrumento/objeto (isso já é o tema Música). */
+  { id: 'artistas', nome: 'Artistas', emoji: '🎤', words: [
+    'Taylor Swift', 'Sabrina Carpenter', 'The Weeknd', 'Beyoncé', 'Rihanna',
+    'Ariana Grande', 'Billie Eilish', 'Dua Lipa', 'Bruno Mars', 'Ed Sheeran',
+    'Justin Bieber', 'Katy Perry', 'Lady Gaga', 'Madonna', 'Michael Jackson',
+    'Adele', 'Shakira', 'Selena Gomez', 'Miley Cyrus', 'Olivia Rodrigo',
+    'Harry Styles', 'Drake', 'Post Malone', 'Doja Cat', 'Freddie Mercury',
+    'Anitta', 'Marina Sena', 'Gal Costa', 'Pabllo Vittar', 'Ivete Sangalo',
+    'Ludmilla', 'Wesley Safadão', 'Gusttavo Lima', 'Marília Mendonça', 'Caetano Veloso',
+    'Gilberto Gil', 'Roberto Carlos', 'Elis Regina', 'Zeca Pagodinho', 'Claudia Leitte',
+    'Daniela Mercury', 'Xuxa', 'Sandy', 'Luísa Sonza', 'Iza',
+    'Preta Gil', 'Maria Bethânia', 'Rita Lee', 'Tim Maia', 'Naiara Azevedo'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
@@ -620,7 +634,7 @@ const COR_TEMA = {
   fazenda: UP.lime,    espaco: UP.cyan,      superherois: UP.red,
   praia: UP.cyan, festajunina: UP.yellow, natal: UP.red,
   terror: UP.purple, construcao: UP.yellow, disney: UP.purple,
-  cagonas: UP.orange, restaurante: UP.red,
+  cagonas: UP.orange, restaurante: UP.red, artistas: UP.pink,
 };
 const corDoTema = (id) => COR_TEMA[id] || UP.pink;
 
