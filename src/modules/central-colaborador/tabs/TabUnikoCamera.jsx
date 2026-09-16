@@ -186,12 +186,22 @@ const HEART_OFFSETS = [
 const HEAD_PADRAO = { x: .5, y: .15, w: .32 }; // suposição de rosto centrado, até a detecção de verdade assumir
 const CORACAO_PATH = 'M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z';
 const ESTRELA_PATH = 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7L2 9.2l7.1-.6z';
+// Coroa simples de 3 pontas — versão pro <Sic> (viewBox 24x24, ícone da UI).
+const COROA_PATH = 'M5 16 L3 5 L8.5 10 L12 4 L15.5 10 L21 5 L19 16 H5 Z';
 const STAR_SPOTS = [
   { x: .10, y: .14, s: 40 }, { x: .90, y: .18, s: 34 }, { x: .14, y: .60, s: 32 },
   { x: .87, y: .64, s: 40 }, { x: .08, y: .84, s: 30 }, { x: .92, y: .40, s: 32 }, { x: .50, y: .06, s: 28 },
 ];
+// Paleta de cor dos corações — pedido explícito (antes era só rosa fixo).
+const CORES_CORACAO = [
+  { id: 'rosa', hex: '#FF4D8D' }, { id: 'vermelho', hex: '#FF3B30' }, { id: 'laranja', hex: '#FF9F0A' },
+  { id: 'amarelo', hex: '#FFD60A' }, { id: 'verde', hex: '#34C759' }, { id: 'azul', hex: '#0A84FF' },
+  { id: 'roxo', hex: '#AF52DE' }, { id: 'preto', hex: '#1c1c1e' }, { id: 'cinza', hex: '#8E8E93' }, { id: 'branco', hex: '#FFFFFF' },
+];
 const EFEITO_CORACOES_KEY = 'ucam_efeito_coracoes';
 const EFEITO_ESTRELAS_KEY = 'ucam_efeito_estrelas';
+const EFEITO_COROA_KEY = 'ucam_efeito_coroa';
+const CORACAO_COR_KEY = 'ucam_coracao_cor';
 
 const desenharCoracao = (ctx, cx, cy, s, cor) => {
   ctx.save();
@@ -228,13 +238,38 @@ const desenharEstrela5 = (ctx, cx, cy, r, cor) => {
   ctx.fill();
   ctx.restore();
 };
-const desenharEfeitos = (ctx, w, h, { coracoes, estrelas, cabeca }) => {
+/* Coroa simples de 3 pontas pro canvas — coordenadas locais (origem no
+   centro dela), giradas pelo `ctx.scale` até a largura pedida (o path tem
+   18 unidades de largura local, ponta a ponta). */
+const desenharCoroa = (ctx, cx, cy, larguraPx, cor) => {
+  const escala = larguraPx / 18;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(escala, escala);
+  ctx.beginPath();
+  ctx.moveTo(-7, 6);
+  ctx.lineTo(-9, -5);
+  ctx.lineTo(-3.5, 0);
+  ctx.lineTo(0, -6);
+  ctx.lineTo(3.5, 0);
+  ctx.lineTo(9, -5);
+  ctx.lineTo(7, 6);
+  ctx.closePath();
+  ctx.fillStyle = cor;
+  ctx.fill();
+  ctx.restore();
+};
+const desenharEfeitos = (ctx, w, h, { coracoes, estrelas, coroa, cabeca, corCoracao }) => {
   ctx.filter = 'none'; // efeito nunca herda o filtro de cor escolhido (senão vira cinza no P&B etc.)
   if (estrelas) STAR_SPOTS.forEach(p => desenharEstrela5(ctx, p.x * w, p.y * h, p.s * (w / 900), '#FFD60A'));
   if (coracoes) {
     const cab = cabeca || HEAD_PADRAO;
     const escala = Math.max(.6, Math.min(1.8, cab.w / .32));
-    HEART_OFFSETS.forEach(o => desenharCoracao(ctx, (cab.x + o.dx * cab.w) * w, (cab.y + o.dy * cab.w) * h, o.s * escala * 1.4, '#FF4D8D'));
+    HEART_OFFSETS.forEach(o => desenharCoracao(ctx, (cab.x + o.dx * cab.w) * w, (cab.y + o.dy * cab.w) * h, o.s * escala * 1.4, corCoracao || CORES_CORACAO[0].hex));
+  }
+  if (coroa) {
+    const cab = cabeca || HEAD_PADRAO;
+    desenharCoroa(ctx, cab.x * w, (cab.y - .95 * cab.w) * h, cab.w * 1.35 * w, '#FFD60A');
   }
 };
 /* Overlay ao vivo (DOM/CSS) — camada irmã do <video>, então não herda o
@@ -242,7 +277,7 @@ const desenharEfeitos = (ctx, w, h, { coracoes, estrelas, cabeca }) => {
    estão. Os corações têm `transition` no left/top pra suavizar entre uma
    atualização de posição e outra (a detecção roda em loop próprio, não a
    cada render do React). */
-const EfeitosOverlay = ({ coracoes, estrelas, headPos }) => {
+const EfeitosOverlay = ({ coracoes, estrelas, coroa, headPos, corCoracao }) => {
   const cab = headPos || HEAD_PADRAO;
   const escala = Math.max(.6, Math.min(1.8, cab.w / .32));
   return (
@@ -264,9 +299,17 @@ const EfeitosOverlay = ({ coracoes, estrelas, headPos }) => {
               left: `${(cab.x + o.dx * cab.w) * 100}%`, top: `${(cab.y + o.dy * cab.w) * 100}%`,
               transform: 'translate(-50%,-50%)', transition: 'left .12s linear, top .12s linear',
               animation: `ucamHeartFloat 2.4s ease-in-out ${i * .2}s infinite` }}>
-              <Sic size={o.s * escala * 1.7} stroke="none"><path d={CORACAO_PATH} style={{ fill: '#FF4D8D' }} /></Sic>
+              <Sic size={o.s * escala * 1.7} stroke="none"><path d={CORACAO_PATH} style={{ fill: corCoracao || CORES_CORACAO[0].hex }} /></Sic>
             </span>
           ))}
+        </div>
+      )}
+      {coroa && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          <span style={{ position: 'absolute', left: `${cab.x * 100}%`, top: `${(cab.y - .95 * cab.w) * 100}%`,
+            transform: 'translate(-50%,-50%)', transition: 'left .12s linear, top .12s linear' }}>
+            <Sic size={70 * escala} stroke="none"><path d={COROA_PATH} style={{ fill: '#FFD60A' }} /></Sic>
+          </span>
         </div>
       )}
     </>
@@ -328,6 +371,8 @@ const TabUnikoCamera = () => {
   const [melhorar, setMelhorar] = useState(() => { try { return localStorage.getItem(MELHORAR_KEY) === '1'; } catch { return false; } });
   const [efeitoCoracoes, setEfeitoCoracoes] = useState(() => { try { return localStorage.getItem(EFEITO_CORACOES_KEY) === '1'; } catch { return false; } });
   const [efeitoEstrelas, setEfeitoEstrelas] = useState(() => { try { return localStorage.getItem(EFEITO_ESTRELAS_KEY) === '1'; } catch { return false; } });
+  const [efeitoCoroa, setEfeitoCoroa] = useState(() => { try { return localStorage.getItem(EFEITO_COROA_KEY) === '1'; } catch { return false; } });
+  const [corCoracao, setCorCoracao] = useState(() => { try { return localStorage.getItem(CORACAO_COR_KEY) || CORES_CORACAO[0].hex; } catch { return CORES_CORACAO[0].hex; } });
   const [papelId, setPapelId] = useState(() => { try { return localStorage.getItem(PAPEL_KEY) || WALLPAPERS[0].id; } catch { return WALLPAPERS[0].id; } });
   const [papelCustom, setPapelCustom] = useState(() => { try { return localStorage.getItem(PAPEL_CUSTOM_KEY) || null; } catch { return null; } });
   // Painel aberto no dock: null | 'filtros' | 'efeitos' | 'fundo' — só um por vez, tipo abas.
@@ -430,6 +475,8 @@ const TabUnikoCamera = () => {
   useEffect(() => { try { localStorage.setItem(MELHORAR_KEY, melhorar ? '1' : '0'); } catch { /* sem localStorage */ } }, [melhorar]);
   useEffect(() => { try { localStorage.setItem(EFEITO_CORACOES_KEY, efeitoCoracoes ? '1' : '0'); } catch { /* sem localStorage */ } }, [efeitoCoracoes]);
   useEffect(() => { try { localStorage.setItem(EFEITO_ESTRELAS_KEY, efeitoEstrelas ? '1' : '0'); } catch { /* sem localStorage */ } }, [efeitoEstrelas]);
+  useEffect(() => { try { localStorage.setItem(EFEITO_COROA_KEY, efeitoCoroa ? '1' : '0'); } catch { /* sem localStorage */ } }, [efeitoCoroa]);
+  useEffect(() => { try { localStorage.setItem(CORACAO_COR_KEY, corCoracao); } catch { /* sem localStorage */ } }, [corCoracao]);
 
   const mostrarToast = (msg) => {
     setToast(msg);
@@ -655,7 +702,7 @@ const TabUnikoCamera = () => {
     ctx.drawImage(v, sx, sy, cw, ch, 0, 0, outW, outH);
     ctx.restore();
     if (melhorar) { ctx.filter = 'none'; aplicarNitidez(ctx, outW, outH); }
-    if (efeitoCoracoes || efeitoEstrelas) desenharEfeitos(ctx, outW, outH, { coracoes: efeitoCoracoes, estrelas: efeitoEstrelas, cabeca: headSmoothRef.current });
+    if (efeitoCoracoes || efeitoEstrelas || efeitoCoroa) desenharEfeitos(ctx, outW, outH, { coracoes: efeitoCoracoes, estrelas: efeitoEstrelas, coroa: efeitoCoroa, cabeca: headSmoothRef.current, corCoracao });
 
     canvas.toBlob(blob => { if (blob) salvarFoto(blob); }, 'image/jpeg', 0.92);
   };
@@ -731,7 +778,7 @@ const TabUnikoCamera = () => {
               <video ref={videoRef} muted playsInline
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
                   filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
-              {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} headPos={headPos} />}
+              {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} coroa={efeitoCoroa} headPos={headPos} corCoracao={corCoracao} />}
               <StatusTela camState={camState} onRetry={ligarCamera} />
               {flash && <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'ucamFlash .35s ease-out' }} />}
             </div>
@@ -789,11 +836,23 @@ const TabUnikoCamera = () => {
                 <>
                   <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Efeitos</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <LinhaToggle ativo={efeitoCoracoes} onClick={() => setEfeitoCoracoes(c => !c)} cor="#FF4D8D" label="Corações ao redor do rosto">
+                    <LinhaToggle ativo={efeitoCoracoes} onClick={() => setEfeitoCoracoes(c => !c)} cor={corCoracao} label="Corações ao redor do rosto">
                       <Sic size={15} stroke="none"><path d={CORACAO_PATH} style={{ fill: 'currentColor' }} /></Sic>
                     </LinhaToggle>
+                    {efeitoCoracoes && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px 42px' }}>
+                        {CORES_CORACAO.map(c => (
+                          <button key={c.id} onClick={() => setCorCoracao(c.hex)} title={c.id}
+                            style={{ width: 20, height: 20, borderRadius: '50%', background: c.hex, cursor: 'pointer', padding: 0,
+                              border: corCoracao === c.hex ? `2px solid ${ACCENT}` : '1px solid rgba(128,128,128,.35)' }} />
+                        ))}
+                      </div>
+                    )}
                     <LinhaToggle ativo={efeitoEstrelas} onClick={() => setEfeitoEstrelas(s => !s)} cor="#FFD60A" label="Estrelas no cenário">
                       <Sic size={15} stroke="none"><path d={ESTRELA_PATH} style={{ fill: 'currentColor' }} /></Sic>
+                    </LinhaToggle>
+                    <LinhaToggle ativo={efeitoCoroa} onClick={() => setEfeitoCoroa(c => !c)} cor="#FFD60A" label="Coroa na cabeça">
+                      <Sic size={15} stroke="none"><path d={COROA_PATH} style={{ fill: 'currentColor' }} /></Sic>
                     </LinhaToggle>
                     <LinhaToggle ativo={melhorar} onClick={() => setMelhorar(m => !m)} cor={ACCENT} label="Melhorar qualidade">
                       <Sic size={15}><path d="M3 21l9-9" /><path d="M15 4V2" /><path d="M17.8 6.2L19 5" /><path d="M20 9h2" /><path d="M12.2 6.2L11 5" /></Sic>
@@ -849,7 +908,7 @@ const TabUnikoCamera = () => {
           <button onClick={() => abrirPainel('efeitos')} title="Efeitos" style={tabBtn(painelAberto === 'efeitos', dockBorder, chipBg, chipText)}>
             <Sic size={14}><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" /></Sic>
             {!isMobile && 'Efeitos'}
-            {(efeitoCoracoes || efeitoEstrelas || melhorar) && <span style={{ ...dot('#FF4D8D'), opacity: 1 }} />}
+            {(efeitoCoracoes || efeitoEstrelas || efeitoCoroa || melhorar) && <span style={{ ...dot(corCoracao), opacity: 1 }} />}
           </button>
           <button onClick={() => abrirPainel('fundo')} title="Papel de parede" style={tabBtn(painelAberto === 'fundo', dockBorder, chipBg, chipText)}>
             <Sic size={14}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Sic>
