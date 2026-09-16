@@ -122,12 +122,16 @@ const pillBtn = { padding: '9px 18px', borderRadius: 20, border: '1px solid rgba
    utilidade da câmera (galeria, papel de parede, qualidade, efeitos, tela
    cheia, on/off). `corIcone` força a cor do ícone (ex: liga/desliga, sempre
    colorido); `corAtiva` é o tom do "ligado" (azul por padrão, mas corações e
-   estrelas ganham a cor deles próprios). */
+   estrelas ganham a cor deles próprios). Lê `T.dark` direto (T é importado
+   no topo do arquivo e reflete o tema atual do Portal) pra virar claro/
+   escuro junto com o resto do app — só o bezel da câmera em si (alumínio +
+   luzes de janela) fica sempre "space gray", igual um MacBook de verdade não
+   muda de cor com o tema do sistema. */
 const roundBtn = (active, corIcone, corAtiva = ACCENT) => ({
   position: 'relative', width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center',
-  background: active ? `${corAtiva}33` : 'rgba(255,255,255,.10)',
-  border: `1px solid ${active ? `${corAtiva}88` : 'rgba(255,255,255,.14)'}`,
-  color: corIcone || (active ? corAtiva : 'rgba(255,255,255,.85)'),
+  background: active ? `${corAtiva}33` : (T.dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.055)'),
+  border: `1px solid ${active ? `${corAtiva}88` : (T.dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.10)')}`,
+  color: corIcone || (active ? corAtiva : (T.dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.62)')),
   cursor: 'pointer', flexShrink: 0, backdropFilter: 'blur(10px)', transition: 'all .15s',
 });
 
@@ -510,6 +514,17 @@ const TabUnikoCamera = () => {
     } catch { /* já saiu da lista local; se falhar no banco, reaparece no próximo carregarFotos */ }
   };
 
+  // Cores dos "cards" (dock, popover de papel de parede, galeria) — seguem o
+  // tema claro/escuro do Portal, igual pedido explícito do usuário.
+  const dockBg = T.dark ? 'rgba(28,28,30,.6)' : 'rgba(255,255,255,.72)';
+  const dockBorder = T.dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.08)';
+  const cardBg = T.dark ? '#1c1d22' : '#ffffff';
+  const cardBorder = T.dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
+  const cardText = T.dark ? '#fff' : '#1c1c1e';
+  const cardTextMuted = T.dark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.5)';
+  const chipBg = T.dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
+  const chipText = T.dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.72)';
+
   return (
     <div className="fi" style={{ fontFamily: 'var(--font-body)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!fullscreen && (
@@ -547,9 +562,9 @@ const TabUnikoCamera = () => {
         {wallpaperOpen && (
           <>
             <div onClick={() => setWallpaperOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 190 }} />
-            <div style={{ position: 'absolute', top: 60, right: 16, zIndex: 191, width: 220, background: '#1c1d22',
-              border: '1px solid rgba(255,255,255,.1)', borderRadius: 18, padding: 14, boxShadow: '0 20px 50px rgba(0,0,0,.5)' }}>
-              <div style={{ color: '#fff', fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Papel de parede</div>
+            <div style={{ position: 'absolute', top: 60, right: 16, zIndex: 191, width: 220, background: cardBg,
+              border: `1px solid ${cardBorder}`, borderRadius: 18, padding: 14, boxShadow: '0 20px 50px rgba(0,0,0,.35)' }}>
+              <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Papel de parede</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
                 {WALLPAPERS.map(w => (
                   <button key={w.id} onClick={() => escolherPapel(w.id)} title={w.nome}
@@ -564,7 +579,7 @@ const TabUnikoCamera = () => {
                 )}
               </div>
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px',
-                borderRadius: 30, background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.85)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                borderRadius: 30, background: chipBg, color: chipText, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <Sic size={14}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M17 8l-5-5-5 5" /><line x1="12" y1="3" x2="12" y2="15" /></Sic>
                 Enviar imagem
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onUploadWallpaper} />
@@ -584,9 +599,14 @@ const TabUnikoCamera = () => {
           <div style={{ position: 'absolute', top: 13, left: 18, display: 'flex', gap: 6, zIndex: 2 }}>
             <span style={dot('#FF5F57')} /><span style={dot('#FEBC2E')} /><span style={dot('#28C840')} />
           </div>
-          <div style={{ position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)', width: 7, height: 7,
-            borderRadius: '50%', background: camState === 'ativa' ? '#28C840' : '#555',
-            boxShadow: camState === 'ativa' ? '0 0 6px 2px rgba(40,200,64,.7)' : 'none', zIndex: 2 }} />
+          {/* título da janela, tipo app de verdade — o LED de "câmera ativa" vem
+              junto, igual antes, só que agora ao lado do nome em vez de sozinho. */}
+          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex',
+            alignItems: 'center', gap: 6, zIndex: 2 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: camState === 'ativa' ? '#28C840' : '#555',
+              boxShadow: camState === 'ativa' ? '0 0 6px 2px rgba(40,200,64,.7)' : 'none', flexShrink: 0 }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', color: 'rgba(255,255,255,.5)', whiteSpace: 'nowrap' }}>UNIKO CAMERA</span>
+          </div>
 
           <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 12, overflow: 'hidden', background: '#000', marginTop: 22 }}>
             <video ref={videoRef} muted playsInline
@@ -601,9 +621,9 @@ const TabUnikoCamera = () => {
 
       {/* ── dock de controles: minimalista, círculos, vibe iOS ── */}
       <div style={{ margin: fullscreen ? '0' : '12px 0 0', flexShrink: 0, borderRadius: fullscreen ? 0 : 26,
-        background: 'rgba(28,28,30,.6)', backdropFilter: 'blur(24px) saturate(180%)',
-        borderTop: fullscreen ? '1px solid rgba(255,255,255,.08)' : 'none',
-        border: fullscreen ? 'none' : '1px solid rgba(255,255,255,.08)',
+        background: dockBg, backdropFilter: 'blur(24px) saturate(180%)',
+        borderTop: fullscreen ? `1px solid ${dockBorder}` : 'none',
+        border: fullscreen ? 'none' : `1px solid ${dockBorder}`,
         padding: isMobile ? '12px 10px' : '12px 18px',
         display: 'flex', alignItems: 'center', gap: 14 }}>
 
@@ -615,7 +635,7 @@ const TabUnikoCamera = () => {
           )}
         </button>
 
-        <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.1)', flexShrink: 0 }} />
+        <div style={{ width: 1, alignSelf: 'stretch', background: dockBorder, flexShrink: 0 }} />
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 14, overflowX: 'auto', padding: '2px 2px 2px' }}>
           {FILTERS.map(f => (
@@ -623,14 +643,14 @@ const TabUnikoCamera = () => {
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'transparent',
                 border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2 }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: f.swatch, transition: 'transform .15s, box-shadow .15s',
-                boxShadow: filtroId === f.id ? `0 0 0 2px #1c1c1e, 0 0 0 4px ${ACCENT}` : '0 0 0 2px rgba(255,255,255,.08)',
+                boxShadow: filtroId === f.id ? `0 0 0 2px ${cardBg}, 0 0 0 4px ${ACCENT}` : `0 0 0 2px ${dockBorder}`,
                 transform: filtroId === f.id ? 'scale(1.06)' : 'none' }} />
-              <span style={{ fontSize: 9.5, fontWeight: 500, color: filtroId === f.id ? ACCENT : 'rgba(255,255,255,.55)', whiteSpace: 'nowrap' }}>{f.nome}</span>
+              <span style={{ fontSize: 9.5, fontWeight: 500, color: filtroId === f.id ? ACCENT : cardTextMuted, whiteSpace: 'nowrap' }}>{f.nome}</span>
             </button>
           ))}
         </div>
 
-        <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.1)', flexShrink: 0 }} />
+        <div style={{ width: 1, alignSelf: 'stretch', background: dockBorder, flexShrink: 0 }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
           <button onClick={tirarFoto} disabled={camState !== 'ativa' || salvando} title="Tirar foto"
@@ -652,25 +672,25 @@ const TabUnikoCamera = () => {
         <div onClick={() => setGaleriaOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(10,10,14,.6)',
           backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 720, maxWidth: '100%', maxHeight: '85vh', display: 'flex',
-            flexDirection: 'column', background: '#1c1d22', borderRadius: 20, border: '1px solid rgba(255,255,255,.08)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
-              <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Galeria — {photos.length} foto{photos.length === 1 ? '' : 's'}</div>
+            flexDirection: 'column', background: cardBg, borderRadius: 20, border: `1px solid ${cardBorder}`, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: `1px solid ${cardBorder}` }}>
+              <div style={{ color: cardText, fontWeight: 800, fontSize: 15 }}>Galeria — {photos.length} foto{photos.length === 1 ? '' : 's'}</div>
               <div style={{ flex: 1 }} />
-              <button onClick={() => setGaleriaOpen(false)} style={{ background: 'rgba(255,255,255,.08)', border: 'none', color: '#fff',
+              <button onClick={() => setGaleriaOpen(false)} style={{ background: chipBg, border: 'none', color: cardText,
                 width: 30, height: 30, borderRadius: 9, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
                 <Sic size={15}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Sic>
               </button>
             </div>
             <div className="fi" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
               {loadingPhotos ? (
-                <div style={{ color: 'rgba(255,255,255,.6)', textAlign: 'center', padding: 40, fontSize: 13.5 }}>Carregando…</div>
+                <div style={{ color: cardTextMuted, textAlign: 'center', padding: 40, fontSize: 13.5 }}>Carregando…</div>
               ) : photos.length === 0 ? (
-                <div style={{ color: 'rgba(255,255,255,.6)', textAlign: 'center', padding: 40, fontSize: 13.5 }}>Nenhuma foto ainda — tire a primeira!</div>
+                <div style={{ color: cardTextMuted, textAlign: 'center', padding: 40, fontSize: 13.5 }}>Nenhuma foto ainda — tire a primeira!</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 10 }}>
                   {photos.map(p => (
                     <div key={p.id} onClick={() => setLightboxFoto(p)} style={{ aspectRatio: '1', borderRadius: 12, overflow: 'hidden',
-                      cursor: 'zoom-in', border: '1px solid rgba(255,255,255,.08)' }}>
+                      cursor: 'zoom-in', border: `1px solid ${cardBorder}` }}>
                       <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     </div>
                   ))}
