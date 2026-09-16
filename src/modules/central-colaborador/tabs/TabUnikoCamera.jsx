@@ -134,6 +134,17 @@ const roundBtn = (active, corIcone, corAtiva = ACCENT) => ({
   color: corIcone || (active ? corAtiva : (T.dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.62)')),
   cursor: 'pointer', flexShrink: 0, backdropFilter: 'blur(10px)', transition: 'all .15s',
 });
+/* Botão "aba" do dock (Filtros/Efeitos/Fundo) — pílula com ícone+rótulo,
+   fica destacada (azul) enquanto o painel dela está aberto. `bgNeutro`/
+   `borderNeutro`/`textoNeutro` vêm de fora (dockBg/dockBorder etc., que já
+   seguem T.dark) pra não duplicar essa conta aqui. */
+const tabBtn = (ativo, borderNeutro, bgNeutro, textoNeutro) => ({
+  position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 20,
+  background: ativo ? `${ACCENT}22` : bgNeutro,
+  border: `1px solid ${ativo ? `${ACCENT}70` : borderNeutro}`,
+  color: ativo ? ACCENT : textoNeutro,
+  fontSize: 12.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+});
 
 /* ── Efeitos decorativos ─────────────────────────────────────────────────
    CORAÇÕES: acompanham a cabeça de VERDADE via detecção de rosto (MediaPipe
@@ -142,18 +153,19 @@ const roundBtn = (active, corIcone, corAtiva = ACCENT) => ({
    o efeito é ligado (import dinâmico — quem nunca usa não baixa nada).
    Enquanto não detecta nenhum rosto (ligou agora, ou o modelo não carregou),
    caem numa posição padrão central/superior — o efeito nunca "some".
-   ESTRELAS: emoji de verdade, grande, espalhadas em pontos fixos da cena
-   enviesados pras bordas (pra não cobrir o rosto) — aqui não tem rastreio,
-   é "cenário", não segue ninguém. */
+   ESTRELAS: SVG amarelo sólido de 5 pontas (não emoji — sem brilho/glint
+   extra), grande, em pontos fixos da cena enviesados pras bordas (pra não
+   cobrir o rosto) — aqui não tem rastreio, é "cenário", não segue ninguém. */
 const HEART_OFFSETS = [
-  { dx: -.17, dy: -.62, s: 15 }, { dx: 0, dy: -.80, s: 19 }, { dx: .17, dy: -.62, s: 14 },
-  { dx: -.36, dy: -.32, s: 12 }, { dx: .36, dy: -.32, s: 13 }, { dx: -.13, dy: -.20, s: 11 }, { dx: .13, dy: -.20, s: 10 },
+  { dx: -.18, dy: -.66, s: 22 }, { dx: 0, dy: -.86, s: 27 }, { dx: .18, dy: -.66, s: 20 },
+  { dx: -.38, dy: -.34, s: 17 }, { dx: .38, dy: -.34, s: 18 }, { dx: -.14, dy: -.20, s: 15 }, { dx: .14, dy: -.20, s: 14 },
 ];
 const HEAD_PADRAO = { x: .5, y: .15, w: .32 }; // suposição de rosto centrado, até a detecção de verdade assumir
-const STAR_EMOJI = '🌟';
+const CORACAO_PATH = 'M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z';
+const ESTRELA_PATH = 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.8-6.2 3.8 1.6-7L2 9.2l7.1-.6z';
 const STAR_SPOTS = [
-  { x: .10, y: .14, s: 30 }, { x: .90, y: .18, s: 26 }, { x: .14, y: .60, s: 24 },
-  { x: .87, y: .64, s: 30 }, { x: .08, y: .84, s: 22 }, { x: .92, y: .40, s: 24 }, { x: .50, y: .06, s: 22 },
+  { x: .10, y: .14, s: 40 }, { x: .90, y: .18, s: 34 }, { x: .14, y: .60, s: 32 },
+  { x: .87, y: .64, s: 40 }, { x: .08, y: .84, s: 30 }, { x: .92, y: .40, s: 32 }, { x: .50, y: .06, s: 28 },
 ];
 const EFEITO_CORACOES_KEY = 'ucam_efeito_coracoes';
 const EFEITO_ESTRELAS_KEY = 'ucam_efeito_estrelas';
@@ -175,17 +187,27 @@ const desenharCoracao = (ctx, cx, cy, s, cor) => {
   ctx.fill();
   ctx.restore();
 };
-const desenharEstrelaEmoji = (ctx, cx, cy, sizePx) => {
+/* Estrela de 5 pontas de verdade (10 vértices, raio externo/interno
+   alternados) — não é emoji, então a cor/tamanho ficam 100% sob controle. */
+const desenharEstrela5 = (ctx, cx, cy, r, cor) => {
+  const rInterno = r * 0.42;
   ctx.save();
-  ctx.font = `${sizePx}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(STAR_EMOJI, cx, cy);
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = (Math.PI / 5) * i - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : rInterno;
+    const x = Math.cos(ang) * rad, y = Math.sin(ang) * rad;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = cor;
+  ctx.fill();
   ctx.restore();
 };
 const desenharEfeitos = (ctx, w, h, { coracoes, estrelas, cabeca }) => {
   ctx.filter = 'none'; // efeito nunca herda o filtro de cor escolhido (senão vira cinza no P&B etc.)
-  if (estrelas) STAR_SPOTS.forEach(p => desenharEstrelaEmoji(ctx, p.x * w, p.y * h, p.s * (w / 900)));
+  if (estrelas) STAR_SPOTS.forEach(p => desenharEstrela5(ctx, p.x * w, p.y * h, p.s * (w / 900), '#FFD60A'));
   if (coracoes) {
     const cab = cabeca || HEAD_PADRAO;
     const escala = Math.max(.6, Math.min(1.8, cab.w / .32));
@@ -205,9 +227,10 @@ const EfeitosOverlay = ({ coracoes, estrelas, headPos }) => {
       {estrelas && (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
           {STAR_SPOTS.map((p, i) => (
-            <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`, fontSize: p.s, lineHeight: 1,
-              transform: 'translate(-50%,-50%)', filter: 'drop-shadow(0 0 7px rgba(255,214,10,.55))',
-              animation: `ucamTwinkle ${1.8 + (i % 3) * .4}s ease-in-out ${i * .18}s infinite` }}>{STAR_EMOJI}</span>
+            <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`,
+              transform: 'translate(-50%,-50%)', animation: `ucamTwinkle ${1.8 + (i % 3) * .4}s ease-in-out ${i * .18}s infinite` }}>
+              <Sic size={p.s} stroke="none"><path d={ESTRELA_PATH} style={{ fill: '#FFD60A' }} /></Sic>
+            </span>
           ))}
         </div>
       )}
@@ -218,12 +241,30 @@ const EfeitosOverlay = ({ coracoes, estrelas, headPos }) => {
               left: `${(cab.x + o.dx * cab.w) * 100}%`, top: `${(cab.y + o.dy * cab.w) * 100}%`,
               transform: 'translate(-50%,-50%)', transition: 'left .12s linear, top .12s linear',
               animation: `ucamHeartFloat 2.4s ease-in-out ${i * .2}s infinite` }}>
-              <Sic size={o.s * escala * 1.6} stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" style={{ fill: '#FF4D8D' }} /></Sic>
+              <Sic size={o.s * escala * 1.7} stroke="none"><path d={CORACAO_PATH} style={{ fill: '#FF4D8D' }} /></Sic>
             </span>
           ))}
         </div>
       )}
     </>
+  );
+};
+
+/* Linha de toggle do painel "Efeitos" (corações/estrelas/qualidade) — lê
+   `T.dark` direto, igual `roundBtn`, pra acompanhar o tema do Portal. */
+const LinhaToggle = ({ ativo, onClick, cor, label, children }) => {
+  const bg = T.dark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.04)';
+  const border = T.dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.10)';
+  const texto = T.dark ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
+  return (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
+      background: ativo ? `${cor}22` : bg, border: `1px solid ${ativo ? `${cor}70` : border}`, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, color: ativo ? cor : texto }}>{children}</span>
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: ativo ? cor : texto }}>{label}</span>
+      <span style={{ width: 34, height: 19, borderRadius: 10, background: ativo ? cor : border, position: 'relative', flexShrink: 0, transition: 'background .15s' }}>
+        <span style={{ position: 'absolute', top: 2, left: ativo ? 17 : 2, width: 15, height: 15, borderRadius: '50%', background: '#fff', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+      </span>
+    </button>
   );
 };
 
@@ -266,7 +307,9 @@ const TabUnikoCamera = () => {
   const [efeitoEstrelas, setEfeitoEstrelas] = useState(() => { try { return localStorage.getItem(EFEITO_ESTRELAS_KEY) === '1'; } catch { return false; } });
   const [papelId, setPapelId] = useState(() => { try { return localStorage.getItem(PAPEL_KEY) || WALLPAPERS[0].id; } catch { return WALLPAPERS[0].id; } });
   const [papelCustom, setPapelCustom] = useState(() => { try { return localStorage.getItem(PAPEL_CUSTOM_KEY) || null; } catch { return null; } });
-  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  // Painel aberto no dock: null | 'filtros' | 'efeitos' | 'fundo' — só um por vez, tipo abas.
+  const [painelAberto, setPainelAberto] = useState(null);
+  const abrirPainel = (nome) => setPainelAberto(p => (p === nome ? null : nome));
 
   const [photos, setPhotos] = useState([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
@@ -445,7 +488,7 @@ const TabUnikoCamera = () => {
     ? `url(${papelCustom}) center/cover no-repeat`
     : (WALLPAPERS.find(w => w.id === papelId)?.css || WALLPAPERS[0].css);
 
-  const escolherPapel = (id) => { setPapelId(id); try { localStorage.setItem(PAPEL_KEY, id); } catch { /* sem localStorage */ } setWallpaperOpen(false); };
+  const escolherPapel = (id) => { setPapelId(id); try { localStorage.setItem(PAPEL_KEY, id); } catch { /* sem localStorage */ } setPainelAberto(null); };
   const onUploadWallpaper = (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -539,55 +582,6 @@ const TabUnikoCamera = () => {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: isMobile ? '16px 14px' : '20px 32px', flex: 1, minHeight: 0 }}>
 
-        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 3, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
-          <button onClick={() => setEfeitoCoracoes(c => !c)} title="Efeito: corações" style={roundBtn(efeitoCoracoes, null, '#FF4D8D')}>
-            <Sic size={15} style={efeitoCoracoes ? { fill: '#FF4D8D' } : {}}><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" /></Sic>
-          </button>
-          <button onClick={() => setEfeitoEstrelas(s => !s)} title="Efeito: estrelas" style={roundBtn(efeitoEstrelas, null, '#FFD60A')}>
-            <Sic size={15} style={efeitoEstrelas ? { fill: '#FFD60A' } : {}}><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" /></Sic>
-          </button>
-          <button onClick={() => setMelhorar(m => !m)} title="Melhorar qualidade" style={roundBtn(melhorar)}>
-            <Sic size={15}><path d="M3 21l9-9" /><path d="M15 4V2" /><path d="M17.8 6.2L19 5" /><path d="M20 9h2" /><path d="M12.2 6.2L11 5" /></Sic>
-          </button>
-          <button onClick={() => setWallpaperOpen(o => !o)} title="Papel de parede" style={roundBtn(wallpaperOpen)}>
-            <Sic size={15}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Sic>
-          </button>
-          <button onClick={fullscreen ? sairTelaCheia : entrarTelaCheia} title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} style={roundBtn(fullscreen)}>
-            {fullscreen
-              ? <Sic size={15}><path d="M8 3v3a2 2 0 01-2 2H3" /><path d="M21 8h-3a2 2 0 01-2-2V3" /><path d="M3 16h3a2 2 0 012 2v3" /><path d="M16 21v-3a2 2 0 012-2h3" /></Sic>
-              : <Sic size={15}><path d="M8 3H5a2 2 0 00-2 2v3" /><path d="M16 3h3a2 2 0 012 2v3" /><path d="M8 21H5a2 2 0 01-2-2v-3" /><path d="M16 21h3a2 2 0 002-2v-3" /></Sic>}
-          </button>
-        </div>
-
-        {wallpaperOpen && (
-          <>
-            <div onClick={() => setWallpaperOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 190 }} />
-            <div style={{ position: 'absolute', top: 60, right: 16, zIndex: 191, width: 220, background: cardBg,
-              border: `1px solid ${cardBorder}`, borderRadius: 18, padding: 14, boxShadow: '0 20px 50px rgba(0,0,0,.35)' }}>
-              <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Papel de parede</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
-                {WALLPAPERS.map(w => (
-                  <button key={w.id} onClick={() => escolherPapel(w.id)} title={w.nome}
-                    style={{ aspectRatio: '1', borderRadius: '50%', background: w.css, cursor: 'pointer', padding: 0,
-                      border: papelId === w.id ? `2px solid ${ACCENT}` : '2px solid transparent' }} />
-                ))}
-                {papelCustom && (
-                  <button onClick={() => escolherPapel('custom')} title="Personalizado"
-                    style={{ aspectRatio: '1', borderRadius: '50%', backgroundImage: `url(${papelCustom})`, backgroundSize: 'cover',
-                      backgroundPosition: 'center', cursor: 'pointer', padding: 0,
-                      border: papelId === 'custom' ? `2px solid ${ACCENT}` : '2px solid transparent' }} />
-                )}
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px',
-                borderRadius: 30, background: chipBg, color: chipText, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                <Sic size={14}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M17 8l-5-5-5 5" /><line x1="12" y1="3" x2="12" y2="15" /></Sic>
-                Enviar imagem
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onUploadWallpaper} />
-              </label>
-            </div>
-          </>
-        )}
-
         {/* bezel estilo MacBook — bem maior e horizontal (16:10). O tamanho vem
             da altura MEDIDA do palco (ref + ResizeObserver), não de vh/zoom
             calculados — assim funciona igual em tela normal e em tela cheia,
@@ -619,13 +613,85 @@ const TabUnikoCamera = () => {
         </div>
       </div>
 
-      {/* ── dock de controles: minimalista, círculos, vibe iOS ── */}
-      <div style={{ margin: fullscreen ? '0' : '12px 0 0', flexShrink: 0, borderRadius: fullscreen ? 0 : 26,
+      {/* ── dock de controles: minimalista, vibe iOS, com abas (Filtros/Efeitos/
+           Fundo abrem um painel; Tela cheia é botão fixo, ação direta) ── */}
+      <div style={{ position: 'relative', margin: fullscreen ? '0' : '12px 0 0', flexShrink: 0, borderRadius: fullscreen ? 0 : 26,
         background: dockBg, backdropFilter: 'blur(24px) saturate(180%)',
         borderTop: fullscreen ? `1px solid ${dockBorder}` : 'none',
         border: fullscreen ? 'none' : `1px solid ${dockBorder}`,
-        padding: isMobile ? '12px 10px' : '12px 18px',
-        display: 'flex', alignItems: 'center', gap: 14 }}>
+        padding: isMobile ? '10px 10px' : '10px 16px',
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+
+        {/* painel flutuante acima do dock — conteúdo conforme a aba escolhida */}
+        {painelAberto && (
+          <>
+            <div onClick={() => setPainelAberto(null)} style={{ position: 'fixed', inset: 0, zIndex: 190 }} />
+            <div style={{ position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)',
+              zIndex: 191, width: 'min(94vw, 460px)', maxHeight: '48vh', overflowY: 'auto', background: cardBg,
+              border: `1px solid ${cardBorder}`, borderRadius: 18, padding: 14, boxShadow: '0 20px 50px rgba(0,0,0,.35)' }}>
+
+              {painelAberto === 'filtros' && (
+                <>
+                  <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Filtros</div>
+                  <div style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '2px 2px 4px' }}>
+                    {FILTERS.map(f => (
+                      <button key={f.id} onClick={() => setFiltroId(f.id)} title={f.nome}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'transparent',
+                          border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2 }}>
+                        <div style={{ width: 42, height: 42, borderRadius: '50%', background: f.swatch, transition: 'transform .15s, box-shadow .15s',
+                          boxShadow: filtroId === f.id ? `0 0 0 2px ${cardBg}, 0 0 0 4px ${ACCENT}` : `0 0 0 2px ${dockBorder}`,
+                          transform: filtroId === f.id ? 'scale(1.06)' : 'none' }} />
+                        <span style={{ fontSize: 10, fontWeight: 500, color: filtroId === f.id ? ACCENT : cardTextMuted, whiteSpace: 'nowrap' }}>{f.nome}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {painelAberto === 'efeitos' && (
+                <>
+                  <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Efeitos</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <LinhaToggle ativo={efeitoCoracoes} onClick={() => setEfeitoCoracoes(c => !c)} cor="#FF4D8D" label="Corações ao redor do rosto">
+                      <Sic size={15} stroke="none"><path d={CORACAO_PATH} style={{ fill: 'currentColor' }} /></Sic>
+                    </LinhaToggle>
+                    <LinhaToggle ativo={efeitoEstrelas} onClick={() => setEfeitoEstrelas(s => !s)} cor="#FFD60A" label="Estrelas no cenário">
+                      <Sic size={15} stroke="none"><path d={ESTRELA_PATH} style={{ fill: 'currentColor' }} /></Sic>
+                    </LinhaToggle>
+                    <LinhaToggle ativo={melhorar} onClick={() => setMelhorar(m => !m)} cor={ACCENT} label="Melhorar qualidade">
+                      <Sic size={15}><path d="M3 21l9-9" /><path d="M15 4V2" /><path d="M17.8 6.2L19 5" /><path d="M20 9h2" /><path d="M12.2 6.2L11 5" /></Sic>
+                    </LinhaToggle>
+                  </div>
+                </>
+              )}
+
+              {painelAberto === 'fundo' && (
+                <>
+                  <div style={{ color: cardText, fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>Papel de parede</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 10 }}>
+                    {WALLPAPERS.map(w => (
+                      <button key={w.id} onClick={() => escolherPapel(w.id)} title={w.nome}
+                        style={{ aspectRatio: '1', borderRadius: '50%', background: w.css, cursor: 'pointer', padding: 0,
+                          border: papelId === w.id ? `2px solid ${ACCENT}` : '2px solid transparent' }} />
+                    ))}
+                    {papelCustom && (
+                      <button onClick={() => escolherPapel('custom')} title="Personalizado"
+                        style={{ aspectRatio: '1', borderRadius: '50%', backgroundImage: `url(${papelCustom})`, backgroundSize: 'cover',
+                          backgroundPosition: 'center', cursor: 'pointer', padding: 0,
+                          border: papelId === 'custom' ? `2px solid ${ACCENT}` : '2px solid transparent' }} />
+                    )}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px',
+                    borderRadius: 30, background: chipBg, color: chipText, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    <Sic size={14}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M17 8l-5-5-5 5" /><line x1="12" y1="3" x2="12" y2="15" /></Sic>
+                    Enviar imagem
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onUploadWallpaper} />
+                  </label>
+                </>
+              )}
+            </div>
+          </>
+        )}
 
         <button onClick={() => setGaleriaOpen(true)} title="Galeria" style={{ ...roundBtn(false), flexShrink: 0 }}>
           <Sic size={16}><rect x="3" y="3" width="14" height="14" rx="2" /><path d="M7 21h11a2 2 0 002-2V8" /></Sic>
@@ -637,22 +703,31 @@ const TabUnikoCamera = () => {
 
         <div style={{ width: 1, alignSelf: 'stretch', background: dockBorder, flexShrink: 0 }} />
 
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 14, overflowX: 'auto', padding: '2px 2px 2px' }}>
-          {FILTERS.map(f => (
-            <button key={f.id} onClick={() => setFiltroId(f.id)} title={f.nome}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, background: 'transparent',
-                border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: f.swatch, transition: 'transform .15s, box-shadow .15s',
-                boxShadow: filtroId === f.id ? `0 0 0 2px ${cardBg}, 0 0 0 4px ${ACCENT}` : `0 0 0 2px ${dockBorder}`,
-                transform: filtroId === f.id ? 'scale(1.06)' : 'none' }} />
-              <span style={{ fontSize: 9.5, fontWeight: 500, color: filtroId === f.id ? ACCENT : cardTextMuted, whiteSpace: 'nowrap' }}>{f.nome}</span>
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => abrirPainel('filtros')} title="Filtros" style={tabBtn(painelAberto === 'filtros', dockBorder, chipBg, chipText)}>
+            <Sic size={14}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.2" /></Sic>
+            {!isMobile && 'Filtros'}
+            {filtroId !== 'original' && <span style={{ ...dot(ACCENT), opacity: 1 }} />}
+          </button>
+          <button onClick={() => abrirPainel('efeitos')} title="Efeitos" style={tabBtn(painelAberto === 'efeitos', dockBorder, chipBg, chipText)}>
+            <Sic size={14}><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" /></Sic>
+            {!isMobile && 'Efeitos'}
+            {(efeitoCoracoes || efeitoEstrelas || melhorar) && <span style={{ ...dot('#FF4D8D'), opacity: 1 }} />}
+          </button>
+          <button onClick={() => abrirPainel('fundo')} title="Papel de parede" style={tabBtn(painelAberto === 'fundo', dockBorder, chipBg, chipText)}>
+            <Sic size={14}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Sic>
+            {!isMobile && 'Fundo'}
+          </button>
+          <button onClick={fullscreen ? sairTelaCheia : entrarTelaCheia} title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} style={roundBtn(fullscreen)}>
+            {fullscreen
+              ? <Sic size={15}><path d="M8 3v3a2 2 0 01-2 2H3" /><path d="M21 8h-3a2 2 0 01-2-2V3" /><path d="M3 16h3a2 2 0 012 2v3" /><path d="M16 21v-3a2 2 0 012-2h3" /></Sic>
+              : <Sic size={15}><path d="M8 3H5a2 2 0 00-2 2v3" /><path d="M16 3h3a2 2 0 012 2v3" /><path d="M8 21H5a2 2 0 01-2-2v-3" /><path d="M16 21h3a2 2 0 002-2v-3" /></Sic>}
+          </button>
         </div>
 
-        <div style={{ width: 1, alignSelf: 'stretch', background: dockBorder, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: isMobile ? '100%' : 0 }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, margin: isMobile ? '0 auto' : 0 }}>
           <button onClick={tirarFoto} disabled={camState !== 'ativa' || salvando} title="Tirar foto"
             style={{ width: 56, height: 56, borderRadius: '50%', flexShrink: 0, background: '#fff',
               border: '3px solid rgba(255,255,255,.4)', cursor: (camState !== 'ativa' || salvando) ? 'not-allowed' : 'pointer',
