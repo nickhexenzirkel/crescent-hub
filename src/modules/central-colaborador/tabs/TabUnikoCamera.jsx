@@ -119,14 +119,99 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const dot = (cor) => ({ width: 9, height: 9, borderRadius: '50%', background: cor, display: 'inline-block', opacity: .9 });
 const pillBtn = { padding: '9px 18px', borderRadius: 20, border: '1px solid rgba(255,255,255,.16)', background: 'rgba(255,255,255,.08)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 };
 /* Botão redondo minimalista (vibe iOS control center) — usado nos ícones de
-   utilidade da câmera (galeria, papel de parede, qualidade, tela cheia, on/off). */
-const roundBtn = (active, corIcone) => ({
+   utilidade da câmera (galeria, papel de parede, qualidade, efeitos, tela
+   cheia, on/off). `corIcone` força a cor do ícone (ex: liga/desliga, sempre
+   colorido); `corAtiva` é o tom do "ligado" (azul por padrão, mas corações e
+   estrelas ganham a cor deles próprios). */
+const roundBtn = (active, corIcone, corAtiva = ACCENT) => ({
   position: 'relative', width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center',
-  background: active ? 'rgba(10,132,255,.22)' : 'rgba(255,255,255,.10)',
-  border: `1px solid ${active ? 'rgba(10,132,255,.5)' : 'rgba(255,255,255,.14)'}`,
-  color: corIcone || (active ? ACCENT : 'rgba(255,255,255,.85)'),
+  background: active ? `${corAtiva}33` : 'rgba(255,255,255,.10)',
+  border: `1px solid ${active ? `${corAtiva}88` : 'rgba(255,255,255,.14)'}`,
+  color: corIcone || (active ? corAtiva : 'rgba(255,255,255,.85)'),
   cursor: 'pointer', flexShrink: 0, backdropFilter: 'blur(10px)', transition: 'all .15s',
 });
+
+/* ── Efeitos decorativos (corações ao redor da "cabeça" e estrelas de fundo) ──
+   Sem segmentação de pessoa (decidido junto com o usuário pro papel de
+   parede: leve, sem baixar modelo de IA), então os corações ficam num arco
+   fixo perto do topo-centro do quadro — a posição típica de um rosto numa
+   selfie enquadrada normal — e as estrelas ficam espalhadas mais pras bordas,
+   evitando o centro onde a pessoa costuma estar. Os mesmos pontos (em % do
+   quadro) servem pro preview (CSS) e pra "queimar" o efeito na foto salva
+   (canvas, em pixels reais). */
+const HEART_SPOTS = [
+  { x: .40, y: .09, s: 15 }, { x: .50, y: .03, s: 19 }, { x: .60, y: .08, s: 14 },
+  { x: .33, y: .17, s: 12 }, { x: .67, y: .16, s: 13 }, { x: .46, y: .14, s: 11 }, { x: .55, y: .18, s: 10 },
+];
+const STAR_SPOTS = [
+  { x: .08, y: .12, s: 9 }, { x: .90, y: .20, s: 7 }, { x: .15, y: .58, s: 6 }, { x: .85, y: .62, s: 8 },
+  { x: .06, y: .78, s: 7 }, { x: .93, y: .45, s: 6 }, { x: .20, y: .30, s: 5 }, { x: .80, y: .14, s: 6 },
+  { x: .12, y: .90, s: 6 }, { x: .88, y: .86, s: 7 }, { x: .50, y: .05, s: 5 }, { x: .60, y: .92, s: 6 },
+];
+const EFEITO_CORACOES_KEY = 'ucam_efeito_coracoes';
+const EFEITO_ESTRELAS_KEY = 'ucam_efeito_estrelas';
+
+const desenharCoracao = (ctx, cx, cy, s, cor) => {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s / 20, s / 20);
+  ctx.beginPath();
+  ctx.moveTo(0, 4);
+  ctx.bezierCurveTo(0, 2, -2, 0, -5, 0);
+  ctx.bezierCurveTo(-9, 0, -9, 5, -9, 5);
+  ctx.bezierCurveTo(-9, 8, -6, 11, 0, 15);
+  ctx.bezierCurveTo(6, 11, 9, 8, 9, 5);
+  ctx.bezierCurveTo(9, 5, 9, 0, 5, 0);
+  ctx.bezierCurveTo(2, 0, 0, 2, 0, 4);
+  ctx.closePath();
+  ctx.fillStyle = cor;
+  ctx.fill();
+  ctx.restore();
+};
+const desenharEstrela = (ctx, cx, cy, s, cor) => {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = cor;
+  ctx.beginPath();
+  ctx.moveTo(0, -s); ctx.lineTo(s * .28, -s * .28); ctx.lineTo(s, 0);
+  ctx.lineTo(s * .28, s * .28); ctx.lineTo(0, s); ctx.lineTo(-s * .28, s * .28);
+  ctx.lineTo(-s, 0); ctx.lineTo(-s * .28, -s * .28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+};
+const desenharEfeitos = (ctx, w, h, { coracoes, estrelas }) => {
+  ctx.filter = 'none'; // efeito nunca herda o filtro de cor escolhido (senão vira cinza no P&B etc.)
+  if (estrelas) STAR_SPOTS.forEach(p => desenharEstrela(ctx, p.x * w, p.y * h, p.s, 'rgba(255,255,255,.95)'));
+  if (coracoes) HEART_SPOTS.forEach(p => desenharCoracao(ctx, p.x * w, p.y * h, p.s * 1.4, '#FF4D8D'));
+};
+/* Overlay ao vivo (DOM/CSS) — camada irmã do <video>, então não herda o
+   espelhamento (scaleX(-1)) dele; as posições ficam certas do jeito que
+   estão. */
+const EfeitosOverlay = ({ coracoes, estrelas }) => (
+  <>
+    {estrelas && (
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        {STAR_SPOTS.map((p, i) => (
+          <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`,
+            transform: 'translate(-50%,-50%)', animation: `ucamTwinkle ${1.6 + (i % 3) * .4}s ease-in-out ${i * .15}s infinite` }}>
+            <Sic size={p.s * 1.6} stroke="none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" style={{ fill: '#fff' }} /></Sic>
+          </span>
+        ))}
+      </div>
+    )}
+    {coracoes && (
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        {HEART_SPOTS.map((p, i) => (
+          <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`,
+            transform: 'translate(-50%,-50%)', animation: `ucamHeartFloat 2.4s ease-in-out ${i * .2}s infinite` }}>
+            <Sic size={p.s * 1.6} stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" style={{ fill: '#FF4D8D' }} /></Sic>
+          </span>
+        ))}
+      </div>
+    )}
+  </>
+);
 
 /* ── status dentro da tela da câmera enquanto não está ligada ── */
 const STATUS_MSG = {
@@ -163,6 +248,8 @@ const TabUnikoCamera = () => {
   const [camState, setCamState] = useState('idle'); // idle|pedindo|ativa|negada|semcamera|erro
   const [filtroId, setFiltroId] = useState(() => { try { return localStorage.getItem(FILTRO_KEY) || 'original'; } catch { return 'original'; } });
   const [melhorar, setMelhorar] = useState(() => { try { return localStorage.getItem(MELHORAR_KEY) === '1'; } catch { return false; } });
+  const [efeitoCoracoes, setEfeitoCoracoes] = useState(() => { try { return localStorage.getItem(EFEITO_CORACOES_KEY) === '1'; } catch { return false; } });
+  const [efeitoEstrelas, setEfeitoEstrelas] = useState(() => { try { return localStorage.getItem(EFEITO_ESTRELAS_KEY) === '1'; } catch { return false; } });
   const [papelId, setPapelId] = useState(() => { try { return localStorage.getItem(PAPEL_KEY) || WALLPAPERS[0].id; } catch { return WALLPAPERS[0].id; } });
   const [papelCustom, setPapelCustom] = useState(() => { try { return localStorage.getItem(PAPEL_CUSTOM_KEY) || null; } catch { return null; } });
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
@@ -184,6 +271,8 @@ const TabUnikoCamera = () => {
 
   useEffect(() => { try { localStorage.setItem(FILTRO_KEY, filtroId); } catch { /* sem localStorage */ } }, [filtroId]);
   useEffect(() => { try { localStorage.setItem(MELHORAR_KEY, melhorar ? '1' : '0'); } catch { /* sem localStorage */ } }, [melhorar]);
+  useEffect(() => { try { localStorage.setItem(EFEITO_CORACOES_KEY, efeitoCoracoes ? '1' : '0'); } catch { /* sem localStorage */ } }, [efeitoCoracoes]);
+  useEffect(() => { try { localStorage.setItem(EFEITO_ESTRELAS_KEY, efeitoEstrelas ? '1' : '0'); } catch { /* sem localStorage */ } }, [efeitoEstrelas]);
 
   const mostrarToast = (msg) => {
     setToast(msg);
@@ -324,6 +413,7 @@ const TabUnikoCamera = () => {
     ctx.drawImage(v, sx, sy, cw, ch, 0, 0, outW, outH);
     ctx.restore();
     if (melhorar) { ctx.filter = 'none'; aplicarNitidez(ctx, outW, outH); }
+    if (efeitoCoracoes || efeitoEstrelas) desenharEfeitos(ctx, outW, outH, { coracoes: efeitoCoracoes, estrelas: efeitoEstrelas });
 
     canvas.toBlob(blob => { if (blob) salvarFoto(blob); }, 'image/jpeg', 0.92);
   };
@@ -353,15 +443,13 @@ const TabUnikoCamera = () => {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: isMobile ? '24px 14px' : '32px', flex: fullscreen ? 1 : 'none', minHeight: fullscreen ? 0 : (isMobile ? 420 : 500) }}>
 
-        <button onClick={() => setGaleriaOpen(true)} title="Galeria" style={{ position: 'absolute', top: 16, left: 16, ...roundBtn(false), zIndex: 3 }}>
-          <Sic size={16}><rect x="3" y="3" width="14" height="14" rx="2" /><path d="M7 21h11a2 2 0 002-2V8" /></Sic>
-          {photos.length > 0 && (
-            <span style={{ position: 'absolute', top: -4, right: -4, background: ACCENT, color: '#fff', borderRadius: 9,
-              minWidth: 17, height: 17, fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', padding: '0 3px' }}>{photos.length}</span>
-          )}
-        </button>
-
-        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 3 }}>
+        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 3, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
+          <button onClick={() => setEfeitoCoracoes(c => !c)} title="Efeito: corações" style={roundBtn(efeitoCoracoes, null, '#FF4D8D')}>
+            <Sic size={15} style={efeitoCoracoes ? { fill: '#FF4D8D' } : {}}><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" /></Sic>
+          </button>
+          <button onClick={() => setEfeitoEstrelas(s => !s)} title="Efeito: estrelas" style={roundBtn(efeitoEstrelas, null, '#FFD60A')}>
+            <Sic size={15} style={efeitoEstrelas ? { fill: '#FFD60A' } : {}}><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" /></Sic>
+          </button>
           <button onClick={() => setMelhorar(m => !m)} title="Melhorar qualidade" style={roundBtn(melhorar)}>
             <Sic size={15}><path d="M3 21l9-9" /><path d="M15 4V2" /><path d="M17.8 6.2L19 5" /><path d="M20 9h2" /><path d="M12.2 6.2L11 5" /></Sic>
           </button>
@@ -420,6 +508,7 @@ const TabUnikoCamera = () => {
             <video ref={videoRef} muted playsInline
               style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
                 filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
+            {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} />}
             <StatusTela camState={camState} onRetry={ligarCamera} />
             {flash && <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'ucamFlash .35s ease-out' }} />}
           </div>
@@ -433,6 +522,16 @@ const TabUnikoCamera = () => {
         border: fullscreen ? 'none' : '1px solid rgba(255,255,255,.08)',
         padding: isMobile ? '12px 10px' : '12px 18px',
         display: 'flex', alignItems: 'center', gap: 14 }}>
+
+        <button onClick={() => setGaleriaOpen(true)} title="Galeria" style={{ ...roundBtn(false), flexShrink: 0 }}>
+          <Sic size={16}><rect x="3" y="3" width="14" height="14" rx="2" /><path d="M7 21h11a2 2 0 002-2V8" /></Sic>
+          {photos.length > 0 && (
+            <span style={{ position: 'absolute', top: -4, right: -4, background: ACCENT, color: '#fff', borderRadius: 9,
+              minWidth: 17, height: 17, fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', padding: '0 3px' }}>{photos.length}</span>
+          )}
+        </button>
+
+        <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,.1)', flexShrink: 0 }} />
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 14, overflowX: 'auto', padding: '2px 2px 2px' }}>
           {FILTERS.map(f => (
@@ -532,13 +631,24 @@ const TabUnikoCamera = () => {
         @keyframes ucamFlash { from{opacity:1} to{opacity:0} }
         @keyframes ucamSpin { to{transform:rotate(360deg)} }
         @keyframes ucamToastIn { from{opacity:0; transform:translate(-50%,10px)} to{opacity:1; transform:translate(-50%,0)} }
+        @keyframes ucamHeartFloat {
+          0%,100% { transform:translate(-50%,-50%) translateY(0) rotate(-6deg); opacity:.85; }
+          50% { transform:translate(-50%,-50%) translateY(-6px) rotate(6deg); opacity:1; }
+        }
+        @keyframes ucamTwinkle {
+          0%,100% { opacity:.25; transform:translate(-50%,-50%) scale(.7); }
+          50% { opacity:1; transform:translate(-50%,-50%) scale(1.15); }
+        }
         /* Tela cheia (mesmo padrão do Uniko Detetive ao entrar numa sala): some
            com a barra lateral, o cabeçalho e o menu do celular por CSS. */
         body.ucam-fullscreen .portal-sidebar,
         body.ucam-fullscreen .portal-topbar,
         body.ucam-fullscreen .portal-mobilenav { display: none !important; }
         body.ucam-fullscreen .portal-conteudo { margin-left: 0 !important; }
-        body.ucam-fullscreen .portal-area { height: 100vh !important; padding: 0 !important; overflow: hidden; }
+        /* compensa o zoom:0.8 do Portal (ver central-colaborador/index.jsx) —
+           sem isso a área ficava 20% mais baixa que a tela de verdade e sobrava
+           uma faixa em branco embaixo do dock. */
+        body.ucam-fullscreen .portal-area { height: calc(100vh / 0.8) !important; padding: 0 !important; overflow: hidden; }
       `}</style>
     </div>
   );
