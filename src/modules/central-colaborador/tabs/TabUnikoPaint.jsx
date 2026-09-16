@@ -2001,9 +2001,15 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         pushState({ ...s, phase: 'reveal', endsAt: Date.now() + REVEAL_MS, lastWord: dec(s.wordEnc) });
       } else if (s.phase === 'reveal') {
         // (a transição pra 'over' já grava o ranking — ver salvarRanking)
-        // Tira da fila quem já saiu da sala...
-        const restante = (s.queue || []).slice(1).filter(n => players.some(p => p.name === n));
-        // ...e ACOLHE quem entrou depois do início: sem isso quem chega no meio
+        // NÃO filtra a fila inteira por quem está "presente agora": uma piscada
+        // de conexão (wifi, celular em segundo plano, resync da presence) nesse
+        // instante bastava pra sumir com TODAS as vagas futuras da pessoa —
+        // mesmo ela continuando a jogar normalmente o resto da partida, porque
+        // como já estava no `elenco` nunca era readicionada. Quem realmente saiu
+        // já é tratado na entrada de cima ("Desenhista sumiu") quando a vez dele
+        // chegar de verdade: a rodada é pulada na hora, sem gastar as próximas.
+        const restante = (s.queue || []).slice(1);
+        // ACOLHE quem entrou depois do início: sem isso quem chega no meio
         // nunca é sorteado pra desenhar, porque a fila só era montada no começo.
         const elenco = s.elenco || [...new Set(s.queue || [])];
         const novos = players.map(p => p.name).filter(n => !elenco.includes(n));
