@@ -131,22 +131,25 @@ const roundBtn = (active, corIcone, corAtiva = ACCENT) => ({
   cursor: 'pointer', flexShrink: 0, backdropFilter: 'blur(10px)', transition: 'all .15s',
 });
 
-/* ── Efeitos decorativos (corações ao redor da "cabeça" e estrelas de fundo) ──
-   Sem segmentação de pessoa (decidido junto com o usuário pro papel de
-   parede: leve, sem baixar modelo de IA), então os corações ficam num arco
-   fixo perto do topo-centro do quadro — a posição típica de um rosto numa
-   selfie enquadrada normal — e as estrelas ficam espalhadas mais pras bordas,
-   evitando o centro onde a pessoa costuma estar. Os mesmos pontos (em % do
-   quadro) servem pro preview (CSS) e pra "queimar" o efeito na foto salva
-   (canvas, em pixels reais). */
-const HEART_SPOTS = [
-  { x: .40, y: .09, s: 15 }, { x: .50, y: .03, s: 19 }, { x: .60, y: .08, s: 14 },
-  { x: .33, y: .17, s: 12 }, { x: .67, y: .16, s: 13 }, { x: .46, y: .14, s: 11 }, { x: .55, y: .18, s: 10 },
+/* ── Efeitos decorativos ─────────────────────────────────────────────────
+   CORAÇÕES: acompanham a cabeça de VERDADE via detecção de rosto (MediaPipe
+   Face Detector — BlazeFace "short range", ~200KB, bem mais leve que um
+   modelo de segmentação de corpo inteiro), carregada SOB DEMANDA só quando
+   o efeito é ligado (import dinâmico — quem nunca usa não baixa nada).
+   Enquanto não detecta nenhum rosto (ligou agora, ou o modelo não carregou),
+   caem numa posição padrão central/superior — o efeito nunca "some".
+   ESTRELAS: emoji de verdade, grande, espalhadas em pontos fixos da cena
+   enviesados pras bordas (pra não cobrir o rosto) — aqui não tem rastreio,
+   é "cenário", não segue ninguém. */
+const HEART_OFFSETS = [
+  { dx: -.17, dy: -.62, s: 15 }, { dx: 0, dy: -.80, s: 19 }, { dx: .17, dy: -.62, s: 14 },
+  { dx: -.36, dy: -.32, s: 12 }, { dx: .36, dy: -.32, s: 13 }, { dx: -.13, dy: -.20, s: 11 }, { dx: .13, dy: -.20, s: 10 },
 ];
+const HEAD_PADRAO = { x: .5, y: .15, w: .32 }; // suposição de rosto centrado, até a detecção de verdade assumir
+const STAR_EMOJI = '🌟';
 const STAR_SPOTS = [
-  { x: .08, y: .12, s: 9 }, { x: .90, y: .20, s: 7 }, { x: .15, y: .58, s: 6 }, { x: .85, y: .62, s: 8 },
-  { x: .06, y: .78, s: 7 }, { x: .93, y: .45, s: 6 }, { x: .20, y: .30, s: 5 }, { x: .80, y: .14, s: 6 },
-  { x: .12, y: .90, s: 6 }, { x: .88, y: .86, s: 7 }, { x: .50, y: .05, s: 5 }, { x: .60, y: .92, s: 6 },
+  { x: .10, y: .14, s: 30 }, { x: .90, y: .18, s: 26 }, { x: .14, y: .60, s: 24 },
+  { x: .87, y: .64, s: 30 }, { x: .08, y: .84, s: 22 }, { x: .92, y: .40, s: 24 }, { x: .50, y: .06, s: 22 },
 ];
 const EFEITO_CORACOES_KEY = 'ucam_efeito_coracoes';
 const EFEITO_ESTRELAS_KEY = 'ucam_efeito_estrelas';
@@ -168,50 +171,57 @@ const desenharCoracao = (ctx, cx, cy, s, cor) => {
   ctx.fill();
   ctx.restore();
 };
-const desenharEstrela = (ctx, cx, cy, s, cor) => {
+const desenharEstrelaEmoji = (ctx, cx, cy, sizePx) => {
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.fillStyle = cor;
-  ctx.beginPath();
-  ctx.moveTo(0, -s); ctx.lineTo(s * .28, -s * .28); ctx.lineTo(s, 0);
-  ctx.lineTo(s * .28, s * .28); ctx.lineTo(0, s); ctx.lineTo(-s * .28, s * .28);
-  ctx.lineTo(-s, 0); ctx.lineTo(-s * .28, -s * .28);
-  ctx.closePath();
-  ctx.fill();
+  ctx.font = `${sizePx}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(STAR_EMOJI, cx, cy);
   ctx.restore();
 };
-const desenharEfeitos = (ctx, w, h, { coracoes, estrelas }) => {
+const desenharEfeitos = (ctx, w, h, { coracoes, estrelas, cabeca }) => {
   ctx.filter = 'none'; // efeito nunca herda o filtro de cor escolhido (senão vira cinza no P&B etc.)
-  if (estrelas) STAR_SPOTS.forEach(p => desenharEstrela(ctx, p.x * w, p.y * h, p.s, 'rgba(255,255,255,.95)'));
-  if (coracoes) HEART_SPOTS.forEach(p => desenharCoracao(ctx, p.x * w, p.y * h, p.s * 1.4, '#FF4D8D'));
+  if (estrelas) STAR_SPOTS.forEach(p => desenharEstrelaEmoji(ctx, p.x * w, p.y * h, p.s * (w / 900)));
+  if (coracoes) {
+    const cab = cabeca || HEAD_PADRAO;
+    const escala = Math.max(.6, Math.min(1.8, cab.w / .32));
+    HEART_OFFSETS.forEach(o => desenharCoracao(ctx, (cab.x + o.dx * cab.w) * w, (cab.y + o.dy * cab.w) * h, o.s * escala * 1.4, '#FF4D8D'));
+  }
 };
 /* Overlay ao vivo (DOM/CSS) — camada irmã do <video>, então não herda o
    espelhamento (scaleX(-1)) dele; as posições ficam certas do jeito que
-   estão. */
-const EfeitosOverlay = ({ coracoes, estrelas }) => (
-  <>
-    {estrelas && (
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-        {STAR_SPOTS.map((p, i) => (
-          <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`,
-            transform: 'translate(-50%,-50%)', animation: `ucamTwinkle ${1.6 + (i % 3) * .4}s ease-in-out ${i * .15}s infinite` }}>
-            <Sic size={p.s * 1.6} stroke="none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z" style={{ fill: '#fff' }} /></Sic>
-          </span>
-        ))}
-      </div>
-    )}
-    {coracoes && (
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-        {HEART_SPOTS.map((p, i) => (
-          <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`,
-            transform: 'translate(-50%,-50%)', animation: `ucamHeartFloat 2.4s ease-in-out ${i * .2}s infinite` }}>
-            <Sic size={p.s * 1.6} stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" style={{ fill: '#FF4D8D' }} /></Sic>
-          </span>
-        ))}
-      </div>
-    )}
-  </>
-);
+   estão. Os corações têm `transition` no left/top pra suavizar entre uma
+   atualização de posição e outra (a detecção roda em loop próprio, não a
+   cada render do React). */
+const EfeitosOverlay = ({ coracoes, estrelas, headPos }) => {
+  const cab = headPos || HEAD_PADRAO;
+  const escala = Math.max(.6, Math.min(1.8, cab.w / .32));
+  return (
+    <>
+      {estrelas && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          {STAR_SPOTS.map((p, i) => (
+            <span key={i} style={{ position: 'absolute', left: `${p.x * 100}%`, top: `${p.y * 100}%`, fontSize: p.s, lineHeight: 1,
+              transform: 'translate(-50%,-50%)', filter: 'drop-shadow(0 0 7px rgba(255,214,10,.55))',
+              animation: `ucamTwinkle ${1.8 + (i % 3) * .4}s ease-in-out ${i * .18}s infinite` }}>{STAR_EMOJI}</span>
+          ))}
+        </div>
+      )}
+      {coracoes && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          {HEART_OFFSETS.map((o, i) => (
+            <span key={i} style={{ position: 'absolute',
+              left: `${(cab.x + o.dx * cab.w) * 100}%`, top: `${(cab.y + o.dy * cab.w) * 100}%`,
+              transform: 'translate(-50%,-50%)', transition: 'left .12s linear, top .12s linear',
+              animation: `ucamHeartFloat 2.4s ease-in-out ${i * .2}s infinite` }}>
+              <Sic size={o.s * escala * 1.6} stroke="none"><path d="M12 21s-6.7-4.35-9.3-8.2C1 10.1 1.8 6.6 4.9 5.3 7 4.4 9.2 5.1 12 7.8 14.8 5.1 17 4.4 19.1 5.3c3.1 1.3 3.9 4.8 2.2 7.5C18.7 16.65 12 21 12 21z" style={{ fill: '#FF4D8D' }} /></Sic>
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
 
 /* ── status dentro da tela da câmera enquanto não está ligada ── */
 const STATUS_MSG = {
@@ -268,6 +278,22 @@ const TabUnikoCamera = () => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const toastTimer = useRef(null);
+  const stageRef = useRef(null);
+  const [stageH, setStageH] = useState(null);
+
+  /* Mede a altura de verdade do palco (depois de resolvido flex/zoom/tela
+     cheia) pra dimensionar o bezel — nada de calc(vh) chutado, que erra toda
+     vez que o zoom:0.8 do Portal entra na conta (ver bug da tela cheia). */
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (h) setStageH(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => { try { localStorage.setItem(FILTRO_KEY, filtroId); } catch { /* sem localStorage */ } }, [filtroId]);
   useEffect(() => { try { localStorage.setItem(MELHORAR_KEY, melhorar ? '1' : '0'); } catch { /* sem localStorage */ } }, [melhorar]);
@@ -302,6 +328,62 @@ const TabUnikoCamera = () => {
     setCamState('idle');
   };
   useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
+
+  /* ── corações seguindo a cabeça: detecção de rosto de verdade ───────────
+     Só carrega o modelo (import dinâmico) quando o efeito está ligado E a
+     câmera está ativa. Suaviza a posição (lerp) pra não tremer a cada frame;
+     se o modelo não carregar (rede bloqueada, sem WASM etc.) os corações
+     ficam na posição padrão fixa — nunca quebra o efeito, só perde o
+     rastreio. */
+  const headSmoothRef = useRef({ ...HEAD_PADRAO });
+  const [headPos, setHeadPos] = useState(HEAD_PADRAO);
+  useEffect(() => {
+    if (!efeitoCoracoes || camState !== 'ativa') return undefined;
+    let cancelado = false;
+    let raf = null;
+    let detector = null;
+    (async () => {
+      try {
+        const { FaceDetector, FilesetResolver } = await import('@mediapipe/tasks-vision');
+        const fileset = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+        if (cancelado) return;
+        detector = await FaceDetector.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite' },
+          runningMode: 'VIDEO',
+        });
+        if (cancelado) { detector.close(); return; }
+        const loop = () => {
+          const v = videoRef.current;
+          if (v && v.readyState >= 2 && v.videoWidth) {
+            try {
+              const res = detector.detectForVideo(v, performance.now());
+              const box = res?.detections?.[0]?.boundingBox;
+              if (box) {
+                const cxRaw = (box.originX + box.width / 2) / v.videoWidth;
+                const cx = 1 - cxRaw; // compensa o espelhamento do preview
+                const cy = (box.originY + box.height * .12) / v.videoHeight;
+                const w = box.width / v.videoWidth;
+                const s = headSmoothRef.current;
+                s.x += (cx - s.x) * .3; s.y += (cy - s.y) * .3; s.w += (w - s.w) * .3;
+                setHeadPos({ x: s.x, y: s.y, w: s.w });
+              }
+            } catch { /* frame ocasional falho — mantém a última posição conhecida */ }
+          }
+          raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+      } catch {
+        mostrarToast('Não deu pra carregar o rastreio de rosto — corações numa posição fixa.');
+      }
+    })();
+    return () => {
+      cancelado = true;
+      if (raf) cancelAnimationFrame(raf);
+      try { detector?.close?.(); } catch { /* já fechou */ }
+      headSmoothRef.current = { ...HEAD_PADRAO };
+      setHeadPos(HEAD_PADRAO);
+    };
+  }, [efeitoCoracoes, camState]);
 
   /* ── tela cheia: some com barra lateral/cabeçalho (mesmo truque do Uniko
      Detetive ao entrar numa sala — ver `sus-na-sala` em TabUnikoSuspect.jsx):
@@ -413,7 +495,7 @@ const TabUnikoCamera = () => {
     ctx.drawImage(v, sx, sy, cw, ch, 0, 0, outW, outH);
     ctx.restore();
     if (melhorar) { ctx.filter = 'none'; aplicarNitidez(ctx, outW, outH); }
-    if (efeitoCoracoes || efeitoEstrelas) desenharEfeitos(ctx, outW, outH, { coracoes: efeitoCoracoes, estrelas: efeitoEstrelas });
+    if (efeitoCoracoes || efeitoEstrelas) desenharEfeitos(ctx, outW, outH, { coracoes: efeitoCoracoes, estrelas: efeitoEstrelas, cabeca: headSmoothRef.current });
 
     canvas.toBlob(blob => { if (blob) salvarFoto(blob); }, 'image/jpeg', 0.92);
   };
@@ -429,19 +511,18 @@ const TabUnikoCamera = () => {
   };
 
   return (
-    <div className="fi" style={{ fontFamily: 'var(--font-body)',
-      ...(fullscreen ? { height: '100vh', display: 'flex', flexDirection: 'column' } : {}) }}>
+    <div className="fi" style={{ fontFamily: 'var(--font-body)', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!fullscreen && (
-        <div style={{ marginBottom: 18 }}>
+        <div style={{ marginBottom: 12, flexShrink: 0 }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: T.text, letterSpacing: '-.01em' }}>Uniko Camera</div>
           <div style={{ fontSize: 13.5, color: T.textT, marginTop: 5 }}>Tire fotos direto do Portal — filtros, melhorador de qualidade e papel de parede.</div>
         </div>
       )}
 
       {/* ── palco: papel de parede + janela da câmera ── */}
-      <div style={{ position: 'relative', borderRadius: fullscreen ? 0 : 24, background: papelAtualCSS,
+      <div ref={stageRef} style={{ position: 'relative', borderRadius: fullscreen ? 0 : 24, background: papelAtualCSS,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: isMobile ? '24px 14px' : '32px', flex: fullscreen ? 1 : 'none', minHeight: fullscreen ? 0 : (isMobile ? 420 : 500) }}>
+        padding: isMobile ? '16px 14px' : '20px 32px', flex: 1, minHeight: 0 }}>
 
         <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 3, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
           <button onClick={() => setEfeitoCoracoes(c => !c)} title="Efeito: corações" style={roundBtn(efeitoCoracoes, null, '#FF4D8D')}>
@@ -492,9 +573,12 @@ const TabUnikoCamera = () => {
           </>
         )}
 
-        {/* bezel estilo MacBook — bem maior e horizontal (16:10) */}
-        <div style={{ position: 'relative', width: fullscreen ? 'min(92vw, 1500px)' : 'min(94%, 980px)',
-          maxHeight: fullscreen ? 'calc(100vh - 190px)' : 'none', aspectRatio: '16/10', borderRadius: 22,
+        {/* bezel estilo MacBook — bem maior e horizontal (16:10). O tamanho vem
+            da altura MEDIDA do palco (ref + ResizeObserver), não de vh/zoom
+            calculados — assim funciona igual em tela normal e em tela cheia,
+            sempre cabendo inteiro sem sobrar espaço nem precisar de scroll. */}
+        <div style={{ position: 'relative', width: 'min(94%, 1400px)',
+          maxHeight: stageH ? Math.max(200, stageH - (isMobile ? 32 : 48)) : undefined, aspectRatio: '16/10', borderRadius: 22,
           background: 'linear-gradient(160deg,#3d4046,#1b1d21)', padding: isMobile ? 10 : 14,
           boxShadow: '0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08)' }}>
           <div style={{ position: 'absolute', top: 13, left: 18, display: 'flex', gap: 6, zIndex: 2 }}>
@@ -508,7 +592,7 @@ const TabUnikoCamera = () => {
             <video ref={videoRef} muted playsInline
               style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
                 filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
-            {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} />}
+            {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} headPos={headPos} />}
             <StatusTela camState={camState} onRetry={ligarCamera} />
             {flash && <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'ucamFlash .35s ease-out' }} />}
           </div>
@@ -516,7 +600,7 @@ const TabUnikoCamera = () => {
       </div>
 
       {/* ── dock de controles: minimalista, círculos, vibe iOS ── */}
-      <div style={{ margin: fullscreen ? '0' : '16px 0 0', flexShrink: 0, borderRadius: fullscreen ? 0 : 26,
+      <div style={{ margin: fullscreen ? '0' : '12px 0 0', flexShrink: 0, borderRadius: fullscreen ? 0 : 26,
         background: 'rgba(28,28,30,.6)', backdropFilter: 'blur(24px) saturate(180%)',
         borderTop: fullscreen ? '1px solid rgba(255,255,255,.08)' : 'none',
         border: fullscreen ? 'none' : '1px solid rgba(255,255,255,.08)',

@@ -11,6 +11,7 @@
     "zip:ext": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/zip-extension.ps1"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@supabase/supabase-js": "^2.106.2",
     "html2canvas": "^1.4.1",
     "jsmediatags": "^3.9.7",
