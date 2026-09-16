@@ -156,6 +156,7 @@ const ICON_PATHS = {
   bold:    <><path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" /><path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" /></>,
   italic:  <><path d="M19 4h-9" /><path d="M14 20H5" /><path d="M15 4L9 20" /></>,
   edit:    <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
+  expand:  <><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" /><path d="M8 21H5a2 2 0 0 1-2-2v-3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>,
   lock:    <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   unlock:  <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></>,
   share:   <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.5l6.8-3.9" /><path d="M8.6 13.5l6.8 3.9" /></>,
@@ -683,6 +684,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
         @keyframes csFade{from{opacity:0}to{opacity:1}}
         @keyframes csUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         @keyframes csSlideIn{from{transform:translateX(100%)}to{transform:none}}
+        @keyframes csSlideUp{from{transform:translateY(100%)}to{transform:none}}
         .cs-scroll::-webkit-scrollbar{height:10px;width:10px}
         .cs-card{transition:transform .14s cubic-bezier(.2,1,.3,1), box-shadow .14s, border-color .14s}
         .cs-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(120,60,180,.2)}
@@ -1114,10 +1116,12 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const [dragActive, setDragActive] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [diffOpen, setDiffOpen] = useState(null); // id do item do histórico com o "antes/depois" aberto
+  const [descExpanded, setDescExpanded] = useState(false); // descrição em tela grande, sem scroll lateral
+  const [expComments, setExpComments] = useState(false);   // barra de comentários dentro da descrição expandida
   const fileRef = useRef(null);
   const descRef = useRef(null);
 
-  useEffect(() => { setTitle(card.title); setEditDesc(false); setShowMenu(false); }, [card.id]); // eslint-disable-line
+  useEffect(() => { setTitle(card.title); setEditDesc(false); setShowMenu(false); setDescExpanded(false); setExpComments(false); }, [card.id]); // eslint-disable-line
 
   // Preenche o innerHTML do editor SÓ no instante em que entra no modo de
   // edição (nunca de novo depois disso). O polling/realtime do quadro
@@ -1196,6 +1200,64 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
     ...history.map(h => ({ kind: 'history', at: h.at, author: h.who, text: h.text, diff: h.diff, id: 'h' + h.id })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
   const listTitle = lists.find(l => l.id === card.list_id)?.title || '—';
+
+  // Conteúdo de comentários+atividade — usado na coluna da direita e na
+  // barra que aparece dentro da descrição expandida (evita duplicar a lógica).
+  const renderFeed = () => (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && comment.trim()) { onComment(card.id, comment); setComment(''); } }}
+          placeholder={`Comentar como ${me.split(' ')[0]}…`} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: surf, color: T.text, fontSize: 13, outline: 'none' }} />
+        <button className="cs-btn" onClick={() => { if (comment.trim()) { onComment(card.id, comment); setComment(''); } }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: 12.5 }}>Enviar</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+        {[...feed].reverse().map(f => (
+          <div key={f.id} className="cs-fade" style={{ display: 'flex', gap: 9 }}>
+            <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: avatarColor(f.author), color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(f.author)}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {f.kind === 'comment' ? (
+                <div style={{ background: surf, border: `1px solid ${brd}`, borderRadius: 12, padding: '8px 12px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{f.author} <span style={{ color: T.textT, fontWeight: 500 }}>· {timeAgo(f.at)}</span></div>
+                  <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{f.text}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: T.textS, paddingTop: 5, lineHeight: 1.4 }}>
+                  <b style={{ color: T.text }}>{f.author}</b> {f.text}
+                  {f.diff && (
+                    <>{': '}<button onClick={() => setDiffOpen(o => o === f.id ? null : f.id)}
+                      style={{ background: 'transparent', border: 'none', padding: 0, color: '#A24CE0', fontWeight: 700, fontSize: 12.5, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {diffOpen === f.id ? 'Ocultar' : 'Clique para ver'}
+                    </button></>
+                  )}
+                  {' '}<span style={{ color: T.textT }}>· {timeAgo(f.at)}</span>
+                  {f.diff && diffOpen === f.id && (() => {
+                    const d = diffWords(f.diff.before, f.diff.after);
+                    return (
+                      <div style={{ marginTop: 8, background: surf, border: `1px solid ${brd}`, borderRadius: 10, padding: 10, fontSize: 12.5, lineHeight: 1.55 }}>
+                        <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>ANTES</div>
+                        <div style={{ marginBottom: 8, wordBreak: 'break-word' }}>
+                          {d.before.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.before.map((tk, i) => tk.same
+                            ? <span key={i}>{tk.t}</span>
+                            : <mark key={i} style={{ background: '#FF8FA3', color: '#4A0011', textDecoration: 'line-through', textDecorationThickness: 2, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
+                        </div>
+                        <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>DEPOIS</div>
+                        <div style={{ wordBreak: 'break-word' }}>
+                          {d.after.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.after.map((tk, i) => tk.same
+                            ? <span key={i}>{tk.t}</span>
+                            : <mark key={i} style={{ background: '#7CF29C', color: '#063D18', fontWeight: 700, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {feed.length === 0 && <div style={{ fontSize: 12.5, color: T.textT }}>Sem atividade ainda.</div>}
+      </div>
+    </>
+  );
 
   const miStyle = { display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: 600, color: T.text, cursor: 'pointer' };
   const tbStyle = { background: 'transparent', color: T.text, borderRadius: 7, minWidth: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', border: 'none' };
@@ -1282,8 +1344,8 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                 </div>
               </div>
             ) : (stripHtml(card.description) ? (
-              <div onClick={abrirEdicaoDesc} className="cs-desc cs-scroll" dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
-                style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word', maxHeight: 340, overflowY: 'auto' }} />
+              <div onClick={() => setDescExpanded(true)} className="cs-desc cs-scroll" dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
+                style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'zoom-in', padding: '2px', wordBreak: 'break-word', overflowWrap: 'anywhere', maxHeight: 340, overflowY: 'auto', overflowX: 'hidden' }} />
             ) : (
               <div onClick={abrirEdicaoDesc} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
             ))}
@@ -1316,60 +1378,57 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
           {/* ── DIREITA: comentários e atividade (histórico) ── */}
           <div style={{ flex: '1 1 0', minWidth: isMobile ? 0 : 300, padding: isMobile ? 16 : 20, background: T.dark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.018)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, marginBottom: 12 }}><Ic n="comment" size={16} /> Comentários e atividade</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && comment.trim()) { onComment(card.id, comment); setComment(''); } }}
-                placeholder={`Comentar como ${me.split(' ')[0]}…`} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${brd}`, background: surf, color: T.text, fontSize: 13, outline: 'none' }} />
-              <button className="cs-btn" onClick={() => { if (comment.trim()) { onComment(card.id, comment); setComment(''); } }} style={{ background: UNIKO_GRAD, color: '#fff', borderRadius: 10, padding: '9px 14px', fontWeight: 700, fontSize: 12.5 }}>Enviar</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-              {[...feed].reverse().map(f => (
-                <div key={f.id} className="cs-fade" style={{ display: 'flex', gap: 9 }}>
-                  <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: '50%', background: avatarColor(f.author), color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{initials(f.author)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {f.kind === 'comment' ? (
-                      <div style={{ background: surf, border: `1px solid ${brd}`, borderRadius: 12, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700 }}>{f.author} <span style={{ color: T.textT, fontWeight: 500 }}>· {timeAgo(f.at)}</span></div>
-                        <div style={{ fontSize: 13.5, marginTop: 3, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{f.text}</div>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12.5, color: T.textS, paddingTop: 5, lineHeight: 1.4 }}>
-                        <b style={{ color: T.text }}>{f.author}</b> {f.text}
-                        {f.diff && (
-                          <>{': '}<button onClick={() => setDiffOpen(o => o === f.id ? null : f.id)}
-                            style={{ background: 'transparent', border: 'none', padding: 0, color: '#A24CE0', fontWeight: 700, fontSize: 12.5, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            {diffOpen === f.id ? 'Ocultar' : 'Clique para ver'}
-                          </button></>
-                        )}
-                        {' '}<span style={{ color: T.textT }}>· {timeAgo(f.at)}</span>
-                        {f.diff && diffOpen === f.id && (() => {
-                          const d = diffWords(f.diff.before, f.diff.after);
-                          return (
-                            <div style={{ marginTop: 8, background: surf, border: `1px solid ${brd}`, borderRadius: 10, padding: 10, fontSize: 12.5, lineHeight: 1.55 }}>
-                              <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>ANTES</div>
-                              <div style={{ marginBottom: 8, wordBreak: 'break-word' }}>
-                                {d.before.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.before.map((tk, i) => tk.same
-                                  ? <span key={i}>{tk.t}</span>
-                                  : <mark key={i} style={{ background: '#FF8FA3', color: '#4A0011', textDecoration: 'line-through', textDecorationThickness: 2, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
-                              </div>
-                              <div style={{ fontWeight: 800, color: T.textT, fontSize: 10.5, letterSpacing: '.04em', marginBottom: 3 }}>DEPOIS</div>
-                              <div style={{ wordBreak: 'break-word' }}>
-                                {d.after.length === 0 ? <span style={{ color: T.textT, fontStyle: 'italic' }}>(vazio)</span> : d.after.map((tk, i) => tk.same
-                                  ? <span key={i}>{tk.t}</span>
-                                  : <mark key={i} style={{ background: '#7CF29C', color: '#063D18', fontWeight: 700, padding: '1px 0', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}>{tk.t}</mark>)}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {feed.length === 0 && <div style={{ fontSize: 12.5, color: T.textT }}>Sem atividade ainda.</div>}
-            </div>
+            {renderFeed()}
           </div>
         </div>
       </div>
+
+      {/* Descrição expandida: versão grande, sem scroll lateral, com atalho pra comentários */}
+      {descExpanded && (
+        <div onClick={e => { e.stopPropagation(); setDescExpanded(false); setExpComments(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(20,8,30,.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100%' : 820, maxWidth: '100%', height: isMobile ? '100%' : '86vh', maxHeight: isMobile ? '100%' : 780, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .22s cubic-bezier(.2,1.25,.35,1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 18px', borderBottom: `1px solid ${brd}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>Descrição</div>
+              <div style={{ flex: 1 }} />
+              <button className="cs-btn cs-ghost" onClick={() => { setDescExpanded(false); abrirEdicaoDesc(); }}
+                style={{ background: sub, color: T.text, borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, display: 'inline-flex', gap: 5, alignItems: 'center' }}><Ic n="edit" size={13} /> Editar</button>
+              <button className="cs-btn cs-ghost" onClick={() => { setDescExpanded(false); setExpComments(false); }}
+                style={{ background: sub, color: T.text, borderRadius: 10, width: 32, height: 32, display: 'grid', placeItems: 'center' }}><Ic n="x" size={15} /></button>
+            </div>
+            <div className="cs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '20px 22px' }}>
+              <div dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
+                style={{ fontSize: 15.5, lineHeight: 1.7, color: T.textS, wordBreak: 'break-word', overflowWrap: 'anywhere' }} />
+            </div>
+
+            {/* botão flutuante de comentários */}
+            {!expComments && (
+              <button onClick={() => setExpComments(true)} title="Comentários e atividade"
+                style={{ position: 'absolute', right: 18, bottom: 18, width: 48, height: 48, borderRadius: '50%', background: UNIKO_GRAD, color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 10px 26px rgba(120,40,180,.4)', border: 'none', cursor: 'pointer', animation: 'csPop .18s ease' }}>
+                <Ic n="comment" size={19} />
+              </button>
+            )}
+
+            {/* barra de comentários — expande de baixo pra cima por cima da descrição */}
+            {expComments && (
+              <div className="cs-scroll" style={{
+                position: 'absolute', right: 0, bottom: 0, left: isMobile ? 0 : 'auto', width: isMobile ? '100%' : 340, maxWidth: '100%',
+                height: '100%', overflowY: 'auto', padding: 18,
+                background: T.dark ? 'rgba(24,14,34,.98)' : 'rgba(255,255,255,.98)', backdropFilter: 'blur(6px)',
+                borderLeft: isMobile ? 'none' : `1px solid ${brd}`, borderTop: isMobile ? `1px solid ${brd}` : 'none',
+                boxShadow: '-14px 0 40px rgba(0,0,0,.18)', animation: 'csSlideUp .22s cubic-bezier(.2,1,.3,1)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, marginBottom: 12 }}>
+                  <Ic n="comment" size={16} /> Comentários e atividade
+                  <div style={{ flex: 1 }} />
+                  <button onClick={() => setExpComments(false)} style={{ background: 'transparent', border: 'none', color: T.textT, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Ic n="x" size={16} /></button>
+                </div>
+                {renderFeed()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Lightbox da imagem */}
       {lightbox && (
