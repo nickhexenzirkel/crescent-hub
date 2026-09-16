@@ -39,6 +39,14 @@ const marcarAberta = (id) => {
 const nowIso = () => new Date().toISOString();
 // Texto puro a partir do HTML da descrição (pra prévia no card e no filtro).
 const stripHtml = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+// Remove cor/fundo colados de fora (ex: trecho copiado de um editor/terminal escuro), que senão fica
+// fixo no HTML salvo e ignora o tema claro/escuro do Trello.
+const stripInlineColors = (h) => String(h || '')
+  .replace(/\sstyle="[^"]*"/gi, '')
+  .replace(/\sstyle='[^']*'/gi, '')
+  .replace(/\sbgcolor="[^"]*"/gi, '')
+  .replace(/<font[^>]*color="[^"]*"[^>]*>/gi, '<span>')
+  .replace(/<\/font>/gi, '</span>');
 
 // Diff palavra-a-palavra (LCS) entre dois textos — usado pra destacar no
 // histórico exatamente o trecho que a pessoa mudou. Retorna { before, after },
@@ -1123,7 +1131,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   // continuar true — não depende de nenhuma suposição sobre reconciliação
   // do React pra dangerouslySetInnerHTML.
   useEffect(() => {
-    if (editDesc && descRef.current) descRef.current.innerHTML = card.description || '';
+    if (editDesc && descRef.current) descRef.current.innerHTML = stripInlineColors(card.description || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editDesc]);
 
@@ -1176,7 +1184,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const exec = (cmd, val) => { if (descRef.current) descRef.current.focus(); document.execCommand(cmd, false, val); };
   const changeFont = (delta) => { const lvl = Math.max(1, Math.min(7, fontLevel + delta)); setFontLevel(lvl); exec('fontSize', String(lvl)); };
   const saveDesc = () => {
-    const html = descRef.current ? descRef.current.innerHTML : (card.description || '');
+    const html = stripInlineColors(descRef.current ? descRef.current.innerHTML : (card.description || ''));
     const antes = card.description || '';
     if (html !== antes) onPatchLog(card.id, { description: html }, 'alterou a descrição', { before: stripHtml(antes), after: stripHtml(html) });
     setEditDesc(false);
@@ -1274,7 +1282,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                 </div>
               </div>
             ) : (stripHtml(card.description) ? (
-              <div onClick={abrirEdicaoDesc} className="cs-desc cs-scroll" dangerouslySetInnerHTML={{ __html: card.description }}
+              <div onClick={abrirEdicaoDesc} className="cs-desc cs-scroll" dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
                 style={{ fontSize: 15.5, lineHeight: 1.65, color: T.textS, cursor: 'text', padding: '2px', wordBreak: 'break-word', maxHeight: 340, overflowY: 'auto' }} />
             ) : (
               <div onClick={abrirEdicaoDesc} style={{ fontSize: 13.5, color: T.textT, cursor: 'text', padding: '16px', background: T.page, borderRadius: 12, border: `1px dashed ${brd}` }}>Adicione uma descrição mais detalhada…</div>
