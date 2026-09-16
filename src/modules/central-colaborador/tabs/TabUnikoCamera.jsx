@@ -48,12 +48,28 @@ const FILTERS = [
 ];
 const ENHANCE_CSS = 'contrast(1.08) saturate(1.12) brightness(1.04)';
 
-/* ── Papéis de parede decorativos (gradientes só em CSS, sem baixar imagem) ── */
+/* ── Papéis de parede decorativos ────────────────────────────────────────
+   Gradientes (só CSS, sem baixar imagem) + fotos padrão selecionadas pelo
+   usuário, salvas em public/uniko-camera-wallpapers/ — ficam disponíveis
+   pra TODO MUNDO (ao contrário do "Personalizado", que é upload pessoal e
+   fica só no localStorage de quem enviou). */
 const WALLPAPERS = [
   { id: 'grafite', nome: 'Grafite',    css: 'radial-gradient(120% 120% at 20% 0%, #4b4f57 0%, #2b2d33 45%, #16171a 100%)' },
   { id: 'aurora',  nome: 'Aurora',     css: 'radial-gradient(120% 120% at 15% 10%,#3ee6c4 0%, transparent 55%), radial-gradient(120% 120% at 85% 15%,#7b5cff 0%, transparent 55%), radial-gradient(140% 140% at 50% 100%,#1a1c3a 0%, #0c0d1f 60%)' },
   { id: 'poente',  nome: 'Pôr do Sol', css: 'radial-gradient(120% 120% at 20% 0%,#ffb46b 0%, transparent 55%), radial-gradient(120% 120% at 90% 20%,#ff6f91 0%, transparent 55%), radial-gradient(140% 140% at 50% 100%,#3a1c4a 0%, #170b23 65%)' },
   { id: 'oceano',  nome: 'Oceano',     css: 'radial-gradient(120% 120% at 10% 0%,#4fd8ff 0%, transparent 55%), radial-gradient(120% 120% at 90% 30%,#2a6df0 0%, transparent 55%), radial-gradient(140% 140% at 50% 100%,#031633 0%, #01060f 65%)' },
+  { id: 'vaca',          nome: 'Vaquinha',        css: 'url(/uniko-camera-wallpapers/vaca.jpg) center/cover no-repeat' },
+  { id: 'versalhes',     nome: 'Versalhes',       css: 'url(/uniko-camera-wallpapers/versalhes.jpg) center/cover no-repeat' },
+  { id: 'lirios',        nome: 'Lírios',          css: 'url(/uniko-camera-wallpapers/lirios.jpg) center/cover no-repeat' },
+  { id: 'gatinhos',      nome: 'Gatinhos',        css: 'url(/uniko-camera-wallpapers/gatinhos-stickers.jpg) center/cover no-repeat' },
+  { id: 'tartaruga',     nome: 'Tartaruga',       css: 'url(/uniko-camera-wallpapers/tartaruga.jpg) center/cover no-repeat' },
+  { id: 'onca',          nome: 'Onça',            css: 'url(/uniko-camera-wallpapers/onca.jpg) center/cover no-repeat' },
+  { id: 'buraconegro',   nome: 'Buraco Negro',    css: 'url(/uniko-camera-wallpapers/buraco-negro.jpg) center/cover no-repeat' },
+  { id: 'lacinhos',      nome: 'Lacinhos',        css: 'url(/uniko-camera-wallpapers/lacinhos.jpg) center/cover no-repeat' },
+  { id: 'bolhas',        nome: 'Bolhas',          css: 'url(/uniko-camera-wallpapers/bolhas.jpg) center/cover no-repeat' },
+  { id: 'galaxia',       nome: 'Galáxia',         css: 'url(/uniko-camera-wallpapers/galaxia.jpg) center/cover no-repeat' },
+  { id: 'memeespacial',  nome: 'Meme Espacial',   css: 'url(/uniko-camera-wallpapers/meme-espacial.jpg) center/cover no-repeat' },
+  { id: 'gatosmeme',     nome: 'Gatos Meme',      css: 'url(/uniko-camera-wallpapers/gatos-meme.jpg) center/cover no-repeat' },
 ];
 const PAPEL_KEY = 'ucam_papel_id';
 const PAPEL_CUSTOM_KEY = 'ucam_papel_custom';
