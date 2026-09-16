@@ -460,6 +460,29 @@ const TabUnikoCamera = () => {
   };
   useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
 
+  /* Liga sozinha se a permissão da câmera já tiver sido concedida antes —
+     pedido explícito do usuário, cansado de clicar "Ativar câmera" toda vez
+     que abre a aba. Só ativa de verdade quando o navegador confirma
+     `state === 'granted'` (sem isso, getUserMedia dispararia o popup de
+     permissão sozinho ao entrar na aba, o que seria pior). Primeira vez
+     (permissão ainda não decidida) continua exigindo o clique manual — e
+     Safari, que não suporta consultar a permissão de câmera, também cai
+     nesse caso (correto: fica no botão manual, nunca quebra). */
+  useEffect(() => {
+    let cancelado = false;
+    let status = null;
+    (async () => {
+      try {
+        if (!navigator.permissions?.query) return;
+        status = await navigator.permissions.query({ name: 'camera' });
+        if (cancelado) return;
+        if (status.state === 'granted') ligarCamera();
+        status.onchange = () => { if (!cancelado && status.state === 'granted') ligarCamera(); };
+      } catch { /* navegador sem suporte (ex.: Safari) — mantém o botão manual */ }
+    })();
+    return () => { cancelado = true; if (status) status.onchange = null; };
+  }, []);
+
   /* ── corações seguindo a cabeça: detecção de rosto de verdade ───────────
      Só carrega o modelo (import dinâmico) quando o efeito está ligado E a
      câmera está ativa. Suaviza a posição (lerp) pra não tremer a cada frame;
@@ -699,7 +722,12 @@ const TabUnikoCamera = () => {
               <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', color: 'rgba(255,255,255,.5)', whiteSpace: 'nowrap' }}>UNIKO CAMERA</span>
             </div>
 
-            <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 12, overflow: 'hidden', background: '#000', marginTop: 22 }}>
+            {/* height:100% + marginTop:22 juntos empurravam o vídeo 22px pra
+                fora da janela por baixo (a barra de título "rouba" espaço em
+                vez de entrar como margem extra) — por isso vazava o canto
+                arredondado por baixo do bezel. `calc(100% - 22px)` desconta
+                esse tanto. */}
+            <div style={{ position: 'relative', width: '100%', height: 'calc(100% - 22px)', borderRadius: 12, overflow: 'hidden', background: '#000', marginTop: 22 }}>
               <video ref={videoRef} muted playsInline
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
                   filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
