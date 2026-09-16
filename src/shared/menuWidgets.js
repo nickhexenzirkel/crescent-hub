@@ -345,7 +345,12 @@ export const useCaixaEntrada = (authUser) => {
       ...pj.filter(j => !diasDeSolicitacao.has(j.data)).map(itemAbono),
       ...at.map(itemAtualizacao), ...nt.map(itemAviso), ...cm.map(itemComunicado),
       ...cls.filter(x => x.status === 'pendente').map(itemListaCompartilhada),
-      ...fr.map(itemFitCurtida), ...fc.map(itemFitComentario),
+      // BUG (set/2026): a consulta trazia reação/comentário de QUALQUER foto do
+      // sistema (não dá pra filtrar no `.eq()` porque o dono vem só no join) —
+      // sem este filtro, todo mundo via a notificação de "curtiu sua foto" de
+      // curtidas em fotos alheias, com o nome de quem realmente postou.
+      ...fr.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitCurtida),
+      ...fc.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitComentario),
       ...fch.filter(x => x.player !== nome).map(itemFitChat)],
     // Registro desta faixa que mudou de estado ou sumiu: a versão velha sai do
     // mapa (solicitação de ponto resolvida/recusada, convite de coluna decidido).
